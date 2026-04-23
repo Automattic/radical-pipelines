@@ -4,3 +4,4 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 
 - Repository: https://github.com/Automattic/radical-pipelines
 - All tasks, bugs, and feature requests are tracked in the repository's GitHub Issues.
+- Whenever any task is performed that changes the code in this repository, the README.md must be updated to keep it up to date.
