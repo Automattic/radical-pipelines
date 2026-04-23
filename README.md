@@ -59,17 +59,23 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 # Project Usage
 
-## The `radical-pipelines` agent skill
+The repository ships an [agent skill](https://agentskills.io) that captures the methodology, so a compatible agent can run a task through the pipeline.
 
-While the full orchestrator is being designed, the repository ships an [agent skill](https://agentskills.io) that captures the methodology, so any compatible agent can run a task through the six phases.
+## Install
 
-The canonical copy lives at `.agents/skills/radical-pipelines/`, which many agents (Cursor, Codex, OpenCode, Gemini CLI, GitHub Copilot, Amp, and others) discover natively at the project level. Claude Code and Pi use their own directories, so the skill is additionally exposed through symlinks:
-
-- `.claude/skills/radical-pipelines` → `../../.agents/skills/radical-pipelines`
-- `.pi/skills/radical-pipelines` → `../../.agents/skills/radical-pipelines`
-
-To install the skill into any supported agent outside this repository, use the [Skills CLI](https://github.com/vercel-labs/skills):
+Install it with the [Skills CLI](https://github.com/vercel-labs/skills):
 
 ```bash
 npx skills add Automattic/radical-pipelines
 ```
+
+## Current status
+
+CLIs:
+
+- It only supports Claude Code.
+- Pi support is in progress.
+
+Phases:
+
+- It only supports phase 1 (spec generation).
