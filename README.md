@@ -1,4 +1,4 @@
-# Radical Pipelines
+<img alt="Radical Pipelines" src="./assets/radical-pipelines.png" width="600">
 
 An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases, where each phase produces concrete, inspectable artifacts.
 
