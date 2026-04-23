@@ -69,6 +69,16 @@ Install it with the [Skills CLI](https://github.com/vercel-labs/skills):
 npx skills add Automattic/radical-pipelines
 ```
 
+## Configuration
+
+The skill is generic — each project defines its own conventions for things like the task source, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. These conventions can live in any of these places (checked in order):
+
+1. The `AGENTS.md` file at the project root.
+2. A dedicated skill (e.g., `rp-conventions`).
+3. An `rp.md` file in the CLI's config folder — `.claude/rp.md`, `.pi/rp.md`, etc.
+
+See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples.
+
 ## Current status
 
 CLIs:
