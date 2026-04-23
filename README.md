@@ -1,3 +1,5 @@
+# Project Description
+
 <img alt="Radical Pipelines" src="./assets/radical-pipelines.png" width="600">
 
 An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases, where each phase produces concrete, inspectable artifacts.
@@ -54,3 +56,20 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 - **Pipeline completion rate.** Percentage of tasks that make it from prompt to finished implementation through all phases without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint.
 - **Relaunch efficiency.** When a human identifies a problem and corrects a specific phase, how many relaunch attempts does it take to reach an acceptable result? Fewer rounds means the pipeline is surfacing the right information for the human to make effective corrections.
 - **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human.
+
+# Project Usage
+
+## The `radical-pipelines` agent skill
+
+While the full orchestrator is being designed, the repository ships an [agent skill](https://agentskills.io) that captures the methodology, so any compatible agent can run a task through the six phases.
+
+The canonical copy lives at `.agents/skills/radical-pipelines/`, which many agents (Cursor, Codex, OpenCode, Gemini CLI, GitHub Copilot, Amp, and others) discover natively at the project level. Claude Code and Pi use their own directories, so the skill is additionally exposed through symlinks:
+
+- `.claude/skills/radical-pipelines` → `../../.agents/skills/radical-pipelines`
+- `.pi/skills/radical-pipelines` → `../../.agents/skills/radical-pipelines`
+
+To install the skill into any supported agent outside this repository, use the [Skills CLI](https://github.com/vercel-labs/skills):
+
+```bash
+npx skills add Automattic/radical-pipelines
+```
