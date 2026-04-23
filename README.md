@@ -10,11 +10,15 @@ Today, most of us use agents in what we'd call "assisted mode". We give them a r
 
 **The second is the lack of determinism.** Agent output is non-deterministic. The same prompt, the same context, can produce a different result every time. So even when the human knows exactly what they want, they still assist because the agent might take a bad path this particular run.
 
-On top of that, assisted mode has no structure. There's no systematic process that guarantees the right assets get produced. Whether tests, documentation, or other artifacts get generated depends entirely on the human remembering to ask for them.
+Beyond that:
 
-## The pipeline
+- **Assisted mode has no structure.** There's no systematic process that guarantees the right assets get produced. Whether tests, documentation, or other artifacts get generated depends entirely on the human remembering to ask for them.
 
-The pipeline runs teams of agents autonomously through a sequence of phases. Each phase produces concrete, inspectable assets, and the pipeline can run partially or fully without human intervention.
+- **Assisted mode is inherently local.** The context built up along the way, the decisions made, and the intermediate output only exist on the machine of the person doing the work. The final PR is the only thing the team gets to see, which makes it hard to coordinate or have multiple people work on the same task.
+
+## The proposal
+
+An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases. Each phase produces concrete, inspectable assets, and the pipeline can run partially or fully without human intervention.
 
 The phases are:
 
@@ -27,15 +31,16 @@ The phases are:
 
 The pipeline is **autonomous by default, assisted when needed.** It runs on its own, but humans can intervene at any checkpoint. For particularly complex tasks, specific phases can be run in assisted mode instead.
 
-It is **inspectable and relaunchable.** Every phase produces artifacts you can review. If the output at any point isn't what you expected, you go back to the phase where the assumptions diverged, correct them, and relaunch the autonomous sequence from there on a new branch. You don't start over.
+It is **inspectable and relaunchable.** Every phase produces artifacts your team can review. If the output at any point isn't what the team expected, anyone on the team can go back to the phase where the assumptions diverged, correct them, and relaunch the autonomous sequence from there.
 
-It can add **determinism through redundancy.** For complex tasks, you can spend more tokens on the same surface with multiple runs, validation checks, and adversarial agents to converge on more reliable output.
+It can add **determinism through redundancy.** For complex tasks, you should be able to spend more tokens on the same surface with multiple runs, validation checks, adversarial agents, and different models from different providers to converge on a more reliable output.
 
 ## What this unlocks
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
 - **Compounding quality.** When a pipeline produces a bad result, the fix lives in a specific phase (a wrong assumption in the spec, a missing constraint in the design doc). That fix improves every future run that goes through the same pipeline, not just the one that failed.
 - **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a guaranteed part of every run.
+- **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
 ## Why now
 
