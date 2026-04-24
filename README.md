@@ -79,6 +79,15 @@ The skill is generic — each project defines its own conventions for things lik
 
 See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples.
 
+### Pi dependencies
+
+When using pi, the project declares two required packages in [`.pi/settings.json`](./.pi/settings.json) — `@zenobius/pi-worktrees` and `pi-teams`. Pi installs them automatically on startup. You can also install them manually:
+
+```bash
+pi install npm:@zenobius/pi-worktrees -l
+pi install npm:pi-teams -l
+```
+
 ## Current status
 
 CLIs:
