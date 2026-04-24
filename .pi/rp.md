@@ -39,21 +39,7 @@ Use `.pipelines/<pipeline-slug>`.
 
 ## Spawning teams of agents
 
-This project uses `pi-teams`. Each pipeline phase is executed by a dedicated team of agents.
-
-**Team naming:** Use the pipeline slug as the team name.
-
-**Phase templates** are defined in `.pi/teams.yaml`. Pick the template that matches the current phase.
-
-**Agent definitions** live in `.pi/agents/`.
-
-**Running a phase:**
-
-1. Use `create_predefined_team` with the phase template name, the pipeline slug as team name, and the worktree path as `cwd`.
-2. Use `task_create` to assign work to the first agent in the phase.
-3. Monitor with `task_list` (task statuses) and the `check_teammate` tool (agent status + messages).
-4. Use `task_create` and `send_message` to coordinate handoffs between agents.
-5. Use `team_shutdown` once all tasks are `completed`.
+Use `pi-teams`.
 
 ## Commits
 
