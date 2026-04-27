@@ -83,8 +83,8 @@ See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](.
 
 CLIs:
 
-- It only supports Claude Code.
-- Pi support is in progress.
+- Claude Code
+- Pi
 
 Phases:
 

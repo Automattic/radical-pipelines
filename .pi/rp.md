@@ -1,3 +1,12 @@
+## Prerequisites
+
+This project requires two pi packages. They are declared in `.pi/settings.json` and pi installs them automatically on startup. If for any reason they are missing, install them manually:
+
+```bash
+pi install npm:@zenobius/pi-worktrees -l
+pi install npm:pi-teams -l
+```
+
 ## Managing tasks
 
 All the tasks are issues stored in this repository: https://github.com/Automattic/radical-pipelines.
@@ -10,13 +19,19 @@ Use `<issue-number>-<short-description>` where issue number is the GitHub issue 
 
 ## Worktrees
 
-Folder: `.pi/worktrees/<pipeline-slug>`
-Create worktree: `git worktree add .pi/worktrees/<pipeline-slug> -b worktree-<pipeline-slug>`
-Remove worktree: `git worktree remove .pi/worktrees/<pipeline-slug>`
+This project uses the `@zenobius/pi-worktrees` plugin. Always use `/worktree` commands — never raw `git worktree` commands.
+
+**One-time setup** (only needed once per machine, sets the worktree root for this project):
+```
+/worktree settings worktreeRoot .pi/worktrees
+```
+
+- **Create:** `/worktree create worktree-<pipeline-slug> --name <pipeline-slug>`
+- **Remove:** `/worktree remove <pipeline-slug>`
 
 ## Branch names
 
-Created with `-b worktree-<pipeline-slug>` when adding the worktree.
+Created as `worktree-<pipeline-slug>` (the branch argument passed to `/worktree create`).
 
 ## Pipeline artifact folders
 
@@ -24,7 +39,7 @@ Use `.pipelines/<pipeline-slug>`.
 
 ## Spawning teams of agents
 
-Pi has no built-in team spawning primitive (its core tools are `read`, `write`, `edit`, `bash`). The approach for team-based workflows under Pi is not yet finalized — ask the owner before proceeding.
+Use `pi-teams`.
 
 ## Commits
 

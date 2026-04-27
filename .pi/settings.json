@@ -1,0 +1,6 @@
+{
+  "packages": [
+    "npm:@zenobius/pi-worktrees",
+    "npm:pi-teams"
+  ]
+}
