@@ -79,6 +79,10 @@ The skill is generic — each project defines its own conventions for things lik
 
 See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples.
 
+## Examples
+
+- [`examples/secure-custom-fields/issue-419-gutenberg-custom-field-placeholders/`](./examples/secure-custom-fields/issue-419-gutenberg-custom-field-placeholders/) — a real pipeline artifact set for a public issue, including spec, design, and implementation-plan revisions plus their approved canonical artifacts.
+
 ## Current status
 
 CLIs:
