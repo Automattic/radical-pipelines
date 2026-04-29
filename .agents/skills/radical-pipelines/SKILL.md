@@ -48,15 +48,15 @@ To find the project-specific conventions, try the following in order:
 
 1. Shared project instructions already in your context or in project-root `AGENTS.md`.
 2. A dedicated conventions skill called `rp-conventions` or similar, when one is available.
-3. The Radical Pipelines `rp.md` file for the active agent tool, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
+3. The Radical Pipelines `rp.md` file in the active CLI's project configuration folder, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
 
-When reading conventions, distinguish shared cross-agent project instructions from agent tool-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. Agent tool-specific Radical Pipelines details belong in the active tool's `rp.md` file and must not be copied into `CLAUDE.md` or duplicated from `AGENTS.md`.
+When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. CLI-specific Radical Pipelines details belong in the active CLI's `rp.md` file and must not be copied into `CLAUDE.md` or duplicated from `AGENTS.md`.
 
 ### Missing conventions
 
 If all required conventions are available, continue the workflow unchanged.
 
-If one or more required conventions are missing, do not proceed with the pipeline. Read `reference/setup-project-conventions.md`, explain what is missing, and offer to run the setup flow. The setup flow must collect the missing information, write reusable Markdown guidance to the active agent tool's conventions file when the owner confirms, and then stop or continue only after the conventions are complete.
+If one or more required conventions are missing, do not proceed with the pipeline. Read `reference/setup-project-conventions.md`, explain what is missing, and offer to run the setup flow. The setup flow must collect the missing information, write reusable Markdown guidance to the active CLI's conventions file when the owner confirms, and then stop or continue only after the conventions are complete.
 
 If the owner declines setup, cancels, or leaves required answers unresolved, stop and clearly explain what is still missing. Do not create an incomplete conventions file unless the owner explicitly asks for a draft and the unresolved items are clearly marked.
 
