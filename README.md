@@ -79,6 +79,17 @@ The skill is generic — each project defines its own conventions for things lik
 
 See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples.
 
+### Tool-backed conventions
+
+When a convention names a tool, plugin, slash command, or package, that tool is part of the convention and must be treated as binding. The orchestrator must verify the tool's exact usage before acting, using the project's convention file, linked documentation, installed local package docs, or the owner.
+
+For example, Pi projects may define conventions that depend on:
+
+- [`pi-teams`](https://github.com/burggraf/pi-teams) for predefined teams, agent definitions, task assignment, and agent messaging.
+- [`@zenobius/pi-worktrees`](https://www.npmjs.com/package/@zenobius/pi-worktrees) for the `/worktree` command surface. Its `create` command is branch-first: `/worktree create <branch> [--name <worktree-name>]`.
+
+If a required tool's invocation cannot be verified from the current harness, the orchestrator must stop and ask the owner. It must not substitute fallback commands unless the project convention explicitly allows it; for example, do not use raw `git worktree` when `/worktree` is required, and do not manually create phase artifacts when a team runner is required.
+
 ## Current status
 
 CLIs:
