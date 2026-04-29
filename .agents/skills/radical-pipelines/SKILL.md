@@ -64,16 +64,6 @@ Before using a tool-backed convention, you must verify the tool's exact operatio
 
 Do not substitute an equivalent-looking fallback unless the project conventions explicitly allow it. For example, if a project requires a `/worktree` command, do not use raw `git worktree`; if a project requires a team runner, do not manually write the team's artifacts yourself.
 
-For common Pi tool-backed conventions, use these sources of truth when the project does not provide more specific links:
-
-- `pi-teams`: https://github.com/burggraf/pi-teams
-- `@zenobius/pi-worktrees`: https://www.npmjs.com/package/@zenobius/pi-worktrees
-
-Important Pi examples:
-
-- `pi-teams` predefined teams are defined in `.pi/teams.yaml`, with agent definitions in `.pi/agent/agents/` or `.pi/agents/`, and are created through Pi team commands rather than by manually writing another agent's artifacts.
-- `@zenobius/pi-worktrees` exposes a `/worktree` command surface. Its create command is branch-first: `/worktree create <branch> [--name <worktree-name>]`.
-
 If you cannot verify how to invoke a required tool from the current environment, stop and ask the owner before doing any work that depends on that tool.
 
 ## Workflows
