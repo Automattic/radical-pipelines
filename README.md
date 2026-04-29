@@ -63,7 +63,7 @@ The repository ships an [agent skill](https://agentskills.io) that captures the 
 
 ## Install
 
-Install it with the [Skills command-line tool](https://github.com/vercel-labs/skills):
+Install it with the Skills command-line tool:
 
 ```bash
 npx skills add Automattic/radical-pipelines
