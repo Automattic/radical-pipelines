@@ -88,6 +88,8 @@ For example, Pi projects may define conventions that depend on:
 - [`pi-teams`](https://github.com/burggraf/pi-teams) for predefined teams, agent definitions, task assignment, and agent messaging.
 - [`@zenobius/pi-worktrees`](https://www.npmjs.com/package/@zenobius/pi-worktrees) for the `/worktree` command surface. Its `create` command is branch-first: `/worktree create <branch> [--name <worktree-name>]`.
 
+Pi team agent definitions should avoid hard-coded provider-specific model aliases. Let Pi use the current/default configured model, or pass a provider-qualified `default_model` when creating a team. This prevents checked-in agent templates from resolving to a provider the user has not configured and failing before the teammate loop starts.
+
 If a required tool's invocation cannot be verified from the current harness, the orchestrator must stop and ask the owner. It must not substitute fallback commands unless the project convention explicitly allows it; for example, do not use raw `git worktree` when `/worktree` is required, and do not manually create phase artifacts when a team runner is required.
 
 ## Current status
