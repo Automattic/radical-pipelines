@@ -71,11 +71,15 @@ npx skills add Automattic/radical-pipelines
 
 ## Configuration
 
-The skill is generic — each project defines its own conventions for things like the task source, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. These conventions can live in any of these places (checked in order):
+The skill is generic — each project defines its own conventions for things like the task source, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. The skill looks for those conventions in this order:
 
-1. The `AGENTS.md` file at the project root.
-2. A dedicated skill (e.g., `rp-conventions`).
-3. An `rp.md` file in the CLI's config folder — `.claude/rp.md`, `.pi/rp.md`, etc.
+1. Shared project instructions in the project-root `AGENTS.md`.
+2. A dedicated conventions skill (e.g., `rp-conventions`).
+3. A Radical Pipelines `rp.md` file in the active CLI's config folder — `.pi/rp.md` for Pi, `.claude/rp.md` for Claude Code, or another active CLI equivalent.
+
+If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup flow. Setup asks for the missing convention details, explains which answers are shared project guidance and which are CLI-specific Radical Pipelines guidance, and can write a reusable Markdown conventions file for the active CLI after confirmation. Pi setup writes `.pi/rp.md`; Claude Code setup writes `.claude/rp.md`.
+
+Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific Radical Pipelines conventions should live in `.pi/rp.md`, `.claude/rp.md`, or the equivalent file for the active CLI. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
 
 See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples.
 
