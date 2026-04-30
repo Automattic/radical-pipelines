@@ -1,6 +1,6 @@
 # Starting a Pipeline
 
-Before executing these steps, make sure you have loaded the project conventions (see `SKILL.md` → "Project conventions"). Each step below applies one of those conventions.
+Before executing these steps, make sure you have loaded and verified the project conventions (see `SKILL.md` → "Project conventions"). If any required convention is missing, stop and run the setup flow in `reference/setup-project-conventions.md` before continuing. Each step below applies one of those conventions.
 
 ## Steps
 

@@ -40,16 +40,25 @@ This skill is generic, but each project has its own conventions that you must fo
 - Spawning teams of agents
 - Commits
 
-This information is necessary to execute the pipelines correctly, so you must read it before starting any workflow.
+This information is necessary to execute the pipelines correctly, so you must load and verify it before starting any workflow.
+
+### Loading conventions
 
 To find the project-specific conventions, try the following in order:
 
-- Already in your context (e.g., injected via `AGENTS.md` file or custom skill).
-- The `AGENTS.md` file.
-- A skill called `rp-conventions` or similar.
-- The `rp.md` file on your CLI specific folder (`.claude/rp.md`, `.pi/rp.md`, etc).
+1. Shared project instructions already in your context or in project-root `AGENTS.md`.
+2. A dedicated conventions skill called `rp-conventions` or similar, when one is available.
+3. The Radical Pipelines `rp.md` file in the active CLI's project configuration folder, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
 
-If any convention is missing, ask the owner before proceeding and then offer them to add it to the project for future reference.
+When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. CLI-specific Radical Pipelines details belong in the active CLI's `rp.md` file and must not be copied into `CLAUDE.md` or duplicated from `AGENTS.md`.
+
+### Missing conventions
+
+If all required conventions are available, continue the workflow unchanged.
+
+If one or more required conventions are missing, do not proceed with the pipeline. Read `reference/setup-project-conventions.md`, explain what is missing, and offer to run the setup flow. The setup flow must collect the missing information, write reusable Markdown guidance to the active CLI's conventions file when the owner confirms, and then stop or continue only after the conventions are complete.
+
+If the owner declines setup, cancels, or leaves required answers unresolved, stop and clearly explain what is still missing. Do not create an incomplete conventions file unless the owner explicitly asks for a draft and the unresolved items are clearly marked.
 
 ### Tool-backed conventions
 
@@ -73,3 +82,4 @@ Before executing any workflow, you must read the corresponding reference file(s)
 | When the owner wants to... | Read                               |
 | -------------------------- | ---------------------------------- |
 | Start work on a pipeline   | `reference/starting-a-pipeline.md` |
+| Set up missing conventions | `reference/setup-project-conventions.md` |
