@@ -41,8 +41,6 @@ Use `.pipelines/<pipeline-slug>`.
 
 Use `pi-teams`.
 
-Agent definitions should not hard-code provider-specific model aliases such as `opus`, because they can resolve through providers the user has not configured (for example OpenRouter) and prevent every teammate from starting. Let Pi use the current session/default model, or pass an explicit provider-qualified `default_model` when creating a team if the owner requests a specific model.
-
 ## Commits
 
 Use imperative mood, sentence case, no period at the end. Include the name of the agent in parenthesis.
