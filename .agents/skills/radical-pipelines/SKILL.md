@@ -60,6 +60,21 @@ If one or more required conventions are missing, do not proceed with the pipelin
 
 If the owner declines setup, cancels, or leaves required answers unresolved, stop and clearly explain what is still missing. Do not create an incomplete conventions file unless the owner explicitly asks for a draft and the unresolved items are clearly marked.
 
+### Tool-backed conventions
+
+Some project conventions are implemented by named tools, plugins, slash commands, or external packages. These conventions are binding, not suggestions.
+
+Before using a tool-backed convention, you must verify the tool's exact operational semantics from one of these sources:
+
+- The project's convention file, if it includes complete usage instructions.
+- The tool's linked documentation or repository.
+- The installed local package documentation or examples.
+- The owner, if the documentation is missing, unavailable, ambiguous, or cannot be accessed from the current harness.
+
+Do not substitute an equivalent-looking fallback unless the project conventions explicitly allow it. For example, if a project requires a `/worktree` command, do not use raw `git worktree`; if a project requires a team runner, do not manually write the team's artifacts yourself.
+
+If you cannot verify how to invoke a required tool from the current environment, stop and ask the owner before doing any work that depends on that tool.
+
 ## Workflows
 
 Before executing any workflow, you must read the corresponding reference file(s) listed below. This applies every time you start a workflow, even if you have read the file before in this conversation. Always re-read before starting to refresh your mind.

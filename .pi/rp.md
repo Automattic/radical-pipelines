@@ -13,6 +13,8 @@ All the tasks are issues stored in this repository: https://github.com/Automatti
 
 To manage them, always use the `gh` CLI.
 
+For GitHub issue tasks, associated implementation work means associated pull requests. Before starting a pipeline for an issue, check for associated pull requests with `gh api graphql` by inspecting the issue timeline for `CONNECTED_EVENT` and `CROSS_REFERENCED_EVENT` entries whose subject/source is a pull request. If any are found, warn the owner with the PR number, title, state, URL, and merged status, then stop unless the owner explicitly confirms continuing.
+
 ## Pipeline slugs
 
 Use `<issue-number>-<short-description>` where issue number is the GitHub issue number.

@@ -71,7 +71,7 @@ npx skills add Automattic/radical-pipelines
 
 ## Configuration
 
-The skill is generic — each project defines its own conventions for things like the task source, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. The skill looks for those conventions in this order:
+The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. These conventions can live in any of these places (checked in order):
 
 1. Shared project instructions in the project-root `AGENTS.md`.
 2. A dedicated conventions skill (e.g., `rp-conventions`).
