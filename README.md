@@ -59,15 +59,40 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 # Project Usage
 
-The repository ships an [agent skill](https://agentskills.io) that captures the methodology, so a compatible agent can run a task through the pipeline.
+The repository ships a Pi package and an [agent skill](https://agentskills.io) that capture the methodology, so a compatible agent can run a task through the pipeline.
 
 ## Install
 
-Install it with the [Skills command-line tool](https://github.com/vercel-labs/skills):
+For Pi, install the package. It provides the Radical Pipelines skill, `/rp-doctor` and `/rp-init` setup commands, phase agent profiles, pi-teams team templates, and bundled `pi-teams` and `@zenobius/pi-worktrees` resources:
+
+```bash
+pi install npm:@automattic/radical-pipelines-pi
+```
+
+For a project-local/shared install, use:
+
+```bash
+pi install npm:@automattic/radical-pipelines-pi -l
+```
+
+During package development in this repository, install dependencies first and then install the local path:
+
+```bash
+cd packages/pi
+npm install
+cd ../..
+pi install ./packages/pi -l
+```
+
+Then run `/rp-doctor` to verify the package and `/rp-init` to create missing project-local `.pi/agents/*.md` files and `.pi/teams.yaml` templates.
+
+Fallback skill-only install with the [Skills command-line tool](https://github.com/vercel-labs/skills):
 
 ```bash
 npx skills add Automattic/radical-pipelines
 ```
+
+The fallback only installs the skill. It does not install Pi extensions, `/rp-doctor`, `/rp-init`, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team files.
 
 ## Configuration
 
@@ -81,7 +106,7 @@ If required conventions are missing when a workflow starts, Radical Pipelines st
 
 Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific Radical Pipelines conventions should live in `.pi/rp.md` or `.claude/rp.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
 
-See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples.
+See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples. For Pi, the package's `/rp-init` command can install the project-local agent profiles and `teams.yaml` templates expected by `pi-teams`.
 
 ## Current status
 

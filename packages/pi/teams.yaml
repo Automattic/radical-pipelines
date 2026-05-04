@@ -1,0 +1,13 @@
+# Full Radical Pipelines phase team
+radical-pipelines:
+  - prompt-writer
+  - spec-writer
+  - designer
+  - planner
+  - implementer
+  - documenter
+
+# Current minimal workflow for repositories that only run spec generation
+radical-pipelines-spec:
+  - prompt-writer
+  - spec-writer

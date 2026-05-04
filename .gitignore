@@ -1,2 +1,3 @@
 .pi/npm/node_modules/
 .pi/worktrees/
+packages/pi/node_modules/
