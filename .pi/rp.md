@@ -6,8 +6,6 @@ This project requires the Radical Pipelines Pi package. It is declared in `.pi/s
 pi install ./packages/pi -l
 ```
 
-After installation, run `/rp-doctor` to verify the package and `/rp-init` if project-local Radical Pipelines team templates or agent profiles are missing.
-
 ## Managing tasks
 
 All the tasks are issues stored in this repository: https://github.com/Automattic/radical-pipelines.

@@ -78,8 +78,6 @@ pi install npm:@automattic/radical-pipelines-pi -l
 The package installs:
 
 - the `radical-pipelines` skill;
-- the `/rp-doctor` verification command;
-- the `/rp-init` project setup command;
 - six phase agent profiles: `prompt-writer`, `spec-writer`, `designer`, `planner`, `implementer`, and `documenter`;
 - `radical-pipelines` and `radical-pipelines-spec` pi-teams templates;
 - bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
@@ -93,24 +91,14 @@ cd ../..
 pi install ./packages/pi -l
 ```
 
-## Pi verification and usage
+## Pi usage
 
 After installing the Pi package in a repository:
 
-1. Run `/rp-doctor` to verify the skill, bundled package resources, worktree commands, pi-teams tools, project-local agents, and team templates.
-2. Run `/rp-init` if the doctor reports missing project-local `.pi/agents/*.md` files or `.pi/teams.yaml` templates. It creates missing files, appends missing teams, and backs up differing files before replacing them after confirmation.
-3. Run `/rp-doctor` again. A ready project reports agents `6/6` and team templates `2/2`.
-4. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-5. Use pi-teams predefined team creation with the `radical-pipelines` or `radical-pipelines-spec` templates.
+1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
+2. Use pi-teams predefined team creation with the `radical-pipelines` or `radical-pipelines-spec` templates.
 
-For non-interactive print-mode checks, unset teammate environment variables first, for example:
-
-```bash
-env -u PI_TEAM_NAME -u PI_AGENT_NAME pi -p "/rp-doctor"
-printf 'y\n' | env -u PI_TEAM_NAME -u PI_AGENT_NAME pi -p "/rp-init"
-```
-
-Validation for the local package has verified `npm pack --dry-run`, `pi install ./packages/pi -l`, `pi list`, `/rp-doctor` before and after `/rp-init`, `/skill:radical-pipelines`, predefined team discovery, and spawning the `radical-pipelines-spec` team. The local validation used print mode with piped confirmations rather than a full manual interactive UI.
+Validation for the local package has verified `npm pack --dry-run`, `pi install ./packages/pi -l`, `pi list`, `/skill:radical-pipelines`, predefined team discovery, and spawning the `radical-pipelines-spec` team. The local validation used print mode rather than a full manual interactive UI.
 
 ## Dependency bundling
 
@@ -124,7 +112,7 @@ Fallback skill-only install with the [Skills command-line tool](https://github.c
 npx skills add Automattic/radical-pipelines
 ```
 
-The fallback only installs the skill. It does not install Pi extensions, `/rp-doctor`, `/rp-init`, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team files, and skill install paths can vary across CLIs, symlinks, and home-relative setups. Use the Pi package when you want automated Pi setup and verification.
+The fallback only installs the skill. It does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team files, and skill install paths can vary across CLIs, symlinks, and home-relative setups. Use the Pi package when you want automated Pi setup.
 
 ## Configuration
 
@@ -138,7 +126,7 @@ If required conventions are missing when a workflow starts, Radical Pipelines st
 
 Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific Radical Pipelines conventions should live in `.pi/rp.md` or `.claude/rp.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
 
-See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples. Pi projects should define the pipeline artifact folder convention (for example `.pipelines/<pipeline-slug>`), worktree root setup (for example `/worktree settings worktreeRoot .pi/worktrees`), and pi-teams spawning conventions. For Pi, `/rp-init` installs the project-local agent profiles and `teams.yaml` templates expected by `pi-teams`.
+See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples. Pi projects should define the pipeline artifact folder convention (for example `.pipelines/<pipeline-slug>`), worktree root setup (for example `/worktree settings worktreeRoot .pi/worktrees`), and pi-teams spawning conventions.
 
 ## Current status and limitations
 
@@ -153,7 +141,6 @@ Phases:
 
 Pi package limitations:
 
-- `/rp-init` is required for pi-teams agent and team discovery because pi-teams currently reads predefined agents/templates from global or project-local locations, not package-local files.
-- Non-interactive `/rp-init` with no confirmation input exits without output or file changes.
+- pi-teams currently reads predefined agents/templates from global or project-local locations, not package-local files, so project-local `.pi/agents/*.md` and `.pi/teams.yaml` may need to be set up before predefined Radical Pipelines teams are visible.
 - Local validation on Node v20.14.0 produced npm `EBADENGINE` warnings from transitive dependencies and two moderate `npm audit` findings.
 - Open PRs may change nearby guidance later: PR #6 may improve pi-teams examples, PR #10 may change convention setup, and PR #12 may add orchestration safeguards. This package does not depend on those PRs being merged.

@@ -8,7 +8,6 @@
   ],
   "type": "module",
   "files": [
-    "extensions",
     "skills",
     "agents",
     "teams.yaml",
@@ -32,7 +31,6 @@
   },
   "pi": {
     "extensions": [
-      "extensions/radical-pipelines.ts",
       "node_modules/pi-teams/extensions/index.ts",
       "node_modules/@zenobius/pi-worktrees/dist/index.js"
     ],

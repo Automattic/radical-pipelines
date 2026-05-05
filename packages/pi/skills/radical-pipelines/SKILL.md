@@ -30,9 +30,7 @@ _For now, only phase 1 is available, the rest will be added later._
 
 ## Pi package setup
 
-When this skill is loaded from the `@automattic/radical-pipelines-pi` package, ask the user to run `/rp-doctor` first if package health is unclear. If `pi-teams` predefined agents or the Radical Pipelines team template are missing, ask the user to run `/rp-init` from the target repository before spawning teams.
-
-Fallback installs via `npx skills add Automattic/radical-pipelines` only install this skill. They do not install Pi extensions, `/rp-doctor`, `/rp-init`, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team files. In fallback mode, tell Pi users to install those packages with `pi install` or switch to the Pi package for automated verification/setup.
+Fallback installs via `npx skills add Automattic/radical-pipelines` only install this skill. They do not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team files. In fallback mode, tell Pi users to install those packages with `pi install` or switch to the Pi package for automated setup.
 
 ## Project conventions
 
