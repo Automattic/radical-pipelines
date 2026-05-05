@@ -7,15 +7,8 @@ const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const packagedAgentsDir = path.join(packageRoot, "agents");
 const packagedTeamsYaml = path.join(packageRoot, "teams.yaml");
 
-const expectedAgents = [
-  "prompt-writer",
-  "spec-writer",
-  "designer",
-  "planner",
-  "implementer",
-  "documenter",
-];
-const expectedTeams = ["radical-pipelines", "radical-pipelines-spec"];
+const expectedAgents = ["prompt-writer", "spec-writer"];
+const expectedTeams = ["radical-pipelines-spec"];
 
 function readText(filePath: string): string | undefined {
   try {

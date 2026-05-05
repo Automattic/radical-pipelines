@@ -18,10 +18,8 @@ packages/pi/
   agents/
     prompt-writer.md
     spec-writer.md
-    designer.md
-    planner.md
-    implementer.md
-    documenter.md
+    # designer.md, planner.md, implementer.md, documenter.md will be added when
+    # the radical-pipelines skill enables phases beyond Prompt + Spec.
   teams.yaml
   prompts/                 # optional, only if reusable prompt templates are added
   README.md                # package-specific install/verification notes

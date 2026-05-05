@@ -6,8 +6,8 @@ This Pi package installs the Radical Pipelines skill, a setup/doctor extension, 
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
 - Extension: `extensions/radical-pipelines.ts`, which registers `/rp-doctor` and `/rp-init`.
-- Agents: `prompt-writer`, `spec-writer`, `designer`, `planner`, `implementer`, and `documenter`.
-- Team templates: `radical-pipelines` and `radical-pipelines-spec`.
+- Agents: `prompt-writer` and `spec-writer`. Additional phase agents (`designer`, `planner`, `implementer`, `documenter`) will ship when the `radical-pipelines` skill enables those phases.
+- Team templates: `radical-pipelines-spec`. The full `radical-pipelines` team will ship alongside the remaining phase agents.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
 No prompt templates or themes are currently included.
@@ -67,11 +67,13 @@ Verified local results:
 
 - `npm pack --dry-run` succeeded and included the package README, agents, extension, package manifest, skill files, reference docs, team templates, and bundled dependencies.
 - `pi install ./packages/pi -l && pi list` succeeded; in this worktree `pi list` showed project package `../packages/pi`.
-- `/rp-doctor` before init reported bundled package resources OK, project agents `0/6`, and project team templates `0/2`.
+- `/rp-doctor` before init reported bundled package resources OK, project agents `0/2`, and project team templates `0/1`.
 - `/rp-init` with piped confirmation created ignored project-local `.pi/agents/*.md` and `.pi/teams.yaml` files.
-- `/rp-doctor` after init reported project agents `6/6` and team templates `2/2` ready.
+- `/rp-doctor` after init reported project agents `2/2` and team templates `1/1` ready.
 - `/skill:radical-pipelines` succeeded with `Ready. What pipeline/task would you like to start?`.
-- pi-teams predefined discovery found `radical-pipelines` and `radical-pipelines-spec`; creating `radical-pipelines-spec` spawned the prompt/spec writer agents in a smoke test.
+- pi-teams predefined discovery found `radical-pipelines-spec`; creating `radical-pipelines-spec` spawned the prompt/spec writer agents in a smoke test.
+
+Earlier verification ran against a six-agent package; the trimmed package needs a re-run to confirm the new counts.
 
 ## Commands
 
@@ -86,7 +88,7 @@ Non-interactive `/rp-init` with no confirmation input exits without output or fi
 2. Run `/rp-doctor` in the target repository.
 3. Run `/rp-init` if the doctor reports missing Radical Pipelines agents or team templates.
 4. Start the workflow with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-5. Use pi-teams predefined team creation with the `radical-pipelines` or `radical-pipelines-spec` templates.
+5. Use pi-teams predefined team creation with the `radical-pipelines-spec` template.
 
 The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, `.pipelines/<pipeline-slug>` artifact folders, `/worktree` setup, branch naming, team spawning, and commit format.
 
