@@ -92,9 +92,9 @@ If you cannot verify how to invoke a required tool from the current environment,
 
 Before executing any workflow, you must read the corresponding reference file(s) listed below. This applies every time you start a workflow, even if you have read the file before in this conversation. Always re-read before starting to refresh your mind.
 
-| When you need to...                          | Read                                                |
-| -------------------------------------------- | --------------------------------------------------- |
-| Start an autonomous run                      | `reference/autonomous/planning-the-pipeline.md`     |
-| Run phase 1 (spec) inside an autonomous run  | `reference/autonomous/running-the-spec-phase.md`    |
-| Set up a pipeline through phase 0            | `reference/starting-a-pipeline.md`                  |
-| Set up missing conventions                   | `reference/setup-project-conventions.md`            |
+| When you need to...                          | Read                                                      |
+| -------------------------------------------- | --------------------------------------------------------- |
+| Start an autonomous run                      | `reference/autonomous/running-the-autonomous-workflow.md` |
+| Run phase 1 (spec) inside an autonomous run  | `reference/autonomous/running-the-spec-phase.md`          |
+| Set up a pipeline through phase 0            | `reference/starting-a-pipeline.md`                        |
+| Set up missing conventions                   | `reference/setup-project-conventions.md`                  |

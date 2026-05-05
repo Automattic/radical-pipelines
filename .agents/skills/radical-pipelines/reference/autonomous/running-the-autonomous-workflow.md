@@ -1,4 +1,4 @@
-# Planning the Pipeline (Autonomous Workflow)
+# Running the Autonomous Workflow
 
 This is the entry point of the **autonomous workflow**. It collects the run plan with the owner up-front, runs phase 0 to set up the workspace, and then continues to subsequent phases per the plan, stopping at the target phase.
 

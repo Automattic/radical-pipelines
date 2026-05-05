@@ -1,6 +1,6 @@
 # Running the Spec Phase (Phase 1, Autonomous Workflow)
 
-This is the phase-1 step of the **autonomous workflow**. It advances the pipeline from phase 0 (`prompt.md`) to phase 1 (`spec.md`) and assumes phase 0 has already finished, the worktree is set up, and the autonomous run plan was confirmed during `planning-the-pipeline.md`.
+This is the phase-1 step of the **autonomous workflow**. It advances the pipeline from phase 0 (`prompt.md`) to phase 1 (`spec.md`) and assumes phase 0 has already finished, the worktree is set up, and the autonomous run plan was confirmed during `running-the-autonomous-workflow.md`.
 
 Inputs:
 
@@ -12,7 +12,7 @@ Output:
 
 ## Decisions
 
-These are the choices the orchestrator collects during planning (see `planning-the-pipeline.md`) before launching this phase as part of the autonomous run.
+These are the choices the orchestrator collects during planning (see `running-the-autonomous-workflow.md`) before launching this phase as part of the autonomous run.
 
 - **Generation mode** (default: `single`):
   - `single` — one `spec-writer` drafts the spec; one `spec-reviewer` reviews adversarially. The writer revises until the reviewer approves or the iteration cap is reached.
