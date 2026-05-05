@@ -94,7 +94,7 @@ Before executing any workflow, you must read the corresponding reference file(s)
 
 | When you need to...                          | Read                                                |
 | -------------------------------------------- | --------------------------------------------------- |
-| Start an autonomous run                      | `reference/autonomous/starting-a-pipeline.md`       |
-| Plan an autonomous run with the owner        | `reference/autonomous/planning-the-pipeline.md`     |
+| Start an autonomous run                      | `reference/autonomous/planning-the-pipeline.md`     |
 | Run phase 1 (spec) inside an autonomous run  | `reference/autonomous/running-the-spec-phase.md`    |
+| Set up a pipeline through phase 0            | `reference/starting-a-pipeline.md`                  |
 | Set up missing conventions                   | `reference/setup-project-conventions.md`            |

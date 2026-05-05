@@ -1,6 +1,6 @@
 # Planning the Pipeline (Autonomous Workflow)
 
-Run this workflow at the start of every autonomous run, after the task has been identified and before any worktree, artifacts, or commits are created. Its purpose is to gather a complete plan with the owner so the autonomous run executes without further interruptions afterwards.
+This is the entry point of the **autonomous workflow**. It collects the run plan with the owner up-front, runs phase 0 to set up the workspace, and then continues to subsequent phases per the plan, stopping at the target phase.
 
 The plan has two parts:
 
@@ -11,7 +11,7 @@ Collect everything up-front. Once the autonomous run starts, do not ask the owne
 
 ## 1. Frame the conversation
 
-When you start the planning conversation, tell the owner explicitly that this is the autonomous workflow and that you will collect all the decisions up-front so the run can then proceed without interruptions.
+When you greet the owner, tell them explicitly that this is the autonomous workflow and that you will collect all the decisions up-front so the run can then proceed without interruptions.
 
 ## 2. Ask the target phase
 
@@ -40,6 +40,12 @@ Phase 0 (creating the prompt artifact) has no decisions — it is purely setup.
 
 Restate the full plan back to the owner in plain language: that this is an autonomous run, the target phase, and any non-default per-phase decisions. If the owner accepts, proceed. If they want changes, revise and confirm again.
 
-## 5. Hand off
+## 5. Set up phase 0
 
-Return control to the calling workflow (`starting-a-pipeline.md`). It will run phase 0 first and then continue to subsequent phases per the plan, stopping at the target phase.
+Read `../starting-a-pipeline.md` and run that workflow. It identifies the task, creates the worktree and artifacts folder, writes `prompt.md`, and commits.
+
+## 6. Continue per plan
+
+If the plan's target phase is phase 0, stop here. The autonomous run ends with the prompt artifact ready for review.
+
+If the plan extends to phase 1, read `running-the-spec-phase.md` and run that workflow with the per-phase decisions collected in step 3.
