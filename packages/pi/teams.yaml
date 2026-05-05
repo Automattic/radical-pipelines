@@ -1,0 +1,6 @@
+# Current minimal workflow: only the phases the radical-pipelines skill implements
+# (Prompt + Spec). Additional phase agents and a full radical-pipelines team will
+# be added when the skill enables those phases.
+radical-pipelines-spec:
+  - prompt-writer
+  - spec-writer
