@@ -1,11 +1,12 @@
 ## Prerequisites
 
-This project requires two pi packages. They are declared in `.pi/settings.json` and pi installs them automatically on startup. If for any reason they are missing, install them manually:
+This project requires the Radical Pipelines Pi package. It is declared in `.pi/settings.json` and pi installs it automatically on startup. The package bundles `pi-teams` and `@zenobius/pi-worktrees`. If for any reason it is missing, install it manually:
 
 ```bash
-pi install npm:@zenobius/pi-worktrees -l
-pi install npm:pi-teams -l
+pi install ./packages/pi -l
 ```
+
+After installation, run `/rp-doctor` to verify the package and `/rp-init` if project-local Radical Pipelines team templates or agent profiles are missing.
 
 ## Managing tasks
 
