@@ -63,13 +63,13 @@ The repository ships a Claude Code plugin, a Pi package, and a standalone [agent
 
 ## Claude Code plugin install
 
-Claude Code installs plugins through marketplaces. The repository acts as a single-plugin marketplace (`.claude-plugin/marketplace.json`) that lists the Radical Pipelines plugin (`.claude-plugin/plugin.json` at the repo root).
+Claude Code installs plugins through marketplaces. This repository ships an `automattic` marketplace catalog (`.claude-plugin/marketplace.json`) that currently lists only the Radical Pipelines plugin (`.claude-plugin/plugin.json` at the repo root). Naming the marketplace `automattic` rather than `radical-pipelines` anticipates a future move to a centralized `Automattic/claude-plugins` repo without changing the install command users have memorized.
 
 To install from the public repository:
 
 ```text
 /plugin marketplace add Automattic/radical-pipelines
-/plugin install radical-pipelines@radical-pipelines
+/plugin install radical-pipelines@automattic
 ```
 
 For local development, skip the marketplace flow entirely and load the plugin directly from a checkout with Claude Code's `--plugin-dir` flag:
@@ -85,7 +85,7 @@ The plugin currently bundles:
 - the `radical-pipelines` skill (exposed under `skills/radical-pipelines/` as a symlink to `.agents/skills/radical-pipelines/` so the source of truth stays in `.agents/`).
 - agent profiles under `agents/` (symlink to `.agents/agents/`), shared with the Pi package.
 
-Plugin skills are namespaced by the plugin name in Claude Code. After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
+Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
 ## Pi package install
 

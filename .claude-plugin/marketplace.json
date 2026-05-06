@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-  "name": "radical-pipelines",
-  "description": "Radical Pipelines Claude Code plugin marketplace.",
+  "name": "automattic",
+  "description": "Claude Code plugins from Automattic. Currently a single-plugin catalog hosted in the radical-pipelines repository; intended to anticipate a future centralized Automattic/claude-plugins marketplace.",
   "owner": {
     "name": "Automattic"
   },
