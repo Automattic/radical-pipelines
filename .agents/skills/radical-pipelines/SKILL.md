@@ -1,6 +1,6 @@
 ---
 name: radical-pipelines
-description: Execute a software engineering task by running it through six sequential phases (Prompt → Spec → Design doc → Implementation plan → Implementation → Documentation). Use when the user asks wants to work on a task or a pipeline.
+description: Run an autonomous software engineering pipeline that takes a task through six sequential phases (Prompt → Spec → Design doc → Implementation plan → Implementation → Documentation), each producing inspectable artifacts. Use when the user wants to work on a task or run a pipeline.
 ---
 
 # Radical Pipelines
@@ -9,15 +9,17 @@ description: Execute a software engineering task by running it through six seque
 
 You are the orchestrator of a team of agents that execute software engineering tasks by running them through a pipeline of defined phases.
 
+This skill currently defines a single workflow: the **autonomous workflow**. Other workflows (assisted variants of individual phases, resuming a paused pipeline, etc.) are out of scope here and will be defined separately when implemented.
+
 ## Rules
 
 - Humans only talk with you, never with the other agents.
 - You never do or review the work yourself. Your only task is to orchestrate the teams of agents that do the work.
 
-## Pipelines
+## The autonomous workflow
 
 - Each phase produces concrete, inspectable artifacts that humans can review, revise, and relaunch from if needed.
-- The pipeline is autonomous by default: you run each phase end-to-end, then proceed to the next until the task is completed. You only pause when the user asked you to stop at a specific phase.
+- Once the autonomous workflow starts, it runs each phase end-to-end without further questions until it reaches the target phase agreed with the owner. The owner is told up-front that this is the autonomous workflow so they know what to expect.
 
 ## Phases
 
@@ -26,7 +28,18 @@ You are the orchestrator of a team of agents that execute software engineering t
 | 0   | Prompt | The raw request (input, not something to create) |
 | 1   | Spec   | Requirements, acceptance criteria, out-of-scope  |
 
-_For now, only phase 1 is available, the rest will be added later._
+_Only phase 1 is implemented. Phases 2–5 (Design doc, Implementation plan, Implementation, Documentation) will follow the same pattern when added._
+
+## Autonomous run plan
+
+Every autonomous run starts by agreeing a plan with the owner before any work happens:
+
+- **Target phase** — the highest phase to run in this autonomous run. The pipeline stops there.
+- **Per-phase decisions** — for each phase from the next-to-run up to the target, the choices that govern how that phase is executed. Each phase's reference doc lists the decisions it accepts in a `Decisions` section, with documented defaults.
+
+The plan is collected up-front so the autonomous run executes without interruptions until the target phase finishes. The plan is not written as an artifact — it lives in your working memory and manifests through the choices made when running each phase.
+
+When the autonomous run stops at the target phase, the session ends. What happens after (review, edits, continuing to later phases, switching to a different workflow) is decided in a separate session.
 
 ## Project conventions
 
@@ -79,7 +92,9 @@ If you cannot verify how to invoke a required tool from the current environment,
 
 Before executing any workflow, you must read the corresponding reference file(s) listed below. This applies every time you start a workflow, even if you have read the file before in this conversation. Always re-read before starting to refresh your mind.
 
-| When the owner wants to... | Read                               |
-| -------------------------- | ---------------------------------- |
-| Start work on a pipeline   | `reference/starting-a-pipeline.md` |
-| Set up missing conventions | `reference/setup-project-conventions.md` |
+| When you need to...                          | Read                                                      |
+| -------------------------------------------- | --------------------------------------------------------- |
+| Start an autonomous run                      | `reference/autonomous/running-the-autonomous-workflow.md` |
+| Run phase 1 (spec) inside an autonomous run  | `reference/autonomous/running-the-spec-phase.md`          |
+| Set up a pipeline through phase 0            | `reference/starting-a-pipeline.md`                        |
+| Set up missing conventions                   | `reference/setup-project-conventions.md`                  |

@@ -135,9 +135,17 @@ CLIs:
 - Claude Code
 - Pi
 
-Phases:
+Workflows:
 
-- It only supports phase 1 (spec generation).
+- **Autonomous workflow** — runs phases unattended up to a target phase agreed with the owner at the start of the session. The owner makes all per-phase decisions up-front and the run executes without further interruptions until it reaches the target. This is the only workflow currently implemented; assisted variants of individual phases and resume workflows will be added separately.
+
+Phases (within the autonomous workflow):
+
+- **Phase 0 (Prompt)** captures the task as `prompt.md`.
+- **Phase 1 (Spec)** produces `spec.md` from the prompt. Two execution modes are available, chosen at planning time:
+  - `single` — one spec writer + one adversarial reviewer in a revision loop.
+  - `multi` — N parallel spec writers followed by a consolidator that merges the drafts.
+- Phases 2–5 (Design doc, Implementation plan, Implementation, Documentation) are not yet implemented.
 
 Pi package limitations:
 
