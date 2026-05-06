@@ -29,12 +29,13 @@ This skill defines two workflows: the **autonomous workflow** (a full pipeline r
 
 ## Phases
 
-| #   | Phase  | Produces                                         |
-| --- | ------ | ------------------------------------------------ |
-| 0   | Prompt | The raw request (input, not something to create) |
-| 1   | Spec   | Requirements, acceptance criteria, out-of-scope  |
+| #   | Phase         | Agent          | Produces                                              |
+| --- | ------------- | -------------- | ----------------------------------------------------- |
+| 0   | Prompt        | prompt-writer  | The raw request (input, not something to create)      |
+| 1   | Spec          | spec-writer    | Requirements, acceptance criteria, out-of-scope       |
+| 5   | Documentation | doc-writer     | Updated README, package docs, examples, conventions   |
 
-_Only phase 1 is implemented. Phases 2–5 (Design doc, Implementation plan, Implementation, Documentation) will follow the same pattern when added._
+_Only phase 1 has a full autonomous and assisted workflow today. The Documentation phase ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop to update docs after work has landed. Phases 2–4 (Design doc, Implementation plan, Implementation) will follow the same pattern when added._
 
 ## Autonomous run plan
 

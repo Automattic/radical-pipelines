@@ -112,8 +112,8 @@ This routes through the root-level Pi manifest (`package.json` at the repo root)
 The package installs:
 
 - the `radical-pipelines` skill;
-- six phase agent profiles: `prompt-writer`, `spec-writer`, `designer`, `planner`, `implementer`, and `documenter`;
-- `radical-pipelines` and `radical-pipelines-spec` pi-teams templates;
+- phase agent profiles for the implemented phases: `prompt-writer`, `spec-writer`, `doc-writer`, and `doc-reviewer`. `designer`, `planner`, and `implementer` will ship as those phases are added;
+- the `radical-pipelines-spec` pi-teams template. The full `radical-pipelines` team will ship alongside the remaining phase agents;
 - bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
 
 During package development in this repository, install dependencies first and then install the local path:
@@ -130,7 +130,7 @@ pi install ./.pi-extension -l
 After installing the Pi package in a repository:
 
 1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-2. Use pi-teams predefined team creation with the `radical-pipelines` or `radical-pipelines-spec` templates.
+2. Use pi-teams predefined team creation with the `radical-pipelines-spec` template.
 
 Validation for the local package has verified `npm pack --dry-run`, `pi install ./.pi-extension -l`, `pi list`, `/skill:radical-pipelines`, predefined team discovery, and spawning the `radical-pipelines-spec` team. The local validation used print mode rather than a full manual interactive UI.
 
@@ -185,7 +185,8 @@ Phases (within implemented workflows):
   - `single` — one spec writer + one adversarial reviewer in a revision loop.
   - `multi` — N parallel spec writers followed by a consolidator that merges the drafts.
 - In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner.
-- Phases 2–5 (Design doc, Implementation plan, Implementation, Documentation) are not yet implemented.
+- **Phase 5 (Documentation)** ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop. They update the README, package docs, examples, and project conventions to match what landed. Full pipeline orchestration into phase 5 will arrive when phases 2–4 are implemented.
+- Phases 2–4 (Design doc, Implementation plan, Implementation) are not yet implemented.
 
 Pi package limitations:
 
