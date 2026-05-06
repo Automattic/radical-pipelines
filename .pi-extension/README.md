@@ -5,7 +5,7 @@ This Pi package installs the Radical Pipelines skill, phase agent profiles, pi-t
 ## What it includes
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
-- Agents: `prompt-writer` and `spec-writer`. Additional phase agents (`designer`, `planner`, `implementer`, `documenter`) will ship when the `radical-pipelines` skill enables those phases.
+- Agents: `prompt-writer`, `spec-writer`, `doc-writer`, and `doc-reviewer`. Additional phase agents (`designer`, `planner`, `implementer`) will ship when the `radical-pipelines` skill enables those phases.
 - Team templates: `radical-pipelines-spec`. The full `radical-pipelines` team will ship alongside the remaining phase agents.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
