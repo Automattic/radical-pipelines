@@ -1,4 +1,12 @@
-# Full development team
-full:
+# Project-local Radical Pipelines team templates used by pi-teams smoke checks.
+radical-pipelines-spec:
+  - prompt-writer
   - spec-writer
-  - spec-reviewer
+
+radical-pipelines-plan:
+  - plan-writer
+  - plan-reviewer
+
+radical-pipelines-implementation:
+  - implementer
+  - implementer-reviewer

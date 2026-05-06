@@ -112,8 +112,8 @@ This routes through the root-level Pi manifest (`package.json` at the repo root)
 The package installs:
 
 - the `radical-pipelines` skill;
-- phase agent profiles for the implemented phases: `prompt-writer`, `spec-writer`, `doc-writer`, and `doc-reviewer`. `designer`, `planner`, and `implementer` will ship as those phases are added;
-- the `radical-pipelines-spec` pi-teams template. The full `radical-pipelines` team will ship alongside the remaining phase agents;
+- phase agent profiles for the shipped phases and phase pairs: `prompt-writer`, `spec-writer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`. The phase 2 design agent will ship separately;
+- the `radical-pipelines-spec`, `radical-pipelines-plan`, and `radical-pipelines-implementation` pi-teams templates. The full `radical-pipelines` team will ship alongside later workflow orchestration;
 - bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
 
 During package development in this repository, install dependencies first and then install the local path:
@@ -130,7 +130,7 @@ pi install ./.pi-extension -l
 After installing the Pi package in a repository:
 
 1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-2. Use pi-teams predefined team creation with the `radical-pipelines-spec` template.
+2. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
 Validation for the local package has verified `npm pack --dry-run`, `pi install ./.pi-extension -l`, `pi list`, `/skill:radical-pipelines`, predefined team discovery, and spawning the `radical-pipelines-spec` team. The local validation used print mode rather than a full manual interactive UI.
 
@@ -185,8 +185,10 @@ Phases (within implemented workflows):
   - `single` — one spec writer + one adversarial reviewer in a revision loop.
   - `multi` — N parallel spec writers followed by a consolidator that merges the drafts.
 - In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner.
-- **Phase 5 (Documentation)** ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop. They update the README, package docs, examples, and project conventions to match what landed. Full pipeline orchestration into phase 5 will arrive when phases 2–4 are implemented.
-- Phases 2–4 (Design doc, Implementation plan, Implementation) are not yet implemented.
+- **Phase 3 (Implementation plan)** ships `plan-writer` and `plan-reviewer` agent profiles plus the `radical-pipelines-plan` team template for project-convention-driven use. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
+- **Phase 4 (Implementation)** ships `implementer` and `implementer-reviewer` agent profiles plus the `radical-pipelines-implementation` team template. The implementer reads the host project's verification and end-to-end testing convention and runs the configured workflow instead of hardcoding a command. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
+- **Phase 5 (Documentation)** ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop. They update the README, package docs, examples, and project conventions to match what landed. Full pipeline orchestration into phase 5 will arrive when the later phase workflow docs are implemented.
+- **Phase 2 (Design doc)** is not yet implemented.
 
 Pi package limitations:
 

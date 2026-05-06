@@ -5,8 +5,8 @@ This Pi package installs the Radical Pipelines skill, phase agent profiles, pi-t
 ## What it includes
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
-- Agents: `prompt-writer`, `spec-writer`, `doc-writer`, and `doc-reviewer`. Additional phase agents (`designer`, `planner`, `implementer`) will ship when the `radical-pipelines` skill enables those phases.
-- Team templates: `radical-pipelines-spec`. The full `radical-pipelines` team will ship alongside the remaining phase agents.
+- Agents: `prompt-writer`, `spec-writer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`. Consolidator agents for multi-lane phases 3 and 4 will ship when those modes are designed. The phase 2 design agent is out of scope for the current iteration and will be contributed separately.
+- Team templates: `radical-pipelines-spec`, `radical-pipelines-plan`, and `radical-pipelines-implementation`. The plan and implementation templates expose their writer/reviewer pairs for project-convention-driven use; full autonomous workflow orchestration for those phases will be added separately.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
 No prompt templates or themes are currently included.
@@ -70,7 +70,7 @@ Verified local results:
 
 1. Install the package globally or project-locally.
 2. Start the workflow with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-3. Use pi-teams predefined team creation with the `radical-pipelines-spec` template.
+3. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
 The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, `.pipelines/<pipeline-slug>` artifact folders, `/worktree` setup, branch naming, team spawning, and commit format.
 
