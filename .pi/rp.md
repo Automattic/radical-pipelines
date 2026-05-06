@@ -3,7 +3,7 @@
 This project requires the Radical Pipelines Pi package. It is declared in `.pi/settings.json` and pi installs it automatically on startup. The package bundles `pi-teams` and `@zenobius/pi-worktrees`. If for any reason it is missing, install it manually:
 
 ```bash
-pi install ./packages/pi -l
+pi install ./.pi-extension -l
 ```
 
 ## Managing tasks

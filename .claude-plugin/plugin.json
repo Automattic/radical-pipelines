@@ -1,0 +1,10 @@
+{
+  "name": "radical-pipelines",
+  "version": "0.1.0",
+  "description": "An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases, where each phase produces concrete, inspectable artifacts.",
+  "author": {
+    "name": "Automattic"
+  },
+  "homepage": "https://github.com/Automattic/radical-pipelines",
+  "license": "GPL-2.0-or-later"
+}

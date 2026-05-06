@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "radical-pipelines",
+  "description": "Radical Pipelines Claude Code plugin marketplace.",
+  "owner": {
+    "name": "Automattic"
+  },
+  "plugins": [
+    {
+      "name": "radical-pipelines",
+      "source": "./",
+      "description": "An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases, where each phase produces concrete, inspectable artifacts."
+    }
+  ]
+}

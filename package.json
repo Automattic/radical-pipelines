@@ -1,0 +1,33 @@
+{
+  "name": "@automattic/radical-pipelines",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Radical Pipelines Pi package — installable from this repository via git source (pi install git:github.com/Automattic/radical-pipelines) or local path (pi install . -l).",
+  "keywords": [
+    "pi-package",
+    "radical-pipelines"
+  ],
+  "type": "module",
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.49",
+    "@zenobius/pi-worktrees": "^0.5.1",
+    "pi-teams": "^0.9.14"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*",
+    "typebox": "*"
+  },
+  "pi": {
+    "extensions": [
+      "node_modules/pi-teams/extensions/index.ts",
+      "node_modules/@zenobius/pi-worktrees/dist/index.js"
+    ],
+    "skills": [
+      ".pi-extension/skills",
+      "node_modules/pi-teams/skills"
+    ],
+    "themes": []
+  }
+}
