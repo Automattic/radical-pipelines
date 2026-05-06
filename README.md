@@ -75,7 +75,7 @@ To install from the public repository:
 To install from a local checkout instead — useful for verifying that a local edit to `marketplace.json` is well-formed before pushing — point `marketplace add` at the directory:
 
 ```text
-/plugin marketplace add /path/to/radical-pipelines
+/plugin marketplace add ./radical-pipelines
 /plugin install radical-pipelines@automattic
 ```
 
@@ -84,7 +84,7 @@ This installs the plugin into Claude Code's cache the same way the public-reposi
 For active local development, skip the marketplace flow entirely and load the plugin directly from a checkout with Claude Code's `--plugin-dir` flag:
 
 ```bash
-claude --plugin-dir /path/to/radical-pipelines
+claude --plugin-dir ./radical-pipelines
 ```
 
 This reads the plugin from the working tree on each start (no cache copy), so edits in `.agents/skills/radical-pipelines/` are picked up through the `skills/radical-pipelines/` symlink without reinstalling.
