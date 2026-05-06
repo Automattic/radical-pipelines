@@ -72,7 +72,16 @@ To install from the public repository:
 /plugin install radical-pipelines@automattic
 ```
 
-For local development, skip the marketplace flow entirely and load the plugin directly from a checkout with Claude Code's `--plugin-dir` flag:
+To install from a local checkout instead — useful for verifying that a local edit to `marketplace.json` is well-formed before pushing — point `marketplace add` at the directory:
+
+```text
+/plugin marketplace add /path/to/radical-pipelines
+/plugin install radical-pipelines@automattic
+```
+
+This installs the plugin into Claude Code's cache the same way the public-repository install does.
+
+For active local development, skip the marketplace flow entirely and load the plugin directly from a checkout with Claude Code's `--plugin-dir` flag:
 
 ```bash
 claude --plugin-dir /path/to/radical-pipelines
