@@ -59,7 +59,33 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 # Project Usage
 
-The repository ships a Pi package and an [agent skill](https://agentskills.io) that capture the methodology, so a compatible agent can run a task through the pipeline.
+The repository ships a Claude Code plugin, a Pi package, and a standalone [agent skill](https://agentskills.io). All three capture the same methodology so a compatible agent can run a task through the pipeline.
+
+## Claude Code plugin install
+
+Claude Code installs plugins through marketplaces. This repository ships an `automattic` marketplace catalog (`.claude-plugin/marketplace.json`) that currently lists only the Radical Pipelines plugin (`.claude-plugin/plugin.json` at the repo root). Naming the marketplace `automattic` rather than `radical-pipelines` anticipates a future move to a centralized `Automattic/claude-plugins` repo without changing the install command users have memorized.
+
+To install from the public repository:
+
+```text
+/plugin marketplace add Automattic/radical-pipelines
+/plugin install radical-pipelines@automattic
+```
+
+For local development, skip the marketplace flow entirely and load the plugin directly from a checkout with Claude Code's `--plugin-dir` flag:
+
+```bash
+claude --plugin-dir /path/to/radical-pipelines
+```
+
+This reads the plugin from the working tree on each start (no cache copy), so edits in `.agents/skills/radical-pipelines/` are picked up through the `skills/radical-pipelines/` symlink without reinstalling.
+
+The plugin currently bundles:
+
+- the `radical-pipelines` skill (exposed under `skills/radical-pipelines/` as a symlink to `.agents/skills/radical-pipelines/` so the source of truth stays in `.agents/`).
+- agent profiles under `agents/` (symlink to `.agents/agents/`), shared with the Pi package.
+
+Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
 ## Pi package install
 
@@ -75,6 +101,14 @@ For a project-local/shared install, use:
 pi install npm:@automattic/radical-pipelines-pi -l
 ```
 
+To install directly from the GitHub repository instead of npm, use Pi's `git:` source:
+
+```bash
+pi install git:github.com/Automattic/radical-pipelines
+```
+
+This routes through the root-level Pi manifest (`package.json` at the repo root), which reads the same `.pi-extension/` content as the npm package.
+
 The package installs:
 
 - the `radical-pipelines` skill;
@@ -85,10 +119,10 @@ The package installs:
 During package development in this repository, install dependencies first and then install the local path:
 
 ```bash
-cd packages/pi
+cd .pi-extension
 npm install
-cd ../..
-pi install ./packages/pi -l
+cd ..
+pi install ./.pi-extension -l
 ```
 
 ## Pi usage
@@ -98,11 +132,15 @@ After installing the Pi package in a repository:
 1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
 2. Use pi-teams predefined team creation with the `radical-pipelines` or `radical-pipelines-spec` templates.
 
-Validation for the local package has verified `npm pack --dry-run`, `pi install ./packages/pi -l`, `pi list`, `/skill:radical-pipelines`, predefined team discovery, and spawning the `radical-pipelines-spec` team. The local validation used print mode rather than a full manual interactive UI.
+Validation for the local package has verified `npm pack --dry-run`, `pi install ./.pi-extension -l`, `pi list`, `/skill:radical-pipelines`, predefined team discovery, and spawning the `radical-pipelines-spec` team. The local validation used print mode rather than a full manual interactive UI.
 
 ## Dependency bundling
 
-`packages/pi/package.json` is a Pi package (`pi-package` keyword). It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Normal runtime package dependencies include `pi-teams`, `@zenobius/pi-worktrees`, and `@sinclair/typebox`; these are also bundled so their Pi resources are available from the wrapper package. Pi core packages are wildcard peer dependencies and are not bundled.
+`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by the npm publish path and `pi install ./.pi-extension -l`. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
+
+The repository root also ships a Pi manifest (`package.json`) so `pi install git:github.com/Automattic/radical-pipelines` resolves at the cloned repo root. The root manifest declares the same bundled dependencies directly and points its `pi` manifest paths at `.pi-extension/` files, so both layers share a single source of truth.
+
+The skill at `.agents/skills/radical-pipelines/` and the agent profiles at `.agents/agents/` are the canonical sources. Both the Pi package (via `.pi-extension/skills` and `.pi-extension/agents` symlinks) and the Claude Code plugin (via root `skills/` and `agents/` symlinks) point at them.
 
 ## Fallback skill install
 

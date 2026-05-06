@@ -28,10 +28,10 @@ pi install npm:@automattic/radical-pipelines-pi -l
 Development install before publication:
 
 ```bash
-cd packages/pi
+cd .pi-extension
 npm install
-cd ../..
-pi install ./packages/pi -l
+cd ..
+pi install ./.pi-extension -l
 ```
 
 `npm install` is required for local-path development installs so the bundled `node_modules/pi-teams/...` and `node_modules/@zenobius/pi-worktrees/...` resources exist before Pi loads the package.
@@ -41,7 +41,7 @@ pi install ./packages/pi -l
 Package contents:
 
 ```bash
-cd packages/pi
+cd .pi-extension
 npm install
 npm pack --dry-run
 ```
@@ -49,7 +49,7 @@ npm pack --dry-run
 Local Pi install:
 
 ```bash
-pi install ./packages/pi -l
+pi install ./.pi-extension -l
 pi list
 ```
 
@@ -62,7 +62,7 @@ env -u PI_TEAM_NAME -u PI_AGENT_NAME pi -p "/skill:radical-pipelines"
 Verified local results:
 
 - `npm pack --dry-run` succeeded and included the package README, agents, package manifest, skill files, reference docs, team templates, and bundled dependencies.
-- `pi install ./packages/pi -l && pi list` succeeded; in this worktree `pi list` showed project package `../packages/pi`.
+- `pi install ./.pi-extension -l && pi list` succeeded; in this worktree `pi list` showed project package `../.pi-extension`.
 - `/skill:radical-pipelines` succeeded with `Ready. What pipeline/task would you like to start?`.
 - pi-teams predefined discovery found `radical-pipelines-spec`; creating `radical-pipelines-spec` spawned the prompt/spec writer agents in a smoke test.
 
