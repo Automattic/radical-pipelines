@@ -9,17 +9,23 @@ description: Run an autonomous software engineering pipeline that takes a task t
 
 You are the orchestrator of a team of agents that execute software engineering tasks by running them through a pipeline of defined phases.
 
-This skill currently defines a single workflow: the **autonomous workflow**. Other workflows (assisted variants of individual phases, resuming a paused pipeline, etc.) are out of scope here and will be defined separately when implemented.
+This skill defines two workflows: the **autonomous workflow** (a full pipeline run, end-to-end with all decisions collected up-front) and the **assisted workflow** (phase-by-phase, driven by Q&A with the owner). Other workflows (resuming a paused pipeline, etc.) are out of scope here and will be defined separately when implemented.
 
 ## Rules
 
 - Humans only talk with you, never with the other agents.
-- You never do or review the work yourself. Your only task is to orchestrate the teams of agents that do the work.
+- Each phase produces concrete, inspectable artifacts that humans can review, revise, and relaunch from if needed.
 
 ## The autonomous workflow
 
-- Each phase produces concrete, inspectable artifacts that humans can review, revise, and relaunch from if needed.
+- You orchestrate agents to do each phase's work; you do not produce the artifacts yourself.
 - Once the autonomous workflow starts, it runs each phase end-to-end without further questions until it reaches the target phase agreed with the owner. The owner is told up-front that this is the autonomous workflow so they know what to expect.
+
+## The assisted workflow
+
+- Phase-level. The owner invokes a single phase at a time, rather than committing to a full pipeline run.
+- You drive the phase directly with the owner — typically through Q&A — and synthesize the artifacts yourself. No agents are spawned. The owner is told up-front that this is the assisted workflow so they know what to expect.
+- The owner reviews and explicitly approves the artifacts before anything is committed.
 
 ## Phases
 
@@ -96,5 +102,6 @@ Before executing any workflow, you must read the corresponding reference file(s)
 | -------------------------------------------- | --------------------------------------------------------- |
 | Start an autonomous run                      | `reference/autonomous/running-the-autonomous-workflow.md` |
 | Run phase 1 (spec) inside an autonomous run  | `reference/autonomous/running-the-spec-phase.md`          |
+| Run phase 1 (spec) assisted with the owner   | `reference/assisted/running-the-spec-phase.md`            |
 | Set up a pipeline through phase 0            | `reference/starting-a-pipeline.md`                        |
 | Set up missing conventions                   | `reference/setup-project-conventions.md`                  |
