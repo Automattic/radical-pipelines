@@ -33,9 +33,11 @@ This skill defines two workflows: the **autonomous workflow** (a full pipeline r
 | --- | ------------- | -------------- | ----------------------------------------------------- |
 | 0   | Prompt        | prompt-writer  | The raw request (input, not something to create)      |
 | 1   | Spec          | spec-writer    | Requirements, acceptance criteria, out-of-scope       |
+| 3   | Implementation plan | plan-writer | Ordered implementation plan and verification strategy |
+| 4   | Implementation | implementer    | Code changes, unit tests, end-to-end verification     |
 | 5   | Documentation | doc-writer     | Updated README, package docs, examples, conventions   |
 
-_Only phase 1 has a full autonomous and assisted workflow today. The Documentation phase ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop to update docs after work has landed. Phases 2–4 (Design doc, Implementation plan, Implementation) will follow the same pattern when added._
+_Only phase 1 has a full autonomous and assisted workflow today. Phases 3, 4, and 5 ship phase agents paired with adversarial reviewers for use through the project's team-spawning convention, but autonomous workflow orchestration still stops at phase 1 until the later phase reference docs are added. Phase 2 (Design doc) is out of scope for the current iteration and will be designed and contributed separately._
 
 ## Autonomous run plan
 

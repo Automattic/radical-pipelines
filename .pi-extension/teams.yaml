@@ -1,6 +1,13 @@
-# Current minimal workflow: only the phases the radical-pipelines skill implements
-# (Prompt + Spec). Additional phase agents and a full radical-pipelines team will
-# be added when the skill enables those phases.
+# Phase teams shipped by the Radical Pipelines package. Later workflow wiring can
+# compose these templates into a full end-to-end pipeline team.
 radical-pipelines-spec:
   - prompt-writer
   - spec-writer
+
+radical-pipelines-plan:
+  - plan-writer
+  - plan-reviewer
+
+radical-pipelines-implementation:
+  - implementer
+  - implementer-reviewer
