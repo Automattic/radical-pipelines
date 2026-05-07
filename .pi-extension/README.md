@@ -1,12 +1,12 @@
 # Radical Pipelines Pi package
 
-This Pi package installs the Radical Pipelines skill, phase agent profiles, pi-teams team templates, and bundled Pi package dependencies for `pi-teams` and `@zenobius/pi-worktrees`.
+This Pi package ships the Radical Pipelines skill, phase agent profiles, pi-teams team template sources, and bundled Pi package dependencies for `pi-teams` and `@zenobius/pi-worktrees`.
 
 ## What it includes
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
 - Agents: `prompt-writer`, `spec-writer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`. Consolidator agents for multi-lane phases 3 and 4 will ship when those modes are designed. The phase 2 design agent is out of scope for the current iteration and will be contributed separately.
-- Team templates: `radical-pipelines-spec`, `radical-pipelines-plan`, and `radical-pipelines-implementation`. The plan and implementation templates expose their writer/reviewer pairs for project-convention-driven use; full autonomous workflow orchestration for those phases will be added separately.
+- Team templates: `radical-pipelines-spec`, `radical-pipelines-plan`, and `radical-pipelines-implementation` as package-local source definitions. These templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The plan and implementation templates expose their writer/reviewer pairs for project-convention-driven use; full autonomous workflow orchestration for those phases will be added separately.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
 No prompt templates or themes are currently included.
@@ -61,16 +61,17 @@ env -u PI_TEAM_NAME -u PI_AGENT_NAME pi -p "/skill:radical-pipelines"
 
 Verified local results:
 
-- `npm pack --dry-run` succeeded and included the package README, agents, package manifest, skill files, reference docs, team templates, and bundled dependencies.
+- `npm pack --dry-run` succeeded and currently includes the package README, package manifest, and team templates. The symlinked agents and skills are not included in the tarball yet; that packaging issue must be fixed before relying on npm publication for agent and skill delivery.
 - `pi install ./.pi-extension -l && pi list` succeeded; in this worktree `pi list` showed project package `../.pi-extension`.
 - `/skill:radical-pipelines` succeeded with `Ready. What pipeline/task would you like to start?`.
-- pi-teams predefined discovery found `radical-pipelines-spec`; creating `radical-pipelines-spec` spawned the prompt/spec writer agents in a smoke test.
+- pi-teams predefined discovery requires the packaged team templates to be registered in the global `~/.pi/teams.yaml` file because `pi-teams` does not currently read package-local team files directly.
 
 ## Usage
 
 1. Install the package globally or project-locally.
 2. Start the workflow with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-3. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
+3. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
+4. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
 The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, `.pipelines/<pipeline-slug>` artifact folders, `/worktree` setup, branch naming, team spawning, and commit format.
 
@@ -88,11 +89,11 @@ The skill-only fallback remains:
 npx skills add Automattic/radical-pipelines
 ```
 
-That command does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team files. Skill install paths can vary across CLIs, symlinks, and home-relative setups, so use this Pi package when you want automated setup.
+That command does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team source files. Skill install paths can vary across CLIs, symlinks, and home-relative setups, so use this Pi package when you want package-managed Pi resources and bundled dependencies.
 
 ## Limitations
 
-- pi-teams currently discovers predefined agents and team templates from global or project-local locations, not package-local files, so project-local `.pi/agents/*.md` and `.pi/teams.yaml` may need to be set up before predefined Radical Pipelines teams are visible.
+- pi-teams currently discovers predefined agents and team templates from global or project-local locations, not package-local files. Radical Pipelines team definitions should be registered globally in `~/.pi/teams.yaml`, with agent profiles in `~/.pi/agent/agents/`, before predefined Radical Pipelines teams are visible.
 - Local validation used Pi print mode, not a full manual interactive UI pass.
 - Local validation on Node v20.14.0 produced npm `EBADENGINE` warnings from transitive dependencies and two moderate `npm audit` findings.
 - Bundled dependency resource paths may need updates if future `pi-teams` or `@zenobius/pi-worktrees` releases move their Pi resources.

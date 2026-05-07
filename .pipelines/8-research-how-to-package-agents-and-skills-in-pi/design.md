@@ -75,11 +75,11 @@ If no prompts are added, omit `prompts` from `files` and use an empty or omitted
   - `pi-teams` commands/tools are available;
   - `@zenobius/pi-worktrees` commands are available;
   - expected Radical Pipelines agent profiles and team template are available to `pi-teams`.
-- Register a `/rp-init` command that, after user confirmation, writes or updates project-local `.pi/agents/*.md` and `.pi/teams.yaml` from the packaged `agents/` and `teams.yaml` files when missing.
-- Never overwrite user-modified project-local agent/team files without confirmation and a diff/backup message.
+- Register a `/rp-init` command that, after user confirmation, writes or updates global `~/.pi/agent/agents/*.md` and `~/.pi/teams.yaml` entries from the packaged `agents/` and `teams.yaml` files when missing.
+- Never overwrite user-modified global agent/team files without confirmation and a diff/backup message.
 - Use `import.meta.url` to resolve the package root so npm, git, local-path, and symlink installs work.
 
-This bridges the current `pi-teams` discovery model, which reads agent definitions from `~/.pi/agent/agents` or project `.pi/agents` and team templates from `~/.pi/teams.yaml` or `.pi/teams.yaml`, while avoiding manual file copying by users.
+This bridges the current `pi-teams` discovery model, which reads agent definitions from `~/.pi/agent/agents` or project `.pi/agents` and team templates from `~/.pi/teams.yaml` or `.pi/teams.yaml`, while avoiding manual file copying by users. Radical Pipelines should use the global paths so phase teams are available across target repositories without duplicating team definitions into each project.
 
 ## Installation and usage UX
 
@@ -104,7 +104,7 @@ pi install ./packages/pi -l
 After install:
 
 1. Run `/rp-doctor` to see package, skill, extension, worktree, team, and agent status.
-2. Run `/rp-init` in a repository to install/update project-local `.pi/agents` and `.pi/teams.yaml` if required.
+2. Run `/rp-init` to install/update global `~/.pi/agent/agents` and `~/.pi/teams.yaml` entries if required.
 3. Start the workflow with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
 4. Use `pi-teams` predefined team creation for phase teams once templates are present.
 
@@ -114,7 +114,7 @@ Fallback skill-first install remains documented as:
 npx skills add automattic/radical-pipelines
 ```
 
-When using the fallback, the skill must explain that Pi extensions are not installed by that command and must prompt the user to install `pi-teams` and `@zenobius/pi-worktrees` with `pi install`. Any bundled sub-agent profiles should live under a skill-relative `agents/` folder, and startup instructions should tell users to run the package path when they want automated setup.
+When using the fallback, the skill must explain that Pi extensions are not installed by that command and must prompt the user to install `pi-teams` and `@zenobius/pi-worktrees` with `pi install`. Any bundled sub-agent profiles should live under a skill-relative `agents/` folder, and startup instructions should tell users to run the package path when they want package-managed Pi resources and bundled dependencies.
 
 ## Verification
 
@@ -133,7 +133,7 @@ Implementer/tester should verify:
 Update root `README.md` and `packages/pi/README.md` to document:
 
 - what the package installs: Radical Pipelines skill, setup/doctor extension, phase agent profiles, team template, `pi-teams`, and `@zenobius/pi-worktrees`;
-- global vs project-local install commands;
+- global vs project-local package install commands, and why pi-teams agent/team definitions are registered globally;
 - `/rp-doctor` and `/rp-init` usage;
 - how bundled Pi package dependencies are declared and referenced through `node_modules/...`;
 - fallback `npx skills add` limitations;
@@ -144,7 +144,7 @@ Account for open PRs without depending on them: PR #6 may improve `pi-teams` exa
 ## Risks
 
 - `pi-teams` package manifests currently use `@sinclair/typebox` while Pi package docs call out `typebox`; follow Pi docs/spec for this package and adjust only if install testing proves otherwise.
-- `pi-teams` does not discover package-local `agents/` or `teams.yaml`, so `/rp-init` is required unless upstream adds package-scoped predefined teams.
+- `pi-teams` does not discover package-local `agents/` or `teams.yaml`, so `/rp-init` is required to register global predefined agents and teams unless upstream adds package-scoped predefined teams.
 - Bundling third-party Pi packages can increase package size and may require repacking whenever their resource paths change.
-- Project-local initialization writes files; commands must be conservative, confirm changes, and avoid clobbering user templates.
+- Global initialization writes files under `~/.pi`; commands must be conservative, confirm changes, and avoid clobbering user templates.
 - Skill-first fallback remains less reliable because resolving installed skill paths across symlinks and home-relative installs is ambiguous.
