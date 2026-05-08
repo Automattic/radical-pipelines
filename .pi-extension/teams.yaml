@@ -3,6 +3,7 @@
 radical-pipelines-spec:
   - prompt-writer
   - spec-writer
+  - spec-reviewer
 
 radical-pipelines-plan:
   - plan-writer

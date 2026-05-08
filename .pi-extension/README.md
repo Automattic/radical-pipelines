@@ -5,7 +5,7 @@ This Pi package ships the Radical Pipelines skill, phase agent profiles, pi-team
 ## What it includes
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
-- Agents: `prompt-writer`, `spec-writer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`. Consolidator agents for multi-lane phases 3 and 4 will ship when those modes are designed. The phase 2 design agent is out of scope for the current iteration and will be contributed separately.
+- Agents: `prompt-writer`, `spec-writer`, `spec-reviewer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`. Consolidator agents for multi-lane phases 3 and 4 will ship when those modes are designed. The phase 2 design agent is out of scope for the current iteration and will be contributed separately.
 - Team templates: `radical-pipelines-spec`, `radical-pipelines-plan`, and `radical-pipelines-implementation` as package-local source definitions. These templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The plan and implementation templates expose their writer/reviewer pairs for project-convention-driven use; full autonomous workflow orchestration for those phases will be added separately.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
@@ -73,7 +73,7 @@ Verified local results:
 3. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
 4. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
-The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, pipeline artifact folders (for example `.pipelines/<pipeline-slug>`), `/worktree` setup, branch naming, team spawning, and commit format.
+The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, pipeline artifact folders (for example `.pipelines/<pipeline-slug>`), `/worktree` setup, branch naming, team spawning, and commit format. Reviewer agents write inspectable `spec-review-N.md`, `plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md` artifacts into the task's artifact folder.
 
 ## Bundled dependencies
 

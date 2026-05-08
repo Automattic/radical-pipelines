@@ -112,7 +112,7 @@ This routes through the root-level Pi manifest (`package.json` at the repo root)
 The package installs:
 
 - the `radical-pipelines` skill;
-- phase agent profiles for the shipped phases and phase pairs: `prompt-writer`, `spec-writer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`. The phase 2 design agent will ship separately;
+- phase agent profiles for the shipped phases and phase pairs: `prompt-writer`, `spec-writer`, `spec-reviewer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`. The phase 2 design agent will ship separately;
 - the `radical-pipelines-spec`, `radical-pipelines-plan`, and `radical-pipelines-implementation` pi-teams templates as package-local source definitions. These team templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The full `radical-pipelines` team will ship alongside later workflow orchestration;
 - bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
 
@@ -167,6 +167,8 @@ Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific
 
 The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent or team, it passes the resolved pipeline slug, artifact folder path, exact artifact paths for that role, and the role-specific host-project conventions listed in the agent profile. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
 
+Reviewer agents write inspectable review artifacts into the task's artifact folder on every review iteration. Current artifact names are `spec-review-N.md`, `plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md`, where N starts at 1 and increments for each writer/reviewer round. The future design doc reviewer will use `design-doc-review-N.md`.
+
 See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples. Pi projects should define the pipeline artifact folder convention (for example `.pipelines/<pipeline-slug>`), worktree root setup (for example `/worktree settings worktreeRoot .pi/worktrees`), and pi-teams spawning conventions.
 
 ## Current status and limitations
@@ -185,12 +187,12 @@ Phases (within implemented workflows):
 
 - **Phase 0 (Prompt)** captures the task as `prompt.md`.
 - **Phase 1 (Spec)** produces `spec.md` from the prompt. In the autonomous workflow, two execution modes are available, chosen at planning time:
-  - `single` — one spec writer + one adversarial reviewer in a revision loop.
+  - `single` — one spec writer + one adversarial reviewer in a revision loop. The reviewer writes `spec-review-N.md` artifacts.
   - `multi` — N parallel spec writers followed by a consolidator that merges the drafts.
 - In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner.
-- **Phase 3 (Implementation plan)** ships `plan-writer` and `plan-reviewer` agent profiles plus the `radical-pipelines-plan` team template for project-convention-driven use. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
-- **Phase 4 (Implementation)** ships `implementer` and `implementer-reviewer` agent profiles plus the `radical-pipelines-implementation` team template. The implementer reads the host project's verification and end-to-end testing convention and runs the configured workflow instead of hardcoding a command. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
-- **Phase 5 (Documentation)** ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop. They update the README, package docs, examples, and project conventions to match what landed. Full pipeline orchestration into phase 5 will arrive when the later phase workflow docs are implemented.
+- **Phase 3 (Implementation plan)** ships `plan-writer` and `plan-reviewer` agent profiles plus the `radical-pipelines-plan` team template for project-convention-driven use. The reviewer writes `plan-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
+- **Phase 4 (Implementation)** ships `implementer` and `implementer-reviewer` agent profiles plus the `radical-pipelines-implementation` team template. The implementer reads the host project's verification and end-to-end testing convention and runs the configured workflow instead of hardcoding a command. The reviewer writes `code-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
+- **Phase 5 (Documentation)** ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop. They update the README, package docs, examples, and project conventions to match what landed. The reviewer writes `docs-review-N.md` artifacts. Full pipeline orchestration into phase 5 will arrive when the later phase workflow docs are implemented.
 - **Phase 2 (Design doc)** is not yet implemented.
 
 Pi package limitations:

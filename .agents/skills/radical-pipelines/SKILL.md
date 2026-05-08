@@ -83,8 +83,21 @@ When spawning a phase agent or team, include the resolved role-specific context 
 - The current pipeline slug and resolved artifact folder path.
 - The exact artifact paths the agent should read and write.
 - The host-project conventions required by that agent profile.
+- For reviewer agents, the current review iteration number and the exact review artifact path to write.
 
 If a required convention is missing, run the setup flow before spawning agents. If a convention exists but cannot be summarized safely, point the agent at the source file and name the exact sections it must follow.
+
+### Review artifacts
+
+Reviewer agents write inspectable review artifacts into the current task's artifact folder on every review iteration. Use the phase surface in the filename and increment N from 1 for each writer/reviewer round:
+
+- Spec reviews: `spec-review-N.md`.
+- Design doc reviews, when phase 2 ships: `design-doc-review-N.md`.
+- Implementation plan reviews: `plan-review-N.md`.
+- Code reviews: `code-review-N.md`.
+- Documentation reviews: `docs-review-N.md`.
+
+Do not overwrite earlier review artifacts. If a reviewer approves without requested changes, the approval and supporting evidence still belongs in that iteration's review artifact.
 
 ### Missing conventions
 
