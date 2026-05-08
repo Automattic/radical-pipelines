@@ -37,12 +37,12 @@ Confirm `<artifacts-folder>/prompt.md` exists. If it does not, stop and report â
 
 Use the project's **Spawning teams of agents** convention to launch the agents. Verify the convention's exact operational semantics before invoking it (see `SKILL.md` â†’ "Tool-backed conventions").
 
-Every agent launch prompt must include the resolved pipeline slug, the resolved artifact folder path, the exact input and output artifact paths for that role, and the role-specific conventions named in the agent profile. Do not ask phase agents to infer artifact locations from a generic folder pattern.
+Every agent launch prompt must include the resolved pipeline slug, the resolved artifact folder path, the exact input and output artifact paths for that role, and the role-specific conventions named in the agent profile. Reviewer launch prompts must also include the current review iteration number and exact review artifact path. Do not ask phase agents to infer artifact locations from a generic folder pattern.
 
 #### `single` mode
 
 1. Launch `spec-writer` with `prompt.md` as input. The writer produces `<artifacts-folder>/spec.md`.
-2. Launch `spec-reviewer`. It reads `prompt.md` and `spec.md`, then writes `<artifacts-folder>/spec-review-N.md` (N starts at 1).
+2. Launch `spec-reviewer` with the current review iteration number and review artifact path. It reads `prompt.md` and `spec.md`, then writes `<artifacts-folder>/spec-review-N.md` (N starts at 1).
 3. If the review approves, the spec is final.
 4. If the review rejects, relaunch `spec-writer` with the review feedback. The writer revises `spec.md`. Go back to step 2 with N+1.
 5. Stop after a reasonable iteration cap (default 3 writer/reviewer rounds). If the cap is reached without convergence, stop the workflow and report to the owner.
