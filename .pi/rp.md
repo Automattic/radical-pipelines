@@ -42,6 +42,19 @@ Use `.pipelines/<pipeline-slug>`.
 
 Use `pi-teams`.
 
+When spawning a Pi teammate, prefer an explicit provider-qualified model (`provider/model`) from the owner's authenticated providers instead of an ambiguous bare model name.
+
+If a spawned Pi teammate fails with a provider login or API-key error:
+
+1. Treat the failed provider as unavailable for this retry unless the owner explicitly asked to use that provider.
+2. Do not run `/login` or ask for credentials as the first recovery step.
+3. Run `pi --list-models` from the same environment used to spawn teammates.
+4. Choose a provider-qualified replacement model from authenticated providers. Prefer the owner's configured default provider/model when present; otherwise choose the closest suitable authenticated model for coding work.
+5. Retry the spawn with the explicit `provider/model` value. Reusing the same teammate name is acceptable when `pi-teams` replaces or kills the failed teammate automatically; otherwise remove or rename the failed teammate before retrying.
+6. If no authenticated model is available, stop and tell the owner which provider failed and that they need to authenticate a provider or pass an explicit provider-qualified model.
+
+Keep this recovery provider-neutral. Do not hardcode any provider as the fallback default.
+
 ## Commits
 
 Use imperative mood, sentence case, no period at the end. Include the name of the agent in parenthesis.
