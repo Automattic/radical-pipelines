@@ -155,8 +155,6 @@ Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific
 
 The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent or team, it passes the resolved pipeline slug, artifact folder path, exact artifact paths for that role, and the role-specific host-project conventions listed in the agent profile. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
 
-When a spawned Pi phase agent fails with a provider login/API-key error, the orchestrator should retry with an explicit provider-qualified model from the owner's authenticated providers instead of asking the owner to authenticate that failed provider. Use `pi --list-models` to find available authenticated models, prefer the owner's configured default provider/model when available, and otherwise choose a suitable authenticated model.
-
 Reviewer agents write inspectable review artifacts into the task's artifact folder on every review iteration. Current artifact names are `spec-review-N.md`, `plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md`, where N starts at 1 and increments for each writer/reviewer round. The future design doc reviewer will use `design-doc-review-N.md`.
 
 See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples. Pi projects should define the pipeline artifact folder convention (for example `.pipelines/<pipeline-slug>`), worktree root setup (for example `/worktree settings worktreeRoot .pi/worktrees`), and pi-teams spawning conventions.

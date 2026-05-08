@@ -78,8 +78,6 @@ When reading conventions, distinguish shared cross-agent project instructions fr
 
 You are responsible for loading and verifying project conventions before launching phase agents. Phase agents should not repeat the full convention-discovery flow or infer project paths from generic examples.
 
-Before spawning a phase agent or team, choose a provider-qualified model whenever possible. Do not rely on ambiguous bare model names if the host tool supports `provider/model` syntax. Prefer the owner's active Pi defaults and authenticated providers rather than any hardcoded provider preference.
-
 When spawning a phase agent or team, include the resolved role-specific context in the initial prompt:
 
 - The current pipeline slug and resolved artifact folder path.
@@ -88,19 +86,6 @@ When spawning a phase agent or team, include the resolved role-specific context 
 - For reviewer agents, the current review iteration number and the exact review artifact path to write.
 
 If a required convention is missing, run the setup flow before spawning agents. If a convention exists but cannot be summarized safely, point the agent at the source file and name the exact sections it must follow.
-
-### Agent spawn authentication recovery
-
-If spawning a phase agent fails because the child Pi session reports a provider login/API-key error, do not ask the owner to log into that provider unless the owner explicitly requested it. Instead:
-
-1. Read the failed child session output and identify the provider that failed.
-2. Treat failed or unauthenticated providers as unavailable for this recovery attempt. Do not run `/login`, request credentials, or retry with the same provider unless the owner explicitly asked to use that provider.
-3. Query the available authenticated models with `pi --list-models` from the same environment that will spawn the agent.
-4. Select a provider-qualified replacement model from authenticated providers. Prefer the owner's configured default provider/model when it is present in `pi --list-models`; otherwise choose the closest matching model to the requested capability; if there is no close match, choose any authenticated model suitable for coding work.
-5. Retry the spawn with an explicit `provider/model` value. Reusing the same teammate name is acceptable when the team tool replaces or kills the failed teammate automatically; otherwise remove/rename the failed teammate before retrying.
-6. If no authenticated model is available, stop and tell the owner exactly which provider failed and that they need to authenticate one supported provider or pass an explicit provider-qualified model.
-
-This recovery is meant to keep Radical Pipelines provider-neutral. Do not make Copilot, OpenAI, Anthropic, Gemini, OpenRouter, or any other provider the hardcoded default.
 
 ### Review artifacts
 
