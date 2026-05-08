@@ -74,6 +74,18 @@ To find the project-specific conventions, try the following in order:
 
 When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. CLI-specific Radical Pipelines details belong in the active CLI's `rp.md` file and must not be copied into `CLAUDE.md` or duplicated from `AGENTS.md`.
 
+### Passing conventions to phase agents
+
+You are responsible for loading and verifying project conventions before launching phase agents. Phase agents should not repeat the full convention-discovery flow or infer project paths from generic examples.
+
+When spawning a phase agent or team, include the resolved role-specific context in the initial prompt:
+
+- The current pipeline slug and resolved artifact folder path.
+- The exact artifact paths the agent should read and write.
+- The host-project conventions required by that agent profile.
+
+If a required convention is missing, run the setup flow before spawning agents. If a convention exists but cannot be summarized safely, point the agent at the source file and name the exact sections it must follow.
+
 ### Missing conventions
 
 If all required conventions are available, continue the workflow unchanged.

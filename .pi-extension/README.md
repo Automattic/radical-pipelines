@@ -73,7 +73,7 @@ Verified local results:
 3. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
 4. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
-The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, `.pipelines/<pipeline-slug>` artifact folders, `/worktree` setup, branch naming, team spawning, and commit format.
+The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, pipeline artifact folders (for example `.pipelines/<pipeline-slug>`), `/worktree` setup, branch naming, team spawning, and commit format.
 
 ## Bundled dependencies
 
