@@ -133,7 +133,7 @@ The skill at `.agents/skills/radical-pipelines/` and the agent profiles at `.age
 
 ## Fallback skill install
 
-Fallback skill-only install with the Skills command-line tool:
+Fallback skill-only install with the [Skills command-line tool](https://github.com/vercel-labs/skills):
 
 ```bash
 npx skills add Automattic/radical-pipelines
