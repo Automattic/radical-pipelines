@@ -165,6 +165,8 @@ If required conventions are missing when a workflow starts, Radical Pipelines st
 
 Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific Radical Pipelines conventions should live in `.pi/rp.md` or `.claude/rp.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
 
+The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent or team, it passes the resolved pipeline slug, artifact folder path, exact artifact paths for that role, and the role-specific host-project conventions listed in the agent profile. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
+
 See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples. Pi projects should define the pipeline artifact folder convention (for example `.pipelines/<pipeline-slug>`), worktree root setup (for example `/worktree settings worktreeRoot .pi/worktrees`), and pi-teams spawning conventions.
 
 ## Current status and limitations

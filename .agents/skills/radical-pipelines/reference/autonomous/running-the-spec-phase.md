@@ -37,6 +37,8 @@ Confirm `<artifacts-folder>/prompt.md` exists. If it does not, stop and report â
 
 Use the project's **Spawning teams of agents** convention to launch the agents. Verify the convention's exact operational semantics before invoking it (see `SKILL.md` â†’ "Tool-backed conventions").
 
+Every agent launch prompt must include the resolved pipeline slug, the resolved artifact folder path, the exact input and output artifact paths for that role, and the role-specific conventions named in the agent profile. Do not ask phase agents to infer artifact locations from a generic folder pattern.
+
 #### `single` mode
 
 1. Launch `spec-writer` with `prompt.md` as input. The writer produces `<artifacts-folder>/spec.md`.
