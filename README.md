@@ -89,25 +89,13 @@ Plugin skills are namespaced by the plugin name in Claude Code (not by the marke
 
 ## Pi package install
 
-For Pi, the recommended install is the package after it is published:
-
-```bash
-pi install npm:@automattic/radical-pipelines-pi
-```
-
-For a project-local/shared install, use:
-
-```bash
-pi install npm:@automattic/radical-pipelines-pi -l
-```
-
-To install directly from the GitHub repository instead of npm, use Pi's `git:` source:
+For Pi, install from the GitHub repository with Pi's `git:` source:
 
 ```bash
 pi install git:github.com/Automattic/radical-pipelines
 ```
 
-This routes through the root-level Pi manifest (`package.json` at the repo root), which reads the same `.pi-extension/` content as the npm package.
+This routes through the root-level Pi manifest (`package.json` at the repo root), which reads the same `.pi-extension/` content as local development installs.
 
 The package installs:
 
@@ -133,11 +121,11 @@ After installing the Pi package in a repository:
 2. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
 3. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
-Validation for the local package has verified `npm pack --dry-run`, `pi install ./.pi-extension -l`, `pi list`, and `/skill:radical-pipelines`. Predefined team discovery requires global `pi-teams` registration because `pi-teams` does not currently read package-local team files directly. The local validation used print mode rather than a full manual interactive UI.
+Validation for the local package has verified `pi install ./.pi-extension -l`, `pi list`, and `/skill:radical-pipelines`. Predefined team discovery requires global `pi-teams` registration because `pi-teams` does not currently read package-local team files directly. The local validation used print mode rather than a full manual interactive UI.
 
 ## Dependency bundling
 
-`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by the npm publish path and `pi install ./.pi-extension -l`. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
+`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by local development installs. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
 
 The repository root also ships a Pi manifest (`package.json`) so `pi install git:github.com/Automattic/radical-pipelines` resolves at the cloned repo root. The root manifest declares the same bundled dependencies directly and points its `pi` manifest paths at `.pi-extension/` files, so both layers share a single source of truth.
 

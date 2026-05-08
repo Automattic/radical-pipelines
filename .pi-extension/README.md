@@ -13,19 +13,13 @@ No prompt templates or themes are currently included.
 
 ## Install
 
-Global install after publication:
+Install from the GitHub repository:
 
 ```bash
-pi install npm:@automattic/radical-pipelines-pi
+pi install git:github.com/Automattic/radical-pipelines
 ```
 
-Project-local/shared install after publication:
-
-```bash
-pi install npm:@automattic/radical-pipelines-pi -l
-```
-
-Development install before publication:
+Local checkout install:
 
 ```bash
 cd .pi-extension
@@ -37,14 +31,6 @@ pi install ./.pi-extension -l
 `npm install` is required for local-path development installs so the bundled `node_modules/pi-teams/...` and `node_modules/@zenobius/pi-worktrees/...` resources exist before Pi loads the package.
 
 ## Verify
-
-Package contents:
-
-```bash
-cd .pi-extension
-npm install
-npm pack --dry-run
-```
 
 Local Pi install:
 
@@ -61,7 +47,6 @@ env -u PI_TEAM_NAME -u PI_AGENT_NAME pi -p "/skill:radical-pipelines"
 
 Verified local results:
 
-- `npm pack --dry-run` succeeded and currently includes the package README, package manifest, and team templates. The symlinked agents and skills are not included in the tarball yet; that packaging issue must be fixed before relying on npm publication for agent and skill delivery.
 - `pi install ./.pi-extension -l && pi list` succeeded; in this worktree `pi list` showed project package `../.pi-extension`.
 - `/skill:radical-pipelines` succeeded with `Ready. What pipeline/task would you like to start?`.
 - pi-teams predefined discovery requires the packaged team templates to be registered in the global `~/.pi/teams.yaml` file because `pi-teams` does not currently read package-local team files directly.
