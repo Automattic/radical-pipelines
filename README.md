@@ -133,7 +133,7 @@ The skill at `.agents/skills/radical-pipelines/` and the agent profiles at `.age
 
 ## Fallback skill install
 
-Fallback skill-only install with the [Skills command-line tool](https://github.com/vercel-labs/skills):
+Fallback skill-only install with the Skills command-line tool:
 
 ```bash
 npx skills add Automattic/radical-pipelines
@@ -154,6 +154,8 @@ If required conventions are missing when a workflow starts, Radical Pipelines st
 Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific Radical Pipelines conventions should live in `.pi/rp.md` or `.claude/rp.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
 
 The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent or team, it passes the resolved pipeline slug, artifact folder path, exact artifact paths for that role, and the role-specific host-project conventions listed in the agent profile. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
+
+When a spawned Pi phase agent fails with a provider login/API-key error, the orchestrator should retry with an explicit provider-qualified model from the owner's authenticated providers instead of asking the owner to authenticate that failed provider. Use `pi --list-models` to find available authenticated models, prefer the owner's configured default provider/model when available, and otherwise choose a suitable authenticated model.
 
 Reviewer agents write inspectable review artifacts into the task's artifact folder on every review iteration. Current artifact names are `spec-review-N.md`, `plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md`, where N starts at 1 and increments for each writer/reviewer round. The future design doc reviewer will use `design-doc-review-N.md`.
 
