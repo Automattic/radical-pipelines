@@ -33,11 +33,12 @@ This skill defines two workflows: the **autonomous workflow** (a full pipeline r
 | --- | ------------- | -------------- | ----------------------------------------------------- |
 | 0   | Prompt        | prompt-writer  | The raw request (input, not something to create)      |
 | 1   | Spec          | spec-writer    | Requirements, acceptance criteria, out-of-scope       |
+| 2   | Design doc    | design-writer  | Architecture, technical decisions, trade-offs         |
 | 3   | Implementation plan | plan-writer | Ordered implementation plan and verification strategy |
 | 4   | Implementation | implementer    | Code changes, unit tests, end-to-end verification     |
 | 5   | Documentation | doc-writer     | Updated README, package docs, examples, conventions   |
 
-_Only phase 1 has a full autonomous and assisted workflow today. Phases 3, 4, and 5 ship phase agents paired with adversarial reviewers for use through the project's team-spawning convention, but autonomous workflow orchestration still stops at phase 1 until the later phase reference docs are added. Phase 2 (Design doc) is out of scope for the current iteration and will be designed and contributed separately._
+_Only phase 1 has a full autonomous and assisted workflow today. Phases 2, 3, 4, and 5 ship phase agents paired with adversarial reviewers for use through the project's team-spawning convention, but autonomous workflow orchestration still stops at phase 1 until the later phase reference docs are added._
 
 ## Autonomous run plan
 
@@ -92,7 +93,7 @@ If a required convention is missing, run the setup flow before spawning agents. 
 Reviewer agents write inspectable review artifacts into the current task's artifact folder on every review iteration. Use the phase surface in the filename and increment N from 1 for each writer/reviewer round:
 
 - Spec reviews: `spec-review-N.md`.
-- Design doc reviews, when phase 2 ships: `design-doc-review-N.md`.
+- Design doc reviews: `design-doc-review-N.md`.
 - Implementation plan reviews: `plan-review-N.md`.
 - Code reviews: `code-review-N.md`.
 - Documentation reviews: `docs-review-N.md`.

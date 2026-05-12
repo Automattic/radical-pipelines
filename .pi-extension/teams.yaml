@@ -5,6 +5,10 @@ radical-pipelines-spec:
   - spec-writer
   - spec-reviewer
 
+radical-pipelines-design:
+  - design-writer
+  - design-reviewer
+
 radical-pipelines-plan:
   - plan-writer
   - plan-reviewer
