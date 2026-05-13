@@ -121,8 +121,8 @@ This routes through the root-level Pi manifest (`package.json` at the repo root)
 The package installs:
 
 - the `radical-pipelines` skill;
-- six phase agent profiles: `prompt-writer`, `spec-writer`, `designer`, `planner`, `implementer`, and `documenter`;
-- `radical-pipelines` and `radical-pipelines-spec` pi-teams templates;
+- the Spec phase agent profiles: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, and `spec-consolidator`. Profiles for later phases (`designer`, `planner`, `implementer`, `documenter`) will ship when the `radical-pipelines` skill enables those phases.
+- the `radical-pipelines-spec` pi-teams template (the full `radical-pipelines` team will ship alongside the remaining phase agents);
 - bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
 
 During package development in this repository, install dependencies first and then install the local path:
@@ -190,10 +190,10 @@ Workflows:
 Phases (within implemented workflows):
 
 - **Phase 0 (Prompt)** captures the task as `prompt.md`.
-- **Phase 1 (Spec)** produces `spec.md` from the prompt. In the autonomous workflow, two execution modes are available, chosen at planning time:
-  - `single` — one spec writer + one adversarial reviewer in a revision loop.
-  - `multi` — N parallel spec writers followed by a consolidator that merges the drafts.
-- In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner.
+- **Phase 1 (Spec)** produces `requirements.md` and `spec.md` from the prompt. In the autonomous workflow, a `spec-analyst` and a `researcher` first run an iterative one-question-at-a-time Q&A loop (routed through the orchestrator) that records `requirements.md`. Then one of two spec generation modes runs, chosen at planning time:
+  - `single` — one `spec-writer` + one adversarial `spec-reviewer` in a revision loop.
+  - `multi` — N parallel `spec-writer` instances followed by a `spec-consolidator` that merges the drafts.
+- In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner directly (no agents spawned).
 - Phases 2–5 (Design doc, Implementation plan, Implementation, Documentation) are not yet implemented.
 
 Pi package limitations:

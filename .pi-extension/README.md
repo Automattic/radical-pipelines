@@ -5,7 +5,7 @@ This Pi package installs the Radical Pipelines skill, phase agent profiles, pi-t
 ## What it includes
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
-- Agents: `prompt-writer` and `spec-writer`. Additional phase agents (`designer`, `planner`, `implementer`, `documenter`) will ship when the `radical-pipelines` skill enables those phases.
+- Agents for phases 0–1: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, and `spec-consolidator`. Additional phase agents (`designer`, `planner`, `implementer`, `documenter`) will ship when the `radical-pipelines` skill enables those phases.
 - Team templates: `radical-pipelines-spec`. The full `radical-pipelines` team will ship alongside the remaining phase agents.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
@@ -64,7 +64,7 @@ Verified local results:
 - `npm pack --dry-run` succeeded and included the package README, agents, package manifest, skill files, reference docs, team templates, and bundled dependencies.
 - `pi install ./.pi-extension -l && pi list` succeeded; in this worktree `pi list` showed project package `../.pi-extension`.
 - `/skill:radical-pipelines` succeeded with `Ready. What pipeline/task would you like to start?`.
-- pi-teams predefined discovery found `radical-pipelines-spec`; creating `radical-pipelines-spec` spawned the prompt/spec writer agents in a smoke test.
+- pi-teams predefined discovery found `radical-pipelines-spec`; creating `radical-pipelines-spec` spawned the prompt/spec writer agents in a smoke test. Re-validation after adding the spec-analyst, researcher, spec-reviewer, and spec-consolidator agents has not been performed yet.
 
 ## Usage
 

@@ -1,6 +1,15 @@
 # Current minimal workflow: only the phases the radical-pipelines skill implements
 # (Prompt + Spec). Additional phase agents and a full radical-pipelines team will
 # be added when the skill enables those phases.
+#
+# The Spec phase autonomous workflow runs a spec-analyst/researcher Q&A loop to
+# produce requirements.md, then either a spec-writer + spec-reviewer revision
+# loop (single mode) or N parallel spec-writers + a spec-consolidator (multi
+# mode) to produce spec.md.
 radical-pipelines-spec:
   - prompt-writer
+  - spec-analyst
+  - researcher
   - spec-writer
+  - spec-reviewer
+  - spec-consolidator
