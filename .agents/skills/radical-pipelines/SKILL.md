@@ -61,6 +61,7 @@ This skill is generic, but each project has its own conventions that you must fo
 - Branch names
 - Pipeline artifact folders
 - Spawning teams of agents
+- Pi agent definitions, when the active CLI is Pi
 - Commits
 
 This information is necessary to execute the pipelines correctly, so you must load and verify it before starting any workflow.
@@ -73,11 +74,22 @@ To find the project-specific conventions, try the following in order:
 2. A dedicated conventions skill called `rp-conventions` or similar, when one is available.
 3. The Radical Pipelines `rp.md` file in the active CLI's project configuration folder, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
 
-When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. CLI-specific Radical Pipelines details belong in the active CLI's `rp.md` file and must not be copied into `CLAUDE.md` or duplicated from `AGENTS.md`.
+When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. Claude Code-specific Radical Pipelines details belong only in `.claude/rp.md`; Pi-specific Radical Pipelines details belong only in `.pi/rp.md`. Do not copy CLI-specific conventions into `CLAUDE.md`, do not duplicate shared `AGENTS.md` content into CLI files, and do not mix Claude Code conventions into Pi files or Pi conventions into Claude Code files.
+
+### Pi agent definitions
+
+When the active CLI is Pi, verify phase agent definitions before starting a pipeline or spawning a predefined team. Check repository-local Pi agents first, then user-local/global Pi agents:
+
+1. Repository-local: `.pi/agents/<agent-name>.md` or `.pi/agents/<agent-name>/SKILL.md` in the target repository.
+2. User-local/global: `~/.pi/agent/agents/<agent-name>.md` or `~/.pi/agent/agents/<agent-name>/SKILL.md`.
+
+The required agent set is the set needed by the target phase and selected execution mode. For example, single-agent phase 1 needs `spec-writer` and `spec-reviewer`; design, plan, implementation, and documentation phases need their writer/reviewer pair.
+
+If neither repository-local nor user-local/global definitions are available for the required agents, stop before running the pipeline. Ask the owner which Radical Pipelines agents they want to copy/paste and install, and whether to install them in the repository-local `.pi/agents/` directory or the user-local/global `~/.pi/agent/agents/` directory. Do not create or copy agent files without explicit confirmation.
 
 ### Passing conventions to phase agents
 
-You are responsible for loading and verifying project conventions before launching phase agents. Phase agents should not repeat the full convention-discovery flow or infer project paths from generic examples.
+You are responsible for loading and verifying project conventions and, for Pi, required agent definitions before launching phase agents. Phase agents should not repeat the full convention-discovery flow or infer paths from generic examples.
 
 When spawning a phase agent or team, include the resolved role-specific context in the initial prompt:
 
