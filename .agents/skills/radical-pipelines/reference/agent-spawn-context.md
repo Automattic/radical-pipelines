@@ -19,6 +19,8 @@ Agent profiles refer to the values as **"the artifacts folder"** and **"the comm
 
 Per-invocation specifics — the draft number K for a multi-mode write, the review round N, the latest `spec-review-N.md` path to address, the spec generation mode, the question to investigate, the file under review, etc. — go in the rest of the spawn prompt, not in the agent spawn context. The agent spawn context stays uniform across every agent and every spawn; per-invocation details belong to the specific call.
 
+Repository fork and PR ownership policy also stays out of the agent spawn context. The orchestrator verifies the fork worktree before spawning agents and handles opening pull requests later.
+
 ## When to include it
 
 Always, when spawning any team agent. This includes:

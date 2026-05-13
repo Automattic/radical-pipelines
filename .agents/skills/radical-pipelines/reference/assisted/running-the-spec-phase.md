@@ -151,10 +151,9 @@ Show the owner `spec.md`. Iterate on edits, additions, or removals. The owner
 may also send you back to step 3 for more Q&A; that is allowed and expected.
 Repeat until the owner explicitly approves.
 
-### 9. Commit
+### 9. Commit or persist safely
 
-Commit `requirements.md` and `spec.md` together in a single commit, following
-the project's **Commits** convention.
+Commit `requirements.md` and `spec.md` together in a single commit only when allowed by the project's **Commits** convention and repository ownership policy. In not-owned repositories, commits are allowed once work is happening in the configured fork worktree. Pull-request publication is outside the assisted spec phase and belongs to the open PR phase. Before any commit, inspect the staged diff and remove unrelated Radical Pipelines, Pi, Claude, agent, or personal configuration files.
 
 ### 10. Report
 

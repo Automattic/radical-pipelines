@@ -1,3 +1,9 @@
+## Repository ownership and persistence
+
+This is an owned repository: https://github.com/Automattic/radical-pipelines.
+
+Radical Pipelines support files are project-relevant here and may be tracked when they document or implement this package. Pipeline artifacts may be stored in `.pipelines/<pipeline-slug>` and committed when they are part of the task workflow. Before committing or pushing, inspect the diff and exclude unrelated personal Pi, Claude, or agent configuration.
+
 ## Managing tasks
 
 All the tasks are issues stored in this repository: https://github.com/Automattic/radical-pipelines.

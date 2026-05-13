@@ -9,7 +9,9 @@ Do not continue the pipeline. Tell the owner:
 - Radical Pipelines requires project conventions before it can run.
 - Which conventions were found and where they came from.
 - Which required conventions are still missing.
-- Shared cross-agent project instructions belong in project-root `AGENTS.md`.
+- Whether the repository is owned or not-owned, if known.
+- Repository ownership and fork policy are collected once during setup and stored for future runs.
+- Shared cross-agent project instructions belong in project-root `AGENTS.md` only for owned repositories or when the owner explicitly wants that file tracked by the project.
 - CLI-specific Radical Pipelines conventions belong in the active CLI conventions file, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
 - In Pi, phase agent definitions must also be discoverable before a pipeline can launch agents.
 
@@ -17,22 +19,26 @@ Ask whether the owner wants to run setup now. If they decline or cancel, stop an
 
 ## 2. Identify the active CLI target
 
-Determine the active CLI and target conventions file:
+Determine the active CLI and target conventions file. For owned repositories, the default in-repository targets are:
 
-| CLI | Target file |
-| --- | ----------- |
+| CLI | Owned-repository target file |
+| --- | ---------------------------- |
 | Pi | `.pi/rp.md` |
 | Claude Code | `.claude/rp.md` |
+
+For not-owned repositories, do not write these default in-repository files unless the owner explicitly confirms they are project-relevant and safe to track or ignore. Prefer an owner-approved external conventions file, a dedicated conventions skill, or another local-only location supported by the active CLI. The not-owned convention must also record the owner's fork remote/URL and branch/worktree policy where all phase work and commits happen.
 
 Create the parent configuration folder only after the owner confirms the setup answers should be written.
 
 ## 3. Inspect shared instruction files
 
-Check whether project-root `AGENTS.md` exists and whether it already contains shared cross-agent guidance. Treat it as the canonical location for shared project instructions.
+Check whether project-root `AGENTS.md` exists and whether it already contains shared cross-agent guidance. Treat it as the canonical location for shared project instructions only when the repository is owned, or when the owner explicitly confirms that adding tracked agent guidance is project-relevant.
 
-If `CLAUDE.md` exists and is a thin pointer such as `@AGENTS.md`, preserve that pointer. Do not replace it with copied instructions and do not write Radical Pipelines CLI-specific conventions into it. If `CLAUDE.md` is missing and the owner wants Claude Code to load shared instructions, you may suggest creating a thin pointer to `AGENTS.md`, but only create it after explicit confirmation.
+If `CLAUDE.md` exists and is a thin pointer such as `@AGENTS.md`, preserve that pointer. Do not replace it with copied instructions and do not write Radical Pipelines CLI-specific conventions into it. If `CLAUDE.md` is missing and the owner wants Claude Code to load shared instructions, you may suggest creating a thin pointer to `AGENTS.md`, but only create it after explicit confirmation and only for owned repositories or project-relevant tracked guidance.
 
-If `AGENTS.md` is missing and shared cross-agent instructions are needed, ask whether to create it. Do not create, overwrite, or replace `AGENTS.md` or `CLAUDE.md` without explicit confirmation.
+If the repository is not-owned, do not create or modify tracked `AGENTS.md`, `CLAUDE.md`, `.pi/`, `.claude/`, `.pipelines/`, `.gitignore`, or other personal automation files in the host repository unless the owner explicitly confirms the change is project-relevant. Prefer an external or local-ignored conventions location for Radical Pipelines state.
+
+If `AGENTS.md` is missing and shared cross-agent instructions are needed in an owned repository, ask whether to create it. Do not create, overwrite, or replace `AGENTS.md` or `CLAUDE.md` without explicit confirmation.
 
 ## 4. Check Pi agent definitions
 
@@ -48,16 +54,16 @@ If only some required agents are missing, ask whether to copy/paste and install 
 
 ## 5. Collect required conventions
 
-Ask for the required information in a clear sequence, but keep shared project conventions separate from CLI-specific conventions.
+Ask for the following information in a clear sequence. Repository ownership must be the first setup question, but it is asked only during setup and then stored in conventions. For each answer, identify whether it is shared project guidance for `AGENTS.md` or CLI-specific Radical Pipelines guidance for the active `rp.md` file.
 
-### Shared project conventions
-
-Shared conventions describe the project regardless of which agent CLI runs the pipeline. Prefer `AGENTS.md` for reusable shared guidance, or include only the Radical Pipelines-specific subset in each CLI's `rp.md` when the owner does not want shared files changed.
-
-1. **Tasks:** Where tasks are tracked and how agents should access them.
-2. **Pipeline slugs:** The slug format to use for pipeline names.
-3. **Pipeline artifact folders:** Where pipeline artifacts are stored.
-4. **Commits:** Commit message format and any other commit rules.
+1. **Repository ownership and persistence policy:** Whether this is an owned repository or a not-owned upstream/fork workflow; where Radical Pipelines may write metadata; which files must remain local or ignored; and, for not-owned repositories, the owner's fork remote/URL and branch/worktree policy where all phase work and commits must happen. For owned repositories, convention files, artifact folders, and `.gitignore` updates for local worktree folders are allowed when project-relevant. For not-owned repositories, always work in the configured fork; no Radical Pipelines conventions or artifacts may be added to the upstream project repository, `.gitignore` must not be modified there for Radical Pipelines, local-only ignores should use `.git/info/exclude`, and versioned/multi-user artifacts must live in a separate repository.
+2. **Tasks:** Where tasks are tracked and how agents should access them.
+3. **Pipeline slugs:** The slug format to use for pipeline names.
+4. **Worktrees:** Whether worktrees are used and the exact commands or workflow for creating, entering, and removing them.
+5. **Branch names:** How branch names are chosen or created.
+6. **Pipeline artifact folders:** Where pipeline artifacts are stored. For not-owned repositories, prefer an external artifact folder outside the upstream project repository, or an explicitly local-only folder when artifacts are not intended for the eventual PR.
+7. **Spawning teams of agents:** How the active CLI should spawn teams or agents.
+8. **Commits:** Commit message format, what may be committed, and whether pipeline artifacts are committed. Do not ask phase agents to enforce fork or PR ownership policy; they may commit once the orchestrator has placed the work in the configured fork worktree. Pull-request publication is documented only in the open PR phase.
 
 ### Claude Code conventions
 
@@ -86,6 +92,7 @@ Before writing anything, summarize the proposed file changes and ask for explici
 
 - If the active CLI `rp.md` file does not exist, ask before creating it.
 - If it exists, ask before overwriting it. Offer to merge or append only when the owner explicitly chooses that approach.
+- In not-owned repositories, state whether the target is outside the repository, ignored/local-only, or intentionally project-relevant before asking for confirmation.
 - If `AGENTS.md` or `CLAUDE.md` would be created or changed, ask for separate explicit confirmation for each shared instruction file.
 
 If any required answer is missing, do not create a misleading complete conventions file. Either stop and explain what is unresolved, or, only if the owner explicitly asks for a draft, write a file that clearly marks unresolved items and state that setup is incomplete.
@@ -97,6 +104,10 @@ Write the active CLI `rp.md` file with only Radical Pipelines conventions needed
 For Claude Code, use clear sections such as:
 
 ```markdown
+## Repository ownership and persistence
+
+...
+
 ## Managing tasks
 
 ...
@@ -129,6 +140,10 @@ For Claude Code, use clear sections such as:
 For Pi, use clear sections such as:
 
 ```markdown
+## Repository ownership and persistence
+
+...
+
 ## Pi prerequisites
 
 ...
@@ -174,7 +189,8 @@ After setup completes, tell the owner:
 
 - Which files were created or updated.
 - That future Radical Pipelines runs with the same CLI should read the generated `rp.md` and skip setup if all required conventions are present.
-- To review and commit the generated CLI-specific conventions file if it should be shared with the project.
-- To review and commit any `AGENTS.md` or `CLAUDE.md` changes separately as shared agent instructions.
+- To review and commit the generated CLI-specific conventions file if it should be shared with the project and the repository is owned.
+- To keep generated Radical Pipelines convention files untracked or outside the upstream project repository when working in a not-owned repository.
+- To review and commit any `AGENTS.md` or `CLAUDE.md` changes separately as shared agent instructions only when they are project-relevant.
 
 If setup was cancelled or incomplete, stop the pipeline and clearly list what remains missing.

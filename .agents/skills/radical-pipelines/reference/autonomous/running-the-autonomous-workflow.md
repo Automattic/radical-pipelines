@@ -9,9 +9,17 @@ The plan has two parts:
 
 Collect everything up-front. Once the autonomous run starts, do not ask the owner additional questions until the target phase finishes.
 
-## 1. Frame the conversation
+## 1. Frame the conversation and verify setup conventions
 
 When you greet the owner, tell them explicitly that this is the autonomous workflow and that you will collect all the decisions up-front so the run can then proceed without interruptions.
+
+Before asking workflow questions, load the stored project conventions:
+
+- If conventions declare the repository ownership mode and all required ownership details are present, continue without asking the owner to reconfirm them.
+- If ownership is missing or incomplete, stop and run setup before asking the target phase or per-phase questions.
+- If the repository is not-owned, verify the current worktree/branch is using the configured fork. If it is not, stop and switch to the configured fork workflow before creating artifacts or launching agents.
+
+Repository ownership is collected once during setup and stored in conventions. Do not ask it again on every autonomous launch unless the stored convention is missing, incomplete, or contradicted by the current checkout.
 
 ## 2. Ask the target phase
 

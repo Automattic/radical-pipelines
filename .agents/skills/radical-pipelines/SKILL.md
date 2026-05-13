@@ -29,14 +29,14 @@ This skill defines two workflows: the **autonomous workflow** (a full pipeline r
 
 ## Phases
 
-| #   | Phase         | Agent          | Produces                                              |
-| --- | ------------- | -------------- | ----------------------------------------------------- |
-| 0   | Prompt        | prompt-writer  | The raw request (input, not something to create)      |
-| 1   | Spec          | spec-writer    | Requirements, acceptance criteria, out-of-scope       |
-| 2   | Design doc    | design-writer  | Architecture, technical decisions, trade-offs         |
-| 3   | Implementation plan | plan-writer | Ordered implementation plan and verification strategy |
-| 4   | Implementation | implementer    | Code changes, unit tests, end-to-end verification     |
-| 5   | Documentation | doc-writer     | Updated README, package docs, examples, conventions   |
+| #   | Phase               | Agent         | Produces                                              |
+| --- | ------------------- | ------------- | ----------------------------------------------------- |
+| 0   | Prompt              | prompt-writer | The raw request (input, not something to create)      |
+| 1   | Spec                | spec-writer   | Requirements, acceptance criteria, out-of-scope       |
+| 2   | Design doc          | design-writer | Architecture, technical decisions, trade-offs         |
+| 3   | Implementation plan | plan-writer   | Ordered implementation plan and verification strategy |
+| 4   | Implementation      | implementer   | Code changes, unit tests, end-to-end verification     |
+| 5   | Documentation       | doc-writer    | Updated README, package docs, examples, conventions   |
 
 _Only phase 1 has a full autonomous and assisted workflow today. Phases 2, 3, 4, and 5 ship phase agents paired with adversarial reviewers for use through the project's team-spawning convention, but autonomous workflow orchestration still stops at phase 1 until the later phase reference docs are added._
 
@@ -55,6 +55,7 @@ When the autonomous run stops at the target phase, the session ends. What happen
 
 This skill is generic, but each project has its own conventions that you must follow:
 
+- Repository ownership and persistence policy
 - Tasks
 - Pipeline slugs
 - Worktrees
@@ -62,7 +63,7 @@ This skill is generic, but each project has its own conventions that you must fo
 - Pipeline artifact folders
 - Spawning teams of agents
 - Pi agent definitions, when the active CLI is Pi
-- Commits
+- Commit format and PR ownership policy
 
 This information is necessary to execute the pipelines correctly, so you must load and verify it before starting any workflow.
 
@@ -87,6 +88,27 @@ The required agent set is the set needed by the target phase and selected execut
 
 If neither repository-local nor user-local/global definitions are available for the required agents, stop before running the pipeline. Ask the owner which Radical Pipelines agents they want to copy/paste and install, and whether to install them in the repository-local `.pi/agents/` directory or the user-local/global `~/.pi/agent/agents/` directory. Do not create or copy agent files without explicit confirmation.
 
+### Repository ownership safety
+
+Repository ownership is a required setup convention, not a question to repeat every time the orchestrator starts. Before asking what phase to run or creating files, load the stored ownership convention and verify the current checkout/worktree matches it:
+
+- **Owned repository** — the owner intentionally manages the repository. Radical Pipelines may create, edit, and commit project convention files, pipeline artifact folders, and supporting project files such as `.gitignore` entries for local worktree folders when the project convention says to do so.
+- **Not-owned repository** — the owner is working against an upstream they do not control, or where Radical Pipelines files would be unrelated project noise. In this mode all Radical Pipelines work must happen in the owner's fork. The setup convention records the fork remote/URL and branch/worktree policy once so future runs can verify it without asking again.
+
+If ownership or the required fork policy is unclear, stop and run setup. Do not guess based only on local filesystem access or repository remote information.
+
+For not-owned repositories, the safe default is:
+
+- create and enter a worktree/branch in the configured fork before any phase work starts;
+- keep reusable Radical Pipelines conventions, CLI configuration, agent configuration, and other personal automation files outside the upstream project repository unless the owner has explicitly declared them project-relevant;
+- do not create or modify upstream project files such as `.gitignore`, `AGENTS.md`, `CLAUDE.md`, `.pi/`, `.claude/`, `.pipelines/`, or agent configuration for Radical Pipelines purposes;
+- if local-only excludes are needed, offer to use the repository-local Git excludes file (`.git/info/exclude`) instead of modifying `.gitignore`;
+- allow agents to commit according to the project's commit convention once they are operating in the configured fork worktree;
+- do not ask agents to read or enforce fork/PR ownership policy; the orchestrator owns that verification;
+- leave pull-request publication for the open PR phase, where the orchestrator must use the configured fork.
+
+If the configured fork, artifact folder, or setup target is missing or unsafe for a not-owned repository, treat that as a missing convention and run setup before continuing.
+
 ### Passing conventions to phase agents
 
 You are responsible for loading and verifying project conventions and, for Pi, required agent definitions before launching phase agents. Phase agents should not repeat the full convention-discovery flow or infer paths from generic examples.
@@ -97,6 +119,8 @@ When spawning a phase agent or team, include the resolved role-specific context 
 - The exact artifact paths the agent should read and write.
 - The host-project conventions required by that agent profile.
 - For reviewer agents, the current review iteration number and the exact review artifact path to write.
+
+Do not pass fork/PR ownership policy to phase agents. The orchestrator uses that convention when creating or verifying the fork worktree and later when opening a pull request.
 
 If a required convention is missing, run the setup flow before spawning agents. If a convention exists but cannot be summarized safely, point the agent at the source file and name the exact sections it must follow.
 
@@ -139,10 +163,10 @@ If you cannot verify how to invoke a required tool from the current environment,
 
 Before executing any workflow, you must read the corresponding reference file(s) listed below. This applies every time you start a workflow, even if you have read the file before in this conversation. Always re-read before starting to refresh your mind.
 
-| When you need to...                          | Read                                                      |
-| -------------------------------------------- | --------------------------------------------------------- |
-| Start an autonomous run                      | `reference/autonomous/running-the-autonomous-workflow.md` |
-| Run phase 1 (spec) inside an autonomous run  | `reference/autonomous/running-the-spec-phase.md`          |
-| Run phase 1 (spec) assisted with the owner   | `reference/assisted/running-the-spec-phase.md`            |
-| Set up a pipeline through phase 0            | `reference/starting-a-pipeline.md`                        |
-| Set up missing conventions                   | `reference/setup-project-conventions.md`                  |
+| When you need to...                         | Read                                                      |
+| ------------------------------------------- | --------------------------------------------------------- |
+| Start an autonomous run                     | `reference/autonomous/running-the-autonomous-workflow.md` |
+| Run phase 1 (spec) inside an autonomous run | `reference/autonomous/running-the-spec-phase.md`          |
+| Run phase 1 (spec) assisted with the owner  | `reference/assisted/running-the-spec-phase.md`            |
+| Set up a pipeline through phase 0           | `reference/starting-a-pipeline.md`                        |
+| Set up missing conventions                  | `reference/setup-project-conventions.md`                  |
