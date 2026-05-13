@@ -56,9 +56,10 @@ Verified local results:
 1. Install the package globally or project-locally.
 2. Start the workflow with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
 3. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
-4. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
+4. Ensure the required phase agent definitions are discoverable. Check repository-local `.pi/agents/` first, then user-local/global `~/.pi/agent/agents/`.
+5. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
-The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, pipeline artifact folders (for example `.pipelines/<pipeline-slug>`), `/worktree` setup, branch naming, team spawning, and commit format. Reviewer agents write inspectable `spec-review-N.md`, `design-doc-review-N.md`, `plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md` artifacts into the task's artifact folder.
+The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, pipeline artifact folders (for example `.pipelines/<pipeline-slug>`), `/worktree` setup, branch naming, team spawning, commit format, and Pi agent setup. During Pi setup, if no required agents are found in repository-local `.pi/agents/` or user-local/global `~/.pi/agent/agents/`, the workflow asks which Radical Pipelines agents to copy/paste and install before it launches teams. Reviewer agents write inspectable `spec-review-N.md`, `design-doc-review-N.md`, `plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md` artifacts into the task's artifact folder.
 
 ## Bundled dependencies
 
@@ -78,7 +79,7 @@ That command does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees
 
 ## Limitations
 
-- pi-teams currently discovers predefined agents and team templates from global or project-local locations, not package-local files. Radical Pipelines team definitions should be registered globally in `~/.pi/teams.yaml`, with agent profiles in `~/.pi/agent/agents/`, before predefined Radical Pipelines teams are visible.
+- pi-teams currently discovers predefined agents and team templates from global or project-local locations, not package-local files. Radical Pipelines team definitions should be registered globally in `~/.pi/teams.yaml`; agent profiles should be available either repository-locally in `.pi/agents/` or user-locally/globally in `~/.pi/agent/agents/`, before predefined Radical Pipelines teams are visible.
 - Local validation used Pi print mode, not a full manual interactive UI pass.
 - Local validation on Node v20.14.0 produced npm `EBADENGINE` warnings from transitive dependencies and two moderate `npm audit` findings.
 - Bundled dependency resource paths may need updates if future `pi-teams` or `@zenobius/pi-worktrees` releases move their Pi resources.

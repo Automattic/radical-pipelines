@@ -11,8 +11,9 @@ Do not continue the pipeline. Tell the owner:
 - Which required conventions are still missing.
 - Shared cross-agent project instructions belong in project-root `AGENTS.md`.
 - CLI-specific Radical Pipelines conventions belong in the active CLI conventions file, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
+- In Pi, phase agent definitions must also be discoverable before a pipeline can launch agents.
 
-Ask whether the owner wants to run setup now. If they decline or cancel, stop and summarize the missing conventions.
+Ask whether the owner wants to run setup now. If they decline or cancel, stop and summarize the missing conventions or missing Pi agents.
 
 ## 2. Identify the active CLI target
 
@@ -33,7 +34,19 @@ If `CLAUDE.md` exists and is a thin pointer such as `@AGENTS.md`, preserve that 
 
 If `AGENTS.md` is missing and shared cross-agent instructions are needed, ask whether to create it. Do not create, overwrite, or replace `AGENTS.md` or `CLAUDE.md` without explicit confirmation.
 
-## 4. Collect required conventions
+## 4. Check Pi agent definitions
+
+When the active CLI is Pi, check for the agent definitions required by the target phase and selected execution mode before collecting or writing conventions:
+
+1. Check repository-local Pi agents first: `.pi/agents/<agent-name>.md` or `.pi/agents/<agent-name>/SKILL.md`.
+2. If any required agent is not found in the repository, check user-local/global Pi agents: `~/.pi/agent/agents/<agent-name>.md` or `~/.pi/agent/agents/<agent-name>/SKILL.md`.
+3. Report which required agents were found in the repository, which were found globally, and which are missing.
+
+If all required agents are present across those locations, continue setup. If no required agents are available in either location, stop and ask the owner which Radical Pipelines agents they want to copy/paste and install. Ask whether to install them repository-locally under `.pi/agents/` or user-locally/globally under `~/.pi/agent/agents/`. Do not create or copy agent files without explicit confirmation.
+
+If only some required agents are missing, ask whether to copy/paste and install the missing agents, again confirming the destination before writing. After installation, tell the owner to verify discovery with the Pi/pi-teams predefined-agent listing for the target project.
+
+## 5. Collect required conventions
 
 Ask for the following information in a clear sequence. For each answer, identify whether it is shared project guidance for `AGENTS.md` or CLI-specific Radical Pipelines guidance for the active `rp.md` file.
 
@@ -44,10 +57,11 @@ Ask for the following information in a clear sequence. For each answer, identify
 5. **Pipeline artifact folders:** Where pipeline artifacts are stored.
 6. **Spawning teams of agents:** How the active CLI should spawn teams or agents.
 7. **Commits:** Commit message format and any other commit rules.
+8. **Pi agent setup, for Pi only:** The required agents, where they were found or installed, and whether future runs should prefer repository-local `.pi/agents/` definitions or user-local/global `~/.pi/agent/agents/` definitions when both exist.
 
 If the owner provides general project guidance, recommend adding or updating `AGENTS.md` instead of copying that guidance into CLI-specific conventions files.
 
-## 5. Confirm writes before changing files
+## 6. Confirm writes before changing files
 
 Before writing anything, summarize the proposed file changes and ask for explicit confirmation.
 
@@ -57,7 +71,7 @@ Before writing anything, summarize the proposed file changes and ask for explici
 
 If any required answer is missing, do not create a misleading complete conventions file. Either stop and explain what is unresolved, or, only if the owner explicitly asks for a draft, write a file that clearly marks unresolved items and state that setup is incomplete.
 
-## 6. Write human-readable Markdown
+## 7. Write human-readable Markdown
 
 Write the active CLI `rp.md` file with only Radical Pipelines conventions needed by that CLI. Use clear sections such as:
 
@@ -89,11 +103,15 @@ Write the active CLI `rp.md` file with only Radical Pipelines conventions needed
 ## Commits
 
 ...
+
+## Pi agent setup
+
+...
 ```
 
 Do not duplicate general project instructions already present in `AGENTS.md`.
 
-## 7. Finish safely
+## 8. Finish safely
 
 After setup completes, tell the owner:
 
