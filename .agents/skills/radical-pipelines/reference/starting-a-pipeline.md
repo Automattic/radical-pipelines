@@ -2,7 +2,7 @@
 
 Sets up a pipeline through phase 0 — identifies the task, creates the worktree and artifacts folder, writes `prompt.md`, and commits. Both the autonomous workflow and the assisted workflow use this as their entry point or fallback.
 
-Before executing these steps, make sure you have loaded and verified the project conventions (see `SKILL.md` → "Project conventions"). If any required convention is missing, stop and run the setup flow in `setup-project-conventions.md` before continuing. Each step below applies one of those conventions.
+Before executing these steps, make sure you have loaded and verified the project conventions (see `SKILL.md` → "Project conventions"). If the active CLI is Pi, also verify the required phase agent definitions by checking repository-local `.pi/agents/` first and user-local/global `~/.pi/agent/agents/` second. If any required convention or Pi agent definition is missing, stop and run the setup flow in `setup-project-conventions.md` before continuing. Each step below applies one of those conventions.
 
 ## Steps
 

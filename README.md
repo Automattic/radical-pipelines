@@ -98,31 +98,19 @@ Plugin skills are namespaced by the plugin name in Claude Code (not by the marke
 
 ## Pi package install
 
-For Pi, the recommended install is the package after it is published:
-
-```bash
-pi install npm:@automattic/radical-pipelines-pi
-```
-
-For a project-local/shared install, use:
-
-```bash
-pi install npm:@automattic/radical-pipelines-pi -l
-```
-
-To install directly from the GitHub repository instead of npm, use Pi's `git:` source:
+For Pi, install from the GitHub repository with Pi's `git:` source:
 
 ```bash
 pi install git:github.com/Automattic/radical-pipelines
 ```
 
-This routes through the root-level Pi manifest (`package.json` at the repo root), which reads the same `.pi-extension/` content as the npm package.
+This routes through the root-level Pi manifest (`package.json` at the repo root), which reads the same `.pi-extension/` content as local development installs.
 
 The package installs:
 
 - the `radical-pipelines` skill;
-- the Spec phase agent profiles: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, and `spec-consolidator`. Profiles for later phases (`designer`, `planner`, `implementer`, `documenter`) will ship when the `radical-pipelines` skill enables those phases.
-- the `radical-pipelines-spec` pi-teams template (the full `radical-pipelines` team will ship alongside the remaining phase agents);
+- phase agent profiles for the shipped phases and phase pairs: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-writer`, `design-reviewer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`;
+- the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, and `radical-pipelines-implementation` pi-teams templates as package-local source definitions. These team templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The full `radical-pipelines` team will ship alongside later workflow orchestration;
 - bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
 
 During package development in this repository, install dependencies first and then install the local path:
@@ -139,13 +127,14 @@ pi install ./.pi-extension -l
 After installing the Pi package in a repository:
 
 1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-2. Use pi-teams predefined team creation with the `radical-pipelines` or `radical-pipelines-spec` templates.
+2. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
+3. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, or `radical-pipelines-implementation` template, depending on the phase you are running.
 
-Validation for the local package has verified `npm pack --dry-run`, `pi install ./.pi-extension -l`, `pi list`, `/skill:radical-pipelines`, predefined team discovery, and spawning the `radical-pipelines-spec` team. The local validation used print mode rather than a full manual interactive UI.
+Validation for the local package has verified `pi install ./.pi-extension -l`, `pi list`, and `/skill:radical-pipelines`. Predefined team discovery requires global `pi-teams` registration because `pi-teams` does not currently read package-local team files directly. The local validation used print mode rather than a full manual interactive UI.
 
 ## Dependency bundling
 
-`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by the npm publish path and `pi install ./.pi-extension -l`. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
+`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by local development installs. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
 
 The repository root also ships a Pi manifest (`package.json`) so `pi install git:github.com/Automattic/radical-pipelines` resolves at the cloned repo root. The root manifest declares the same bundled dependencies directly and points its `pi` manifest paths at `.pi-extension/` files, so both layers share a single source of truth.
 
@@ -159,7 +148,7 @@ Fallback skill-only install with the [Skills command-line tool](https://github.c
 npx skills add Automattic/radical-pipelines
 ```
 
-The fallback only installs the skill. It does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team files, and skill install paths can vary across CLIs, symlinks, and home-relative setups. Use the Pi package when you want automated Pi setup.
+The fallback only installs the skill. It does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team source files, and skill install paths can vary across CLIs, symlinks, and home-relative setups. Use the Pi package when you want package-managed Pi resources and bundled dependencies.
 
 ## Configuration
 
@@ -169,11 +158,19 @@ The skill is generic — each project defines its own conventions for things lik
 2. A dedicated conventions skill (e.g., `rp-conventions`).
 3. A Radical Pipelines `rp.md` file in the active CLI's config folder — `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
 
-If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup flow. Setup asks for the missing convention details, explains which answers are shared project guidance and which are CLI-specific Radical Pipelines guidance, and can write a reusable Markdown conventions file for the active CLI after confirmation. Pi setup writes `.pi/rp.md`; Claude Code setup writes `.claude/rp.md`.
+If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup flow. Setup asks for the missing convention details, separates shared project guidance from CLI-specific guidance, and can write reusable Markdown for the active CLI after confirmation. Pi setup writes only Pi conventions to `.pi/rp.md`; Claude Code setup writes only Claude Code conventions to `.claude/rp.md`.
 
-Shared cross-agent project instructions should live in `AGENTS.md`. CLI-specific Radical Pipelines conventions should live in `.pi/rp.md` or `.claude/rp.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
+Shared project conventions include task tracking, pipeline slug format, pipeline artifact folder location, and commit rules. Claude Code conventions include Claude Code worktree commands, branch creation, team spawning, and Claude Code prerequisites. Pi conventions include Pi packages and plugins, Pi worktree commands, branch creation, pi-teams spawning, provider/model recovery, and Pi agent setup. Do not mix Claude Code conventions into `.pi/rp.md`, and do not mix Pi conventions into `.claude/rp.md`.
 
-See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples. Pi projects should define the pipeline artifact folder convention (for example `.pipelines/<pipeline-slug>`), worktree root setup (for example `/worktree settings worktreeRoot .pi/worktrees`), and pi-teams spawning conventions.
+For Pi, setup also verifies that the required phase agent definitions are discoverable before the pipeline starts. It checks repository-local agents first (`.pi/agents/<agent>.md` or `.pi/agents/<agent>/SKILL.md`), then user-local/global agents (`~/.pi/agent/agents/<agent>.md` or `~/.pi/agent/agents/<agent>/SKILL.md`). If none of the required agents are available, setup stops and asks which Radical Pipelines agents the user wants to copy/paste and install, and whether to install them repository-locally or user-locally/globally.
+
+Shared cross-agent project instructions should live in `AGENTS.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
+
+The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent or team, it passes the resolved pipeline slug, artifact folder path, exact artifact paths for that role, and the role-specific host-project conventions listed in the agent profile. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
+
+Reviewer agents write inspectable review artifacts into the task's artifact folder on every review iteration. Current artifact names are `spec-review-N.md`, `design-doc-review-N.md`, `plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md`, where N starts at 1 and increments for each writer/reviewer round.
+
+See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples of separate CLI convention files. Pi projects should define Pi-only worktree setup (for example `/worktree settings worktreeRoot .pi/worktrees`), pi-teams spawning conventions, and Pi agent setup expectations in `.pi/rp.md`; Claude Code projects should define Claude Code-only worktree and team-spawning conventions in `.claude/rp.md`.
 
 ## Current status and limitations
 
@@ -191,13 +188,16 @@ Phases (within implemented workflows):
 
 - **Phase 0 (Prompt)** captures the task as `prompt.md`.
 - **Phase 1 (Spec)** produces `requirements.md` and `spec.md` from the prompt. In the autonomous workflow, a `spec-analyst` and a `researcher` first run an iterative one-question-at-a-time Q&A loop (routed through the orchestrator) that records `requirements.md`. Then one of two spec generation modes runs, chosen at planning time:
-  - `single` — one `spec-writer` + one adversarial `spec-reviewer` in a revision loop.
+  - `single` — one `spec-writer` + one adversarial `spec-reviewer` in a revision loop. The reviewer writes `spec-review-N.md` artifacts.
   - `multi` — N parallel `spec-writer` instances followed by a `spec-consolidator` that merges the drafts.
 - In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner directly (no agents spawned).
-- Phases 2–5 (Design doc, Implementation plan, Implementation, Documentation) are not yet implemented.
+- **Phase 2 (Design doc)** ships `design-writer` and `design-reviewer` agent profiles plus the `radical-pipelines-design` team template for project-convention-driven use. The writer produces a design doc that traces each architectural decision back to the spec; the reviewer writes `design-doc-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
+- **Phase 3 (Implementation plan)** ships `plan-writer` and `plan-reviewer` agent profiles plus the `radical-pipelines-plan` team template for project-convention-driven use. The reviewer writes `plan-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
+- **Phase 4 (Implementation)** ships `implementer` and `implementer-reviewer` agent profiles plus the `radical-pipelines-implementation` team template. The implementer reads the host project's verification and end-to-end testing convention and runs the configured workflow instead of hardcoding a command. The reviewer writes `code-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
+- **Phase 5 (Documentation)** ships a `doc-writer` paired with an adversarial `doc-reviewer` in a revision loop. They update the README, package docs, examples, and project conventions to match what landed. The reviewer writes `docs-review-N.md` artifacts. Full pipeline orchestration into phase 5 will arrive when the later phase workflow docs are implemented.
 
 Pi package limitations:
 
-- pi-teams currently reads predefined agents/templates from global or project-local locations, not package-local files, so project-local `.pi/agents/*.md` and `.pi/teams.yaml` may need to be set up before predefined Radical Pipelines teams are visible.
+- pi-teams currently reads predefined agents/templates from global or project-local locations, not package-local files. Radical Pipelines team definitions should be registered globally in `~/.pi/teams.yaml`; agent profiles should be available either repository-locally in `.pi/agents/` or user-locally/globally in `~/.pi/agent/agents/`, before predefined Radical Pipelines teams are visible.
 - Local validation on Node v20.14.0 produced npm `EBADENGINE` warnings from transitive dependencies and two moderate `npm audit` findings.
 - Open PRs may change nearby guidance later: PR #6 may improve pi-teams examples, PR #10 may change convention setup, and PR #12 may add orchestration safeguards. This package does not depend on those PRs being merged.

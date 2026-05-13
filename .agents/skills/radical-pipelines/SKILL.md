@@ -29,12 +29,16 @@ This skill defines two workflows: the **autonomous workflow** (a full pipeline r
 
 ## Phases
 
-| #   | Phase  | Produces                                         |
-| --- | ------ | ------------------------------------------------ |
-| 0   | Prompt | The raw request (input, not something to create) |
-| 1   | Spec   | Requirements, acceptance criteria, out-of-scope  |
+| #   | Phase         | Agent          | Produces                                              |
+| --- | ------------- | -------------- | ----------------------------------------------------- |
+| 0   | Prompt        | prompt-writer  | The raw request (input, not something to create)      |
+| 1   | Spec          | spec-writer    | Requirements, acceptance criteria, out-of-scope       |
+| 2   | Design doc    | design-writer  | Architecture, technical decisions, trade-offs         |
+| 3   | Implementation plan | plan-writer | Ordered implementation plan and verification strategy |
+| 4   | Implementation | implementer    | Code changes, unit tests, end-to-end verification     |
+| 5   | Documentation | doc-writer     | Updated README, package docs, examples, conventions   |
 
-_Only phase 1 is implemented. Phases 2–5 (Design doc, Implementation plan, Implementation, Documentation) will follow the same pattern when added._
+_Only phase 1 has a full autonomous and assisted workflow today. Phases 2, 3, 4, and 5 ship phase agents paired with adversarial reviewers for use through the project's team-spawning convention, but autonomous workflow orchestration still stops at phase 1 until the later phase reference docs are added._
 
 ## Autonomous run plan
 
@@ -57,6 +61,7 @@ This skill is generic, but each project has its own conventions that you must fo
 - Branch names
 - Pipeline artifact folders
 - Spawning teams of agents
+- Pi agent definitions, when the active CLI is Pi
 - Commits
 
 This information is necessary to execute the pipelines correctly, so you must load and verify it before starting any workflow.
@@ -69,7 +74,43 @@ To find the project-specific conventions, try the following in order:
 2. A dedicated conventions skill called `rp-conventions` or similar, when one is available.
 3. The Radical Pipelines `rp.md` file in the active CLI's project configuration folder, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
 
-When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. CLI-specific Radical Pipelines details belong in the active CLI's `rp.md` file and must not be copied into `CLAUDE.md` or duplicated from `AGENTS.md`.
+When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. Claude Code-specific Radical Pipelines details belong only in `.claude/rp.md`; Pi-specific Radical Pipelines details belong only in `.pi/rp.md`. Do not copy CLI-specific conventions into `CLAUDE.md`, do not duplicate shared `AGENTS.md` content into CLI files, and do not mix Claude Code conventions into Pi files or Pi conventions into Claude Code files.
+
+### Pi agent definitions
+
+When the active CLI is Pi, verify phase agent definitions before starting a pipeline or spawning a predefined team. Check repository-local Pi agents first, then user-local/global Pi agents:
+
+1. Repository-local: `.pi/agents/<agent-name>.md` or `.pi/agents/<agent-name>/SKILL.md` in the target repository.
+2. User-local/global: `~/.pi/agent/agents/<agent-name>.md` or `~/.pi/agent/agents/<agent-name>/SKILL.md`.
+
+The required agent set is the set needed by the target phase and selected execution mode. For example, single-agent phase 1 needs `spec-writer` and `spec-reviewer`; design, plan, implementation, and documentation phases need their writer/reviewer pair.
+
+If neither repository-local nor user-local/global definitions are available for the required agents, stop before running the pipeline. Ask the owner which Radical Pipelines agents they want to copy/paste and install, and whether to install them in the repository-local `.pi/agents/` directory or the user-local/global `~/.pi/agent/agents/` directory. Do not create or copy agent files without explicit confirmation.
+
+### Passing conventions to phase agents
+
+You are responsible for loading and verifying project conventions and, for Pi, required agent definitions before launching phase agents. Phase agents should not repeat the full convention-discovery flow or infer paths from generic examples.
+
+When spawning a phase agent or team, include the resolved role-specific context in the initial prompt:
+
+- The current pipeline slug and resolved artifact folder path.
+- The exact artifact paths the agent should read and write.
+- The host-project conventions required by that agent profile.
+- For reviewer agents, the current review iteration number and the exact review artifact path to write.
+
+If a required convention is missing, run the setup flow before spawning agents. If a convention exists but cannot be summarized safely, point the agent at the source file and name the exact sections it must follow.
+
+### Review artifacts
+
+Reviewer agents write inspectable review artifacts into the current task's artifact folder on every review iteration. Use the phase surface in the filename and increment N from 1 for each writer/reviewer round:
+
+- Spec reviews: `spec-review-N.md`.
+- Design doc reviews: `design-doc-review-N.md`.
+- Implementation plan reviews: `plan-review-N.md`.
+- Code reviews: `code-review-N.md`.
+- Documentation reviews: `docs-review-N.md`.
+
+Do not overwrite earlier review artifacts. If a reviewer approves without requested changes, the approval and supporting evidence still belongs in that iteration's review artifact.
 
 ### Missing conventions
 
