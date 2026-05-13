@@ -74,7 +74,7 @@ To find the project-specific conventions, try the following in order:
 2. A dedicated conventions skill called `rp-conventions` or similar, when one is available.
 3. The Radical Pipelines `rp.md` file in the active CLI's project configuration folder, such as `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
 
-When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. CLI-specific Radical Pipelines details belong in the active CLI's `rp.md` file and must not be copied into `CLAUDE.md` or duplicated from `AGENTS.md`.
+When reading conventions, distinguish shared cross-agent project instructions from CLI-specific Radical Pipelines conventions. `AGENTS.md` is the canonical home for shared guidance. Claude Code-specific Radical Pipelines details belong only in `.claude/rp.md`; Pi-specific Radical Pipelines details belong only in `.pi/rp.md`. Do not copy CLI-specific conventions into `CLAUDE.md`, do not duplicate shared `AGENTS.md` content into CLI files, and do not mix Claude Code conventions into Pi files or Pi conventions into Claude Code files.
 
 ### Pi agent definitions
 

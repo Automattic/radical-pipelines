@@ -1,4 +1,4 @@
-## Prerequisites
+## Pi prerequisites
 
 This project requires the Radical Pipelines Pi package. It is declared in `.pi/settings.json` and pi installs it automatically on startup. The package bundles `pi-teams` and `@zenobius/pi-worktrees`. If for any reason it is missing, install it manually:
 
@@ -18,7 +18,7 @@ For GitHub issue tasks, associated implementation work means associated pull req
 
 Use `<issue-number>-<short-description>` where issue number is the GitHub issue number.
 
-## Worktrees
+## Pi worktrees
 
 This project uses the `@zenobius/pi-worktrees` plugin. Always use `/worktree` commands — never raw `git worktree` commands.
 
@@ -30,7 +30,7 @@ This project uses the `@zenobius/pi-worktrees` plugin. Always use `/worktree` co
 - **Create:** `/worktree create worktree-<pipeline-slug> --name <pipeline-slug>`
 - **Remove:** `/worktree remove <pipeline-slug>`
 
-## Branch names
+## Pi branch names
 
 Created as `worktree-<pipeline-slug>` (the branch argument passed to `/worktree create`).
 
@@ -38,7 +38,7 @@ Created as `worktree-<pipeline-slug>` (the branch argument passed to `/worktree 
 
 Use `.pipelines/<pipeline-slug>`.
 
-## Spawning teams of agents
+## Pi team spawning
 
 Use `pi-teams`.
 
@@ -54,6 +54,12 @@ If a spawned Pi teammate fails with a provider login or API-key error:
 6. If no authenticated model is available, stop and tell the owner which provider failed and that they need to authenticate a provider or pass an explicit provider-qualified model.
 
 Keep this recovery provider-neutral. Do not hardcode any provider as the fallback default.
+
+## Pi agent setup
+
+Before launching a Pi team, verify the required phase agent definitions are discoverable by checking repository-local `.pi/agents/` first, then user-local/global `~/.pi/agent/agents/`.
+
+For this repository, the canonical phase agent source files live in `.agents/agents/` and are exposed to packages through symlinks. If required agents are missing from both Pi discovery locations, stop and ask the owner which Radical Pipelines agents to copy/paste and install, and whether to install them repository-locally in `.pi/agents/` or user-locally/globally in `~/.pi/agent/agents/`.
 
 ## Commits
 

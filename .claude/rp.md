@@ -10,13 +10,13 @@ For GitHub issue tasks, associated implementation work means associated pull req
 
 Use `<issue-number>-<short-description>` where issue number is the GitHub issue number.
 
-## Worktrees
+## Claude Code worktrees
 
 Folder: `.claude/worktrees/<pipeline-slug>`
 Enter worktree: `EnterWorktree` with name: `<pipeline-slug>`
 Exit worktree: `ExitWorktree` with name: `<pipeline-slug>`
 
-## Branch names
+## Claude Code branch names
 
 Created automatically by `EnterWorktree`: `worktree-<pipeline-slug>`
 
@@ -24,7 +24,7 @@ Created automatically by `EnterWorktree`: `worktree-<pipeline-slug>`
 
 Use `.pipelines/<pipeline-slug>`.
 
-## Spawning teams of agents
+## Claude Code team spawning
 
 Use `TeamCreate`.
 
