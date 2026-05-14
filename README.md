@@ -72,10 +72,19 @@ To install from the public repository:
 /plugin install radical-pipelines@automattic
 ```
 
-For local development, skip the marketplace flow entirely and load the plugin directly from a checkout with Claude Code's `--plugin-dir` flag:
+To install from a local checkout instead — useful for verifying that a local edit to `marketplace.json` is well-formed before pushing — point `marketplace add` at the directory:
+
+```text
+/plugin marketplace add ./radical-pipelines
+/plugin install radical-pipelines@automattic
+```
+
+This installs the plugin into Claude Code's cache the same way the public-repository install does.
+
+For active local development, skip the marketplace flow entirely and load the plugin directly from a checkout with Claude Code's `--plugin-dir` flag:
 
 ```bash
-claude --plugin-dir /path/to/radical-pipelines
+claude --plugin-dir ./radical-pipelines
 ```
 
 This reads the plugin from the working tree on each start (no cache copy), so edits in `.agents/skills/radical-pipelines/` are picked up through the `skills/radical-pipelines/` symlink without reinstalling.
@@ -100,7 +109,7 @@ This routes through the root-level Pi manifest (`package.json` at the repo root)
 The package installs:
 
 - the `radical-pipelines` skill;
-- phase agent profiles for the shipped phases and phase pairs: `prompt-writer`, `spec-writer`, `spec-reviewer`, `design-writer`, `design-reviewer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`;
+- phase agent profiles for the shipped phases and phase pairs: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-writer`, `design-reviewer`, `plan-writer`, `plan-reviewer`, `implementer`, `implementer-reviewer`, `doc-writer`, and `doc-reviewer`;
 - the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, and `radical-pipelines-implementation` pi-teams templates as package-local source definitions. These team templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The full `radical-pipelines` team will ship alongside later workflow orchestration;
 - bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
 
@@ -178,10 +187,10 @@ Workflows:
 Phases (within implemented workflows):
 
 - **Phase 0 (Prompt)** captures the task as `prompt.md`.
-- **Phase 1 (Spec)** produces `spec.md` from the prompt. In the autonomous workflow, two execution modes are available, chosen at planning time:
-  - `single` — one spec writer + one adversarial reviewer in a revision loop. The reviewer writes `spec-review-N.md` artifacts.
-  - `multi` — N parallel spec writers followed by a consolidator that merges the drafts.
-- In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner.
+- **Phase 1 (Spec)** produces `requirements.md` and `spec.md` from the prompt. In the autonomous workflow, a `spec-analyst` and a `researcher` first run an iterative one-question-at-a-time Q&A loop (routed through the orchestrator) that records `requirements.md`. Then one of two spec generation modes runs, chosen at planning time:
+  - `single` — one `spec-writer` + one adversarial `spec-reviewer` in a revision loop. The reviewer writes `spec-review-N.md` artifacts.
+  - `multi` — N parallel `spec-writer` instances followed by a `spec-consolidator` that merges the drafts.
+- In the assisted workflow, phase 1 produces `requirements.md` and `spec.md` through Q&A with the owner directly (no agents spawned).
 - **Phase 2 (Design doc)** ships `design-writer` and `design-reviewer` agent profiles plus the `radical-pipelines-design` team template for project-convention-driven use. The writer produces a design doc that traces each architectural decision back to the spec; the reviewer writes `design-doc-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
 - **Phase 3 (Implementation plan)** ships `plan-writer` and `plan-reviewer` agent profiles plus the `radical-pipelines-plan` team template for project-convention-driven use. The reviewer writes `plan-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
 - **Phase 4 (Implementation)** ships `implementer` and `implementer-reviewer` agent profiles plus the `radical-pipelines-implementation` team template. The implementer reads the host project's verification and end-to-end testing convention and runs the configured workflow instead of hardcoding a command. The reviewer writes `code-review-N.md` artifacts. Full autonomous workflow orchestration into this phase will arrive when the later phase reference docs are added.
