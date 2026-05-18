@@ -1,6 +1,30 @@
 # Pi Rules
 
-When the active agentic coding tool is Pi, Radical Pipelines needs its agent definitions installed where Pi can discover them.
+When the active agentic coding tool is Pi, use Pi-specific worktree and team tools.
+
+## Canonical `.rp.md` content for Pi
+
+````markdown
+## Pi worktrees
+
+Use `@zenobius/pi-worktrees`; never use raw `git worktree` commands.
+
+- **Setup:** `/worktree settings worktreeRoot .pi/worktrees`
+- **Create:** `/worktree create worktree-<pipeline-slug> --name <pipeline-slug>`
+- **Remove:** `/worktree remove <pipeline-slug>`
+
+Spawned teammates must use the Pi worktree as `cwd`, never the main checkout.
+
+## Pi branch names
+
+Use `worktree-<pipeline-slug>`; this is the branch argument passed to `/worktree create`.
+
+## Pi team spawning
+
+Use one `pi-teams` team per pipeline, named `<pipeline-slug>`. Prefer `create_predefined_team`; otherwise use `team_create` plus `spawn_teammate`. Always spawn agents with the worktree as `cwd`.
+
+Prefer explicit provider-qualified models (`provider/model`). If a spawn fails with login/API-key errors, do not run `/login` first: run `pi --list-models`, pick an authenticated provider-qualified model, and retry. If none is available, stop and ask the owner to authenticate or choose a model.
+````
 
 ## Setup actions
 
