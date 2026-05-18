@@ -9,7 +9,7 @@ The agent spawn context must include:
 - **Artifacts folder** — the absolute path to the pipeline's artifacts folder (typically `.pipelines/<pipeline-slug>/`). Agents read and write artifacts there.
 - **Commit format** — the project's commits convention rendered for the spawning agent, including a concrete example (e.g. `Add requirements (spec-analyst)`).
 
-Both values come from the project conventions loaded at the start of the workflow (see `../SKILL.md` → "Project conventions"). The orchestrator resolves them once and passes them into every spawn prompt verbatim.
+Both values come from the project conventions loaded at the start of the workflow (see `loading-conventions.md`). The orchestrator resolves them once and passes them into every spawn prompt verbatim.
 
 ## Naming
 
