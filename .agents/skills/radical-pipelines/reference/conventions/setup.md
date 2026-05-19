@@ -31,9 +31,13 @@ If a convention must be of a specific form due to the agentic coding tool's rule
 
 ### Pipeline slug (required)
 
-The unique identifier for each pipeline. It is usually reused as the worktree name, the branch name, the agent team name, and the artifacts folder name, so it must be a valid filesystem and git identifier (lowercase, hyphens, no spaces).
+The unique identifier for each pipeline. It is usually incorporated in the worktree name, the branch name, the artifacts folder name, etc, so it must be a valid filesystem and git identifier (lowercase, hyphens, no spaces).
 
-Suggested default: `<issue-number>-<short-description>` (e.g. `42-redesign-cart`) or `<date>-<topic>` (e.g. `2026-01-cart`).
+The relationship between the issue and the pipeline slug must be deterministic: given an issue, the orchestrator must be able to enumerate every pipeline created for it by inspecting slugs alone.
+
+The slug format must also be robust against collisions between similar identifiers, so the pipelines of one issue can never be confused with those of another.
+
+Suggested default: `<issue-id>-<short-description>`.
 
 ### Pipeline artifact folder (required)
 
@@ -53,7 +57,7 @@ Suggested default: `<commit-description> (<agent-name>)`.
 
 ### Issues (required)
 
-Where the project tracks tasks. Each pipeline pulls its initial prompt from an issue, so the orchestrator needs a way to read, comment on, and update them.
+Where the project tracks issues. Each pipeline pulls its initial prompt from an issue, so the orchestrator needs a way to read, comment on, and update them.
 
 Ask the owner which tracker is used (GitHub Issues, Linear, Jira, GitLab, plain Markdown files in a folder, etc.) and how to access it (CLI like `gh`, MCP server, API token, etc.).
 
