@@ -42,7 +42,7 @@ Restate the full plan back to the owner in plain language: that this is an auton
 
 ## 5. Set up phase 0
 
-Read `../starting-a-pipeline.md` and run that workflow. It identifies the task, creates the worktree and artifacts folder, writes `prompt.md`, and commits.
+Read `start-pipeline.md` and run that workflow. It identifies the issue, creates the worktree and artifacts folder, writes `prompt.md`, and commits.
 
 ## 6. Continue per plan
 

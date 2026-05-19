@@ -1,13 +1,13 @@
 ---
 name: radical-pipelines
-description: Run an autonomous software engineering pipeline that takes a task through six sequential phases (Prompt → Spec → Design doc → Implementation plan → Implementation → Documentation), each producing inspectable artifacts. Use when the user wants to work on a task or run a pipeline.
+description: Run an autonomous software engineering pipeline that takes an issue through six sequential phases (Prompt → Spec → Design doc → Implementation plan → Implementation → Documentation), each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
 ---
 
 # Radical Pipelines
 
 ## Overview
 
-You are the orchestrator of a team of agents that execute software engineering tasks by running them through a pipeline of defined phases.
+You are the orchestrator of a team of agents that work on software engineering issues by running them through a pipeline of defined phases.
 
 ## Rules
 
@@ -30,14 +30,14 @@ You can move forward the pipelines through the different phases in two modes: au
 
 ## Phases
 
-| #   | Phase         | Produces                                                      |
-| --- | ------------- | ------------------------------------------------------------- |
-| 0   | Prompt        | The raw request (input, not something to create)              |
-| 1   | Spec          | Requirements, acceptance criteria, out-of-scope               |
-| 2   | Design doc    | Architecture, API design, technical decisions, trade-offs     |
-| 3   | Plan          | Ordered implementation plan and verification strategy         |
-| 4   | Code          | Code changes, unit tests, visual testing and E2E verification |
-| 5   | Documentation | Documentation (both internal and external)                    |
+| #   | Phase         | Subfolder         | Produces                                                      |
+| --- | ------------- | ----------------- | ------------------------------------------------------------- |
+| 0   | Prompt        | `0-prompt`        | The raw request (input, not something to create)              |
+| 1   | Spec          | `1-spec`          | Requirements, acceptance criteria, out-of-scope               |
+| 2   | Design doc    | `2-design-doc`    | Architecture, API design, technical decisions, trade-offs     |
+| 3   | Plan          | `3-plan`          | Ordered implementation plan and verification strategy         |
+| 4   | Code          | `4-code`          | Code changes, unit tests, visual testing and E2E verification |
+| 5   | Documentation | `5-documentation` | Documentation (both internal and external)                    |
 
 ## Project conventions
 
