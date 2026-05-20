@@ -4,7 +4,7 @@ When the active agentic coding tool is Pi, use Pi-specific worktree and team too
 
 ## Canonical `.rp.md` content for Pi
 
-````markdown
+```markdown
 ## Pi worktrees
 
 Use `@zenobius/pi-worktrees`; never use raw `git worktree` commands.
@@ -23,8 +23,12 @@ Use `worktree-<pipeline-slug>`; this is the branch argument passed to `/worktree
 
 Use one `pi-teams` team per pipeline, named `<pipeline-slug>`. Prefer `create_predefined_team`; otherwise use `team_create` plus `spawn_teammate`. Always spawn agents with the worktree as `cwd`.
 
+Agents in the same team address each other directly via pi-teams messaging. When a phase reference says two agents exchange messages, the orchestrator does not relay between them by default. It only spawns, monitors, and waits for completion signals.
+
+If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
+
 Prefer explicit provider-qualified models (`provider/model`). If a spawn fails with login/API-key errors, do not run `/login` first: run `pi --list-models`, pick an authenticated provider-qualified model, and retry. If none is available, stop and ask the owner to authenticate or choose a model.
-````
+```
 
 ## Setup actions
 

@@ -26,5 +26,7 @@ Branch names are derived automatically by `EnterWorktree` from the worktree name
 
 Every autonomous workflow that spawns agents must use exactly one Claude Code team using `TeamCreate({ name: "<pipeline-slug>" })`.
 
-All of the pipeline's agents are spawned into that team so they can address each other and so the team survives across orchestrator sessions.
+Agents in the same team address each other directly via `SendMessage({ to: "<agent-name>", ... })`. When a phase reference says two agents exchange messages, the orchestrator does not relay between them by default. It only spawns, monitors, and waits for completion signals.
+
+If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
 ```
