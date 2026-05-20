@@ -47,7 +47,7 @@ Ask the owner for the location and naming pattern.
 
 Suggested default: `.pipelines/<pipeline-slug>/`.
 
-### Commit
+### Commit format
 
 The project's commit message format. Passed verbatim to every spawned agent so all commits in a pipeline match the project's style.
 

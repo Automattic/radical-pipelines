@@ -31,4 +31,4 @@ Create the phase 0 subfolder (`0-prompt/`) inside the pipeline artifact folder. 
 
 ### 5. Commit
 
-Commit the newly created artifacts following the **Commit** convention.
+Commit the newly created artifacts following the **Commit format** convention.

@@ -12,7 +12,7 @@ This information is necessary to execute the pipelines correctly, so you must lo
 | ------------------------ | -------------------------------------------------------------- | -------------------- | --------- |
 | Pipeline slug            | How to uniquely identify pipelines                             | Yes                  | Yes       |
 | Pipeline artifact folder | Where to store the pipeline artifacts                          | Yes                  | Yes       |
-| Commit                   | How to write commits                                           | Yes                  | No        |
+| Commit format            | How to write commits                                           | Yes                  | No        |
 | Issues                   | Where to find the project issues and how to create/modify them | No                   | Yes       |
 | Worktrees                | How to set up and manage worktrees for each pipeline           | No                   | Yes       |
 | Branch names             | How to name branches for each pipeline                         | No                   | Yes       |
