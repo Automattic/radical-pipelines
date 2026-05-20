@@ -33,12 +33,12 @@ Run each phase from the next-to-run up to the target, in order. The next-to-run 
 
 | Phase             | Subfolder         | Reference                                |
 | ----------------- | ----------------- | ---------------------------------------- |
-| 0 (Prompt)        | `0-prompt`        | Already in place                         |
-| 1 (Spec)          | `1-spec`          | `autonomous-phases/1 - spec.md`          |
-| 2 (Design doc)    | `2-design-doc`    | `autonomous-phases/2 - design-doc.md`    |
-| 3 (Plan)          | `3-plan`          | `autonomous-phases/3 - plan.md`          |
-| 4 (Code)          | `4-code`          | `autonomous-phases/4 - code.md`          |
-| 5 (Documentation) | `5-documentation` | `autonomous-phases/5 - documentation.md` |
+| 0 - Prompt        | `0-prompt`        | Already in place                         |
+| 1 - Spec          | `1-spec`          | `autonomous-phases/1 - spec.md`          |
+| 2 - Design doc    | `2-design-doc`    | `autonomous-phases/2 - design-doc.md`    |
+| 3 - Plan          | `3-plan`          | `autonomous-phases/3 - plan.md`          |
+| 4 - Code          | `4-code`          | `autonomous-phases/4 - code.md`          |
+| 5 - Documentation | `5-documentation` | `autonomous-phases/5 - documentation.md` |
 
 For each phase:
 
