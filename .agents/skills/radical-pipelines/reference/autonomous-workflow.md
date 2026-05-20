@@ -2,10 +2,11 @@
 
 This is the entry point of the **autonomous workflow**. It collects the run plan with the owner up-front and then runs subsequent phases per the plan, stopping at the target phase.
 
-The plan has two parts:
+The plan has three parts:
 
-- **Target phase** — the highest phase to run in this autonomous run.
-- **Per-phase decisions** — for each phase from the next-to-run up to the target, the choices that govern how that phase is executed.
+- **Next phase** — the phase after the current phase. This is where the run starts.
+- **Target phase** — the highest phase to run in this autonomous run. This is where the run stops.
+- **Per-phase decisions** — for each phase from the next phase up to the target phase, the choices that govern how that phase is executed.
 
 Collect everything up-front. Once the autonomous run starts, do not ask the owner additional questions until the target phase finishes.
 
@@ -29,7 +30,7 @@ Restate the full plan back to the owner in plain language: that this is an auton
 
 ## 5. Execute the planned phases
 
-Run each phase from the next-to-run up to the target, in order. The next-to-run is the phase immediately after the highest committed phase captured when the pipeline was located (see `work-on-an-issue.md`, step 2).
+Run each phase from the next phase up to the target phase, in order.
 
 | Phase             | Subfolder         | Reference                                |
 | ----------------- | ----------------- | ---------------------------------------- |
@@ -46,7 +47,7 @@ For each phase:
 2. Read its phase reference.
 3. Run the phase per its reference, applying the per-phase decisions collected in step 3.
 4. When the phase finishes, give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of review iterations, deviations from defaults). Do not ask questions — this is informational only.
-5. Move to the next phase, until the target phase has finished.
+5. Continue with the following phase, until the target phase has finished.
 
 If a phase fails, stop and report to the owner.
 

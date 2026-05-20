@@ -2,7 +2,7 @@
 
 This is the entry point of the **assisted workflow**. You drive a single phase directly with the owner — typically through Q&A — and write the artifacts yourself. No agents are spawned. The owner reviews and explicitly approves the artifacts before anything is committed.
 
-The phase to run is the next-to-run, captured when the pipeline was located (see `work-on-an-issue.md`, step 2). The next-to-run is the phase immediately after the highest committed phase.
+The phase to run is the **next phase** (the phase after the current phase).
 
 ## 1. Frame the conversation
 
@@ -10,7 +10,7 @@ Tell the owner explicitly that this is the assisted workflow, name the phase you
 
 ## 2. Identify the phase reference
 
-Map the next-to-run phase to its reference file:
+Map the next phase to its reference file:
 
 | Phase             | Subfolder         | Reference                           |
 | ----------------- | ----------------- | ----------------------------------- |

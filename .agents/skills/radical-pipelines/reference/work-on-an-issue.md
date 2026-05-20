@@ -19,7 +19,11 @@ For the identified issue, locate any pipelines that already exist:
 1. **Derive a slug pattern** using the **Pipeline slug** convention that matches every slug referring to this issue.
 2. **Search branches** — local and remote — that match the **Branch names** convention and whose slug refers to this issue.
 3. **Search artifact folders** in the **Artifact folder** location on the main branch of the artifact-bearing repository (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode, per the **Artifact storage** convention).
-4. For each match, capture the slug, branch (local/remote/both), state (in-progress or merged into main), and highest committed phase (the highest-numbered phase subfolder present, per the Phases table in `SKILL.md`).
+4. For each match capture:
+   - The branch (local/remote/both)
+   - State (in-progress or merged into main)
+   - The current phase (the highest-numbered phase subfolder present)
+   - The next phase (the phase immediately after the current phase)
 
 **If matches exist**, surface them to the owner with all four properties and ask how to proceed:
 
