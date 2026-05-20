@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Radical Pipelines — Autonomous software engineering by Automattic</title>
+    <meta
+      name="description"
+      content="Radical Pipelines is an agent orchestrator from Automattic. Six phases, each producing an inspectable artifact, so teams of AI agents can ship work autonomously while humans review at checkpoints. Runs on Claude Code and Pi."
+    />
+    <meta name="author" content="Automattic" />
+    <meta name="keywords" content="Radical Pipelines, Automattic, AI agents, Claude Code, Pi, agent orchestration, autonomous software engineering, agent pipelines, prompt engineering" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://automattic.github.io/radical-pipelines/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Radical Pipelines" />
+    <meta property="og:title" content="Radical Pipelines — Autonomous software engineering by Automattic" />
+    <meta property="og:description" content="An agent orchestrator that runs teams of agents through six defined phases. Every phase produces an artifact your team can review." />
+    <meta property="og:url" content="https://automattic.github.io/radical-pipelines/" />
+    <meta property="og:image" content="https://automattic.github.io/radical-pipelines/assets/radical-pipelines.png" />
+    <meta property="og:image:alt" content="Radical Pipelines logo — three pipelines branching from a single node, in purple, blue, and teal" />
+    <meta property="og:image:width" content="2508" />
+    <meta property="og:image:height" content="627" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Radical Pipelines" />
+    <meta name="twitter:description" content="Autonomous software engineering pipelines for teams of AI agents. Built at Automattic." />
+    <meta name="twitter:image" content="https://automattic.github.io/radical-pipelines/assets/radical-pipelines.png" />
+    <meta name="twitter:image:alt" content="Radical Pipelines logo" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+    <link rel="alternate icon" type="image/png" href="assets/radical-pipelines.png" />
+    <link rel="apple-touch-icon" href="assets/favicon.svg" />
+    <meta name="theme-color" content="#0e1a36" />
+    <link rel="stylesheet" href="styles.css" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "Radical Pipelines",
+        "headline": "Autonomous software engineering pipelines",
+        "description": "An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases, where each phase produces concrete, inspectable artifacts.",
+        "codeRepository": "https://github.com/Automattic/radical-pipelines",
+        "programmingLanguage": ["JavaScript", "TypeScript", "Markdown"],
+        "license": "https://www.gnu.org/licenses/gpl-2.0.html",
+        "url": "https://automattic.github.io/radical-pipelines/",
+        "image": "https://automattic.github.io/radical-pipelines/assets/radical-pipelines.png",
+        "author": {
+          "@type": "Organization",
+          "name": "Automattic",
+          "url": "https://automattic.com/"
+        },
+        "isAccessibleForFree": true
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#top">
+        <img
+          class="brand-logo"
+          src="assets/radical-pipelines.svg"
+          alt="Radical Pipelines"
+        />
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="#problem">Problem</a>
+        <a href="#proposal">Approach</a>
+        <a href="#demo">Demo</a>
+        <a href="#unlocks">Impact</a>
+        <a href="#status">Install</a>
+        <a class="nav-cta" href="https://github.com/Automattic/radical-pipelines" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <!-- HERO -->
+      <section class="hero">
+        <div class="hero-grid">
+          <div class="hero-copy">
+            <span class="eyebrow">An Automattic project</span>
+            <h1>
+              Stop babysitting agents. Run
+              <span class="grad">pipelines of them</span>.
+            </h1>
+            <p class="lede">
+              One task, six phases, a different team of agents in each. Every
+              phase writes a file you can read, fix, and re-run from.
+            </p>
+            <div class="hero-actions">
+              <a class="btn primary" href="https://github.com/Automattic/radical-pipelines" target="_blank" rel="noopener">
+                View on GitHub
+              </a>
+              <a class="btn ghost" href="#demo">See it run</a>
+            </div>
+            <ul class="hero-stats">
+              <li><strong>6</strong><span>phases</span></li>
+              <li><strong>14</strong><span>agents shipped</span></li>
+              <li><strong>2</strong><span>CLIs supported</span></li>
+            </ul>
+          </div>
+          <aside class="hero-visual" aria-hidden="true">
+            <div class="term-card">
+              <div class="card-header">
+                <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+                <span class="card-title">~/repo · radical-pipelines</span>
+              </div>
+              <pre class="term-body"><span class="cmd">$ ls .pipelines/issue-1234/</span>
+<span class="file done">prompt.md</span>
+<span class="file done">requirements.md</span>
+<span class="file done">spec.md</span>
+<span class="file done">spec-review-1.md</span>
+<span class="file done">design.md</span>
+<span class="file done">design-review-1.md</span>
+<span class="file active">plan.md</span>
+<span class="cmd2">$ git log --oneline .pipelines/issue-1234/</span>
+<span class="log">a1b2c3d  Add plan (plan-writer)</span>
+<span class="log">e4f5g6h  Add design review 1 (design-reviewer)</span>
+<span class="log">i7j8k9l  Add design (design-writer)</span>
+<span class="log">m0n1o2p  Add spec (spec-writer)</span>
+<span class="log dim">…</span></pre>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- PROBLEM -->
+      <section id="problem" class="section">
+        <div class="container narrow">
+          <span class="kicker">The problem</span>
+          <h2>Most of us still sit next to the agent.</h2>
+          <p>
+            Steering an agent in real time works, but it caps how much one person
+            can ship.
+          </p>
+          <div class="cards">
+            <article class="card">
+              <h3>No written spec</h3>
+              <p>So the human keeps filling it in with corrections.</p>
+            </article>
+            <article class="card">
+              <h3>Non-deterministic</h3>
+              <p>Same prompt, different run, different result. You stay in the loop just in case.</p>
+            </article>
+            <article class="card">
+              <h3>No structure</h3>
+              <p>Tests and docs happen only when someone remembers to ask.</p>
+            </article>
+            <article class="card">
+              <h3>Invisible to the team</h3>
+              <p>Context lives on one laptop. Everyone else sees the PR at the end.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- PROPOSAL -->
+      <section id="proposal" class="section dark">
+        <div class="container">
+          <span class="kicker light">What we're building</span>
+          <h2>An orchestrator that runs the work through phases.</h2>
+          <p class="lede">
+            Six phases, an artifact at each, agreed up front. Runs on its own.
+            Stop, fix any phase, re-run from there.
+          </p>
+
+          <div class="props">
+            <div class="prop">
+              <h4>Runs without you</h4>
+              <p>Decisions agreed at the start. Executes to the target phase without checking back in.</p>
+            </div>
+            <div class="prop">
+              <h4>Writes everything down</h4>
+              <p>Each phase commits its file before the next starts. Your team reads it as it lands.</p>
+            </div>
+            <div class="prop">
+              <h4>Restartable from any phase</h4>
+              <p>Bad spec? Fix the spec. Bad plan? Fix the plan. Re-run from that point, not from zero.</p>
+            </div>
+            <div class="prop">
+              <h4>More tokens where it matters</h4>
+              <p>Adversarial reviewers, parallel writers, cross-provider runs. Spend compute on the risky surfaces.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DEMO -->
+      <section id="demo" class="section demo-section">
+        <div class="container narrow">
+          <span class="kicker">What it actually does</span>
+          <h2>Files in your repo, one phase at a time.</h2>
+          <p class="lede">
+            No new UI. The orchestrator runs in your CLI (Claude Code or Pi) and
+            writes artifacts into a pipeline folder in the repo. Your team reads
+            them like any other file.
+          </p>
+
+          <div class="run-grid">
+            <div class="term-card big">
+              <div class="card-header">
+                <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+                <span class="card-title">terminal · claude-code</span>
+                <span class="run-speed">demo · sped up</span>
+              </div>
+              <pre class="term-body" id="live-log" aria-live="polite"></pre>
+            </div>
+            <div class="term-card big">
+              <div class="card-header">
+                <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
+                <span class="card-title">.pipelines/issue-1234/</span>
+              </div>
+              <pre class="term-body" id="live-tree"></pre>
+            </div>
+          </div>
+
+          <p class="caption center">
+            Reconstructed log of a real pipeline run, sped up. Every phase pairs
+            a writer with an adversarial reviewer; both commit their artifacts
+            (<code>spec.md</code>, <code>spec-review-1.md</code>, …) so the
+            team can see what got pushed back on and why.
+            <a class="caption-link" href="https://github.com/Automattic/radical-pipelines#claude-code-plugin-install" target="_blank" rel="noopener">Run it yourself →</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- WHAT THIS UNLOCKS -->
+      <section id="unlocks" class="section grad-bg">
+        <div class="container">
+          <span class="kicker light">Why it matters</span>
+          <h2>The bottleneck moves from supervising to reviewing.</h2>
+          <div class="unlocks">
+            <article>
+              <h3>More work in flight</h3>
+              <p>One person runs many pipelines at once. Review when done.</p>
+            </article>
+            <article>
+              <h3>Fixes that stick</h3>
+              <p>Patch the phase that failed. Every future run benefits.</p>
+            </article>
+            <article>
+              <h3>Tests and docs by default</h3>
+              <p>Built into the pipeline. Stop relying on whoever's driving.</p>
+            </article>
+            <article>
+              <h3>Visible before the PR</h3>
+              <p>Each phase's artifact lands in the repo. Team can read along.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- WHY NOW -->
+      <section class="section">
+        <div class="container narrow">
+          <span class="kicker">Why now</span>
+          <h2>The pieces are in place.</h2>
+          <div class="why">
+            <div>
+              <h3>Agents are good enough.</h3>
+              <p>Given a clear spec, they do the job. The gap is process, not model.</p>
+            </div>
+            <div>
+              <h3>Human time is the bottleneck.</h3>
+              <p>Every hour assisting an agent is an hour not spent on work that needs a person.</p>
+            </div>
+            <div>
+              <h3>Tooling caught up.</h3>
+              <p>Claude Code and Pi already ship skills, teams, hooks, worktrees. We build on top.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STATUS -->
+      <section id="status" class="section">
+        <div class="container narrow">
+          <span class="kicker">Try it</span>
+          <h2>Install in one line.</h2>
+          <div class="install-grid">
+            <div class="install-block">
+              <h3>Claude Code</h3>
+              <div class="install-cmd">
+                <pre><code>/plugin marketplace add Automattic/radical-pipelines
+/plugin install radical-pipelines@automattic</code></pre>
+                <span class="install-aside">well, this is actually two lines, sorry</span>
+              </div>
+            </div>
+            <div class="install-block">
+              <h3>Pi</h3>
+              <pre><code>pi install git:github.com/Automattic/radical-pipelines</code></pre>
+            </div>
+          </div>
+          <p class="install-note">
+            Pi also needs predefined teams registered in <code>~/.pi/teams.yaml</code> and
+            phase agents available in <code>.pi/agents/</code> or
+            <code>~/.pi/agent/agents/</code>.
+            <a href="https://github.com/Automattic/radical-pipelines#readme" target="_blank" rel="noopener">See README for full setup →</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="cta">
+        <div class="container narrow center">
+          <h2>Built at Automattic. Open source.</h2>
+          <p>Code, agents, skill, methodology, all in one repo.</p>
+          <div class="cta-actions">
+            <a class="btn primary big" href="https://github.com/Automattic/radical-pipelines" target="_blank" rel="noopener">
+              Open the repository
+            </a>
+            <a class="btn ghost big" href="https://github.com/Automattic/radical-pipelines/issues" target="_blank" rel="noopener">
+              Browse issues
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="demo.js" defer></script>
+    <footer class="site-footer">
+      <div class="container foot">
+        <span>© Automattic · Radical Pipelines</span>
+        <span>
+          <a href="https://github.com/Automattic/radical-pipelines" target="_blank" rel="noopener">GitHub</a>
+          ·
+          <a href="https://github.com/Automattic/radical-pipelines/blob/trunk/README.md" target="_blank" rel="noopener">README</a>
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>
