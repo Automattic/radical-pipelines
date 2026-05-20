@@ -31,13 +31,9 @@ Restate the full plan back to the owner in plain language: that this is an auton
 
 Run each phase from the next-to-run up to the target, in order. The next-to-run is the phase immediately after the highest committed phase captured when the pipeline was located (see `work-on-an-issue.md`, step 2).
 
-When spawning any agent in any phase, pass it the conventions flagged as "pass down to agents" in `conventions/load.md` (pipeline slug, artifacts folder, commit format).
-
-Agents commit their own artifacts following the **Commits** convention. The orchestrator does not commit on their behalf.
-
-| Phase             | Subfolder         | Reference                     |
-| ----------------- | ----------------- | ----------------------------- |
-| 0 (Prompt)        | `0-prompt`        | Already in place              |
+| Phase             | Subfolder         | Reference                                |
+| ----------------- | ----------------- | ---------------------------------------- |
+| 0 (Prompt)        | `0-prompt`        | Already in place                         |
 | 1 (Spec)          | `1-spec`          | `autonomous-phases/1 - spec.md`          |
 | 2 (Design doc)    | `2-design-doc`    | `autonomous-phases/2 - design-doc.md`    |
 | 3 (Plan)          | `3-plan`          | `autonomous-phases/3 - plan.md`          |
@@ -53,6 +49,14 @@ For each phase:
 5. Move to the next phase, until the target phase has finished.
 
 If a phase fails, stop and report to the owner.
+
+Important:
+
+- Follow the **Team spawning** convention for how to define and launch teams of agents.
+- Each time you spawn an agent, include the following project conventions in its initial prompt:
+  - **Artifact folder** — the absolute and full path to this pipeline's artifact folder.
+  - **Commit format** — the commit message format the agent must use.
+- Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
 
 ## 6. Close out the run
 
