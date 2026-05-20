@@ -16,13 +16,13 @@ Create and enter the worktree following the **Worktrees** convention. The corres
 
 All work happens inside the worktree — never modify files in the main working directory.
 
-### 3. Create the pipeline artifacts folder
+### 3. Create the artifact folder
 
-Create the folder following the **Pipeline artifact folder** convention.
+Create the folder following the **Artifact folder** convention.
 
 ### 4. Generate the initial prompt
 
-Create the phase 0 subfolder (`0-prompt/`) inside the pipeline artifact folder. Write the prompt to `<artifacts-folder>/0-prompt/prompt.md`.
+Create the phase 0 subfolder (`0-prompt/`) inside the artifact folder. Write the prompt to `<artifacts-folder>/0-prompt/prompt.md`.
 
 - Adapt the issue content as a prompt directed at the agents that will run subsequent phases.
 - Do not add requirements, technical directions, or implementation details — agents do their own research in later phases.

@@ -39,7 +39,7 @@ The slug format must also be robust against collisions between similar identifie
 
 Suggested default: `<issue-id>-<short-description>`.
 
-### Pipeline artifact folder (required)
+### Artifact folder (required)
 
 Where each pipeline's artifacts (`prompt.md`, `spec.md`, `design-doc.md`, `plan.md`, etc.) are stored. One folder per pipeline.
 
@@ -88,21 +88,21 @@ How this project stores Radical Pipelines artifacts.
 Running Radical Pipelines creates three kinds of files that need a home:
 
 - The project-level `.rp.md` config file (the conventions captured during this setup).
-- A per-pipeline artifact folder containing `prompt.md`, `spec.md`, `design-doc.md`, etc. — one folder per pipeline run.
+- A per-pipeline artifact folder containing `prompt.md`, `spec.md`, `design-doc.md`, etc. — one folder per pipeline run, per the **Artifact folder** convention.
 - A `.gitignore` entry for the worktree folder used by the active agentic coding tool.
 
 They can live either in the project's repository alongside the code, or in a separate fork. The fork option is used when the project does not accept these kinds of commits, or when the owner wants to keep the pipeline workflow private.
 
 Explain this and ask the owner:
 
-> Can `.rp.md`, the pipeline artifact folder, and any related `.gitignore` entries be committed directly to this repository?
+> Can `.rp.md`, the artifact folder, and any related `.gitignore` entries be committed directly to this repository?
 
 **If yes**, the mode is `artifacts-in-repo`. Everything lives in a single repository — no further information needed for this convention.
 
 **If no** (the repository belongs to someone else, or upstream does not accept non-code changes), the mode is `artifacts-in-fork`. Before asking for any further information, explain how this mode works:
 
 - A fork of the repository is required. All artifact-bearing pipeline work happens on branches in the fork.
-- `.rp.md`, the pipeline artifact folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
+- `.rp.md`, the artifact folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
 - The upstream PR is never opened without explicit owner approval.
 - When the owner approves opening a PR, the orchestrator always:
   1. Generates a clean branch name for `upstream` (separate from the fork branch).
