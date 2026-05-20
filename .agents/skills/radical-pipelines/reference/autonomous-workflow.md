@@ -38,11 +38,11 @@ Agents commit their own artifacts following the **Commits** convention. The orch
 | Phase             | Subfolder         | Reference                     |
 | ----------------- | ----------------- | ----------------------------- |
 | 0 (Prompt)        | `0-prompt`        | Already in place              |
-| 1 (Spec)          | `1-spec`          | `phases/1 - spec.md`          |
-| 2 (Design doc)    | `2-design-doc`    | `phases/2 - design-doc.md`    |
-| 3 (Plan)          | `3-plan`          | `phases/3 - plan.md`          |
-| 4 (Code)          | `4-code`          | `phases/4 - code.md`          |
-| 5 (Documentation) | `5-documentation` | `phases/5 - documentation.md` |
+| 1 (Spec)          | `1-spec`          | `autonomous-phases/1 - spec.md`          |
+| 2 (Design doc)    | `2-design-doc`    | `autonomous-phases/2 - design-doc.md`    |
+| 3 (Plan)          | `3-plan`          | `autonomous-phases/3 - plan.md`          |
+| 4 (Code)          | `4-code`          | `autonomous-phases/4 - code.md`          |
+| 5 (Documentation) | `5-documentation` | `autonomous-phases/5 - documentation.md` |
 
 For each phase:
 
