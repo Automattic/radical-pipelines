@@ -41,20 +41,15 @@ You can move forward the pipelines through the different phases in two modes: au
 
 ## Project conventions
 
-This skill is generic; each project supplies its own conventions that you must load and verify before any workflow.
+This skill is generic; each project supplies its own conventions that you must load and verify before doing any workflow.
 
 See `reference/conventions/load.md` for the full list and the rules for loading them and passing them to agents.
 
-## Workflows
+## Entry points
 
-Before executing any workflow, you must read the corresponding reference file(s) listed below.
+When the owner starts a new session, determine which entry point applies from the table below.
 
-| When you need to...         | Read                               |
-| --------------------------- | ---------------------------------- |
-| Create or modify issues     | `reference/manage-issues.md`       |
-| Create a new pipeline       | `reference/start-pipeline.md`      |
-| Run the autonomous workflow | `reference/autonomous-workflow.md` |
-| Run the assisted workflow   | `reference/assisted-workflow.md`   |
-| Finish and close a pipeline | `reference/finish-pipeline.md`     |
-
-You must always re-read the necessary files before starting a workflow to refresh your context.
+| When the owner wants to... | Read                            |
+| -------------------------- | ------------------------------- |
+| Work on an issue           | `reference/work-on-an-issue.md` |
+| Manage issues              | `reference/manage-issues.md`    |
