@@ -1,6 +1,6 @@
 # Running the Autonomous Workflow
 
-This is the entry point of the **autonomous workflow**. It collects the run plan with the owner up-front, runs phase 0 to set up the workspace, and then continues to subsequent phases per the plan, stopping at the target phase.
+This is the entry point of the **autonomous workflow**. It collects the run plan with the owner up-front and then runs subsequent phases per the plan, stopping at the target phase.
 
 The plan has two parts:
 
@@ -11,41 +11,49 @@ Collect everything up-front. Once the autonomous run starts, do not ask the owne
 
 ## 1. Frame the conversation
 
-When you greet the owner, tell them explicitly that this is the autonomous workflow and that you will collect all the decisions up-front so the run can then proceed without interruptions.
+Tell the owner explicitly that this is the autonomous workflow and that you will collect all the decisions up-front so the run can then proceed without interruptions.
 
 ## 2. Ask the target phase
 
-Ask the owner where the autonomous run should stop. Frame it in plain language; do not show the owner internal phase numbers unless they ask. Today the only meaningful choices are:
+Ask the owner where the autonomous run should stop. Frame it in plain language; do not show the owner internal phase numbers unless they ask.
 
-- Stop after phase 0 (only the prompt artifact is created).
-- Run through phase 1 (the spec is also produced).
-
-If the owner does not specify, default to the highest implemented phase (today: phase 1).
-
-When more phases are implemented, expand this list using the **Phases** table in `SKILL.md`.
+If the owner does not specify, default to the last phase.
 
 ## 3. Collect per-phase decisions
 
-For each phase included in the autonomous run, read its reference and look at the `Decisions` section. Ask the owner about any choice the owner has not already specified. Use the documented default if the owner declines to choose.
-
-Phase references:
-
-| Phase           | Reference                       |
-| --------------- | ------------------------------- |
-| 1 (Spec)        | `running-the-spec-phase.md`     |
-
-Phase 0 (creating the prompt artifact) has no decisions — it is purely setup.
+For each phase included in the autonomous run, read its reference and look at the `Decisions` section. Ask the owner about any choice the owner has not already specified.
 
 ## 4. Confirm the plan
 
 Restate the full plan back to the owner in plain language: that this is an autonomous run, the target phase, and any non-default per-phase decisions. If the owner accepts, proceed. If they want changes, revise and confirm again.
 
-## 5. Set up phase 0
+## 5. Execute the planned phases
 
-Read `start-pipeline.md` and run that workflow. It identifies the issue, creates the worktree and artifacts folder, writes `prompt.md`, and commits.
+Run each phase from the next-to-run up to the target, in order. The next-to-run is the phase immediately after the highest committed phase captured when the pipeline was located (see `work-on-an-issue.md`, step 2).
 
-## 6. Continue per plan
+When spawning any agent in any phase, pass it the conventions flagged as "pass down to agents" in `conventions/load.md` (pipeline slug, artifacts folder, commit format).
 
-If the plan's target phase is phase 0, stop here. The autonomous run ends with the prompt artifact ready for review.
+Agents commit their own artifacts following the **Commits** convention. The orchestrator does not commit on their behalf.
 
-If the plan extends to phase 1, read `running-the-spec-phase.md` and run that workflow with the per-phase decisions collected in step 3.
+| Phase             | Subfolder         | Reference                     |
+| ----------------- | ----------------- | ----------------------------- |
+| 0 (Prompt)        | `0-prompt`        | Already in place              |
+| 1 (Spec)          | `1-spec`          | `phases/1 - spec.md`          |
+| 2 (Design doc)    | `2-design-doc`    | `phases/2 - design-doc.md`    |
+| 3 (Plan)          | `3-plan`          | `phases/3 - plan.md`          |
+| 4 (Code)          | `4-code`          | `phases/4 - code.md`          |
+| 5 (Documentation) | `5-documentation` | `phases/5 - documentation.md` |
+
+For each phase:
+
+1. Create the phase subfolder inside the artifacts folder.
+2. Read its phase reference.
+3. Run the phase per its reference, applying the per-phase decisions collected in step 3.
+4. When the phase finishes, give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of review iterations, deviations from defaults). Do not ask questions — this is informational only.
+5. Move to the next phase, until the target phase has finished.
+
+If a phase fails, stop and report to the owner.
+
+## 6. Close out the run
+
+Once the target phase has been reported, tell the owner that the autonomous run is complete.
