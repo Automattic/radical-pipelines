@@ -79,23 +79,16 @@ a:hover {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   text-decoration: none;
 }
 .brand:hover { text-decoration: none; }
-.brand-mark {
+.brand-logo {
   display: block;
   height: 26px;
   width: auto;
 }
-.brand-name {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-}
 @media (max-width: 480px) {
-  .brand-name { display: none; }
+  .brand-logo { height: 22px; }
 }
 .site-nav {
   display: flex;
