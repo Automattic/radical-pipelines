@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://automattic.github.io/radical-pipelines/sitemap.xml
