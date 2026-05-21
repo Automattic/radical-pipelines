@@ -13,9 +13,11 @@ radical-pipelines-design:
   - design-reviewer
 
 radical-pipelines-plan:
-  - plan-writer
-  - plan-reviewer
+  - code-plan-writer
+  - code-plan-reviewer
+  - doc-plan-writer
+  - doc-plan-reviewer
 
-radical-pipelines-implementation:
-  - implementer
-  - implementer-reviewer
+radical-pipelines-code:
+  - code-writer
+  - code-reviewer

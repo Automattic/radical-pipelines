@@ -14,7 +14,7 @@ Outputs:
 
 ## Decisions
 
-This phase has no per-phase decisions in this version — once launched, the team drives itself.
+This phase has no per-phase decisions in this version.
 
 ## Required agents
 

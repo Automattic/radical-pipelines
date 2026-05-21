@@ -41,7 +41,7 @@ Suggested default: `<issue-id>-<short-description>`.
 
 ### Artifact folder (required)
 
-Where each pipeline's artifacts (`prompt.md`, `spec.md`, `design-doc.md`, `plan.md`, etc.) are stored. One folder per pipeline.
+Where each pipeline's artifacts (`prompt.md`, `spec.md`, `design-doc.md`, `code-plan.md`, `doc-plan.md`, etc.) are stored. One folder per pipeline.
 
 Ask the owner for the location and naming pattern.
 
