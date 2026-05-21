@@ -12,14 +12,14 @@ Tell the owner explicitly that this is the assisted workflow, name the phase you
 
 Map the next phase to its reference file:
 
-| Phase             | Subfolder         | Reference                           |
-| ----------------- | ----------------- | ----------------------------------- |
-| 0 - Prompt        | `0-prompt`        | Already in place                    |
-| 1 - Spec          | `1-spec`          | `assisted-phases/1 - spec.md`       |
-| 2 - Design doc    | `2-design-doc`    | `assisted-phases/2 - design-doc.md` |
-| 3 - Plan          | `3-plan`          | `assisted-phases/3 - plan.md`       |
-| 4 - Code          | `4-code`          | Can't be run in assisted workflow   |
-| 5 - Documentation | `5-documentation` | Can't be run in assisted workflow   |
+| Phase          | Subfolder      | Reference                           |
+| -------------- | -------------- | ----------------------------------- |
+| 0 - Prompt     | `0-prompt`     | Already in place                    |
+| 1 - Spec       | `1-spec`       | `assisted-phases/1 - spec.md`       |
+| 2 - Design doc | `2-design-doc` | `assisted-phases/2 - design-doc.md` |
+| 3 - Plan       | `3-plan`       | `assisted-phases/3 - plan.md`       |
+| 4 - Code       | `4-code`       | Can't be run in assisted workflow   |
+| 5 - Docs       | `5-docs`       | Can't be run in assisted workflow   |
 
 ## 4. Execute the phase
 

@@ -32,14 +32,14 @@ Restate the full plan back to the owner in plain language: that this is an auton
 
 Run each phase from the next phase up to the target phase, in order.
 
-| Phase             | Subfolder         | Reference                                |
-| ----------------- | ----------------- | ---------------------------------------- |
-| 0 - Prompt        | `0-prompt`        | Already in place                         |
-| 1 - Spec          | `1-spec`          | `autonomous-phases/1 - spec.md`          |
-| 2 - Design doc    | `2-design-doc`    | `autonomous-phases/2 - design-doc.md`    |
-| 3 - Plan          | `3-plan`          | `autonomous-phases/3 - plan.md`          |
-| 4 - Code          | `4-code`          | `autonomous-phases/4 - code.md`          |
-| 5 - Documentation | `5-documentation` | `autonomous-phases/5 - documentation.md` |
+| Phase          | Subfolder      | Reference                             |
+| -------------- | -------------- | ------------------------------------- |
+| 0 - Prompt     | `0-prompt`     | Already in place                      |
+| 1 - Spec       | `1-spec`       | `autonomous-phases/1 - spec.md`       |
+| 2 - Design doc | `2-design-doc` | `autonomous-phases/2 - design-doc.md` |
+| 3 - Plan       | `3-plan`       | `autonomous-phases/3 - plan.md`       |
+| 4 - Code       | `4-code`       | `autonomous-phases/4 - code.md`       |
+| 5 - Docs       | `5-docs`       | `autonomous-phases/5 - docs.md`       |
 
 For each phase:
 
@@ -59,6 +59,22 @@ Important:
   - **Commit format** — the commit message format the agent must use.
 - Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
 
-## 6. Close out the run
+## 6. Handle blockers
+
+Agents are instructed to stop and report a blocker — instead of inventing a missing decision — when a required input is missing, contradictory, or would force them to make a choice that belongs to a prior phase. Every agent that reports a blocker is expected to include the same payload:
+
+- **What is missing or contradictory** — the specific gap or conflict.
+- **Which prior-phase artifact must change to unblock it** — for example, `<artifacts-folder>/2-design-doc/design-doc.md`.
+- **(If known) The smallest revision that would unblock** — a sentence or two the prior-phase agent could act on.
+
+When a blocker arrives:
+
+1. Stop the autonomous run immediately. Do not advance to the next phase, and do not relaunch the blocked agent without an input change.
+2. Surface the blocker to the owner verbatim, including the three fields above and the path to any partial artifact the agent committed (most agents do not commit a partial artifact; some — see `spec-consolidator` — leave clearly-marked TODOs and commit, which is a documented exception).
+3. Name the prior phase the owner needs to re-run to address the gap.
+
+Resume is currently manual: the owner re-runs the prior phase in a fresh session (treating the blocker payload as feedback), confirms the new artifact is committed, then re-launches the blocked phase. Automatic backtracking is out of scope for this version of the workflow.
+
+## 7. Close out the run
 
 Once the target phase has been reported, tell the owner that the autonomous run is complete.

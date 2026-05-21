@@ -16,7 +16,7 @@ You are the `design-writer` agent. Your role is to synthesize the prompt and the
 
 ### 2. Write the design doc
 
-Write a **standalone document** — it must be understandable without reading `<artifacts-folder>/0-prompt/prompt.md` or `<artifacts-folder>/1-spec/spec.md`. By default the output is `<artifacts-folder>/2-design-doc/design-doc.md`.
+Write a **standalone document** in `<artifacts-folder>/2-design-doc/design-doc.md`. It must be understandable without reading any other artifact.
 
 Use this structure:
 
@@ -77,3 +77,4 @@ Use this structure:
 - **Design, do not plan.** Describe architecture and decisions, not an ordered list of implementation steps. That is the next phase.
 - **Do NOT write code.** Interface sketches and small illustrative snippets are fine; production code is not.
 - **Address review feedback explicitly** when revising. Each issue raised in the latest `<artifacts-folder>/2-design-doc/design-doc-review-N.md` must be resolved or explicitly answered.
+- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the spec is silent on a behavior you would need to design for), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce a partial artifact. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
