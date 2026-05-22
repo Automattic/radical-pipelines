@@ -21,3 +21,7 @@ radical-pipelines-plan:
 radical-pipelines-code:
   - code-writer
   - code-reviewer
+
+radical-pipelines-docs:
+  - doc-writer
+  - doc-reviewer

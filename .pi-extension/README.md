@@ -6,7 +6,7 @@ This Pi package ships the Radical Pipelines skill, phase agent profiles, pi-team
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
 - Agents: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-writer`, `design-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer`. Consolidator agents for multi-lane phases 3 and 4 will ship when those modes are designed.
-- Team templates: `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, and `radical-pipelines-code` as package-local source definitions. These templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The spec, design, plan, and code templates correspond to phases 1–4 of the autonomous workflow. Phase 5 (docs) orchestration will be added separately.
+- Team templates: `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, `radical-pipelines-code`, and `radical-pipelines-docs` as package-local source definitions. These templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The spec, design, plan, code, and docs templates correspond to phases 1–5 of the autonomous workflow.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
 No prompt templates or themes are currently included.
@@ -57,7 +57,7 @@ Verified local results:
 2. Start the workflow with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
 3. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
 4. Ensure the required phase agent definitions are discoverable. Check repository-local `.pi/agents/` first, then user-local/global `~/.pi/agent/agents/`.
-5. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, or `radical-pipelines-code` template, depending on the phase you are running.
+5. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, `radical-pipelines-code`, or `radical-pipelines-docs` template, depending on the phase you are running.
 
 The target project still needs Radical Pipelines conventions, typically in `AGENTS.md`, a CLI-specific `.pi/rp.md`, or a dedicated conventions skill. Those conventions should define task lookup, pipeline slug format, artifact folder (for example `.pipelines/<pipeline-slug>`), `/worktree` setup, branch naming, team spawning, commit format, and Pi agent setup. During Pi setup, if no required agents are found in repository-local `.pi/agents/` or user-local/global `~/.pi/agent/agents/`, the workflow asks which Radical Pipelines agents to copy/paste and install before it launches teams. Reviewer agents write inspectable `spec-review-N.md`, `design-doc-review-N.md`, `code-plan-review-N.md`, `doc-plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md` artifacts into the task's artifact folder.
 
