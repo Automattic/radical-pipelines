@@ -16,7 +16,7 @@ You plan **what to document, where, and for whom** — not what the docs actuall
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
 4. Read `<artifacts-folder>/3-plan/code-plan.md` — the code tasks that determine what surfaces will exist and need documentation.
 5. Explore the host project's existing documentation as needed to identify the right files, sections, conventions, and audiences.
-6. If the orchestrator's prompt contained reviewer feedback (a `<artifacts-folder>/3-plan/doc-plan-review-N.md` file), read it and address every issue.
+6. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the plan
 
@@ -67,5 +67,5 @@ Use the following structure:
 - **Stay within spec and design.** Do not invent documentation for features the spec did not ask for.
 - **Do NOT include code tasks.** Code work is planned separately in `code-plan.md`.
 - **Do NOT write the documentation.** Describe what needs documenting; the doc-writer produces the content in phase 5.
-- **Address review feedback explicitly** when revising. Each issue raised in the latest `<artifacts-folder>/3-plan/doc-plan-review-N.md` must be resolved or explicitly answered.
+- **Address review feedback explicitly** when revising. Each issue raised in the cited review file must be resolved or explicitly answered.
 - **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the doc plan exposes a code task that is not in `code-plan.md`, or the spec is silent about whether a surface needs documentation), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce a partial artifact. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.

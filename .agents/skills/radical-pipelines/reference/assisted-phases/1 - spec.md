@@ -10,6 +10,7 @@ Outputs:
 
 - `<artifacts-folder>/1-spec/requirements.md`
 - `<artifacts-folder>/1-spec/spec.md`
+- `<artifacts-folder>/1-spec/spec-review-approved.md` (the assisted-mode approval file you write on the owner's behalf — see step 8)
 
 ## Constraints
 
@@ -118,4 +119,20 @@ Show the owner `spec.md`. Iterate on edits, additions, or removals. The owner ma
 
 ### 8. Commit
 
-Commit `requirements.md` and `spec.md` together in a single commit, following the **Commit format** convention.
+Write `<artifacts-folder>/1-spec/spec-review-approved.md` recording the owner's approval (this is the assisted-mode equivalent of the autonomous `spec-reviewer`'s approval file, and it satisfies the phase 1 completion predicate in `pipeline-versioning.md`):
+
+```markdown
+# Spec Review
+
+## Verdict: approved
+
+## Reviewer
+
+Owner (assisted workflow)
+
+## Notes
+
+<one or two lines capturing anything the owner wants recorded about the approval — leave empty if nothing>
+```
+
+Commit `requirements.md`, `spec.md`, and `spec-review-approved.md` together in a single commit, following the **Commit format** convention.

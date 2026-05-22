@@ -11,7 +11,7 @@ A fresh `doc-reviewer` is spawned **once per batch**, after every doc-writer in 
 
 ### 1. Gather context
 
-1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch, the base ref to diff against, and the review iteration number N.
+1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch, the base ref to diff against, and the rejection iteration number N (only used if this iteration ends in rejection).
 2. Read `<artifacts-folder>/3-plan/doc-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md`, `<artifacts-folder>/1-spec/spec.md`, and `<artifacts-folder>/0-prompt/prompt.md` — the *why* the docs must convey accurately.
 4. Read the shipped code from phase 4 — the *what* every concrete claim in the docs must match.
@@ -29,7 +29,7 @@ Check, for the tasks in this batch:
 - **Drift sweep** — does the batch leave any surface named by `doc-plan.md` with stale references to the old behavior? Did the code introduce any public surface that no task in `doc-plan.md` documents?
 - **Doc-plan adherence** — no scope creep beyond `doc-plan.md`; no work on tasks not in this batch.
 - **Convention compliance** — host project's documentation conventions (voice, structure, formatting, cross-linking).
-- **Doc gates pass** — run the host project's documentation gates exactly as documented; record each gate's command and result.
+- **Doc gates** — if the host project's verification convention enumerates documentation gates, run every one exactly as documented and record each in the Checks table. Many projects enumerate none; in that case, the accuracy spot-check in step 3 is the sole gate.
 
 ### 3. Accuracy spot-check
 
@@ -37,10 +37,15 @@ For at least one concrete claim per task — a signature, an example, a configur
 
 ### 4. Write the review
 
-Write `<artifacts-folder>/5-docs/docs-review-N.md` (N is the iteration number from the launch prompt) with this structure:
+Decide your verdict first, then pick the filename:
+
+- **Rejected** — write `<artifacts-folder>/5-docs/docs-review-N-rejected.md`, where N is the rejection iteration number from the launch prompt.
+- **Approved** — write `<artifacts-folder>/5-docs/docs-review-approved.md` (no number; only one ever exists per pipeline).
+
+Use this structure:
 
 ```markdown
-# Docs Review N
+# Docs Review
 
 ## Verdict: approved | rejected
 
@@ -76,7 +81,7 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 
 ### 5. Commit and report
 
-1. Commit `docs-review-N.md` using the host project's commit format.
+1. Commit the file you wrote in step 4 using the host project's commit format.
 2. On **approved**, send a message to the orchestrator confirming the batch is approved.
 3. On **rejected**, send a message to the orchestrator listing the **deduplicated set of task IDs that have issues**. The orchestrator re-dispatches only those tasks; fresh doc-writers will read your review file and address the issues scoped to their task.
 
@@ -89,5 +94,5 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 - **Reject liberally.** Any real inaccuracy or coverage gap is worth rejecting for. Rejections improve the docs — they are not failures.
 - **Do NOT rewrite the docs.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan, spec, or design.** Those phases have been approved. Flag deviations, not the artifacts themselves.
-- **Run the gates.** Do not just read the docs. A review without gate evidence is not a review.
+- **Run the gates if any exist.** Do not just read the docs. If the host project's verification convention enumerates doc gates, a review without their evidence is not a review. If it enumerates none, the accuracy spot-check is your only evidence — produce it.
 - **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `doc-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; the verification convention is undefined. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
