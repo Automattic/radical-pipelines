@@ -81,6 +81,12 @@ How agents are organized into teams, spawned, and addressed across orchestrator 
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run.
 
+### Health monitoring (required)
+
+How the orchestrator launches a recurring monitor in the autonomous workflow to detect stalls, message failures, login, token limits, network errors, and so on.
+
+This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run. Try to document the commands to start, list, and cancel this monitoring.
+
 ### Artifact storage (required)
 
 How this project stores Radical Pipelines artifacts.

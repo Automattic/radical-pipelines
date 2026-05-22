@@ -32,6 +32,8 @@ Restate the full plan back to the owner in plain language: that this is an auton
 
 Run each phase from the next phase up to the target phase, in order.
 
+Before launching the first team, start a recurring health monitor for the run per `reference/health-monitoring.md`. The monitor watches for stalled agents, message failures, login / token / network errors, and session-time-limit; it attempts bounded auto-recovery and escalates to you when it cannot resolve an issue. Surface any escalation to the owner verbatim.
+
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
 | 0 - Prompt     | `0-prompt`     | Already in place                      |
@@ -77,4 +79,4 @@ Resume is currently manual: the owner re-runs the prior phase in a fresh session
 
 ## 7. Close out the run
 
-Once the target phase has been reported, tell the owner that the autonomous run is complete.
+Once the target phase has been reported, stop the health monitor (see `reference/health-monitoring.md` for the cancellation command) and tell the owner that the autonomous run is complete.
