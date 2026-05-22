@@ -28,13 +28,36 @@ Agents in the same team address each other directly via pi-teams messaging. When
 If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
 
 Prefer explicit provider-qualified models (`provider/model`). If a spawn fails with login/API-key errors, do not run `/login` first: run `pi --list-models`, pick an authenticated provider-qualified model, and retry. If none is available, stop and ask the owner to authenticate or choose a model.
+
+## Health monitoring
+
+Use the `@pi-agents/loop` package. It ships the same `/loop` syntax as Claude Code's bundled skill, plus `/loop-list` and `/loop-kill`.
+
+- **Start (autonomous):** `/loop 5m <prompt>` where `<prompt>` is the autonomous template from `reference/health-monitoring.md`.
+- **Start (assisted):** `/loop 15m <prompt>` where `<prompt>` is the assisted template from `reference/health-monitoring.md`.
+- **List active loops:** `/loop-list`.
+- **Cancel:** `/loop-kill <id>` using the id returned at start.
+
+The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
+
+Token-limit recovery in Pi relies on Pi's built-in automatic compaction. Pi has no `/compact` command, so the monitor cannot invoke compaction directly; it falls through to restarting the affected agent on a fresh context.
 ```
 
 ## Setup actions
 
-Pi requires the Radical Pipelines agent definitions to be discoverable. Step 3 of `setup.md` installs them after conventions have been collected.
+Pi requires the Radical Pipelines agent definitions to be discoverable and the `@pi-agents/loop` package to be installed for health monitoring. Step 3 of `setup.md` runs both checks after conventions have been collected.
 
-### Check existing installations
+### Check `@pi-agents/loop` install
+
+Verify that `/loop` is available. If it is not, install the package:
+
+```bash
+pi install npm:@pi-agents/loop@latest
+```
+
+Confirm the install with the owner before running the command.
+
+### Check existing agent installations
 
 Check whether the required agents (for the target phase and execution mode) are already present:
 

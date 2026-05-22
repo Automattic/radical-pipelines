@@ -81,6 +81,12 @@ How agents are organized into teams, spawned, and addressed across orchestrator 
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run.
 
+### Health monitoring (required)
+
+How the orchestrator launches a recurring loop to detect stalls, message failures, login / token / network errors, and session-time-limit during a run.
+
+This is highly dependent on the agentic coding tool. Document the slash commands to start, list, and cancel a loop. The skill ships defaults for both supported tools — `/loop` (bundled) for Claude Code and `@pi-agents/loop` for Pi. See the active tool's rules file for the canonical block and `reference/health-monitoring.md` for the loop prompt templates.
+
 ### Artifact storage (required)
 
 How this project stores Radical Pipelines artifacts.

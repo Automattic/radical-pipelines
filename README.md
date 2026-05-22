@@ -160,7 +160,7 @@ The skill is generic — each project defines its own conventions for things lik
 
 If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup flow. Setup asks for the missing convention details, separates shared project guidance from CLI-specific guidance, and can write reusable Markdown for the active CLI after confirmation. Pi setup writes only Pi conventions to `.pi/rp.md`; Claude Code setup writes only Claude Code conventions to `.claude/rp.md`.
 
-Shared project conventions include task tracking, pipeline slug format, artifact folder location, and commit rules. Claude Code conventions include Claude Code worktree commands, branch creation, team spawning, and Claude Code prerequisites. Pi conventions include Pi packages and plugins, Pi worktree commands, branch creation, pi-teams spawning, provider/model recovery, and Pi agent setup. Do not mix Claude Code conventions into `.pi/rp.md`, and do not mix Pi conventions into `.claude/rp.md`.
+Shared project conventions include task tracking, pipeline slug format, artifact folder location, and commit rules. Claude Code conventions include Claude Code worktree commands, branch creation, team spawning, health-monitoring loop commands (bundled `/loop`), and Claude Code prerequisites. Pi conventions include Pi packages and plugins, Pi worktree commands, branch creation, pi-teams spawning, provider/model recovery, health-monitoring loop commands (`@pi-agents/loop`), and Pi agent setup. Do not mix Claude Code conventions into `.pi/rp.md`, and do not mix Pi conventions into `.claude/rp.md`.
 
 For Pi, setup also verifies that the required phase agent definitions are discoverable before the pipeline starts. It checks repository-local agents first (`.pi/agents/<agent>.md` or `.pi/agents/<agent>/SKILL.md`), then user-local/global agents (`~/.pi/agent/agents/<agent>.md` or `~/.pi/agent/agents/<agent>/SKILL.md`). If none of the required agents are available, setup stops and asks which Radical Pipelines agents the user wants to copy/paste and install, and whether to install them repository-locally or user-locally/globally.
 
@@ -183,6 +183,8 @@ Workflows:
 
 - **Autonomous workflow** — runs phases unattended up to a target phase agreed with the owner at the start of the session. The owner makes all per-phase decisions up-front and the run executes without further interruptions until it reaches the target.
 - **Assisted workflow** — runs one phase at a time with the owner. Phase 1 is currently implemented as an owner-driven Q&A flow that records `requirements.md`, synthesizes `spec.md`, and waits for explicit owner approval before committing.
+
+Both workflows launch a recurring **health monitor** for the run (autonomous: 5-minute interval, 10-minute no-output threshold; assisted: 15-minute interval, session-level signals only). It watches for stalled agents, message failures, login / API-key errors, token-limit warnings, session-time-limit, and network failures, attempts up to two bounded auto-recovery actions per issue, and escalates anything it cannot resolve to the owner with the agent name, error verbatim, last-known progress, and a suggested next step. Implementation uses Claude Code's bundled `/loop` skill or the `@pi-agents/loop` Pi package. See `reference/health-monitoring.md`.
 
 Phases (within implemented workflows):
 
