@@ -6,7 +6,7 @@ This Pi package ships the Radical Pipelines skill, phase agent profiles, pi-team
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
 - Agents: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-writer`, `design-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer`. Consolidator agents for multi-lane phases 3 and 4 will ship when those modes are designed.
-- Team templates: `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, and `radical-pipelines-code` as package-local source definitions. These templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The design, plan, and code templates expose their writer/reviewer pairs for project-convention-driven use; full autonomous workflow orchestration for those phases will be added separately.
+- Team templates: `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, and `radical-pipelines-code` as package-local source definitions. These templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The spec, design, plan, and code templates correspond to phases 1–4 of the autonomous workflow. Phase 5 (docs) orchestration will be added separately.
 - Bundled dependency resources loaded through `node_modules/...`: `pi-teams` and `@zenobius/pi-worktrees`.
 
 No prompt templates or themes are currently included.
