@@ -10,7 +10,8 @@ Outputs:
 
 - `<artifacts-folder>/1-spec/requirements.md`
 - `<artifacts-folder>/1-spec/spec.md`
-- `<artifacts-folder>/1-spec/spec-review-N.md` (one per review iteration)
+- `<artifacts-folder>/1-spec/spec-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
+- `<artifacts-folder>/1-spec/spec-review-approved.md` (single, unnumbered file written on approval)
 
 ## Decisions
 
@@ -23,16 +24,16 @@ This phase has no per-phase decisions in this version.
 | `spec-analyst`  | Drives the Q&A one question at a time. Writes `requirements.md`.             | Yes         |
 | `researcher`    | Investigates the codebase, web, and runs experiments to answer questions.    | Yes         |
 | `spec-writer`   | Synthesizes `requirements.md` into a standalone `spec.md`.                   | No          |
-| `spec-reviewer` | Reviews the spec adversarially; approves or rejects with `spec-review-N.md`. | No          |
+| `spec-reviewer` | Reviews the spec adversarially; writes `spec-review-N-rejected.md` on rejection or `spec-review-approved.md` on approval. | No          |
 
 ## Steps
 
 1. Launch `spec-analyst` and `researcher` as persistent agents (per the **Team spawning** convention).
 2. The `spec-analyst` drives an iterative Q&A with the `researcher` and writes the running record to `requirements.md`. Wait until the `spec-analyst` signals that requirements are complete.
 3. Launch a fresh `spec-writer`. It reads `prompt.md` and `requirements.md`, then writes `spec.md` as a standalone document.
-4. Launch a fresh `spec-reviewer`. It writes `spec-review-N.md` (N increments per iteration) with a verdict of `approved` or `rejected`.
-5. On **rejected**, launch a fresh `spec-writer` with the rejection feedback. It revises `spec.md`. The `spec-reviewer` re-reviews (N increments).
-6. On **approved**, verify that `requirements.md`, `spec.md`, and every `spec-review-N.md` are committed on the pipeline branch.
+4. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `spec-review-approved.md` (no number — the singleton terminator).
+5. On **rejected**, launch a fresh `spec-writer` with the rejection file's path. It revises `spec.md`. The `spec-reviewer` re-reviews.
+6. On **approved**, verify the phase 1 completion predicate per `pipeline-versioning.md` ("Per-phase completion"): `requirements.md`, `spec.md`, every `spec-review-N-rejected.md`, and `spec-review-approved.md` are committed on the pipeline branch.
 
 ```mermaid
 flowchart TD
@@ -42,7 +43,7 @@ flowchart TD
     C -->|answers| B
     B -->|requirements complete| D[Spec Writer]
     D -->|writes spec.md| E[Spec Reviewer]
-    E -->|writes spec-review-N.md| F{Approved?}
+    E -->|writes spec-review-N-rejected.md or spec-review-approved.md| F{Approved?}
     F -->|no| D
     F -->|yes| G[Phase complete]
 ```

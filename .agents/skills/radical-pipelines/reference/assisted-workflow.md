@@ -23,10 +23,10 @@ Map the next phase to its reference file:
 
 ## 4. Execute the phase
 
-Create the phase subfolder inside the artifacts folder. Run the phase per its reference.
+Create the phase subfolder inside the artifacts folder. Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`. Run the phase per its reference.
 
 You write the artifacts yourself and commit them following the **Commit format** convention, only after the owner has explicitly approved them.
 
 ## 5. Report and close out
 
-Once the phase finishes, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.
+Once the phase's completion predicate is satisfied, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.

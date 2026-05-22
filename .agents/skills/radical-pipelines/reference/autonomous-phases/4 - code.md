@@ -12,7 +12,8 @@ Inputs:
 Outputs:
 
 - Code changes, unit tests, and end-to-end tests committed on the pipeline branch.
-- `<artifacts-folder>/4-code/code-review-N.md` (one per review iteration).
+- `<artifacts-folder>/4-code/code-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …).
+- `<artifacts-folder>/4-code/code-review-approved.md` (single, unnumbered file written on approval).
 
 ## Decisions
 
@@ -30,11 +31,11 @@ This phase has no per-phase decisions.
 1. If your runtime exposes a task-list tool, you must use it. Create one entry per task from `code-plan.md` and use the list to track dispatch status (pending / in progress / done) throughout the phase, including re-dispatches.
 2. Determine the **initial batch**: every task in `code-plan.md`, in the order specified.
 3. For each task in the batch, in order:
-   1. Launch a fresh `code-writer` with the verbatim task block (Goal / Files / Changes / Depends on / Traces to / Acceptance) and, if this is a re-dispatch on rejection, the path to the latest `code-review-N.md` plus the issues scoped to this task.
+   1. Launch a fresh `code-writer` with the verbatim task block (Goal / Files / Changes / Depends on / Traces to / Acceptance) and, if this is a re-dispatch on rejection, the path to the latest `code-review-N-rejected.md` plus the issues scoped to this task.
    2. Wait for the code-writer to commit before launching the next task. Code-writers share the pipeline branch's single working tree, so this step is strictly sequential.
-4. After every code-writer in the batch has committed, launch a fresh `code-reviewer` with the list of task IDs in the batch, the base ref to diff against, and the review iteration number N (starting at 1, incremented per iteration). It writes `code-review-N.md` with a verdict of `approved` or `rejected`.
-5. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 3, with N incremented for the next review iteration.
-6. On **approved**, verify that all code changes, unit tests, end-to-end tests, and every `code-review-N.md` are committed on the pipeline branch.
+4. After every code-writer in the batch has committed, launch a fresh `code-reviewer` with the list of task IDs in the batch, the base ref to diff against, and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). On rejection the reviewer writes `code-review-N-rejected.md`; on approval it writes `code-review-approved.md` (no number — the singleton terminator).
+5. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 3, with N incremented for the next rejection iteration.
+6. On **approved**, verify the phase 4 completion predicate per `pipeline-versioning.md` ("Per-phase completion"): all code changes, unit tests, end-to-end tests, every `code-review-N-rejected.md`, and `code-review-approved.md` are committed on the pipeline branch.
 
 ```mermaid
 flowchart TD
@@ -42,7 +43,7 @@ flowchart TD
     B -->|commits code + tests| C{All batch tasks done?}
     C -->|no| B
     C -->|yes| D[Code Reviewer]
-    D -->|writes code-review-N.md| E{Approved?}
+    D -->|writes code-review-N-rejected.md or code-review-approved.md| E{Approved?}
     E -->|no — re-dispatch affected tasks| B
     E -->|yes| F[Phase complete]
 ```

@@ -20,6 +20,27 @@ When the owner discards a pipeline or wants to try a different approach, the orc
 - Inherited artifacts are copied as plain files into the new pipeline's artifact folder.
 - Git ancestry does not carry inheritance information; `pipeline.yml` does.
 
+## Per-phase completion
+
+A phase has two visible states on disk: **in progress** (the folder or some artifacts exist but the predicate below is not yet satisfied) and **complete** (predicate satisfied). Phase folders are created at the start of a phase, so folder existence alone does not imply completion — only the predicate does.
+
+In the autonomous workflow, reviewers encode the verdict in the filename. Rejected iterations are numbered — `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) — and a single, unnumbered `<artifact>-review-approved.md` terminates the loop. The `-approved.md` file is the orchestrator's completion signal; counting the rejected files (if any) recovers the iteration on which approval landed.
+
+A phase is complete when all of these are committed to the pipeline branch:
+
+| Phase | Required artifacts |
+| --- | --- |
+| 0 – Prompt | `0-prompt/prompt.md` |
+| 1 – Spec (autonomous) | `1-spec/spec.md` and `1-spec/spec-review-approved.md` |
+| 1 – Spec (assisted) | `1-spec/requirements.md` and `1-spec/spec.md` |
+| 2 – Design doc (autonomous) | `2-design-doc/design-doc.md` and `2-design-doc/design-doc-review-approved.md` |
+| 2 – Design doc (assisted) | `2-design-doc/design-notes.md` and `2-design-doc/design-doc.md` |
+| 3 – Plan | `3-plan/code-plan.md`, `3-plan/code-plan-review-approved.md`, `3-plan/doc-plan.md`, and `3-plan/doc-plan-review-approved.md` |
+| 4 – Code | `4-code/code-review-approved.md` (the code itself lives elsewhere in the repo) |
+| 5 – Docs | `5-docs/docs-review-approved.md` (the docs themselves live elsewhere in the repo) |
+
+A pipeline's **completed phase** is the highest-numbered phase whose predicate is satisfied. Its **active phase** is the next phase if any of that phase's artifacts have started appearing (in progress); otherwise the pipeline has no active phase and the next phase to run is the one after the completed phase.
+
 ## `pipeline.yml`
 
 Each pipeline forked from a previous one carries one file at the root of its artifact folder:
@@ -68,13 +89,14 @@ Example:
     ├── v1: 2-design-doc
     │   └── v1: 3-plan → 4-code → 5-docs  [merged]
     └── v2: 2-design-doc
-        ├── v2: 3-plan
-        └── v3: 3-plan → 4-code
+        ├── v2: 3-plan (in progress)
+        └── v3: 3-plan → 4-code (in progress)
 ```
 
 Reading conventions:
 
-- A pipeline's **current phase** is its deepest labeled node. v1 is at `5-docs` (merged); v2 is at `3-plan`; v3 is at `4-code`.
+- A pipeline's **completed phase** is the deepest labeled node whose **Per-phase completion** predicate is satisfied. v1 has completed all five phases (and is merged); v2's deepest node is `3-plan` but the predicate is not yet satisfied, so its completed phase is `2-design-doc` and `3-plan` is its active phase; v3's completed phase is `3-plan` and `4-code` is its active phase.
 - What a pipeline **inherits** is every ancestor node up to the root. v2 inherits `v1: 1-spec` and `0-prompt`; v3 inherits everything v2 inherits plus `v2: 2-design-doc`.
 - A linear chain of phases owned by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
-- `[merged]` is the only state annotation worth keeping explicit — completion of all phases can be inferred from position in the tree, but "merged into main" can't.
+- `(in progress)` annotates the trailing node when its **Per-phase completion** predicate isn't yet satisfied. It signals that work has started but not finished.
+- `[merged]` annotates a pipeline that has been merged into the project's main branch. Phase completion can be inferred from the predicate; "merged into main" cannot.
