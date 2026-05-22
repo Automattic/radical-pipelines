@@ -1,0 +1,48 @@
+# Running the Code Phase (Phase 4)
+
+Advances the pipeline from phase 3 (plan) to phase 4 by dispatching the code tasks to a fresh `code-writer` per task, then reviewing the full batch with a single `code-reviewer`. On rejection, only the tasks the reviewer flagged are re-dispatched; the cycle repeats until the reviewer approves.
+
+Inputs:
+
+- `<artifacts-folder>/0-prompt/prompt.md`
+- `<artifacts-folder>/1-spec/spec.md`
+- `<artifacts-folder>/2-design-doc/design-doc.md`
+- `<artifacts-folder>/3-plan/code-plan.md`
+
+Outputs:
+
+- Code changes, unit tests, and end-to-end tests committed on the pipeline branch.
+- `<artifacts-folder>/4-code/code-review-N.md` (one per review iteration).
+
+## Decisions
+
+This phase has no per-phase decisions.
+
+## Required agents
+
+| Agent           | Role                                                                                                           | Persistent? |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | ----------- |
+| `code-writer`   | One fresh instance per task. Reads the task block, implements with TDD, verifies behavior, validates, commits. | No          |
+| `code-reviewer` | One fresh instance per batch. Reviews the full batch against the spec, design doc, and code plan.              | No          |
+
+## Steps
+
+1. If your runtime exposes a task-list tool, you must use it. Create one entry per task from `code-plan.md` and use the list to track dispatch status (pending / in progress / done) throughout the phase, including re-dispatches.
+2. Determine the **initial batch**: every task in `code-plan.md`, in the order specified.
+3. For each task in the batch, in order:
+   1. Launch a fresh `code-writer` with the verbatim task block (Goal / Files / Changes / Depends on / Traces to / Acceptance) and, if this is a re-dispatch on rejection, the path to the latest `code-review-N.md` plus the issues scoped to this task.
+   2. Wait for the code-writer to commit before launching the next task. Code-writers share the pipeline branch's single working tree, so this step is strictly sequential.
+4. After every code-writer in the batch has committed, launch a fresh `code-reviewer` with the list of task IDs in the batch, the base ref to diff against, and the review iteration number N (starting at 1, incremented per iteration). It writes `code-review-N.md` with a verdict of `approved` or `rejected`.
+5. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 3, with N incremented for the next review iteration.
+6. On **approved**, verify that all code changes, unit tests, end-to-end tests, and every `code-review-N.md` are committed on the pipeline branch.
+
+```mermaid
+flowchart TD
+    A[Orchestrator] -->|one per task| B[Code Writer]
+    B -->|commits code + tests| C{All batch tasks done?}
+    C -->|no| B
+    C -->|yes| D[Code Reviewer]
+    D -->|writes code-review-N.md| E{Approved?}
+    E -->|no — re-dispatch affected tasks| B
+    E -->|yes| F[Phase complete]
+```
