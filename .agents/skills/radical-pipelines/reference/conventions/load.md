@@ -8,15 +8,16 @@ This information is necessary to execute the pipelines correctly, so you must lo
 
 ## Conventions
 
-| Convention      | What it covers                                                 | Required? |
-| --------------- | -------------------------------------------------------------- | --------- |
-| Pipeline slug   | How to uniquely identify pipelines                             | Yes       |
-| Artifact folder | Where to store the pipeline artifacts                          | Yes       |
-| Commit format   | How to write commits                                           | No        |
-| Issues          | Where to find the project issues and how to create/modify them | Yes       |
-| Worktrees       | How to set up and manage worktrees for each pipeline           | Yes       |
-| Branch names    | How to name branches for each pipeline                         | Yes       |
-| Team spawning   | How to define and launch teams of agents                       | No        |
+| Convention        | What it covers                                                 | Required? |
+| ----------------- | -------------------------------------------------------------- | --------- |
+| Pipeline slug     | How to uniquely identify pipelines                             | Yes       |
+| Artifact folder   | Where to store the pipeline artifacts                          | Yes       |
+| Commit format     | How to write commits                                           | No        |
+| Issues            | Where to find the project issues and how to create/modify them | Yes       |
+| Worktrees         | How to set up and manage worktrees for each pipeline           | Yes       |
+| Branch names      | How to name branches for each pipeline                         | Yes       |
+| Team spawning     | How to define and launch teams of agents                       | No        |
+| Health monitoring | How to launch and cancel the recurring run-health loop         | Yes       |
 
 ## Missing conventions
 

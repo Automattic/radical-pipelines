@@ -111,7 +111,7 @@ The package installs:
 - the `radical-pipelines` skill;
 - phase agent profiles for the shipped phases and phase pairs: `prompt-writer`, `spec-analyst`, `researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-writer`, `design-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer`;
 - the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, and `radical-pipelines-code` pi-teams templates as package-local source definitions. These team templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The full `radical-pipelines` team will ship alongside later workflow orchestration;
-- bundled `pi-teams` and `@zenobius/pi-worktrees` Pi resources.
+- bundled `pi-teams`, `@zenobius/pi-worktrees`, and `@pi-agents/loop` Pi resources.
 
 During package development in this repository, install dependencies first and then install the local path:
 
@@ -134,7 +134,7 @@ Validation for the local package has verified `pi install ./.pi-extension -l`, `
 
 ## Dependency bundling
 
-`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by local development installs. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
+`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by local development installs. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
 
 The repository root also ships a Pi manifest (`package.json`) so `pi install git:github.com/Automattic/radical-pipelines` resolves at the cloned repo root. The root manifest declares the same bundled dependencies directly and points its `pi` manifest paths at `.pi-extension/` files, so both layers share a single source of truth.
 
@@ -148,7 +148,7 @@ Fallback skill-only install with the [Skills command-line tool](https://github.c
 npx skills add Automattic/radical-pipelines
 ```
 
-The fallback only installs the skill. It does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, or predefined team source files, and skill install paths can vary across CLIs, symlinks, and home-relative setups. Use the Pi package when you want package-managed Pi resources and bundled dependencies.
+The fallback only installs the skill. It does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, or predefined team source files, and skill install paths can vary across CLIs, symlinks, and home-relative setups. Use the Pi package when you want package-managed Pi resources and bundled dependencies.
 
 ## Configuration
 
@@ -160,7 +160,7 @@ The skill is generic — each project defines its own conventions for things lik
 
 If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup flow. Setup asks for the missing convention details, separates shared project guidance from CLI-specific guidance, and can write reusable Markdown for the active CLI after confirmation. Pi setup writes only Pi conventions to `.pi/rp.md`; Claude Code setup writes only Claude Code conventions to `.claude/rp.md`.
 
-Shared project conventions include task tracking, pipeline slug format, artifact folder location, and commit rules. Claude Code conventions include Claude Code worktree commands, branch creation, team spawning, and Claude Code prerequisites. Pi conventions include Pi packages and plugins, Pi worktree commands, branch creation, pi-teams spawning, provider/model recovery, and Pi agent setup. Do not mix Claude Code conventions into `.pi/rp.md`, and do not mix Pi conventions into `.claude/rp.md`.
+Shared project conventions include task tracking, pipeline slug format, artifact folder location, and commit rules. Claude Code conventions include Claude Code worktree commands, branch creation, team spawning, health-monitoring loop commands (bundled `/loop`), and Claude Code prerequisites. Pi conventions include Pi packages and plugins, Pi worktree commands, branch creation, pi-teams spawning, provider/model recovery, health-monitoring loop commands (`@pi-agents/loop`), and Pi agent setup. Do not mix Claude Code conventions into `.pi/rp.md`, and do not mix Pi conventions into `.claude/rp.md`.
 
 For Pi, setup also verifies that the required phase agent definitions are discoverable before the pipeline starts. It checks repository-local agents first (`.pi/agents/<agent>.md` or `.pi/agents/<agent>/SKILL.md`), then user-local/global agents (`~/.pi/agent/agents/<agent>.md` or `~/.pi/agent/agents/<agent>/SKILL.md`). If none of the required agents are available, setup stops and asks which Radical Pipelines agents the user wants to copy/paste and install, and whether to install them repository-locally or user-locally/globally.
 
@@ -183,6 +183,8 @@ Workflows:
 
 - **Autonomous workflow** — runs phases unattended up to a target phase agreed with the owner at the start of the session. The owner makes all per-phase decisions up-front and the run executes without further interruptions until it reaches the target.
 - **Assisted workflow** — runs one phase at a time with the owner. Phase 1 is currently implemented as an owner-driven Q&A flow that records `requirements.md`, synthesizes `spec.md`, and waits for explicit owner approval before committing.
+
+The autonomous workflow launches a recurring **health monitor** for the run (5-minute interval, 10-minute no-output threshold). It watches for stalled agents, message failures, login / API-key errors, token-limit warnings, session-time-limit, and network failures, attempts up to two bounded auto-recovery actions per issue, and escalates anything it cannot resolve to the owner with the agent name, error verbatim, last-known progress, and a suggested next step. Implementation uses Claude Code's bundled `/loop` skill or the `@pi-agents/loop` Pi package. Assisted runs do not use a monitor — the owner is already in the loop. See `reference/health-monitoring.md`.
 
 Phases (within implemented workflows):
 

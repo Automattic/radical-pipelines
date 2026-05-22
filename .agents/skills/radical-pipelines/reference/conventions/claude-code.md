@@ -29,4 +29,16 @@ Every autonomous workflow that spawns agents must use exactly one Claude Code te
 Agents in the same team address each other directly via `SendMessage({ to: "<agent-name>", ... })`. When a phase reference says two agents exchange messages, the orchestrator does not relay between them by default. It only spawns, monitors, and waits for completion signals.
 
 If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
+
+## Health monitoring
+
+Use Claude Code's bundled `/loop` skill — no install is required. Only the autonomous workflow launches the monitor; assisted runs do not.
+
+- **Start:** `/loop 5m <prompt>` where `<prompt>` is the template from `reference/health-monitoring.md`.
+- **List active loops:** `/loop-list`.
+- **Cancel:** `/loop-kill <id>` using the id returned at start.
+
+The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
+
+Token-limit recovery in Claude Code relies on built-in auto-compaction. `/compact` is a user-only command and is not callable from a loop, so the monitor must not try to invoke it.
 ```
