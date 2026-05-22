@@ -31,10 +31,9 @@ Prefer explicit provider-qualified models (`provider/model`). If a spawn fails w
 
 ## Health monitoring
 
-Use the `@pi-agents/loop` package, bundled by the Radical Pipelines Pi package. It ships the same `/loop` syntax as Claude Code's bundled skill, plus `/loop-list` and `/loop-kill`.
+Use the `@pi-agents/loop` package, bundled by the Radical Pipelines Pi package. It ships the same `/loop` syntax as Claude Code's bundled skill, plus `/loop-list` and `/loop-kill`. Only the autonomous workflow launches the monitor; assisted runs do not.
 
-- **Start (autonomous):** `/loop 5m <prompt>` where `<prompt>` is the autonomous template from `reference/health-monitoring.md`.
-- **Start (assisted):** `/loop 15m <prompt>` where `<prompt>` is the assisted template from `reference/health-monitoring.md`.
+- **Start:** `/loop 5m <prompt>` where `<prompt>` is the template from `reference/health-monitoring.md`.
 - **List active loops:** `/loop-list`.
 - **Cancel:** `/loop-kill <id>` using the id returned at start.
 

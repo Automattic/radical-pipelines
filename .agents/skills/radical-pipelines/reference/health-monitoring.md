@@ -2,16 +2,13 @@
 
 Pipelines can stall or fail silently. An agent stops producing output, a `SendMessage` is lost, a provider login expires, a tool call hits a network blip, or the conversation approaches the session-time-limit. The owner only finds out when they check back in.
 
-Every workflow launches a recurring **health monitor** that watches the run, attempts bounded auto-recovery, and escalates to the owner when it cannot resolve an issue.
+The autonomous workflow launches a recurring **health monitor** that watches the run, attempts bounded auto-recovery, and escalates to the owner when it cannot resolve an issue. The assisted workflow does not use a monitor — the owner is already in the loop and sees issues as they happen.
 
 ## When to launch
 
-| Mode       | When                                 | Default interval | Default no-output threshold |
-| ---------- | ------------------------------------ | ---------------- | --------------------------- |
-| Autonomous | Right after the team is spawned      | 5 minutes        | 10 minutes                  |
-| Assisted   | At the start of the run              | 15 minutes       | N/A (no agents are spawned) |
+Right after the team is spawned in the autonomous workflow.
 
-Intervals are owner-tunable. Shorter intervals catch stalls sooner but spend more tokens on each check; the defaults balance the two.
+Defaults: **5-minute interval**, **10-minute no-output threshold**. Both are owner-tunable. Shorter intervals catch stalls sooner but spend more tokens on each check; the defaults balance the two.
 
 The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The active tool's rules (see `conventions/claude-code.md` or `conventions/pi.md`) provide the exact slash command to start the loop.
 
@@ -19,14 +16,14 @@ The orchestrator launches the monitor itself. The owner is not asked to run a se
 
 The monitor checks every interval for the following signals:
 
-- **No-output stall** — an agent has not produced output for longer than the no-output threshold (autonomous only).
+- **No-output stall** — an agent has not produced output for longer than the no-output threshold.
 - **Message failure** — a `SendMessage` / `spawn_teammate` / inter-agent message failed, errored out, or was never delivered.
 - **Login / API-key error** — a spawned agent or the orchestrator hit a provider authentication failure.
-- **Token-limit warning** — the active session or a spawned agent is close to or has exceeded its context window.
+- **Token-limit warning** — a spawned agent is close to or has exceeded its context window.
 - **Session-time-limit** — the active session is approaching its time limit.
 - **Network failure** — a tool call failed with a transient network error.
 
-The autonomous loop reads from the artifact folder (last commits, agent logs if available) and from the team's messaging state. The assisted loop checks session-level signals only (token, login, network) because no agents are spawned.
+The monitor reads from the artifact folder (last commits, agent logs if available) and from the team's messaging state.
 
 ## Recovery
 
@@ -58,7 +55,7 @@ After escalation, stop attempting recovery for that issue. The monitor keeps run
 
 ## Loop prompt template
 
-The orchestrator hands the monitor a self-contained prompt that names the pipeline. Example for autonomous mode:
+The orchestrator hands the monitor a self-contained prompt that names the pipeline:
 
 ```
 Check pipeline at <artifact-folder>, team <pipeline-slug>.
@@ -76,25 +73,13 @@ For each detected issue, apply up to 2 auto-recovery actions per the recovery ta
 If unresolved after 2 attempts, stop and report to the owner with: agent name, error verbatim, last-known progress, suggested next step.
 ```
 
-For assisted mode the prompt is shorter and covers session-level signals only:
-
-```
-Check this session for:
-- Token-limit warnings
-- Login / API-key errors
-- Network failures on tool calls
-
-If any are detected, report to the owner immediately. Do not auto-recover — in assisted mode the owner decides.
-```
-
-Both prompts reference this file so the monitor reads the recovery table fresh on each fire.
+The prompt references this file so the monitor reads the recovery table fresh on each fire.
 
 ## Stopping the monitor
 
 The monitor stops when:
 
 - The autonomous run reaches its target phase and closes out.
-- The assisted run finishes its single phase.
 - The owner cancels the run.
 
 Use the tool's loop cancellation command (see `conventions/claude-code.md` or `conventions/pi.md`). Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.

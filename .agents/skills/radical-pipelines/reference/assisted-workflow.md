@@ -8,8 +8,6 @@ The phase to run is the **next phase** (the phase after the current phase).
 
 Tell the owner explicitly that this is the assisted workflow, name the phase you are about to run, and explain that the two of you will work through it together — typically through Q&A — and that nothing is committed until the owner approves.
 
-Start a recurring health monitor for the session per `reference/health-monitoring.md`. The monitor watches for session-level issues (token-limit, login / API-key errors, network failures) and reports them to the owner immediately — there is no auto-recovery in assisted mode.
-
 ## 2. Identify the phase reference
 
 Map the next phase to its reference file:
@@ -31,4 +29,4 @@ You write the artifacts yourself and commit them following the **Commit format**
 
 ## 5. Report and close out
 
-Once the phase finishes, stop the health monitor (see `reference/health-monitoring.md` for the cancellation command) and give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.
+Once the phase finishes, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.
