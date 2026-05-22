@@ -152,15 +152,11 @@ The fallback only installs the skill. It does not install Pi extensions, `pi-tea
 
 ## Configuration
 
-The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. These conventions can live in any of these places (checked in order):
+The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. Conventions live in a single project-root `.rp.md` file, populated by the interactive setup flow.
 
-1. Shared project instructions in the project-root `AGENTS.md`.
-2. A dedicated conventions skill (e.g., `rp-conventions`).
-3. A Radical Pipelines `rp.md` file in the active CLI's config folder — `.pi/rp.md` for Pi or `.claude/rp.md` for Claude Code.
+If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup. Setup separates shared project guidance from guidance specific to the active agentic coding tool, and writes `.rp.md` only after the owner confirms the proposed content.
 
-If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup flow. Setup asks for the missing convention details, separates shared project guidance from CLI-specific guidance, and can write reusable Markdown for the active CLI after confirmation. Pi setup writes only Pi conventions to `.pi/rp.md`; Claude Code setup writes only Claude Code conventions to `.claude/rp.md`.
-
-Shared project conventions include task tracking, pipeline slug format, artifact folder location, and commit rules. Claude Code conventions include Claude Code worktree commands, branch creation, team spawning, health-monitoring loop commands (bundled `/loop`), and Claude Code prerequisites. Pi conventions include Pi packages and plugins, Pi worktree commands, branch creation, pi-teams spawning, provider/model recovery, health-monitoring loop commands (`@pi-agents/loop`), and Pi agent setup. Do not mix Claude Code conventions into `.pi/rp.md`, and do not mix Pi conventions into `.claude/rp.md`.
+Shared project conventions include task tracking, pipeline slug format, artifact folder location, and commit rules. Claude Code conventions add worktree commands (`EnterWorktree` / `ExitWorktree`), automatic branch naming, team spawning (`TeamCreate`), and the bundled `/loop` health monitor. Pi conventions add `@zenobius/pi-worktrees` setup, `pi-teams` spawning, provider/model recovery, the `@pi-agents/loop` health monitor, and Pi agent discovery rules. A given project uses one set; the active CLI determines which.
 
 For Pi, setup also verifies that the required phase agent definitions are discoverable before the pipeline starts. It checks repository-local agents first (`.pi/agents/<agent>.md` or `.pi/agents/<agent>/SKILL.md`), then user-local/global agents (`~/.pi/agent/agents/<agent>.md` or `~/.pi/agent/agents/<agent>/SKILL.md`). If none of the required agents are available, setup stops and asks which Radical Pipelines agents the user wants to copy/paste and install, and whether to install them repository-locally or user-locally/globally.
 
@@ -170,7 +166,7 @@ The orchestrator loads and verifies conventions before launching phase agents. W
 
 Reviewer agents write inspectable review artifacts into the task's artifact folder on every review iteration. Current artifact names are `spec-review-N.md`, `design-doc-review-N.md`, `code-plan-review-N.md`, `doc-plan-review-N.md`, `code-review-N.md`, and `docs-review-N.md`, where N starts at 1 and increments for each writer/reviewer round.
 
-See this repository's own [`.claude/rp.md`](./.claude/rp.md) and [`.pi/rp.md`](./.pi/rp.md) for examples of separate CLI convention files. Pi projects should define Pi-only worktree setup (for example `/worktree settings worktreeRoot .pi/worktrees`), pi-teams spawning conventions, and Pi agent setup expectations in `.pi/rp.md`; Claude Code projects should define Claude Code-only worktree and team-spawning conventions in `.claude/rp.md`.
+This repository documents both Pi and Claude Code conventions side-by-side, so its project-root [`.rp.md`](./.rp.md) is a pointer that routes to per-CLI files: [`.claude/.rp.md`](./.claude/.rp.md) for Claude Code, [`.pi/.rp.md`](./.pi/.rp.md) for Pi. Most projects use a single CLI and keep all of their conventions in one project-root `.rp.md` instead. The skill follows the pointer when one is present (see `reference/conventions/load.md`).
 
 ## Current status and limitations
 
