@@ -33,7 +33,7 @@ forked_from:
 1. The first pipeline has no `pipeline.yml`.
 2. `pipeline.yml` is written once by the orchestrator at fork time and is never modified.
 3. `forked_from.pipeline` is the parent's full branch name.
-4. `forked_from.phase` is the inherited phase — the highest-numbered phase folder copied from the parent (`0-prompt`, `1-spec`, `2-design-doc`, `3-code-plan`, `4-doc-plan`, etc.).
+4. `forked_from.phase` is the inherited phase — the highest-numbered phase folder copied from the parent (`0-prompt`, `1-spec`, `2-design-doc`, `3-plan`, `4-code`, `5-docs`).
 
 ## Listing pipelines for an issue
 
@@ -66,15 +66,15 @@ Example:
 0-prompt
 └── v1: 1-spec
     ├── v1: 2-design-doc
-    │   └── v1: 3-code-plan → 4-doc-plan → 4-code → 5-docs  [merged]
+    │   └── v1: 3-plan → 4-code → 5-docs  [merged]
     └── v2: 2-design-doc
-        ├── v2: 3-code-plan
-        └── v3: 3-code-plan → 4-doc-plan
+        ├── v2: 3-plan
+        └── v3: 3-plan → 4-code
 ```
 
 Reading conventions:
 
-- A pipeline's **current phase** is its deepest labeled node. v1 is at `5-docs` (merged); v2 is at `3-code-plan`; v3 is at `4-doc-plan`.
+- A pipeline's **current phase** is its deepest labeled node. v1 is at `5-docs` (merged); v2 is at `3-plan`; v3 is at `4-code`.
 - What a pipeline **inherits** is every ancestor node up to the root. v2 inherits `v1: 1-spec` and `0-prompt`; v3 inherits everything v2 inherits plus `v2: 2-design-doc`.
-- A linear chain of phases owned by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-code-plan → 4-doc-plan → 4-code → 5-docs` above).
+- A linear chain of phases owned by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
 - `[merged]` is the only state annotation worth keeping explicit — completion of all phases can be inferred from position in the tree, but "merged into main" can't.
