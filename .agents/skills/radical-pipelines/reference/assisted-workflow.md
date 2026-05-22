@@ -25,7 +25,7 @@ Map the next phase to its reference file:
 
 Create the phase subfolder inside the artifacts folder. Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`. Run the phase per its reference.
 
-You write the artifacts yourself and commit them following the **Commit format** convention, only after the owner has explicitly approved them.
+You write the artifacts yourself. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does.
 
 ## 5. Report and close out
 

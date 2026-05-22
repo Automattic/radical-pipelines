@@ -24,20 +24,20 @@ When the owner discards a pipeline or wants to try a different approach, the orc
 
 A phase has two visible states on disk: **in progress** (the folder or some artifacts exist but the predicate below is not yet satisfied) and **complete** (predicate satisfied). Phase folders are created at the start of a phase, so folder existence alone does not imply completion — only the predicate does.
 
-In the autonomous workflow, reviewers encode the verdict in the filename. Rejected iterations are numbered — `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) — and a single, unnumbered `<artifact>-review-approved.md` terminates the loop. The `-approved.md` file is the orchestrator's completion signal; counting the rejected files (if any) recovers the iteration on which approval landed.
+Reviewers encode the verdict in the filename. Rejected iterations are numbered — `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) — and a single, unnumbered `<artifact>-review-approved.md` terminates the loop. In the autonomous workflow the reviewer agent writes these files; in the assisted workflow the orchestrator writes the `<artifact>-review-approved.md` file on the owner's behalf when the owner explicitly approves (assisted runs never produce rejection files because the owner iterates with the orchestrator before any commit). The `-approved.md` file is the orchestrator's completion signal in both modes; counting the rejected files (if any) recovers the iteration on which approval landed.
 
-A phase is complete when all of these are committed to the pipeline branch:
+A phase is complete when all of these are committed to the pipeline branch (same predicate regardless of workflow mode):
 
 | Phase | Required artifacts |
 | --- | --- |
 | 0 – Prompt | `0-prompt/prompt.md` |
-| 1 – Spec (autonomous) | `1-spec/spec.md` and `1-spec/spec-review-approved.md` |
-| 1 – Spec (assisted) | `1-spec/requirements.md` and `1-spec/spec.md` |
-| 2 – Design doc (autonomous) | `2-design-doc/design-doc.md` and `2-design-doc/design-doc-review-approved.md` |
-| 2 – Design doc (assisted) | `2-design-doc/design-notes.md` and `2-design-doc/design-doc.md` |
+| 1 – Spec | `1-spec/spec.md` and `1-spec/spec-review-approved.md` |
+| 2 – Design doc | `2-design-doc/design-doc.md` and `2-design-doc/design-doc-review-approved.md` |
 | 3 – Plan | `3-plan/code-plan.md`, `3-plan/code-plan-review-approved.md`, `3-plan/doc-plan.md`, and `3-plan/doc-plan-review-approved.md` |
 | 4 – Code | `4-code/code-review-approved.md` (the code itself lives elsewhere in the repo) |
 | 5 – Docs | `5-docs/docs-review-approved.md` (the docs themselves live elsewhere in the repo) |
+
+Each phase also commits its workflow-specific working artifacts (assisted produces `requirements.md`, `design-notes.md`, `plan-notes.md`; autonomous produces `requirements.md`), but those are not part of the completion predicate.
 
 A pipeline's **completed phase** is the highest-numbered phase whose predicate is satisfied. Its **active phase** is the next phase if any of that phase's artifacts have started appearing (in progress); otherwise the pipeline has no active phase and the next phase to run is the one after the completed phase.
 
