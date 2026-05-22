@@ -23,8 +23,7 @@ For each match capture, per the **Per-phase completion** rules in `pipeline-vers
 - The branch (local/remote/both)
 - State (in progress, complete and unmerged, or merged into main)
 - The **completed phase** (the highest-numbered phase whose completion predicate is satisfied)
-- The **active phase**, if any (the next phase has artifacts on disk but its predicate is not yet met)
-- The **next phase to run** (the active phase if there is one; otherwise the phase after the completed phase)
+- The **active phase**, if any (the phase after the completed phase has artifacts on disk but its predicate is not yet met)
 
 **If matches exist**, surface them to the owner with the tree and per-pipeline metadata, and ask how to proceed:
 

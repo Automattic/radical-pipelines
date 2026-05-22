@@ -2,7 +2,7 @@
 
 This is the entry point of the **assisted workflow**. You drive a single phase directly with the owner — typically through Q&A — and write the artifacts yourself. No agents are spawned. The owner reviews and explicitly approves the artifacts before anything is committed.
 
-The phase to run is the **next phase** (the phase after the current phase).
+The phase to run is the **next phase** — the pipeline's active phase if one exists; otherwise the phase after the completed phase (see `pipeline-versioning.md`).
 
 ## 1. Frame the conversation
 

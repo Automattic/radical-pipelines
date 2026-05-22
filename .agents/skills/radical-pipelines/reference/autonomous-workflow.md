@@ -4,7 +4,7 @@ This is the entry point of the **autonomous workflow**. It collects the run plan
 
 The plan has three parts:
 
-- **Next phase** — the phase after the current phase. This is where the run starts.
+- **Next phase** — where the run starts. This is the pipeline's active phase if one exists; otherwise the phase after the completed phase (see `pipeline-versioning.md`).
 - **Target phase** — the highest phase to run in this autonomous run. This is where the run stops.
 - **Per-phase decisions** — for each phase from the next phase up to the target phase, the choices that govern how that phase is executed.
 
