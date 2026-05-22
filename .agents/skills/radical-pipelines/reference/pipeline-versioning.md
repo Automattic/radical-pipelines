@@ -1,74 +1,80 @@
 # Pipeline Versioning
 
-A pipeline can have multiple attempts. When the owner discards an attempt or wants to try a different approach, the orchestrator forks a new attempt from a previous one. Each attempt is an independent branch and worktree branched from the project's main branch. Sibling attempts are invisible to each other locally.
+When the owner discards a pipeline or wants to try a different approach, the orchestrator forks a new pipeline from a previous one. Each pipeline is an independent branch and worktree branched from the project's main branch.
 
 ## Model
 
-- **Pipeline slug** — per the **Pipeline slug** convention (e.g. `123-add-import-wizard`).
-- **Attempt id** — `v1` is implicit for the first attempt. Subsequent attempts are `v2`, `v3`, …
+- **Pipeline slug** — per the **Pipeline slug** convention.
+- **Pipeline version** — `v1` is implicit for the first pipeline. Subsequent pipelines are `v2`, `v3`, …
 - **Branch name**:
-  - First attempt: per the **Branch names** convention applied to the pipeline slug.
-  - Subsequent attempts: append `/v<N>` to the first attempt's branch name. Example with a project that uses the `rp/<pipeline-slug>` branch format: `rp/123-add-import-wizard/v2`, `rp/123-add-import-wizard/v3`.
-- **Artifact folder**:
-  - First attempt: `.pipelines/<pipeline-slug>/` per the **Artifact folder** convention.
-  - Subsequent attempts: `.pipelines/<pipeline-slug>/v<N>/`.
-- **Worktree**: one per attempt, per the **Worktrees** convention.
+  - First pipeline: per the **Branch names** convention applied to the pipeline slug.
+  - Subsequent pipelines: append `/v<N>` to the first pipeline's branch name.
+- **Artifact folder** (`<artifacts-folder>`):
+  - First pipeline: per the **Artifact folder** convention applied to the pipeline slug.
+  - Subsequent pipelines: the first pipeline's artifact folder with `v<N>/` appended.
+- **Worktree**: one per pipeline, per the **Worktrees** convention.
 
-Every attempt is created from the project's main branch — never from another attempt's tip. Inherited artifacts are copied as plain files into the new attempt's artifact folder. Git ancestry does not carry inheritance information; `attempt.yml` does.
+### Key concepts
 
-## `attempt.yml`
+- Every pipeline is created from the project's main branch — never from another pipeline's tip.
+- Inherited artifacts are copied as plain files into the new pipeline's artifact folder.
+- Git ancestry does not carry inheritance information; `pipeline.yml` does.
 
-Each attempt forked from a previous one carries one file at the root of its artifact folder:
+## `pipeline.yml`
+
+Each pipeline forked from a previous one carries one file at the root of its artifact folder:
 
 ```yaml
 forked_from:
-  attempt: <parent-branch-name>
+  pipeline: <parent-branch-name>
   phase: <last-inherited-phase>
 ```
 
-Example for an attempt forked from the first attempt at the spec phase:
-
-```yaml
-forked_from:
-  attempt: rp/123-add-import-wizard
-  phase: 1-spec
-```
-
-Rules:
-
-1. The first attempt has no `attempt.yml`.
-2. `attempt.yml` is written once by the orchestrator at fork time and is never modified.
-3. `forked_from.attempt` is the parent's full branch name.
+1. The first pipeline has no `pipeline.yml`.
+2. `pipeline.yml` is written once by the orchestrator at fork time and is never modified.
+3. `forked_from.pipeline` is the parent's full branch name.
 4. `forked_from.phase` is the inherited phase — the highest-numbered phase folder copied from the parent (`0-prompt`, `1-spec`, `2-design-doc`, `3-code-plan`, `4-doc-plan`, etc.).
-5. No other fields. Status, current phase, siblings, and parent's parent are derived on demand.
 
-## Enumerating attempts of an issue
+## Listing pipelines for an issue
 
-Given a pipeline slug `<slug>`, list every branch whose name starts with the branch-name form used for `<slug>` per the **Branch names** convention. The match includes the first attempt and every subsequent attempt.
+For a given issue, find every existing pipeline:
 
-Example for a project that uses the `rp/<pipeline-slug>` branch format:
+1. **Derive a slug pattern** using the **Pipeline slug** convention that matches every slug referring to this issue.
+2. **Search branches** — local and remote — that match the **Branch names** convention and whose slug refers to this issue. Subsequent pipelines are picked up by the same pattern because their branch names append `/v<N>` to the first pipeline's branch.
+3. **Search artifact folders** in the **Artifact folder** location on the main branch of the artifact-bearing repository (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode, per the **Artifact storage** convention). A pipeline that was merged and had its branch deleted is only visible here.
 
-```
-git for-each-ref --format='%(refname:short)' 'refs/heads/rp/<slug>*'
-```
+The first pipeline is the branch whose name has no `/v<N>` segment — equivalently, the branch whose artifact folder contains no `pipeline.yml`.
 
-The first attempt is the branch whose name has no `/v<N>` segment — equivalently, the branch whose artifact folder contains no `attempt.yml`.
-
-## Reconstructing the attempt tree
+## Reconstructing the pipeline tree
 
 The tree is not stored. The orchestrator rebuilds it on demand:
 
-1. List branches matching the pipeline slug prefix.
-2. For each attempt branch other than the first attempt, read `attempt.yml` from that branch without checkout:
+1. List pipelines as described in "Listing pipelines for an issue".
+2. For each pipeline branch other than the first pipeline, read `pipeline.yml` from that branch without checkout:
    ```
-   git show <branch>:.pipelines/<pipeline-slug>/v<N>/attempt.yml
+   git show <branch>:<artifacts-folder>/pipeline.yml
    ```
-3. Join on `forked_from.attempt` to obtain parent edges. Group by parent for siblings.
+3. Join on `forked_from.pipeline` to obtain parent edges. Group by parent for siblings.
 
-If a graph visualization is needed, render it from the result on demand (stretch). Any cached `graph.md` is a projection — never a source of truth.
+### Rendering
 
-## What is not stored
+Render the tree as plain ASCII using box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. Each phase artifact is a node, labeled version-first as `v<N>: <phase>`. The root `0-prompt` carries no label — it's the shared starting point.
 
-- Sibling lists — derived by grouping attempts by `forked_from.attempt`.
-- Current phase — derived from the highest-numbered phase folder on the attempt's branch.
-- Title or human-readable name — the attempt id suffices; descriptive context lives in the commit that introduced the attempt.
+Example:
+
+```
+0-prompt
+└── v1: 1-spec
+    ├── v1: 2-design-doc
+    │   └── v1: 3-code-plan → 4-doc-plan → 4-code → 5-docs  [merged]
+    └── v2: 2-design-doc
+        ├── v2: 3-code-plan
+        └── v3: 3-code-plan → 4-doc-plan
+```
+
+Reading conventions:
+
+- A pipeline's **current phase** is its deepest labeled node. v1 is at `5-docs` (merged); v2 is at `3-code-plan`; v3 is at `4-doc-plan`.
+- What a pipeline **inherits** is every ancestor node up to the root. v2 inherits `v1: 1-spec` and `0-prompt`; v3 inherits everything v2 inherits plus `v2: 2-design-doc`.
+- A linear chain of phases owned by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-code-plan → 4-doc-plan → 4-code → 5-docs` above).
+- `[merged]` is the only state annotation worth keeping explicit — completion of all phases can be inferred from position in the tree, but "merged into main" can't.
