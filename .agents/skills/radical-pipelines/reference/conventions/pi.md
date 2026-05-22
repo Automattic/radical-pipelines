@@ -31,7 +31,7 @@ Prefer explicit provider-qualified models (`provider/model`). If a spawn fails w
 
 ## Health monitoring
 
-Use the `@pi-agents/loop` package. It ships the same `/loop` syntax as Claude Code's bundled skill, plus `/loop-list` and `/loop-kill`.
+Use the `@pi-agents/loop` package, bundled by the Radical Pipelines Pi package. It ships the same `/loop` syntax as Claude Code's bundled skill, plus `/loop-list` and `/loop-kill`.
 
 - **Start (autonomous):** `/loop 5m <prompt>` where `<prompt>` is the autonomous template from `reference/health-monitoring.md`.
 - **Start (assisted):** `/loop 15m <prompt>` where `<prompt>` is the assisted template from `reference/health-monitoring.md`.
@@ -45,17 +45,7 @@ Token-limit recovery in Pi relies on Pi's built-in automatic compaction. Pi has 
 
 ## Setup actions
 
-Pi requires the Radical Pipelines agent definitions to be discoverable and the `@pi-agents/loop` package to be installed for health monitoring. Step 3 of `setup.md` runs both checks after conventions have been collected.
-
-### Check `@pi-agents/loop` install
-
-Verify that `/loop` is available. If it is not, install the package:
-
-```bash
-pi install npm:@pi-agents/loop@latest
-```
-
-Confirm the install with the owner before running the command.
+Pi requires the Radical Pipelines agent definitions to be discoverable. Step 3 of `setup.md` installs them after conventions have been collected.
 
 ### Check existing agent installations
 
