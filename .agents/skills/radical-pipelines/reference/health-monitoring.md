@@ -1,6 +1,6 @@
 # Health Monitoring
 
-Pipelines can stall or fail silently. An agent stops producing output, a `SendMessage` is lost, a provider login expires, a tool call hits a network blip, or the conversation approaches the session-time-limit. The owner only finds out when they check back in.
+Pipelines can stall or fail silently. An agent stops producing output, a `SendMessage` is lost, a provider login expires, a tool call hits a network blip, or the session approaches its time limit. The owner only finds out when they check back in.
 
 The autonomous workflow launches a recurring **health monitor** that watches the run, attempts bounded auto-recovery, and escalates to the owner when it cannot resolve an issue. The assisted workflow does not use a monitor — the owner is already in the loop and sees issues as they happen.
 
@@ -19,9 +19,10 @@ The monitor checks every interval for the following signals:
 - **No-output stall** — an agent has not produced output for longer than the no-output threshold.
 - **Message failure** — a `SendMessage` / `spawn_teammate` / inter-agent message failed, errored out, or was never delivered.
 - **Login / API-key error** — a spawned agent or the orchestrator hit a provider authentication failure.
-- **Token-limit warning** — a spawned agent is close to or has exceeded its context window.
 - **Session-time-limit** — the active session is approaching its time limit.
 - **Network failure** — a tool call failed with a transient network error.
+
+Context-window limits are not watched here. Both Claude Code and Pi auto-compact agent context near the limit, so the monitor would only react after the tool has already handled it.
 
 The monitor reads from the artifact folder (last commits, agent logs if available) and from the team's messaging state.
 
@@ -34,11 +35,8 @@ Each issue gets a **2-retry budget** before escalation. Recovery actions are app
 | No-output stall        | Ping the agent with a status request                            | Restart the agent in the same team       | Report to owner                     |
 | Message failure        | Re-send the message                                             | Restart the target agent                 | Report to owner                     |
 | Login / API-key error  | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model  | Report to owner                     |
-| Token-limit warning    | Let the tool's built-in auto-compaction run                     | Restart the affected agent (fresh context) | Report to owner                   |
 | Session-time-limit     | Report to owner immediately (no auto-recovery)                  | —                                        | —                                   |
 | Network failure        | Retry the tool call once                                        | Wait one interval and retry              | Report to owner                     |
-
-`/compact` cannot be invoked by the model from a loop in either Claude Code or Pi. Token-limit recovery relies on the tool's built-in auto-compaction; if a spawned agent still fails after that, restart it so it starts with a fresh context.
 
 When a retry succeeds, reset that issue's budget. The 2-retry budget is per issue occurrence, not per session.
 
@@ -64,7 +62,6 @@ Signals to look for:
 - Any agent with no output for >10 minutes
 - Failed SendMessage between agents
 - Login / API-key errors
-- Token-limit warnings
 - Session-time-limit approaching
 - Network failures on tool calls
 

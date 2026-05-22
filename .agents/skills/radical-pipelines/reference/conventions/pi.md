@@ -38,8 +38,6 @@ Use the `@pi-agents/loop` package, bundled by the Radical Pipelines Pi package. 
 - **Cancel:** `/loop-kill <id>` using the id returned at start.
 
 The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
-
-Token-limit recovery in Pi relies on Pi's built-in automatic compaction. Pi has no `/compact` command, so the monitor cannot invoke compaction directly; it falls through to restarting the affected agent on a fresh context.
 ```
 
 ## Setup actions

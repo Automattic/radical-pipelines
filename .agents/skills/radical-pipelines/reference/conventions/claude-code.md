@@ -39,6 +39,4 @@ Use Claude Code's bundled `/loop` skill — no install is required. Only the aut
 - **Cancel:** `/loop-kill <id>` using the id returned at start.
 
 The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
-
-Token-limit recovery in Claude Code relies on built-in auto-compaction. `/compact` is a user-only command and is not callable from a loop, so the monitor must not try to invoke it.
 ```
