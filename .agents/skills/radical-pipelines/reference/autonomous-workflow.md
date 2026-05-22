@@ -32,7 +32,7 @@ Restate the full plan back to the owner in plain language: that this is an auton
 
 Run each phase from the next phase up to the target phase, in order.
 
-Before launching the first team, start a recurring health monitor for the run per `reference/health-monitoring.md`. The monitor watches for stalled agents, message failures, login / token / network errors, and session-time-limit; it attempts bounded auto-recovery and escalates to you when it cannot resolve an issue. Surface any escalation to the owner verbatim.
+Before launching the first team, start a recurring health monitor for the run per `reference/health-monitoring.md`. The monitor watches for stalled agents, message failures, and login / network errors; it attempts bounded auto-recovery and escalates to you when it cannot resolve an issue. Surface any escalation to the owner verbatim.
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |

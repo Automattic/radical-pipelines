@@ -83,7 +83,7 @@ This is highly dependent on the agentic coding tool but you can document the exi
 
 ### Health monitoring (required)
 
-How the orchestrator launches a recurring monitor in the autonomous workflow to detect stalls, message failures, login, token limits, network errors, and so on.
+How the orchestrator launches a recurring monitor in the autonomous workflow to detect stalls, message failures, login errors, network errors, and so on. Context-window limits are handled by each tool's own auto-compaction, not by the monitor.
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run. Try to document the commands to start, list, and cancel this monitoring.
 
