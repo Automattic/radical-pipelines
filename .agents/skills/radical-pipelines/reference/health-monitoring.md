@@ -1,6 +1,6 @@
 # Health Monitoring
 
-Pipelines can stall or fail silently. An agent stops producing output, a `SendMessage` is lost, a provider login expires, a tool call hits a network blip, or the session approaches its time limit. The owner only finds out when they check back in.
+Pipelines can stall or fail silently. An agent stops producing output, a `SendMessage` is lost, a provider login expires, or a tool call hits a network blip. The owner only finds out when they check back in.
 
 The autonomous workflow launches a recurring **health monitor** that watches the run, attempts bounded auto-recovery, and escalates to the owner when it cannot resolve an issue. The assisted workflow does not use a monitor — the owner is already in the loop and sees issues as they happen.
 
@@ -19,7 +19,6 @@ The monitor checks every interval for the following signals:
 - **No-output stall** — an agent has not produced output for longer than the no-output threshold.
 - **Message failure** — a `SendMessage` / `spawn_teammate` / inter-agent message failed, errored out, or was never delivered.
 - **Login / API-key error** — a spawned agent or the orchestrator hit a provider authentication failure.
-- **Session-time-limit** — the active session is approaching its time limit.
 - **Network failure** — a tool call failed with a transient network error.
 
 Context-window limits are not watched here. Both Claude Code and Pi auto-compact agent context near the limit, so the monitor would only react after the tool has already handled it.
@@ -35,7 +34,6 @@ Each issue gets a **2-retry budget** before escalation. Recovery actions are app
 | No-output stall        | Ping the agent with a status request                            | Restart the agent in the same team       | Report to owner                     |
 | Message failure        | Re-send the message                                             | Restart the target agent                 | Report to owner                     |
 | Login / API-key error  | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model  | Report to owner                     |
-| Session-time-limit     | Report to owner immediately (no auto-recovery)                  | —                                        | —                                   |
 | Network failure        | Retry the tool call once                                        | Wait one interval and retry              | Report to owner                     |
 
 When a retry succeeds, reset that issue's budget. The 2-retry budget is per issue occurrence, not per session.
@@ -62,7 +60,6 @@ Signals to look for:
 - Any agent with no output for >10 minutes
 - Failed SendMessage between agents
 - Login / API-key errors
-- Session-time-limit approaching
 - Network failures on tool calls
 
 For each detected issue, apply up to 2 auto-recovery actions per the recovery table in .agents/skills/radical-pipelines/reference/health-monitoring.md.
