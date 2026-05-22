@@ -36,11 +36,11 @@ Verify each concrete claim against the shipped code:
 
 ### 4. Validate against the project's documentation gates
 
-The host project's verification convention defines the gates relevant to documentation — link checking, markdown linting, render check, doc tests, spelling, anything else the project requires. Treat each gate as mandatory.
+The host project's verification convention may enumerate gates relevant to documentation — link checking, markdown linting, render check, doc tests, spelling. Many projects rely on human review and enumerate none.
 
-- Run every documented gate exactly as documented. Do not invent commands. Do not omit gates.
-- Every gate must pass before you commit.
+- If the convention enumerates doc gates, run every one exactly as documented. Do not invent commands. Do not omit gates. Every documented gate must pass before you commit.
 - If a gate fails, fix the underlying issue. Do not bypass it (no `--no-verify`, no `skip`, no commented-out checks). Failing gates are work, not blockers.
+- If the convention enumerates no doc gates, the accuracy verification in step 3 is your only validation, and that is acceptable.
 - If the verification convention itself is missing or unrunnable, that **is** a blocker: stop and report per the blocker protocol.
 - Confirm every per-task Acceptance criterion is satisfied before declaring the task done.
 
