@@ -2,7 +2,7 @@
 
 This is the entry point of the **assisted workflow**. You drive a single phase directly with the owner — typically through Q&A — and write the artifacts yourself. No agents are spawned. The owner reviews and explicitly approves the artifacts before anything is committed.
 
-The phase to run is the **next phase** (the phase after the current phase).
+The phase to run is the **next phase** — the pipeline's active phase if one exists; otherwise the phase after the completed phase (see `pipeline-versioning.md`).
 
 ## 1. Frame the conversation
 
@@ -23,10 +23,10 @@ Map the next phase to its reference file:
 
 ## 4. Execute the phase
 
-Create the phase subfolder inside the artifacts folder. Run the phase per its reference.
+Create the phase subfolder inside the artifacts folder. Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`. Run the phase per its reference.
 
-You write the artifacts yourself and commit them following the **Commit format** convention, only after the owner has explicitly approved them.
+You write the artifacts yourself. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does.
 
 ## 5. Report and close out
 
-Once the phase finishes, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.
+Once the phase's completion predicate is satisfied, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.

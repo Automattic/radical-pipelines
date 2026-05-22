@@ -11,6 +11,7 @@ Outputs:
 
 - `<artifacts-folder>/2-design-doc/design-notes.md`
 - `<artifacts-folder>/2-design-doc/design-doc.md`
+- `<artifacts-folder>/2-design-doc/design-doc-review-approved.md` (the assisted-mode approval file you write on the owner's behalf — see step 7)
 
 ## Constraints
 
@@ -143,4 +144,20 @@ Show the owner `design-doc.md`. Iterate on edits, additions, or removals. The ow
 
 ### 7. Commit
 
-Commit `design-notes.md` and `design-doc.md` together in a single commit, following the **Commit format** convention.
+Write `<artifacts-folder>/2-design-doc/design-doc-review-approved.md` recording the owner's approval (this is the assisted-mode equivalent of the autonomous `design-reviewer`'s approval file, and it satisfies the phase 2 completion predicate in `pipeline-versioning.md`):
+
+```markdown
+# Design Doc Review
+
+## Verdict: approved
+
+## Reviewer
+
+Owner (assisted workflow)
+
+## Notes
+
+<one or two lines capturing anything the owner wants recorded about the approval — leave empty if nothing>
+```
+
+Commit `design-notes.md`, `design-doc.md`, and `design-doc-review-approved.md` together in a single commit, following the **Commit format** convention.

@@ -11,7 +11,7 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 
 ### 1. Gather context
 
-1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch, the base ref to diff against, and the review iteration number N.
+1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch, the base ref to diff against, and the rejection iteration number N (only used if this iteration ends in rejection).
 2. Read `<artifacts-folder>/3-plan/code-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
@@ -38,10 +38,15 @@ If any task in the batch changes user-observable behavior, verify it end-to-end 
 
 ### 4. Write the review
 
-Write `<artifacts-folder>/4-code/code-review-N.md` (N is the iteration number from the launch prompt) with this structure:
+Decide your verdict first, then pick the filename:
+
+- **Rejected** — write `<artifacts-folder>/4-code/code-review-N-rejected.md`, where N is the rejection iteration number from the launch prompt.
+- **Approved** — write `<artifacts-folder>/4-code/code-review-approved.md` (no number; only one ever exists per pipeline).
+
+Use this structure:
 
 ```markdown
-# Code Review N
+# Code Review
 
 ## Verdict: approved | rejected
 
@@ -77,7 +82,7 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 
 ### 5. Commit and report
 
-1. Commit `code-review-N.md` using the host project's commit format.
+1. Commit the file you wrote in step 4 using the host project's commit format.
 2. On **approved**, send a message to the orchestrator confirming the batch is approved.
 3. On **rejected**, send a message to the orchestrator listing the **deduplicated set of task IDs that have issues**. The orchestrator re-dispatches only those tasks; fresh code-writers will read your review file and address the issues scoped to their task.
 

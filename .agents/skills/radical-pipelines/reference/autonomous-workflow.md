@@ -4,7 +4,7 @@ This is the entry point of the **autonomous workflow**. It collects the run plan
 
 The plan has three parts:
 
-- **Next phase** — the phase after the current phase. This is where the run starts.
+- **Next phase** — where the run starts. This is the pipeline's active phase if one exists; otherwise the phase after the completed phase (see `pipeline-versioning.md`).
 - **Target phase** — the highest phase to run in this autonomous run. This is where the run stops.
 - **Per-phase decisions** — for each phase from the next phase up to the target phase, the choices that govern how that phase is executed.
 
@@ -45,11 +45,11 @@ Before launching the first team, start a recurring health monitor for the run pe
 
 For each phase:
 
-1. Create the phase subfolder inside the artifacts folder.
+1. Create the phase subfolder inside the artifacts folder. Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`.
 2. Read its phase reference.
 3. Run the phase per its reference, applying the per-phase decisions collected in step 3.
-4. When the phase finishes, give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of review iterations, deviations from defaults). Do not ask questions — this is informational only.
-5. Continue with the following phase, until the target phase has finished.
+4. When the phase's completion predicate is satisfied, give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of rejected review iterations, deviations from defaults). Do not ask questions — this is informational only.
+5. Continue with the following phase, until the target phase has completed.
 
 If a phase fails, stop and report to the owner.
 

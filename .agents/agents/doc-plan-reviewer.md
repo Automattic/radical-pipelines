@@ -34,10 +34,15 @@ Check for:
 
 ### 3. Write the review
 
-Write `<artifacts-folder>/3-plan/doc-plan-review-N.md` (where N starts at 1 and increments each round) with:
+Decide your verdict first, then pick the filename:
+
+- **Rejected** — write `<artifacts-folder>/3-plan/doc-plan-review-N-rejected.md`, where N is the next rejection iteration (count existing `doc-plan-review-*-rejected.md` files and add 1; starts at 1 if none exist).
+- **Approved** — write `<artifacts-folder>/3-plan/doc-plan-review-approved.md` (no number; only one ever exists per pipeline).
+
+Use this structure:
 
 ```markdown
-# Doc Plan Review N
+# Doc Plan Review
 
 ## Verdict: approved | rejected
 
@@ -61,7 +66,7 @@ Write `<artifacts-folder>/3-plan/doc-plan-review-N.md` (where N starts at 1 and 
 
 ### 4. Commit and report
 
-1. Commit `<artifacts-folder>/3-plan/doc-plan-review-N.md` using the **commit format**.
+1. Commit the file you wrote in step 3 using the **commit format**.
 2. If **approved**, send a message to the orchestrator confirming the plan is ready.
 3. If **rejected**, send a message to the orchestrator listing the issues. The orchestrator will relaunch the `doc-plan-writer` agent to address them.
 

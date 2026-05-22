@@ -18,18 +18,18 @@ Use the **Issues** convention to verify the issue exists and capture its content
 
 For the identified issue, list any pipelines that already exist by following the steps in `pipeline-versioning.md` ("Listing pipelines for an issue"). Then reconstruct the pipeline tree per `pipeline-versioning.md` ("Reconstructing the pipeline tree").
 
-For each match capture:
+For each match capture, per the **Per-phase completion** rules in `pipeline-versioning.md`:
 
 - The branch (local/remote/both)
-- State (in-progress or merged into main)
-- The current phase (the highest-numbered phase subfolder present)
-- The next phase (the phase immediately after the current phase)
+- State (in progress, complete and unmerged, or merged into main)
+- The **completed phase** (the highest-numbered phase whose completion predicate is satisfied)
+- The **active phase**, if any (the phase after the completed phase has artifacts on disk but its predicate is not yet met)
 
 **If matches exist**, surface them to the owner with the tree and per-pipeline metadata, and ask how to proceed:
 
 - **Resume** an in-progress pipeline → read `resume-pipeline.md`, then continue to step 3.
 - **Fork a new pipeline** → read `fork-pipeline.md` to create a new pipeline from an existing one, then continue to step 3.
-- If the pipeline is in the latest phase, also offer:
+- If the pipeline's completed phase is the last phase (phase 5) and there is no active phase, also offer:
   - **Merge** read `merge-pipeline.md`.
   - **Review** read `review-pipeline.md`.
   - **Close** read `close-pipeline.md`.
