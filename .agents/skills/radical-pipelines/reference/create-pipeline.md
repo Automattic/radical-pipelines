@@ -2,6 +2,8 @@
 
 Creates a new pipeline through phase 0 — sets up the worktree and artifacts folder, writes `prompt.md`, and commits.
 
+Read `pipeline-versioning.md` first for the model — this is the first pipeline (`v1`), with no `/v<N>` branch suffix and no `pipeline.yml`.
+
 Before executing these steps, make sure you have loaded and verified the project conventions (see `conventions/load.md`).
 
 ## Steps

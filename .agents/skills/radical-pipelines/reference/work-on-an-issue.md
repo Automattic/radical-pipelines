@@ -2,6 +2,8 @@
 
 The owner wants to advance pipeline work for a specific issue. Identify the issue, check for existing pipelines or create a new one and dispatch to autonomous or assisted mode.
 
+Read `pipeline-versioning.md` first for the model — listing existing pipelines in step 2 depends on it.
+
 Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`).
 
 ## Steps
@@ -14,21 +16,19 @@ Use the **Issues** convention to verify the issue exists and capture its content
 
 ### 2. Check for existing pipelines
 
-For the identified issue, locate any pipelines that already exist:
+For the identified issue, list any pipelines that already exist by following the steps in `pipeline-versioning.md` ("Listing pipelines for an issue"). Then reconstruct the pipeline tree per `pipeline-versioning.md` ("Reconstructing the pipeline tree").
 
-1. **Derive a slug pattern** using the **Pipeline slug** convention that matches every slug referring to this issue.
-2. **Search branches** — local and remote — that match the **Branch names** convention and whose slug refers to this issue.
-3. **Search artifact folders** in the **Artifact folder** location on the main branch of the artifact-bearing repository (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode, per the **Artifact storage** convention).
-4. For each match capture:
-   - The branch (local/remote/both)
-   - State (in-progress or merged into main)
-   - The current phase (the highest-numbered phase subfolder present)
-   - The next phase (the phase immediately after the current phase)
+For each match capture:
 
-**If matches exist**, surface them to the owner with all four properties and ask how to proceed:
+- The branch (local/remote/both)
+- State (in-progress or merged into main)
+- The current phase (the highest-numbered phase subfolder present)
+- The next phase (the phase immediately after the current phase)
+
+**If matches exist**, surface them to the owner with the tree and per-pipeline metadata, and ask how to proceed:
 
 - **Resume** an in-progress pipeline → read `resume-pipeline.md`, then continue to step 3.
-- **Start a new attempt** → read `multiple-attempts.md` to create a new pipeline, then continue to step 3.
+- **Fork a new pipeline** → read `fork-pipeline.md` to create a new pipeline from an existing one, then continue to step 3.
 - If the pipeline is in the latest phase, also offer:
   - **Merge** read `merge-pipeline.md`.
   - **Review** read `review-pipeline.md`.
