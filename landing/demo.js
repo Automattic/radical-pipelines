@@ -7,16 +7,6 @@
 
   const phases = [
     {
-      phase: 'phase 0',
-      task: 'prompt-writer',
-      reads: [],
-      writes: ['prompt.md'],
-      runMs: 900,
-      sec: 4,
-      tokens: '1.1k',
-      treeIdx: [0],
-    },
-    {
       phase: 'phase 1',
       task: 'spec-writer',
       reads: ['prompt.md', 'requirements.md'],
@@ -81,6 +71,27 @@
       verdict: 'approved',
     },
     {
+      phase: 'phase 3',
+      task: 'doc-plan-writer',
+      reads: ['spec.md', 'design-doc.md'],
+      writes: ['doc-plan.md'],
+      runMs: 1100,
+      sec: 61,
+      tokens: '9.4k',
+      treeIdx: [8],
+    },
+    {
+      phase: 'phase 3',
+      task: 'doc-plan-reviewer',
+      reads: ['doc-plan.md', 'spec.md'],
+      writes: ['doc-plan-review-approved.md'],
+      runMs: 850,
+      sec: 33,
+      tokens: '5.6k',
+      treeIdx: [9],
+      verdict: 'approved',
+    },
+    {
       phase: 'phase 4',
       task: 'code-writer',
       reads: ['code-plan.md', 'design-doc.md'],
@@ -88,7 +99,7 @@
       runMs: 1900,
       sec: 412,
       tokens: '64.1k',
-      treeIdx: [8],
+      treeIdx: [10],
       bash: ['npm test', 'git commit -m "Add orchestrator (code-writer)"'],
     },
     {
@@ -99,7 +110,7 @@
       runMs: 1100,
       sec: 96,
       tokens: '14.3k',
-      treeIdx: [9],
+      treeIdx: [11],
       verdict: 'approved',
     },
     {
@@ -110,7 +121,7 @@
       runMs: 1200,
       sec: 89,
       tokens: '8.7k',
-      treeIdx: [10],
+      treeIdx: [12],
     },
     {
       phase: 'phase 5',
@@ -120,7 +131,7 @@
       runMs: 800,
       sec: 31,
       tokens: '4.9k',
-      treeIdx: [11],
+      treeIdx: [13],
       verdict: 'approved',
     },
   ];
@@ -134,6 +145,8 @@
     'design-doc-review-approved.md',
     'code-plan.md',
     'code-plan-review-approved.md',
+    'doc-plan.md',
+    'doc-plan-review-approved.md',
     'src/orchestrator.ts + test',
     'code-review-approved.md',
     'README.md, docs/',
@@ -260,10 +273,13 @@
       line(logEl, 'cc-bullet', '● Bash(git worktree add .pipelines/worktrees/issue-1234 -b issue/1234)');
       line(logEl, 'cc-sub done', '  ⎿  Preparing worktree (new branch \'issue/1234\')');
       line(logEl, 'cc-sub done', '  ⎿  HEAD is now at eda5064');
+      line(logEl, 'cc-sub done', '  ⎿  Captured issue #1234 → prompt.md (phase 0 · input)');
       line(logEl, 'cc-spacer', '');
 
       // Tree header
       pendingTree.forEach((f, i) => addPendingFile(f, i));
+      // Phase 0 is the raw prompt — an input, already in place, not produced by an agent.
+      commitPending(0);
 
       await sleep(reduced ? 50 : 800);
 
@@ -274,7 +290,7 @@
       line(
         logEl,
         'cc-summary',
-        '● Pipeline complete · 6 phases · 12 artifacts · 17m 8s total'
+        '● Pipeline complete · 6 phases · 14 artifacts · 18m 38s total'
       );
       autoScroll();
 
