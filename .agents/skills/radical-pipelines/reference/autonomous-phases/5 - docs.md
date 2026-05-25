@@ -23,8 +23,8 @@ This phase has no per-phase decisions.
 
 | Agent          | Role                                                                                                                                                                              | Persistent? |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `doc-writer`   | One fresh instance per task. Reads the task block, the spec and design doc for the *why*, and the shipped code for the *what*; writes or updates the documentation; validates; commits. | No          |
-| `doc-reviewer` | One fresh instance per batch. Reviews the full batch against `doc-plan.md`, the spec, the design doc, and the shipped code.                                                       | No          |
+| `doc-writer`   | One fresh instance per task. Writes or updates the documentation; validates; commits. | No          |
+| `doc-reviewer` | One fresh instance per batch. Reviews the full batch.                                  | No          |
 
 ## Steps
 
