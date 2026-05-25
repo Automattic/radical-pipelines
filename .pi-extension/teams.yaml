@@ -1,7 +1,6 @@
 # Phase teams shipped by the Radical Pipelines package. Later workflow wiring can
 # compose these templates into a full end-to-end pipeline team.
 radical-pipelines-spec:
-  - prompt-writer
   - spec-analyst
   - researcher
   - spec-writer
