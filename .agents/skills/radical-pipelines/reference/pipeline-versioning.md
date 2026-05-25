@@ -14,7 +14,7 @@ When the owner discards a pipeline or wants to try a different approach, the orc
 
 - Every pipeline is created from the project's main branch — never from another pipeline's tip.
 - Inherited artifacts are copied as plain files into the new pipeline's artifact folder.
-- Lineage is not recorded anywhere. The tree is **derived** by comparing artifact content across the pipelines of an issue.
+- Lineage is **derived** by comparing artifact content across the pipelines of an issue.
 
 ## Per-phase completion
 
@@ -55,7 +55,7 @@ Among the pipelines found, the pipeline base slug is the stem the others extend:
 
 ## Reconstructing the pipeline tree
 
-The tree is not stored. The orchestrator rebuilds it on demand from artifact content:
+The orchestrator rebuilds the tree on demand from artifact content:
 
 1. List pipelines as described in "Listing pipelines for an issue".
 2. For each pipeline, compute the tree SHA of each phase folder it carries, in phase order (`0-prompt`, `1-spec`, …), stopping at the first phase folder it does not have:
