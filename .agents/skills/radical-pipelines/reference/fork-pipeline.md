@@ -2,10 +2,6 @@
 
 Creates a new pipeline for an issue by forking from a parent pipeline at a chosen phase.
 
-Read `pipeline-versioning.md` first for the model.
-
-Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`).
-
 ## Steps
 
 ### 1. Identify the parent pipeline and inherited phase

@@ -24,7 +24,7 @@ Read the actual files on the branch and confirm the state against the **Per-phas
 
 ### 4. Determine the resume point and restart a partial active phase
 
-If the pipeline has an **active phase** (partially complete), that is the resume point. Otherwise the resume point is the phase **after** the completed phase, the worktree is already clean, and you continue to step 6.
+If the pipeline has an **active phase** (partially complete), that is the resume point. Otherwise the resume point is the phase **after** the completed phase; the worktree is already clean, so skip the rollback below.
 
 The workflow phase references assume a phase starts fresh, so a partially-complete active phase must be **rolled back to a clean state** before the workflow re-runs it.
 
