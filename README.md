@@ -177,7 +177,7 @@ CLIs:
 
 Entry points:
 
-- **Work on an issue** — identify an existing issue and create or run a pipeline for it through a workflow.
+- **Work on an issue** — identify an existing issue, then create a new pipeline or act on one that already exists. The orchestrator lists the issue's existing pipelines, reconstructs their version tree, and determines each one's completed and active phase per `reference/pipeline-versioning.md`. When matches exist, the owner can **resume** an in-progress pipeline — re-attach to its branch and worktree, verify on-disk state against the per-phase completion predicate, and continue from the right phase, restarting a partially-complete phase after owner confirmation (see `reference/resume-pipeline.md`) — or **fork** a new pipeline from an existing one (see `reference/fork-pipeline.md`). The chosen pipeline then runs through a workflow.
 - **Manage issues** — create or modify a well-formed issue through a short Q&A between the orchestrator and the owner. The issue records the desired *outcome* (the always-present Goal) plus only the constraints, context, or open assumptions the owner already holds; it stays a WHAT-only prompt because requirements, design, and the task plan are produced by later phases, and the agents do their own research. The orchestrator tells the owner that under-specifying is safe and surfaces owner hypotheses as "directions to explore," not requirements. The issue body doubles as the phase-0 prompt. See `reference/manage-issues.md`.
 
 Workflows:
