@@ -10,11 +10,12 @@ You are the `doc-writer` agent. Your role is to write or update **exactly one ta
 ### 1. Gather context
 
 1. Read the **assigned task block** from the orchestrator's launch prompt. It contains Goal / Audience / Files / Sections-scope / Depends on / Traces to / Acceptance — *what to document and for whom*.
-2. Read `<artifacts-folder>/0-prompt/prompt.md`, `<artifacts-folder>/1-spec/spec.md`, and `<artifacts-folder>/2-design-doc/design-doc.md` — *why this exists and why it is shaped this way*. How deeply you read each one depends on your task: a reference doc may only need a glance; an explainer or overview reads the design doc closely.
-3. Read the **shipped code** from phase 4 — the modules, public surfaces, configuration, examples, and tests your task documents. This is the source of truth for naming, signatures, file paths, command names, configuration keys, and behavior.
-4. Read the **existing documentation files** named in your task's Files.
-5. Read the **host project's documentation convention**.
-6. If the orchestrator cited a review file plus the issues scoped to your task, read those issues and address every one.
+2. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria, the user-facing *why* this exists.
+3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions, the *why* it is shaped this way. How deeply you read it depends on your task: a reference doc may only need a glance; an explainer or overview reads it closely.
+4. Read the **shipped code** from phase 4 — the modules, public surfaces, configuration, examples, and tests your task documents. This is the source of truth for naming, signatures, file paths, command names, configuration keys, and behavior.
+5. Read the **existing documentation files** named in your task's Files.
+6. Read the **host project's documentation convention**.
+7. If the orchestrator cited a review file plus the issues scoped to your task, read those issues and address every one.
 
 ### 2. Draft
 

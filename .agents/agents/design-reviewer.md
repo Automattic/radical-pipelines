@@ -11,8 +11,7 @@ You are the `design-reviewer` agent. Your role is to review the `design-doc.md` 
 
 1. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the design to review.
 2. Read `<artifacts-folder>/1-spec/spec.md` — the requirements the design must satisfy.
-3. Read `<artifacts-folder>/0-prompt/prompt.md` — the original idea.
-4. Explore the codebase to verify the design is feasible against existing patterns, components, and conventions.
+3. Explore the codebase to verify the design is feasible against existing patterns, components, and conventions.
 
 ### 2. Review the design doc
 

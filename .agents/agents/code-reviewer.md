@@ -15,9 +15,8 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 2. Read `<artifacts-folder>/3-plan/code-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
-5. Read `<artifacts-folder>/0-prompt/prompt.md` — the original idea.
-6. Read the host project's verification convention.
-7. Inspect the diff for the batch (base ref → current HEAD).
+5. Read the host project's verification convention.
+6. Inspect the diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
 

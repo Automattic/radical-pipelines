@@ -13,10 +13,11 @@ A fresh `doc-reviewer` is spawned **once per batch**, after every doc-writer in 
 
 1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch, the base ref to diff against, and the rejection iteration number N (only used if this iteration ends in rejection).
 2. Read `<artifacts-folder>/3-plan/doc-plan.md` — the full task list. Locate each task in the batch.
-3. Read `<artifacts-folder>/2-design-doc/design-doc.md`, `<artifacts-folder>/1-spec/spec.md`, and `<artifacts-folder>/0-prompt/prompt.md` — the *why* the docs must convey accurately.
-4. Read the shipped code from phase 4 — the *what* every concrete claim in the docs must match.
-5. Read the host project's documentation convention.
-6. Inspect the doc diff for the batch (base ref → current HEAD).
+3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the docs must convey accurately.
+4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the docs must convey accurately.
+5. Read the shipped code from phase 4 — the *what* every concrete claim in the docs must match.
+6. Read the host project's documentation convention.
+7. Inspect the doc diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
 

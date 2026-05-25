@@ -4,7 +4,6 @@ Advances the pipeline from phase 2 (design doc) to phase 3 (`code-plan.md` + `do
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
 - `<artifacts-folder>/1-spec/spec.md`
 - `<artifacts-folder>/2-design-doc/design-doc.md`
 
@@ -75,7 +74,7 @@ Each Topic entry follows this shape:
 
 ### 2. Gather context
 
-Read `<artifacts-folder>/0-prompt/prompt.md`, `<artifacts-folder>/1-spec/spec.md`, and `<artifacts-folder>/2-design-doc/design-doc.md`. Then explore the codebase to identify the exact files, modules, and conventions tasks will touch — enough to propose grounded task breakdowns, not exhaustively.
+Read `<artifacts-folder>/1-spec/spec.md` and `<artifacts-folder>/2-design-doc/design-doc.md`. Then explore the codebase to identify the exact files, modules, and conventions tasks will touch — enough to propose grounded task breakdowns, not exhaustively.
 
 Sweep the repository end-to-end for existing text that references the behavior the code phase will change — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions. Each match is a documentation surface that may need a task in step 7.
 

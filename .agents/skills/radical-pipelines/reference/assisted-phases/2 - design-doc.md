@@ -4,7 +4,6 @@ Advances the pipeline from phase 1 (spec) to phase 2 (design-doc) by working thr
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
 - `<artifacts-folder>/1-spec/spec.md`
 
 Outputs:
@@ -64,7 +63,7 @@ Each Topic entry follows this shape:
 
 ### 2. Gather context
 
-Read `<artifacts-folder>/0-prompt/prompt.md` and `<artifacts-folder>/1-spec/spec.md`. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-notes.md` with sources cited (file paths, function names).
+Read `<artifacts-folder>/1-spec/spec.md` — the authoritative statement of intent for this phase. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-notes.md` with sources cited (file paths, function names).
 
 You will keep reading the codebase as new questions surface in step 3; this step just establishes the baseline.
 

@@ -4,7 +4,6 @@ Advances the pipeline from phase 4 (code) to phase 5 by dispatching the document
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
 - `<artifacts-folder>/1-spec/spec.md`
 - `<artifacts-folder>/2-design-doc/design-doc.md`
 - `<artifacts-folder>/3-plan/doc-plan.md`

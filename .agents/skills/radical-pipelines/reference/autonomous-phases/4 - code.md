@@ -4,7 +4,6 @@ Advances the pipeline from phase 3 (plan) to phase 4 by dispatching the code tas
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
 - `<artifacts-folder>/1-spec/spec.md`
 - `<artifacts-folder>/2-design-doc/design-doc.md`
 - `<artifacts-folder>/3-plan/code-plan.md`
