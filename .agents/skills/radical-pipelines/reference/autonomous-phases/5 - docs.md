@@ -4,7 +4,6 @@ Advances the pipeline from phase 4 (code) to phase 5 by dispatching the document
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
 - `<artifacts-folder>/1-spec/spec.md`
 - `<artifacts-folder>/2-design-doc/design-doc.md`
 - `<artifacts-folder>/3-plan/doc-plan.md`
@@ -24,8 +23,8 @@ This phase has no per-phase decisions.
 
 | Agent          | Role                                                                                                                                                                              | Persistent? |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `doc-writer`   | One fresh instance per task. Reads the task block, the spec and design doc for the *why*, and the shipped code for the *what*; writes or updates the documentation; validates; commits. | No          |
-| `doc-reviewer` | One fresh instance per batch. Reviews the full batch against `doc-plan.md`, the spec, the design doc, and the shipped code.                                                       | No          |
+| `doc-writer`   | One fresh instance per task. Writes or updates the documentation; validates; commits. | No          |
+| `doc-reviewer` | One fresh instance per batch. Reviews the full batch.                                  | No          |
 
 ## Steps
 

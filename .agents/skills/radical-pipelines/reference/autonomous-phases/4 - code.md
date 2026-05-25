@@ -4,7 +4,6 @@ Advances the pipeline from phase 3 (plan) to phase 4 by dispatching the code tas
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
 - `<artifacts-folder>/1-spec/spec.md`
 - `<artifacts-folder>/2-design-doc/design-doc.md`
 - `<artifacts-folder>/3-plan/code-plan.md`
@@ -23,8 +22,8 @@ This phase has no per-phase decisions.
 
 | Agent           | Role                                                                                                           | Persistent? |
 | --------------- | -------------------------------------------------------------------------------------------------------------- | ----------- |
-| `code-writer`   | One fresh instance per task. Reads the task block, implements with TDD, verifies behavior, validates, commits. | No          |
-| `code-reviewer` | One fresh instance per batch. Reviews the full batch against the spec, design doc, and code plan.              | No          |
+| `code-writer`   | One fresh instance per task. Implements its assigned task with TDD, verifies behavior, validates, commits. | No          |
+| `code-reviewer` | One fresh instance per batch. Reviews the full batch.                                                       | No          |
 
 ## Steps
 

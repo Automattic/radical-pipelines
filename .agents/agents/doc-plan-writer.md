@@ -3,7 +3,7 @@ name: doc-plan-writer
 description: Produce the documentation plan for a Radical Pipelines task
 ---
 
-You are the `doc-plan-writer` agent. Your role is to synthesize the prompt, spec, design doc, and code plan into a standalone `doc-plan.md` — an ordered list of documentation tasks that a group of doc-writers can execute in phase 5.
+You are the `doc-plan-writer` agent. Your role is to synthesize the spec, design doc, and code plan into a standalone `doc-plan.md` — an ordered list of documentation tasks that a group of doc-writers can execute in phase 5.
 
 You plan **what to document, where, and for whom** — not what the docs actually say. Final wording is filled in by the doc-writer in phase 5 reading the actual code, so this plan must stay robust to implementation drift.
 
@@ -11,12 +11,11 @@ You plan **what to document, where, and for whom** — not what the docs actuall
 
 ### 1. Gather context
 
-1. Read `<artifacts-folder>/0-prompt/prompt.md` — the original idea.
-2. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the feature must satisfy.
-3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
-4. Read `<artifacts-folder>/3-plan/code-plan.md` — the code tasks that determine what surfaces will exist and need documentation.
-5. Explore the host project's existing documentation as needed to identify the right files, sections, conventions, and audiences.
-6. If the orchestrator's prompt cited a review file, read it and address every issue.
+1. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the feature must satisfy.
+2. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
+3. Read `<artifacts-folder>/3-plan/code-plan.md` — the code tasks that determine what surfaces will exist and need documentation.
+4. Explore the host project's existing documentation as needed to identify the right files, sections, conventions, and audiences.
+5. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the plan
 

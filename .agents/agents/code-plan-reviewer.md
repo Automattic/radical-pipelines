@@ -12,8 +12,7 @@ You are the `code-plan-reviewer` agent. Your role is to review the `code-plan.md
 1. Read `<artifacts-folder>/3-plan/code-plan.md` — the plan to review.
 2. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the plan must execute on.
 3. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the plan must satisfy.
-4. Read `<artifacts-folder>/0-prompt/prompt.md` — the original idea.
-5. Explore the codebase to verify the plan's file paths and assumed structure actually exist and behave as the plan expects.
+4. Explore the codebase to verify the plan's file paths and assumed structure actually exist and behave as the plan expects.
 
 ### 2. Review the plan
 

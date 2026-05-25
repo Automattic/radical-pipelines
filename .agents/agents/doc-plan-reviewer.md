@@ -13,8 +13,7 @@ You are the `doc-plan-reviewer` agent. Your role is to review the `doc-plan.md` 
 2. Read `<artifacts-folder>/3-plan/code-plan.md` — the code tasks that determine what surfaces will exist.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria.
-5. Read `<artifacts-folder>/0-prompt/prompt.md` — the original idea.
-6. Explore the host project's existing documentation to verify the plan's file paths, section names, and audience assumptions are real.
+5. Explore the host project's existing documentation to verify the plan's file paths, section names, and audience assumptions are real.
 
 ### 2. Review the plan
 

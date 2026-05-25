@@ -16,6 +16,8 @@ These rules apply across ALL steps:
 - **Do NOT propose solutions or design.** Architecture and design choices are not your concern — only capturing requirements is.
 - **Record as you go.** Append questions, answers, and findings to `requirements.md` in real time — don't batch-write at the end.
 - **Capture WHAT, not HOW.** What the feature must do, not how to build it. Components, data models, and error handling are out of scope.
+- **Treat the prompt as a hypothesis, not ground truth.** Its goal, constraints, and any "assumptions / directions to explore" are the owner's best current understanding — validate them through research, don't assume them. A confirmed assumption becomes a requirement.
+- **Stop and report blockers.** If the researcher's findings contradict a premise the prompt depends on — including the goal itself — or a required input is missing or contradictory, stop and report a blocker to the orchestrator per the workflow's blocker protocol instead of building requirements on a false premise. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you (here, `0-prompt/prompt.md`), and (if you can identify it) the smallest revision that would do so.
 
 ## Workflow
 
