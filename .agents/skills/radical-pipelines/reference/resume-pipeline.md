@@ -19,7 +19,7 @@ All subsequent work happens inside the pipeline's worktree, per the **Worktrees*
 
 Read the actual files on the branch and confirm the state against the **Per-phase completion** predicate in `pipeline-versioning.md`:
 
-- Confirm the **completed phase**'s predicate is present and committed.
+- Confirm the **completed phase**'s required artifacts are present and committed.
 - For the **active phase** (if any), read its latest artifact end-to-end to establish exactly how far it got and why its predicate is not yet met.
 
 ### 4. Determine the resume point and restart a partial active phase
