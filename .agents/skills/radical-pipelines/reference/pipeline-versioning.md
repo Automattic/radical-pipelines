@@ -4,21 +4,17 @@ When the owner discards a pipeline or wants to try a different approach, the orc
 
 ## Model
 
-- **Pipeline slug** — per the **Pipeline slug** convention.
 - **Pipeline version** — `v1` is implicit for the first pipeline. Subsequent pipelines are `v2`, `v3`, …
-- **Branch name**:
-  - First pipeline: per the **Branch names** convention applied to the pipeline slug.
-  - Subsequent pipelines: append `/v<N>` to the first pipeline's branch name.
-- **Artifact folder** (`<artifacts-folder>`):
-  - First pipeline: per the **Artifact folder** convention applied to the pipeline slug.
-  - Subsequent pipelines: the first pipeline's artifact folder with `v<N>/` appended.
-- **Worktree**: one per pipeline, per the **Worktrees** convention.
+- **Pipeline base slug** — the version-less slug the **Pipeline base slug** convention produces; the shared stem of all of an issue's pipelines.
+- **Pipeline versioned slug** — one specific pipeline's identifier:
+  - First pipeline (`v1`): the pipeline base slug, unchanged — `v1` carries no suffix, because it is implicit.
+  - Subsequent pipelines (`v<N>`, N ≥ 2): the pipeline base slug with `-v<N>` appended.
 
 ### Key concepts
 
 - Every pipeline is created from the project's main branch — never from another pipeline's tip.
 - Inherited artifacts are copied as plain files into the new pipeline's artifact folder.
-- Git ancestry does not carry inheritance information; `pipeline.yml` does.
+- Lineage is not recorded anywhere. The tree is **derived** by comparing artifact content across the pipelines of an issue.
 
 ## Per-phase completion
 
@@ -37,62 +33,61 @@ A phase is complete when all of these are committed to the pipeline branch (same
 
 A pipeline's **completed phase** is the highest-numbered phase whose predicate is satisfied. Its **active phase** is the phase after the completed phase if any of that phase's artifacts have started appearing (in progress); otherwise the pipeline has no active phase.
 
-## `pipeline.yml`
+## Deriving lineage from artifact content
 
-Each pipeline forked from a previous one carries one file at the root of its artifact folder:
+Whether two pipelines share a phase is read directly from the artifacts: a phase folder is the same in two pipelines **if its content is byte-identical**, and git answers that with the folder's tree object SHA.
 
-```yaml
-forked_from:
-  pipeline: <parent-branch-name>
-  phase: <last-inherited-phase>
+```
+git rev-parse <ref>:<artifacts-folder>/<phase>
 ```
 
-1. The first pipeline has no `pipeline.yml`.
-2. `pipeline.yml` is written once by the orchestrator at fork time and is never modified.
-3. `forked_from.pipeline` is the parent's full branch name.
-4. `forked_from.phase` is the inherited phase — the highest-numbered phase folder copied from the parent (`0-prompt`, `1-spec`, `2-design-doc`, `3-plan`, `4-code`, `5-docs`).
+`<ref>` is wherever that pipeline's committed artifacts live: its **branch** if it still exists, otherwise the artifact-bearing repo's **main branch** (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode) — where a merged, branch-deleted pipeline is found per "Listing pipelines for an issue" (step 3). `<artifacts-folder>` is that pipeline's own folder, derived from its versioned slug. Tree SHAs are pure content hashes, so SHAs read through a branch and through main are directly comparable.
 
 ## Listing pipelines for an issue
 
 For a given issue, find every existing pipeline:
 
-1. **Derive a slug pattern** using the **Pipeline slug** convention that matches every slug referring to this issue.
-2. **Search branches** — local and remote — that match the **Branch names** convention and whose slug refers to this issue. Subsequent pipelines are picked up by the same pattern because their branch names append `/v<N>` to the first pipeline's branch.
+1. **Derive a search pattern** for the issue from the **Pipeline base slug** convention's deterministic relationship to the issue (the default keys on the issue id). It must match the pipeline base slug and any `-v<N>` extension of it.
+2. **Search branches** — local and remote — that match the **Branch names** convention for that slug pattern. Subsequent pipelines are picked up because their slugs (and therefore branch names) are the pipeline base slug with `-v<N>` appended.
 3. **Search artifact folders** in the **Artifact folder** location on the main branch of the artifact-bearing repository (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode, per the **Artifact storage** convention). A pipeline that was merged and had its branch deleted is only visible here.
 
-The first pipeline is the branch whose name has no `/v<N>` segment — equivalently, the branch whose artifact folder contains no `pipeline.yml`.
+Among the pipelines found, the pipeline base slug is the stem the others extend: that pipeline is `v1`, and each fork's slug is the base followed by `-v<N>`.
 
 ## Reconstructing the pipeline tree
 
-The tree is not stored. The orchestrator rebuilds it on demand:
+The tree is not stored. The orchestrator rebuilds it on demand from artifact content:
 
 1. List pipelines as described in "Listing pipelines for an issue".
-2. For each pipeline branch other than the first pipeline, read `pipeline.yml` from that branch without checkout:
+2. For each pipeline, compute the tree SHA of each phase folder it carries, in phase order (`0-prompt`, `1-spec`, …), stopping at the first phase folder it does not have:
    ```
-   git show <branch>:<artifacts-folder>/pipeline.yml
+   git rev-parse <ref>:<artifacts-folder>/<phase>
    ```
-3. Join on `forked_from.pipeline` to obtain parent edges. Group by parent for siblings.
+   `<ref>` is that pipeline's branch, or the artifact-bearing repo's main branch if its branch was deleted after merging (see "Deriving lineage from artifact content"). This yields, per pipeline, an ordered sequence of `(phase, SHA)` pairs.
+3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. `0-prompt` is identical across every pipeline of an issue (it is the issue), so it is always the shared root.
 
 ### Rendering
 
-Render the tree as plain ASCII using box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. Each phase artifact is a node, labeled version-first as `v<N>: <phase>`. The root `0-prompt` carries no label — it's the shared starting point.
+Render the tree as plain ASCII using box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. Each node is a phase artifact, labeled version-first as `v<N>: <phase>`. A node shared by several pipelines is labeled with the **lowest** version among them — the earliest pipeline carrying that artifact. The root `0-prompt` carries no label — it's the shared starting point.
 
 Example:
 
 ```
 0-prompt
-└── v1: 1-spec
-    ├── v1: 2-design-doc
-    │   └── v1: 3-plan → 4-code → 5-docs  [merged]
-    └── v2: 2-design-doc
-        ├── v2: 3-plan (in progress)
-        └── v3: 3-plan → 4-code (in progress)
+├── v1: 1-spec
+│   ├── v1: 2-design-doc
+│   │   └── v1: 3-plan → 4-code → 5-docs  [merged]
+│   └── v2: 2-design-doc
+│       ├── v2: 3-plan (in progress)
+│       └── v3: 3-plan → 4-code (in progress)
+└── v4: 1-spec
+    └── v4: 2-design-doc → 3-plan (in progress)
 ```
 
 Reading conventions:
 
 - A pipeline's **completed phase** is the deepest labeled node whose **Per-phase completion** predicate is satisfied. v1 has completed all five phases (and is merged); v2's deepest node is `3-plan` but the predicate is not yet satisfied, so its completed phase is `2-design-doc` and `3-plan` is its active phase; v3's completed phase is `3-plan` and `4-code` is its active phase.
-- What a pipeline **inherits** is every ancestor node up to the root. v2 inherits `v1: 1-spec` and `0-prompt`; v3 inherits everything v2 inherits plus `v2: 2-design-doc`.
-- A linear chain of phases owned by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
+- **Sibling nodes at the same phase have diverged** — their content differs. v1, v2, and v3 share one `1-spec` node, so all three carry the same spec. v4 has its own `1-spec` node branching straight off `0-prompt`: its spec differs from v1's (for instance, v4 forked from v1 and revised the spec).
+- What a pipeline **shares** is every ancestor node up to the root; those phases are byte-identical to the pipelines it shares them with. v2 shares `v1: 1-spec` and `0-prompt`; v3 shares everything v2 shares plus `v2: 2-design-doc`; v4 shares only `0-prompt` with the rest.
+- A linear chain of phases held by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
 - `(in progress)` annotates the trailing node when its **Per-phase completion** predicate isn't yet satisfied. It signals that work has started but not finished.
 - `[merged]` annotates a pipeline that has been merged into the project's main branch. Phase completion can be inferred from the predicate; "merged into main" cannot.

@@ -19,13 +19,15 @@ Then ask:
 
 If the owner has already specified any of them, skip the question.
 
-### 2. Compute the new pipeline version
+### 2. Compute the new version and pipeline versioned slug
 
 List the existing pipelines for this issue per `pipeline-versioning.md` ("Listing pipelines for an issue"). Find the highest existing `v<N>` among them; treat the first pipeline as `v1`. The new pipeline version is `v<N+1>`.
 
+The **pipeline versioned slug** is the **pipeline base slug** (the first pipeline's slug) with `-v<N+1>` appended, per `pipeline-versioning.md` ("Model").
+
 ### 3. Create the worktree and branch from the main branch
 
-Create the branch from the project's main branch per the **Branch names** convention, with `/v<N>` appended to the first pipeline's branch name. Then create and enter the worktree per the **Worktrees** convention.
+Create and enter the worktree for the pipeline versioned slug per the **Worktrees** convention; the branch is derived from it per the **Branch names** convention. Create the branch from the project's main branch.
 
 Always branch from the main branch — never from the parent pipeline's tip. The new pipeline must start with a clean working tree.
 
@@ -33,33 +35,21 @@ All work happens inside the new worktree.
 
 ### 4. Create the artifact folder
 
-Create the new pipeline's artifact folder per the **Artifact folder** convention applied to the slug, with `v<N>/` appended.
+Create the new pipeline's artifact folder per the **Artifact folder** convention applied to the pipeline versioned slug.
 
-### 5. Copy inherited phase folders from the parent
+### 5. Seed the inherited phase folders from the parent
 
-Determine the parent pipeline's worktree path per the **Worktrees** convention applied to the parent's slug and version.
+Copy only the phase folders being inherited — `0-prompt` up to and including the inherited phase agreed in step 1.
+
+Determine the parent pipeline's worktree path per the **Worktrees** convention applied to the parent's versioned slug.
 
 - **If the worktree exists**, copy directly: for every phase folder `0-prompt`, `1-spec`, … up to and including the inherited phase, `cp -r <parent-worktree>/<parent-artifact-folder>/<phase> <artifacts-folder>/<phase>`.
 - **If the worktree does not exist**, create a temporary worktree of the parent branch per the **Worktrees** convention, copy as above, then remove it.
 
-Copy only up to and including the inherited phase — do not bring later phases.
+### 6. Commit
 
-### 6. Write `pipeline.yml`
+Commit the seeded phase folders per the **Commit format** convention.
 
-Create `<artifacts-folder>/pipeline.yml` with exactly:
-
-```yaml
-forked_from:
-  pipeline: <parent-branch-name>
-  phase: <inherited-phase>
-```
-
-This file is immutable. Do not edit it again.
-
-### 7. Commit
-
-Commit the copied phase folders and `pipeline.yml` per the **Commit format** convention.
-
-### 8. Continue normal phase work
+### 7. Continue normal phase work
 
 The new pipeline is now a regular pipeline. Continue from the phase that follows the inherited phase, or revise the inherited phase, using the assisted or autonomous workflow as chosen by the owner.
