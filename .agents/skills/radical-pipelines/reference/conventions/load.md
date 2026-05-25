@@ -10,7 +10,7 @@ This information is necessary to execute the pipelines correctly, so you must lo
 
 | Convention        | What it covers                                                 | Required? |
 | ----------------- | -------------------------------------------------------------- | --------- |
-| Pipeline slug     | How to uniquely identify pipelines                             | Yes       |
+| Pipeline base slug | How to uniquely identify pipelines                            | Yes       |
 | Artifact folder   | Where to store the pipeline artifacts                          | Yes       |
 | Commit format     | How to write commits                                           | No        |
 | Issues            | Where to find the project issues and how to create/modify them | Yes       |

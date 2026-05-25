@@ -20,7 +20,7 @@ All work for a pipeline happens inside a Claude Code worktree. Never modify file
 Branch names are derived automatically by `EnterWorktree` from the worktree name. Do not choose branch names independently and do not rename branches after the fact.
 
 - **Format:** `worktree-<pipeline-slug>`.
-- **Source of truth:** the `name` passed to `EnterWorktree` (equal to the pipeline slug) determines the branch.
+- **Source of truth:** the `name` passed to `EnterWorktree` (equal to the pipeline's versioned slug) determines the branch.
 
 ## Team spawning
 

@@ -29,11 +29,15 @@ Ask for the required information in a clear sequence, one convention at a time. 
 
 If a convention must be of a specific form due to the agentic coding tool's rules and does not require user input, simply inform the owner with a message explaining that convention and proceed to the next one.
 
-### Pipeline slug (required)
+### Pipeline base slug (required)
 
-The unique identifier for each pipeline. It is usually incorporated in the worktree name, the branch name, the artifacts folder name, etc, so it must be a valid filesystem and git identifier (lowercase, hyphens, no spaces).
+The unique identifier for a pipeline.
 
-The relationship between the issue and the pipeline slug must be deterministic: given an issue, the orchestrator must be able to enumerate every pipeline created for it by inspecting slugs alone.
+This convention defines the **pipeline base slug** — the `v1` form. A fork extends it with a `-v<N>` suffix, producing the **pipeline versioned slug**; every name derived from the slug inherits that suffix.
+
+This slug is incorporated into the worktree name, the branch name, the artifacts folder name, etc, so it must be a valid filesystem and git identifier (lowercase, hyphens, no spaces) — and must stay valid and unambiguous with `-v<N>` appended.
+
+The relationship between the issue and the slug must be deterministic: given an issue, the orchestrator must be able to enumerate every pipeline created for it by inspecting slugs alone. This does not require regenerating the full slug from the issue — only a reliable way to find an issue's pipelines.
 
 The slug format must also be robust against collisions between similar identifiers, so the pipelines of one issue can never be confused with those of another.
 

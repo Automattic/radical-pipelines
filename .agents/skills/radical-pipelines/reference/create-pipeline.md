@@ -2,15 +2,15 @@
 
 Creates a new pipeline through phase 0 — sets up the worktree and artifacts folder, writes `prompt.md`, and commits.
 
-Read `pipeline-versioning.md` first for the model — this is the first pipeline (`v1`), with no `/v<N>` branch suffix and no `pipeline.yml`.
+Read `pipeline-versioning.md` first for the model — this is the first pipeline (`v1`), so its versioned slug is just the pipeline base slug, with no `-v<N>` suffix.
 
 Before executing these steps, make sure you have loaded and verified the project conventions (see `conventions/load.md`).
 
 ## Steps
 
-### 1. Determine the pipeline slug
+### 1. Determine the pipeline base slug
 
-Generate the pipeline slug following the **Pipeline slug** convention.
+Generate the pipeline base slug following the **Pipeline base slug** convention. For `v1` this is also the pipeline's versioned slug.
 
 ### 2. Create and enter the worktree
 
