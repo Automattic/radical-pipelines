@@ -23,6 +23,6 @@ This information is necessary to execute the pipelines correctly, so you must lo
 
 If all required conventions are available, continue the workflow unchanged.
 
-If one or more required conventions are missing, do not proceed with the pipeline. Read `reference/setup.md`, explain what is missing, and offer to run the setup flow.
+If one or more required conventions are missing, do not proceed with the pipeline. Read `setup.md`, explain what is missing, and offer to run the setup flow.
 
 If the owner declines setup, cancels, or leaves required answers unresolved, stop and clearly explain what is still missing.
