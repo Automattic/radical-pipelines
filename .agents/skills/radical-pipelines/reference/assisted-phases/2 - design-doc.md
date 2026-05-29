@@ -8,7 +8,7 @@ Inputs:
 
 Outputs:
 
-- `<artifacts-folder>/2-design-doc/design-notes.md`
+- `<artifacts-folder>/2-design-doc/design-doc-research.md`
 - `<artifacts-folder>/2-design-doc/design-doc.md`
 - `<artifacts-folder>/2-design-doc/design-doc-review-approved.md` (the assisted-mode approval file you write on the owner's behalf — see step 7)
 
@@ -22,19 +22,19 @@ These rules apply across all steps:
 - You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into the design. If a scope question surfaces during design, log it as an open question or send the owner back to revise the spec — do not decide it in this phase.
 - You MUST NOT write production code. Interface sketches and small illustrative snippets are fine.
 - You MUST NOT write the implementation plan (ordered steps, task breakdown) — that belongs to phase 3.
-- You MUST append every option, trade-off, and decision to `design-notes.md` in real time, not in batches.
+- You MUST append every option, trade-off, and decision to `design-doc-research.md` in real time, not in batches.
 - You MUST NOT proceed past any gate without explicit owner confirmation.
 - You MUST NOT commit until the owner has explicitly approved the final `design-doc.md`.
-- You SHOULD read the codebase extensively to ground the design in existing patterns, components, and conventions. Record non-trivial findings under `## Research` in `design-notes.md` with sources cited.
+- You SHOULD read the codebase extensively to ground the design in existing patterns, components, and conventions. Record non-trivial findings under `## Research` in `design-doc-research.md` with sources cited.
 
 ## Steps
 
-### 1. Initialize `design-notes.md`
+### 1. Initialize `design-doc-research.md`
 
-Create `<artifacts-folder>/2-design-doc/design-notes.md` with this structure:
+Create `<artifacts-folder>/2-design-doc/design-doc-research.md` with this structure:
 
 ```markdown
-# Design Notes: <feature name>
+# Design Research: <feature name>
 
 ## Research
 
@@ -63,7 +63,7 @@ Each Topic entry follows this shape:
 
 ### 2. Gather context
 
-Read `<artifacts-folder>/1-spec/spec.md` — the authoritative statement of intent for this phase. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-notes.md` with sources cited (file paths, function names).
+Read `<artifacts-folder>/1-spec/spec.md` — the authoritative statement of intent for this phase. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-doc-research.md` with sources cited (file paths, function names).
 
 You will keep reading the codebase as new questions surface in step 3; this step just establishes the baseline.
 
@@ -74,7 +74,7 @@ Work through each design topic in turn. For each:
 1. **Frame the topic** — what is the question, and which spec requirement(s) or acceptance criterion(s) does it serve?
 2. **Propose 2-3 credible options** grounded in what the codebase already does. Spell out the trade-offs.
 3. **Present the topic to the owner.** The owner may pick an option, propose a different one, or ask for more research. Iterate until the owner decides.
-4. **Append the topic** (frame, options, trade-offs, decision, rationale) to `design-notes.md` under `## Topics`. If the topic uncovers an unresolved sub-question, log it under `## Open Questions`. If it surfaces a risk, log it under `## Risks`.
+4. **Append the topic** (frame, options, trade-offs, decision, rationale) to `design-doc-research.md` under `## Topics`. If the topic uncovers an unresolved sub-question, log it under `## Open Questions`. If it surfaces a risk, log it under `## Risks`.
 
 Cover these topics — order is flexible, and not every topic needs a multi-option choice:
 
@@ -93,7 +93,7 @@ The design phase is complete when every spec requirement and acceptance criterio
 Before synthesis, privately run a review-style check against `spec.md`:
 
 - **Coverage** — does every spec requirement and acceptance criterion have a corresponding decision or component?
-- **Traceability** — does each topic in `design-notes.md` point to a specific spec requirement or acceptance criterion?
+- **Traceability** — does each topic in `design-doc-research.md` point to a specific spec requirement or acceptance criterion?
 - **Feasibility** — can this design actually be built against the existing codebase, conventions, and dependencies?
 - **Dependencies** — are internal and external dependencies named? Any hidden ones implied by the design but not listed?
 - **Scope** — does the design stay within the spec? Anything beyond the spec, or out-of-scope items that crept back in?
@@ -103,7 +103,7 @@ For any gap, return to step 3 and work through the missing topic.
 
 ### 5. Synthesize `design-doc.md`
 
-Write `<artifacts-folder>/2-design-doc/design-doc.md` as a standalone document — understandable without reading `design-notes.md`, `spec.md`, or `prompt.md`. Use this structure:
+Write `<artifacts-folder>/2-design-doc/design-doc.md` as a standalone document — understandable without reading `design-doc-research.md`, `spec.md`, or `prompt.md`. Use this structure:
 
 ```markdown
 # Design Doc: <feature name>
@@ -132,7 +132,7 @@ Write `<artifacts-folder>/2-design-doc/design-doc.md` as a standalone document �
 ## Risks and Open Questions
 ```
 
-- **Standalone** — the reader should not need `design-notes.md`, `spec.md`, or `prompt.md`.
+- **Standalone** — the reader should not need `design-doc-research.md`, `spec.md`, or `prompt.md`.
 - **Trace every decision** — each Key Decision points to the spec requirement or acceptance criterion it serves.
 - **Cover every acceptance criterion** — the design must explain how each criterion will be met.
 - **Design, do not plan** — describe architecture and decisions, not an ordered list of implementation steps. That is phase 3.
@@ -143,7 +143,7 @@ Show the owner `design-doc.md`. Iterate on edits, additions, or removals. The ow
 
 ### 7. Commit
 
-Write `<artifacts-folder>/2-design-doc/design-doc-review-approved.md` recording the owner's approval (this is the assisted-mode equivalent of the autonomous `design-reviewer`'s approval file, and it satisfies the phase 2 completion predicate in `pipeline-versioning.md`):
+Write `<artifacts-folder>/2-design-doc/design-doc-review-approved.md` recording the owner's approval (this is the assisted-mode equivalent of the autonomous `design-doc-reviewer`'s approval file, and it satisfies the phase 2 completion predicate in `pipeline-versioning.md`):
 
 ```markdown
 # Design Doc Review
@@ -159,4 +159,4 @@ Owner (assisted workflow)
 <one or two lines capturing anything the owner wants recorded about the approval — leave empty if nothing>
 ```
 
-Commit `design-notes.md`, `design-doc.md`, and `design-doc-review-approved.md` together in a single commit, following the **Commit format** convention.
+Commit `design-doc-research.md`, `design-doc.md`, and `design-doc-review-approved.md` together in a single commit, following the **Commit format** convention.
