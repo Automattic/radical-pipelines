@@ -9,7 +9,7 @@
     {
       phase: 'phase 1',
       task: 'spec-writer',
-      reads: ['prompt.md', 'requirements.md'],
+      reads: ['prompt.md', 'spec-research.md'],
       writes: ['spec.md'],
       runMs: 1400,
       sec: 84,
@@ -30,8 +30,8 @@
     },
     {
       phase: 'phase 2',
-      task: 'design-writer',
-      reads: ['spec.md'],
+      task: 'design-doc-writer',
+      reads: ['spec.md', 'design-doc-research.md'],
       writes: ['design-doc.md'],
       runMs: 1400,
       sec: 112,
@@ -40,7 +40,7 @@
     },
     {
       phase: 'phase 2',
-      task: 'design-reviewer',
+      task: 'design-doc-reviewer',
       reads: ['design-doc.md', 'spec.md'],
       writes: ['design-doc-review-approved.md'],
       runMs: 1000,
@@ -138,7 +138,7 @@
 
   const pendingTree = [
     'prompt.md',
-    'requirements.md',
+    'spec-research.md',
     'spec.md',
     'spec-review-approved.md',
     'design-doc.md',

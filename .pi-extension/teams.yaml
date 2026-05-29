@@ -2,14 +2,16 @@
 # compose these templates into a full end-to-end pipeline team.
 radical-pipelines-spec:
   - spec-analyst
-  - researcher
+  - spec-researcher
   - spec-writer
   - spec-reviewer
   - spec-consolidator
 
 radical-pipelines-design:
-  - design-writer
-  - design-reviewer
+  - design-doc-analyst
+  - design-doc-researcher
+  - design-doc-writer
+  - design-doc-reviewer
 
 radical-pipelines-plan:
   - code-plan-writer

@@ -8,7 +8,7 @@ Inputs:
 
 Outputs:
 
-- `<artifacts-folder>/1-spec/requirements.md`
+- `<artifacts-folder>/1-spec/spec-research.md`
 - `<artifacts-folder>/1-spec/spec.md`
 - `<artifacts-folder>/1-spec/spec-review-approved.md` (the assisted-mode approval file you write on the owner's behalf — see step 8)
 
@@ -19,19 +19,19 @@ These rules apply across all steps:
 - You MUST ask ONE question at a time. Never list multiple questions in a single message.
 - You MUST NOT answer your own questions or propose solutions on the owner's behalf.
 - You MUST NOT propose design or implementation choices — those belong to later phases.
-- You MUST append every question and answer to `requirements.md` in real time, not in batches.
+- You MUST append every question and answer to `spec-research.md` in real time, not in batches.
 - You MUST NOT proceed past any gate without explicit owner confirmation.
 - You MUST NOT commit until the owner has explicitly approved the final `spec.md`.
-- You MAY (and often should) read the codebase to inform your questions and check feasibility. Record any non-trivial findings under `## Research` in `requirements.md` with sources cited. Do not produce a separate research artifact or directory — that belongs to later phases.
+- You MAY (and often should) read the codebase to inform your questions and check feasibility. Record any non-trivial findings under `## Research` in `spec-research.md` with sources cited. Do not produce a separate research artifact or directory — that belongs to later phases.
 
 ## Steps
 
-### 1. Initialize `requirements.md`
+### 1. Initialize `spec-research.md`
 
-Create `<artifacts-folder>/1-spec/requirements.md` with this structure:
+Create `<artifacts-folder>/1-spec/spec-research.md` with this structure:
 
 ```markdown
-# Requirements: <feature name>
+# Spec Research: <feature name>
 
 <contents of `prompt.md`, copied verbatim>
 
@@ -50,9 +50,9 @@ The rough idea sits under the H1 and is populated now. The other sections start 
 
 Ask one question at a time. For each:
 
-1. Formulate the question and append it to `requirements.md` under `## Q&A`.
+1. Formulate the question and append it to `spec-research.md` under `## Q&A`.
 2. Present it to the owner and wait for the answer.
-3. Append the answer to `requirements.md`.
+3. Append the answer to `spec-research.md`.
 4. Decide what to ask next.
 
 Cover these areas strategically — not as a checklist, and not always in this order:
@@ -65,7 +65,7 @@ Cover these areas strategically — not as a checklist, and not always in this o
 - **Integration** — what existing systems this must work with.
 - **Data** — structures, lifecycle, persistence.
 
-Suggest options when the owner is unsure. If a question would benefit from codebase context, do a quick read first and ground the question in what you found. Record non-trivial findings under `## Research` in `requirements.md`.
+Suggest options when the owner is unsure. If a question would benefit from codebase context, do a quick read first and ground the question in what you found. Record non-trivial findings under `## Research` in `spec-research.md`.
 
 Track exclusions as they surface. Every "no", "not for v1", "we won't worry about that" is an out-of-scope candidate — note it so it can be confirmed at step 4.
 
@@ -85,11 +85,11 @@ For any gap, return to step 2 and ask the missing question. Do not synthesize th
 
 ### 4. Verify out-of-scope
 
-Surface the exclusions you collected during Q&A back to the owner in one consolidated list and ask whether anything is missing. Update `requirements.md` with the confirmed exclusions before moving on.
+Surface the exclusions you collected during Q&A back to the owner in one consolidated list and ask whether anything is missing. Update `spec-research.md` with the confirmed exclusions before moving on.
 
 ### 5. Consolidate requirements
 
-Append a `## Consolidated Requirements` section at the bottom of `requirements.md`: a numbered list distilled from the Q&A. Exclusions belong in the spec's Out of Scope section, not here.
+Append a `## Consolidated Requirements` section at the bottom of `spec-research.md`: a numbered list distilled from the Q&A. Exclusions belong in the spec's Out of Scope section, not here.
 
 ### 6. Synthesize `spec.md`
 
@@ -107,7 +107,7 @@ Write `<artifacts-folder>/1-spec/spec.md` as a standalone document — understan
 ## Acceptance Criteria
 ```
 
-- **Standalone** — the reader should not need `requirements.md` or `prompt.md`.
+- **Standalone** — the reader should not need `spec-research.md` or `prompt.md`.
 - **Specific** — name exact types, functions, files where possible.
 - **No implementation details** — describe WHAT, not HOW to code it.
 - **Acceptance criteria** in Given-When-Then format. They drive the tests.
@@ -135,4 +135,4 @@ Owner (assisted workflow)
 <one or two lines capturing anything the owner wants recorded about the approval — leave empty if nothing>
 ```
 
-Commit `requirements.md`, `spec.md`, and `spec-review-approved.md` together in a single commit, following the **Commit format** convention.
+Commit `spec-research.md`, `spec.md`, and `spec-review-approved.md` together in a single commit, following the **Commit format** convention.

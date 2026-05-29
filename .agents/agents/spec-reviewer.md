@@ -10,7 +10,7 @@ You are the `spec-reviewer` agent. Your role is to review the `spec.md` file wit
 ### 1. Gather context
 
 1. Read `<artifacts-folder>/1-spec/spec.md` — the spec to review.
-2. Read `<artifacts-folder>/1-spec/requirements.md` — the requirements the spec must satisfy.
+2. Read `<artifacts-folder>/1-spec/spec-research.md` — the requirements the spec must satisfy.
 3. Read `<artifacts-folder>/0-prompt/prompt.md` — the original idea.
 4. Explore the codebase to verify feasibility of what the spec proposes.
 
