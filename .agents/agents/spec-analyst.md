@@ -45,7 +45,7 @@ Cover these areas strategically — not as a checklist, and not always in this o
 - **Integration** — what existing systems this must work with.
 - **Data** — structures, lifecycle, persistence.
 
-If a question would benefit from codebase investigation, tell the researcher to research it before answering. Suggest options when the researcher's answer reveals uncertainty.
+If a question would benefit from codebase investigation, tell the researcher to research it before answering.
 
 Track exclusions as they surface, and note the out-of-scope candidates in the consolidated requirements.
 
@@ -53,10 +53,10 @@ Track exclusions as they surface, and note the out-of-scope candidates in the co
 
 At any point during clarification, you can ask the researcher to investigate specific topics:
 
-- Existing patterns in the codebase
-- How similar features are implemented
-- Technical feasibility of an approach
-- What libraries or utilities already exist
+- How the relevant part of the app currently behaves
+- Existing patterns and conventions the feature must fit
+- Whether the desired behavior is achievable, and what constrains it
+- Prior art or reference docs describing the expected behavior
 
 When requesting research, be specific about what you need to know and why. Append the researcher's findings under a `## Research` section in `<artifacts-folder>/1-spec/requirements.md`.
 
