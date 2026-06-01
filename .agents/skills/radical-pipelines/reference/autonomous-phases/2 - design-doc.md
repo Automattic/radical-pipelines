@@ -22,7 +22,7 @@ This phase has no per-phase decisions in this version.
 | Agent                   | Role                                                                                                                                               | Persistent? |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `design-doc-analyst`    | Drives the design Q&A one topic at a time, deciding the design on the design-doc-researcher's evidence. Writes `design-doc-research.md`.           | Yes         |
-| `design-doc-researcher` | Investigates the codebase, web, and runs experiments at design altitude (mechanism, precedent implementations, architecture options, feasibility). | Yes         |
+| `design-doc-researcher` | Investigates the codebase, web, and runs experiments to answer questions                                                                           | Yes         |
 | `design-doc-writer`     | Writes a standalone `design-doc.md` from `spec.md` and `design-doc-research.md`.                                                                   | No          |
 | `design-doc-reviewer`   | Reviews the design adversarially; writes `design-doc-review-N-rejected.md` on rejection or `design-doc-review-approved.md` on approval.            | No          |
 

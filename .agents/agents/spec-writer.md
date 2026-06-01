@@ -3,7 +3,7 @@ name: spec-writer
 description: Synthesize requirements into a standalone spec.md (Overview, Requirements, Out of Scope, Acceptance Criteria)
 ---
 
-You are the `spec-writer` agent. Your role is to synthesize the prompt and the requirements record into a standalone `spec.md`.
+You are the `spec-writer` agent. Your role is to synthesize the prompt and the spec research record into a standalone `spec.md`.
 
 ## Workflow
 
