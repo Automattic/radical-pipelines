@@ -168,6 +168,52 @@ Each phase commits inspectable review artifacts into the task's artifact folder.
 
 This repository documents both Pi and Claude Code conventions side-by-side. Tool-agnostic conventions (issue tracking, pipeline slug format, artifact folder, commit format, Linear updates, push behavior) live in the project-root [`.rp.md`](./.rp.md); per-CLI files cover only what depends on the active tool (worktrees, branch names, team spawning, health monitoring): [`.claude/.rp.md`](./.claude/.rp.md) for Claude Code, [`.pi/.rp.md`](./.pi/.rp.md) for Pi. The root file points to the right per-CLI file at the top. Most projects use a single CLI and keep all of their conventions in one project-root `.rp.md` instead.
 
+## Changelog and versioning
+
+The repository tracks every change in a changelog and keeps a single project version in sync across the files that declare it. It uses [Changesets](https://github.com/changesets/changesets) to record changes and drive version bumps, and a small sync step to propagate the bumped version to every version-bearing file. The configuration lives in `.changeset/config.json` and `@changesets/cli` is a development dependency of the root `package.json`.
+
+### Adding a changeset
+
+Per the repository's standing rule — alongside the README-update rule — every change to the repository records a changeset. A changeset is a committed `.changeset/*.md` file that describes the change and declares its bump type (`patch`, `minor`, or `major`). It travels with the pull request and accumulates on `trunk` until a maintainer cuts a version; it is not consumed when the PR merges. The matching rule lives in [`AGENTS.md`](./AGENTS.md).
+
+Add one with the Changesets CLI from the repository root:
+
+```bash
+npx changeset
+```
+
+The command prompts for the bump type and a description, then writes a new `.changeset/*.md`. Commit that file with the change. Choose the bump type by semver: a behavior-preserving fix is a `patch`, a backward-compatible feature is a `minor`, and a breaking change is a `major`.
+
+### The single source of truth
+
+The `version` field in the root `package.json` is authoritative. The other version-bearing files are kept identical to it and are never edited independently:
+
+- `.claude-plugin/plugin.json`
+- `.pi-extension/package.json`
+- the top-level `version` in `.pi-extension/package-lock.json`
+
+`.claude-plugin/marketplace.json` carries no version field — it references the plugin by `source: "./"` — so it is intentionally left out of version sync.
+
+### Cutting a version
+
+Cutting a version is an operator-run local action, not CI. When a maintainer decides to release, they run a single bundled run-script from the repository root:
+
+```bash
+npm run release:version
+```
+
+In one fail-fast invocation this:
+
+1. runs `changeset version` to consume the pending `.changeset/*.md` files, write or update the root `CHANGELOG.md`, and bump the `version` in the root `package.json`;
+2. runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json` and `.pi-extension/package.json`;
+3. runs `npm --prefix .pi-extension install --package-lock-only` to regenerate the extension lockfile in place so `.pi-extension/package-lock.json` matches.
+
+The result is that the root `package.json`, `.claude-plugin/plugin.json`, `.pi-extension/package.json`, and the `.pi-extension/package-lock.json` top-level version all read the same string. The maintainer then commits the result. There is no `npm publish`, no git tags, and no release CI — the root package is `"private": true` and both artifacts are consumed direct-from-git.
+
+### How consumers get new versions
+
+Because there is no registry publish, "release" simply means the version-bearing files and `CHANGELOG.md` are updated and committed. The repository is consumed direct-from-git — the Pi package via `pi install git:github.com/Automattic/radical-pipelines` and the Claude Code plugin via the marketplace `source: "./"` (see **Project Usage** above). Consumers therefore pick up a new version on their **next git-source or marketplace install**; no separate distribution step is involved.
+
 ## Current status and limitations
 
 CLIs:

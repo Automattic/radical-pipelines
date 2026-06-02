@@ -2,6 +2,8 @@
 
 This Pi package ships the Radical Pipelines skill, phase agent profiles, pi-teams team template sources, and bundled Pi package dependencies for `pi-teams` and `@zenobius/pi-worktrees`.
 
+This package's `version` is kept in sync with the repository's single source of truth and is never edited here directly; see the root README's "Changelog and versioning" section for the workflow.
+
 ## What it includes
 
 - Skill: `skills/radical-pipelines/SKILL.md`.
