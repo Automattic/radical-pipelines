@@ -1,6 +1,6 @@
 {
   "name": "@automattic/radical-pipelines-pi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi package for Radical Pipelines skills, setup commands, phase agents, and team templates.",
   "keywords": [
     "pi-package",
