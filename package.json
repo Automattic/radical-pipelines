@@ -32,5 +32,8 @@
       "node_modules/@pi-agents/loop/skills"
     ],
     "themes": []
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.0"
   }
 }

@@ -1,3 +1,4 @@
+node_modules/
 .pi/npm/node_modules/
 .pi/worktrees/
 .pi-extension/node_modules/
