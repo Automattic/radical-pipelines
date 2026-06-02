@@ -8,6 +8,9 @@
     "radical-pipelines"
   ],
   "type": "module",
+  "scripts": {
+    "release:version": "changeset version && node scripts/sync-version.mjs && npm --prefix .pi-extension install --package-lock-only"
+  },
   "dependencies": {
     "@pi-agents/loop": "^0.3.1",
     "@sinclair/typebox": "^0.34.49",
