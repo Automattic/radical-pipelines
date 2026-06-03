@@ -97,7 +97,7 @@ How this project stores Radical Pipelines artifacts.
 
 Running Radical Pipelines creates three kinds of files that need a home:
 
-- The project-level `.rp.md` config file (the conventions captured during this setup).
+- The project-level `.rp/CONVENTIONS.md` config file (the conventions captured during this setup).
 - A per-pipeline artifact folder containing `prompt.md`, `spec.md`, `design-doc.md`, etc. — one folder per pipeline run, per the **Artifact folder** convention.
 - A `.gitignore` entry for the worktree folder used by the active agentic coding tool.
 
@@ -105,14 +105,14 @@ They can live either in the project's repository alongside the code, or in a sep
 
 Explain this and ask the owner:
 
-> Can `.rp.md`, the artifact folder, and any related `.gitignore` entries be committed directly to this repository?
+> Can `.rp/CONVENTIONS.md`, the artifact folder, and any related `.gitignore` entries be committed directly to this repository?
 
 **If yes**, the mode is `artifacts-in-repo`. Everything lives in a single repository — no further information needed for this convention.
 
 **If no** (the repository belongs to someone else, or upstream does not accept non-code changes), the mode is `artifacts-in-fork`. Before asking for any further information, explain how this mode works:
 
 - A fork of the repository is required. All artifact-bearing pipeline work happens on branches in the fork.
-- `.rp.md`, the artifact folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
+- `.rp/CONVENTIONS.md`, the artifact folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
 - The upstream PR is never opened without explicit owner approval.
 - When the owner approves opening a PR, the orchestrator always:
   1. Generates a clean branch name for `upstream` (separate from the fork branch).
@@ -164,16 +164,16 @@ Do not create or copy files without explicit confirmation from the owner.
 
 ## 4. Confirm writes before changing files
 
-Before writing anything, summarize the proposed `.rp.md` content and ask for explicit confirmation.
+Before writing anything, summarize the proposed `.rp/CONVENTIONS.md` content and ask for explicit confirmation.
 
-- If `.rp.md` does not exist, ask before creating it.
+- If `.rp/CONVENTIONS.md` does not exist, ask before creating it.
 - If it exists, ask before overwriting it. Offer to merge or append only when the owner explicitly chooses that approach.
 
 If any required answer is missing, do not create a misleading complete conventions file. Either stop and explain what is unresolved, or, only if the owner explicitly asks for a draft, write a file that clearly marks unresolved items and state that setup is incomplete.
 
 ## 5. Write human-readable Markdown
 
-Write project-root `.rp.md` with the conventions and commit it to the main branch:
+Write `.rp/CONVENTIONS.md` with the conventions and commit it to the main branch:
 
 - `artifacts-in-repo`: the project's main branch.
 - `artifacts-in-fork`: the fork's main branch only — never push it to upstream.
@@ -182,7 +182,7 @@ Write project-root `.rp.md` with the conventions and commit it to the main branc
 
 Add the worktree folder to `.gitignore` so local working copies are not tracked. This is the only entry Radical Pipelines requires.
 
-Ask the owner for permission, append the entry, and commit it alongside `.rp.md` in the main branch.
+Ask the owner for permission, append the entry, and commit it alongside `.rp/CONVENTIONS.md` in the main branch.
 
 Remind the owner that for `artifacts-in-fork`, the `.gitignore` change lives on the fork.
 
@@ -190,7 +190,7 @@ Remind the owner that for `artifacts-in-fork`, the `.gitignore` change lives on 
 
 After setup completes, tell the owner:
 
-- That `.rp.md` was created or updated.
-- That future Radical Pipelines runs should read `.rp.md` and skip setup if all required conventions are present.
+- That `.rp/CONVENTIONS.md` was created or updated.
+- That future Radical Pipelines runs should read `.rp/CONVENTIONS.md` and skip setup if all required conventions are present.
 
 If setup was cancelled or incomplete, stop the pipeline and clearly list what remains missing.

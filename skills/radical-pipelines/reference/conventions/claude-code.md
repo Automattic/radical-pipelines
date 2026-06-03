@@ -4,7 +4,7 @@ When the active agentic coding tool is Claude Code, three project conventions ar
 
 Do not ask the owner to choose alternatives for these, the tools constrain the answer.
 
-The block below is the canonical content for `.rp.md`.
+The block below is the canonical content for `.rp/CONVENTIONS.md`.
 
 ```markdown
 ## Worktrees
