@@ -187,8 +187,6 @@ The command prompts for the bump type and a description, then writes a new `.cha
 The `version` field in the root `package.json` is authoritative. The other version-bearing files are kept identical to it and are never edited independently:
 
 - `.claude-plugin/plugin.json`
-- `.pi-extension/package.json`
-- the top-level `version` in `.pi-extension/package-lock.json`
 
 `.claude-plugin/marketplace.json` carries no version field — it references the plugin by `source: "./"` — so it is intentionally left out of version sync.
 
@@ -203,10 +201,9 @@ npm run release:version
 In one fail-fast invocation this:
 
 1. runs `changeset version` to consume the pending `.changeset/*.md` files, write or update the root `CHANGELOG.md`, and bump the `version` in the root `package.json`;
-2. runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json` and `.pi-extension/package.json`;
-3. runs `npm --prefix .pi-extension install --package-lock-only` to regenerate the extension lockfile in place so `.pi-extension/package-lock.json` matches.
+2. runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json`.
 
-The result is that the root `package.json`, `.claude-plugin/plugin.json`, `.pi-extension/package.json`, and the `.pi-extension/package-lock.json` top-level version all read the same string. The maintainer then commits the result. There is no `npm publish`, no git tags, and no release CI — the root package is `"private": true` and both artifacts are consumed direct-from-git.
+The result is that the root `package.json` and `.claude-plugin/plugin.json` both read the same string. The maintainer then commits the result. There is no `npm publish`, no git tags, and no release CI — the root package is `"private": true` and both artifacts are consumed direct-from-git.
 
 ### How consumers get new versions
 
