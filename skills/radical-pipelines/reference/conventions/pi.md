@@ -2,7 +2,7 @@
 
 When the active agentic coding tool is Pi, use Pi-specific worktree and team tools.
 
-## Canonical `.rp/CONVENTIONS.md` content for Pi
+## Canonical `.rp.md` content for Pi
 
 ```markdown
 ## Pi worktrees
