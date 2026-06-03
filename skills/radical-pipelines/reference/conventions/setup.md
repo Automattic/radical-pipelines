@@ -49,7 +49,7 @@ Where each pipeline's artifacts (`prompt.md`, `spec.md`, `design-doc.md`, `code-
 
 Ask the owner for the location and naming pattern.
 
-Suggested default: `.pipelines/<pipeline-slug>/`.
+Suggested default: `.rp/pipelines/<pipeline-slug>/`.
 
 ### Commit format
 
