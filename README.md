@@ -110,7 +110,7 @@ The package installs:
 
 - the `radical-pipelines` skill;
 - phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer` (phase 0 is the raw prompt, an input rather than an agent-produced artifact, so it has no agent profile);
-- the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, `radical-pipelines-code`, and `radical-pipelines-docs` pi-teams templates as package-local source definitions. These team templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The full `radical-pipelines` team will ship alongside later workflow orchestration;
+- the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, `radical-pipelines-code`, and `radical-pipelines-docs` pi-teams templates, defined in the root `teams.yaml` source file. These team templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The full `radical-pipelines` team will ship alongside later workflow orchestration;
 - bundled `pi-teams`, `@zenobius/pi-worktrees`, and `@pi-agents/loop` Pi resources.
 
 During package development in this repository, install dependencies once from the repository root and then install the local path:
@@ -125,7 +125,7 @@ pi install . -l
 After installing the Pi package in a repository:
 
 1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-2. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
+2. Ensure the team templates from the root `teams.yaml` source have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
 3. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, `radical-pipelines-code`, or `radical-pipelines-docs` template, depending on the phase you are running.
 
 Validation for the local package has verified `pi install . -l`, `pi list`, and `/skill:radical-pipelines`. Predefined team discovery requires global `pi-teams` registration because `pi-teams` does not currently read package-local team files directly. The local validation used print mode rather than a full manual interactive UI.
