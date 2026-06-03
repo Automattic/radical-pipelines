@@ -9,7 +9,7 @@
   ],
   "type": "module",
   "scripts": {
-    "release:version": "changeset version && node scripts/sync-version.mjs && npm --prefix .pi-extension install --package-lock-only"
+    "release:version": "changeset version && node scripts/sync-version.mjs"
   },
   "dependencies": {
     "@pi-agents/loop": "^0.3.1",
@@ -30,7 +30,7 @@
       "node_modules/@pi-agents/loop/dist/index.js"
     ],
     "skills": [
-      ".pi-extension/skills",
+      "skills",
       "node_modules/pi-teams/skills",
       "node_modules/@pi-agents/loop/skills"
     ],

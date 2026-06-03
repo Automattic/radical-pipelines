@@ -1,6 +1,6 @@
 # Project Description
 
-<img alt="Radical Pipelines" src="./assets/radical-pipelines.png" width="600">
+<img alt="Radical Pipelines" src="./website/assets/radical-pipelines.svg" width="600">
 
 An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases, where each phase produces concrete, inspectable artifacts.
 
@@ -87,12 +87,12 @@ For active local development, skip the marketplace flow entirely and load the pl
 claude --plugin-dir ./radical-pipelines
 ```
 
-This reads the plugin from the working tree on each start (no cache copy), so edits in `.agents/skills/radical-pipelines/` are picked up through the `skills/radical-pipelines/` symlink without reinstalling.
+This reads the plugin from the working tree on each start (no cache copy), so edits in `skills/radical-pipelines/` are picked up without reinstalling.
 
 The plugin currently bundles:
 
-- the `radical-pipelines` skill (exposed under `skills/radical-pipelines/` as a symlink to `.agents/skills/radical-pipelines/` so the source of truth stays in `.agents/`).
-- agent profiles under `agents/` (symlink to `.agents/agents/`), shared with the Pi package.
+- the `radical-pipelines` skill, a real directory at `skills/radical-pipelines/`.
+- agent profiles in the root `agents/` directory, shared with the Pi package.
 
 Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
@@ -104,22 +104,19 @@ For Pi, install from the GitHub repository with Pi's `git:` source:
 pi install git:github.com/Automattic/radical-pipelines
 ```
 
-This routes through the root-level Pi manifest (`package.json` at the repo root), which reads the same `.pi-extension/` content as local development installs.
+This routes through the single Pi manifest (`package.json` at the repo root), whose `pi` block resolves the skill from the root `skills/` directory.
 
 The package installs:
 
 - the `radical-pipelines` skill;
 - phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer` (phase 0 is the raw prompt, an input rather than an agent-produced artifact, so it has no agent profile);
-- the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, `radical-pipelines-code`, and `radical-pipelines-docs` pi-teams templates as package-local source definitions. These team templates are intended to be registered globally for `pi-teams`, not copied into every target repository. The full `radical-pipelines` team will ship alongside later workflow orchestration;
 - bundled `pi-teams`, `@zenobius/pi-worktrees`, and `@pi-agents/loop` Pi resources.
 
-During package development in this repository, install dependencies first and then install the local path:
+During package development in this repository, install dependencies once from the repository root and then install the local path:
 
 ```bash
-cd .pi-extension
 npm install
-cd ..
-pi install ./.pi-extension -l
+pi install . -l
 ```
 
 ## Pi usage
@@ -127,18 +124,19 @@ pi install ./.pi-extension -l
 After installing the Pi package in a repository:
 
 1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-2. Ensure the packaged team templates have been registered in the global `~/.pi/teams.yaml` file used by `pi-teams`.
-3. Use pi-teams predefined team creation with the `radical-pipelines-spec`, `radical-pipelines-design`, `radical-pipelines-plan`, `radical-pipelines-code`, or `radical-pipelines-docs` template, depending on the phase you are running.
+2. Ensure the phase agent profiles are discoverable by `pi-teams` — repository-local in `.pi/agents/`, or user-local/global in `~/.pi/agent/agents/`. The skill's setup flow installs them.
 
-Validation for the local package has verified `pi install ./.pi-extension -l`, `pi list`, and `/skill:radical-pipelines`. Predefined team discovery requires global `pi-teams` registration because `pi-teams` does not currently read package-local team files directly. The local validation used print mode rather than a full manual interactive UI.
+The orchestrator creates one `pi-teams` team per pipeline and spawns the phase agents at runtime, following the project conventions.
+
+Validation for the local package has verified `pi install . -l`, `pi list`, and `/skill:radical-pipelines`. The local validation used print mode rather than a full manual interactive UI.
 
 ## Dependency bundling
 
-`.pi-extension/package.json` is a Pi package (`pi-package` keyword) used by local development installs. It declares Radical Pipelines-owned resources under the `pi` manifest and references bundled third-party Pi resources through package-local `node_modules/...` paths. Runtime dependencies include `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, and `@sinclair/typebox`; these are also bundled. Pi core packages are wildcard peer dependencies and are not bundled.
+The repository ships a single Pi manifest: the root `package.json` (`pi-package` keyword). It declares Radical Pipelines-owned resources under its `pi` block — the skill resolves from the root `skills/` directory — and references bundled third-party Pi resources through `node_modules/...` paths. Its runtime `dependencies` are `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, and `@sinclair/typebox`. Pi core packages are wildcard peer dependencies and are not declared as runtime dependencies.
 
-The repository root also ships a Pi manifest (`package.json`) so `pi install git:github.com/Automattic/radical-pipelines` resolves at the cloned repo root. The root manifest declares the same bundled dependencies directly and points its `pi` manifest paths at `.pi-extension/` files, so both layers share a single source of truth.
+Dependency delivery is not a `bundledDependencies` mechanism. Both Pi install paths resolve this same root manifest — the `git:` install at the cloned repo root, `pi install . -l` at the local path — and Pi runs `npm install` against it after the clone, so the declared `dependencies` (and their `node_modules/...` resources referenced from the `pi` block) are present at runtime.
 
-The skill at `.agents/skills/radical-pipelines/` and the agent profiles at `.agents/agents/` are the canonical sources. Both the Pi package (via `.pi-extension/skills` and `.pi-extension/agents` symlinks) and the Claude Code plugin (via root `skills/` and `agents/` symlinks) point at them.
+The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root. There is no hidden source directory and no mirror-symlink scheme: the directories the Claude Code plugin and the Pi package read are the canonical sources themselves.
 
 ## Fallback skill install
 
@@ -152,7 +150,7 @@ The fallback only installs the skill. It does not install Pi extensions, `pi-tea
 
 ## Configuration
 
-The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. Conventions live in a single project-root `.rp.md` file, populated by the interactive setup flow.
+The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. Conventions live in a single merged `.rp.md` file, populated by the interactive setup flow.
 
 If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup. Setup separates shared project guidance from guidance specific to the active agentic coding tool, and writes `.rp.md` only after the owner confirms the proposed content.
 
@@ -166,7 +164,7 @@ The orchestrator loads and verifies conventions before launching phase agents. W
 
 Each phase commits inspectable review artifacts into the task's artifact folder. In autonomous mode, reviewer agents write rejected iterations as `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) and a single `<artifact>-review-approved.md` on approval; in assisted mode, the orchestrator writes the `<artifact>-review-approved.md` file capturing the owner's explicit approval (assisted runs produce no rejection files because the owner iterates with the orchestrator before any commit). The autonomous-phase and assisted-phase references list the exact filenames per phase, and `reference/pipeline-versioning.md` documents how the orchestrator uses them to detect phase completion uniformly across both modes.
 
-This repository documents both Pi and Claude Code conventions side-by-side. Tool-agnostic conventions (issue tracking, pipeline slug format, artifact folder, commit format, Linear updates, push behavior) live in the project-root [`.rp.md`](./.rp.md); per-CLI files cover only what depends on the active tool (worktrees, branch names, team spawning, health monitoring): [`.claude/.rp.md`](./.claude/.rp.md) for Claude Code, [`.pi/.rp.md`](./.pi/.rp.md) for Pi. The root file points to the right per-CLI file at the top. Most projects use a single CLI and keep all of their conventions in one project-root `.rp.md` instead.
+A single project keeps everything in one merged [`.rp.md`](./.rp.md): a shared section (issue tracking, pipeline slug format, artifact folder, commit format, Linear updates, push behavior) followed by a per-tool section covering only what depends on the active tool (worktrees, branch names, team spawning, health monitoring). A normal single-CLI consumer carries just the shared section plus the one tool block its CLI uses. This repository is the unusual case: as the only multi-CLI consumer of Radical Pipelines, it dogfoods both CLIs at once, so its `.rp.md` is hand-maintained to carry the shared section plus both the Claude Code and the Pi per-tool sections side-by-side.
 
 ## Changelog and versioning
 
@@ -189,8 +187,6 @@ The command prompts for the bump type and a description, then writes a new `.cha
 The `version` field in the root `package.json` is authoritative. The other version-bearing files are kept identical to it and are never edited independently:
 
 - `.claude-plugin/plugin.json`
-- `.pi-extension/package.json`
-- the top-level `version` in `.pi-extension/package-lock.json`
 
 `.claude-plugin/marketplace.json` carries no version field — it references the plugin by `source: "./"` — so it is intentionally left out of version sync.
 
@@ -205,10 +201,9 @@ npm run release:version
 In one fail-fast invocation this:
 
 1. runs `changeset version` to consume the pending `.changeset/*.md` files, write or update the root `CHANGELOG.md`, and bump the `version` in the root `package.json`;
-2. runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json` and `.pi-extension/package.json`;
-3. runs `npm --prefix .pi-extension install --package-lock-only` to regenerate the extension lockfile in place so `.pi-extension/package-lock.json` matches.
+2. runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json`.
 
-The result is that the root `package.json`, `.claude-plugin/plugin.json`, `.pi-extension/package.json`, and the `.pi-extension/package-lock.json` top-level version all read the same string. The maintainer then commits the result. There is no `npm publish`, no git tags, and no release CI — the root package is `"private": true` and both artifacts are consumed direct-from-git.
+The result is that the root `package.json` and `.claude-plugin/plugin.json` both read the same string. The maintainer then commits the result. There is no `npm publish`, no git tags, and no release CI — the root package is `"private": true` and both artifacts are consumed direct-from-git.
 
 ### How consumers get new versions
 
@@ -238,13 +233,13 @@ Phases (within implemented workflows):
 - **Phase 0 (Prompt)** captures the task as `prompt.md`.
 - **Phase 1 (Spec)** produces `spec-research.md` and `spec.md` from the prompt. In the autonomous workflow, a `spec-analyst` and a `spec-researcher` first run an iterative one-question-at-a-time Q&A loop (routed through the orchestrator) that records `spec-research.md`. The spec phase keeps its requirements to observable behavior — the `spec-analyst` directs the `spec-researcher` as deeply as each question needs, and records only what the feature must do, leaving mechanism and architecture to phase 2. Then a fresh `spec-writer` writes `spec.md` as a standalone document, and a fresh adversarial `spec-reviewer` either approves it or sends specific issues back for revision, looping until approval. A `spec-consolidator` agent profile also ships for a future multi-writer mode (N parallel `spec-writer` instances merged into one draft), but that mode is not wired into the phase yet.
 - In the assisted workflow, phase 1 produces `spec-research.md` and `spec.md` through Q&A with the owner directly (no agents spawned).
-- **Phase 2 (Design doc)** produces `design-doc-research.md` and `design-doc.md` from the spec. In the autonomous workflow, a `design-doc-analyst` and a `design-doc-researcher` first run an iterative one-topic-at-a-time design Q&A loop (routed through the orchestrator) that records `design-doc-research.md` — this is where the HOW is worked out at full implementation depth, the depth the spec phase deliberately left out. Then a fresh `design-doc-writer` synthesizes `design-doc.md` as a standalone document from `spec.md` and `design-doc-research.md`, and a fresh adversarial `design-doc-reviewer` either approves or sends specific issues back for revision, looping until approval. The `radical-pipelines-design` team template wires these four agents together for project-convention-driven use.
-- **Phase 3 (Plan)** ships two writer/reviewer pairs that run sequentially: first `code-plan-writer` + `code-plan-reviewer` produce `code-plan.md` (the ordered code tasks); then `doc-plan-writer` + `doc-plan-reviewer` produce `doc-plan.md` (what documentation surfaces to update, where, and for whom — without prescribing wording). The `radical-pipelines-plan` team template bundles all four agents for project-convention-driven use.
-- **Phase 4 (Code)** ships `code-writer` and `code-reviewer` agent profiles plus the `radical-pipelines-code` team template. The orchestrator dispatches one fresh `code-writer` per task from `code-plan.md`, sequentially, because all writers share the pipeline branch's single working tree. Each writer implements its single assigned task with test-driven development: per-task Acceptance criteria drive unit tests in RED/GREEN/REFACTOR, then behavior verification runs through the host project's verification convention, then end-to-end tests are derived from that verification. Every gate the verification convention documents must pass before the writer commits. After every code-writer in the batch commits, a single fresh `code-reviewer` reviews the whole batch against `code-plan.md`, the spec, and the design doc. On rejection, issues are tagged per task; the orchestrator re-dispatches only the affected tasks and the reviewer runs again, until approved.
-- **Phase 5 (Docs)** ships `doc-writer` and `doc-reviewer` agent profiles plus the `radical-pipelines-docs` team template. The orchestrator dispatches one fresh `doc-writer` per task from `doc-plan.md`, sequentially, because all writers share the pipeline branch's single working tree. Each writer reads three sources of truth — the assigned task block (what to document, for whom), the spec and design doc (why this exists and why it is shaped this way), and the shipped code from phase 4 (what actually exists, names, signatures, paths, behavior) — and synthesizes them into documentation that matches its stated audience. Every concrete claim is verified against the shipped code; any documentation gates the host project's verification convention enumerates must pass before the writer commits (many projects enumerate none and rely on the reviewer's accuracy spot-check). After every doc-writer in the batch commits, a single fresh `doc-reviewer` reviews the whole batch against `doc-plan.md`, the spec, the design doc, and the shipped code. On rejection, issues are tagged per task; the orchestrator re-dispatches only the affected tasks and the reviewer runs again, until approved.
+- **Phase 2 (Design doc)** produces `design-doc-research.md` and `design-doc.md` from the spec. In the autonomous workflow, a `design-doc-analyst` and a `design-doc-researcher` first run an iterative one-topic-at-a-time design Q&A loop (routed through the orchestrator) that records `design-doc-research.md` — this is where the HOW is worked out at full implementation depth, the depth the spec phase deliberately left out. Then a fresh `design-doc-writer` synthesizes `design-doc.md` as a standalone document from `spec.md` and `design-doc-research.md`, and a fresh adversarial `design-doc-reviewer` either approves or sends specific issues back for revision, looping until approval.
+- **Phase 3 (Plan)** ships two writer/reviewer pairs that run sequentially: first `code-plan-writer` + `code-plan-reviewer` produce `code-plan.md` (the ordered code tasks); then `doc-plan-writer` + `doc-plan-reviewer` produce `doc-plan.md` (what documentation surfaces to update, where, and for whom — without prescribing wording).
+- **Phase 4 (Code)** ships `code-writer` and `code-reviewer` agent profiles. The orchestrator dispatches one fresh `code-writer` per task from `code-plan.md`, sequentially, because all writers share the pipeline branch's single working tree. Each writer implements its single assigned task with test-driven development: per-task Acceptance criteria drive unit tests in RED/GREEN/REFACTOR, then behavior verification runs through the host project's verification convention, then end-to-end tests are derived from that verification. Every gate the verification convention documents must pass before the writer commits. After every code-writer in the batch commits, a single fresh `code-reviewer` reviews the whole batch against `code-plan.md`, the spec, and the design doc. On rejection, issues are tagged per task; the orchestrator re-dispatches only the affected tasks and the reviewer runs again, until approved.
+- **Phase 5 (Docs)** ships `doc-writer` and `doc-reviewer` agent profiles. The orchestrator dispatches one fresh `doc-writer` per task from `doc-plan.md`, sequentially, because all writers share the pipeline branch's single working tree. Each writer reads three sources of truth — the assigned task block (what to document, for whom), the spec and design doc (why this exists and why it is shaped this way), and the shipped code from phase 4 (what actually exists, names, signatures, paths, behavior) — and synthesizes them into documentation that matches its stated audience. Every concrete claim is verified against the shipped code; any documentation gates the host project's verification convention enumerates must pass before the writer commits (many projects enumerate none and rely on the reviewer's accuracy spot-check). After every doc-writer in the batch commits, a single fresh `doc-reviewer` reviews the whole batch against `doc-plan.md`, the spec, the design doc, and the shipped code. On rejection, issues are tagged per task; the orchestrator re-dispatches only the affected tasks and the reviewer runs again, until approved.
 
 Pi package limitations:
 
-- pi-teams currently reads predefined agents/templates from global or project-local locations, not package-local files. Radical Pipelines team definitions should be registered globally in `~/.pi/teams.yaml`; agent profiles should be available either repository-locally in `.pi/agents/` or user-locally/globally in `~/.pi/agent/agents/`, before predefined Radical Pipelines teams are visible.
+- pi-teams reads predefined agents from global or project-local locations, not package-local files. Radical Pipelines agent profiles should be available either repository-locally in `.pi/agents/` or user-locally/globally in `~/.pi/agent/agents/` before they are discoverable to `pi-teams`.
 - Local validation on Node v20.14.0 produced npm `EBADENGINE` warnings from transitive dependencies and two moderate `npm audit` findings.
 - Open PRs may change nearby guidance later: PR #6 may improve pi-teams examples, PR #10 may change convention setup, and PR #12 may add orchestration safeguards. This package does not depend on those PRs being merged.

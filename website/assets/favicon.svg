@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="144 -113 726 726">
+  <defs>
+    <linearGradient id="gTop" x1="140" y1="110" x2="870" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6728EA" />
+      <stop offset="0.50" stop-color="#126CF5" />
+      <stop offset="1" stop-color="#126CF5" />
+    </linearGradient>
+    <linearGradient id="gMid" x1="140" y1="250" x2="870" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6728EA" />
+      <stop offset="0.22" stop-color="#126CF5" />
+      <stop offset="0.62" stop-color="#10ABEC" />
+      <stop offset="1" stop-color="#45CFF4" />
+    </linearGradient>
+    <linearGradient id="gLow" x1="140" y1="385" x2="870" y2="385" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#6728EA" />
+      <stop offset="0.24" stop-color="#146CF5" />
+      <stop offset="0.58" stop-color="#11D0B1" />
+      <stop offset="1" stop-color="#5BE3C9" />
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke-width="31" stroke-linecap="butt" stroke-linejoin="round">
+    <path d="M308 250 L373 115 H817" stroke="url(#gTop)" />
+    <path d="M308 250 L392 384 H817" stroke="url(#gLow)" />
+    <path d="M196 250 H817" stroke="url(#gMid)" />
+  </g>
+  <g fill="url(#gTop)"><path d="M817 68 L870 115 L817 162 Z" /></g>
+  <g fill="url(#gMid)"><path d="M817 203 L870 250 L817 297 Z" /></g>
+  <g fill="url(#gLow)"><path d="M817 337 L870 384 L817 431 Z" /></g>
+  <g>
+    <path style="fill:#6728ea" d="m 248,250 a 52,52 0 0 1 -52,52 52,52 0 0 1 -52,-52 52,52 0 0 1 52,-52 52,52 0 0 1 52,52 z" />
+    <path style="fill:#ffffff" d="m 220,250 a 24,24 0 0 1 -24,24 24,24 0 0 1 -24,-24 24,24 0 0 1 24,-24 24,24 0 0 1 24,24 z" />
+    <path style="fill:#126cf5" d="m 556,115 a 50,50 0 0 1 -50,50 50,50 0 0 1 -50,-50 50,50 0 0 1 50,-50 50,50 0 0 1 50,50 z" />
+    <path style="fill:#ffffff" d="m 530,115 a 24,24 0 0 1 -24,24 24,24 0 0 1 -24,-24 24,24 0 0 1 24,-24 24,24 0 0 1 24,24 z" />
+    <path style="fill:#10abec" d="m 556,250 a 50,50 0 0 1 -50,50 50,50 0 0 1 -50,-50 50,50 0 0 1 50,-50 50,50 0 0 1 50,50 z" />
+    <path style="fill:#ffffff" d="m 530,250 a 24,24 0 0 1 -24,24 24,24 0 0 1 -24,-24 24,24 0 0 1 24,-24 24,24 0 0 1 24,24 z" />
+    <path style="fill:#11d0b1" d="m 556,384 a 50,50 0 0 1 -50,50 50,50 0 0 1 -50,-50 50,50 0 0 1 50,-50 50,50 0 0 1 50,50 z" />
+    <path style="fill:#ffffff" d="m 530,384 a 24,24 0 0 1 -24,24 24,24 0 0 1 -24,-24 24,24 0 0 1 24,-24 24,24 0 0 1 24,24 z" />
+    <path style="fill:#126cf5" d="m 775,115 a 50,50 0 0 1 -50,50 50,50 0 0 1 -50,-50 50,50 0 0 1 50,-50 50,50 0 0 1 50,50 z" />
+    <path style="fill:#ffffff" d="m 749,115 a 24,24 0 0 1 -24,24 24,24 0 0 1 -24,-24 24,24 0 0 1 24,-24 24,24 0 0 1 24,24 z" />
+    <path style="fill:#10abec" d="m 775,250 a 50,50 0 0 1 -50,50 50,50 0 0 1 -50,-50 50,50 0 0 1 50,-50 50,50 0 0 1 50,50 z" />
+    <path style="fill:#ffffff" d="m 749,250 a 24,24 0 0 1 -24,24 24,24 0 0 1 -24,-24 24,24 0 0 1 24,-24 24,24 0 0 1 24,24 z" />
+    <path style="fill:#11d0b1" d="m 775,384 a 50,50 0 0 1 -50,50 50,50 0 0 1 -50,-50 50,50 0 0 1 50,-50 50,50 0 0 1 50,50 z" />
+    <path style="fill:#ffffff" d="m 749,384 a 24,24 0 0 1 -24,24 24,24 0 0 1 -24,-24 24,24 0 0 1 24,-24 24,24 0 0 1 24,24 z" />
+  </g>
+</svg>
