@@ -1,11 +1,11 @@
-name: Deploy landing page
+name: Deploy website
 
 on:
   push:
     branches: [trunk]
     paths:
-      - "landing/**"
-      - ".github/workflows/deploy-landing.yml"
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
   workflow_dispatch:
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: landing
+          path: website
 
       - id: deployment
         uses: actions/deploy-pages@v4
