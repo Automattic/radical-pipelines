@@ -53,12 +53,16 @@
          stop-color="#6728EA"
          id="stop4" />
       <stop
-         offset="0.55"
+         offset="0.22"
+         stop-color="#126CF5"
+         id="stop4a" />
+      <stop
+         offset="0.62"
          stop-color="#10ABEC"
          id="stop5" />
       <stop
          offset="1"
-         stop-color="#10ABEC"
+         stop-color="#45CFF4"
          id="stop6" />
     </linearGradient>
     <linearGradient
@@ -73,23 +77,19 @@
          stop-color="#6728EA"
          id="stop7" />
       <stop
-         offset="0.33"
+         offset="0.24"
          stop-color="#146CF5"
          id="stop8" />
       <stop
-         offset="0.55"
+         offset="0.58"
          stop-color="#11D0B1"
          id="stop9" />
       <stop
          offset="1"
-         stop-color="#11D0B1"
+         stop-color="#5BE3C9"
          id="stop10" />
     </linearGradient>
   </defs>
-  <path
-     id="rect10"
-     style="fill:#ffffff"
-     d="M 0,0 H 2048 V 512 H 0 Z" />
   <g
      fill="none"
      stroke-width="31"
