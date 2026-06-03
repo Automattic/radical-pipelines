@@ -30,7 +30,7 @@
       "node_modules/@pi-agents/loop/dist/index.js"
     ],
     "skills": [
-      ".pi-extension/skills",
+      "skills",
       "node_modules/pi-teams/skills",
       "node_modules/@pi-agents/loop/skills"
     ],
