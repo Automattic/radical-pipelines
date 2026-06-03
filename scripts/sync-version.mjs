@@ -34,10 +34,7 @@ const SOURCE_MANIFEST = join(REPO_ROOT, "package.json");
  *
  * @type {string[]}
  */
-const TARGET_MANIFESTS = [
-  ".claude-plugin/plugin.json",
-  ".pi-extension/package.json",
-];
+const TARGET_MANIFESTS = [".claude-plugin/plugin.json"];
 
 /**
  * Read the `version` field from the root `package.json`.
