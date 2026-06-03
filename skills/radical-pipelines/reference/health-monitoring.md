@@ -62,7 +62,7 @@ Signals to look for:
 - Login / API-key errors
 - Network failures on tool calls
 
-For each detected issue, apply up to 2 auto-recovery actions per the recovery table in .agents/skills/radical-pipelines/reference/health-monitoring.md.
+For each detected issue, apply up to 2 auto-recovery actions per the recovery table in reference/health-monitoring.md.
 
 If unresolved after 2 attempts, stop and report to the owner with: agent name, error verbatim, last-known progress, suggested next step.
 ```
