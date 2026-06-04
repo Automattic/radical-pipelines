@@ -32,7 +32,24 @@ registry release — only a `v<version>` git tag and a matching GitHub Release.
 
 We use [changesets](https://github.com/changesets/changesets) to manage version
 bumps and the changelog. A pull request that touches release-relevant files must
-include a changeset; CI enforces this (see [Release process](#release-process)).
+include a changeset; CI enforces this (see [The changeset gate (CI)](#the-changeset-gate-ci)).
+
+### The changeset gate (CI)
+
+The **Changeset Gate** workflow (`.github/workflows/changeset-gate.yml`) runs on
+every pull request to `trunk` and runs **two independent checks**. The PR **fails
+if either check fails**:
+
+1. **Shape** — `node scripts/validate-changesets.mjs` validates every staged
+   `.changeset/*.md` file (rejecting malformed front matter, unknown bump types,
+   and — while pre-1.0 — `major` bumps; see [Pre-1.0 policy](#pre-10-policy)).
+2. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is
+   the PR's base branch) fails when a release-relevant change has no changeset.
+
+The auto-generated `changeset-release/trunk` Version Packages PR is **exempt**
+(the job-level `if:` condition skips it), so it does not need a changeset of its
+own. Every other PR — including [Dependabot](#dependency-bump-prs) — is gated
+normally.
 
 ### When a changeset is required
 
