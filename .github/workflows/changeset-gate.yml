@@ -1,0 +1,37 @@
+name: Changeset Gate
+
+on:
+  pull_request:
+    branches: [trunk]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: changeset-gate-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changeset:
+    runs-on: ubuntu-latest
+    if: github.head_ref != 'changeset-release/trunk' # bot-PR exemption
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Validate changeset shape
+        run: node scripts/validate-changesets.mjs
+
+      - name: Require a changeset for release-relevant changes
+        run: npx changeset status --since=origin/${{ github.event.pull_request.base.ref }}
