@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    branches: [trunk]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # push bump commit to changeset-release/trunk; push tag; create Release
+  pull-requests: write # open/update the Version Packages PR
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - id: changesets
+        uses: changesets/action@v1
+        with:
+          version: npm run release:version # MUST override default to keep sync-version (R3)
+          publish: npx changeset tag # creates v<version> tag; action then creates the Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
