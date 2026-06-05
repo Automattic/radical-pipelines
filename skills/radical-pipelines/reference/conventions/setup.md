@@ -119,7 +119,7 @@ Explain this and ask the owner:
   2. Cherry-picks only the code commits from the fork branch — artifact commits are excluded.
   3. Rewrites the cherry-picked commit messages to an upstream-friendly format.
   4. Pushes the clean branch directly to `upstream`.
-  5. Opens the PR in `upstream` from that clean branch, using `pr-description.md` as the body.
+  5. Opens the PR in `upstream` from that clean branch, using the content of the phase-5 PR-description artifact (`<artifacts-folder>/5-docs/pr-description.md` in the fork) as the body.
 - The PR's source branch lives in `upstream`, not in the fork — viewers of the PR never see the fork. If the fork is private, its existence is hidden entirely.
 
 Then collect the information needed to operate in fork mode:
