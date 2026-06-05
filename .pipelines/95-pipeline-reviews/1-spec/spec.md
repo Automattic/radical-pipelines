@@ -82,15 +82,19 @@ design phase and are not pre-decided.
   is a short kebab-case summary of that review's goal, formatted like the
   pipeline-slug short description (lowercase, hyphens, no spaces).
 
-- **R5 (MUST — existing flat pipelines are not migrated).** An existing pipeline
-  laid out flat (phase folders directly under the pipeline folder, no run folders)
-  is listed, tree-reconstructed, and reviewable without being migrated or
-  rewritten. A first review on it is added as a `review-1-<short-description>`
-  sibling while its existing flat artifacts stay in place. (How the skill's
-  listing and reconstruction tolerate both the flat and the run-folder shapes — by
-  reading a flat pipeline as an implicit single `base` run, or by grandfathering
-  the flat shape — is left to the design phase; the requirement is that the flat
-  pipeline keeps working and is never moved.)
+- **R5 (MUST — existing flat pipelines are left untouched, and unhandled in the
+  skill).** An existing pipeline laid out flat (phase folders directly under the
+  pipeline folder, no `base/` run folder) is never migrated or rewritten by the
+  reviews feature. The skill's written guidance is authored solely for the
+  run-folder model, in which `base/` is always present (R2): it MUST NOT contain
+  any instruction, reference, or mention of how to handle a pipeline that lacks a
+  `base/` folder. If the orchestrator encounters such a legacy pipeline at
+  runtime, it does what it can with its own judgment — but that handling is
+  deliberately kept out of the skill and is documented nowhere in it. (This
+  resolves the previously open design question of how listing and reconstruction
+  would tolerate both shapes: neither a dual-shape-reading rule nor a
+  grandfathering rule is written into the skill — the skill stays silent on the
+  legacy shape.)
 
 ### B. Triggering a review
 
@@ -317,8 +321,10 @@ design phase and are not pre-decided.
 - **Consolidation / cleanup** of the several prompts, specs, design docs, and
   plans a reviewed pipeline accumulates — explicitly deferred to the future
   cleanup phase.
-- **Migrating existing flat-layout pipelines** to the run-folder structure (R5
-  reads them in place; it does not move them).
+- **Migrating existing flat-layout pipelines** to the run-folder structure — and,
+  more broadly, **codifying any legacy (no-`base/`) handling in the skill**. R5
+  leaves such pipelines untouched and unmentioned; if the orchestrator meets one
+  it improvises at runtime, but nothing about it is written into the skill.
 - **Forking from a reviewed run** and any change to fork-inheritance semantics
   (forks still inherit from `base/`, R23).
 - **Parallel reviews** (would require additional worktrees; reviews are strictly
@@ -444,10 +450,11 @@ design phase and are not pre-decided.
     of a run — and the Merge and Close menu actions are still present (unwired) and
     not broken. (R29)
 
-17. **A legacy flat pipeline can be reviewed without migration.**
-    Given an existing pipeline laid out flat (phase folders directly under the
-    pipeline folder),
-    When it is listed and then reviewed,
-    Then it is listed and tree-reconstructed without error, its flat artifacts are
-    not moved or rewritten, and the review is added as a
-    `review-1-<short-description>` sibling folder. (R5)
+17. **The skill never migrates a legacy pipeline and stays silent about the
+    no-`base/` case.**
+    Given the shipped skill,
+    When its references and instructions are searched for any handling of a
+    pipeline that lacks a `base/` run folder,
+    Then no such instruction or mention is present; and given an existing
+    flat-laid-out pipeline on disk, when the reviews feature operates, then that
+    pipeline's existing artifacts are never moved or rewritten. (R5)
