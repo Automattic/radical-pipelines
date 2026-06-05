@@ -29,7 +29,7 @@ A phase is complete when all of these are committed to the pipeline branch (same
 | 2 – Design doc | `2-design-doc/design-doc-review-approved.md`                                   |
 | 3 – Plan       | `3-plan/code-plan-review-approved.md` and `3-plan/doc-plan-review-approved.md` |
 | 4 – Code       | `4-code/code-review-approved.md`                                               |
-| 5 – Docs       | `5-docs/docs-review-approved.md`                                               |
+| 5 – Docs       | `5-docs/docs-review-approved.md` and `5-docs/pr-description.md`                |
 
 A pipeline's **completed phase** is the highest-numbered phase whose predicate is satisfied. Its **active phase** is the phase after the completed phase if any of that phase's artifacts have started appearing (in progress); otherwise the pipeline has no active phase.
 
