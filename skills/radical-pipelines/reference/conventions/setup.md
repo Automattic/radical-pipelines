@@ -126,7 +126,7 @@ Then collect the information needed to operate in fork mode:
 
 **Identify the remotes.** Run `git remote -v` to list the configured remotes.
 
-- If two or more remotes are configured, ask the owner to confirm which one is the upstream (canonical) repository and which one is the fork (where Radical Pipelines work happens). By GitHub convention `origin` is usually the fork and `upstream` the canonical repo, but do not assume — always confirm.
+- If two or more remotes are configured, ask the owner to confirm which one is the upstream (canonical) repository and which one is the fork (where Radical Pipelines work happens).
 - If only one remote is configured or no fork exists, a fork must be created. Ask the owner two things in sequence:
   - Whether the fork should be **public** or **private**. A private fork keeps the artifact-bearing branches out of public view; the PR itself reveals nothing about the fork either way.
   - To create the fork (e.g. via `gh repo fork`, then `gh repo edit <owner>/<repo> --visibility private` if private was chosen) and add it as a remote.
