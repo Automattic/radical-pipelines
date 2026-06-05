@@ -133,6 +133,28 @@ Then collect the information needed to operate in fork mode:
 
   Wait for confirmation, then re-run `git remote -v` and confirm the assignment.
 
+**Recommend the standard remote names.** Both paths above arrive here once the remotes and their URLs are known (each runs `git remote -v` first). This single step runs after the two-remote path and after the create-fork path, so a manually added fork that landed in a non-standard ("inverted") state is caught here too.
+
+First establish which remote plays which role:
+
+- Attempt `gh`-based auto-detection to _propose_ the assignment, running it per remote against that remote's URL — e.g. `gh repo view <remote-url> --json isFork,parent`. `gh` normalizes the raw remote URL itself, so no manual URL parsing is required; the detected parent identity is `parent.owner.login` + `/` + `parent.name`.
+- Decide on identity, not on names: the fork is the remote whose `isFork` is `true` and whose parent equals the _other_ configured remote's `owner/repo`, and the canonical is that parent. Act only when this fork↔canonical pairing is exactly one and unambiguous.
+- In any ambiguity or failure, fall back to asking the owner which remote is which, and never guess. This includes: (1) neither remote is a fork of the other; (2) both remotes point at the same repository; (3) a remote is not on GitHub (GitLab, Bitbucket, unauthenticated self-hosted, etc.); (4) `gh` is offline, unauthenticated, errors, or exits nonzero for any reason; (5) the fork's parent is a repository not among the configured remotes; (6) more than two remotes with no single clear pairing.
+- Either way — auto-detected then confirmed, or asked cold — by the end of this step the roles are known and owner-confirmed. Auto-detection only upgrades "ask the owner cold" into "here is our detected assignment, confirm or correct"; it is never a gate.
+
+Then decide on names, evaluated over the resolved roles:
+
+- If the remote that _is_ the fork is already named `origin` and the remote that _is_ the canonical is already named `upstream`, make no rename recommendation and proceed straight to recording the names. This check runs against the resolved roles, not the raw names: a remote literally named `origin` can point at the canonical repository, and in that confusingly-named inverted case the names look standard but the roles are wrong, so the correct action is a rename recommendation, not a no-op.
+- Otherwise, recommend renaming the fork to `origin` and the canonical to `upstream`, as a decline-able recommendation. For example: "By default we recommend naming the fork `origin` and the canonical `upstream`. Do you want us to rename them, or leave them as they are?"
+
+The orchestrator must never run `git remote rename` without the owner's explicit approval, and never renames on its own initiative, because the rename mutates the owner's local git config. On approval, apply the renames; on decline, keep the existing remote names.
+
+On explicit approval, apply the rename(s) following one rule: before any rename whose target name is currently taken, free that name first. For the inverted case where the canonical is named `origin` and the fork is named `upstream`, this means renaming the canonical `origin` → `upstream` first (to free `origin`), then renaming the fork → `origin`. The ordering matters because `git remote rename` errors (exit status 3) if the target name already exists and makes no change on failure.
+
+No follow-up steps are needed: `git remote rename` migrates the remote-tracking refs, the `branch.<name>.remote` tracking config, and the entire `remote.<old>.*` section, so fetch/push/pull keep working with no further action. If a remote has a hand-edited fetch refspec pointing outside `refs/remotes/<old>/*`, git prints a warning and exits 0, leaving that one refspec stale; if git prints this warning, it is benign — proceed without treating it as an error.
+
+On either branch — no-op, accepted rename, or declined — proceed to record the resolved remote names via the Capture block.
+
 **Define the upstream PR transformation.** Ask the owner for:
 
 - **Upstream branch format**: the name of the cherry-pick branch pushed to `upstream` as the PR source. Can be derived from the fork's branch name format.
