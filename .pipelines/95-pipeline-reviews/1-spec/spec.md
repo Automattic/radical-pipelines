@@ -82,13 +82,15 @@ design phase and are not pre-decided.
   is a short kebab-case summary of that review's goal, formatted like the
   pipeline-slug short description (lowercase, hyphens, no spaces).
 
-- **R5 (MUST — existing flat pipelines are not migrated).** Existing pipelines
-  laid out flat (phase folders directly under the pipeline folder, no run
-  folders) are NOT migrated or rewritten. The skill's pipeline listing and tree
-  reconstruction read a flat pipeline as if it were a single implicit `base` run.
-  A legacy flat pipeline that receives its first review keeps its existing flat
-  layout as the implicit base run and adds a `review-1-<short-description>`
-  sibling — still without migrating the existing artifacts.
+- **R5 (MUST — existing flat pipelines are not migrated).** An existing pipeline
+  laid out flat (phase folders directly under the pipeline folder, no run folders)
+  is listed, tree-reconstructed, and reviewable without being migrated or
+  rewritten. A first review on it is added as a `review-1-<short-description>`
+  sibling while its existing flat artifacts stay in place. (How the skill's
+  listing and reconstruction tolerate both the flat and the run-folder shapes — by
+  reading a flat pipeline as an implicit single `base` run, or by grandfathering
+  the flat shape — is left to the design phase; the requirement is that the flat
+  pipeline keeps working and is never moved.)
 
 ### B. Triggering a review
 
@@ -111,11 +113,17 @@ design phase and are not pre-decided.
   roll anything back, because the latest run is already complete — it only adds a
   new run folder on top.
 
-- **R9 (MUST — merged pipelines).** A review is the canonical action for a
-  complete, unmerged pipeline whose branch and worktree are still live (review
-  before merge). If the pipeline was merged and its branch deleted, a review is
-  not possible (there is no branch to layer onto) and the owner is directed to a
-  fork from main instead.
+- **R9 (MUST — merged pipelines).** Whether a review can be offered turns on
+  whether a branch is still available to layer onto:
+  - A complete, **unmerged** pipeline whose branch and worktree are still live is
+    the canonical case — review before merge.
+  - A pipeline that was merged and whose **branch was deleted** cannot be
+    reviewed (there is no branch to layer onto); the owner is directed to a fork
+    from main instead.
+  - A pipeline that was **merged but whose branch is still live** MAY be reviewed
+    — the same-branch precondition (R8) is satisfiable — with the owner advised
+    that reviewing an already-merged branch is unusual (the exact advisory
+    wording is left to the design phase).
 
 ### C. The review prompt
 
@@ -149,12 +157,15 @@ design phase and are not pre-decided.
   required and the rest optional), the rendering rules (omit empty sections, no
   "N/A" filler), and the authoring discipline (state the outcome not the
   solution; capture, do not converge; reflect hypotheses as open questions) — is
-  defined in exactly ONE place. Issue creation, base-prompt generation, and
-  review-prompt generation all reference that single definition rather than
-  restating the schema or the discipline. Each of the three sites keeps its own
+  single-sourced: each element of the schema, rendering rules, and authoring
+  discipline lives in exactly one location, and issue creation, base-prompt
+  generation, and review-prompt generation all reference it rather than restating
+  it. No two sites restate the same format prose. (Whether the definition lives in
+  one shared file or is split — for example schema in one file and capture
+  discipline in another — is left to the design phase; the requirement is the
+  no-duplication outcome, not a file count.) Each of the three sites keeps its own
   distinct destination, source, and trigger (and the review-only origin
-  reference); only the shared format/discipline is single-sourced. No two sites
-  restate the same format prose.
+  reference); only the shared format/discipline is single-sourced.
 
 ### E. What a review run produces
 
@@ -213,7 +224,12 @@ design phase and are not pre-decided.
   approval/rejection markers, live under the run folder. Two notions are kept
   distinct: the overall pipeline state (the latest run's phase, used by resume)
   and per-run completion (used to gate whether a new review may start, R7). These
-  coincide except while a review is in flight.
+  coincide except while a review is in flight. As soon as a review run folder is
+  created with only its `0-prompt/prompt.md` and nothing further, that review is
+  the latest run and the pipeline's active phase is that review's phase 1 (spec) —
+  its prompt is the input to phase 1, just as the base prompt is for the base run.
+  (How such an abandoned, prompt-only review run is recovered — resumed from its
+  prompt versus removed — is left to the design phase, R21.)
 
 - **R21 (MUST — resume targets the latest run).** Resume operates on the latest
   run's active phase; its rollback target is scoped to that run
@@ -279,17 +295,19 @@ design phase and are not pre-decided.
 
 ### J. Entry-point wiring and supersession
 
-- **R29 (MUST — wire the Review hook, distributed not monolithic).** The dangling
-  "Review" menu action is wired to a real target, and the review procedure is
-  distributed rather than monolithic: a thin entry that authors the review prompt
-  (using the shared prompt format, R13), creates the run folder (R1, R2), wires
-  the diff base (R16), then dispatches to the SAME autonomous/assisted workflow
-  references the base run uses (now run-aware). It does not re-implement a full
-  run in one self-contained file. This supersedes the closed issue #58 (which
-  envisioned a single `review-pipeline.md` reference); #58 is already closed and
-  needs no further tracker action. Wiring the Review action MUST NOT remove or
-  break the sibling Merge and Close menu actions, which remain unwired by this
-  work.
+- **R29 (MUST — wire the Review hook, distributed not monolithic).** The
+  previously dangling "Review" menu action is wired to a real target, so that
+  selecting it runs a working review procedure that produces the outcomes this
+  spec requires (an authored review prompt, a new run folder, a diff base scoped
+  to the prior run's tip, and a run that proceeds in the chosen autonomous or
+  assisted mode). That procedure is **distributed, not monolithic**: it reuses the
+  existing phase flow and shared building blocks rather than re-implementing a
+  full run in one self-contained reference file. This supersedes the closed issue
+  #58 (which envisioned a single `review-pipeline.md` reference); #58 is already
+  closed and needs no further tracker action. Wiring the Review action MUST NOT
+  remove or break the sibling Merge and Close menu actions, which remain unwired
+  by this work. (How the procedure is decomposed across files and references is
+  left to the design phase.)
 
 ## Out of Scope
 
@@ -336,11 +354,13 @@ design phase and are not pre-decided.
    Then the review does not start and the owner is steered to resume or fork
    instead. (R7)
 
-5. **Merged-and-deleted pipeline cannot be reviewed.**
+5. **Reviewability depends on whether a branch remains.**
    Given a pipeline that was merged and whose branch was deleted,
    When the owner asks for a review,
-   Then a review is not offered and the owner is directed to a fork from main.
-   (R9)
+   Then a review is not offered and the owner is directed to a fork from main;
+   whereas given a pipeline that was merged but whose branch is still live, when
+   the owner asks for a review, then a review MAY proceed (the same-branch
+   precondition is satisfiable) with the owner advised it is unusual. (R9)
 
 6. **A second review waits for the first to finish.**
    Given a pipeline with `review-1` still in progress,
@@ -369,7 +389,14 @@ design phase and are not pre-decided.
    Then the pipeline's active phase is `review-1`'s phase 2 and resume continues
    `review-1` from that phase on the same branch and worktree. (R20, R21)
 
-10. **Reviews appear as run metadata, not as fork-tree nodes.**
+10. **A just-created review run is the latest run at phase 1.**
+    Given a pipeline whose `base` is complete and whose `review-1` folder has just
+    been created with only its `0-prompt/prompt.md` (no later phase started),
+    When the pipeline's state is computed,
+    Then `review-1` is the latest run and the pipeline's active phase is
+    `review-1`'s phase 1 (spec), with its prompt as the input to phase 1. (R20)
+
+11. **Reviews appear as run metadata, not as fork-tree nodes.**
     Given a pipeline with a base run and one or more reviews,
     When the owner lists pipelines for the issue,
     Then the fork tree shows one node for the pipeline (and separate nodes only
@@ -377,22 +404,23 @@ design phase and are not pre-decided.
     (`base → review-1-… → …`) including each run's state; reviews do not appear as
     new tree nodes. (R22)
 
-11. **Forking is unaffected.**
+12. **Forking is unaffected.**
     Given a pipeline that has reviews,
     When the owner forks it,
     Then the new fork is on a fresh branch with its own `base/` run inherited from
     the parent's `base/` run, and the parent's reviews do not change the fork's
     lineage. (R23)
 
-12. **Prompt format is single-sourced.**
+13. **Prompt format is single-sourced.**
     Given the skill after this work,
     When the prompt-format schema, rendering rules, and authoring discipline are
     located,
-    Then they are defined in exactly one place, and issue creation, base-prompt
-    generation, and review-prompt generation all reference that one definition
-    without restating it. (R13)
+    Then no two of issue creation, base-prompt generation, and review-prompt
+    generation restate the same format prose — each references the shared
+    definition rather than restating the schema or discipline (whether that
+    definition lives in one file or is split is not constrained). (R13)
 
-13. **Review obeys the normal orchestrator-update obligations without changing the
+14. **Review obeys the normal orchestrator-update obligations without changing the
     version.**
     Given a review run from start to close-out,
     When the tracker and branch are observed,
@@ -401,24 +429,25 @@ design phase and are not pre-decided.
     pushed at close-out, and the pipeline's `v<N>` version label is unchanged.
     (R27, R28)
 
-14. **Fork-vs-review and splitting are advisory, not gates.**
+15. **Fork-vs-review and splitting are advisory, not gates.**
     Given a drastic change, or several unrelated changes surfaced at once,
     When the orchestrator advises a fork or a split and the owner declines,
     Then the review (or the single combined review) proceeds as the owner chose;
     only the completeness precondition can block a review. (R24, R19, R26)
 
-15. **The Review hook is wired and is distributed.**
+16. **The Review hook is wired and is distributed.**
     Given the "work on an issue" menu after this work,
     When the owner selects Review,
-    Then it runs a real review procedure that authors the prompt via the shared
-    format, creates the run folder, wires the diff base, and dispatches to the
-    existing autonomous/assisted workflows — and the Merge and Close menu actions
-    are still present (unwired) and not broken. (R29)
+    Then it runs a real review procedure (one that produces a review prompt, a new
+    run folder, a prior-run-tip diff base, and a run in the chosen mode) built on
+    the existing phase flow rather than a single self-contained re-implementation
+    of a run — and the Merge and Close menu actions are still present (unwired) and
+    not broken. (R29)
 
-16. **A legacy flat pipeline can be reviewed without migration.**
+17. **A legacy flat pipeline can be reviewed without migration.**
     Given an existing pipeline laid out flat (phase folders directly under the
     pipeline folder),
     When it is listed and then reviewed,
-    Then it is read as an implicit single `base` run, its flat artifacts are not
-    moved or rewritten, and the review is added as a `review-1-<short-description>`
-    sibling folder. (R5)
+    Then it is listed and tree-reconstructed without error, its flat artifacts are
+    not moved or rewritten, and the review is added as a
+    `review-1-<short-description>` sibling folder. (R5)
