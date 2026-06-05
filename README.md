@@ -29,7 +29,7 @@ The phases are:
 - **Phase 2. Design doc.** Architecture and technical decisions.
 - **Phase 3. Plan.** Code plan and documentation plan.
 - **Phase 4. Code.** The actual code, including unit and end-to-end tests.
-- **Phase 5. Docs.** Both internal and external documentation.
+- **Phase 5. Docs.** Both internal and external documentation, plus the pull-request description.
 
 The pipeline is **autonomous by default, assisted when needed.** It runs on its own, but humans can intervene at any checkpoint. For particularly complex tasks, specific phases can be run in assisted mode instead.
 
