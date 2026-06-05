@@ -172,15 +172,9 @@ The repository tracks every change in a changelog and keeps a single project ver
 
 ### Adding a changeset
 
-Per the repository's standing rule — alongside the README-update rule — every change to the repository records a changeset. A changeset is a committed `.changeset/*.md` file that describes the change and declares its bump type (`patch`, `minor`, or `major`). It travels with the pull request and accumulates on `trunk` until a maintainer cuts a version; it is not consumed when the PR merges. The matching rule lives in [`AGENTS.md`](./AGENTS.md).
+Per the repository's standing rule — alongside the README-update rule — every change to the repository records a changeset. A changeset is a committed `.changeset/*.md` file that describes the change and declares its bump type (`patch`, `minor`, or `major`). It travels with the pull request and accumulates on `trunk` until a release is cut; it is not consumed when the PR merges. The matching rule lives in [`AGENTS.md`](./AGENTS.md).
 
-Add one with the Changesets CLI from the repository root:
-
-```bash
-npx changeset
-```
-
-The command prompts for the bump type and a description, then writes a new `.changeset/*.md`. Commit that file with the change. Choose the bump type by semver: a behavior-preserving fix is a `patch`, a backward-compatible feature is a `minor`, and a breaking change is a `major`.
+For how to author a changeset, choose its bump type, and when one is required, see [`CONTRIBUTING.md`](./CONTRIBUTING.md#adding-a-changeset).
 
 ### The single source of truth
 
@@ -192,22 +186,20 @@ The `version` field in the root `package.json` is authoritative. The other versi
 
 ### Cutting a version
 
-Cutting a version is an operator-run local action, not CI. When a maintainer decides to release, they run a single bundled run-script from the repository root:
+Releases are driven by CI (`.github/workflows/release.yml`), not by a local operator action. Changesets accumulate on `trunk` until a release is cut; the flow is:
 
-```bash
-npm run release:version
-```
+1. **Changesets land on `trunk`.** As pull requests merge, their `.changeset/*.md` files pile up on `trunk`.
+2. **CI opens a "Version Packages" PR.** With pending changesets, the Release workflow runs `npm run release:version` and surfaces the result as a "Version Packages" pull request. In one fail-fast invocation that script: (a) runs `changeset version` to consume the pending `.changeset/*.md` files, write or update the root `CHANGELOG.md`, and bump the `version` in the root `package.json`; (b) runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json` — so `package.json` and `.claude-plugin/plugin.json` read the same string.
+3. **A maintainer merges the Version Packages PR.** The human merge is what advances the flow.
+4. **CI creates the tag and Release.** The next run creates the `v<version>` git tag and a matching GitHub Release.
 
-In one fail-fast invocation this:
+There is no `npm publish` — the root package is `"private": true` and both artifacts are consumed direct-from-git — but a release now produces a `v<version>` git tag and a GitHub Release via CI.
 
-1. runs `changeset version` to consume the pending `.changeset/*.md` files, write or update the root `CHANGELOG.md`, and bump the `version` in the root `package.json`;
-2. runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json`.
-
-The result is that the root `package.json` and `.claude-plugin/plugin.json` both read the same string. The maintainer then commits the result. There is no `npm publish`, no git tags, and no release CI — the root package is `"private": true` and both artifacts are consumed direct-from-git.
+The full maintainer procedure, the manual escape hatch for cutting a release locally, and the `GITHUB_TOKEN` a local `npm run release:version` requires (because `@changesets/changelog-github` needs it) live in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 ### How consumers get new versions
 
-Because there is no registry publish, "release" simply means the version-bearing files and `CHANGELOG.md` are updated and committed. The repository is consumed direct-from-git — the Pi package via `pi install git:github.com/Automattic/radical-pipelines` and the Claude Code plugin via the marketplace `source: "./"` (see **Project Usage** above). Consumers therefore pick up a new version on their **next git-source or marketplace install**; no separate distribution step is involved.
+The repository is consumed direct-from-git — the Pi package via `pi install git:github.com/Automattic/radical-pipelines` and the Claude Code plugin via the marketplace `source: "./"` (see **Project Usage** above). Consumers therefore pick up a new version on their **next git-source or marketplace install**; no separate distribution step is involved. Each release also produces a `v<version>` git tag and a GitHub Release, so a specific version can be pinned by tag if needed.
 
 ## Current status and limitations
 
