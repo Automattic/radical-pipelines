@@ -18,6 +18,7 @@ A fresh `doc-reviewer` is spawned **once per batch**, after every doc-writer in 
 5. Read the shipped code from phase 4 — the *what* every concrete claim in the docs must match.
 6. Read the host project's documentation convention.
 7. Inspect the doc diff for the batch (base ref → current HEAD).
+8. **If the batch includes the PR-description task,** read the originating issue identifier from `<artifacts-folder>/0-prompt/prompt.md` (its `Source issue: ...#N` line) and note the Issues convention (tracker plus access) passed in the launch context, so you can verify the artifact's issue link.
 
 ### 2. Review the changes
 
@@ -35,6 +36,14 @@ Check, for the tasks in this batch:
 ### 3. Accuracy spot-check
 
 For at least one concrete claim per task — a signature, an example, a configuration key, a path, a cross-link — verify the claim against the shipped code. An example that looks right but does not actually run is an issue. A signature that names a parameter the code does not have is an issue. A spot-check claim without evidence is not a spot-check — either produce the evidence or reject the batch.
+
+**When the batch includes the PR-description task,** apply these three additional checks to `<artifacts-folder>/5-docs/pr-description.md`:
+
+- **Whole-change accuracy.** The artifact is a summary of the entire shipped change — the spec intent, the design rationale, the code, and the phase-5 documentation. Treat this as a natural extension of the accuracy spot-check above, scaled to the whole change: every claim it makes must correspond to an actual change, with nothing invented and nothing stale. A claimed change that did not ship, or a shipped change misdescribed, is an issue; so is a summary that has gone stale against the latest committed docs.
+- **Issue link.** The artifact references the originating issue per the Issues convention, tracker-agnostically. Verify the reference resolves to the originating issue identifier you read from `0-prompt/prompt.md` in step 1. The contract does NOT require a hard-coded GitHub-specific keyword (such as `Closes #N`); any link or identifier that resolves to the issue in the host's tracker satisfies it. A missing, wrong, or non-resolving issue reference is an issue.
+- **Self-containment.** Because the artifact's entire content is reused verbatim as a PR body, it must stand alone: it contains no links into the pipeline's artifact folder and no fork-relative paths. This explicitly includes the R3-over-R5 provenance case — a "How this was produced" line that reintroduces a `.rp/...` fork-relative path is a defect. The provenance mention may stay; the fork-relative path must be stripped. Publicly resolvable links (the originating issue, an absolute "Generated with Claude Code"-style URL) are fine.
+
+These are not a separate gate: an artifact problem is reported as an issue tagged to the PR-description task's ID in the normal rejection structure below, and the existing task-ID re-dispatch carries it. There is no separate approval and no second terminator file for the PR description.
 
 ### 4. Write the review
 
