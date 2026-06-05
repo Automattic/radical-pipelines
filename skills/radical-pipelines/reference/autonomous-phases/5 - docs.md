@@ -14,6 +14,7 @@ Outputs:
 - Documentation updates (READMEs, guides, examples, configuration descriptions, changelogs, contributor docs, internal conventions, non-symbol inline narrative) committed on the pipeline branch.
 - `<artifacts-folder>/5-docs/docs-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …).
 - `<artifacts-folder>/5-docs/docs-review-approved.md` (single, unnumbered file written on approval).
+- `<artifacts-folder>/5-docs/pr-description.md` — the PR-description artifact, holding the generated PR body content for the pipeline branch.
 
 ## Decisions
 
