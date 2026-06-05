@@ -59,6 +59,7 @@ Important:
 - Each time you spawn an agent, include the following project conventions in its initial prompt:
   - **Artifact folder** — the absolute and full path to this pipeline's artifact folder.
   - **Commit format** — the commit message format the agent must use.
+  - **Issues convention** — the host's issue tracker and how to access it, so phase-5 agents can discover the host's PR conventions from recent merged PRs and link the issue in a tracker-agnostic way.
 - Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
 
 ## 6. Handle blockers
