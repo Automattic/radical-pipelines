@@ -176,6 +176,12 @@ Capture:
   - Upstream branch format
   - Upstream commit format
 
+For `artifacts-in-fork`, the `name` recorded per role is the **resolved** (post-decision) name, not the logical role: `origin` for the fork and `upstream` for the canonical when the owner accepted the rename recommendation, or the existing actual names when the owner declined.
+
+This recorded `name` is authoritative: downstream operations resolve the logical role (`upstream` / `fork`) to the recorded `name` rather than assuming a literal. For example, the clean-branch push targets the upstream remote by its recorded `name`, and the run-close-out push of the pipeline branch targets the fork remote by its recorded `name`. Fork-mode pushes are always explicit-by-remote (`git push <remote> <branch>`) using the recorded `name`, never relying on a default remote.
+
+Worked example (owner declined the rename, so the roles and resolved names differ): role `fork` resolves to name `myfork`, and role `upstream` resolves to name `canonical`. Downstream operations then push to `myfork` and `canonical` respectively — the literal names recorded for those roles — even though the roles are still called `fork` and `upstream`.
+
 ## 3. Apply agentic coding tool setup actions
 
 Some agentic coding tools require setup actions beyond conventions.
