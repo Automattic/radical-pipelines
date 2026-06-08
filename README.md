@@ -138,16 +138,6 @@ Dependency delivery is not a `bundledDependencies` mechanism. Both Pi install pa
 
 The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root. There is no hidden source directory and no mirror-symlink scheme: the directories the Claude Code plugin and the Pi package read are the canonical sources themselves.
 
-## Fallback skill install
-
-Fallback skill-only install with the [Skills command-line tool](https://github.com/vercel-labs/skills):
-
-```bash
-npx skills add Automattic/radical-pipelines
-```
-
-The fallback only installs the skill. It does not install Pi extensions, `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, or predefined team source files, and skill install paths can vary across CLIs, symlinks, and home-relative setups. Use the Pi package when you want package-managed Pi resources and bundled dependencies.
-
 ## Configuration
 
 The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. Conventions live in a single merged `.rp.md` file, populated by the interactive setup flow.
@@ -196,42 +186,3 @@ Releases are driven by CI (`.github/workflows/release.yml`), not by a local oper
 There is no `npm publish` — the root package is `"private": true` and both artifacts are consumed direct-from-git — but a release now produces a `v<version>` git tag and a GitHub Release via CI.
 
 The full maintainer procedure, the manual escape hatch for cutting a release locally, and the `GITHUB_TOKEN` a local `npm run release:version` requires (because `@changesets/changelog-github` needs it) live in [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-
-### How consumers get new versions
-
-The repository is consumed direct-from-git — the Pi package via `pi install git:github.com/Automattic/radical-pipelines` and the Claude Code plugin via the marketplace `source: "./"` (see **Project Usage** above). Consumers therefore pick up a new version on their **next git-source or marketplace install**; no separate distribution step is involved. Each release also produces a `v<version>` git tag and a GitHub Release, so a specific version can be pinned by tag if needed.
-
-## Current status and limitations
-
-CLIs:
-
-- Claude Code
-- Pi
-
-Entry points:
-
-- **Work on an issue** — identify an existing issue, then create a new pipeline or act on one that already exists. The orchestrator lists the issue's existing pipelines, reconstructs their version tree, and determines each one's completed and active phase per `reference/pipeline-versioning.md`. When matches exist, the owner can **resume** an in-progress pipeline — re-attach to its branch and worktree, verify on-disk state against the per-phase completion predicate, and continue from the right phase, restarting a partially-complete phase after owner confirmation (see `reference/resume-pipeline.md`) — or **fork** a new pipeline from an existing one (see `reference/fork-pipeline.md`). The chosen pipeline then runs through a workflow.
-- **Manage issues** — create or modify a well-formed issue through a short Q&A between the orchestrator and the owner. The issue records the desired _outcome_ (the always-present Goal) plus only the constraints, context, or open assumptions the owner already holds; it stays a WHAT-only prompt because requirements, design, and the task plan are produced by later phases, and the agents do their own research. The orchestrator tells the owner that under-specifying is safe and surfaces owner hypotheses as "directions to explore," not requirements. The issue body doubles as the phase-0 prompt. See `reference/manage-issues.md`.
-
-Workflows:
-
-- **Autonomous workflow** — runs phases unattended up to a target phase agreed with the owner at the start of the session. The owner makes all per-phase decisions up-front and the run executes without further interruptions until it reaches the target.
-- **Assisted workflow** — runs one phase at a time with the owner. Phases 1, 2, and 3 are currently implemented; the orchestrator drives the work directly with the owner and commits the phase artifacts (plus a `<artifact>-review-approved.md` recording the owner's approval) once the owner explicitly approves.
-
-The autonomous workflow launches a recurring **health monitor** for the run (5-minute interval, 10-minute no-output threshold). It watches for stalled agents, message failures, login / API-key errors, and network failures, attempts up to two bounded auto-recovery actions per issue, and escalates anything it cannot resolve to the owner with the agent name, error verbatim, last-known progress, and a suggested next step. Context-window limits are handled by each tool's built-in auto-compaction, not by the monitor. Implementation uses Claude Code's bundled `/loop` skill or the `@pi-agents/loop` Pi package. Assisted runs do not use a monitor — the owner is already in the loop. See `reference/health-monitoring.md`.
-
-Phases (within implemented workflows):
-
-- **Phase 0 (Prompt)** captures the task as `prompt.md`.
-- **Phase 1 (Spec)** produces `spec-research.md` and `spec.md` from the prompt. In the autonomous workflow, a `spec-analyst` and a `spec-researcher` first run an iterative one-question-at-a-time Q&A loop (routed through the orchestrator) that records `spec-research.md`. The spec phase keeps its requirements to observable behavior — the `spec-analyst` directs the `spec-researcher` as deeply as each question needs, and records only what the feature must do, leaving mechanism and architecture to phase 2. Then a fresh `spec-writer` writes `spec.md` as a standalone document, and a fresh adversarial `spec-reviewer` either approves it or sends specific issues back for revision, looping until approval. A `spec-consolidator` agent profile also ships for a future multi-writer mode (N parallel `spec-writer` instances merged into one draft), but that mode is not wired into the phase yet.
-- In the assisted workflow, phase 1 produces `spec-research.md` and `spec.md` through Q&A with the owner directly (no agents spawned).
-- **Phase 2 (Design doc)** produces `design-doc-research.md` and `design-doc.md` from the spec. In the autonomous workflow, a `design-doc-analyst` and a `design-doc-researcher` first run an iterative one-topic-at-a-time design Q&A loop (routed through the orchestrator) that records `design-doc-research.md` — this is where the HOW is worked out at full implementation depth, the depth the spec phase deliberately left out. Then a fresh `design-doc-writer` synthesizes `design-doc.md` as a standalone document from `spec.md` and `design-doc-research.md`, and a fresh adversarial `design-doc-reviewer` either approves or sends specific issues back for revision, looping until approval.
-- **Phase 3 (Plan)** ships two writer/reviewer pairs that run sequentially: first `code-plan-writer` + `code-plan-reviewer` produce `code-plan.md` (the ordered code tasks); then `doc-plan-writer` + `doc-plan-reviewer` produce `doc-plan.md` (what documentation surfaces to update, where, and for whom — without prescribing wording).
-- **Phase 4 (Code)** ships `code-writer` and `code-reviewer` agent profiles. The orchestrator dispatches one fresh `code-writer` per task from `code-plan.md`, sequentially, because all writers share the pipeline branch's single working tree. Each writer implements its single assigned task with test-driven development: per-task Acceptance criteria drive unit tests in RED/GREEN/REFACTOR, then behavior verification runs through the host project's verification convention, then end-to-end tests are derived from that verification. Every gate the verification convention documents must pass before the writer commits. After every code-writer in the batch commits, a single fresh `code-reviewer` reviews the whole batch against `code-plan.md`, the spec, and the design doc. On rejection, issues are tagged per task; the orchestrator re-dispatches only the affected tasks and the reviewer runs again, until approved.
-- **Phase 5 (Docs)** ships `doc-writer` and `doc-reviewer` agent profiles. The orchestrator dispatches one fresh `doc-writer` per task from `doc-plan.md`, sequentially, because all writers share the pipeline branch's single working tree. Each writer reads three sources of truth — the assigned task block (what to document, for whom), the spec and design doc (why this exists and why it is shaped this way), and the shipped code from phase 4 (what actually exists, names, signatures, paths, behavior) — and synthesizes them into documentation that matches its stated audience. Every concrete claim is verified against the shipped code; any documentation gates the host project's verification convention enumerates must pass before the writer commits (many projects enumerate none and rely on the reviewer's accuracy spot-check). After every doc-writer in the batch commits, a single fresh `doc-reviewer` reviews the whole batch against `doc-plan.md`, the spec, the design doc, and the shipped code. On rejection, issues are tagged per task; the orchestrator re-dispatches only the affected tasks and the reviewer runs again, until approved.
-
-Pi package limitations:
-
-- pi-teams reads predefined agents from global or project-local locations, not package-local files. Radical Pipelines agent profiles should be available either repository-locally in `.pi/agents/` or user-locally/globally in `~/.pi/agent/agents/` before they are discoverable to `pi-teams`.
-- Local validation on Node v20.14.0 produced npm `EBADENGINE` warnings from transitive dependencies and two moderate `npm audit` findings.
-- Open PRs may change nearby guidance later: PR #6 may improve pi-teams examples, PR #10 may change convention setup, and PR #12 may add orchestration safeguards. This package does not depend on those PRs being merged.
