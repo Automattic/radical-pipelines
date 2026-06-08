@@ -29,6 +29,8 @@ Ask for the required information in a clear sequence, one convention at a time. 
 
 If a convention must be of a specific form due to the agentic coding tool's rules and does not require user input, simply inform the owner with a message explaining that convention and proceed to the next one.
 
+The model each spawned agent runs on can optionally be pinned per project — mention this once, point the owner to the **Agent models** shape below, and move on without running a per-agent question or loop.
+
 ### Pipeline base slug (required)
 
 The unique identifier for a pipeline.
@@ -84,6 +86,45 @@ Suggested default: `<pipeline-slug>`.
 How agents are organized into teams, spawned, and addressed across orchestrator sessions.
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run.
+
+### Agent models
+
+Optional. Which model — and optional settings such as reasoning `effort` — each spawned agent runs on. When the owner opts in, the orchestrator records it; when they don't, nothing is written and every agent keeps today's behavior.
+
+The convention is a bold-label bullet list under a per-tool `### Agent models` heading: one block under `## Claude Code` and one under `## Pi`, since the two tools identify models differently. Within a block:
+
+- A reserved `**Default:**` bullet expresses the project-wide default.
+- Each configured agent is a `**<agent-name>:**` bullet keyed by the exact agent name (e.g. `spec-writer`, `code-reviewer`).
+
+Values are tool-native and opaque — the orchestrator passes them to the spawn mechanism verbatim and never translates between tools, so the same logical choice may need a different string per tool:
+
+- Claude Code: a bare alias or first-party ID, such as `opus` or `claude-opus-4-8`.
+- Pi: a provider-qualified `provider/model`, such as `anthropic/claude-opus-4-8`.
+
+A model-only or single-setting entry uses the **inline** form, with the model and any one setting after the bold label:
+
+```markdown
+- **Default:** `claude-opus-4-8`, effort `high`
+- **spec-writer:** `claude-opus-4-8`, effort `high`
+- **code-reviewer:** `opus`
+```
+
+An entry carrying **multiple settings** uses the **nested sub-bullet** form — one sub-bullet for the model, one per setting — so the block scales to other settings without changing idiom:
+
+```markdown
+- **code-writer:**
+  - model `claude-opus-4-8`
+  - effort `high`
+  - <other-runtime-setting> `<value>`
+```
+
+`effort` is the worked example here; any other runtime-supported setting follows the exact same inline-or-nested form.
+
+Each block carries a one-sentence lead-in stating the resolution rule, scoped to the active tool:
+
+> Optional. For the active tool, spawn each agent on the model/settings of its entry below; an agent with no entry uses **Default**; with no applicable default it keeps today's behavior (no model/settings override).
+
+Resolution is **per key**: the model and each named setting resolve independently, each by most-specific-wins — the agent entry's value for that key, else the `Default`'s value for that key, else today's behavior for that key. An agent entry that pins only a model therefore **inherits** the `Default`'s `effort` (it does not strip it).
 
 ### Health monitoring (required)
 
