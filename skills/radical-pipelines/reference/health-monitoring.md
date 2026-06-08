@@ -35,8 +35,13 @@ Each issue gets a **2-retry budget** before escalation. Recovery actions are app
 | Message failure        | Re-send the message                                             | Restart the target agent                 | Report to owner                     |
 | Login / API-key error  | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model  | Report to owner                     |
 | Network failure        | Retry the tool call once                                        | Wait one interval and retry              | Report to owner                     |
+| Rejected configured value (non-auth) | — (deterministic; re-spawning the same value fails identically) | — | Report to owner immediately, do not retry |
 
 When a retry succeeds, reset that issue's budget. The 2-retry budget is per issue occurrence, not per session.
+
+A configured-value rejection that is **not** an auth error is deterministic — escalate without spending the retry budget on an identical re-spawn. An **unauthenticated provider** stays in the existing `Login / API-key error` row (model swap, AC14), not this row.
+
+A recovery model swap is **transient**: it applies only to the recovery re-spawn and is **never written back to `.rp.md`**. The next fresh spawn of any agent re-reads the **Agent models** convention and runs on the configured model again.
 
 ## Escalation payload
 
