@@ -44,6 +44,7 @@ When auto-recovery is exhausted, surface the issue to the owner with:
 
 - **Agent name** — the agent affected (or `orchestrator` for session-level issues).
 - **Error verbatim** — the exact error message returned by the tool or model.
+- **Rejected configured value** *(when the failure is a rejected model/settings configuration)* — the exact configured value the runtime rejected (the agent's configured model string or `effort` level), as written in the **Agent models** convention.
 - **Last-known progress** — what the agent produced or did most recently (commit, message, artifact written).
 - **Suggested next step** — the smallest action the owner can take (re-authenticate provider X, increase a quota, retry the phase, etc.).
 
