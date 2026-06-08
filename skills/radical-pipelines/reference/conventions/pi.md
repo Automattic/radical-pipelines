@@ -27,7 +27,7 @@ Agents in the same team address each other directly via pi-teams messaging. When
 
 If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
 
-Prefer explicit provider-qualified models (`provider/model`). If a spawn fails with login/API-key errors, do not run `/login` first: run `pi --list-models`, pick an authenticated provider-qualified model, and retry. If none is available, stop and ask the owner to authenticate or choose a model.
+Prefer explicit provider-qualified models (`provider/model`). If a spawn fails with login/API-key errors, do not run `/login` first: run `pi --list-models`, pick an authenticated provider-qualified model **other than the one that just failed**, and retry — this recovery fallback is distinct from the per-agent **Agent models** config and must not re-select the failed model. If none is available, stop and ask the owner to authenticate or choose a model.
 
 ## Health monitoring
 
@@ -39,6 +39,10 @@ Use the `@pi-agents/loop` package, bundled by the Radical Pipelines Pi package. 
 
 The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
 ```
+
+A project may optionally add an `### Agent models` block under `## Pi` per the shape documented in `setup.md` (`### Agent models`).
+
+When such a block applies, Pi receives the resolved per-agent model as a provider-qualified `provider/model` (and any settings) applied as parameters of `spawn_teammate` / `create_predefined_team`, passed verbatim, on the spawn rather than in its prompt. The Pi binary was absent during design, so the exact per-teammate model/settings argument names are **unconfirmed** — confirm them against a live Pi and document them at that concrete level if confirmed; otherwise keep this note at the `provider/model` level. If Pi exposes **no** per-teammate settings knob, the `effort`/settings portion of the Pi `### Agent models` block is simply inapplicable for Pi (model-only), which the verbatim opaque-pass-through design already tolerates.
 
 ## Setup actions
 
