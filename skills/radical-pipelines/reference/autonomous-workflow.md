@@ -59,6 +59,7 @@ Important:
 - Each time you spawn an agent, include the following project conventions in its initial prompt:
   - **Artifact folder** — the absolute and full path to this pipeline's artifact folder.
   - **Commit format** — the commit message format the agent must use.
+- Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply the result as parameters of the spawn itself.
 - Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
 
 ## 6. Handle blockers

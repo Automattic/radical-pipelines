@@ -27,7 +27,7 @@ Agents in the same team address each other directly via pi-teams messaging. When
 
 If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
 
-Prefer explicit provider-qualified models (`provider/model`). If a spawn fails with login/API-key errors, do not run `/login` first: run `pi --list-models`, pick an authenticated provider-qualified model, and retry. If none is available, stop and ask the owner to authenticate or choose a model.
+Prefer explicit provider-qualified models (`provider/model`). If a spawn fails with login/API-key errors, do not run `/login` first: run `pi --list-models`, pick an authenticated provider-qualified model **other than the one that just failed**, and retry — this recovery fallback is distinct from the per-agent **Agent models** config and must not re-select the failed model. If none is available, stop and ask the owner to authenticate or choose a model.
 
 ## Health monitoring
 

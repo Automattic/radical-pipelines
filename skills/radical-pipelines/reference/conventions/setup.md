@@ -85,6 +85,18 @@ How agents are organized into teams, spawned, and addressed across orchestrator 
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run.
 
+### Agent models
+
+Which model — and optional settings such as reasoning `effort` — each spawned agent runs on.
+
+- A reserved `**Default:**` bullet expresses the project-wide default.
+- Each configured agent is a `**<agent-name>:**` bullet keyed by the exact agent name (e.g. `spec-writer`, `code-reviewer`).
+
+Values are tool-native and opaque — the orchestrator passes them to the spawn mechanism verbatim, so the same logical choice may need a different string per tool:
+
+- A bare alias or first-party ID, such as `opus` or `claude-opus-4-8`.
+- A provider-qualified `provider/model`, such as `anthropic/claude-opus-4-8`.
+
 ### Health monitoring (required)
 
 How the orchestrator launches a recurring monitor in the autonomous workflow to detect stalls, message failures, login errors, network errors, and so on. Context-window limits are handled by each tool's own auto-compaction, not by the monitor.

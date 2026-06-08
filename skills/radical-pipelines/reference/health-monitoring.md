@@ -29,12 +29,12 @@ The monitor reads from the artifact folder (last commits, agent logs if availabl
 
 Each issue gets a **2-retry budget** before escalation. Recovery actions are applied in order:
 
-| Issue                  | Retry 1                                                         | Retry 2                                  | Escalate                            |
-| ---------------------- | --------------------------------------------------------------- | ---------------------------------------- | ----------------------------------- |
-| No-output stall        | Ping the agent with a status request                            | Restart the agent in the same team       | Report to owner                     |
-| Message failure        | Re-send the message                                             | Restart the target agent                 | Report to owner                     |
-| Login / API-key error  | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model  | Report to owner                     |
-| Network failure        | Retry the tool call once                                        | Wait one interval and retry              | Report to owner                     |
+| Issue                 | Retry 1                                                            | Retry 2                             | Escalate        |
+| --------------------- | ------------------------------------------------------------------ | ----------------------------------- | --------------- |
+| No-output stall       | Ping the agent with a status request                               | Restart the agent in the same team  | Report to owner |
+| Message failure       | Re-send the message                                                | Restart the target agent            | Report to owner |
+| Login / API-key error | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model | Report to owner |
+| Network failure       | Retry the tool call once                                           | Wait one interval and retry         | Report to owner |
 
 When a retry succeeds, reset that issue's budget. The 2-retry budget is per issue occurrence, not per session.
 
