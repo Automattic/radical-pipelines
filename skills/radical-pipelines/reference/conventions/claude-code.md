@@ -40,3 +40,7 @@ Use Claude Code's bundled `/loop` skill — no install is required. Only the aut
 
 The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
 ```
+
+A project may optionally add an `### Agent models` block under `## Claude Code` per the shape documented in `setup.md` (`### Agent models`).
+
+When such a block applies, Claude Code receives the resolved per-agent model and settings as parameters of the agent spawn — the `--model` (bare alias such as `opus`, or a first-party ID such as `claude-opus-4-8`) and `--effort` (`{low, medium, high, xhigh, max}`) — passed verbatim, on the dispatched/spawned agent rather than in its prompt. Confirm the exact spawn-parameter name against the live tool (the `TeamCreate`/agent-launch tool field vs. the `claude agents` CLI surface, which exposes `--model`/`--effort` as defaults for dispatched sessions) and document it at that concrete level if confirmed; otherwise keep this note at the verified `--model`/`--effort` level.
