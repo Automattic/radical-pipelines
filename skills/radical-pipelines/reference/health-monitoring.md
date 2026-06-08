@@ -29,19 +29,14 @@ The monitor reads from the artifact folder (last commits, agent logs if availabl
 
 Each issue gets a **2-retry budget** before escalation. Recovery actions are applied in order:
 
-| Issue                  | Retry 1                                                         | Retry 2                                  | Escalate                            |
-| ---------------------- | --------------------------------------------------------------- | ---------------------------------------- | ----------------------------------- |
-| No-output stall        | Ping the agent with a status request                            | Restart the agent in the same team       | Report to owner                     |
-| Message failure        | Re-send the message                                             | Restart the target agent                 | Report to owner                     |
-| Login / API-key error  | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model  | Report to owner                     |
-| Network failure        | Retry the tool call once                                        | Wait one interval and retry              | Report to owner                     |
-| Rejected configured value (non-auth) | — (deterministic; re-spawning the same value fails identically) | — | Report to owner immediately, do not retry |
+| Issue                 | Retry 1                                                            | Retry 2                             | Escalate        |
+| --------------------- | ------------------------------------------------------------------ | ----------------------------------- | --------------- |
+| No-output stall       | Ping the agent with a status request                               | Restart the agent in the same team  | Report to owner |
+| Message failure       | Re-send the message                                                | Restart the target agent            | Report to owner |
+| Login / API-key error | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model | Report to owner |
+| Network failure       | Retry the tool call once                                           | Wait one interval and retry         | Report to owner |
 
 When a retry succeeds, reset that issue's budget. The 2-retry budget is per issue occurrence, not per session.
-
-A configured-value rejection that is **not** an auth error is deterministic — escalate without spending the retry budget on an identical re-spawn. An **unauthenticated provider** stays in the existing `Login / API-key error` row (model swap, AC14), not this row.
-
-A recovery model swap is **transient**: it applies only to the recovery re-spawn and is **never written back to `.rp.md`**. The next fresh spawn of any agent re-reads the **Agent models** convention and runs on the configured model again.
 
 ## Escalation payload
 
@@ -49,7 +44,6 @@ When auto-recovery is exhausted, surface the issue to the owner with:
 
 - **Agent name** — the agent affected (or `orchestrator` for session-level issues).
 - **Error verbatim** — the exact error message returned by the tool or model.
-- **Rejected configured value** *(when the failure is a rejected model/settings configuration)* — the exact configured value the runtime rejected (the agent's configured model string or `effort` level), as written in the **Agent models** convention.
 - **Last-known progress** — what the agent produced or did most recently (commit, message, artifact written).
 - **Suggested next step** — the smallest action the owner can take (re-authenticate provider X, increase a quota, retry the phase, etc.).
 

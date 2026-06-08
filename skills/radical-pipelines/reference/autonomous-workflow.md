@@ -59,13 +59,7 @@ Important:
 - Each time you spawn an agent, include the following project conventions in its initial prompt:
   - **Artifact folder** — the absolute and full path to this pipeline's artifact folder.
   - **Commit format** — the commit message format the agent must use.
-- Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply the result as parameters of the spawn itself:
-  - Under the **active tool's** `### Agent models` block, resolve by a two-step lookup: the agent's own entry → else the project-wide `Default` → else today's behavior (no model/settings override, inheriting the runtime/session model and that model's default settings).
-  - Resolution is **per key**: the model and each named setting resolve independently, each by most-specific-wins — the agent entry's value for that key, else the `Default`'s value for that key, else today's behavior for that key. An agent entry that pins only a model therefore inherits the `Default`'s `effort` (it does not strip it).
-  - There are exactly two key kinds — an exact agent name and the reserved `Default`. No prefix or glob keys are interpreted.
-  - Apply the resolved model/settings as **parameters of the spawn itself, not in the agent's initial prompt** — a different channel than the prompt-channel conventions above (**Artifact folder** and **Commit format**).
-  - Pass the configured values **verbatim** to the active tool's spawn mechanism: no translation between tools, and no pre-validation against any model/effort/provider capability matrix. The runtime is the authority on validity.
-  - The model/settings ride the spawn channel only. Configuring a model never requires or causes any edit to an agent's generic profile file or behavior instructions.
+- Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply the result as parameters of the spawn itself.
 - Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
 
 ## 6. Handle blockers

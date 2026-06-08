@@ -40,10 +40,6 @@ Use the `@pi-agents/loop` package, bundled by the Radical Pipelines Pi package. 
 The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
 ```
 
-A project may optionally add an `### Agent models` block under `## Pi` per the shape documented in `setup.md` (`### Agent models`).
-
-When such a block applies, Pi receives the resolved per-agent model as a provider-qualified `provider/model` (and any settings) applied as parameters of `spawn_teammate` / `create_predefined_team`, passed verbatim, on the spawn rather than in its prompt. The Pi binary was absent during design, so the exact per-teammate model/settings argument names are **unconfirmed** — confirm them against a live Pi and document them at that concrete level if confirmed; otherwise keep this note at the `provider/model` level. If Pi exposes **no** per-teammate settings knob, the `effort`/settings portion of the Pi `### Agent models` block is simply inapplicable for Pi (model-only), which the verbatim opaque-pass-through design already tolerates.
-
 ## Setup actions
 
 Pi requires the Radical Pipelines agent definitions to be discoverable. Step 3 of `setup.md` installs them after conventions have been collected.
