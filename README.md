@@ -150,7 +150,7 @@ The fallback only installs the skill. It does not install Pi extensions, `pi-tea
 
 ## Configuration
 
-The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. Conventions live in a single merged `.rp.md` file, populated by the interactive setup flow.
+The skill is generic — each project defines its own conventions for things like the task source, existing work checks, pipeline slug format, worktree commands, branch naming, artifact folder location, and how teams of agents are spawned. A project's shared conventions live in a committed `.rp.md` file, populated by the interactive setup flow; an individual developer can optionally layer a restricted subset of local overrides on top of it (see below).
 
 If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup. Setup separates shared project guidance from guidance specific to the active agentic coding tool, and writes `.rp.md` only after the owner confirms the proposed content.
 
@@ -166,7 +166,7 @@ The orchestrator loads and verifies conventions before launching phase agents. W
 
 Each phase commits inspectable review artifacts into the task's artifact folder. In autonomous mode, reviewer agents write rejected iterations as `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) and a single `<artifact>-review-approved.md` on approval; in assisted mode, the orchestrator writes the `<artifact>-review-approved.md` file capturing the owner's explicit approval (assisted runs produce no rejection files because the owner iterates with the orchestrator before any commit). The autonomous-phase and assisted-phase references list the exact filenames per phase, and `reference/pipeline-versioning.md` documents how the orchestrator uses them to detect phase completion uniformly across both modes.
 
-A single project keeps everything in one merged [`.rp.md`](./.rp.md): a shared section (issue tracking, pipeline slug format, artifact folder, commit format, Linear updates, push behavior) followed by a per-tool section covering only what depends on the active tool (worktrees, branch names, team spawning, agent models, health monitoring). A normal single-CLI consumer carries just the shared section plus the one tool block its CLI uses. This repository is the unusual case: as the only multi-CLI consumer of Radical Pipelines, it dogfoods both CLIs at once, so its `.rp.md` is hand-maintained to carry the shared section plus both the Claude Code and the Pi per-tool sections side-by-side.
+A project's committed [`.rp.md`](./.rp.md) is organized as a shared section (issue tracking, pipeline slug format, artifact folder, commit format, Linear updates, push behavior) followed by a per-tool section covering only what depends on the active tool (worktrees, branch names, team spawning, agent models, health monitoring). A normal single-CLI consumer carries just the shared section plus the one tool block its CLI uses. This repository is the unusual case: as the only multi-CLI consumer of Radical Pipelines, it dogfoods both CLIs at once, so its `.rp.md` is hand-maintained to carry the shared section plus both the Claude Code and the Pi per-tool sections side-by-side.
 
 ## Changelog and versioning
 
