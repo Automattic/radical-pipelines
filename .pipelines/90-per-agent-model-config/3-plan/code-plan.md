@@ -8,7 +8,9 @@ Inputs: `1-spec/spec.md` (15 requirements, 16 ACs), `2-design-doc/design-doc.md`
 
 This is a **documentation-as-implementation** feature: Radical Pipelines has no executable orchestration code. The "code" is the prose an LLM orchestrator reads and follows at runtime — the project's `.rp.md` config file and the reference Markdown under `skills/radical-pipelines/reference/`. So every task below is a prose edit to a source/convention/template file, and "acceptance" means the edited prose unambiguously makes an LLM reader behave as the spec requires. The design is **purely additive**: a project may optionally record an `### Agent models` block under each per-tool section of `.rp.md`; at spawn time the orchestrator resolves, per key, the agent's entry → else `Default` → else today's behavior, and applies the resolved model/settings as **spawn parameters** (not in the prompt), verbatim, with no translation and no pre-validation. A project that configures nothing is completely unaffected.
 
-The tasks are ordered so the shared, tool-agnostic shape and resolution rule are fixed first (Tasks 1–3), the per-tool concrete surfaces and seeds follow (Tasks 4–5), then the error/recovery edits (Tasks 6–7), the dogfood `.rp.md` (Task 8, which depends on the canonical shape being settled), and finally the README catalog (Task 9). Task 10 is a final cross-file consistency verification — this feature's failure mode is documentation drift between the canonical shape and its seeds, so a dedicated reconciliation pass is warranted.
+The tasks are ordered so the shared, tool-agnostic shape and resolution rule are fixed first (Tasks 1–3), the per-tool concrete surfaces and seeds follow (Tasks 4–5), then the error/recovery edits (Tasks 6–7), and the dogfood `.rp.md` (Task 8, which depends on the canonical shape being settled). Task 9 is a final cross-file consistency verification — this feature's failure mode is documentation drift between the canonical shape and its seeds, so a dedicated reconciliation pass is warranted.
+
+**Deferred to the doc plan (phase 5, not this code phase):** the `README.md` `Agent models` catalog mention (the per-tool conventions catalog around `README.md:157`/`:167`) and the mandatory CI changeset (`.changeset/*.md`, required by the Changeset Gate because this feature touches the release-relevant `skills/**` and `README.md` paths) are docs-phase surfaces owned by the doc plan / `doc-writer`, not the code phase. They are not dropped — they hand off to phase 5. The README is intentionally written *after* the code phase lands so it is authored against the real shipped skill-reference text (canonical name, per-tool catalog wording), and the changeset is a docs-phase artifact (a "changelog" output per the docs-phase reference). This code plan therefore does not edit `README.md` or add a changeset.
 
 Two design choices the spec did not pin are carried forward and **must** be honored verbatim by every task that states the rule: (a) **per-key resolution** — the model and each setting resolve independently, so an agent entry that pins only a model inherits the `Default`'s `effort` (design §5.2); (b) the **frontmatter `model:` channel is forbidden** — `agents/*.md` profiles are never edited and the model never rides agent frontmatter (design §7). Two design open questions remain runtime-confirmable, not blockers: the exact CC spawn-parameter name and the exact Pi per-teammate model/settings argument (design §13 OQ1–2). Tasks that name those surfaces instruct the writer to confirm them against the live tool and otherwise keep the documented surface at the verified level.
 
@@ -176,38 +178,22 @@ A note on line anchors: the design cites approximate `.rp.md` line numbers (e.g.
   - The Pi recovery step 5 carries the transience clause; the provider-neutral closer is unchanged.
   - No `agents/*.md` file is modified and no agent-frontmatter `model:` key is introduced.
 
-### Task 9: Add the `Agent models` mention to the README per-tool-section catalog
+### Task 9: Cross-file consistency verification of the canonical shape and paired recovery edit
 
-- **Goal:** Keep the README's per-tool conventions catalog complete by mentioning the optional `Agent models` block, so it stays accurate regardless of the canonical-template decision.
-- **Files to change:** `README.md`.
-- **Changes:**
-  - In the "## Configuration" section, add a one-clause mention of the optional `Agent models` block to the per-tool catalog. Target the catalog sentences:
-    - `README.md:157` ("Claude Code conventions add … the bundled `/loop` health monitor. Pi conventions add … the `@pi-agents/loop` health monitor, and Pi agent discovery rules.") — add the optional per-agent model configuration as a catalog item for the per-tool sections.
-    - `README.md:167` ("a per-tool section covering only what depends on the active tool (worktrees, branch names, team spawning, health monitoring)") — extend the enumerated per-tool contents to include the optional agent-models block.
-  - Keep the addition to a single clause/mention; do not restate the full shape (that lives in `setup.md`).
-- **Depends on:** Task 1 (so the README mention matches the canonical name `Agent models`). Independent of the other tasks otherwise.
-- **Traces to:** Documentation completeness (design "Files touched" → README row, §4.5, §12 risk 4). No new spec requirement; supports R5/R8 discoverability.
-- **Acceptance:**
-  - The README per-tool catalog (around `:157` and/or `:167`) mentions the optional `Agent models` block as part of the per-tool section contents.
-  - The mention uses the canonical name `Agent models`, matching the `load.md` row and the `.rp.md` heading.
-  - The addition is a single clause/mention and does not duplicate the full block shape.
-
-### Task 10: Cross-file consistency verification of the canonical shape and paired recovery edit
-
-- **Goal:** This feature's primary failure mode is documentation drift — the canonical `### Agent models` shape and the AC16 recovery disambiguation are described in several files that must agree, or a fresh project's seeded `.rp.md` will not match what the orchestrator expects (design §12 risks 2 and 4). Run a final reconciliation pass so all copies describe the same shape and the same recovery rule. This task makes no new design decisions; it only verifies and aligns wording already produced by Tasks 1–9.
-- **Files to change:** Any of `setup.md`, `load.md`, `autonomous-workflow.md`, `claude-code.md`, `pi.md`, `health-monitoring.md`, `.rp.md`, `README.md` — edits here are corrective only (align wording), not new content.
+- **Goal:** This feature's primary failure mode is documentation drift — the canonical `### Agent models` shape and the AC16 recovery disambiguation are described in several files that must agree, or a fresh project's seeded `.rp.md` will not match what the orchestrator expects (design §12 risks 2 and 4). Run a final reconciliation pass so all copies describe the same shape and the same recovery rule. This task makes no new design decisions; it only verifies and aligns wording already produced by Tasks 1–8.
+- **Files to change:** Any of `setup.md`, `load.md`, `autonomous-workflow.md`, `claude-code.md`, `pi.md`, `health-monitoring.md`, `.rp.md` — edits here are corrective only (align wording), not new content. (`README.md` is **not** in scope — it is deferred to the doc plan, per the "Deferred to the doc plan" note in the Overview.)
 - **Changes:**
   - Verify the **canonical shape** is described consistently across `setup.md` (Task 1), the `.rp.md` example blocks (Task 8), and the per-tool breadcrumbs (Tasks 4–5): same heading name `### Agent models`, same reserved `**Default:**` label, same per-agent bullet form, same inline-vs-nested settings rule.
-  - Verify the **convention name** `Agent models` matches across the `load.md` row (Task 2), the `.rp.md` headings (Task 8), the README mention (Task 9), and every reference to the convention by name in `autonomous-workflow.md` (Task 3) and `health-monitoring.md` (Tasks 6–7).
+  - Verify the **convention name** `Agent models` matches across the `load.md` row (Task 2), the `.rp.md` headings (Task 8), and every reference to the convention by name in `autonomous-workflow.md` (Task 3) and `health-monitoring.md` (Tasks 6–7). (The README mention is owned by the doc plan and is reconciled to this same canonical name in phase 5, not here.)
   - Verify the **per-key resolution rule** is stated identically (no semantic divergence) in `setup.md` (Task 1), `autonomous-workflow.md` (Task 3), and the `.rp.md` block lead-in (Task 8): a model-only agent entry inherits the `Default`'s `effort` in all three.
   - Verify the **AC16 recovery disambiguation** is consistent between the dogfood `.rp.md` recovery steps (Task 8) and the canonical `pi.md:30` seed (Task 5): both exclude the just-failed model and both state recovery's fallback is distinct from the **Agent models** config. Confirm `claude-code.md` and the CC `.rp.md` section carry **no** recovery/model-swap text.
   - Verify the **frontmatter `model:` prohibition** held: `grep -l '^model:' agents/*.md` returns no files, and no task introduced an agent-frontmatter `model:` key anywhere.
   - Apply minimal corrective edits where any inconsistency is found.
-- **Depends on:** Tasks 1–9.
+- **Depends on:** Tasks 1–8.
 - **Traces to:** Spec requirements R1–R3, R8, R10, R15 (consistency of their realizations); ACs 1–4, 9, 11, 16; design §10, §12 risks 2 and 4.
 - **Acceptance:**
   - The `### Agent models` heading name, `**Default:**` label, per-agent bullet form, and inline/nested settings rule are identical across `setup.md`, the `.rp.md` blocks, and the per-tool breadcrumbs.
-  - The convention name `Agent models` matches across `load.md`, `.rp.md`, `README.md`, `autonomous-workflow.md`, and `health-monitoring.md`.
+  - The convention name `Agent models` matches across `load.md`, `.rp.md`, `autonomous-workflow.md`, and `health-monitoring.md`.
   - The per-key resolution rule (model-only entry inherits `Default`'s `effort`) is stated consistently in `setup.md`, `autonomous-workflow.md`, and the `.rp.md` block lead-in.
   - The AC16 recovery disambiguation wording is consistent between `.rp.md` and `pi.md`, and `claude-code.md` / the CC `.rp.md` section carry no recovery/model-swap text.
   - `grep -l '^model:' agents/*.md` returns no files; no agent-frontmatter `model:` key was introduced.
@@ -222,12 +208,12 @@ Every spec acceptance criterion is addressed by at least one task:
 - **AC6, AC7** (no/absent config → today's behavior, no stop) — Task 2 (`Required? = No` row), reinforced by Task 3's "else today's behavior" branch.
 - **AC8** (partial config) — Task 3 (two-step lookup falls through to today's behavior for unnamed agents).
 - **AC9, AC10** (per-tool form, verbatim pass-through) — Task 3 (verbatim, no translation/pre-validation), Tasks 4–5 (per-tool surfaces), Task 1 (per-tool value forms).
-- **AC11** (spawn channel, not prompt; profiles unchanged) — Task 3 (apply as spawn parameters, not prompt; no profile edit), Task 10 (frontmatter `model:` prohibition verified).
+- **AC11** (spawn channel, not prompt; profiles unchanged) — Task 3 (apply as spawn parameters, not prompt; no profile edit), Task 9 (frontmatter `model:` prohibition verified).
 - **AC12** (rejected value escalates) — Task 6 (escalation field), Task 7 (deterministic no-retry row).
 - **AC13** (configured model at initial spawn) — Task 3 (resolution at spawn).
 - **AC14** (recovery swap only re-spawn-scoped) — Task 7 (`Login / API-key error` row unchanged) + Task 8 step 5 transience clause.
 - **AC15** (swap not persisted) — Task 7 (transience invariant), Task 8 (transience clause).
-- **AC16** (recovery never re-selects the just-failed model) — Task 5 (`pi.md` seed) + Task 8 (dogfood `.rp.md` steps 1/4), paired edit verified in Task 10.
+- **AC16** (recovery never re-selects the just-failed model) — Task 5 (`pi.md` seed) + Task 8 (dogfood `.rp.md` steps 1/4), paired edit verified in Task 9.
 
 ## Carried-forward open questions (resolve during code phase, runtime-confirmable; not blockers)
 
