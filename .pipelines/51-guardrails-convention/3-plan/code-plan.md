@@ -519,7 +519,19 @@ R16-protected references stay untouched.
    the host project's verification convention." Make it name evidence self-containedly
    (e.g. "Evidence for the behavior verification") without the named-convention
    dependency (R15).
-5. **(C) `code-reviewer.md:98`** (Guidelines "Stop and report blockers") — strike the
+5. **(A + Risk 4) `code-reviewer.md:97`** (Guidelines "Run the verification gates") —
+   currently "**Run the verification gates.** Don't just read the code. A review
+   without verification evidence is not a review." This is a Risk-4 back-reference: it
+   carries the command-gate role via the non-literal phrase "the verification gates"
+   (no literal "verification convention"), so a `grep "verification convention"` (AC8)
+   passes while this dangling command-gate directive remains. **Re-anchor it to the
+   guardrails model** — e.g. *"**Run the guardrails.** Don't just read the code. Run
+   every guardrail applicable to the code phase; a review without their evidence is not
+   a review."* — using the canonical selection phrase from T1. This is the code-phase
+   twin of `doc-reviewer.md:98` (T9 change 2), and must be edited symmetrically; do
+   **not** rely on a literal grep to find it. (`code-writer.md` has no analogous
+   "run the gates" Guidelines bullet, so there is no corresponding edit in T6.)
+6. **(C) `code-reviewer.md:98`** (Guidelines "Stop and report blockers") — strike the
    in-list clause "the verification convention is undefined" from the broken-input
    examples, leaving the genuine broken-input blockers (`code-plan.md`/`spec.md`/
    `design-doc.md` missing or unreadable, batch metadata missing) intact (R14,
@@ -546,6 +558,9 @@ Risk 4, Risk 5.
 - No "verification convention" occurrence in `code-reviewer.md` names the command-gate
   source; the command-gate references (including the `:32` "verification gates"
   back-reference) select the project's Guardrails for the code phase (AC8, R12).
+- The Guidelines "Run the verification gates" bullet (`:97`) no longer says
+  "verification gates"; it re-anchors to running **every guardrail applicable to the
+  code phase**, symmetric to `doc-reviewer.md:98` (R12, AC8, AC9; Risk-4 back-reference).
 - The reviewer runs every guardrail applicable to the code phase, records each
   command and result, treats each as mandatory (R13, AC9); failing-guardrail no-bypass
   intent is preserved (AC10).
