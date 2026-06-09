@@ -589,6 +589,73 @@ files mostly INHERIT latest-run semantics through their existing delegations.
 line 20 append latest-run read clause; line 27 add "the latest run's" qualifier; re-attach steps 1–2
 unchanged. `review-pipeline.md` step 3 — cite resume's two named sections (b2).
 
+### T8 — Run obligations & health monitor for a review (R8, R17, R27, R28)
+
+Decided 2026-06-09 with researcher. `.rp.md` "Orchestrator updates during a run" + health-monitoring.md
+read precisely. HEADLINE: `.rp.md`'s obligations already fire correctly for a review because they are
+RUN-scoped and per-phase status is now latest-run-relative (T1.3) — exactly ONE recommended `.rp.md`
+edit, the monitor folder rides on T2, and the generic R27 statement is a pointer in review-pipeline.md.
+
+- **`.rp.md` obligations — per-bullet (the section header `:28` is keyed on "every run" / "end of every
+  run", which is what makes them re-fire):**
+  - Run-start `running…` label (`:32`) — RE-FIRES (a review is a new run; no "per pipeline"/"once"
+    wording; idempotent add). No edit.
+  - Run-end label removal (`:33`, "every outcome") — RE-FIRES for the review's end, every outcome. No
+    edit. (Satisfies R27's run-start/run-end "every outcome.")
+  - Push at close-out (`:34`, "push the pipeline branch … every outcome") — CORRECT and inherently a
+    same-branch FAST-FORWARD: a review stays on the same branch (R8) and only adds commits, so "push the
+    pipeline branch" pushes the review's additional commits. No edit; R27's "fast-forward, never a new
+    branch" holds by the same-branch invariant. (Design doc notes this is fast-forward by construction.)
+  - Per-phase Linear status (`:35`) — RE-CYCLES `1-Spec`…`5-Docs` for the review's phases WITHOUT
+    mechanism edit, because it is keyed on "the phase that just satisfied its completion predicate" and
+    completion is latest-run-relative (T1.3). R27's "per-phase progress restarts" satisfied by T1.3
+    propagating here. (The `0-Prompt` clause subtlety → below.)
+  - Version label (`:36`) — **THE ONE RECOMMENDED `.rp.md` EDIT.** Trigger list "(creating, resuming, or
+    forking)" → "(creating, resuming, forking, or reviewing)" so the review re-asserts the version per
+    convention (R28 — confirm, do not change). This is the single project-convention edit T8 surfaces.
+  - "Both autonomous and assisted runs" (`:38`) — already covers a review in either mode (R17). No edit.
+  - No new tracker issue (R27) — CONFIRMED: issue creation is a SEPARATE `.rp.md` section (`:14–20`,
+    entered only via `manage-issues.md`), never from a run; the run-updates section only reads/updates the
+    EXISTING issue. A review reuses the existing issue by default; review-pipeline.md keeps the
+    issue-creation path out (T4). No edit.
+
+- **`0-Prompt` subtlety (per-phase restart meets the project status ladder) — self-resolving.** For a
+  review the status re-cycles starting at `1-Spec`, NOT re-set to `0-Prompt`: the `0-Prompt` status is
+  keyed on pipeline CREATION ("after the pipeline is created"), a one-time event a review does not repeat
+  (same pipeline, R28). So `0-Prompt` correctly does NOT fire for a review; the first review status update
+  is `1-Spec` when the review's spec completes, then `2`…`5`. This is a `.rp.md` (project status-ladder)
+  detail; the generic skill says only "per-phase progress restarts." `.rp.md` needs NO mandatory edit
+  (the trigger wording already does the right thing). **Decision: adopt the OPTIONAL one-sentence clarity
+  note on `.rp.md:35`** — "For a review run, the status re-cycles from `1 - Spec` through `5 - Docs` as the
+  review's phases complete; `0 - Prompt` is set only when the pipeline is first created, not on a review's
+  prompt." It's one sentence and removes a non-obvious operator doubt.
+
+- **Monitor points at the review RUN folder — rides on T2, NO health-monitoring.md edit.** The loop
+  template (`health-monitoring.md:57` "Check pipeline at `<artifact-folder>`, team `<pipeline-slug>`") is a
+  fill-in: the orchestrator SUBSTITUTES the concrete path at launch. For a review it substitutes the review
+  run's folder (`<artifacts-folder>/review-N-…/`); slug/team unchanged (R27). `health-monitoring.md:26`
+  ("reads from the artifact folder") rides on T2's run-folder contract — no run-scoping edit. The monitor
+  lifecycle composes per T7 §4 (cancel via reused re-attach, launch via dispatched autonomous workflow);
+  the only review twist (which folder it watches) is an orchestrator substitution, not a doc edit.
+
+- **Generic / project split (clean, as R27 wants):**
+  - GENERIC — review-pipeline.md step 7 carries the R27 statement as a pointer (never names Linear/push/
+    version): "A review is a normal run. Apply every orchestrator-update obligation the project's
+    conventions define for a run, fired afresh for this review run — run-start and run-end actions for
+    every outcome, and any per-phase or per-run progress restarted to reflect this review's phases rather
+    than continuing the prior run's. A review operates on the pipeline's existing tracker issue and creates
+    no new one. If the project runs a health monitor, an autonomous review follows the normal monitor
+    lifecycle (cancel any leftover monitor, launch a fresh one) pointed at this review run's folder, with
+    the pipeline slug and team unchanged; an assisted review launches no monitor." `autonomous-workflow.md`
+    §5/§7 provide the inherited run lifecycle (monitor launch + close-out) generically.
+  - PROJECT — `.rp.md` "Orchestrator updates during a run" owns the concrete obligations; they fire for the
+    review because they're run-scoped + T1.3. Only the version-label trigger gets the "or reviewing" edit.
+
+**Edit-site summary:** `.rp.md:36` — add "or reviewing" to the version-label trigger list (the one
+required project edit); `.rp.md:35` — optional one-sentence review status-ladder clarity note (adopted).
+`review-pipeline.md` step 7 — generic R27 pointer (phrasing above). `health-monitoring.md` — UNTOUCHED
+(monitor folder rides on T2). `autonomous-workflow.md` — inherited lifecycle, no new edit.
+
 ## Open questions / blockers
 
 (None open.)
