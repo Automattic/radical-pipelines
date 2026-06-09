@@ -55,10 +55,11 @@ Forward-looking files containing the phase-0 artifact name (to rename). Searched
 - `.rp.md:76` — `/loop 15m <prompt>` — GENERIC loop prompt; keep.
 
 **Website (`website/`):**
-- `demo.js:12,23,140` — `prompt.md` in phase `reads`/pendingTree artifact lists
+- `demo.js:12,23,140` — `'prompt.md'` in phase `reads` arrays and the `pendingTree` array. **Consistency note:** demo.js renders the file tree by matching `reads`/`writes` strings against `pendingTree` by string equality; `'prompt.md'` MUST be renamed in all three spots together or the tree-commit animation breaks. This is a string-consistency requirement, not a logic change — there is no JS logic keyed on the literal string "prompt" (verified).
 - `demo.js:276` — log line "Captured issue #1234 → prompt.md (phase 0 · input)"
-- `demo.js:281` — comment "Phase 0 is the raw prompt — an input…"
+- `demo.js:281` — comment "Phase 0 is the raw prompt — an input…" (SOFT)
 - `index.html:119` — `<span class="file done">prompt.md</span>` in the terminal `ls` listing
+- (`index.html:120` is `requirements.md` — an UNRELATED artifact name; do NOT touch.)
 
 ### A2. SOFT references — the word "prompt" NAMES the phase-0 artifact in prose (not a literal `prompt.md`/`0-prompt` path token) — IN SCOPE per "no trace of the old name in the skill"
 
@@ -143,12 +144,12 @@ Two nuances the researcher added: (1) **Inverse direction** — there are ~14 SO
 
 **Asked (analyst → researcher):** Adjudicate fork-pipeline.md L14 ("only the prompt is inherited"), README.md L112 ("phase 0 is the raw prompt, an input…"), autonomous-phases/1-spec.md L3 ("from phase 0 (prompt) to phase 1"), README.md L56 ("from prompt to finished implementation"), README.md L13 ("The same prompt, the same context…").
 
-**Answer (researcher pre-flagged; analyst adjudicated):**
-- fork-pipeline.md L14 "only the prompt is inherited" → ARTIFACT (soft) → "only the intent is inherited". (Names the inherited phase-0 artifact, alongside the `0-prompt`→`0-intent` folder token on the same line.)
-- README.md L112 "phase 0 is the raw prompt, an input…" → ARTIFACT (soft) → "the raw intent".
-- autonomous-phases/1 - spec.md L3 "from phase 0 (prompt) to phase 1" → ARTIFACT (soft) → "(intent)".
-- README.md L56 "from prompt to finished implementation" → ARTIFACT (soft) → "from intent to finished implementation".
-- README.md L13 "The same prompt, the same context, can produce a different result every time" → **GENERIC** (LLM non-determinism: same input → different output). KEEP.
+**Answer (researcher verdicts, analyst-confirmed):**
+- fork-pipeline.md L14 "only the prompt is inherited" → ARTIFACT (soft) → "only the intent is inherited". Forking at phase 0 copies just that one folder; "the prompt" = the inherited phase-0 artifact. (Same line's `0-prompt` folder token also renames.)
+- README.md L112 "phase 0 is the raw prompt, an input rather than an agent-produced artifact…" → PHASE/ARTIFACT → "the raw intent". Explicitly DEFINES what phase 0 is — clearest possible old-name trace if left. README is in the issue's explicit scope.
+- autonomous-phases/1 - spec.md L3 "from phase 0 (prompt) to phase 1" → PHASE/ARTIFACT → "(intent)". Parenthetical phase name; mirrors sibling assisted-phases/1-spec.md:3 ("phase 0 (`prompt.md`)" → "(`intent.md`)"). Keep the two siblings parallel.
+- README.md L56 "from prompt to finished implementation" → PHASE → "from intent to finished implementation" (rename, recommended). Lowest-confidence of the four (metaphorical start-to-end), but names the pipeline's first phase as the start point; renaming keeps the README consistent and avoids a lingering "prompt"-as-phase-name. Analyst concurs.
+- README.md L13 "The same prompt, the same context, can produce a different result every time" → **GENERIC** (LLM non-determinism; sits in "## The problem" before phases are introduced). KEEP.
 
 ### Q3 — `.rp.md` scope + the Linear status implication (PIVOTAL)
 
