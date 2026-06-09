@@ -52,7 +52,7 @@ Because the review prompt is delta-scoped (a prompt of *the change*, not a re-sp
 
 - **`skills/radical-pipelines/reference/fork-pipeline.md`** — the inherited-phase copy is scoped to `base/` on both source and destination (`<parent>/base/<phase>` → `<new>/base/<phase>`); a clause states a fork starts a fresh `base/` and never inherits the parent's reviews.
 
-- **`skills/radical-pipelines/reference/work-on-an-issue.md`** — the Review menu bullet gains "then continue to step 3" (making the live procedure's return-to-dispatch legible); a RESUME / REVIEW / FORK decision-rule block is inserted after the menu so the owner can choose among the three same-issue actions. The Merge and Close bullets are untouched.
+- **`skills/radical-pipelines/reference/work-on-an-issue.md`** — the Review menu bullet gains "then continue to step 3" (making the live procedure's return-to-dispatch legible); a RESUME / REVIEW / FORK decision-rule block is inserted after the menu, at the **top-level bullet indent** (sibling to the always-offered Resume and Fork bullets, not nested inside the phase-5-only sub-block that contains Review/Merge/Close), so it can reference all three same-issue actions. The Merge and Close bullets are untouched.
 
 - **`skills/radical-pipelines/reference/manage-issues.md`** — the format prose is removed (moved to `prompt-format.md`); "The issue format" and "Constraints" collapse to pointers; the tracker-only "don't write until approved" bullet stays; the issue↔prompt path updates to `base/0-prompt/`.
 
@@ -107,9 +107,11 @@ The pipeline folder `<artifacts-folder>` (the spec's `<pipeline-folder>`; the sa
 | Destination | the tracker (Issues convention) | `<artifacts-folder>/base/0-prompt/prompt.md` | `<artifacts-folder>/review-N-<short-description>/0-prompt/prompt.md` |
 | Source | short owner-led Q&A | the existing issue, transformed | owner's requested change / GitHub comment / PR review / conversation (mostly transcribed when already written) |
 | Trigger | owner creates/modifies an issue | a new pipeline is created (phase 0) | a review is started (`review-pipeline.md` step 5) |
-| Origin reference | absent | absent | **mandatory** |
+| Origin reference | absent | absent | **mandatory, self-contained** |
 
-Each site references the shared format only — `manage-issues.md` keeps its tracker-only "don't write until approved" rule, `create-pipeline.md` keeps its issue→prompt transform instruction, and `review-pipeline.md` adds the Origin section.
+The review-only **Origin** section is not a bare link: it is **self-contained** — it carries the *substance* of the request (a direct quote or faithful paraphrase of the owner's change, GitHub comment, or PR review) **plus** a convenience link, so a later phase reading only the review prompt understands what prompted it without following the link. Any **source assets** (e.g. images from the source) are placed in the review run's own `0-prompt/` folder and referenced relatively, exactly as issue and base prompts handle their assets. The Origin section is unique to reviews and absent from issue/base prompts.
+
+Each site references the shared format only — `manage-issues.md` keeps its tracker-only "don't write until approved" rule, `create-pipeline.md` keeps its issue→prompt transform instruction, and `review-pipeline.md` adds the self-contained Origin section and the review-source asset-placement rule.
 
 ### Reviewer base ref (diff base)
 
@@ -122,7 +124,7 @@ The value is captured once (when HEAD is still the prior-run tip), then passed u
 
 ### Menu and decision rule (entry points)
 
-The single entry point is the existing "work on an issue" menu (and the direct "review this pipeline" request, which routes to the same procedure). The Review bullet reads `review-pipeline.md`, then continues to mode dispatch. A decision-rule block lets an unsure owner choose:
+The single entry point is the existing "work on an issue" menu (and the direct "review this pipeline" request, which routes to the same procedure). The Review bullet reads `review-pipeline.md`, then continues to mode dispatch. A decision-rule block lets an unsure owner choose. It sits at the **top-level bullet indent**, a sibling of the always-offered Resume and Fork bullets — *not* nested inside the phase-5-only sub-block (which holds Review/Merge/Close) — so it can reference all three same-issue actions. (Review is offered only once a run is complete, which is consistent: a review requires a complete run.) The choices:
 
 - **Resume** = finish an incomplete latest run, same branch.
 - **Review** = layer an incremental change on a complete run, same branch, build on existing code.
@@ -155,7 +157,7 @@ The sharpest discriminator is same-branch-build-on-existing (review) vs. new-bra
 
 ### Decision: Single-source the prompt format into a new `prompt-format.md`; keep the origin reference review-only
 
-- **Choice:** Move the schema, rendering rules, and authoring discipline out of `manage-issues.md` into a new `reference/prompt-format.md` with `## Schema and rendering` and `## Authoring discipline`. Issue creation, base-prompt generation, and review-prompt generation reference it. The review-only **Origin** section is specified in `review-pipeline.md` step 5, not in the shared schema. Keep schema and discipline together (not split across two files).
+- **Choice:** Move the schema, rendering rules, and authoring discipline out of `manage-issues.md` into a new `reference/prompt-format.md` with `## Schema and rendering` and `## Authoring discipline`. Issue creation, base-prompt generation, and review-prompt generation reference it. The review-only **Origin** section is specified in `review-pipeline.md` step 5, not in the shared schema, and is required to be **self-contained** — it carries the substance of the request (a direct quote or faithful paraphrase) plus a convenience link, so a later phase reading only the review prompt stands alone — and to place any **review-source assets** in the review run's `0-prompt/` folder, referenced relatively, the same as issue/base prompts. Keep schema and discipline together (not split across two files).
 - **Alternatives:** (a) Host the canonical format in `manage-issues.md` and have the others borrow — rejected; it buries the canonical format in the tracker front-door file and creates host/borrow asymmetry inviting drift. (b) Split schema and discipline into separate files — rejected; they are short and tightly coupled, and two files add sync overhead. (c) Add an optional Origin hook to the shared schema — rejected; it pollutes a schema two of three sites never use and forces "mandatory-only-in-review" conditional prose, the exact cross-site coupling R13 avoids. Omit-empty rendering already tolerates an extra section, so no hook is needed.
 - **Trade-offs:** A third reference file exists, but each format element now lives in exactly one location and the base-site discipline gloss is trimmed to a pure pointer to satisfy the strict "no two sites restate the same prose" criterion.
 - **Traces to:** R10 (own new prompt), R11 (orchestrator authors), R12 (origin reference), R13 (single-sourced). Acceptance criterion 3, 13.
