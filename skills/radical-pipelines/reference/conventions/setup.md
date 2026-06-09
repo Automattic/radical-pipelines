@@ -168,7 +168,19 @@ Capture:
   - Upstream branch format
   - Upstream commit format
 
-## 3. Apply agentic coding tool setup actions
+## 3. Capture guardrails (optional)
+
+Guardrails are the project's mandatory verification gates. This step is optional: many projects have no command gates, and "none" is a complete, valid answer.
+
+A guardrail is an exact command whose pass/fail is judged solely by its exit code (exit 0 = pass, any non-zero exit = fail), applying to the `code` and/or `docs` phase.
+
+Ask the owner, per gate, for a **name**, the **exact command**, and the applicable **phase(s)** (`code`, `docs`, or both). Prompt them to consider the usual categories — lint, typecheck, unit tests, e2e tests, build, and any project-specific validators — but capture only gates that actually exist; do not invent gates the project does not run.
+
+Guardrails are tool-agnostic: the same command applies regardless of the active agentic coding tool, so each gate is captured once with no per-tool variant.
+
+Suggested default: none — guardrails are project-specific; capture each gate's name, exact command, and applicable phase(s), or record that the project has no command gates.
+
+## 4. Apply agentic coding tool setup actions
 
 Some agentic coding tools require setup actions beyond conventions.
 
@@ -176,23 +188,23 @@ Consult the active tool's rules file (read in Step 1) for a **Setup actions** se
 
 Do not create or copy files without explicit confirmation from the owner.
 
-## 4. Confirm writes before changing files
+## 5. Confirm writes before changing files
 
-Before writing anything, summarize the proposed `.rp.md` content and ask for explicit confirmation.
+Before writing anything, summarize the proposed `.rp.md` content — including the `## Guardrails` section when any guardrails were captured — and ask for explicit confirmation.
 
 - If `.rp.md` does not exist, ask before creating it.
 - If it exists, ask before overwriting it. Offer to merge or append only when the owner explicitly chooses that approach.
 
 If any required answer is missing, do not create a misleading complete conventions file. Either stop and explain what is unresolved, or, only if the owner explicitly asks for a draft, write a file that clearly marks unresolved items and state that setup is incomplete.
 
-## 5. Write human-readable Markdown
+## 6. Write human-readable Markdown
 
-Write `.rp.md` with the conventions and commit it to the main branch:
+Write `.rp.md` with the conventions — and a `## Guardrails` section when any guardrails were captured — and commit it to the main branch:
 
 - `artifacts-in-repo`: the project's main branch.
 - `artifacts-in-fork`: the fork's main branch only — never push it to upstream.
 
-## 6. Set up git ignore
+## 7. Set up git ignore
 
 Add the worktree folder to `.gitignore` so local working copies are not tracked. This is the only entry Radical Pipelines requires.
 
@@ -200,7 +212,7 @@ Ask the owner for permission, append the entry, and commit it alongside `.rp.md`
 
 Remind the owner that for `artifacts-in-fork`, the `.gitignore` change lives on the fork.
 
-## 7. Finish safely
+## 8. Finish safely
 
 After setup completes, tell the owner:
 
