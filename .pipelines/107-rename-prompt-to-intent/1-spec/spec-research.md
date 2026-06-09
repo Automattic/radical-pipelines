@@ -123,7 +123,9 @@ Plus TWO OLDER flat-layout artifacts (no `0-prompt/` folder — `prompt.md` sits
 
 **Asked (analyst → researcher):** The rename targets only the phase-0 artifact (`prompt.md` / `0-prompt/` / phase label "Prompt"). The issue's rationale ("prompt is overloaded — every phase agent also receives a prompt") means generic "prompt" usages must stay. Confirm the GENERIC classification of: agent "launch/spawn/orchestrator's prompt" refs; health-monitoring loop-prompt refs; `/loop 5m <prompt>` in pi.md/claude-code.md; website CSS class `cc-prompt` + selector + meta keyword "prompt engineering". Flag any case where a generic-looking "prompt" is actually the phase-0 artifact, or vice-versa.
 
-**Answer (researcher):** CONFIRMED. All listed generic usages are the overloaded LLM-prompt sense and must stay "prompt": agent "launch/spawn/orchestrator's prompt" (code-plan-writer, code-reviewer, code-writer, design-doc-researcher, design-doc-writer, doc-plan-writer, doc-reviewer, doc-writer, spec-researcher, spec-consolidator L8, plus the "premise the prompt depends on" / "Understand the prompt" clauses in spec-analyst, and spec-writer L6/L15/L56); `health-monitoring.md` loop-prompt refs; `pi.md`/`claude-code.md` `/loop 5m <prompt>`; website `cc-prompt` CSS class + selector + "prompt engineering" SEO keyword + "Same prompt, different run" copy; `.rp.md` L54 commit example and L76 loop prompt. Also confirmed `autonomous-workflow.md` L59 ("agent's initial prompt") and `conventions/setup.md` L64 ("pulls its initial prompt from an issue") are generic. No generic-looking case is secretly the phase-0 artifact.
+**Answer (researcher):** CONFIRMED for the truly-generic set: agent "launch/spawn/orchestrator's prompt" (code-plan-writer, code-reviewer, code-writer, design-doc-researcher, design-doc-writer, doc-plan-writer, doc-reviewer, doc-writer, spec-researcher, spec-consolidator L8); `health-monitoring.md` loop-prompt refs; `pi.md`/`claude-code.md` `/loop 5m <prompt>`; website `cc-prompt` CSS class + selector + "prompt engineering" SEO keyword + "Same prompt, different run" copy; `.rp.md` L54 commit example and L76 loop prompt; `autonomous-workflow.md` L59 ("agent's initial prompt"). No truly-generic case is secretly the phase-0 artifact.
+
+**CORRECTION / reclassification (researcher Nuance 1):** Several spec-* prose mentions I initially eyed as generic are actually SOFT references that NAME the phase-0 artifact and ARE in scope → "intent": spec-analyst.md L16 ("Treat the prompt as a hypothesis"), L18 ("a premise the prompt depends on"), L22 (heading "Understand the prompt"); spec-writer.md L6 ("synthesize the prompt"), L56 ("without the research record or the prompt"). And `conventions/setup.md` L64 ("pulls its initial prompt from an issue") leans soft → "intent". All moved to section A2.
 
 Two nuances the researcher added: (1) **Inverse direction** — there are ~14 SOFT references where "prompt" NAMES the phase-0 artifact in prose (not a path token); per "no trace in the skill" these ARE in scope and become "intent". Captured in section A2 above. (2) `code-writer.md:62` ("should not need to read the prompt, spec, design doc…") was scrutinized: still GENERIC — the code-writer never reads the phase-0 artifact (structural fact below), so "the prompt" there is the launch message; keep as-is.
 
@@ -131,13 +133,35 @@ Two nuances the researcher added: (1) **Inverse direction** — there are ~14 SO
 
 ### Q2 — Per-line verdicts on generic-noun "prompt" inside phase-0 files
 
-**Asked (analyst → researcher):** For create-pipeline.md L3/L21/L23/L25/L27 and manage-issues.md L14, classify each "prompt" as phase-0 artifact/phase (→ "intent") vs. generic agent-prompt (→ stays "prompt"). Special focus on create-pipeline.md L25 ("Adapt the issue content as a prompt directed at the agents") — does it read naturally as "intent" or does it lean on the generic agent-prompt meaning?
+**Asked (analyst → researcher):** For create-pipeline.md L3/L21/L23/L25/L27 and manage-issues.md L14, classify each "prompt" as phase-0 artifact/phase (→ "intent") vs. generic agent-prompt (→ stays "prompt"). Special focus on create-pipeline.md L25.
 
-**Answer:** _(pending)_
+**Answer (researcher):** All ARTIFACT — rename every one. create-pipeline.md L3/L21/L23(×2)/L27 are clear (filenames + the "Generate the initial intent" section that produces the artifact). manage-issues.md L14 has THREE "prompt"s, all ARTIFACT: "the phase-0 intent", `0-intent/intent.md`, "the intent format" — confirmed by section title "## The issue format" enumerating the structured Title/Goal/Constraints/Context/Assumptions shape, which IS "a structured statement of intent" (the issue's rationale).
+
+**create-pipeline.md L25 — THE CRUX (clause rewrite, not token swap):** Current: "Adapt the issue content as a prompt directed at the agents that will run subsequent phases." Referent is the phase-0 artifact (ARTIFACT), so leaving "prompt" violates "no trace." But a blind swap → "as an intent directed at the agents" reads off (intent is the owner's, not aimed at agents). The per-agent spawn message is assembled separately, later (autonomous-workflow.md:59) — never "the issue content adapted." **Requirement: rename AND lightly rephrase.** Recommended: "Adapt the issue content into the intent that seeds the subsequent phases." This is the ONE spot where "rename" = "rewrite the clause," and the spec must call it out so the writer doesn't do a mechanical 1:1 substitution.
 
 ### Q4 — Borderline narrative/prose occurrences
 
-**Asked (analyst → researcher):** Adjudicate fork-pipeline.md L14 ("only the prompt is inherited"), README.md L112 ("phase 0 is the raw prompt, an input…"), autonomous-phases/1-spec.md L3 ("from phase 0 (prompt) to phase 1"), README.md L56 ("from prompt to finished implementation"). Which denote the phase-0 artifact/phase (→ "intent") vs. generic?
+**Asked (analyst → researcher):** Adjudicate fork-pipeline.md L14 ("only the prompt is inherited"), README.md L112 ("phase 0 is the raw prompt, an input…"), autonomous-phases/1-spec.md L3 ("from phase 0 (prompt) to phase 1"), README.md L56 ("from prompt to finished implementation"), README.md L13 ("The same prompt, the same context…").
 
-**Answer:** _(pending — sent with Q3 batch; researcher already pre-flagged these)_
+**Answer (researcher pre-flagged; analyst adjudicated):**
+- fork-pipeline.md L14 "only the prompt is inherited" → ARTIFACT (soft) → "only the intent is inherited". (Names the inherited phase-0 artifact, alongside the `0-prompt`→`0-intent` folder token on the same line.)
+- README.md L112 "phase 0 is the raw prompt, an input…" → ARTIFACT (soft) → "the raw intent".
+- autonomous-phases/1 - spec.md L3 "from phase 0 (prompt) to phase 1" → ARTIFACT (soft) → "(intent)".
+- README.md L56 "from prompt to finished implementation" → ARTIFACT (soft) → "from intent to finished implementation".
+- README.md L13 "The same prompt, the same context, can produce a different result every time" → **GENERIC** (LLM non-determinism: same input → different output). KEEP.
+
+### Q3 — `.rp.md` scope + the Linear status implication (PIVOTAL)
+
+**Asked (analyst → researcher):** (a) Is `.rp.md` shippable skill or project overlay? (b) Does "no trace in the skill" bind it? (c) Does renaming the `0 - Prompt` Linear-status reference force an external Linear workflow-state rename (behavior change)?
+
+**Answer (researcher, live-verified):**
+- **(a) Project-specific overlay — NOT shippable skill.** `.rp.md` is at the repo ROOT, not under `skills/radical-pipelines/`. It holds THIS repo's concrete conventions (GitHub URL, Linear project id `15a89be6fe3c`, etc.). The skill is generic and reads `.rp.md` as external input: `conventions/load.md:3-5` ("This skill is generic… Project-specific conventions are stored in the `.rp.md` file"); `SKILL.md:42-46` ("each project supplies its own conventions"). Every consuming project writes its own `.rp.md`.
+- **(b) "No trace in the skill" does NOT bind `.rp.md`** (it's outside `skills/radical-pipelines/`). The issue's Constraints enumerate scope as exactly "the skill, the agent profiles, the README, and the website" — `.rp.md` is in none. But the Goal says "consistently across the project," so it sits in a scope gap.
+- **(c) YES — `0 - Prompt` is a REAL pre-existing Linear workflow state, not free text.** Live `list_issue_statuses` on team "Billow" (project "Billow Pipelines", id `15a89be6fe3c`) returned seven states mirroring the phases: **"0 - Prompt"** (id `6a5b291f-2df2-41ac-8c32-a21be017c9ec`, type started), "1 - Spec", "2 - Design Doc", "3 - Plan", "4 - Code", "5 - Docs", plus PR opened/Triage/etc. `.rp.md:35` says "set the Linear issue status to **match** the phase" → the orchestrator sets the issue to the workflow state whose NAME equals that string. So renaming `.rp.md:35` → "0 - Intent" WITHOUT renaming the Linear state would break the phase-0 status-set at runtime (no "0 - Intent" state exists). Keeping behavior intact requires ALSO renaming the Linear state — an external-workspace change, contradicting "pure rename — no behavior changes."
+
+The two `.rp.md` hits differ sharply:
+- `.rp.md:54` "Add prompt (orchestrator)" — illustrative COMMIT-FORMAT example. Renaming → "Add intent (orchestrator)" is harmless pure text, zero runtime impact.
+- `.rp.md:35` "0 - Prompt" — behavior-adjacent (ties to a live external Linear state).
+
+**Analyst decision → ESCALATE to team-lead as a scope clarification** (see Blocker/Scope note below). Default recommendation if no owner input: EXCLUDE `.rp.md` from the rename scope (matches the issue's literal Constraints list and the "no behavior change" line), recording it as an explicit out-of-scope decision; optionally rename only the harmless `.rp.md:54` commit example for project-consistency.
 
