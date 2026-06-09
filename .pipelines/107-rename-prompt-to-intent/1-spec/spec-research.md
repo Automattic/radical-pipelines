@@ -49,10 +49,10 @@ Forward-looking files containing the phase-0 artifact name (to rename). Searched
 **README.md:**
 - `README.md:27` — "**Phase 0. Prompt.** The initial idea or request."
 
-**Project conventions file (`.rp.md`) — NOT in the prompt's explicit file list, but forward-looking; scope decision needed (see Q3):**
-- `.rp.md:35` — Linear issue-status label `0 - Prompt` (orchestrator sets this status when phase 0 finishes). Renaming the reference implies the Linear project status itself must also be renamed to `0 - Intent` — an external-system data change, behavior-adjacent.
-- `.rp.md:54` — commit-format example `Add prompt (orchestrator)` (the phase-0 create-pipeline commit). Generic-noun-vs-artifact judgment.
-- `.rp.md:76` — `/loop 15m <prompt>` — GENERIC loop prompt; keep.
+**Project conventions file (`.rp.md`) — DECIDED OUT OF SCOPE (team-lead/owner, option 1). Leave ENTIRELY untouched. See section F.**
+- `.rp.md:35` — `0 - Prompt` Linear status — untouched (renaming would break the phase-0 status-set at runtime / require an external Linear workspace change, forbidden by "no behavior change").
+- `.rp.md:54` — `Add prompt (orchestrator)` commit example — untouched.
+- `.rp.md:76` — `/loop 15m <prompt>` — generic; untouched anyway.
 
 **Website (`website/`):**
 - `demo.js:12,23,140` — `'prompt.md'` in phase `reads` arrays and the `pendingTree` array. **Consistency note:** demo.js renders the file tree by matching `reads`/`writes` strings against `pendingTree` by string equality; `'prompt.md'` MUST be renamed in all three spots together or the tree-commit animation breaks. This is a string-consistency requirement, not a logic change — there is no JS logic keyed on the literal string "prompt" (verified).
@@ -130,7 +130,15 @@ Plus TWO OLDER flat-layout artifacts (no `0-prompt/` folder — `prompt.md` sits
 
 **Acceptance Test A — path tokens go to zero.** Currently `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns **42** hits. After the rename it MUST return **0**. Verified that NO generic-keep line contains the literal `0-prompt` or `prompt.md` (generic hits are the bare word "prompt"), so a clean zero is achievable and is a precise, testable acceptance criterion. (Scope the grep to exclude `.pipelines/` so historical artifacts don't count.)
 
-**Acceptance Test B — the generic-keep residual.** After the rename, `git grep -nIE "[Pp]rompt" -- ':!.pipelines'` will still have hits — exactly the deliberate generic keeps. The expected residual set (analyst-enumerated; ~27 lines) is the diff target for the reviewer. It comprises ONLY: the `code-*`/`doc-*`/`design-*` agent "launch/spawn/orchestrator's prompt" lines; `spec-writer.md:15`, `spec-consolidator.md:8`; `autonomous-workflow.md:59`; `health-monitoring.md:52/54/70`; `conventions/pi.md:36`, `conventions/claude-code.md:37`; `website/demo.js:271` (CSS class), `website/styles.css:795`, `website/index.html:12` (SEO keyword), `website/index.html:153`; `README.md:13`; and (pending Q3 decision) `.rp.md:35`/`:54`/`:76`. Any "prompt"/"Prompt" outside this residual set after the rename is a missed rename (or an erroneous one). The spec-researcher is producing the authoritative canonical list + residual; this is the analyst's independent cross-check confirming it.
+**Acceptance Test B — the generic-keep residual.** After the rename, `git grep -nIE "[Pp]rompt" -- ':!.pipelines'` will still have hits — exactly the deliberate generic keeps. The expected residual set (analyst-enumerated; ~27 lines) is the diff target for the reviewer. It comprises ONLY: the `code-*`/`doc-*`/`design-*` agent "launch/spawn/orchestrator's prompt" lines; `spec-writer.md:15`, `spec-consolidator.md:8`; `autonomous-workflow.md:59`; `health-monitoring.md:52/54/70`; `conventions/pi.md:36`, `conventions/claude-code.md:37`; `website/demo.js:271` (CSS class), `website/styles.css:795`, `website/index.html:12` (SEO keyword), `website/index.html:153`; `README.md:13`; and `.rp.md:35`/`:54`/`:76` (now OUT OF SCOPE — `.rp.md` is untouched, see section F). Any "prompt"/"Prompt" outside this residual set after the rename is a missed rename (or an erroneous one). The spec-researcher is producing the authoritative canonical list + residual; this is the analyst's independent cross-check confirming it.
+
+### F. Out-of-scope decisions (explicit)
+
+1. **`.rp.md` — left entirely untouched** (team-lead/owner decision, option 1). It is project configuration external to the shippable skill (per `conventions/load.md`: the skill is generic and reads `.rp.md` as the consuming project's own conventions), and it is not in the issue's enumerated rename scope (skill / agents / README / website). So it is outside the "no trace of the old name in the skill" constraint. Both `.rp.md:35` (the "set status to 0 - Prompt" instruction) and `.rp.md:54` (the "Add prompt (orchestrator)" commit example) stay. Renaming L35 without renaming the live Linear "0 - Prompt" workflow state would break the phase-0 status-set at runtime; renaming that external workspace state is a behavior-affecting change the issue's "pure rename — no behavior changes" rule forbids.
+2. **The Linear workflow states "0 - Prompt"…"5 - Docs"** (team "Billow", project id `15a89be6fe3c`) are NOT renamed. Renaming "0 - Prompt" → "0 - Intent" there to match is a separate, optional operational change, out of scope for this pipeline.
+3. **Historical run artifacts** — all 8 phase-0 artifacts under `.pipelines/` (6 foldered `0-prompt/prompt.md`, 2 flat `prompt.md`) are records of past runs and stay byte-for-byte, including this run's own `.pipelines/107-…/0-prompt/prompt.md`.
+4. **The generic "prompt" concept** (launch/spawn/loop prompts, the LLM-prompt-fed-to-an-agent, CSS class `cc-prompt`, the "prompt engineering" SEO keyword, the "same prompt, different run" non-determinism copy) is preserved exactly — this is the overloaded sense the issue deliberately keeps.
+5. **No behavior changes, no migration debt** — the skill gains NO backward-compat text, NO dual-name handling, NO special-casing for legacy `0-prompt` pipelines. The orchestrator "does what it can at runtime" for a legacy pipeline, but the skill documents nothing about it.
 
 ## Q&A
 
@@ -178,5 +186,5 @@ The two `.rp.md` hits differ sharply:
 - `.rp.md:54` "Add prompt (orchestrator)" — illustrative COMMIT-FORMAT example. Renaming → "Add intent (orchestrator)" is harmless pure text, zero runtime impact.
 - `.rp.md:35` "0 - Prompt" — behavior-adjacent (ties to a live external Linear state).
 
-**Analyst decision → ESCALATE to team-lead as a scope clarification** (see Blocker/Scope note below). Default recommendation if no owner input: EXCLUDE `.rp.md` from the rename scope (matches the issue's literal Constraints list and the "no behavior change" line), recording it as an explicit out-of-scope decision; optionally rename only the harmless `.rp.md:54` commit example for project-consistency.
+**RESOLVED (team-lead/owner, option 1): EXCLUDE `.rp.md` entirely — both L35 and L54 left untouched.** Rationale recorded in section F.1/F.2. This matches the issue's literal Constraints list and the "no behavior change" rule (the Linear workflow-state rename is a separate, optional operational change, out of scope).
 
