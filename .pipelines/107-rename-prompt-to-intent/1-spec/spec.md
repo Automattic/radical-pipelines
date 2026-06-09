@@ -154,20 +154,22 @@ A changeset is **required**. CI runs a "Changeset Gate" (`changeset status`) tha
 
 ## Acceptance Criteria
 
-The change is correct and complete when **all** of the following hold. (Greps are scoped to exclude `.pipelines/` so historical artifacts do not count, and the second also excludes `.rp.md`, which is out of scope.)
+The change is correct and complete when **all** of the following hold. Three independent greps are the verifiability backbone (1–3 below). All are scoped to exclude `.pipelines/` so historical run artifacts do not count; the phase-label and residual greps also exclude `.rp.md`, which is out of scope. The 56-RENAME / 25-KEEP partition of the 81 in-scope-plus-keep occurrences (outside `.pipelines/` and `.rp.md`) is the diff target — every one of the 56 RENAME occurrences (per R1–R5) changes, and every one of the 25 KEEP occurrences (per R3) stays.
 
-1. **Path tokens go to zero.** Currently `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns 42 hits. After the rename it MUST return **0**. (No generic-keep line contains the literal `0-prompt` or `prompt.md` — every keep is the bare word "prompt" — so a clean zero is achievable.)
+1. **Path tokens go to zero.** Currently `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns 42 hits. After the rename it MUST return **0**. No generic-keep line contains the literal `0-prompt` or `prompt.md` (every keep is the bare word "prompt"), so a clean zero is achievable with no carve-outs. This test is independent of the `.rp.md` decision — `.rp.md` contains no path token (its `0 - Prompt` is the label form, not the folder), so `.rp.md` need not be excluded here.
 
-2. **Only the generic keeps remain.** Currently `git grep -nIE "[Pp]rompt" -- ':!.pipelines' ':!.rp.md'` returns 81 hits (56 in-scope renames + 25 generic keeps). After the rename it MUST return **exactly the 25 KEEP occurrences listed in R3** (modulo line-number shifts) — no more, no fewer. Any "prompt"/"Prompt" outside that set is a missed rename; any KEEP line that changed is an erroneous rename.
+2. **Phase-label forms go to zero.** The path-token regex above does not match the phase-label forms `0 - Prompt` / `0 – Prompt` (note the en-dash variant in `pipeline-versioning.md:27`), `Phase 0. Prompt`, or `(Prompt →`. A separate check is therefore required. Currently `git grep -nIE "0 [-–] Prompt|Phase 0\. Prompt|\(Prompt " -- ':!.pipelines' ':!.rp.md'` returns 5 hits (`README.md:27`, `SKILL.md:3`, `assisted-workflow.md:17`, `autonomous-workflow.md:39`, `pipeline-versioning.md:27`). After the rename it MUST return **0**. (`.rp.md:35` "0 - Prompt" is the only label that legitimately remains, and only because `.rp.md` is out of scope — hence the `':!.rp.md'` exclusion.)
 
-3. **The folder is renamed in forward-looking definitions.** Every forward-looking reference to the phase-0 folder reads `0-intent` (never `0-prompt`); every forward-looking reference to the artifact file reads `intent.md` (never `prompt.md`); every forward-looking phase label reads "Intent" (never "Prompt").
+3. **Only the generic keeps remain.** Currently `git grep -nIi "prompt" -- ':!.pipelines' ':!.rp.md'` returns 81 hits (56 in-scope renames + 25 generic keeps). After the rename it MUST return **exactly the 25 KEEP occurrences listed in R3** (modulo line-number shifts) — no more, no fewer. The 25 break down as: agents 14 + skills 6 + website 4 + README 1. Any "prompt"/"Prompt" outside that set is a missed rename; any KEEP line that changed is an erroneous rename. (Note: this grep deliberately excludes `.rp.md`. Including `.rp.md`, the full residual would be 28 — its 3 lines stay, but they are out of this grep's scope.)
 
-4. **No old-name trace in the skill.** The skill (`skills/radical-pipelines/`) contains no "formerly prompt"/backward-compat/dual-name/migration text and no special-casing for legacy `0-prompt` pipelines.
+4. **The folder, file, and label are renamed in forward-looking definitions.** Every forward-looking reference to the phase-0 folder reads `0-intent` (never `0-prompt`); every forward-looking reference to the artifact file reads `intent.md` (never `prompt.md`); every forward-looking phase label reads "Intent" (never "Prompt").
 
-5. **The `create-pipeline.md` crux sentence is reworded** (not a 1:1 token swap): it says "intent" and does not assert "intent directed at the agents".
+5. **No old-name trace in the skill.** The skill (`skills/radical-pipelines/`) contains no "formerly prompt"/backward-compat/dual-name/migration text and no special-casing for legacy `0-prompt` pipelines.
 
-6. **The website demo still animates.** All three `'prompt.md'` occurrences in `website/demo.js` (the `reads` arrays and the `pendingTree` array) are renamed together to `'intent.md'`, so the tree-commit animation's string-equality matching still resolves.
+6. **The `create-pipeline.md` crux sentence is reworded** (not a 1:1 token swap): it says "intent" and does not assert "intent directed at the agents".
 
-7. **A changeset exists.** A new file under `.changeset/` declares a bump for `@automattic/radical-pipelines` (recommended `minor`) and `changeset status` passes.
+7. **The website demo still animates.** All three `'prompt.md'` occurrences in `website/demo.js` (the `reads` arrays and the `pendingTree` array) are renamed together to `'intent.md'`, so the tree-commit animation's string-equality matching still resolves.
 
-8. **No behavior change.** The diff contains only text/string renames (plus the one `create-pipeline.md` clause rewrite) and the changeset — no logic, control-flow, or file-read-order changes.
+8. **A changeset exists.** A new file under `.changeset/` declares a bump for `@automattic/radical-pipelines` (recommended `minor`) and `changeset status` passes.
+
+9. **No behavior change.** The diff contains only text/string renames (plus the one `create-pipeline.md` clause rewrite) and the changeset — no logic, control-flow, or file-read-order changes.
