@@ -125,8 +125,18 @@ Decided 2026-06-09 with researcher. Smallest self-consistent edit set; all edits
   `base` if none — with completed/active phase evaluated WITHIN that run's folder. Append a
   follow-on paragraph carrying: the two-notions distinction (pipeline state drives resume;
   per-run completion = a run complete through phase 5, gates whether a new review may start,
-  R7) and the prompt-only-review case (a review run with only `0-prompt/prompt.md` is already
-  the latest run; pipeline active phase = that review's phase 1, prompt is the phase-1 input).
+  R7) and the prompt-only-review case. **WORDING REFINEMENT (surfaced by T9):** for the
+  prompt-only-review case, say "the pipeline's **NEXT phase** is that review's phase 1 (spec):
+  its prompt is the input to phase 1, just as the base prompt is for `base`. (By the
+  started-artifacts active-phase predicate the run has no active phase yet; resume therefore
+  starts phase 1 from the committed prompt, with no rollback.)" Do NOT write "the active phase
+  is phase 1" — that overloads "active phase," which the skill reserves for "started-but-not-
+  complete (artifacts on disk)." R20's spec text uses "active phase" loosely to mean "the phase
+  to run next"; we keep "active phase" single-sensed and use "next phase" for the run-it-next
+  sense — matching the workflows' existing "next phase = the active phase if one exists,
+  OTHERWISE the phase after the completed phase" (`autonomous-workflow.md:7`,
+  `assisted-workflow.md:5`), whose "otherwise" branch already lands on phase 1 for a
+  prompt-only review. This makes T1 and T9 self-consistent.
 
 - **T1.4 Listing & tree stay at branch level (R22, R23).** The trie is built ONLY over each
   pipeline's `base/` run:
@@ -655,6 +665,45 @@ edit, the monitor folder rides on T2, and the generic R27 statement is a pointer
 required project edit); `.rp.md:35` — optional one-sentence review status-ladder clarity note (adopted).
 `review-pipeline.md` step 7 — generic R27 pointer (phrasing above). `health-monitoring.md` — UNTOUCHED
 (monitor folder rides on T2). `autonomous-workflow.md` — inherited lifecycle, no new edit.
+
+### T9 — Recovering an abandoned prompt-only review run (R20, R21)
+
+Decided 2026-06-09 with researcher. Recovery is a PURE CONSEQUENCE of T1.3 (state follows latest run)
++ the existing resume flow — ZERO new mechanism and ZERO new skill text beyond the T1.3 wording
+refinement already folded into the T1.3 record above.
+
+- **State trace for a prompt-only `review-N` (only `0-prompt/prompt.md` committed):** phase 0 predicate
+  satisfied → COMPLETED PHASE = 0; phase 1 has no artifacts → by the strict started-artifacts predicate
+  there is NO active phase. `resume-pipeline.md` step 4 (line 27): no active phase → "the resume point is
+  the phase AFTER the completed phase; the worktree is already clean, so skip the rollback." So resume
+  starts PHASE 1 (spec) from the committed prompt, with NO rollback (nothing to roll back). The prompt is
+  phase 1's input — exactly like `base/0-prompt` is for base's phase 1. Works through the EXISTING resume
+  flow with no new handling.
+
+- **R20 "active phase = phase 1" reconciled — the one consistency item (now resolved in T1.3).** R20's
+  spec text uses "active phase" LOOSELY to mean "the phase to run next." The skill's strict predicate
+  reserves "active phase" for started-but-not-complete. Same on-disk state, two senses of the word; the
+  OUTCOME is identical (resume's "otherwise" branch + the workflows' "next phase = active if exists,
+  otherwise phase after completed" both land on phase 1). **Resolution: T1.3 now writes "next phase is
+  the review's phase 1" (not "active phase = phase 1"), keeping "active phase" single-sensed.** This is
+  the only edit T9 contributes, and it's a refinement to T1.3 text we're writing anyway — NOT new text.
+
+- **Removal — DEFERRED, not documented.** Resume-from-prompt is the DEFAULT (the owner came back to a
+  review they started; they finish it). REMOVAL is the owner changing their mind about reviewing at all —
+  fundamentally CLEANUP, which the spec's Out-of-Scope explicitly defers ("consolidation/cleanup … of the
+  several prompts, specs, design docs, and plans a reviewed pipeline accumulates … deferred to the future
+  cleanup phase"). So the skill says NOTHING about removal. Mechanically it is ordinary git (revert the
+  prompt commit → the latest run reverts to the prior complete run, which T1.3 then reports as latest) —
+  owner judgment, no skill support, not documented (also keeps the skill lean, R5's spirit).
+
+- **New text for T9 = ZERO** beyond the T1.3 "next phase" phrasing. Do NOT add a "prompt-only review
+  resumes at phase 1" note to `review-pipeline.md` — it would be redundant with the state rule + resume
+  flow. `review-pipeline.md` is about STARTING a review; recovering an interrupted one is resume's job,
+  handled generically. review-pipeline.md stays silent on recovery.
+
+**Edit-site summary:** NONE new — recovery rides on T1.3 + `resume-pipeline.md` (T7 edits) + the
+workflows' existing next-phase logic. T9's only contribution is the "next phase" wording refinement
+already recorded in T1.3. Removal is deferred (Out-of-Scope), documented nowhere.
 
 ## Open questions / blockers
 
