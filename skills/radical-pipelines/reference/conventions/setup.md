@@ -111,7 +111,7 @@ Running Radical Pipelines creates three kinds of files that need a home:
 
 - The project-level `.rp.md` config file (the conventions captured during this setup).
 - A per-pipeline artifact folder containing `prompt.md`, `spec.md`, `design-doc.md`, etc. — one folder per pipeline run, per the **Artifact folder** convention.
-- Two always-required `.gitignore` entries: one for the worktree folder used by the active agentic coding tool, and one for `.rp.local.md` (the optional per-developer override file, which must never be committed even though it may never exist).
+- A `.gitignore` entry for the worktree folder used by the active agentic coding tool.
 
 They can live either in the project's repository alongside the code, or in a separate fork. The fork option is used when the project does not accept these kinds of commits, or when the owner wants to keep the pipeline workflow private.
 
