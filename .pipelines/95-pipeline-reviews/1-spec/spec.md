@@ -107,7 +107,8 @@ design phase and are not pre-decided.
   pipeline's latest run is complete through phase 5 (its docs phase is approved
   and committed, with no active phase). If the latest run is incomplete, the
   owner is steered to resume (to finish it) or fork (to try a different approach),
-  not review. This completeness check is the one hard gate on starting a review.
+  not review. This completeness check is a hard precondition for starting a
+  review — the other being that the pipeline is unmerged (R9).
 
 - **R8 (MUST — same branch, never a new branch).** A review stays on the same
   branch and worktree as the pipeline and never creates a new branch. Starting a
@@ -117,17 +118,13 @@ design phase and are not pre-decided.
   roll anything back, because the latest run is already complete — it only adds a
   new run folder on top.
 
-- **R9 (MUST — merged pipelines).** Whether a review can be offered turns on
-  whether a branch is still available to layer onto:
+- **R9 (MUST — reviews are for unmerged pipelines).** A review applies to an
+  ongoing pipeline whose work is not yet merged into main:
   - A complete, **unmerged** pipeline whose branch and worktree are still live is
     the canonical case — review before merge.
-  - A pipeline that was merged and whose **branch was deleted** cannot be
-    reviewed (there is no branch to layer onto); the owner is directed to a fork
-    from main instead.
-  - A pipeline that was **merged but whose branch is still live** MAY be reviewed
-    — the same-branch precondition (R8) is satisfiable — with the owner advised
-    that reviewing an already-merged branch is unusual (the exact advisory
-    wording is left to the design phase).
+  - Once a pipeline has been **merged** into main it cannot be reviewed,
+    regardless of whether its branch is still live. The work is already in main,
+    so the requested change is handled as a new issue, not a review.
 
 ### C. The review prompt
 
@@ -274,22 +271,33 @@ design phase and are not pre-decided.
   same-branch-build-on-existing (review) versus new-branch-from-main-diverge
   (fork); resume is the option for an incomplete run.
 
-- **R26 (MUST — only completeness gates).** No advisory behavior gates a review.
-  The only hard precondition is completeness (R7); drastic-ness (R24) and
-  splitting (R19) never block a review the owner chooses.
+- **R26 (MUST — advisories never gate).** No advisory behavior gates a review.
+  The hard preconditions are completeness (R7) and an unmerged pipeline (R9);
+  drastic-ness (R24) and splitting (R19) never block a review the owner chooses.
 
 ### I. Orchestrator / tracker updates
 
-- **R27 (MUST — review behaves like a normal run).** A review behaves like a
-  normal run for all orchestrator-update obligations: the `running…` label is
-  added at review start and removed at review end (for every outcome); the branch
-  is pushed at review close-out (a fast-forward of additional commits on the same
-  branch, never a new branch); and the tracker status re-cycles from
-  `0 - Prompt` up through `5 - Docs` as the review's phases complete, reflecting
-  the latest run's current phase. An autonomous review follows the standard
-  health-monitor lifecycle (cancel any leftover monitor for the pipeline, launch a
-  fresh one) with the monitor pointed at the review run's folder while the
-  pipeline slug and team stay the same; an assisted review launches no monitor.
+- **R27 (MUST — review behaves like a normal run).** A review carries exactly the
+  orchestrator-update obligations the project's conventions attach to a normal run
+  — no additional obligations and none skipped — applied to the review run. The
+  conventions decide what those obligations are (a project might define run-start
+  and run-end tracker updates, per-phase progress updates, publishing the branch
+  at close-out, or none of these); the spec only requires that a review be treated
+  identically to any other run of the pipeline. Two things follow from a review
+  being a *new* run on an *existing* branch: (1) those obligations fire afresh for
+  the review — any run-start and run-end actions run for every outcome, and any
+  per-phase or per-run progress the conventions track restarts for the review and
+  reflects the review run's own phases rather than continuing the prior run's; and
+  (2) because a review stays on the same branch (R8), any branch-publish
+  obligation is a fast-forward of additional commits onto that branch, never a new
+  branch. A review also operates on the pipeline's existing tracker issue and does
+  NOT create a new one — the issue-creation path is never part of a review; the
+  orchestrator authors the review prompt (phase 0) and applies all run obligations
+  to that existing issue. If the project runs a health monitor, an autonomous
+  review follows its normal lifecycle (cancel any leftover monitor for the
+  pipeline, launch a fresh one) with the monitor pointed at the review run's folder
+  while the pipeline slug and team stay the same; an assisted review launches no
+  monitor.
 
 - **R28 (MUST — version unchanged).** A review does NOT change the pipeline
   version: the `v<N>` version label is untouched, because a review is the same
@@ -360,13 +368,12 @@ design phase and are not pre-decided.
    Then the review does not start and the owner is steered to resume or fork
    instead. (R7)
 
-5. **Reviewability depends on whether a branch remains.**
-   Given a pipeline that was merged and whose branch was deleted,
+5. **Merged pipelines are not reviewable.**
+   Given a pipeline that was merged into main (whether or not its branch is still
+   live),
    When the owner asks for a review,
-   Then a review is not offered and the owner is directed to a fork from main;
-   whereas given a pipeline that was merged but whose branch is still live, when
-   the owner asks for a review, then a review MAY proceed (the same-branch
-   precondition is satisfiable) with the owner advised it is unusual. (R9)
+   Then a review is not offered and the requested change is handled as a new
+   issue; only a complete, unmerged pipeline can be reviewed. (R9)
 
 6. **A second review waits for the first to finish.**
    Given a pipeline with `review-1` still in progress,
@@ -430,16 +437,19 @@ design phase and are not pre-decided.
     version.**
     Given a review run from start to close-out,
     When the tracker and branch are observed,
-    Then the `running…` label is added at start and removed at end, the status
-    re-cycles `0 - Prompt` → … → `5 - Docs` as phases complete, the branch is
-    pushed at close-out, and the pipeline's `v<N>` version label is unchanged.
+    Then the review incurs the same run obligations the project's conventions
+    define for a normal run — run-start and run-end updates fire (every outcome)
+    and any per-phase progress re-cycles to reflect the review run — no new tracker
+    issue is created (the review reuses the pipeline's existing issue), any branch
+    publish is a same-branch fast-forward, and the pipeline's version is unchanged.
     (R27, R28)
 
 15. **Fork-vs-review and splitting are advisory, not gates.**
     Given a drastic change, or several unrelated changes surfaced at once,
     When the orchestrator advises a fork or a split and the owner declines,
     Then the review (or the single combined review) proceeds as the owner chose;
-    only the completeness precondition can block a review. (R24, R19, R26)
+    the advisory inputs never block a review — only the hard preconditions
+    (completeness R7, unmerged R9) can. (R24, R19, R26)
 
 16. **The Review hook is wired and is distributed.**
     Given the "work on an issue" menu after this work,
