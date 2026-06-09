@@ -41,7 +41,7 @@ For at least one concrete claim per task — a signature, an example, a configur
 Decide your verdict first, then pick the filename:
 
 - **Rejected** — write `<artifacts-folder>/5-docs/docs-review-N-rejected.md`, where N is the rejection iteration number from the launch prompt.
-- **Approved** — write `<artifacts-folder>/5-docs/docs-review-approved.md` (no number; only one ever exists per pipeline).
+- **Approved** — write `<artifacts-folder>/5-docs/docs-review-approved.md` (no number; only one ever exists in this artifact folder).
 
 Use this structure:
 

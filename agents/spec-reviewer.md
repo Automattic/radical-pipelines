@@ -31,7 +31,7 @@ Check for:
 Decide your verdict first, then pick the filename:
 
 - **Rejected** — write `<artifacts-folder>/1-spec/spec-review-N-rejected.md`, where N is the next rejection iteration (count existing `spec-review-*-rejected.md` files and add 1; starts at 1 if none exist).
-- **Approved** — write `<artifacts-folder>/1-spec/spec-review-approved.md` (no number; only one ever exists per pipeline).
+- **Approved** — write `<artifacts-folder>/1-spec/spec-review-approved.md` (no number; only one ever exists in this artifact folder).
 
 Use this structure:
 
