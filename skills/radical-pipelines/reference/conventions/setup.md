@@ -192,13 +192,11 @@ Write `.rp.md` with the conventions and commit it to the main branch:
 - `artifacts-in-repo`: the project's main branch.
 - `artifacts-in-fork`: the fork's main branch only — never push it to upstream.
 
-Optionally offer to include a one-line breadcrumb in the `.rp.md` content pointing developers at `local-overrides.md`, noting that a developer may add a git-ignored `.rp.local.md` to locally override a restricted subset of conventions. Ask the owner; do not force it. If they accept, it becomes part of the confirmed `.rp.md` content. Phrase it as an available capability — it does not imply a `.rp.local.md` already exists.
-
 ## 6. Set up git ignore
 
-Radical Pipelines requires the `.gitignore` to ignore two things: the worktree folder used by the active agentic coding tool, so local working copies are not tracked; and `.rp.local.md`, the optional per-developer override file, so a developer's local convention overrides are never committed even if the file is later created. See `local-overrides.md` for what `.rp.local.md` does.
+Add the worktree folder to `.gitignore` so local working copies are not tracked. This is the only entry Radical Pipelines requires.
 
-Ask the owner for permission, append both the worktree-folder entry and a `.rp.local.md` entry, and commit them alongside `.rp.md` in the main branch.
+Ask the owner for permission, append the entry, and commit it alongside `.rp.md` in the main branch.
 
 Remind the owner that for `artifacts-in-fork`, the `.gitignore` change lives on the fork.
 
