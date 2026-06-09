@@ -65,6 +65,7 @@ Forward-looking files containing the phase-0 artifact name (to rename). Searched
 
 The researcher surfaced these. They are the heart of the "no trace" constraint: after the rename the skill must read as if the phase was always "intent", so prose that names the artifact "prompt" must become "intent" — even where it isn't a filename/folder token. Decision: **IN SCOPE** (rename to "intent"), confirmed by the strict no-trace constraint.
 
+- `agents/spec-analyst.md:6` — "You turn a rough prompt into a clear, complete set of testable requirements" → "a rough intent" (found in analyst's independent grep cross-check; the bare-word soft refs are easy to miss — this is why the per-line canonical list is required)
 - `agents/spec-analyst.md:16` — "**Treat the prompt as a hypothesis.**" → "the intent"
 - `agents/spec-analyst.md:18` — "a premise the prompt depends on" → "the intent"
 - `agents/spec-analyst.md:22` — heading "### 1. Understand the prompt" → "Understand the intent"
@@ -81,6 +82,13 @@ The researcher surfaced these. They are the heart of the "no trace" constraint: 
 - `README.md:56` — "Percentage of tasks that make it from prompt to finished implementation" → "from intent to finished implementation"
 
 **Structural fact (researcher):** Only FOUR files ever read the phase-0 artifact as an input — `spec-analyst`, `spec-writer`, `spec-reviewer`, `spec-consolidator` — because each downstream phase reads only its immediate upstream artifact. So in `code-*`/`doc-*`/`design-*` agent profiles, "prompt" can ONLY be the generic launch/spawn message — never the phase-0 artifact. This is why those are safe to leave unchanged.
+
+**CRITICAL — the four spec-phase files are MIXED; do NOT blanket-rename bare "prompt" in them.** Per-line classification (analyst-verified via full per-file grep):
+- `spec-analyst.md` — L6/L16/L18/L22 SOFT→intent; L18/L24 `0-prompt/prompt.md` token; L25/L94 `prompt.md` token. (No generic "prompt" in this file.)
+- `spec-writer.md` — L6 SOFT→intent; L12 `0-prompt/prompt.md` token; **L15 GENERIC ("orchestrator's prompt cited a review file") → KEEP**; L56 SOFT→intent; L61 `prompt.md` token.
+- `spec-reviewer.md` — L14 `0-prompt/prompt.md` token only.
+- `spec-consolidator.md` — **L8 GENERIC ("Your spawn prompt includes…") → KEEP**; L14/L61/L80 `prompt.md` token.
+So within `spec-writer.md` and `spec-consolidator.md` the bare word "prompt" appears in BOTH senses; each occurrence must be judged individually (L15 and L8 stay). This is the strongest reason the canonical per-line list is the spec's checklist, not a blanket find-replace.
 
 ### B. Generic "prompt" — MUST NOT rename (the overloaded sense the issue calls out)
 
@@ -117,6 +125,12 @@ Plus TWO OLDER flat-layout artifacts (no `0-prompt/` folder — `prompt.md` sits
 ### D. Not the phase-0 artifact (no change needed)
 
 - `scripts/test/*.test.mjs`, `index.html:120` (`requirements.md`) — unrelated names.
+
+### E. Verifiability — the two acceptance greps (analyst-verified on current tree)
+
+**Acceptance Test A — path tokens go to zero.** Currently `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns **42** hits. After the rename it MUST return **0**. Verified that NO generic-keep line contains the literal `0-prompt` or `prompt.md` (generic hits are the bare word "prompt"), so a clean zero is achievable and is a precise, testable acceptance criterion. (Scope the grep to exclude `.pipelines/` so historical artifacts don't count.)
+
+**Acceptance Test B — the generic-keep residual.** After the rename, `git grep -nIE "[Pp]rompt" -- ':!.pipelines'` will still have hits — exactly the deliberate generic keeps. The expected residual set (analyst-enumerated; ~27 lines) is the diff target for the reviewer. It comprises ONLY: the `code-*`/`doc-*`/`design-*` agent "launch/spawn/orchestrator's prompt" lines; `spec-writer.md:15`, `spec-consolidator.md:8`; `autonomous-workflow.md:59`; `health-monitoring.md:52/54/70`; `conventions/pi.md:36`, `conventions/claude-code.md:37`; `website/demo.js:271` (CSS class), `website/styles.css:795`, `website/index.html:12` (SEO keyword), `website/index.html:153`; `README.md:13`; and (pending Q3 decision) `.rp.md:35`/`:54`/`:76`. Any "prompt"/"Prompt" outside this residual set after the rename is a missed rename (or an erroneous one). The spec-researcher is producing the authoritative canonical list + residual; this is the analyst's independent cross-check confirming it.
 
 ## Q&A
 
