@@ -126,11 +126,13 @@ Plus TWO OLDER flat-layout artifacts (no `0-prompt/` folder — `prompt.md` sits
 
 - `scripts/test/*.test.mjs`, `index.html:120` (`requirements.md`) — unrelated names.
 
-### E. Verifiability — the two acceptance greps (analyst-verified on current tree)
+### E. Verifiability — the three acceptance greps (analyst-verified on current tree; researcher-corroborated)
 
-**Acceptance Test A — path tokens go to zero.** Currently `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns **42** hits. After the rename it MUST return **0**. Verified that NO generic-keep line contains the literal `0-prompt` or `prompt.md` (generic hits are the bare word "prompt"), so a clean zero is achievable and is a precise, testable acceptance criterion. (Scope the grep to exclude `.pipelines/` so historical artifacts don't count.)
+**Acceptance Test A — path tokens go to zero.** Currently `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns **42** hits. After the rename it MUST return **0**. Verified (both analyst and researcher) that NO generic-keep line contains the literal `0-prompt` or `prompt.md` (generic hits are the bare word "prompt"), so a clean zero is achievable with no carve-outs. This test is INDEPENDENT of the `.rp.md` decision — `.rp.md` contains no path token (its `0 - Prompt` is the label form, not the folder).
 
-**Acceptance Test B — the generic-keep residual.** After the rename, `git grep -nIE "[Pp]rompt" -- ':!.pipelines' ':!.rp.md'` will still have hits — exactly the deliberate generic keeps. Analyst-verified count on the current tree: **81 total** occurrences (outside `.pipelines/` and `.rp.md`) = **56 RENAME (in-scope)** + **25 KEEP (generic residual)**. The 25-line KEEP set is the diff target for the reviewer; any "prompt"/"Prompt" outside it after the rename is a missed rename (or an erroneous one). Full per-line partition in section G. (`.rp.md` is excluded from scope entirely — its 3 "prompt" lines stay but are not part of this grep's scope.)
+**Acceptance Test A2 — phase-label form goes to zero (case-sensitivity nuance).** The path-token regex does NOT match the label form `0 - Prompt` / `0 – Prompt` (spaces, capital P) or `Phase 0. Prompt` or `(Prompt →`. So a SEPARATE check is required: after the rename, `git grep -nIE "0 [-–] Prompt|Phase 0\. Prompt|\(Prompt " -- ':!.pipelines' ':!.rp.md'` returns **0**. (`.rp.md:35` "0 - Prompt" is the only allowed remaining label, and only because `.rp.md` is out of scope — hence the `':!.rp.md'` exclusion here.)
+
+**Acceptance Test B — the generic-keep residual.** After the rename, `git grep -nIi "prompt" -- ':!.pipelines' ':!.rp.md'` will still have hits — exactly the deliberate generic keeps. Analyst-verified AND researcher-corroborated count on the current tree: **81 total** occurrences (outside `.pipelines/` and `.rp.md`) = **56 RENAME (in-scope)** + **25 KEEP (generic residual)**. The 25-line KEEP set (agents 14 + skills 6 + website 4 + README 1) is the exact diff target for the reviewer; any "prompt"/"Prompt" outside it after the rename is a missed rename (or an erroneous one). Full per-line partition in section G. (`.rp.md` excluded from scope entirely — its 3 "prompt" lines stay, but outside this grep's scope. Including `.rp.md`, the full residual is 28.)
 
 ### F. Out-of-scope decisions (explicit)
 
