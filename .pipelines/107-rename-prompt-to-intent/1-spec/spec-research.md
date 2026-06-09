@@ -130,7 +130,7 @@ Plus TWO OLDER flat-layout artifacts (no `0-prompt/` folder — `prompt.md` sits
 
 **Acceptance Test A — path tokens go to zero.** Currently `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns **42** hits. After the rename it MUST return **0**. Verified that NO generic-keep line contains the literal `0-prompt` or `prompt.md` (generic hits are the bare word "prompt"), so a clean zero is achievable and is a precise, testable acceptance criterion. (Scope the grep to exclude `.pipelines/` so historical artifacts don't count.)
 
-**Acceptance Test B — the generic-keep residual.** After the rename, `git grep -nIE "[Pp]rompt" -- ':!.pipelines'` will still have hits — exactly the deliberate generic keeps. The expected residual set (analyst-enumerated; ~27 lines) is the diff target for the reviewer. It comprises ONLY: the `code-*`/`doc-*`/`design-*` agent "launch/spawn/orchestrator's prompt" lines; `spec-writer.md:15`, `spec-consolidator.md:8`; `autonomous-workflow.md:59`; `health-monitoring.md:52/54/70`; `conventions/pi.md:36`, `conventions/claude-code.md:37`; `website/demo.js:271` (CSS class), `website/styles.css:795`, `website/index.html:12` (SEO keyword), `website/index.html:153`; `README.md:13`; and `.rp.md:35`/`:54`/`:76` (now OUT OF SCOPE — `.rp.md` is untouched, see section F). Any "prompt"/"Prompt" outside this residual set after the rename is a missed rename (or an erroneous one). The spec-researcher is producing the authoritative canonical list + residual; this is the analyst's independent cross-check confirming it.
+**Acceptance Test B — the generic-keep residual.** After the rename, `git grep -nIE "[Pp]rompt" -- ':!.pipelines' ':!.rp.md'` will still have hits — exactly the deliberate generic keeps. Analyst-verified count on the current tree: **81 total** occurrences (outside `.pipelines/` and `.rp.md`) = **56 RENAME (in-scope)** + **25 KEEP (generic residual)**. The 25-line KEEP set is the diff target for the reviewer; any "prompt"/"Prompt" outside it after the rename is a missed rename (or an erroneous one). Full per-line partition in section G. (`.rp.md` is excluded from scope entirely — its 3 "prompt" lines stay but are not part of this grep's scope.)
 
 ### F. Out-of-scope decisions (explicit)
 
@@ -139,6 +139,44 @@ Plus TWO OLDER flat-layout artifacts (no `0-prompt/` folder — `prompt.md` sits
 3. **Historical run artifacts** — all 8 phase-0 artifacts under `.pipelines/` (6 foldered `0-prompt/prompt.md`, 2 flat `prompt.md`) are records of past runs and stay byte-for-byte, including this run's own `.pipelines/107-…/0-prompt/prompt.md`.
 4. **The generic "prompt" concept** (launch/spawn/loop prompts, the LLM-prompt-fed-to-an-agent, CSS class `cc-prompt`, the "prompt engineering" SEO keyword, the "same prompt, different run" non-determinism copy) is preserved exactly — this is the overloaded sense the issue deliberately keeps.
 5. **No behavior changes, no migration debt** — the skill gains NO backward-compat text, NO dual-name handling, NO special-casing for legacy `0-prompt` pipelines. The orchestrator "does what it can at runtime" for a legacy pipeline, but the skill documents nothing about it.
+
+### G. Canonical coverage checklist (analyst-verified; 56 RENAME + 25 KEEP = 81 outside `.pipelines/` and `.rp.md`)
+
+Token classes: **FOLDER** `0-prompt`→`0-intent` · **FILE** `prompt.md`→`intent.md` · **LABEL** phase name "Prompt"/"0 - Prompt"/"Phase 0. Prompt"/"(Prompt → …)"→"Intent" · **SOFT** prose "prompt" naming the artifact→"intent".
+
+**RENAME — 56 lines (each must change):**
+
+README.md — 27 (LABEL "Phase 0. Prompt."), 56 (SOFT "from prompt to…"), 112 (SOFT "raw prompt").
+
+agents/spec-analyst.md — 6 (SOFT), 16 (SOFT), 18 (SOFT + FOLDER/FILE `0-prompt/prompt.md`), 22 (SOFT heading), 24 (FOLDER/FILE), 25 (FILE), 94 (FILE, HTML comment).
+agents/spec-consolidator.md — 14 (FILE), 61 (FILE), 80 (FILE).
+agents/spec-reviewer.md — 14 (FOLDER/FILE).
+agents/spec-writer.md — 6 (SOFT), 12 (FOLDER/FILE), 56 (SOFT), 61 (FILE).
+
+skills/radical-pipelines/SKILL.md — 3 (LABEL, description sequence), 35 (LABEL + FOLDER, phases table).
+skills/.../reference/assisted-phases/1 - spec.md — 3 (FILE "phase 0 (`prompt.md`)"), 7 (FOLDER/FILE), 36 (FILE), 110 (FILE).
+skills/.../reference/assisted-phases/2 - design-doc.md — 106 (FILE), 135 (FILE).
+skills/.../reference/assisted-phases/3 - plan.md — 124 (FILE).
+skills/.../reference/assisted-workflow.md — 17 (LABEL + FOLDER, table).
+skills/.../reference/autonomous-phases/1 - spec.md — 3 (SOFT "phase 0 (prompt)"), 7 (FOLDER/FILE).
+skills/.../reference/autonomous-workflow.md — 39 (LABEL + FOLDER, table).
+skills/.../reference/conventions/setup.md — 48 (FILE, artifact list), 64 (SOFT "initial prompt from an issue"), 113 (FILE, artifact list).
+skills/.../reference/create-pipeline.md — 3 (FILE), 21 (SOFT heading), 23 (SOFT + FOLDER/FILE), 25 (SOFT — **clause rewrite**, see Q2), 27 (FOLDER + FILE).
+skills/.../reference/fork-pipeline.md — 14 (FOLDER ×2 + SOFT "only the prompt is inherited"), 38 (FOLDER), 42 (FOLDER ×2).
+skills/.../reference/manage-issues.md — 14 (SOFT ×2 "phase-0 prompt"/"prompt format" + FOLDER/FILE).
+skills/.../reference/pipeline-versioning.md — 27 (LABEL + FOLDER/FILE), 61 (FOLDER), 66 (FOLDER), 70 (FOLDER), 75 (FOLDER, literal text in ASCII tree code block), 89 (FOLDER), 90 (FOLDER ×2).
+
+website/demo.js — 12 (FILE, `reads` array), 23 (FILE, `reads` array), 140 (FILE, `pendingTree` array), 276 (FILE, log line), 281 (SOFT, comment). **All three FILE spots (12/23/140) must change together — see demo.js consistency note in section A.**
+website/index.html — 119 (FILE, terminal `ls` listing).
+
+**KEEP — 25 lines (generic; must NOT change; the post-rename residual):**
+
+README.md:13.
+agents/code-plan-writer.md:15; code-reviewer.md:14, :42; code-writer.md:12, :62; design-doc-researcher.md:8; design-doc-writer.md:15; doc-plan-writer.md:18; doc-reviewer.md:14, :43; doc-writer.md:12; spec-consolidator.md:8; spec-researcher.md:8; spec-writer.md:15.
+skills/.../reference/autonomous-workflow.md:59; conventions/claude-code.md:37; conventions/pi.md:36; health-monitoring.md:52, :54, :70.
+website/demo.js:271; index.html:12, :153; styles.css:795.
+
+**Acceptance:** after the rename, `git grep -nIE "0-prompt|prompt\.md" -- ':!.pipelines'` returns **0**; and `git grep -nIE "[Pp]rompt" -- ':!.pipelines' ':!.rp.md'` returns **exactly the 25 KEEP lines above** (modulo line-number shifts). Plus a changeset exists (section "Changeset").
 
 ## Q&A
 
