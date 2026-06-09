@@ -15,7 +15,7 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 2. Read `<artifacts-folder>/3-plan/code-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
-5. Read the host project's verification convention.
+5. Read the guardrails applicable to the code phase (per `load.md`) — the project's Guardrails for this phase.
 6. Inspect the diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
@@ -29,11 +29,11 @@ Check, for the tasks in this batch:
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for any user-observable behavior the batch changed.
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
-- **No regressions / verification gates pass** — run the host project's verification convention exactly as documented; record each gate's command and result.
+- **No regressions / guardrails pass** — run every guardrail applicable to the code phase exactly as written, recording each guardrail's command and result.
 
 ### 3. Behavior verification
 
-If any task in the batch changes user-observable behavior, verify it end-to-end using the host project's verification convention. Capture whichever evidence the convention requires. A verification claim without evidence is not a verification — either produce the evidence or reject the batch.
+If any task in the batch changes user-observable behavior, exercise it end-to-end and capture the required evidence. A verification claim without evidence is not a verification — either produce the evidence or reject the batch.
 
 ### 4. Write the review
 
@@ -65,7 +65,7 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 
 ## Behavior verification
 
-<!-- Only if applicable. Evidence as required by the host project's verification convention. -->
+<!-- Only if applicable. Evidence for the behavior verification. -->
 
 ## Issues
 
@@ -94,5 +94,5 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 - **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the code — they are not failures.
 - **Do NOT rewrite code or tests.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan or the design.** Those phases have been approved. Flag deviations from them, not the plan or design themselves.
-- **Run the verification gates.** Don't just read the code. A review without verification evidence is not a review.
-- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, scope creep, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `code-plan.md`, `spec.md`, or `design-doc.md` is missing or unreadable; batch metadata is missing; the verification convention is undefined. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
+- **Run the guardrails.** Don't just read the code. Run every guardrail applicable to the code phase; a review without their evidence is not a review.
+- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, scope creep, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `code-plan.md`, `spec.md`, or `design-doc.md` is missing or unreadable; batch metadata is missing. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
