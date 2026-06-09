@@ -20,11 +20,10 @@ Create the folder following the **Artifact folder** convention.
 
 ### 4. Generate the initial prompt
 
-Create the phase 0 subfolder (`0-prompt/`) inside the artifact folder. Write the prompt to `<artifacts-folder>/0-prompt/prompt.md`.
+Phase folders live under a run folder, and the first run is always `base` (see **Runs within a pipeline** in `pipeline-versioning.md`). Create the `base/` run folder and the phase 0 subfolder under it (`base/0-prompt/`) inside the artifact folder. Write the prompt to `<artifacts-folder>/base/0-prompt/prompt.md`.
 
-- Adapt the issue content as a prompt directed at the agents that will run subsequent phases.
-- Do not add requirements, technical directions, or implementation details — agents do their own research in later phases.
-- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/0-prompt/`. Reference them explicitly in `prompt.md` using relative paths.
+- Adapt the issue content into the phase-0 prompt directed at the agents that will run subsequent phases, following the schema and authoring discipline in `prompt-format.md`.
+- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/base/0-prompt/`. Reference them explicitly in `prompt.md` using relative paths.
 - The phase 0 subfolder must be self-contained — once committed, agents must not need to reach back to the issue source to understand the issue.
 
 ### 5. Commit
