@@ -9,8 +9,10 @@ on the **same branch and worktree**. The whole feature is realized as edits to t
 markdown (this repository *is* the Radical Pipelines skill): a new **run** layer is inserted
 into the artifact-folder model, the prompt format is single-sourced into a new file, a new
 distributed `review-pipeline.md` procedure is written, and a small number of existing reference
-files, two agent-launch lines, six agent profiles, and the project conventions file (`.rp.md`)
-are updated so the existing machinery — pointed at a per-run folder — does the rest.
+files, a handful of orchestrator-side workflow lines (the autonomous agent-launch and
+phase-subfolder lines and the assisted phase-subfolder line), six agent profiles, and the
+project conventions file (`.rp.md`) are updated so the existing machinery — pointed at a per-run
+folder — does the rest.
 
 The artifact-folder layout changes from phase folders sitting directly under
 `.pipelines/<slug>/` to phase folders sitting under a **run** folder:
@@ -316,9 +318,11 @@ lacks a `base/` folder (legacy flat layout) — the skill stays silent on that s
 ### Task 6: Bind the agent handoff to the active run's folder in the workflows and add the base-ref capture-at-start note
 
 - **Goal:** Make the orchestrator hand each agent the active run's folder as "the artifact
-  folder" (keeping agents run-agnostic with zero behavioral agent edits), make the assisted path
-  write phase subfolders into the active run's folder, and record that the run's base ref is
-  captured at run start before launching the phase-4/5 reviewers.
+  folder" (keeping agents run-agnostic with zero behavioral agent edits), make BOTH workflows
+  create their phase subfolders inside the active run's folder (the autonomous orchestrator
+  creates the subfolder itself before launching the phase agent, and assisted creates it
+  directly), and record that the run's base ref is captured at run start before launching the
+  phase-4/5 reviewers.
 - **Files to change:**
   `skills/radical-pipelines/reference/autonomous-workflow.md`,
   `skills/radical-pipelines/reference/assisted-workflow.md`
@@ -328,23 +332,39 @@ lacks a `base/` folder (legacy flat layout) — the skill stays silent on that s
      agent "the active run's folder (`<artifacts-folder>/<run>/`, e.g. `<artifacts-folder>/base/`);
      this is what the agent treats as its artifact folder; the agent is run-agnostic and never sees
      the run name." This is an orchestrator-facing workflow edit, not an agent-profile edit.
-  2. **`autonomous-workflow.md`, step 5 (the run-execution section, around current line 35 where the
+  2. **`autonomous-workflow.md`, step 5 "For each phase" step 1 (current line 48, "Create the phase
+     subfolder inside the artifacts folder")** — reword to "Create the phase subfolder inside the
+     active run's folder (the artifacts folder for this run)", symmetric with the assisted edit
+     (change #4). The autonomous orchestrator creates this subfolder ITSELF before launching the
+     phase agent (it is "For each phase" step 1, ahead of "Read its phase reference" and "Run the
+     phase"), so this is the load-bearing creation point in autonomous mode and must be bound to the
+     run folder so the orchestrator-created "in progress" folder lands at
+     `<artifacts-folder>/<run>/<phase>` — aligned with both the run folder the agent is handed
+     (change #1) and the run-scoped **Per-phase completion** predicate rebound in Task 1. Leave the
+     rest of the line (the "in progress" / completion-predicate wording) unchanged. This is the
+     second edit within `autonomous-workflow.md`, not a new file or an agent-profile edit.
+  3. **`autonomous-workflow.md`, step 5 (the run-execution section, around current line 35 where the
      health monitor and phase loop are introduced)** — add ONE line that the orchestrator captures
      the run's base ref at run start, per the **Reviewer base ref** rule in `pipeline-versioning.md`,
      before launching the phase-4/5 reviewers, and holds it constant for the whole run. Place it so
      it reads as run-wide setup (alongside or just before the phase loop), not inside a single
      phase's steps.
-  3. **`assisted-workflow.md`, step "Execute the phase" (current line 26, "Create the phase
+  4. **`assisted-workflow.md`, step "Execute the phase" (current line 26, "Create the phase
      subfolder inside the artifacts folder")** — reword to "Create the phase subfolder inside the
      active run's folder (the artifacts folder for this run)". This is assisted's only run-binding
      site, since it spawns no agents.
 - **Depends on:** Task 1 (the run model and the **Reviewer base ref** rule it references)
-- **Traces to:** R3 (agents run-agnostic), R16 (diff base ref captured at run start), R17 (both
-  modes). Spec acceptance criteria 7, 8. Design decisions "Keep agents run-agnostic with zero
-  behavioral agent edits", "Introduce the reviewer base-ref derivation…".
+- **Traces to:** R2 (phase folders under the run folder — the orchestrator-created subfolder
+  lands under the run, not flat), R3 (agents run-agnostic), R16 (diff base ref captured at run
+  start), R17 (both modes). Spec acceptance criteria 1, 7, 8. Design decisions "Keep agents
+  run-agnostic with zero behavioral agent edits", "Introduce the reviewer base-ref derivation…".
 - **Acceptance:**
   - In `autonomous-workflow.md`, the **Artifact folder** agent-prompt bullet hands the agent the
     active run's folder (`<artifacts-folder>/<run>/`) and states the agent never sees the run name.
+  - In `autonomous-workflow.md`, the "For each phase" step-1 "Create the phase subfolder" line names
+    the active run's folder (the artifacts folder for this run), symmetric with the assisted edit,
+    so the orchestrator-created "in progress" folder lands at `<artifacts-folder>/<run>/<phase>`;
+    the "in progress" / completion-predicate wording on that line is otherwise unchanged.
   - `autonomous-workflow.md` contains a single base-ref capture-at-start line referencing the
     **Reviewer base ref** rule in `pipeline-versioning.md`, positioned as run-wide setup.
   - In `assisted-workflow.md`, the "Create the phase subfolder" line names the active run's folder.
@@ -648,7 +668,10 @@ add scope; they confirm the tasks above compose correctly.
 - **Agents stay run-agnostic (R3 / acceptance 7).** No agent profile names a run, says "per run",
   or constructs the artifact-folder path; the only agent-profile edits are the six bounded
   "per pipeline" → "in this artifact folder" corrections; the run binding lives only on the
-  orchestrator side (the two workflow lines).
+  orchestrator side (the workflow lines edited in Task 6).
 - **Base path is consistent everywhere (R2).** Every phase-0 / inherited-phase path that used to
   read `<artifacts-folder>/<phase>` for creation/fork now reads `<artifacts-folder>/base/<phase>`;
-  no flat creation/fork path remains in `create-pipeline.md` or `fork-pipeline.md`.
+  no flat creation/fork path remains in `create-pipeline.md` or `fork-pipeline.md`. Both workflows'
+  phase-subfolder-creation steps (`autonomous-workflow.md` "For each phase" step 1 and
+  `assisted-workflow.md` "Execute the phase") name the active run's folder, so the orchestrator
+  never creates a flat `<artifacts-folder>/<phase>` folder at the pipeline level.
