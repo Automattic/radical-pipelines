@@ -473,6 +473,60 @@ Constraints" collapse to pointers + keep the tracker-only bullet (line 32; updat
 discipline restatement (line 26) with a pure `prompt-format.md` pointer. `review-pipeline.md` step 5:
 pointer + Origin-reference requirement. `prompt-format.md` needs NO origin hook.
 
+### T6 — Reviewer diff base ref (R16, R17)
+
+Decided 2026-06-09 with researcher. Verified firsthand: NO base-ref derivation exists in the skill
+today (grep over the whole skill + agents).
+
+- **NOTABLE FINDING the design doc must own:** R16 is framed in the spec as supplying the prior-run
+  tip "as the base ref they already accept; no agent capability is added." That is accurate for the
+  AGENT side (reviewers already read "the base ref to diff against" from the launch prompt —
+  `code-reviewer.md:14,19`, `doc-reviewer.md:14,20`; T2). But on the ORCHESTRATOR side, the base ref
+  is **derived nowhere today** — the two launch sites (`4 - code.md:35`, `5 - docs.md:36`) treat it
+  as an opaque value handed to the reviewer. So R16 forces **introducing** the base-ref derivation
+  for the FIRST time, for BOTH the normal and review cases. The design doc reports this honestly:
+  "R16 surfaces a pre-existing gap (the normal-run base ref was never written down) and closes it for
+  both cases" — not a pure review-only addition. Still a small, well-contained change; zero agent edits.
+
+- **Derivation — unified rule keyed on "start of the current run":**
+  - **Review run** → the **tip of the previous run** (`base` or `review-(N-1)`): the **branch tip at
+    the moment the review run begins, before its prompt is committed** (equivalently, the parent of
+    the review run's first commit — the prompt commit per T4 step 5). This needs ZERO new
+    bookkeeping. Rejected alternative (y) "last commit touching `review-(N-1)/`" is FRAGILE: code/docs
+    commits touch the WORKTREE source files, not the run's artifact folder, so it would point at the
+    prior run's phase-3 artifact commit, not its true tip.
+  - **Base run** → the point the pipeline **branched from main** = the **merge-base of the pipeline
+    branch and main** (robust against main advancing — NOT "main's current tip"). The review then
+    sees the whole pipeline's delta.
+  - **CRITICAL: capture ONCE at run start, hold constant.** By phase 4 the review run has already
+    added its own spec/design/plan/code commits on top of the prior-run tip; the base ref must remain
+    the prior-run tip (frozen at review start) so the code review sees the review's full delta (R16
+    "only the run's incremental change"). It is captured at review start (when HEAD is still the
+    prior-run tip) and passed unchanged to every code-reviewer and doc-reviewer in the run, across all
+    rejection/re-dispatch iterations. The diff is always prior-run-tip → current HEAD.
+
+- **Placement (avoids code/docs duplication):** DEFINE the unified rule ONCE in `pipeline-versioning.md`
+  (it is run-model knowledge — about run boundaries on the branch — alongside the Runs subsection from
+  T1; a short `### Reviewer base ref` subsection or folded into Runs). Both `4 - code.md:35` and
+  `5 - docs.md:36` change "the base ref to diff against" → "the base ref to diff against (the start of
+  the current run — see `pipeline-versioning.md`)", guaranteeing code/docs symmetry with no duplicated
+  derivation. `review-pipeline.md` step 3 captures the prior-run-tip value at review start (HEAD before
+  the prompt commit) — the review-side hook into the shared rule. OPTIONAL: one line in
+  `autonomous-workflow.md` §5 noting "capture the run's base ref per `pipeline-versioning.md` before
+  launching the phase-4/5 reviewers." **Decision: include the autonomous-workflow.md §5 line** — it is
+  where the run-wide value is actually held during execution, and it makes the capture-at-start timing
+  explicit for the normal run too (which has no review-pipeline.md to host it).
+
+- **Assisted mode (R17) — not applicable, no edit.** Assisted runs advance only through phase 3
+  (`assisted-phases/` has only 1-spec, 2-design-doc, 3-plan); the code/docs reviewers never run in
+  assisted mode, so there is no base ref to derive there. The rule lives entirely in the autonomous
+  path; `assisted-workflow.md` is untouched.
+
+**Edit-site summary:** `pipeline-versioning.md` — new unified Reviewer-base-ref rule (in/near the Runs
+subsection). `4 - code.md:35` and `5 - docs.md:36` — reference that rule. `review-pipeline.md` step 3 —
+capture prior-run tip at review start. `autonomous-workflow.md` §5 — one capture-at-start line.
+`assisted-workflow.md` — untouched. Agents — untouched (reviewers already accept the base ref).
+
 ## Open questions / blockers
 
 (None open.)
