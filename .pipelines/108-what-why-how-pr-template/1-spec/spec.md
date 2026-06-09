@@ -38,12 +38,21 @@ It is not a template that `radical-pipelines` generates for downstream projects.
 
 3. **Author-guidance hints.** Each of the three sections includes a short
    author-guidance hint that conveys the section's intent (What = what the change
-   does; Why = the problem/motivation; How = the implementation approach). Hints
-   are concise and free of Gutenberg/WordPress-specific wording.
+   does; Why = the problem/motivation; How = the implementation approach). A hint
+   MAY take the form of an HTML comment, brief visible prose, or both — the form
+   is a design-phase choice (see Out of Scope). The hint is evaluated against the
+   template as it appears in the PR description edit box (where HTML comments are
+   visible to the author guiding them as they write), so a comment-only hint
+   satisfies this requirement; this is consistent with the rendered-output
+   invisibility of HTML comments in Requirement 8. Hints are concise and free of
+   Gutenberg/WordPress-specific wording.
 
 4. **Issue-linking affordance.** The template provides a way for contributors to
    link the PR to its issue using a GitHub closing keyword — a "Closes #" stub
-   placed within or near the What section.
+   placed within or near the What section. The stub is a fill-in affordance: the
+   author supplies the issue number. An un-filled stub (shipped before the author
+   edits it) is therefore the expected initial state, not a broken or empty
+   render. (The exact stub syntax is a design-phase choice; see Out of Scope.)
 
 5. **Single visible changeset reminder.** The template includes exactly one
    visible (not hidden inside an HTML comment) changeset reminder that tells
@@ -102,13 +111,15 @@ It is not a template that `radical-pipelines` generates for downstream projects.
   design-phase decision, not a requirement of this spec. If included, it must
   not link to the WordPress-specific AI Guidelines (see Requirement 7).
 
-- **Exact wording, heading punctuation, and layout (design-deferred).** The
-  precise hint phrasing, the choice between question-form (`## What?`) and bare
-  (`## What`) headings, and whether the changeset reminder sits in its own short
-  footer section or alongside another section are left to the design phase. The
-  fixed constraints are the three What/Why/How concepts and their order
-  (Requirement 2), the presence of the issue-linking stub (Requirement 4), and
-  the single visible changeset reminder (Requirement 5).
+- **Exact wording, heading punctuation, hint form, and layout (design-deferred).**
+  The precise hint phrasing, the form each hint takes (HTML comment, brief visible
+  prose, or both — Requirement 3), the exact "Closes #" stub syntax (Requirement
+  4), the choice between question-form (`## What?`) and bare (`## What`) headings,
+  and whether the changeset reminder sits in its own short footer section or
+  alongside another section are left to the design phase. The fixed constraints
+  are the three What/Why/How concepts and their order (Requirement 2), the
+  presence of the issue-linking stub (Requirement 4), and the single visible
+  changeset reminder (Requirement 5).
 
 ## Acceptance Criteria
 
@@ -126,17 +137,23 @@ It is not a template that `radical-pipelines` generates for downstream projects.
   three is present.
 
 ### AC3 — Each section guides the author
-- **Given** the template content,
+- **Given** the template content as it appears in the PR description edit box
+  (where HTML comments are visible to the author),
 - **When** a contributor reads any of the three sections,
 - **Then** that section includes a concise hint conveying its intent (What = what
   the change does; Why = the problem/motivation; How = the implementation
-  approach), with no Gutenberg/WordPress-specific wording.
+  approach), with no Gutenberg/WordPress-specific wording. The hint MAY be an HTML
+  comment, brief visible prose, or both; a comment-only hint satisfies this
+  criterion (it is visible in the edit box) and remains consistent with AC8.
 
 ### AC4 — Issue-linking stub is present
 - **Given** the template content,
-- **When** a contributor fills it in,
+- **When** it is inspected,
 - **Then** there is a "Closes #" stub (within or near the What section) that lets
-  them link the PR to its issue via a GitHub closing keyword.
+  the author link the PR to its issue via a GitHub closing keyword. The stub is a
+  fill-in affordance — the author supplies the issue number — so an un-filled stub
+  is the expected initial state and is not treated as a broken or empty render
+  (see AC8).
 
 ### AC5 — Exactly one visible changeset reminder
 - **Given** the rendered PR description,
@@ -164,7 +181,9 @@ It is not a template that `radical-pipelines` generates for downstream projects.
 - **Given** the template content,
 - **When** it is rendered in a GitHub PR description box,
 - **Then** all headings and visible hints display as intended and any HTML
-  comments are invisible in the rendered output.
+  comments are invisible in the rendered output. An un-filled "Closes #" stub
+  (before the author supplies the issue number; see AC4) is the expected initial
+  state and does not count as a broken or empty render.
 
 ### AC9 — Changeset Gate stays green
 - **Given** the pull request that adds the template (touching only `.github/**`),
