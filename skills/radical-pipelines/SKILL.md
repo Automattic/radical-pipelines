@@ -32,7 +32,7 @@ You can move forward the pipelines through the different phases in two modes: au
 
 | #   | Phase         | Subfolder         | Produces                                                      |
 | --- | ------------- | ----------------- | ------------------------------------------------------------- |
-| 0   | Prompt        | `0-prompt`        | The raw request (input, not something to create)              |
+| 0   | Prompt        | `0-prompt`        | The pipeline's input (set up at creation, not by a phase agent) |
 | 1   | Spec          | `1-spec`          | Requirements, acceptance criteria, out-of-scope               |
 | 2   | Design doc    | `2-design-doc`    | Architecture, API design, technical decisions, trade-offs     |
 | 3   | Plan          | `3-plan`          | Code plan and doc plan                                        |
