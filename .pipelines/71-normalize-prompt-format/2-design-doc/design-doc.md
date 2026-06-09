@@ -70,9 +70,9 @@ Consequently, a cross-link from `create-pipeline.md` → `manage-issues.md` ("Th
 | File | Change | Requirements / ACs |
 | --- | --- | --- |
 | `skills/radical-pipelines/reference/create-pipeline.md` | Rewrite step 4. Name the canonical format by referencing `manage-issues.md` ("The issue format"); document the prompt-file rendering wrapper; instruct reading body + all comments and fetching one-hop references (generic, access-split); state normalize-don't-converge + surface-conflicts; broaden asset download to comments and references; gate the write+commit on owner confirmation with a revise loop. Fold the commit into the approval branch (reconcile with step 5). | R1–R12; AC1–AC15 |
-| `skills/radical-pipelines/reference/manage-issues.md` | No structural change to "The issue format" — it stays the single source. Touch only if needed to keep the cited section heading stable as a link target. | R1, R11; AC1, AC4 |
-| `skills/radical-pipelines/reference/conventions/setup.md` | "Issues (required)" capability sentence (`:64`): extend to include reading an issue's *comments* (generic wording). | R6; AC6 |
-| `.rp.md` (dogfood project config) | Add a short "Reading an issue" note granting comment-reading and stating that reading an issue includes its comments. Naming `gh` is allowed here — `.rp.md` is tool-specific config, exempt from R-generic. | R6; AC6 (dogfood) |
+| `skills/radical-pipelines/reference/manage-issues.md` | No structural change to "The issue format" — it stays the single source. Touch only if needed to keep the cited section heading stable as a link target. | R1, R3; AC1, AC4 |
+| `skills/radical-pipelines/reference/conventions/setup.md` | "Issues (required)" capability sentence (`:64`): extend to include reading an issue's *comments* (generic wording). | R5; AC6 |
+| `.rp.md` (dogfood project config) | Add a short "Reading an issue" note granting comment-reading and stating that reading an issue includes its comments. Naming `gh` is allowed here — `.rp.md` is tool-specific config, exempt from R-generic. | R5; AC6 (dogfood) |
 | `.changeset/<slug>.md` | New `minor` changeset (prose) describing the normalized-prompt behavior. | Release hygiene (phase 5) |
 
 Scope discipline:
@@ -81,7 +81,7 @@ Scope discipline:
 
 ## Design decisions
 
-### D1 — Single source + load-bearing cross-link (R1, R11; AC1, AC4)
+### D1 — Single source + load-bearing cross-link (R1, R3; AC1, AC4)
 
 The canonical section taxonomy remains defined **only** in `manage-issues.md` "The issue format" (`:12-22`). `create-pipeline.md` step 4 references it instead of re-listing the sections, using the repo's verified file+section idiom (`` `file.md` ("Section name") ``):
 
@@ -89,7 +89,7 @@ The canonical section taxonomy remains defined **only** in `manage-issues.md` "T
 
 `create-pipeline.md` does not enumerate Goal / Constraints / Context / Assumptions anywhere. Because the cited file is otherwise off `create-pipeline.md`'s reading path, this single reference both satisfies AC4 (the flow points to the definition rather than re-enumerating it) and pulls the taxonomy onto the path without on-path duplication (AC1: the taxonomy is found in exactly one place).
 
-### D2 — Prompt-file rendering wrapper, documented in `create-pipeline.md` (R12; AC5)
+### D2 — Prompt-file rendering wrapper, documented in `create-pipeline.md` (R4; AC5)
 
 Step 4 pins one concrete file shape, resolving the five-way artifact drift. The chosen rendering and the rationale for each choice:
 
@@ -146,7 +146,7 @@ Phrasing follows R-neg: positive form where possible. The few "must not" clauses
 
 This is a **normalize, not converge** boundary: phase 0 reshapes existing material into a fixed structure; it does not do the research, requirements work, or design that phases 1–5 own.
 
-### D5 — Confirmation gate + revise loop, in-place (R3, R9, R10, R11; AC11, AC12, AC13, AC14)
+### D5 — Confirmation gate + revise loop, in-place (R8, R9, R10, R11; AC11, AC12, AC13, AC14)
 
 Step 4 ends with a compact in-place loop, mirroring the `manage-issues.md:62` "Draft, confirm, write" idiom but for the prompt-*file* subject:
 
@@ -154,9 +154,9 @@ Step 4 ends with a compact in-place loop, mirroring the `manage-issues.md:62` "D
 - **If the owner requests changes, revise and show again.** The loop repeats; nothing is committed until the owner approves.
 - **On explicit approval, write `prompt.md` and commit** (in that order).
 
-The gate sits **before the write**, not merely before the commit, because R3/AC11 require that the prompt is never *written or committed* silently. This mirrors `manage-issues.md:62` (render the draft and show it before writing to the tracker; write only on approval) and makes AC14 (no phase-0 approval file) trivially true: confirmation is transient, so no approval artifact is produced.
+The gate sits **before the write**, not merely before the commit, because R9/AC11 require that the prompt is never *written or committed* silently. This mirrors `manage-issues.md:62` (render the draft and show it before writing to the tracker; write only on approval) and makes AC14 (no phase-0 approval file) trivially true: confirmation is transient, so no approval artifact is produced.
 
-**Why in-place rather than extracted to a shared file:** the render→confirm→revise pattern is house style — it appears in-place in 7+ files and has never been extracted. `create-pipeline.md` and `manage-issues.md` are sibling entry points that are never co-loaded, so R-dup-path is satisfied. The two loops differ materially in subject (synthesis→file vs. issue→tracker) and only the new one surfaces conflicts (R9), so they are not the verbatim-repeated cross-path instruction that R-dup-cross targets. Extraction would force parameterization that adds words, against R-min.
+**Why in-place rather than extracted to a shared file:** the render→confirm→revise pattern is house style — it appears in-place in 7+ files and has never been extracted. `create-pipeline.md` and `manage-issues.md` are sibling entry points that are never co-loaded, so R-dup-path is satisfied. The two loops differ materially in subject (synthesis→file vs. issue→tracker) and only the new one surfaces conflicts (R8), so they are not the verbatim-repeated cross-path instruction that R-dup-cross targets. Extraction would force parameterization that adds words, against R-min.
 
 **Why the gate is unconditional, regardless of mode:** pipeline creation runs *upstream* of mode selection. In `work-on-an-issue.md`, step 2 (create the pipeline → `create-pipeline.md`, line 39) precedes step 3 (pick the workflow mode, line 41). So synthesis and confirmation happen *before* the owner chooses autonomous vs. assisted and before any autonomous run starts. The confirmation therefore does not conflict with the autonomous workflow's "no further questions once the run starts" rule. There is also no `Decisions` section in `create-pipeline.md` and none is added: the autonomous workflow reads per-phase `Decisions` only for phases 1–5 (`autonomous-workflow.md:25`), and phase-0 creation predates the run. Confirmation is an unconditional gate inside creation, not an autonomous per-phase decision. There is **no pass-through exemption** for issues already written in the canonical format: synthesize → confirm → write runs every time, even when the synthesis is a near-identity reformat.
 
@@ -204,7 +204,7 @@ Nothing of the synthesized prompt is written to disk before approval.
 - **R2 / AC2 — Canonical sections, omit-empty.** D1 (referenced taxonomy) + D2 (real `## ` headings, empty sections omitted). Goal stated as an outcome per the referenced definition.
 - **R3 / AC4 — Format referenced, not duplicated.** D1: the flow cites `manage-issues.md` ("The issue format") instead of re-enumerating sections; the cross-link is load-bearing (off-path target), so it both references and pulls the taxonomy in without on-path duplication.
 - **AC3 — Minimal issue → minimal prompt.** D2 specimen: `# Prompt` + source line + `## Goal` is a complete valid prompt.
-- **R12 / AC5 — Rendering documented and matched.** D2 documents the wrapper (top heading + `> Source:` line + self-contained note + body sections) in `create-pipeline.md`; produced files match the documented specimen.
+- **R4 / AC5 — Rendering documented and matched.** D2 documents the wrapper (top heading + `> Source:` line + self-contained note + body sections) in `create-pipeline.md`; produced files match the documented specimen.
 
 ### Synthesis inputs
 
@@ -219,9 +219,9 @@ Nothing of the synthesized prompt is written to disk before approval.
 
 ### Owner confirmation
 
-- **R3 / AC11 — Commit gated on confirmation, always.** D5: the write *and* commit are gated on explicit approval; the gate is unconditional and upstream of mode selection (`work-on-an-issue.md` step 2 < step 3); no per-run mode skips it; no pass-through for already-canonical issues.
-- **R9 / AC12 — Full rendered prompt shown.** D5: the owner sees the exact rendered `prompt.md` text, not a summary.
-- **R10 / AC13 — Revise-and-re-confirm.** D5: on requested changes, the flow revises and re-shows; commits only on approval; the loop repeats until then.
+- **R9 / AC11 — Commit gated on confirmation, always.** D5: the write *and* commit are gated on explicit approval; the gate is unconditional and upstream of mode selection (`work-on-an-issue.md` step 2 < step 3); no per-run mode skips it; no pass-through for already-canonical issues.
+- **R10 / AC12 — Full rendered prompt shown.** D5: the owner sees the exact rendered `prompt.md` text, not a summary.
+- **R11 / AC13 — Revise-and-re-confirm.** D5: on requested changes, the flow revises and re-shows; commits only on approval; the loop repeats until then.
 - **AC14 — No phase-0 approval file.** D5: confirmation is transient (a gate before the write); no approval artifact is produced. Assets in `0-prompt/` are not an approval record.
 
 ### Preserved behaviors
@@ -235,7 +235,7 @@ Nothing of the synthesized prompt is written to disk before approval.
 - No PR review-thread ingestion; no following the issue's closing-PR cross-reference. Inputs are the issue body, its comments, and one-hop cited references only.
 - No requirements, acceptance criteria, design, architecture, or task breakdown in `prompt.md`.
 - No goal substitution.
-- No new prompt format — the section taxonomy is the existing one; the only newly written-down piece is the prompt-file rendering wrapper (R12), which pins existing by-example behavior.
+- No new prompt format — the section taxonomy is the existing one; the only newly written-down piece is the prompt-file rendering wrapper (R4), which pins existing by-example behavior.
 
 ## AGENTS.md compliance check
 
