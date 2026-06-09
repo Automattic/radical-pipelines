@@ -393,6 +393,86 @@ the chooser. review-pipeline.md's Step 2 handles the in-review fork-vs-review nu
 append "then continue to step 3"; insert R25 decision-rule block after line 35; Merge/Close lines
 untouched.
 
+### T5 — Prompt-format single-sourcing + review origin reference (R10, R11, R12, R13)
+
+Decided 2026-06-09 with researcher. `manage-issues.md` read in full; the format prose lives there
+today (interleaved with issue-front-door specifics).
+
+- **Shared format home: NEW file `reference/prompt-format.md` (option a).** A neutrally-named file
+  is where any of the three sites' readers will look; (b) "host in manage-issues.md" leaves the
+  canonical format buried in the tracker front-door file and creates a host/borrow asymmetry that
+  invites drift. **Schema and discipline are NOT split** (rejected option c) — they're short and
+  tightly coupled (the discipline explains the schema's shape); keep them in one file with two
+  subsections: `## Schema and rendering` and `## Authoring discipline`. This satisfies R13's "each
+  element in exactly one location" without two-file sync overhead.
+
+- **Extraction line map (clean — the interleaving is one sentence):**
+  - MOVE to `prompt-format.md`: the schema bullets `manage-issues.md:16–22` (Title/Goal/Constraints/
+    Context/Assumptions + "A vague idea yields just a Title and a Goal"); the rendering rule embedded
+    in line 14 ("omit any that are empty — no `N/A` placeholders"); the four authoring-discipline
+    bullets `:28–31` (capture-don't-converge, lead-with-goal, no-requirements/design/impl,
+    hypotheses-as-open — these reference phases/`spec-analyst`, which are pipeline-wide truths, not
+    issue-front-door specifics, so they belong with the shared discipline).
+  - STAYS in `manage-issues.md`: line 14's FIRST clause ("The issue body _is_ the phase-0 prompt —
+    `create-pipeline.md` turns the issue into `0-prompt/prompt.md`" → update to `base/0-prompt/`) is
+    the issue↔prompt RELATIONSHIP, issue-site-specific; line 32 ("Do not write to the tracker until
+    the owner approves the rendered draft") is TRACKER-specific and MUST NOT move (base/review
+    prompts are committed to a run folder, not written to a tracker — key separation point); all of
+    Steps 1–5 (`:36–62`) and Close out (`:64–66`) untouched (they name Goal/Constraints/etc. by use,
+    not restatement).
+
+- **`prompt-format.md` shape:** "# The Prompt Format" + one line ("a tracker issue body, a base
+  prompt, or a review prompt; it is the input to phase 1") + `## Schema and rendering` (moved
+  schema+rendering) + `## Authoring discipline` (moved four bullets). NO origin-reference hook (see
+  below).
+
+- **Three site pointers (no restatement):**
+  - ISSUE (`manage-issues.md`): "## The issue format" body → issue↔prompt sentence + "Author it using
+    the shared schema, rendering rules, and authoring discipline in `prompt-format.md`." "## Constraints"
+    → "The authoring discipline in `prompt-format.md` applies across all steps below." + keep ONLY the
+    tracker-only bullet (line 32).
+  - BASE (`create-pipeline.md` step 4): KEEP the issue→prompt TRANSFORM (line 25 "Adapt the issue
+    content as a prompt directed at the agents…" — distinct base-site instruction, not format prose).
+    REPLACE the discipline restatement (line 26 "Do not add requirements, technical directions, or
+    implementation details…") with a pointer to `prompt-format.md`. **RESOLVED open choice — TRIM to a
+    pure pointer (override researcher's lean-to-keep-the-gloss):** acceptance criterion 13 is strict
+    ("no two … restate the same format prose"); the gloss IS the discipline restated and is exactly
+    what an acceptance test would flag. Proposed: "Adapt the issue content into the phase-0 prompt at
+    `<artifacts-folder>/base/0-prompt/prompt.md`, following the schema and authoring discipline in
+    `prompt-format.md`." Asset bullet (line 27) and self-contained bullet (line 28) stay (base-site
+    specifics). (Researcher preferred keeping a short gloss for safety-against-skipping; I override for
+    strict R13 compliance — the pointer is unambiguous and the discipline is one click away.)
+  - REVIEW (`review-pipeline.md` step 5): "Author the review prompt at
+    `review-N-<short-description>/0-prompt/prompt.md` following the schema and authoring discipline in
+    `prompt-format.md`, plus the review-only origin reference below."
+
+- **3×4 site-local contract (writer must NOT factor these out):**
+  | Element | ISSUE | BASE | REVIEW |
+  |---|---|---|---|
+  | Destination | the tracker (Issues convention) | `<artifacts-folder>/base/0-prompt/prompt.md` | `review-N-<short-description>/0-prompt/prompt.md` |
+  | Source | short owner-led Q&A (Steps 1–5) | the existing issue, transformed | owner's requested change / GitHub comment / PR review / conversation (mostly transcribed when written) |
+  | Trigger | owner creates/modifies an issue | a new pipeline is created (phase 0) | a review is started (review-pipeline.md step 5) |
+  | Origin reference | absent | absent | MANDATORY (R12) |
+  Plus: issue-only tracker "don't write until approved"; base-only asset-download + self-contained;
+  review-only assets-into-`0-prompt/` + origin reference.
+
+- **Origin reference (R12): review-ONLY, specified in `review-pipeline.md` step 5 — NOT in the shared
+  schema.** Putting it in `prompt-format.md` would pollute the schema with something two of three
+  sites never use and require "optional everywhere except mandatory in review" conditional prose —
+  exactly the cross-site coupling R13 avoids. The shared schema needs NO hook: omit-empty rendering
+  already tolerates an extra section, and a hook would invite schema erosion. Exact phrasing in
+  review-pipeline.md step 5 (after the prompt-format pointer): an **Origin** section, MANDATORY for
+  reviews, self-contained (substance = direct quote or faithful paraphrase + a convenience link), with
+  source assets placed in this review run's `0-prompt/` and referenced relatively (same as issue/base);
+  explicitly noting the Origin section is unique to reviews and absent from issue/base prompts.
+
+**Edit-site summary:** NEW `reference/prompt-format.md` (schema+rendering + authoring discipline,
+moved from `manage-issues.md:14,16–22,28–31`). `manage-issues.md`: "## The issue format" + "##
+Constraints" collapse to pointers + keep the tracker-only bullet (line 32; update line 14 path to
+`base/0-prompt/`); Steps untouched. `create-pipeline.md` step 4: keep transform (line 25), replace
+discipline restatement (line 26) with a pure `prompt-format.md` pointer. `review-pipeline.md` step 5:
+pointer + Origin-reference requirement. `prompt-format.md` needs NO origin hook.
+
 ## Open questions / blockers
 
 (None open.)
