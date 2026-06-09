@@ -9,6 +9,15 @@ The package `@automattic/radical-pipelines` is **private** and consumed directly
 from git — it is **not** published to npm. There is no `npm publish` anywhere in
 this project; releases produce a git tag and a GitHub Release only.
 
+## Opening a pull request
+
+When you open a PR, GitHub pre-fills the repo's default template
+(`.github/PULL_REQUEST_TEMPLATE.md`) with **What? / Why? / How?** sections, a stub
+to link the issue it closes, and a reminder to add a changeset when your change is
+release-relevant. The changeset reminder points back to the
+[Adding a changeset](#adding-a-changeset) rules below — that's the authoritative
+source for whether and how to add one.
+
 ## Running tests and checks locally
 
 ```bash
