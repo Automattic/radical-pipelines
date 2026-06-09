@@ -252,8 +252,9 @@ Decided 2026-06-09 with researcher (full survey of all 17 `agents/*.md` + both w
     six "per pipeline" matches, no "first pipeline"/"from scratch"/"empty tree" in agents).
 
 **Net for T2:** R3 holds with the agents' BEHAVIOR untouched. Reviews touch ONE orchestrator
-workflow line (`autonomous-workflow.md:60`) + one optional assisted parenthetical
-(`assisted-workflow.md:26`), and apply ONE bounded two-word substitution to SIX agent profiles
+workflow line (`autonomous-workflow.md:60`) + the assisted run-binding clause
+(`assisted-workflow.md:26` — flagged optional here, UPGRADED to recommended in T7 because it is
+assisted's only run-binding site), and apply ONE bounded two-word substitution to SIX agent profiles
 (`per pipeline` → `in this artifact folder`). The design doc must state this precisely so the
 "no agent profile is rewritten" claim is reported honestly as "very nearly so." Researcher
 confirmed (A)-safety crux: an agent handed `.../review-1/1-spec/` cannot see base's approved
@@ -705,6 +706,109 @@ refinement already folded into the T1.3 record above.
 workflows' existing next-phase logic. T9's only contribution is the "next phase" wording refinement
 already recorded in T1.3. Removal is deferred (Out-of-Scope), documented nowhere.
 
+### Synthesis — why a review produces full, delta-scoped artifacts that build on prior work (R14, R15)
+
+This is the conceptual keystone, an EMERGENT property of the decisions above, not a separate edit. It
+is captured here so the design doc owns WHY R14/R15 hold with no agent/phase rewrite ("almost nothing
+changes in the agents").
+
+- **R14 (full artifacts, delta content).** A review run dispatches to the SAME phase flow (T4 step 7
+  → autonomous/assisted workflow), with the per-run folder handed to the same unchanged agents (T2/R3).
+  So each phase produces its normal FULL, standalone artifact set in `review-N-…/1-spec/spec.md`,
+  `…/2-design-doc/design-doc.md`, plan, code, docs — identical file structure to base. The CONTENT is
+  delta-scoped because the phase-1 input is the delta-scoped REVIEW PROMPT (T5: a prompt of the change,
+  not a re-spec of the whole feature), which propagates: the spec specs the change, the design designs
+  the change, etc. "Standalone" (each artifact self-contained) and "delta-scoped" (its subject is the
+  change) hold together because the agents always write standalone artifacts and the SUBJECT they're
+  given is the change.
+- **R15 (build on existing work).** Two mechanisms, both already true, no agent edit:
+  (1) the delta-scoped review prompt propagates through the phases (above); (2) the agents' normal
+  investigation runs against the LIVE worktree, which for a review already carries the prior runs' code
+  and docs (the review is on the same branch/worktree, R8). T2 confirmed the worktree-scoped agent
+  wording ("sweep the entire codebase end-to-end", `doc-plan-writer.md:63`) is exactly what makes a
+  review extend rather than rebuild — and must be left untouched. So design/plan/code/docs extend the
+  prior run's tree by construction. The code/docs review then inspects only the run's delta because its
+  base ref is the prior-run tip (T6).
+- **Net:** R14/R15 are delivered by composition — unchanged agents + per-run folder (T2) + delta-scoped
+  review prompt (T5) + same-branch live worktree (T4/R8) + prior-run-tip diff base (T6). No agent
+  profile's behavior, and no phase reference's procedure, is rewritten to achieve them. This is the
+  literal realization of the spec's "a review is just the pipeline run again."
+
+### Requirements coverage map (R1–R29 → resolving topic)
+
+Every requirement maps to a locked decision. Used by the design-doc-writer/reviewer to verify completeness.
+
+| R | Topic(s) | R | Topic(s) |
+|---|---|---|---|
+| R1 run folders | T1.1 | R16 diff prior-run tip | T6 |
+| R2 eager base | T3 | R17 both modes | T4 step 7, T6 |
+| R3 agents run-agnostic | T2 | R18 strictly sequential | T1.1, T4 step 2 |
+| R4 run is not a branch | T1.1 | R19 split advisory | T4 step 2 |
+| R5 legacy silent | T1.5, T3 | R20 state = latest run | T1.3, T9 |
+| R6 single entry point | T4 (menu + direct) | R21 resume targets latest | T7 |
+| R7 completeness gate | T4 gate (a) | R22 fork tree branch-level | T1.4 |
+| R8 same branch / re-attach | T4 step 3, T7 | R23 forking unchanged | T3 (base-only copy) |
+| R9 unmerged gate | T4 gate (b) | R24 fork-vs-review advisory | T4 step 2 |
+| R10 own new prompt | T4 step 5, T5 | R25 RESUME/REVIEW/FORK rule | T4 sub-3 |
+| R11 orchestrator authors | T4 step 5 | R26 advisories never gate | T4 gate |
+| R12 origin reference | T5 | R27 review = normal run | T8 |
+| R13 single-sourced format | T5 | R28 version unchanged | T4 step 6, T8 |
+| R14 full / delta artifacts | Synthesis | R29 wire Review, distributed | T4 |
+| R15 build on existing | Synthesis (+T2) | | |
+
+### Consolidated edit-site inventory (for the design-doc-writer / plan phase)
+
+Files this feature touches, with the deciding topic. The design doc should present this as the
+implementation surface.
+
+- **NEW `skills/radical-pipelines/reference/review-pipeline.md`** — 7-step distributed procedure (T4),
+  with the prompt-format pointer + Origin-reference (T5 step 5), resume-named-section re-attach citation
+  (T7), prior-run-tip capture (T6 step 3), generic R27 obligations pointer (T8 step 7). [R6–R12, R17,
+  R18, R19, R24–R29]
+- **NEW `skills/radical-pipelines/reference/prompt-format.md`** — shared schema+rendering + authoring
+  discipline, extracted from `manage-issues.md` (T5). [R13]
+- **`skills/radical-pipelines/reference/pipeline-versioning.md`** — Runs subsection (T1.1); predicate
+  rebind sentence (T1.2); latest-run state paragraph + two-notions + prompt-only "next phase" (T1.3 as
+  refined by T9); base/-scoped lineage/tree + run-chain rendering bullet (T1.4); Reviewer-base-ref rule
+  (T6). [R1, R4, R5, R16, R20, R22, R23]
+- **`skills/radical-pipelines/reference/create-pipeline.md`** — step 4 `base/` eager creation + path
+  (T3); step 4 discipline-restatement → prompt-format pointer (T5). [R2, R13]
+- **`skills/radical-pipelines/reference/fork-pipeline.md`** — step 4 clause, step 5 intro + cp `base/`
+  prefix (correctness + scoping), step 5/7 optional touches (T3). [R23, R5]
+- **`skills/radical-pipelines/reference/work-on-an-issue.md`** — line 34 "then continue to step 3";
+  R25 decision-rule block after line 35; Merge/Close untouched (T4). [R6, R25, R29]
+- **`skills/radical-pipelines/reference/manage-issues.md`** — "The issue format" + "Constraints"
+  collapse to prompt-format.md pointers + keep tracker-only bullet + path → `base/0-prompt/` (T5). [R13]
+- **`skills/radical-pipelines/reference/resume-pipeline.md`** — step 3 latest-run read clause; step 4
+  "the latest run's" qualifier; re-attach steps 1–2 unchanged but their headings are now cited by
+  review-pipeline.md (T7). [R20, R21]
+- **`skills/radical-pipelines/reference/assisted-workflow.md`** — line 26 "the active run's folder"
+  clause (T7, upgraded from T2 optional). [R3, R20]
+- **`skills/radical-pipelines/reference/autonomous-workflow.md`** — line 60 handoff → "the active run's
+  folder" (T2); §5 one-line base-ref capture-at-start (T6). [R3, R16]
+- **`skills/radical-pipelines/reference/autonomous-phases/4 - code.md`** (line 35) and **`5 - docs.md`**
+  (line 36) — reference the pipeline-versioning.md Reviewer-base-ref rule (T6). [R16]
+- **`agents/{spec-reviewer,design-doc-reviewer,code-plan-reviewer,doc-plan-reviewer,code-reviewer,doc-reviewer}.md`**
+  — ONE two-word substitution each: "per pipeline" → "in this artifact folder" (T2, option B).
+  Behavior-preserving; no other agent edits. [R3]
+- **`.rp.md`** — version-label trigger list `:36` += "or reviewing" (required); `:35` optional review
+  status-ladder clarity note (adopted) (T8). [R27, R28]
+- **UNTOUCHED (confirmed):** `health-monitoring.md` (monitor folder rides on T2); `conventions/setup.md`
+  Artifact-folder convention (layout-silent by design); all phase agents' behavior; phase references
+  other than the two base-ref reference lines; `merge-pipeline.md`/`close-pipeline.md` (stay dangling,
+  R29 / out of scope).
+
+### Notable findings the design doc should report honestly
+
+- **R16 closes a pre-existing gap.** The base-ref derivation was never written down for ANY run; R16
+  forces introducing it for both normal and review runs (T6). Framed in the spec as "the base ref they
+  already accept" (true of the agent side; the orchestrator side is new).
+- **"No agent profile is rewritten" is honestly "very nearly so."** Six reviewer profiles get one
+  bounded two-word factual correction each (T2, option B); no agent's behavior, inputs, outputs, or role
+  changes. The design doc must state this precisely rather than claim zero agent edits.
+- **R20's "active phase" vs the strict predicate** is reconciled by using "next phase" for the
+  prompt-only-review case (T1.3/T9), keeping "active phase" single-sensed across the skill.
+
 ## Open questions / blockers
 
-(None open.)
+(None open. All nine topics resolved with the researcher; the design is complete and self-consistent.)
