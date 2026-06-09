@@ -17,14 +17,14 @@ All subsequent work happens inside the pipeline's worktree, per the **Worktrees*
 
 ### 3. Verify on-disk state against the completion predicate
 
-Read the actual files on the branch and confirm the state against the **Per-phase completion** predicate in `pipeline-versioning.md`:
+Read the actual files on the branch and confirm the state against the **Per-phase completion** predicate in `pipeline-versioning.md`, evaluated within the pipeline's **latest run**; read the completed/active-phase artifacts inside that run's folder:
 
 - Confirm the **completed phase**'s required artifacts are present and committed.
 - For the **active phase** (if any), read its latest artifact end-to-end to establish exactly how far it got and why its predicate is not yet met.
 
 ### 4. Determine the resume point and restart a partial active phase
 
-If the pipeline has an **active phase** (partially complete), that is the resume point. Otherwise the resume point is the phase **after** the completed phase; the worktree is already clean, so skip the rollback below.
+If the pipeline has an **active phase** (partially complete), that is the resume point. Otherwise the resume point is the phase **after** the latest run's completed phase; the worktree is already clean, so skip the rollback below.
 
 The workflow phase references assume a phase starts fresh, so a partially-complete active phase must be **rolled back to a clean state** before the workflow re-runs it.
 
