@@ -1,10 +1,10 @@
 # Running the Spec Phase (Phase 1)
 
-Advances the pipeline from phase 0 (prompt) to phase 1 by spawning a team of agents that drive iterative Q&A, synthesize a standalone spec, and review it adversarially.
+Advances the pipeline from phase 0 (intent) to phase 1 by spawning a team of agents that drive iterative Q&A, synthesize a standalone spec, and review it adversarially.
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
+- `<artifacts-folder>/0-intent/intent.md`
 
 Outputs:
 
