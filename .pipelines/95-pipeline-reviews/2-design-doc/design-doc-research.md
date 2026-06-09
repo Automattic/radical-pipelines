@@ -527,6 +527,68 @@ subsection). `4 - code.md:35` and `5 - docs.md:36` — reference that rule. `rev
 capture prior-run tip at review start. `autonomous-workflow.md` §5 — one capture-at-start line.
 `assisted-workflow.md` — untouched. Agents — untouched (reviewers already accept the base ref).
 
+### T7 — Run-aware workflows + resume + re-attach anchor (R8, R20, R21, R27)
+
+Decided 2026-06-09 with researcher. Heavy lifting is T1.3 (pipeline-versioning.md); the execution
+files mostly INHERIT latest-run semantics through their existing delegations.
+
+- **"Next phase" lines ride on pipeline-versioning.md — NO edit.** Both `autonomous-workflow.md:7`
+  and `assisted-workflow.md:5` already delegate completed/active-phase definition to
+  pipeline-versioning.md; after T1.3 "the active phase" means "the latest run's active phase" at
+  these sites with no wording change. No workflow sentence hard-codes a pipeline-relative (non-run)
+  phase path: `autonomous-workflow.md:69`'s blocker-payload example `<artifacts-folder>/2-design-doc/…`
+  is phase-container sense and rebinds to the run folder via the T2 contract — NO edit.
+
+- **"Create the phase subfolder" — autonomous rides on T2, assisted gets the one binding edit:**
+  - `autonomous-workflow.md:48` ("create the phase subfolder inside the artifacts folder") — NO
+    edit; rides on the already-decided T2 `:60` handoff ("the active run's folder") + the run model.
+  - `assisted-workflow.md:26` — **RECONCILES + UPGRADES the T2 "optional" parenthetical to
+    RECOMMENDED:** assisted mode has NO agent-handoff line (no `:60` equivalent — the orchestrator is
+    the writer), so `:26` is the ONLY place the run binding can be made visible in the assisted path.
+    Without it, assisted never names the run folder anywhere. Edit: "Create the phase subfolder inside
+    the artifacts folder" → "Create the phase subfolder inside the active run's folder (the artifacts
+    folder for this run)". This is assisted's counterpart to the autonomous `:60` edit.
+
+- **Resume targets the latest run (R21) — two thin edits; rollback mechanics unchanged:**
+  - Step 3 (`resume-pipeline.md:20`): append a read-within-latest-run clause — "…confirm the state
+    against the **Per-phase completion** predicate in `pipeline-versioning.md`, evaluated within the
+    pipeline's latest run; read the completed and active phase artifacts inside that run's folder." (Not
+    redefining state — pipeline-versioning.md owns that — just pointing the file-reading at the right
+    run folder, which matters operationally.)
+  - Step 4 (`resume-pipeline.md:27`): add "the latest run's" before "completed phase" ("the resume
+    point is the phase **after** the latest run's completed phase"). Line 35 ("returns to the
+    completed-phase state") then reads correctly off it. **Rollback is already structurally safe** and
+    needs no further scoping: reverting ONLY the active-phase commits returns the branch to the latest
+    run's completed-phase state and CANNOT reach into a prior run, because the latest run's completed
+    phase commit is a strict floor above all prior runs. The one-word qualifier is a clarity/safety
+    touch on a destructive op, not a mechanism change. Re-attach steps 1–2 UNCHANGED (R21).
+
+- **Re-attach as a shared building block (R8) — option (b2): cite resume's named sections.**
+  - The skill's cross-reference idiom is FILE + NAMED SECTION, never step numbers (e.g.
+    `work-on-an-issue.md:19`, `fork-pipeline.md:9` cite pipeline-versioning.md sections by name;
+    `resume-pipeline.md:20` cites "Per-phase completion"). ZERO precedent for "do steps 1–2 of file X."
+  - resume's steps 1–2 ALREADY have headings ("### 1. Cancel any leftover health monitor",
+    "### 2. Re-attach to the branch and worktree"). `review-pipeline.md` step 3 cites them BY NAME:
+    "Cancel any leftover health monitor and re-attach to the branch and worktree exactly as resume does
+    (`resume-pipeline.md`, 'Cancel any leftover health monitor' and 'Re-attach to the branch and
+    worktree')." Renumber-proof, idiomatic, ZERO refactor of resume. (Rejected: b1/b3 fuse or renumber
+    resume's steps — more disruptive for no gain. Rejected (a): step-number pointer, foreign to the idiom.)
+  - No third citer needs only one of the two steps (resume is only entered whole from
+    `work-on-an-issue.md:30`), so the two stay separate; review cites both by name. **This resolves the
+    T4-step-3 carried-forward flag.**
+
+- **Monitor lifecycle composes (R27 cross-check) — confirmed.** Autonomous review: CANCEL leftover
+  comes from the reused re-attach (resume step 1, keyed on the pipeline slug); FRESH LAUNCH comes from
+  the dispatched autonomous workflow (`autonomous-workflow.md:35`). No monitor logic added to
+  review-pipeline.md — it inherits both ends; slug/team stay the same (R27). Assisted review launches
+  no monitor (`conventions/claude-code.md:35`). The "fresh monitor points at the review RUN folder"
+  detail is T8.
+
+**Edit-site summary:** `autonomous-workflow.md` — no new edits beyond T2's `:60`. `assisted-workflow.md:26`
+— add "the active run's folder" clause (upgrades T2 optional → recommended). `resume-pipeline.md` —
+line 20 append latest-run read clause; line 27 add "the latest run's" qualifier; re-attach steps 1–2
+unchanged. `review-pipeline.md` step 3 — cite resume's two named sections (b2).
+
 ## Open questions / blockers
 
 (None open.)
