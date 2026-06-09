@@ -42,7 +42,7 @@ The orchestrator starts the loop itself; the owner is not asked to run the comma
 
 ## Setup actions
 
-Pi requires the Radical Pipelines agent definitions to be discoverable. Step 3 of `setup.md` installs them after conventions have been collected.
+Pi requires the Radical Pipelines agent definitions to be discoverable. The **Apply agentic coding tool setup actions** step of `setup.md` installs them after conventions have been collected.
 
 ### Check existing agent installations
 
