@@ -303,6 +303,96 @@ Decided 2026-06-09 with researcher. Both `create-pipeline.md` and `fork-pipeline
 **Edit-site summary:** `create-pipeline.md` lines 23, 27 (steps 3 and 5 unchanged);
 `fork-pipeline.md` lines 34, 38, 42 (load-bearing), 43, 51. `setup.md` convention unchanged.
 
+### T4 — `review-pipeline.md` procedure + menu wiring (R6–R12, R17, R18, R19, R24–R29)
+
+Decided 2026-06-09 with researcher. Confirmed `merge-pipeline.md`, `close-pipeline.md`, AND
+`review-pipeline.md` are ALL absent today; Review is the one this work creates, Merge/Close stay
+dangling (out of scope). The procedure is DISTRIBUTED — it mostly delegates to existing files.
+
+**Structural findings that shape the design:**
+- The health-monitor lifecycle is owned by `autonomous-workflow.md` (launch line 35, cancel
+  line 82) and `resume-pipeline.md` step 1 (cancel leftover) — NOT by an entry-procedure file.
+  So `review-pipeline.md` never re-implements monitor handling; it inherits it via re-attach
+  (cancel leftover) + the dispatched workflow (fresh launch). (R27 detail → T8.)
+- There is no standalone "tracker run-obligations" file: tracker work goes through the **Issues**
+  convention (`manage-issues.md:5`); the autonomous workflow owns monitor + close-out. So R27's
+  run obligations are largely INHERITED by dispatching to the workflow + reusing Issues — review-
+  pipeline.md NAMES them, T8 details them. No obligation prose is duplicated in review-pipeline.md.
+
+**Precondition gating (R7, R9, R26):** BOTH hard gates re-verified at the TOP of
+review-pipeline.md, NOT relied on from the menu — because the direct route ("review this
+pipeline", R6) bypasses the menu's phase-5 guard (`work-on-an-issue.md:32`), and the merged gate
+(R9) isn't enforced by the menu at all (line 32 keys only on phase-5 completion). This is
+correctness, not redundancy.
+- Gate (a) completeness: latest run complete through phase 5 (predicate evaluated WITHIN the
+  latest run per T1's state rule). On failure, steer to **resume** (`resume-pipeline.md`) or
+  **fork** (`fork-pipeline.md`) — R7's exact remedy.
+- Gate (b) unmerged: per the merged-state determination in `pipeline-versioning.md` ("Listing
+  pipelines for an issue" / the `[merged]` annotation). A merged pipeline → handled as a new
+  issue via `manage-issues.md`, not a review — R9's exact remedy.
+- R26 anchor sentence at the gate: these two are the ONLY preconditions; the fork-vs-review and
+  split advisories never gate a review the owner chooses.
+
+**Procedure skeleton (refined from straw man; advisories BEFORE re-attach):**
+1. **Confirm review preconditions** — the two gates above; steer to resume/fork or new-issue on
+   failure; advisories never gate (R26). [delegates: pipeline-versioning.md state/merged-state;
+   resume/fork/manage-issues as remedies]
+2. **Advisories** — fork-vs-review (R24, drastic ⇒ MAY recommend fork) + split (R19, several
+   unrelated changes ⇒ MAY suggest separate sequential reviews, R18). Confirm final count and
+   boundaries with the owner BEFORE creating any run folder; non-gating (R26). Placed BEFORE
+   re-attach because an accepted fork diverts to `fork-pipeline.md` entirely and R19 requires
+   settling count "before creating any run folder" — so nothing is re-attached/created first.
+   [delegates: fork-pipeline.md if owner forks]
+3. **Re-attach to branch/worktree** — REUSE resume's logic (R8): follow `resume-pipeline.md`
+   steps 1–2 (cancel leftover monitor, re-enter worktree or recreate from branch). NO rollback
+   (latest run already complete — explicitly do NOT perform resume's step-4 rollback); NEVER a
+   new branch. [delegates: resume-pipeline.md steps 1–2] — **FLAG → T7:** the "do steps 1–2 of
+   that file" pointer is brittle; T7 will decide whether to factor resume's steps 1–2 into a
+   named shared "Re-attach to branch and worktree" anchor that both resume and review cite.
+   Leaning toward factoring (R8 says "reusing … rather than reinventing").
+4. **Determine + create the run folder** `review-N-<short-description>` (R4): N = next after
+   existing `review-*`; kebab short description of the review goal; sibling of `base/`. [delegates:
+   pipeline-versioning.md Runs subsection for the NAME RULE — not restated]
+5. **Author + commit the review prompt** at `review-N-…/0-prompt/prompt.md` (R10–R12), the same
+   way the base prompt (phase 0) is orchestrator-authored (`create-pipeline.md` step 4 pattern),
+   using the shared prompt format + mandatory origin reference. [delegates: create-pipeline.md
+   step 4; T5 for format + origin reference] — review-pipeline.md does NOT restate the format.
+6. **Re-assert the version label** `v<N>`, unchanged (R28) — confirm, do not change; same branch,
+   same pipeline. [delegates: pipeline-versioning.md "Model"]
+7. **Return to `work-on-an-issue.md` step 3** to pick mode + dispatch the chosen workflow for
+   phases 1–5 (R17). The review prompt is phase 0 and mode-independent. Phases run in the review
+   run folder [T7]. Assisted review advances only through phase 3 ⇒ itself incomplete until
+   finished autonomously through 4–5, so it can't yet satisfy R7 for a later review. Run-start/
+   run-end obligations + monitor fire via the dispatched workflow (R27; detail T8). Ends like
+   resume ("Return to work-on-an-issue.md"). [delegates: work-on-an-issue.md steps 3–4;
+   autonomous/assisted-workflow.md; T8]
+- **Run-start obligations (R27) fire** after Step 5 (prompt committed = the run exists), folded
+  into the dispatch (Step 7) — inherited from the workflow + Issues convention, not duplicated.
+
+**RESUME / REVIEW / FORK decision rule (R25):** lives INLINE in `work-on-an-issue.md` step 2 (a
+reader opening review-pipeline.md has already chosen review — too late for a discriminator). Insert
+a non-nested "When the owner is unsure, apply this rule" block AFTER line 35 (at the top-level
+bullet indent, so it can see all three actions — Review is offered only in the phase-5 sub-block
+while Resume/Fork are always offered, which is consistent: review requires a complete run). Phrasing
+lifts R25: resume = finish INCOMPLETE latest run, same branch; review = layer incremental change on
+a COMPLETE run, same branch, build on existing code; fork = diverge onto a FRESH branch from main.
+Sharpest discriminator: same-branch-build-on-existing (review) vs new-branch-from-main (fork);
+resume = incomplete run. Existing menu bullets (lines 30–35) stay exactly as-is; the new block is
+the chooser. review-pipeline.md's Step 2 handles the in-review fork-vs-review nuance (R24).
+
+**Wiring without breaking Merge/Close (R29) — confirmed:**
+- Creating `review-pipeline.md` and leaving the Merge (line 33) and Close (line 35) bullets EXACTLY
+  as-is satisfies R29. Merge/Close target files are absent today and stay absent (dangling, inert,
+  unbroken). No edit to those two lines.
+- Line 34 ("**Review** read `review-pipeline.md`") needs NO text change to become live (the file now
+  exists). ADOPTED one-clause addition: append "then continue to step 3" to mirror Resume/Fork
+  (lines 30–31) and make the post-review return-to-step-3 flow legible. Merge/Close bullets keep NO
+  "continue to step 3" — correctly signaling they're terminal/dangling, not workflow-dispatching.
+
+**Edit-site summary:** NEW file `review-pipeline.md` (7 steps above). `work-on-an-issue.md`: line 34
+append "then continue to step 3"; insert R25 decision-rule block after line 35; Merge/Close lines
+untouched.
+
 ## Open questions / blockers
 
 (None open.)
