@@ -245,7 +245,63 @@ Decided 2026-06-09 with researcher (full survey of all 17 `agents/*.md` + both w
 workflow line (`autonomous-workflow.md:60`) + one optional assisted parenthetical
 (`assisted-workflow.md:26`), and apply ONE bounded two-word substitution to SIX agent profiles
 (`per pipeline` → `in this artifact folder`). The design doc must state this precisely so the
-"no agent profile is rewritten" claim is reported honestly as "very nearly so."
+"no agent profile is rewritten" claim is reported honestly as "very nearly so." Researcher
+confirmed (A)-safety crux: an agent handed `.../review-1/1-spec/` cannot see base's approved
+file (never walks above its handed folder; rejection counter is folder-local), so there is NO
+functional ambiguity either way — (B) is chosen purely for truthfulness.
+
+### T3 — Eager `base/` at creation + fork-copy scoped to `base/` (R2, R5, R23)
+
+Decided 2026-06-09 with researcher. Both `create-pipeline.md` and `fork-pipeline.md` read in full.
+
+- **Layout is NOT a convention concern.** The **Artifact folder** convention (`setup.md:46-52`)
+  defines only the pipeline FOLDER (`.pipelines/<slug>/`) and is silent on internal layout. So
+  `base/` is laid down by the phase-creating steps, the convention stays UNCHANGED, and the run
+  layout is single-sourced to `pipeline-versioning.md`'s Runs subsection (T1.1).
+
+- **`create-pipeline.md` (R2):**
+  - Step 3 ("Create the folder following the **Artifact folder** convention", line 19) —
+    UNCHANGED; it creates `.pipelines/<slug>/`.
+  - Step 4 (line 23) — EXPLICIT base creation folded into the phase-0 step (not a new standalone
+    step; step 3 is convention-bound and shouldn't grow run vocabulary). Replace line 23 with:
+    "Phase folders live under a run folder; the first run is always `base` (see 'Runs within a
+    pipeline' in `pipeline-versioning.md`). Create the `base/` run folder and the phase 0
+    subfolder under it (`base/0-prompt/`) inside the artifact folder. Write the prompt to
+    `<artifacts-folder>/base/0-prompt/prompt.md`." (Cross-references the run definition rather
+    than re-explaining `base`.)
+  - Step 4 asset bullet (line 27): `<artifacts-folder>/0-prompt/` → `<artifacts-folder>/base/0-prompt/`
+    (relative refs inside prompt.md unaffected).
+  - Step 5 (Commit, line 32) — UNCHANGED; commits whatever was created, now under `base/`.
+
+- **`fork-pipeline.md` (R23) — the line-42 edit is BOTH a correctness fix AND reviews-scoping:**
+  - Step 4 (line 34) — append (ADOPTED optional touch): "The fork's phases live under its own
+    `base/` run, seeded from the parent's `base/` run (next step); a fork starts a fresh `base/`
+    and never inherits the parent's reviews (see 'Runs within a pipeline' in
+    `pipeline-versioning.md`)." States R23's "own base, inherit parent's base, reviews excluded"
+    without describing reviewed-run forking (out of scope).
+  - Step 5 intro (line 38): scope the copy to base in prose — "Copy only the phase folders being
+    inherited, from the parent's `base/` run into the new pipeline's `base/` run — `base/0-prompt`
+    up to and including the inherited phase agreed in step 1. Only `base/` is copied; the parent's
+    `review-*` runs, if any, are never inherited."
+  - Step 5 cp (line 42) — THE load-bearing edit. Source AND destination gain the `base/` prefix:
+    `cp -r <parent-worktree>/<parent-artifact-folder>/base/<phase> <artifacts-folder>/base/<phase>`.
+    **Critical correctness note:** after R2 the parent's prompt is at `<parent>/base/0-prompt`, so
+    the CURRENT cp (`<parent>/0-prompt`) would FAIL (source missing). The `base/` prefix on the
+    source fixes the broken path; it also inherently scopes to `base/` and never touches
+    `<parent>/review-*`. Reviews were never at accidental-inclusion risk because the loop iterates
+    phase NAMES (`0-prompt`, `1-spec`, …), not a glob — `review-*` are not phase names.
+  - Step 5 worktree-absent (line 43) — ADOPTED optional tightening: "copy as above" → "copy as
+    above (from the parent's `base/` run)" to remove any doubt about which run is copied.
+  - Step 6 (Commit, line 47) — UNCHANGED.
+  - Step 7 (Continue, line 51) — ADOPTED optional touch: append "Work continues in the fork's
+    `base/` run." for end-to-end run-layer visibility and symmetry with create-pipeline step 4.
+
+- **R5 silence + R23 scope — confirmed.** No "if no `base/`" text in either file; both assume
+  `base/` exists. No forking-from-reviewed-run capability is described — the step-4 clause states
+  only what the COPY takes (base only, reviews excluded), which is the correct framing.
+
+**Edit-site summary:** `create-pipeline.md` lines 23, 27 (steps 3 and 5 unchanged);
+`fork-pipeline.md` lines 34, 38, 42 (load-bearing), 43, 51. `setup.md` convention unchanged.
 
 ## Open questions / blockers
 
