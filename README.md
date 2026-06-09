@@ -24,7 +24,7 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 
 The phases are:
 
-- **Phase 0. Prompt.** The initial idea or request.
+- **Phase 0. Intent.** The initial idea or request.
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
 - **Phase 3. Plan.** Code plan and documentation plan.
@@ -53,7 +53,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 ## Success metrics
 
 - **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task.
-- **Pipeline completion rate.** Percentage of tasks that make it from prompt to finished implementation through all phases without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint.
+- **Pipeline completion rate.** Percentage of tasks that make it from intent to finished implementation through all phases without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint.
 - **Relaunch efficiency.** When a human identifies a problem and corrects a specific phase, how many relaunch attempts does it take to reach an acceptable result? Fewer rounds means the pipeline is surfacing the right information for the human to make effective corrections.
 - **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human.
 
@@ -109,7 +109,7 @@ This routes through the single Pi manifest (`package.json` at the repo root), wh
 The package installs:
 
 - the `radical-pipelines` skill;
-- phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer` (phase 0 is the raw prompt, an input rather than an agent-produced artifact, so it has no agent profile);
+- phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer` (phase 0 is the raw intent, an input rather than an agent-produced artifact, so it has no agent profile);
 - bundled `pi-teams`, `@zenobius/pi-worktrees`, and `@pi-agents/loop` Pi resources.
 
 During package development in this repository, install dependencies once from the repository root and then install the local path:
