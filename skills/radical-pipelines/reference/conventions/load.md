@@ -8,22 +8,30 @@ This information is necessary to execute the pipelines correctly, so you must lo
 
 ## Conventions
 
-| Convention        | What it covers                                                 | Required? |
-| ----------------- | -------------------------------------------------------------- | --------- |
-| Pipeline base slug | How to uniquely identify pipelines                            | Yes       |
-| Artifact folder   | Where to store the pipeline artifacts                          | Yes       |
-| Commit format     | How to write commits                                           | No        |
-| Issues            | Where to find the project issues and how to create/modify them | Yes       |
-| Worktrees         | How to set up and manage worktrees for each pipeline           | Yes       |
-| Branch names      | How to name branches for each pipeline                         | Yes       |
-| Team spawning     | How to define and launch teams of agents                       | No        |
-| Agent models      | Which model/settings each spawned agent runs on                | No        |
-| Health monitoring | How to launch and cancel the recurring run-health loop         | Yes       |
+| Convention         | What it covers                                                 | Required? |
+| ------------------ | -------------------------------------------------------------- | --------- |
+| Pipeline base slug | How to uniquely identify pipelines                             | Yes       |
+| Artifact folder    | Where to store the pipeline artifacts                          | Yes       |
+| Commit format      | How to write commits                                           | No        |
+| Issues             | Where to find the project issues and how to create/modify them | Yes       |
+| Worktrees          | How to set up and manage worktrees for each pipeline           | Yes       |
+| Branch names       | How to name branches for each pipeline                         | Yes       |
+| Team spawning      | How to define and launch teams of agents                       | No        |
+| Agent models       | Which model/settings each spawned agent runs on                | No        |
+| Health monitoring  | How to launch and cancel the recurring run-health loop         | Yes       |
 
 ## Missing conventions
 
-If all required conventions are available, continue the workflow unchanged.
+If all required conventions are available, continue to the `## Local overrides` step below.
 
 If one or more required conventions are missing, do not proceed with the pipeline. Read `setup.md`, explain what is missing, and offer to run the setup flow.
 
 If the owner declines setup, cancels, or leaves required answers unresolved, stop and clearly explain what is still missing.
+
+## Local overrides
+
+A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.md` to override a restricted subset of conventions for their own working copy.
+
+When you are inside a worktree, resolve the main root with `dirname(git rev-parse --git-common-dir)` and read it from there, since the git-ignored file is never copied into the worktree.
+
+After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.
