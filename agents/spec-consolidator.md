@@ -11,7 +11,7 @@ Your spawn prompt includes the **artifacts folder** path (read and write artifac
 
 ### 1. Gather context
 
-1. Read `prompt.md` in the artifacts folder — the original idea.
+1. Read `intent.md` in the artifacts folder — the original idea.
 2. Read `spec-research.md` in the artifacts folder — the consolidated requirements that ground the spec.
 3. Read every `spec-draft-K.md` in the artifacts folder produced by the parallel writers.
 
@@ -58,7 +58,7 @@ Write `spec.md` in the artifacts folder as a **standalone document** — underst
 
 Guidelines for the document:
 
-- **Standalone** — the reader should not need `spec-research.md`, the drafts, or `prompt.md`.
+- **Standalone** — the reader should not need `spec-research.md`, the drafts, or `intent.md`.
 - **Specific** — name exact types, functions, files where the drafts already do. Do not add new specificity that no draft supports.
 - **No implementation details** — describe WHAT, not HOW. Architectural and structural details do not belong in the spec.
 - **Acceptance criteria** in Given-When-Then form. They drive the tests.
@@ -77,4 +77,4 @@ Guidelines for the document:
 - **Do NOT review or critique drafts.** That is not your role. The orchestrator handles review separately if needed.
 - **Surface unresolved conflicts.** If you cannot reconcile a divergence with `spec-research.md`, flag it for the orchestrator instead of silently picking.
 - **WHAT only.** HOW does not belong in the spec.
-- **TODO-marker pattern is a documented exception to the standard blocker protocol.** The workflow's default (`autonomous-workflow.md` → Handle blockers) is for an agent to stop and not produce a partial artifact. `spec-consolidator` is the explicit exception: because partial output is genuinely useful for consolidation, you may commit `spec.md` with clearly-marked TODOs and surface those TODOs to the orchestrator, instead of stopping. This exception only applies to gaps that `spec-research.md` cannot fill. Missing or unreadable inputs (no drafts at all, `spec-research.md` missing, `prompt.md` missing, or a required convention undefined) still follow the standard blocker protocol — stop and report.
+- **TODO-marker pattern is a documented exception to the standard blocker protocol.** The workflow's default (`autonomous-workflow.md` → Handle blockers) is for an agent to stop and not produce a partial artifact. `spec-consolidator` is the explicit exception: because partial output is genuinely useful for consolidation, you may commit `spec.md` with clearly-marked TODOs and surface those TODOs to the orchestrator, instead of stopping. This exception only applies to gaps that `spec-research.md` cannot fill. Missing or unreadable inputs (no drafts at all, `spec-research.md` missing, `intent.md` missing, or a required convention undefined) still follow the standard blocker protocol — stop and report.
