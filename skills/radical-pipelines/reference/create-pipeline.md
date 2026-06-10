@@ -20,9 +20,14 @@ Create the folder following the **Artifact folder** convention.
 
 ### 4. Generate the initial intent
 
-Create the phase 0 subfolder (`0-intent/`) inside the artifact folder. Write the intent to `<artifacts-folder>/0-intent/intent.md`.
+Create the phase 0 subfolder (`0-intent/`) inside the artifact folder. Write `intent.md` to `<artifacts-folder>/0-intent/intent.md`.
 
-- Adapt the issue content into the intent that seeds the subsequent phases.
+`intent.md` is **always** written in the canonical intent format defined in `manage-issues.md` — that file is the source for the heading taxonomy; do not re-list the sections here. Scaffold the file as:
+
+- An **H1 equal to the issue title** — never a phase name (not `# Intent`, not `# Prompt`).
+- A `> Source:` attribution blockquote naming the originating issue and stating the file is self-contained, so agents do not need to open the issue.
+- The body sections: `## Goal` (required, non-empty) followed by any of `## Constraints`, `## Context`, `## Assumptions / directions to explore`, in that order. Omit empty sections — no `N/A` placeholders. A body of Goal alone is a complete, valid intent.
+
 - Do not add requirements, technical directions, or implementation details — agents do their own research in later phases.
 - If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/0-intent/`. Reference them explicitly in `intent.md` using relative paths.
 - The phase 0 subfolder must be self-contained — once committed, agents must not need to reach back to the issue source to understand the issue.
