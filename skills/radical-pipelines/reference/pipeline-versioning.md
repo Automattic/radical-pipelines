@@ -112,4 +112,4 @@ Reading conventions:
 - A linear chain of phases held by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
 - `(in progress)` annotates the trailing node when its **Per-phase completion** predicate isn't yet satisfied. It signals that work has started but not finished.
 - `[merged]` annotates a pipeline that has been merged into the project's main branch. Phase completion can be inferred from the predicate; "merged into main" cannot.
-- A pipeline's runs are reported as a linear chain annotated on the pipeline, not as tree nodes: `base → review-1-<short-description> → review-2-<short-description> …`, each annotated with its own state. A pipeline with no reviews shows no run chain.
+- A pipeline's runs are reported as a linear chain annotated on the pipeline, not as tree nodes: `base → review-1-<short-description> → review-2-<short-description> …`, each annotated with its own state.
