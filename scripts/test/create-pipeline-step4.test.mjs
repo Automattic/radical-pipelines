@@ -116,3 +116,63 @@ describe("create-pipeline.md step 4 — Task 1 framing and scaffolding", () => {
     assert.doesNotMatch(doc, /Adapt the issue content/i);
   });
 });
+
+describe("create-pipeline.md step 4 — Task 2 hoisted asset/screenshot download", () => {
+  /**
+   * Lines of step 4 that mention downloading screenshots/assets. The asset
+   * download is identified by the act of downloading screenshots/assets — the
+   * wording deliberately avoids anchoring on later tasks' gate/branch text.
+   *
+   * @returns {string[]} Matching lines from step 4.
+   */
+  function assetLines() {
+    return step4()
+      .split("\n")
+      .filter((line) => /download/i.test(line) && /screenshot|asset/i.test(line));
+  }
+
+  test("the asset-download instruction appears exactly once in step 4", () => {
+    assert.equal(
+      assetLines().length,
+      1,
+      "expected exactly one screenshot/asset download instruction in step 4",
+    );
+  });
+
+  test("the asset-download instruction is stated to apply on both paths", () => {
+    const [line] = assetLines();
+    assert.ok(line, "asset-download instruction must exist");
+    // Hoisted as a shared, path-independent concern: it must say it covers
+    // both downstream paths rather than living inside one branch.
+    assert.match(line, /both paths/i);
+  });
+
+  test("the asset-download mechanism is unchanged", () => {
+    const [line] = assetLines();
+    assert.ok(line, "asset-download instruction must exist");
+    // Access via the Issues convention.
+    assert.match(line, /\*\*Issues\*\*/);
+    // Downloaded into the phase-0 subfolder.
+    assert.match(line, /0-intent\//);
+    // Referenced by relative path in intent.md.
+    assert.match(line, /relative path/i);
+    assert.match(line, /intent\.md/);
+  });
+
+  test("the asset-download instruction is positioned after the canonical-format framing", () => {
+    const s = step4();
+    const lines = s.split("\n");
+    const framing = lines.findIndex((line) =>
+      /canonical intent format/i.test(line),
+    );
+    const asset = lines.findIndex(
+      (line) => /download/i.test(line) && /screenshot|asset/i.test(line),
+    );
+    assert.notEqual(framing, -1, "canonical-format framing must exist");
+    assert.notEqual(asset, -1, "asset-download instruction must exist");
+    assert.ok(
+      framing < asset,
+      "asset download must come after the canonical-format template framing",
+    );
+  });
+});

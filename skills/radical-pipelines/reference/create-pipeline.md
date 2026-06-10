@@ -28,8 +28,9 @@ Create the phase 0 subfolder (`0-intent/`) inside the artifact folder. Write `in
 - A `> Source:` attribution blockquote naming the originating issue and stating the file is self-contained, so agents do not need to open the issue.
 - The body sections: `## Goal` (required, non-empty) followed by any of `## Constraints`, `## Context`, `## Assumptions / directions to explore`, in that order. Omit empty sections — no `N/A` placeholders. A body of Goal alone is a complete, valid intent.
 
+If the issue has screenshots or other assets, download them — on both paths below — using the access mechanism captured by the **Issues** convention, into `<artifacts-folder>/0-intent/`, and reference them by relative path in `intent.md`.
+
 - Do not add requirements, technical directions, or implementation details — agents do their own research in later phases.
-- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/0-intent/`. Reference them explicitly in `intent.md` using relative paths.
 - The phase 0 subfolder must be self-contained — once committed, agents must not need to reach back to the issue source to understand the issue.
 
 ### 5. Commit
