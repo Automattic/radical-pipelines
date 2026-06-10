@@ -713,3 +713,102 @@ describe("create-pipeline.md step 4 — Task 5 synthesis branch (`**If any fails
     }
   });
 });
+
+describe("create-pipeline.md step 4 — Task 6 both arms converge on the unchanged step 5 commit", () => {
+  /**
+   * The body of `### 5. Commit`: from its heading to the next `### ` step (or the
+   * end of the file), trimmed. The phase-0 single-commit predicate lives here, so
+   * this slice must stay byte-for-byte the canonical commit step.
+   *
+   * @returns {string} The text of step 5 (heading included), trimmed.
+   */
+  function step5() {
+    const start = doc.indexOf("### 5. Commit");
+    assert.notEqual(start, -1, "step 5 heading must exist");
+    const rest = doc.slice(start);
+    const nextHeading = rest.indexOf("\n### ", 1);
+    const body = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+    return body.trim();
+  }
+
+  test("step 5 is the unmodified commit step — no guard clause, no file list", () => {
+    // The phase-0 completion condition is preserved only if step 5 fires
+    // unconditionally and commits whatever 0-intent/ holds. Assert it is exactly
+    // the canonical two-line step: heading + the Commit-format convention sentence.
+    assert.equal(
+      step5(),
+      "### 5. Commit\n\nCommit the newly created artifacts following the **Commit format** convention.",
+      "step 5 must remain the unconditional commit step, byte-for-byte",
+    );
+    const s = step5();
+    // No guard clause turning the commit conditional (if/unless/only when …).
+    assert.doesNotMatch(s, /\b(if|unless|only when|provided that)\b/i);
+    // No file list enumerating what to commit — it commits whatever 0-intent/ holds.
+    assert.doesNotMatch(s, /intent\.md/);
+    assert.doesNotMatch(s, /0-intent\//);
+  });
+
+  test("step 4 contains no commit instruction of its own (the Commit format convention lives only in step 5)", () => {
+    const s = step4();
+    // The **Commit format** convention is named once, in step 5 — never inside step 4.
+    assert.doesNotMatch(
+      s,
+      /\*\*Commit format\*\*/,
+      "step 4 must not restate the Commit format convention",
+    );
+    // It appears exactly once in the whole file (step 5's reference).
+    const occurrences = doc.match(/\*\*Commit format\*\*/g) ?? [];
+    assert.equal(occurrences.length, 1, "Commit format convention is named exactly once");
+  });
+
+  test("both arms hand off to the existing step 5 rather than issuing their own commit", () => {
+    const s = step4();
+    const skip = s.split("\n").find((l) => /\*\*If all three hold\*\*/.test(l));
+    const synthStart = s.search(/\*\*If any fails\*\*/);
+    const synth = s.slice(synthStart);
+    assert.ok(skip, "skip arm must exist");
+    assert.notEqual(synthStart, -1, "synthesis arm must exist");
+    // Each arm reaches the commit via step 5 — neither performs the commit itself.
+    assert.match(skip, /step 5/i, "skip arm must reach the commit via step 5");
+    assert.match(synth, /step 5/i, "synthesis arm must reach the commit via step 5");
+  });
+
+  test("the file-level summary on line 3 is untouched (out of scope for step 4)", () => {
+    const line3 = doc.split("\n")[2];
+    assert.equal(
+      line3,
+      "Creates a new pipeline through phase 0 — sets up the worktree and artifacts folder, writes `intent.md`, and commits.",
+      "line 3 (file-level summary) must remain byte-for-byte unchanged",
+    );
+  });
+
+  test("no approval or review file is written on either path (the only phase-0 artifact is intent.md)", () => {
+    const s = step4();
+    // No companion approval/review artifact filename in either branch.
+    assert.doesNotMatch(s, /intent-review-approved/i);
+    // No instruction to write/create/save/produce an approval or review file on
+    // either path. A statement that none is written is allowed; only a directive
+    // producing one is forbidden.
+    assert.doesNotMatch(
+      s,
+      /(write|create|save|produce)\s+(an?\s+)?(approval|review)\s+(file|artifact)/i,
+      "neither path may instruct writing an approval/review file",
+    );
+    // Both arms positively state that no such file is written.
+    assert.match(s, /[Ww]rite no approval or review file/);
+    assert.match(s, /writes no approval or review file/);
+  });
+
+  test("any optional step-4 header wording stays within step 4 — neighbours are unchanged", () => {
+    // The optional header touch sanctioned by Task 6 lives only under `### 4.`.
+    // Guard the immediate neighbours so a stray edit cannot leak outside step 4.
+    assert.match(
+      doc,
+      /### 3\. Create the artifact folder\n\nCreate the folder following the \*\*Artifact folder\*\* convention\./,
+    );
+    assert.match(
+      doc,
+      /### 5\. Commit\n\nCommit the newly created artifacts following the \*\*Commit format\*\* convention\./,
+    );
+  });
+});
