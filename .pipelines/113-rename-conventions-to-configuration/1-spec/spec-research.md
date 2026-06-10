@@ -70,39 +70,37 @@ Files carrying these: `create-pipeline.md`, `fork-pipeline.md`, `resume-pipeline
 
 **Acceptance criterion:** No changes to the 36 "the **X** convention" occurrences; no changes to the loader table column header (stays "Convention") or loader section headers (stays "## Conventions").
 
-### Decision 2: `.rp.md` Structure and Subsection Nesting
+### Decision 2: `.rp.md` Structure — Flat Subsections at H2 Level
 
-**DECISION:** Adopt the recommended structure:
+**DECISION:** Adopt the flat structure (validated by guardrails design in PR #112 and issue #51):
 ```
 # Radical Pipelines project configuration
-## Shared configuration
-### Conventions
-#### Managing tasks
-#### Pipeline slugs
-#### Artifact folders
-#### Commit format
-#### Worktrees
-#### Branch names
-#### Team spawning
-#### Agent models
-#### Health monitoring
+## Conventions
+### Managing tasks
+### Pipeline slugs
+### Artifact folders
+### Commit format
+### Worktrees
+### Branch names
+### Team spawning
+### Agent models
+### Health monitoring
 ```
 
-(Plus future `### Guardrails` as a sibling H3 subsection under `## Shared configuration`.)
+(Plus future `## Guardrails` as a flat sibling H2 subsection — NOT nested.)
 
-**Rationale:**
-- **Umbrella visibility:** Title and `## Shared configuration` H2 establish "configuration" as the top-level concept.
-- **Subsection clarity:** `### Conventions` makes the per-project rules an explicit subsection, enabling a sibling `### Guardrails` subsection when that feature lands (per intent L7 and guardrails issue #51).
-- **Visual separation:** Guardrails becomes `### Guardrails` at H3 level, a clear sibling to `### Conventions` under the same `## Shared configuration` umbrella.
-- **Preserves shared/per-tool axis:** The "Shared" qualifier remains for multi-tool projects; per-tool canonical blocks stay intact.
-
-**Header nesting impact:** Today's H3 rule headers demote to H4 (from `### Worktrees` to `#### Worktrees`). This is a real structural shift but necessary for the subsection model.
+**Rationale — grounded in guardrails evidence:**
+- **Guardrails alignment:** Issue #51 ("Add a Guardrails convention…") explicitly frames guardrails as "a first-class **section within a project's configuration** (a sibling of conventions)." PR #112 (which first implemented this structure before being split into #113 and #51) confirms: `## Conventions` at H2 and `## Guardrails` at H2 as flat siblings under the "configuration" umbrella.
+- **Flat structure:** The title "# Radical Pipelines project configuration" establishes "configuration" as the umbrella concept. `## Conventions` and (future) `## Guardrails` are both H2 sections — equal, flat siblings — under that umbrella. No nesting required.
+- **No header churn:** Today's H3 rule headers (`### Worktrees`, `### Commit format`, etc.) remain at H3 — no demotion. This avoids unnecessary header-level changes.
+- **Shared/per-tool axis:** The intro prose describes how per-tool rules live in their own reference files and are loaded conditionally. The word "Shared" is moved to the prose; the H2 header becomes simply `## Conventions`.
 
 **Acceptance criteria:**
 - `.rp.md` title updated to `# Radical Pipelines project configuration`.
-- `## Shared conventions` header renamed to `## Shared configuration`.
-- New `### Conventions` H3 subsection created, wrapping all named-rule H4 headers.
-- Prose in `.rp.md` L3 updated to reflect "configuration" as the umbrella.
+- `## Shared conventions` header renamed to `## Conventions` (flat H2 level, "Shared" removed).
+- Rule headers stay at H3 (no demotion): `### Managing tasks`, `### Pipeline slugs`, etc.
+- Intro prose updated to describe "configuration" as the umbrella and how conventions (and future guardrails as a sibling section) live under it.
+- No addition of `## Guardrails` in this issue (it lands in #51 with content and loader integration).
 
 ### Decision 3: Folder Rename and Link Updates
 
@@ -139,6 +137,7 @@ Files carrying these: `create-pipeline.md`, `fork-pipeline.md`, `resume-pipeline
 - Historical `.pipelines/**` artifacts (frozen records of past runs — left untouched per intent).
 - Generic English uses of "convention(s)" in agent files (referring to the host project being worked on, not RP's own config concept).
 - Dual-format support for existing `.rp.md` files (not needed; no breaking change).
+- **Guardrails implementation** (issue #51, PR #112 continuation): this issue establishes the structure and naming so guardrails can land as a sibling `## Guardrails` H2 section. #113 does NOT add guardrails content, loader integration, setup steps, or agent rewrites — those are #51's scope. #113 lands the rename first; #51 rebuilds on top.
 
 **Expected side effect:**
 - Backward compatibility is maintained: existing project `.rp.md` files require no changes. The rename is a skill-documentation and dogfood-file update only.
@@ -148,9 +147,10 @@ Files carrying these: `create-pipeline.md`, `fork-pipeline.md`, `resume-pipeline
 ## Next Phase: Design & Plan
 
 These requirements are ready for the design-doc and plan phases to specify:
-- Exact file-by-file wording updates and line-number locations.
+- Exact file-by-file wording updates and line-number locations (title, section headers, prose, file paths).
 - The order and grouping of commits (e.g., "rename folder + fix links" as one commit, "terminology wording" as a second, both in the same PR).
-- Verification checklist for links, prose, and header nesting.
+- Verification checklist for links, prose, and header levels (rule headers stay H3, no demotion needed).
+- Confirm scope boundaries: guardrails are explicitly OUT of scope (#51's job); #113 sets up the structure only.
 
 ---
 
