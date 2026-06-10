@@ -37,7 +37,6 @@ For each match capture, per the **Per-phase completion** rules in `pipeline-vers
   - **Resume** — finish an incomplete latest run, on the same branch.
   - **Review** — layer an incremental change on a complete run, on the same branch, building on the existing code.
   - **Fork** — diverge onto a fresh branch from main.
-  - The sharpest discriminator is same-branch-build-on-existing (review) vs. new-branch-from-main-diverge (fork); resume is the option when the latest run is incomplete.
 
 If the owner has already specified what to do, skip the question.
 
