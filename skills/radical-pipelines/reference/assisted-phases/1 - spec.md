@@ -1,10 +1,10 @@
 # Running the Spec Phase (Phase 1)
 
-Advances the pipeline from phase 0 (`prompt.md`) to phase 1 (`spec.md`) by driving an iterative Q&A directly with the owner. No agents are spawned.
+Advances the pipeline from phase 0 (`intent.md`) to phase 1 (`spec.md`) by driving an iterative Q&A directly with the owner. No agents are spawned.
 
 Inputs:
 
-- `<artifacts-folder>/0-prompt/prompt.md`
+- `<artifacts-folder>/0-intent/intent.md`
 
 Outputs:
 
@@ -33,7 +33,7 @@ Create `<artifacts-folder>/1-spec/spec-research.md` with this structure:
 ```markdown
 # Spec Research: <feature name>
 
-<contents of `prompt.md`, copied verbatim>
+<contents of `intent.md`, copied verbatim>
 
 ## Q&A
 
@@ -107,7 +107,7 @@ Write `<artifacts-folder>/1-spec/spec.md` as a standalone document — understan
 ## Acceptance Criteria
 ```
 
-- **Standalone** — the reader should not need `spec-research.md` or `prompt.md`.
+- **Standalone** — the reader should not need `spec-research.md` or `intent.md`.
 - **Specific** — name exact types, functions, files where possible.
 - **No implementation details** — describe WHAT, not HOW to code it.
 - **Acceptance criteria** in Given-When-Then format. They drive the tests.

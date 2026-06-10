@@ -1,6 +1,6 @@
 # Creating a Pipeline
 
-Creates a new pipeline through phase 0 — sets up the worktree and artifacts folder, writes `prompt.md`, and commits.
+Creates a new pipeline through phase 0 — sets up the worktree and artifacts folder, writes `intent.md`, and commits.
 
 ## Steps
 
@@ -18,13 +18,13 @@ All work happens inside the worktree — never modify files in the main working 
 
 Create the folder following the **Artifact folder** convention.
 
-### 4. Generate the initial prompt
+### 4. Generate the initial intent
 
-Create the phase 0 subfolder (`0-prompt/`) inside the artifact folder. Write the prompt to `<artifacts-folder>/0-prompt/prompt.md`.
+Create the phase 0 subfolder (`0-intent/`) inside the artifact folder. Write the intent to `<artifacts-folder>/0-intent/intent.md`.
 
-- Adapt the issue content as a prompt directed at the agents that will run subsequent phases.
+- Adapt the issue content into the intent that seeds the subsequent phases.
 - Do not add requirements, technical directions, or implementation details — agents do their own research in later phases.
-- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/0-prompt/`. Reference them explicitly in `prompt.md` using relative paths.
+- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/0-intent/`. Reference them explicitly in `intent.md` using relative paths.
 - The phase 0 subfolder must be self-contained — once committed, agents must not need to reach back to the issue source to understand the issue.
 
 ### 5. Commit

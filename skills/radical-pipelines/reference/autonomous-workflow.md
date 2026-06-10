@@ -36,7 +36,7 @@ Before launching the first team, start a recurring health monitor for the run pe
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
-| 0 - Prompt     | `0-prompt`     | Already in place                      |
+| 0 - Intent     | `0-intent`     | Already in place                      |
 | 1 - Spec       | `1-spec`       | `autonomous-phases/1 - spec.md`       |
 | 2 - Design doc | `2-design-doc` | `autonomous-phases/2 - design-doc.md` |
 | 3 - Plan       | `3-plan`       | `autonomous-phases/3 - plan.md`       |
