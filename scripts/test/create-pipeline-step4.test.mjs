@@ -391,3 +391,117 @@ describe("create-pipeline.md step 4 — Task 3 three-clause skip gate", () => {
     assert.doesNotMatch(s, /\/\^|\$\/|\\b.*\\b/);
   });
 });
+
+describe("create-pipeline.md step 4 — Task 4 skip branch (`**If all three hold**`)", () => {
+  /**
+   * The skip arm's lead-in line — the bolded inline `**If all three hold**`
+   * bullet that opens the first branch of the two-branch block. Matched by the
+   * bolded conjunction phrase so the assertion does not depend on the prose that
+   * follows it.
+   *
+   * @returns {string | undefined} The arm's lead-in line, if present.
+   */
+  function skipArm() {
+    return step4()
+      .split("\n")
+      .find((line) => /\*\*If all three hold\*\*/.test(line));
+  }
+
+  test("a bolded `**If all three hold**` arm exists", () => {
+    assert.ok(
+      skipArm(),
+      "step 4 must contain a bolded `**If all three hold**` skip arm",
+    );
+  });
+
+  test("the skip arm sits after the three-clause skip gate", () => {
+    const s = step4();
+    const lines = s.split("\n");
+    const gate = lines.findIndex(
+      (line) =>
+        /skip/i.test(line) &&
+        /confirmation/i.test(line) &&
+        /all three/i.test(line),
+    );
+    const arm = lines.findIndex((line) =>
+      /\*\*If all three hold\*\*/.test(line),
+    );
+    assert.notEqual(gate, -1, "skip gate must exist");
+    assert.notEqual(arm, -1, "skip arm must exist");
+    assert.ok(gate < arm, "the skip arm must come after the skip gate");
+  });
+
+  test("the skip arm maps the body's sections to intent.md unchanged", () => {
+    const arm = skipArm();
+    assert.ok(arm, "skip arm must exist");
+    // Maps the body's sections; verbatim/unchanged (no rewording of the source).
+    assert.match(arm, /body/i);
+    assert.match(arm, /map/i);
+    assert.match(arm, /unchanged|verbatim/i);
+  });
+
+  test("the skip arm writes under the H1/Source attribution scaffolding", () => {
+    const arm = skipArm();
+    assert.ok(arm, "skip arm must exist");
+    // The scaffolding from Task 1 — the title (H1) and the source attribution
+    // above — is what the body sits under on this path.
+    assert.match(arm, /title|H1/i);
+    assert.match(arm, /attribution|Source|above/i);
+  });
+
+  test("the skip arm performs no synthesis", () => {
+    const arm = skipArm();
+    assert.ok(arm, "skip arm must exist");
+    assert.match(arm, /(do not|don't|no)\s+synthe/i);
+  });
+
+  test("the skip arm proceeds to commit without confirmation", () => {
+    const arm = skipArm();
+    assert.ok(arm, "skip arm must exist");
+    assert.match(arm, /commit/i);
+    assert.match(arm, /without confirmation|no confirmation|skip(?:ping)? confirmation/i);
+  });
+
+  test("the skip arm does not duplicate the step 5 commit instruction", () => {
+    // The only `### 5. Commit` step is reached via the existing unconditional
+    // step — the skip arm proceeds to it, it does not restate the commit
+    // mechanics (the **Commit format** convention lives only in step 5).
+    const start = doc.indexOf("### 4. Generate the initial intent");
+    const rest = doc.slice(
+      start + "### 4. Generate the initial intent".length,
+    );
+    const nextHeading = rest.indexOf("\n### ");
+    const step4Body = nextHeading === -1 ? rest : rest.slice(0, nextHeading);
+    assert.doesNotMatch(
+      step4Body,
+      /\*\*Commit format\*\*/,
+      "step 4 must not restate the Commit format convention — that lives in step 5",
+    );
+  });
+
+  test("the skip arm writes no approval or review file", () => {
+    const s = step4();
+    // No phases-1–5 companion approval/review artifact filename appears.
+    assert.doesNotMatch(s, /intent-review-approved/i);
+    // No instruction to *write/create* an approval or review file. A statement
+    // that none is written ("write no approval or review file") is allowed and
+    // expected; only an instruction producing one is forbidden.
+    assert.doesNotMatch(
+      s,
+      /(write|create|save|produce)\s+(an?\s+)?(approval|review)\s+(file|artifact)/i,
+      "the skip arm must not instruct writing an approval/review file",
+    );
+  });
+
+  test("the incidental-formatting-is-not-a-transformation point is present in step 4", () => {
+    const s = step4();
+    // A reader on the skip path must see that the format-level differences are
+    // expected, not a violation of "map unchanged": the title becoming the H1,
+    // the added attribution, whitespace / a trailing newline.
+    assert.match(s, /incidental|format-level/i);
+    assert.match(s, /transformation|transform/i);
+    // The H1/attribution/whitespace differences are named as the incidental set.
+    assert.match(s, /H1|title/i);
+    assert.match(s, /whitespace|trailing newline/i);
+  });
+});
