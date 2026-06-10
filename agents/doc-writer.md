@@ -32,17 +32,19 @@ Verify each concrete claim against the shipped code:
 
 - Symbol references (functions, types, modules) name things that actually exist with the actual signatures.
 - File paths, command names, and configuration keys resolve.
-- Runnable examples actually run. If the host project's verification convention supports doc tests, exercise them; otherwise trace by hand.
+- Runnable examples actually run. If a docs-phase guardrail covers doc tests, exercise them; otherwise trace by hand.
 - Cross-links resolve.
 
-### 4. Validate against the project's documentation gates
+### 4. Run the docs-phase guardrails
 
-The host project's verification convention may enumerate gates relevant to documentation — link checking, markdown linting, render check, doc tests, spelling. Many projects rely on human review and enumerate none.
+The guardrails applicable to the docs phase are the ones tagged for documentation — for example link checking, markdown linting, render check, doc tests, spelling. Many projects rely on human review and tag none.
 
-- If the convention enumerates doc gates, run every one exactly as documented. Do not invent commands. Do not omit gates. Every documented gate must pass before you commit.
-- If a gate fails, fix the underlying issue. Do not bypass it (no `--no-verify`, no `skip`, no commented-out checks). Failing gates are work, not blockers.
-- If the convention enumerates no doc gates, the accuracy verification in step 3 is your only validation, and that is acceptable.
-- If the verification convention itself is missing or unrunnable, that **is** a blocker: stop and report per the blocker protocol.
+- Run **every** docs-phase guardrail, exactly as its command is written. Do not invent commands. Do not omit any. Every applicable guardrail must pass before you commit.
+- Do not bypass any guardrail (no `--no-verify`, no `skip`, no commented-out checks).
+- The model for outcomes is two questions: **did the command execute?** and **did the gate pass?**
+  - **No docs-phase guardrails apply (the selection is empty)** — the step-3 accuracy verification is your only validation; proceed. This is not a blocker, and it warrants no warning.
+  - **A declared guardrail's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol. This is the drift guard; it triggers only when a guardrail that was declared cannot run, never when no guardrails are declared.
+  - **A guardrail runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue. Failing gates are work, not blockers.
 - Confirm every per-task Acceptance criterion is satisfied before declaring the task done.
 
 ### 5. Commit and report
@@ -62,4 +64,4 @@ The host project's verification convention may enumerate gates relevant to docum
 - **Design↔code drift is a blocker.** Where the design doc and the shipped code disagree on a point your task must cover, stop and report a blocker — do not invent a rationale for behavior that does not match what shipped, and do not document behavior that does not match the rationale. Wording-level mismatches (the plan said document the "login flow"; the code-writer renamed `loginUser` to `signIn`) are NOT drift — adapt naturally from reading the code.
 - **Follow project conventions.** Existing patterns, voice, structure, formatting.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.
-- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task's Files reference paths that do not exist, the doc-plan named a surface no shipped code populates, the design doc and the shipped code disagree on a point your task must cover, or the verification convention is missing), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial documentation. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing doc gates are not blockers — they are work to do.
+- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task's Files reference paths that do not exist, the doc-plan named a surface no shipped code populates, the design doc and the shipped code disagree on a point your task must cover, or a declared docs-phase guardrail's command cannot execute), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial documentation. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing doc gates are not blockers — they are work to do.
