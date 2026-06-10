@@ -43,7 +43,7 @@ The original issue and `base/0-intent` are never rewritten. Then commit the revi
 
 ### 6. Re-assert the version
 
-Re-assert (confirm, do not change) the existing `v<N>` version label per `pipeline-versioning.md` ("Model"). Same branch, same pipeline, so the version is unchanged.
+Re-assert (confirm, do not change) the existing `v<N>` version label per `pipeline-versioning.md` ("Model").
 
 ### 7. Return to mode dispatch, and apply run obligations
 
