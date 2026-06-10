@@ -34,6 +34,8 @@ Run each phase from the next phase up to the target phase, in order.
 
 Before launching the first team, start a recurring health monitor for the run per `reference/health-monitoring.md`. The monitor watches for stalled agents, message failures, and login / network errors; it attempts bounded auto-recovery and escalates to you when it cannot resolve an issue. Surface any escalation to the owner verbatim.
 
+At run start, capture the run's base ref per the **Reviewer base ref** rule in `pipeline-versioning.md`.
+
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
 | 0 - Intent     | `0-intent`     | Already in place                      |
@@ -45,7 +47,7 @@ Before launching the first team, start a recurring health monitor for the run pe
 
 For each phase:
 
-1. Create the phase subfolder inside the artifacts folder. Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`.
+1. Create the phase subfolder inside the active run's folder (the artifacts folder for this run). Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`.
 2. Read its phase reference.
 3. Run the phase per its reference, applying the per-phase decisions collected in step 3.
 4. When the phase's completion predicate is satisfied, give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of rejected review iterations, deviations from defaults). Do not ask questions — this is informational only.
@@ -57,7 +59,7 @@ Important:
 
 - Follow the **Team spawning** convention for how to define and launch teams of agents.
 - Each time you spawn an agent, include the following project conventions in its initial prompt:
-  - **Artifact folder** — the absolute and full path to this pipeline's artifact folder.
+  - **Artifact folder** — the absolute and full path to the active run's folder (`<artifacts-folder>/<run>/`, e.g. `<artifacts-folder>/base/`); this is what the agent treats as its artifact folder. The agent is run-agnostic and never sees the run name.
   - **Commit format** — the commit message format the agent must use.
 - Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply the result as parameters of the spawn itself.
 - Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.

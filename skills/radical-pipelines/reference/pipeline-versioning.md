@@ -10,6 +10,23 @@ When the owner discards a pipeline or wants to try a different approach, the orc
   - First pipeline (`v1`): the pipeline base slug, unchanged — `v1` carries no suffix, because it is implicit.
   - Subsequent pipelines (`v<N>`, N ≥ 2): the pipeline base slug with `-v<N>` appended.
 
+### Runs within a pipeline
+
+A **run** is one pass of the full phase flow recorded under a pipeline. Artifacts live at `<artifacts-folder>/<run>/<phase>`, where `<artifacts-folder>` is the pipeline's own artifact folder and `<run>` is `base`, `review-1-<short-description>`, `review-2-<short-description>`, …
+
+`base` is always the first run, always present, and never restructured or rewritten by a review; a review only ADDS a sibling run folder. `<short-description>` is a kebab-case summary of the review's goal (lowercase, hyphens, no spaces), formatted like the pipeline-slug short description, and `N` in `review-N-…` is a per-pipeline monotonic counter — the next integer after the existing `review-*` folders.
+
+A run carries no `-v<N>` suffix, is not a slug/branch/worktree, and does not change the pipeline version; `base` and every review of a pipeline share its one branch and worktree. Reviews are added one at a time, on top of a complete run.
+
+### Reviewer base ref
+
+The diff base ref is keyed on the start of the current run, captured once at run start and held constant for the whole run:
+
+- **Review run** → the **tip of the previous run** (`base` or `review-(N-1)`): the branch tip at the moment the review run begins, before the review's intent is committed — equivalently, the parent of the review run's first commit, which is the intent commit.
+- **Base run** → the **merge-base of the pipeline branch and main** (robust against main advancing).
+
+The value is captured once while HEAD is still the prior-run tip, then passed unchanged to every code/docs reviewer invocation across all rejection/re-dispatch iterations; the diff is always `base-ref → current HEAD`.
+
 ### Key concepts
 
 - Every pipeline is created from the project's main branch — never from another pipeline's tip.
@@ -31,17 +48,21 @@ A phase is complete when all of these are committed to the pipeline branch (same
 | 4 – Code       | `4-code/code-review-approved.md`                                               |
 | 5 – Docs       | `5-docs/docs-review-approved.md`                                               |
 
-A pipeline's **completed phase** is the highest-numbered phase whose predicate is satisfied. Its **active phase** is the phase after the completed phase if any of that phase's artifacts have started appearing (in progress); otherwise the pipeline has no active phase.
+The artifact paths above are relative to a run folder: a phase's predicate is evaluated at `<artifacts-folder>/<run>/<phase>` (for the base run, `<artifacts-folder>/base/<phase>`).
+
+A pipeline's **completed phase** and **active phase** are those of its **latest run** — the highest-numbered `review-N` run, or `base` if there are no reviews — with the completed/active predicate evaluated within that run's folder. The **completed phase** is the highest-numbered phase whose predicate is satisfied; the **active phase** is the phase after it if any of that phase's artifacts have started appearing (in progress), otherwise none.
+
+Two notions follow: overall **pipeline state** (the latest run's phase; drives resume) versus **per-run completion** (a run complete through phase 5; gates whether a new review may start). They coincide except while a review is in flight. When a review run has only its `0-intent/intent.md` committed, the pipeline's **next phase** is that review's phase 1 (spec) — its intent is the input to phase 1, just as the base intent is for `base`. By the started-artifacts active-phase predicate the run has no active phase yet, so resume starts phase 1 from the committed intent with no rollback.
 
 ## Deriving lineage from artifact content
 
 Whether two pipelines share a phase is read directly from the artifacts: a phase folder is the same in two pipelines **if its content is byte-identical**, and git answers that with the folder's tree object SHA.
 
 ```
-git rev-parse <ref>:<artifacts-folder>/<phase>
+git rev-parse <ref>:<artifacts-folder>/base/<phase>
 ```
 
-`<ref>` is wherever that pipeline's committed artifacts live: its **branch** if it still exists, otherwise the artifact-bearing repo's **main branch** (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode) — where a merged, branch-deleted pipeline is found per "Listing pipelines for an issue" (step 3). `<artifacts-folder>` is that pipeline's own folder, derived from its versioned slug. Tree SHAs are pure content hashes, so SHAs read through a branch and through main are directly comparable.
+`<ref>` is wherever that pipeline's committed artifacts live: its **branch** if it still exists, otherwise the artifact-bearing repo's **main branch** (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode) — where a merged, branch-deleted pipeline is found per "Listing pipelines for an issue" (step 3). `<artifacts-folder>` is that pipeline's own folder, derived from its versioned slug. Tree SHAs are pure content hashes, so SHAs read through a branch and through main are directly comparable. Tree SHAs are always computed over the pipeline's `base/` run; reviews are not part of the cross-pipeline tree, because lineage is a cross-fork comparison and forks inherit from `base/`, so only base phases are comparable.
 
 ## Listing pipelines for an issue
 
@@ -58,12 +79,12 @@ Among the pipelines found, the pipeline base slug is the stem the others extend:
 The orchestrator rebuilds the tree on demand from artifact content:
 
 1. List pipelines as described in "Listing pipelines for an issue".
-2. For each pipeline, compute the tree SHA of each phase folder it carries, in phase order (`0-intent`, `1-spec`, …), stopping at the first phase folder it does not have:
+2. For each pipeline, compute the tree SHA of each phase folder of its `base/` run, in phase order (`base/0-intent`, `base/1-spec`, …), stopping at the first phase folder it does not have:
    ```
-   git rev-parse <ref>:<artifacts-folder>/<phase>
+   git rev-parse <ref>:<artifacts-folder>/base/<phase>
    ```
    `<ref>` is that pipeline's branch, or the artifact-bearing repo's main branch if its branch was deleted after merging (see "Deriving lineage from artifact content"). This yields, per pipeline, an ordered sequence of `(phase, SHA)` pairs.
-3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. `0-intent` is identical across every pipeline of an issue (it is the issue), so it is always the shared root.
+3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. `base/0-intent` is identical across every pipeline of an issue (it is the issue), so it is always the shared root. Each pipeline contributes one path through the tree from its `base/` run.
 
 ### Rendering
 
@@ -91,3 +112,4 @@ Reading conventions:
 - A linear chain of phases held by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
 - `(in progress)` annotates the trailing node when its **Per-phase completion** predicate isn't yet satisfied. It signals that work has started but not finished.
 - `[merged]` annotates a pipeline that has been merged into the project's main branch. Phase completion can be inferred from the predicate; "merged into main" cannot.
+- A pipeline's runs are reported as a linear chain annotated on the pipeline, not as tree nodes: `base → review-1-<short-description> → review-2-<short-description> …`, each annotated with its own state.

@@ -40,7 +40,7 @@ If any task in the batch changes user-observable behavior, verify it end-to-end 
 Decide your verdict first, then pick the filename:
 
 - **Rejected** — write `<artifacts-folder>/4-code/code-review-N-rejected.md`, where N is the rejection iteration number from the launch prompt.
-- **Approved** — write `<artifacts-folder>/4-code/code-review-approved.md` (no number; only one ever exists per pipeline).
+- **Approved** — write `<artifacts-folder>/4-code/code-review-approved.md` (no number; only one ever exists in this artifact folder).
 
 Use this structure:
 

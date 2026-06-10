@@ -31,15 +31,15 @@ All work happens inside the new worktree.
 
 ### 4. Create the artifact folder
 
-Create the new pipeline's artifact folder per the **Artifact folder** convention applied to the pipeline versioned slug.
+Create the new pipeline's artifact folder per the **Artifact folder** convention applied to the pipeline versioned slug. The fork's phases live under its own fresh `base/` run, seeded only from the parent's `base/` run in the next step (see **Runs within a pipeline** in `pipeline-versioning.md`).
 
 ### 5. Seed the inherited phase folders from the parent
 
-Copy only the phase folders being inherited — `0-intent` up to and including the inherited phase agreed in step 1.
+Copy only the phase folders being inherited, from the parent's `base/` run into the new pipeline's `base/` run — `base/0-intent` up to and including the inherited phase agreed in step 1.
 
 Determine the parent pipeline's worktree path per the **Worktrees** convention applied to the parent's versioned slug.
 
-- **If the worktree exists**, copy directly: for every phase folder `0-intent`, `1-spec`, … up to and including the inherited phase, `cp -r <parent-worktree>/<parent-artifact-folder>/<phase> <artifacts-folder>/<phase>`.
+- **If the worktree exists**, copy directly: for every phase folder `0-intent`, `1-spec`, … in the parent's `base/` run up to and including the inherited phase, `cp -r <parent-worktree>/<parent-artifact-folder>/base/<phase> <artifacts-folder>/base/<phase>`.
 - **If the worktree does not exist**, create a temporary worktree of the parent branch per the **Worktrees** convention, copy as above, then remove it.
 
 ### 6. Commit
@@ -48,4 +48,4 @@ Commit the seeded phase folders per the **Commit format** convention.
 
 ### 7. Continue normal phase work
 
-The new pipeline is now a regular pipeline. Continue from the phase that follows the inherited phase, or revise the inherited phase, using the assisted or autonomous workflow as chosen by the owner.
+The new pipeline is now a regular pipeline. Continue from the phase that follows the inherited phase, or revise the inherited phase, using the assisted or autonomous workflow as chosen by the owner. Work continues in the fork's `base/` run.
