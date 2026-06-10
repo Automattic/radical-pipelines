@@ -26,7 +26,7 @@ Re-attach using resume's two named sections, in order: "Cancel any leftover heal
 
 Do NOT perform resume's rollback step — the latest run is already complete, so there is nothing to roll back — and NEVER create a new branch.
 
-While HEAD is still the prior-run tip (before the review intent is committed), capture the review's base ref = the prior-run tip, per the **Reviewer base ref** rule in `pipeline-versioning.md`.
+Capture the run's base ref per the **Reviewer base ref** rule in `pipeline-versioning.md`.
 
 ### 4. Determine and create the run folder
 
