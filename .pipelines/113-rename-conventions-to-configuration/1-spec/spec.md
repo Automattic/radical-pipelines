@@ -8,58 +8,56 @@
 
 Today, **conventions** is the umbrella concept for everything a project declares in its `.rp.md` file and in the Radical Pipelines skill documentation: `.rp.md` is titled "Radical Pipelines project conventions", the skill stores its loader and setup under `reference/conventions/`, and the README frames per-project rules as "conventions" throughout.
 
-This change makes **configuration** the umbrella concept and demotes **conventions** to one subsection inside it. The per-project rules (worktrees, commit format, issues, etc.) remain grouped together, but now live under a `### Conventions` subsection nested beneath a `## Shared configuration` umbrella. This leaves room for sibling subsections — most immediately `### Guardrails` (issue #51) — without overloading the word "conventions".
+This change makes **configuration** the umbrella concept (the `.rp.md` title) and demotes **conventions** to one flat section inside it. The per-project rules (worktrees, commit format, issues, etc.) remain grouped together under a `## Conventions` H2 section — a flat sibling of the future `## Guardrails` H2 section (issue #51) under the configuration umbrella, rather than nested. This leaves room for sibling sections without overloading the word "conventions".
 
-This is a **terminology and structure refactor only**. It changes wording, headers, and one folder name; it does not change pipeline behavior, the loader's parsing logic, the setup flow, or how agents consume project rules. Individual rules continue to be referred to as "the **X** convention" (e.g. "the **Worktrees** convention"), because each rule is genuinely one entry within the Conventions subsection.
+This is a **terminology and structure refactor only**. It changes wording, the title, and one folder name; it does not change pipeline behavior, the loader's parsing logic, the setup flow, or how agents consume project rules. Individual rules continue to be referred to as "the **X** convention" (e.g. "the **Worktrees** convention"), because each rule is genuinely one entry within the Conventions section.
 
 ### Key distinction driving every decision
 
 There are two different uses of the word "convention" in the codebase, and they are treated differently:
 
-1. **Umbrella usage (renamed to "configuration"):** "conventions" as the top-level concept — the `.rp.md` title, the umbrella section header, the umbrella prose in the README and SKILL.md, and the `reference/conventions/` folder name.
-2. **Named-rule usage (kept as "convention"):** "the **X** convention" naming a single rule. These reference entries that live inside the Conventions subsection, not the umbrella concept, so they stay unchanged.
+1. **Umbrella usage (renamed to "configuration"):** "conventions" as the top-level concept — the `.rp.md` title, the umbrella prose in the README and SKILL.md, and the `reference/conventions/` folder name.
+2. **Named-rule usage (kept as "convention"):** "the **X** convention" naming a single rule. These reference entries that live inside the `## Conventions` section, not the umbrella concept, so they stay unchanged.
 
 ---
 
 ## Requirements
 
-### R1 — Restructure `.rp.md` so "configuration" is the umbrella, "conventions" is a subsection
+### R1 — Restructure `.rp.md` so "configuration" is the umbrella and "conventions" is a flat H2 section
 
-Update the dogfood `.rp.md` at the repository root to the following structure. The umbrella title and `## Shared configuration` H2 establish "configuration" as the top-level concept; a new `### Conventions` H3 wraps the existing named rules, which each demote from H3 to H4.
+Update the dogfood `.rp.md` at the repository root to the following **flat** structure. The umbrella title establishes "configuration" as the top-level concept; `## Conventions` becomes one flat H2 section under it, sitting at the same level a future `## Guardrails` will occupy. The named-rule headers stay at **H3 — no demotion**.
 
 Required header tree:
 
 ```
 # Radical Pipelines project configuration
-## Shared configuration
-### Conventions
-#### Managing tasks
-#### Pipeline slugs
-#### Artifact folders
-#### Commit format
-#### Worktrees
-#### Branch names
-#### Team spawning
-#### Agent models
-#### Health monitoring
+## Conventions
+### Managing tasks
+### Pipeline slugs
+### Artifact folders
+### Commit format
+### Worktrees
+### Branch names
+### Team spawning
+### Agent models
+### Health monitoring
 ```
 
 Specifically:
 
 - **Title** (L1): `# Radical Pipelines project conventions` → `# Radical Pipelines project configuration`.
-- **Intro prose** (L3): rewritten so the umbrella term is "configuration" while preserving its current meaning (the shared section applies to every agentic coding tool; per-tool sections add tool-specific entries; read the shared section plus the active tool's section at the start of any workflow).
-- **Umbrella H2** (L5): `## Shared conventions` → `## Shared configuration`.
-- **New subsection:** insert a `### Conventions` H3 immediately under `## Shared configuration`, wrapping all the named-rule sections.
-- **Demote rule headers:** every current `### <Rule>` (Managing tasks, Pipeline slugs, Artifact folders, Commit format, Worktrees, Branch names, Team spawning, Agent models, Health monitoring) becomes `#### <Rule>`. Any sub-headers currently nested under them (e.g. the `#### Creating an issue` / `#### Modifying an issue` / `#### Orchestrator updates during a run` headers under "Managing tasks") demote one level accordingly to keep their relative nesting correct.
-- All body content of every rule (tables, lists, examples, URLs, commands) is preserved verbatim — only header levels and the section wrapper change.
+- **Intro prose** (L3): rewritten so the umbrella term is "configuration" while preserving its current meaning. It must describe that conventions are one section of the project's configuration (with future guardrails as a sibling section), and carry over the shared-vs-per-tool reading instruction — the word "Shared", removed from the H2 header, moves into this prose (the shared section applies to every agentic coding tool; per-tool sections add tool-specific entries; read the shared section plus the active tool's section at the start of any workflow).
+- **Umbrella/section H2** (L5): `## Shared conventions` → `## Conventions` (flat H2, "Shared" dropped from the header and relocated to prose).
+- **Rule headers stay at H3 — no demotion:** every current `### <Rule>` (Managing tasks, Pipeline slugs, Artifact folders, Commit format, Worktrees, Branch names, Team spawning, Agent models, Health monitoring) remains `### <Rule>`. Any sub-headers currently nested beneath them (e.g. `#### Creating an issue` / `#### Modifying an issue` / `#### Orchestrator updates during a run` under "Managing tasks") also stay at their current levels.
+- All body content of every rule (tables, lists, examples, URLs, commands) is preserved verbatim — only the title and the one H2 header change.
 
-The structure must leave a clean slot for a future `### Guardrails` H3 sibling of `### Conventions` under `## Shared configuration` (no guardrails content is added in this change).
+The structure must leave a clean slot for a future `## Guardrails` H2 section as a **flat sibling** of `## Conventions` under the configuration umbrella (no guardrails content, loader integration, or setup steps are added in this change — that is issue #51's scope).
 
 ### R2 — Keep all named-rule "the **X** convention" references unchanged
 
 Do **not** rename any "the **X** convention" phrasing to "configuration". There are 36 such occurrences across 13 skill reference files, naming 10 distinct rules (Worktrees, Commit format, Issues, Team spawning, Pipeline base slug, Branch names, Artifact folder, Artifact storage, Health monitoring, Agent models).
 
-These reference individual entries within the Conventions subsection, so the phrasing stays semantically correct. The files involved include: `create-pipeline.md`, `fork-pipeline.md`, `resume-pipeline.md`, `pipeline-versioning.md`, `manage-issues.md`, `work-on-an-issue.md`, `autonomous-workflow.md`, `assisted-workflow.md`, and the autonomous/assisted phase files for spec, design-doc, and plan.
+These reference individual entries within the `## Conventions` section, so the phrasing stays semantically correct. The files involved include: `create-pipeline.md`, `fork-pipeline.md`, `resume-pipeline.md`, `pipeline-versioning.md`, `manage-issues.md`, `work-on-an-issue.md`, `autonomous-workflow.md`, `assisted-workflow.md`, and the autonomous/assisted phase files for spec, design-doc, and plan.
 
 Also keep unchanged:
 
@@ -96,18 +94,18 @@ Within the moved `reference/configuration/load.md` and `setup.md`:
 
 - Where the prose introduces the **umbrella** concept (e.g. the file's framing that "each project has its own conventions" stored in `.rp.md`), update the umbrella wording to "configuration" consistently with R4, and ensure the file makes clear that `.rp.md` holds the project's **configuration**, of which the **Conventions** are one part.
 - Keep the loader **table**, its `Convention` column header, the `## Conventions` section header, the per-rule names, the `## Missing conventions` flow, and the `## Local overrides` mechanics functionally and structurally unchanged — these operate on named rules and must continue to parse existing `.rp.md` files unchanged.
-- Optionally (recommended, not required) add a brief one-line note in `setup.md` and/or `README.md` stating that "configuration" is the umbrella term and "conventions" is the subsection of per-project rules, to orient readers. No migration guide is produced.
+- Optionally (recommended, not required) add a brief one-line note in `setup.md` and/or `README.md` stating that "configuration" is the umbrella term and "conventions" is the section of per-project rules within it, to orient readers. No migration guide is produced.
 
 ### R6 — No breaking change to existing `.rp.md` files
 
 Existing project `.rp.md` files (in other repositories using this skill) must remain valid with **zero modification** after this change.
 
-- The loader consumes `.rp.md` by rule **name**, not by the umbrella header wording, and there is no version field or machine-enforced schema in `.rp.md`. The new header structure and umbrella renaming must not introduce any parsing dependency on the new title or the `### Conventions` wrapper that would reject an old-format file.
+- The loader consumes `.rp.md` by rule **name**, not by the umbrella header wording, and there is no version field or machine-enforced schema in `.rp.md`. The new header structure and umbrella renaming must not introduce any parsing dependency on the new title or the `## Conventions` header wording that would reject an old-format file.
 - No dual-format support, no migration tooling, and no version gating are added.
 
 ### R7 — No behavioral change
 
-The loader, setup flow, per-tool canonical blocks, local-overrides resolution, and agent context-passing behavior are unchanged. Only wording, header levels, and one folder name change.
+The loader, setup flow, per-tool canonical blocks, local-overrides resolution, and agent context-passing behavior are unchanged. Only wording (the `.rp.md` title and umbrella prose, the one H2 header), and one folder name change; no rule header levels change.
 
 ---
 
@@ -117,7 +115,7 @@ The loader, setup flow, per-tool canonical blocks, local-overrides resolution, a
 - **The 36 named-rule "the X convention" references** — kept as-is by design (R2); not edited.
 - **Generic English uses of "convention(s)"** that refer to a *host project being worked on* (in agent files) rather than RP's own per-project config concept — not changed.
 - **Dual-format / migration support** for existing `.rp.md` files — not needed; there is no breaking change (R6).
-- **Adding guardrails content or a `### Guardrails` subsection** — this change only leaves room for it; guardrails land in issue #51 on top of this.
+- **Guardrails implementation** — no guardrails content, no `## Guardrails` H2 section, no loader integration, no setup steps, and no agent rewrites. This change only establishes the umbrella naming and flat structure so a sibling `## Guardrails` H2 can land later; guardrails are issue #51's scope, rebuilt on top of this rename.
 - **Any change to loader parsing, setup logic, or pipeline runtime behavior** (R7).
 
 ---
@@ -127,12 +125,12 @@ The loader, setup flow, per-tool canonical blocks, local-overrides resolution, a
 ### `.rp.md` structure (R1)
 
 1. The `.rp.md` title is exactly `# Radical Pipelines project configuration`.
-2. `.rp.md` contains a `## Shared configuration` H2 and no `## Shared conventions` H2.
-3. `.rp.md` contains a `### Conventions` H3 nested under `## Shared configuration`, wrapping all named-rule sections.
-4. Every former `### <Rule>` header (Managing tasks, Pipeline slugs, Artifact folders, Commit format, Worktrees, Branch names, Team spawning, Agent models, Health monitoring) is now `#### <Rule>` under `### Conventions`, and their previously-nested sub-headers are demoted one level so relative nesting is preserved.
-5. The intro prose (L3) uses "configuration" as the umbrella term and preserves the shared-vs-per-tool reading instruction.
-6. All rule body content (tables, lists, examples, commands, URLs) is byte-for-byte identical to before aside from header levels and the new wrapper.
-7. A future `### Guardrails` H3 could be added as a sibling of `### Conventions` without further restructuring.
+2. `.rp.md` contains a flat `## Conventions` H2 and no `## Shared conventions` or `## Shared configuration` H2.
+3. The named-rule headers stay at H3: `.rp.md` contains `### Managing tasks`, `### Pipeline slugs`, `### Artifact folders`, `### Commit format`, `### Worktrees`, `### Branch names`, `### Team spawning`, `### Agent models`, `### Health monitoring` directly under `## Conventions` — none demoted to H4.
+4. Sub-headers nested beneath the rules (e.g. `#### Creating an issue` / `#### Modifying an issue` / `#### Orchestrator updates during a run` under "Managing tasks") remain at their current levels — no demotion anywhere.
+5. The intro prose (L3) uses "configuration" as the umbrella term, frames conventions as one section of the configuration (with future guardrails as a sibling section), and preserves the shared-vs-per-tool reading instruction (the "Shared" qualifier now lives in this prose, not in the H2 header).
+6. All rule body content (tables, lists, examples, commands, URLs) is byte-for-byte identical to before — only the title and the single H2 header change.
+7. A future `## Guardrails` H2 could be added as a flat sibling of `## Conventions` under the configuration umbrella without further restructuring.
 
 ### Named-rule references preserved (R2)
 
@@ -160,4 +158,4 @@ The loader, setup flow, per-tool canonical blocks, local-overrides resolution, a
 
 ### Overall
 
-20. The change is confined to terminology, header levels, and the one folder rename plus its inbound links; the repository builds/links cleanly and a reviewer can confirm no behavioral diff.
+20. The change is confined to terminology (the `.rp.md` title and umbrella prose, the single `## Conventions` H2 rename), and the one folder rename plus its inbound links; no rule header levels change, the repository builds/links cleanly, and a reviewer can confirm no behavioral diff.
