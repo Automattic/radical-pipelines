@@ -8,17 +8,26 @@ This information is necessary to execute the pipelines correctly, so you must lo
 
 ## Conventions
 
-| Convention         | What it covers                                                 | Required? |
-| ------------------ | -------------------------------------------------------------- | --------- |
-| Pipeline base slug | How to uniquely identify pipelines                             | Yes       |
-| Artifact folder    | Where to store the pipeline artifacts                          | Yes       |
-| Commit format      | How to write commits                                           | No        |
-| Issues             | Where to find the project issues and how to create/modify them | Yes       |
-| Worktrees          | How to set up and manage worktrees for each pipeline           | Yes       |
-| Branch names       | How to name branches for each pipeline                         | Yes       |
-| Team spawning      | How to define and launch teams of agents                       | No        |
-| Agent models       | Which model/settings each spawned agent runs on                | No        |
-| Health monitoring  | How to launch and cancel the recurring run-health loop         | Yes       |
+| Convention         | What it covers                                                                                                      | Required? |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- | --------- |
+| Pipeline base slug | How to uniquely identify pipelines                                                                                  | Yes       |
+| Artifact folder    | Where to store the pipeline artifacts                                                                               | Yes       |
+| Commit format      | How to write commits                                                                                                | No        |
+| Issues             | Where to find the project issues and how to create/modify them                                                      | Yes       |
+| Worktrees          | How to set up and manage worktrees for each pipeline                                                                | Yes       |
+| Branch names       | How to name branches for each pipeline                                                                              | Yes       |
+| Team spawning      | How to define and launch teams of agents                                                                            | No        |
+| Agent models       | Which model/settings each spawned agent runs on                                                                     | No        |
+| Health monitoring  | How to launch and cancel the recurring run-health loop                                                              | Yes       |
+| Guardrails         | The deterministic verification gates — exact commands judged pass/fail by exit code — the code/doc phases must pass | No        |
+
+## Guardrails
+
+A guardrail is an exact command, judged pass/fail solely by its exit code (0 = pass, any non-zero = fail), mandatory within the phase(s) it applies to. "Run the tests" is not a guardrail; `npm test` is. The only valid phase targets are `code` and `docs`; a guardrail may apply to one or both.
+
+An absent or empty Guardrails declaration means no command gates — a valid, complete state, never a blocker and never a warning.
+
+To load the guardrails for a phase, select the guardrails whose phase(s) include the current phase; an empty selection means run none and proceed.
 
 ## Missing conventions
 
@@ -34,4 +43,4 @@ A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.
 
 When you are inside a worktree, resolve the main root with `dirname(git rev-parse --git-common-dir)` and read it from there, since the git-ignored file is never copied into the worktree.
 
-After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.
+After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited. Guardrails is shared and committed-only; it is never taken from `.rp.local.md`.
