@@ -168,6 +168,41 @@ Capture:
   - Upstream branch format
   - Upstream commit format
 
+### Guardrails
+
+The deterministic verification gates the code and docs phases must pass — exact commands, judged pass/fail by exit code.
+
+**Why they matter.** Guardrails are backpressure. They are objective gates that reject incomplete work, so the agent has to produce concrete evidence — `tests: pass, lint: pass` — instead of "I think it works," and keeps iterating until every deterministic gate passes. Without them, "done" is a claim; with them, it is a verified state.
+
+**What kinds to consider.** Tests, lint, typecheck, build, format, audit, e2e, and any project-specific validators. Ask the owner which of these the project runs and which ones a change must pass before it is considered complete.
+
+**Capture per gate:**
+
+- A **name** (e.g. `tests`, `lint`).
+- The **exact literal command** to run (e.g. `npm test`). A guardrail's command is a fixed literal string with no per-run parameters. Where a real gate is inherently parameterized (e.g. a per-run base ref), pin it to a concrete default so it stays one exact command.
+- The applicable **phase(s)** — `code`, `docs`, or both. These are the only valid phase targets.
+
+**"None" is a complete, valid answer.** An absent or empty guardrails declaration is a valid, complete state — never a blocker, never a warning. If the project has no command gates, capture nothing here and move on.
+
+**Validate each command as you capture it.** This is the only capture step that *executes* commands. Validate each captured command immediately, as it is captured — not deferred to the Step 4 confirm. Validating here means an unrunnable command can be corrected or dropped before the owner reaches the confirm-before-write; deferring would surface failures only after the owner had already approved the proposed file content.
+
+The model is the same two questions used at run time: **did the command execute?** and **did the gate pass?** Validation here only answers the first — *did it execute?* The second — *did the gate pass?* — is the agents' concern at run time, not yours. There are three outcomes:
+
+- **Runs and exits non-zero ⇒ write it.** It executed; it just did not pass today. That is a valid guardrail — the failing result is simply today's code state (red tests, mid-development work). The pass bar is **"it executed," NOT "exit 0."**
+- **Errors as unrunnable (a 127/126-style "command not found" / "not executable") ⇒ do NOT write it.** Surface the failure to the owner (the error and the exit code) and offer to (a) fix or replace the command, (b) drop that guardrail, or (c) — only if the owner explicitly insists the command is correct and the validation environment is the discrepancy — keep it as an escape hatch. The default is **do not write an unvalidated command.** Never silently persist a known-unrunnable gate; never write it anyway with a warning.
+- **Zero captured ⇒ nothing to validate.** A valid, complete state. Manufacture no failure from emptiness.
+
+Validation is **per-command and independent.** One unrunnable command does not void or block writing the others, and does not abort the wider conventions capture — drop or correct it and finish the rest.
+
+Exit codes are the **primary signal but a heuristic, not a proof.** A wrapper can exit 127 for internal reasons; some tools print a "not found"-style error while exiting 0. For ambiguous cases, confirm with the owner whether the command actually executed. The requirement is "confirm it executed," not "the exit code must be a specific number."
+
+**Parity floor.** Setup runs before any pipeline worktree exists — it runs in the main checkout, and the worktree is created later. So validate in a context matching the agents' execution environment **as closely as the orchestrator can reach** — at minimum the **project's standard shell and working directory** (the main checkout), not a worktree working directory, since none exists yet. Perfect parity (env vars, secrets, network) is impossible; this is an explicit goal with a stated floor, not an absolute. The floor still catches the realistic failure modes: command-not-found, tool-not-installed, and bad invocation or wrong-shell quoting.
+
+**Two caveats when running a command to validate it:**
+
+- If a validation command does not return promptly, treat it as not-validated, stop it, and surface it to the owner — a guardrail must terminate on its own; a never-returning command isn't a deterministic gate. (This is the unrunnable outcome above: a command with no exit code has no branch in the three-way split, so it folds into don't-write-and-surface. Interactive-prompt commands fall under the same rule.)
+- Validation runs the command, so a gate that writes, deploys, or destroys will take effect against the owner's checkout. Confirm with the owner before running such a command — or accept their word that it is correct and use the escape hatch above.
+
 ## 3. Apply agentic coding tool setup actions
 
 Some agentic coding tools require setup actions beyond conventions.
