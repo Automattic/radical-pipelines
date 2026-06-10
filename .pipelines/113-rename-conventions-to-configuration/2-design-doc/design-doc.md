@@ -217,13 +217,24 @@ git status                                                  # shows renamed:, no
 ```
 **Pass:** new folder has exactly the four files; old folder absent; history follows through the rename. (AC10–11)
 
-### 6.2 No stale inbound path references remain
-This pattern must catch all four moved filenames (`load`, `setup`, `claude-code`, `pi`), including the two health-monitoring.md references:
+### 6.2 No stale inbound path references remain — both prefixed AND bare forms
+**Requirement:** every inbound link to the moved folder resolves; **no path component `conventions/` referencing the moved files (`load.md`, `setup.md`, `claude-code.md`, `pi.md`) remains** anywhere outside `.pipelines/**`. This is derived by grep, **not** a hardcoded count.
+
+> **Grep gap to avoid (this is a real trap).** Inbound references appear in **two forms**:
+> - **Prefixed:** `reference/conventions/load.md` (SKILL.md, README.md links).
+> - **Bare** (no `reference/` prefix): `conventions/load.md` (work-on-an-issue.md, manage-issues.md) and `conventions/claude-code.md` / `conventions/pi.md` (health-monitoring.md L13, L79).
+>
+> A grep for `reference/conventions/` alone will **not** match the bare `conventions/claude-code.md` form, so it would **falsely pass** while leaving `health-monitoring.md` broken. The assertion must catch **both** forms.
+
+Run both of these; **both** must return zero matches outside `.pipelines/`:
 ```bash
-grep -rn "reference/conventions\|conventions/load.md\|conventions/setup.md\|conventions/claude-code.md\|conventions/pi.md" \
-  --include="*.md" . | grep -v "\.pipelines/"
+# (a) catches every reference to the four moved files by either prefixed or bare path:
+grep -rnE "conventions/(load|setup|claude-code|pi)\.md" --include="*.md" . | grep -v "\.pipelines/"
+
+# (b) belt-and-suspenders — catches the prefixed folder path in any other context:
+grep -rn "reference/conventions/" --include="*.md" . | grep -v "\.pipelines/"
 ```
-**Pass:** **zero** matches outside `.pipelines/`. This is the binding completeness check — it must pass regardless of how many inbound references existed (7 known). (AC12–13)
+**Pass:** **both** greps return **zero** matches outside `.pipelines/`. This is the binding completeness check — it must hold regardless of how many inbound references existed (7 known: SKILL.md ×1, README.md ×2, work-on-an-issue.md ×1, manage-issues.md ×1, health-monitoring.md ×2). (AC12–13)
 
 ### 6.3 Every touched Markdown link resolves
 Confirm each updated path points to a real file/anchor:
