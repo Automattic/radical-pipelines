@@ -103,7 +103,7 @@ For any gap, return to step 3 and work through the missing topic.
 
 ### 5. Synthesize `design-doc.md`
 
-Write `<artifacts-folder>/2-design-doc/design-doc.md` as a standalone document — understandable without reading `design-doc-research.md`, `spec.md`, or `prompt.md`. Use this structure:
+Write `<artifacts-folder>/2-design-doc/design-doc.md` as a standalone document — understandable without reading `design-doc-research.md`, `spec.md`, or `intent.md`. Use this structure:
 
 ```markdown
 # Design Doc: <feature name>
@@ -132,7 +132,7 @@ Write `<artifacts-folder>/2-design-doc/design-doc.md` as a standalone document �
 ## Risks and Open Questions
 ```
 
-- **Standalone** — the reader should not need `design-doc-research.md`, `spec.md`, or `prompt.md`.
+- **Standalone** — the reader should not need `design-doc-research.md`, `spec.md`, or `intent.md`.
 - **Trace every decision** — each Key Decision points to the spec requirement or acceptance criterion it serves.
 - **Cover every acceptance criterion** — the design must explain how each criterion will be met.
 - **Design, do not plan** — describe architecture and decisions, not an ordered list of implementation steps. That is phase 3.

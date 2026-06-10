@@ -45,7 +45,7 @@ Suggested default: `<issue-id>-<short-description>`.
 
 ### Artifact folder (required)
 
-Where each pipeline's artifacts (`prompt.md`, `spec.md`, `design-doc.md`, `code-plan.md`, `doc-plan.md`, etc.) are stored. One folder per pipeline.
+Where each pipeline's artifacts (`intent.md`, `spec.md`, `design-doc.md`, `code-plan.md`, `doc-plan.md`, etc.) are stored. One folder per pipeline.
 
 Ask the owner for the location and naming pattern.
 
@@ -61,7 +61,7 @@ Suggested default: `<commit-description> (<agent-name>)`.
 
 ### Issues (required)
 
-Where the project tracks issues. Each pipeline pulls its initial prompt from an issue, so the orchestrator needs a way to read, comment on, and update them.
+Where the project tracks issues. Each pipeline pulls its initial intent from an issue, so the orchestrator needs a way to read, comment on, and update them.
 
 Ask the owner which tracker is used (GitHub Issues, Linear, Jira, GitLab, plain Markdown files in a folder, etc.) and how to access it (CLI like `gh`, MCP server, API token, etc.).
 
@@ -110,7 +110,7 @@ How this project stores Radical Pipelines artifacts.
 Running Radical Pipelines creates three kinds of files that need a home:
 
 - The project-level `.rp.md` config file (the conventions captured during this setup).
-- A per-pipeline artifact folder containing `prompt.md`, `spec.md`, `design-doc.md`, etc. — one folder per pipeline run, per the **Artifact folder** convention.
+- A per-pipeline artifact folder containing `intent.md`, `spec.md`, `design-doc.md`, etc. — one folder per pipeline run, per the **Artifact folder** convention.
 - A `.gitignore` entry for the worktree folder used by the active agentic coding tool.
 
 They can live either in the project's repository alongside the code, or in a separate fork. The fork option is used when the project does not accept these kinds of commits, or when the owner wants to keep the pipeline workflow private.

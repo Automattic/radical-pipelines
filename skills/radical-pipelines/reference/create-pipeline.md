@@ -1,6 +1,6 @@
 # Creating a Pipeline
 
-Creates a new pipeline through phase 0 — sets up the worktree and artifacts folder, writes `prompt.md`, and commits.
+Creates a new pipeline through phase 0 — sets up the worktree and artifacts folder, writes `intent.md`, and commits.
 
 ## Steps
 
@@ -18,12 +18,12 @@ All work happens inside the worktree — never modify files in the main working 
 
 Create the folder following the **Artifact folder** convention.
 
-### 4. Generate the initial prompt
+### 4. Generate the initial intent
 
-Phase folders live under a run folder, and the first run is always `base` (see **Runs within a pipeline** in `pipeline-versioning.md`). Create the `base/` run folder and the phase 0 subfolder under it (`base/0-prompt/`) inside the artifact folder. Write the prompt to `<artifacts-folder>/base/0-prompt/prompt.md`.
+Phase folders live under a run folder, and the first run is always `base` (see **Runs within a pipeline** in `pipeline-versioning.md`). Create the `base/` run folder and the phase 0 subfolder under it (`base/0-intent/`) inside the artifact folder. Write the intent to `<artifacts-folder>/base/0-intent/intent.md`.
 
-- Adapt the issue content into the phase-0 prompt directed at the agents that will run subsequent phases, following the schema and authoring discipline in `prompt-format.md`.
-- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/base/0-prompt/`. Reference them explicitly in `prompt.md` using relative paths.
+- Adapt the issue content into the intent that seeds the subsequent phases, following the schema and authoring discipline in `intent-format.md`.
+- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/base/0-intent/`. Reference them explicitly in `intent.md` using relative paths.
 - The phase 0 subfolder must be self-contained — once committed, agents must not need to reach back to the issue source to understand the issue.
 
 ### 5. Commit

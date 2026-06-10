@@ -1,6 +1,6 @@
 # Reviewing a Pipeline
 
-Starts a review of a complete, unmerged pipeline: adds a new review run on top of the latest run and takes it through phases 1–5 with a fresh review prompt. A review reuses the existing branch and worktree — it never creates a new pipeline.
+Starts a review of a complete, unmerged pipeline: adds a new review run on top of the latest run and takes it through phases 1–5 with a fresh review intent. A review reuses the existing branch and worktree — it never creates a new pipeline.
 
 ## Steps
 
@@ -28,20 +28,20 @@ Re-attach using resume's two named sections, in order: "Cancel any leftover heal
 
 Do NOT perform resume's rollback step — the latest run is already complete, so there is nothing to roll back — and NEVER create a new branch.
 
-While HEAD is still the prior-run tip (before the review prompt is committed), capture the review's base ref = the prior-run tip, per the **Reviewer base ref** rule in `pipeline-versioning.md`.
+While HEAD is still the prior-run tip (before the review intent is committed), capture the review's base ref = the prior-run tip, per the **Reviewer base ref** rule in `pipeline-versioning.md`.
 
 ### 4. Determine and create the run folder
 
 Determine the run name `review-N-<short-description>` per the **Runs within a pipeline** rule in `pipeline-versioning.md`, and create that run folder as a sibling of `base/`.
 
-### 5. Author and commit the review prompt
+### 5. Author and commit the review intent
 
-Author the review prompt at `review-N-<short-description>/0-prompt/prompt.md` the same way the base prompt is orchestrator-authored (the `create-pipeline.md` step-4 pattern), following the schema and authoring discipline in `prompt-format.md`. Beyond that shared schema, a review prompt carries these review-only additions:
+Author the review intent at `review-N-<short-description>/0-intent/intent.md` the same way the base intent is orchestrator-authored (the `create-pipeline.md` step-4 pattern), following the schema and authoring discipline in `intent-format.md`. Beyond that shared schema, a review intent carries these review-only additions:
 
-- An **Origin** section, MANDATORY for reviews and unique to them — issue and base prompts have none. It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of the owner's change, GitHub comment, or PR review) PLUS a convenience link, so a later phase reading only this review prompt understands what prompted it without following the link.
-- Any source assets (e.g. images from the source) are placed in this review run's `0-prompt/` folder and referenced relatively, the same as issue and base prompts.
+- An **Origin** section, MANDATORY for reviews and unique to them — issue and base intents have none. It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of the owner's change, GitHub comment, or PR review) PLUS a convenience link, so a later phase reading only this review intent understands what prompted it without following the link.
+- Any source assets (e.g. images from the source) are placed in this review run's `0-intent/` folder and referenced relatively, the same as issue and base intents.
 
-The original issue and `base/0-prompt` are never rewritten. Then commit the review prompt per the **Commit format** convention.
+The original issue and `base/0-intent` are never rewritten. Then commit the review intent per the **Commit format** convention.
 
 ### 6. Re-assert the version
 
@@ -49,7 +49,7 @@ Re-assert (confirm, do not change) the existing `v<N>` version label per `pipeli
 
 ### 7. Return to mode dispatch, and apply run obligations
 
-Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch the chosen workflow for phases 1–5. The review prompt is phase 0 and is mode-independent; phases run in this review run's folder.
+Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch the chosen workflow for phases 1–5. The review intent is phase 0 and is mode-independent; phases run in this review run's folder.
 
 An assisted review advances only through phase 3, so an assisted-only review is itself incomplete and cannot satisfy the completeness precondition (step 1a) for a later review until it is finished autonomously through phases 4–5.
 

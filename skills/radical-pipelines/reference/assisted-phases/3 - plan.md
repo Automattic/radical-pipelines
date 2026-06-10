@@ -121,7 +121,7 @@ For any gap, return to step 3 and work through the missing topic.
 
 ### 5. Synthesize `code-plan.md`
 
-Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — understandable without reading `plan-notes.md`, `design-doc.md`, `spec.md`, or `prompt.md`. Use this structure:
+Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — understandable without reading `plan-notes.md`, `design-doc.md`, `spec.md`, or `intent.md`. Use this structure:
 
 ```markdown
 # Code Plan: <feature name>

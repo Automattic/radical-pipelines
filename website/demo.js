@@ -9,7 +9,7 @@
     {
       phase: 'phase 1',
       task: 'spec-writer',
-      reads: ['prompt.md', 'spec-research.md'],
+      reads: ['intent.md', 'spec-research.md'],
       writes: ['spec.md'],
       runMs: 1400,
       sec: 84,
@@ -20,7 +20,7 @@
     {
       phase: 'phase 1',
       task: 'spec-reviewer',
-      reads: ['spec.md', 'prompt.md'],
+      reads: ['spec.md', 'intent.md'],
       writes: ['spec-review-approved.md'],
       runMs: 1100,
       sec: 41,
@@ -137,7 +137,7 @@
   ];
 
   const pendingTree = [
-    'prompt.md',
+    'intent.md',
     'spec-research.md',
     'spec.md',
     'spec-review-approved.md',
@@ -273,12 +273,12 @@
       line(logEl, 'cc-bullet', '● Bash(git worktree add .pipelines/worktrees/issue-1234 -b issue/1234)');
       line(logEl, 'cc-sub done', '  ⎿  Preparing worktree (new branch \'issue/1234\')');
       line(logEl, 'cc-sub done', '  ⎿  HEAD is now at eda5064');
-      line(logEl, 'cc-sub done', '  ⎿  Captured issue #1234 → prompt.md (phase 0 · input)');
+      line(logEl, 'cc-sub done', '  ⎿  Captured issue #1234 → intent.md (phase 0 · input)');
       line(logEl, 'cc-spacer', '');
 
       // Tree header
       pendingTree.forEach((f, i) => addPendingFile(f, i));
-      // Phase 0 is the raw prompt — an input, already in place, not produced by an agent.
+      // Phase 0 is the raw intent — an input, already in place, not produced by an agent.
       commitPending(0);
 
       await sleep(reduced ? 50 : 800);

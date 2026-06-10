@@ -11,11 +11,11 @@ Before executing these steps, make sure project conventions are loaded (see `con
 
 ## The issue format
 
-The issue body _is_ the phase-0 prompt — `create-pipeline.md` turns the issue into `base/0-prompt/prompt.md`. Author the issue using the shared schema, rendering rules, and authoring discipline in `prompt-format.md`.
+The issue body _is_ the phase-0 intent — when the pipeline is created, the orchestrator turns the issue into `base/0-intent/intent.md`. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`.
 
 ## Constraints
 
-The authoring discipline in `prompt-format.md` applies across all steps below. In addition:
+The authoring discipline in `intent-format.md` applies across all steps below. In addition:
 
 - **Do not write to the tracker until the owner approves the rendered draft.**
 

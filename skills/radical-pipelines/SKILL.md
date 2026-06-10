@@ -1,6 +1,6 @@
 ---
 name: radical-pipelines
-description: Run an autonomous software engineering pipeline that takes an issue through six sequential phases (Prompt → Spec → Design doc → Plan → Code → Docs), each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
+description: Run an autonomous software engineering pipeline that takes an issue through six sequential phases (Intent → Spec → Design doc → Plan → Code → Docs), each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
 ---
 
 # Radical Pipelines
@@ -30,14 +30,14 @@ You can move forward the pipelines through the different phases in two modes: au
 
 ## Phases
 
-| #   | Phase         | Subfolder         | Produces                                                      |
-| --- | ------------- | ----------------- | ------------------------------------------------------------- |
-| 0   | Prompt        | `0-prompt`        | The raw request (input, not something to create)              |
-| 1   | Spec          | `1-spec`          | Requirements, acceptance criteria, out-of-scope               |
-| 2   | Design doc    | `2-design-doc`    | Architecture, API design, technical decisions, trade-offs     |
-| 3   | Plan          | `3-plan`          | Code plan and doc plan                                        |
-| 4   | Code          | `4-code`          | Code changes, unit and end-to-end tests, behavior verification |
-| 5   | Docs          | `5-docs`          | Documentation (both internal and external)                    |
+| #   | Phase      | Subfolder      | Produces                                                       |
+| --- | ---------- | -------------- | -------------------------------------------------------------- |
+| 0   | Intent     | `0-intent`     | The input                                                      |
+| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope                |
+| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs      |
+| 3   | Plan       | `3-plan`       | Code plan and doc plan                                         |
+| 4   | Code       | `4-code`       | Code changes, unit and end-to-end tests, behavior verification |
+| 5   | Docs       | `5-docs`       | Documentation (both internal and external)                     |
 
 ## Project conventions
 
