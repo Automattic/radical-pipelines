@@ -176,3 +176,218 @@ describe("create-pipeline.md step 4 — Task 2 hoisted asset/screenshot download
     );
   });
 });
+
+describe("create-pipeline.md step 4 — Task 3 three-clause skip gate", () => {
+  /**
+   * The skip gate's introductory line — the declarative conjunction that opens
+   * the gate. Identified by the act of skipping owner confirmation only when
+   * all three conditions hold, so the matcher does not anchor on later tasks'
+   * branch text.
+   *
+   * @returns {string | undefined} The gate's lead-in line, if present.
+   */
+  function gateIntro() {
+    return step4()
+      .split("\n")
+      .find(
+        (line) =>
+          /skip/i.test(line) &&
+          /confirmation/i.test(line) &&
+          /all three/i.test(line),
+      );
+  }
+
+  test("the gate is phrased as an all-three-hold conjunction over owner confirmation", () => {
+    const intro = gateIntro();
+    assert.ok(
+      intro,
+      "step 4 must introduce a skip-owner-confirmation-when-all-three-hold gate",
+    );
+    // Skipping is the only thing the conjunction governs; confirmation is owner
+    // confirmation, gated on all three clauses holding together.
+    assert.match(intro, /owner confirmation/i);
+    assert.match(intro, /all three/i);
+  });
+
+  test("the gate sits after the hoisted asset-download step", () => {
+    const s = step4();
+    const lines = s.split("\n");
+    const asset = lines.findIndex(
+      (line) => /download/i.test(line) && /screenshot|asset/i.test(line),
+    );
+    const gate = lines.findIndex(
+      (line) =>
+        /skip/i.test(line) &&
+        /confirmation/i.test(line) &&
+        /all three/i.test(line),
+    );
+    assert.notEqual(asset, -1, "asset-download instruction must exist");
+    assert.notEqual(gate, -1, "skip gate must exist");
+    assert.ok(
+      asset < gate,
+      "the skip gate must come after the hoisted asset-download step",
+    );
+  });
+
+  test("there is exactly one skip gate", () => {
+    const intros = step4()
+      .split("\n")
+      .filter(
+        (line) =>
+          /skip/i.test(line) &&
+          /confirmation/i.test(line) &&
+          /all three/i.test(line),
+      );
+    assert.equal(intros.length, 1, "expected exactly one all-three skip gate");
+  });
+
+  test("all-three-holding is stated as the definition of 'no transformation', with no separate transform check", () => {
+    const s = step4();
+    // All three holding *is* the definition of no transformation: the gate must
+    // tie the conjunction to the "no transformation" notion itself.
+    assert.match(s, /transformation|transform/i);
+    // And it must explicitly disclaim a *second*, independently-checked notion
+    // of whether the result transforms the source — the conjunction is the only
+    // gate. The disclaimer ("no separate check … transforms the source") is the
+    // only place transformation-of-the-source may be mentioned, so it must be
+    // framed as something NOT done.
+    assert.match(
+      s,
+      /(no|not|never)[^.]*\b(separate|second|additional|independent(?:ly)?)\b[^.]*transform|do(?:es)?\s+not[^.]*transform[^.]*source/i,
+      "the separate 'transforms the source' notion must be explicitly disclaimed, not asserted as a real check",
+    );
+  });
+
+  test("the gate prescribes no evaluation order over the three clauses", () => {
+    const s = step4();
+    // A declarative, unordered conjunction: no first/then/short-circuit ordering
+    // language tying one clause's evaluation to another.
+    assert.doesNotMatch(
+      s,
+      /evaluate[d]?\s+(the\s+clauses\s+)?in\s+order/i,
+      "the clauses must not be ordered for evaluation",
+    );
+    assert.doesNotMatch(
+      s,
+      /short[\s-]?circuit/i,
+      "the gate must not short-circuit clause evaluation",
+    );
+  });
+
+  // --- Clause A — body is structurally canonical -------------------------------
+
+  test("clause A is a purely structural canonical-body check", () => {
+    const s = step4();
+    // The canonical body is described as structural; the orchestrator does not
+    // judge whether the Goal reads as an outcome.
+    assert.match(s, /structural/i);
+    assert.match(
+      s,
+      /not\s+judge|does\s+not\s+(judge|assess)|purely\s+structural/i,
+    );
+    // The semantic "reads / sounds like an outcome" judgment is explicitly NOT made.
+    assert.match(s, /outcome/i);
+  });
+
+  test("clause A requires a non-empty Goal", () => {
+    const s = step4();
+    assert.match(s, /non-empty[\s\S]*## Goal|## Goal[\s\S]*non-empty/i);
+  });
+
+  test("clause A admits only the four recognized headings via manage-issues.md", () => {
+    const s = step4();
+    // The heading taxonomy is delegated to manage-issues.md, not re-listed; the
+    // gate references the four recognized headings spelled exactly as there.
+    assert.match(s, /manage-issues\.md/);
+    assert.match(s, /four/i);
+    assert.match(s, /recognized|recognised/i);
+  });
+
+  test("clause A requires the prescribed order and nothing outside the sections", () => {
+    const s = step4();
+    // (iii) prescribed order.
+    assert.match(s, /order/i);
+    // (iv) nothing outside the sections — no preamble prose, no extra/unrecognized headings.
+    assert.match(s, /nothing\s+outside|outside\s+(those\s+|these\s+)?sections/i);
+    assert.match(s, /preamble|prose/i);
+    assert.match(s, /extra|unrecognized|unrecognised/i);
+  });
+
+  test("clause A excludes the issue title (metadata) and lets a Goal-only body pass", () => {
+    const s = step4();
+    // Title is metadata mapped to the H1 and does not participate in the check.
+    assert.match(s, /title/i);
+    assert.match(s, /metadata|does not (participate|count)|not part of/i);
+    // A Goal-only body passes the canonical check.
+    assert.match(s, /Goal[\s-]?only|(only\s+(a\s+)?)?`?## ?Goal`?\s+(alone|only)|(a\s+)?body\s+of\s+`?## ?Goal`?\s+alone/i);
+  });
+
+  test("clause A allows no tolerant matching of near-miss headings", () => {
+    const s = step4();
+    // Strict, no tolerance: a near-miss like `## Directions to explore` fails.
+    assert.match(s, /Directions to explore/);
+    assert.match(s, /fail/i);
+  });
+
+  // --- Clause B — issue has no comments ----------------------------------------
+
+  test("clause B is a strict zero-count comment read via the Issues convention", () => {
+    const s = step4();
+    // Read through the abstract Issues convention — no gh/--json in the prose.
+    assert.match(s, /\*\*Issues\*\*/);
+    assert.doesNotMatch(s, /\bgh\b/);
+    assert.doesNotMatch(s, /--json/);
+    // Any comment at all fails the clause; this is about comments.
+    assert.match(s, /comment/i);
+    assert.match(s, /any comment/i);
+  });
+
+  test("clause B does not assess comment author or substance", () => {
+    const s = step4();
+    // From any author, for any reason — author/substance unassessed.
+    assert.match(s, /any author|from any (author|one)/i);
+    assert.match(s, /substance|reason/i);
+  });
+
+  test("clause B counts only the source-of-truth issue, not mirrored comments", () => {
+    const s = step4();
+    // Comments mirrored elsewhere (e.g. Linear) are not considered.
+    assert.match(s, /mirror/i);
+  });
+
+  // --- Clause C — body contains no references ----------------------------------
+
+  test("clause C is a body-only reference scan", () => {
+    const s = step4();
+    // Evaluated against the body only.
+    assert.match(s, /body[\s\S]*reference|reference[\s\S]*body/i);
+    assert.match(s, /body only|only the body|against the body/i);
+  });
+
+  test("clause C counts external URLs and GitHub issue/PR cross-references", () => {
+    const s = step4();
+    // External URL.
+    assert.match(s, /http\(s\)|https?:\/\/|external URL/i);
+    // GitHub cross-reference forms: short `#N`, long `owner/repo#N`, full URL.
+    assert.match(s, /#N|#\d|#42/);
+    assert.match(s, /owner\/repo#/);
+    assert.match(s, /cross-reference/i);
+  });
+
+  test("clause C excludes @-mentions, embedded assets, and repo-file links", () => {
+    const s = step4();
+    // @-mentions do not count.
+    assert.match(s, /@-?mention/i);
+    // Embedded images / attached assets (the `![…]` form) do not count.
+    assert.match(s, /!\[/);
+    // Links to files in the repository do not count.
+    assert.match(s, /repo|repository/i);
+    assert.match(s, /file/i);
+  });
+
+  test("clause C is stated as prose, not a literal regex", () => {
+    const s = step4();
+    // Design-altitude prose — no literal regex delimiters introduced for the scan.
+    assert.doesNotMatch(s, /\/\^|\$\/|\\b.*\\b/);
+  });
+});
