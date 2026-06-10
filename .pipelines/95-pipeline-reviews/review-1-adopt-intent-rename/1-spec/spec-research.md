@@ -1,0 +1,243 @@
+# Spec research — Adopt the prompt → intent rename in the reviews feature
+
+## The original idea (from `0-intent/intent.md`)
+
+PR #106 (the reviews feature) must become fully consistent with the phase-0 rename that landed on trunk via PR #109: everything this branch introduces or touches should refer to the phase-0 artifact as **intent** (`intent.md`, `0-intent/`, phase "Intent"), so the feature merges cleanly onto trunk with no stale "prompt" terminology.
+
+Context the owner supplied:
+- PR #109 (merged into trunk 2026-06-10) renamed the phase-0 artifact from "prompt" to "intent" across the skill, agent profiles, README, and website.
+- This branch predates that rename; the reviews feature still uses old naming (e.g. the new `prompt-format.md` reference and `0-prompt/prompt.md` paths in the review procedure).
+- PR #109 deliberately kept the generic sense of "prompt" (LLM prompts, agent launch/spawn prompts, the `cc-prompt` CSS class); that distinction must be preserved.
+- (Open) Merging trunk into this branch may be the natural way to pick up the rename, or the rename may be applied directly to this branch's files — research should determine which.
+
+Owner request, verbatim: "In this other PR: https://github.com/Automattic/radical-pipelines/pull/109/. Prompt was renamed to intent. I want to adapt whatever is needed in #106."
+
+## Q&A
+
+### Q1 — Strategy: merge trunk vs. apply the rename directly (sent to spec-researcher; awaiting answer)
+
+**Analyst's own evidence gathered before/while asking:**
+
+- **Divergence.** Merge-base of `worktree-95-pipeline-reviews` (HEAD, the #106 reviews feature) with `trunk` is `3f39bee`, which predates PR #109. `git rev-list` shows trunk has 56 commits not in HEAD and HEAD has 47 not in trunk. So this branch never picked up #109's rename: at HEAD, SKILL.md still reads "Prompt → Spec", phase-0 paths are `0-prompt/prompt.md`, and a new `prompt-format.md` exists.
+- **Overlap = guaranteed merge conflicts.** PR #109's rename surface (files trunk changed vs. `3f39bee`) and the #106 feature's changed files overlap on: `skills/.../create-pipeline.md`, `fork-pipeline.md`, `manage-issues.md`, `pipeline-versioning.md`, `website/demo.js`, `website/index.html`, the four `spec-*` agent profiles, and `SKILL.md`. A `git merge trunk` will conflict in exactly these files.
+- **#109 made non-mechanical edits, not just string substitution.** The SKILL phase-0 table row changed from `| 0 | Prompt | 0-prompt | The raw request (input, not something to create) |` to `| 0 | Intent | 0-intent | The input |` — the description was rewritten, not just renamed. README completion-rate line changed "from prompt to finished implementation" → "from intent to finished implementation". This matters: a hand-applied rename risks missing content changes that a trunk merge picks up for free.
+
+**Generic "prompt" boundary that #109 deliberately preserved (verified on trunk; must be kept identically on this branch):**
+
+- `.rp.md` / `conventions/*.md`: `/loop <prompt>` where `<prompt>` is the health-monitor template — kept.
+- README "the same prompt, the same context, can produce a different result" — kept.
+- All agent profiles: "orchestrator's launch/spawn prompt", "orchestrator's prompt cited a review file", "initial prompt" — kept.
+- `health-monitoring.md`: "Loop prompt template", "self-contained prompt", "The prompt references this file" — kept.
+- `website/demo.js`: `cc-prompt` CSS class on the `> work on issue #1234` line — kept.
+- `website/index.html`: "Same prompt, different run, different result" and the `prompt engineering` SEO meta keyword — both kept.
+
+**Phase-0 "prompt" references that #109 renamed to "intent" (trunk targets, for mapping):**
+
+- `website/demo.js`: `reads: ['prompt.md', …]` → `['intent.md', …]` (lines 12, 23); `'prompt.md'` tree entry (140); `Captured issue #1234 → prompt.md (phase 0 · input)` → `→ intent.md` (276); comment "Phase 0 is the raw prompt" → "raw intent" (281).
+- `website/index.html`: `<span class="file done">prompt.md</span>` → `intent.md` (119).
+- README: "Phase 0. Prompt." → "Phase 0. Intent." (27); "(phase 0 is the raw prompt, an input…" → "(phase 0 is the intent, an input…" (112).
+- SKILL.md: description `(Prompt → Spec → …)` → `(Intent → …)` (3); table row 0 (35).
+- Agent profiles, the assisted/autonomous phase docs, and the conventions docs: all `0-prompt/prompt.md` phase-0 paths and "the prompt" (meaning the phase-0 input) → `0-intent/intent.md` / "the intent".
+
+**#106 NEW additions that #109 never saw, so they have NO trunk counterpart and must be renamed by this review regardless of strategy:**
+
+- `skills/.../reference/prompt-format.md` (new file) — entirely about "the prompt" as the phase-0 input; title "# The Prompt Format", "This describes a prompt — whether a tracker issue body, a base prompt, or a review prompt." Needs file rename to `intent-format.md` plus content rename, and every reference to it (`create-pipeline.md`, `manage-issues.md`, `review-pipeline.md`) re-pointed.
+- `skills/.../reference/review-pipeline.md` (new file) — uses "review prompt" as the phase-0 noun throughout (step 5 "Author and commit the review prompt", path `review-N-<short-description>/0-prompt/prompt.md`, "the base prompt is orchestrator-authored"). These are phase-0 uses → "review intent" / `0-intent/intent.md`.
+- `.changeset/pipeline-reviews.md` (new) — describes reviews; does not currently mention prompt/intent terminology, so likely no edit. Trunk separately carries `.changeset/rename-prompt-to-intent.md`, which a merge would bring in automatically.
+- `.rp.md` Linear status labels reference `0 - Prompt` (lines 35) and an example commit `Add prompt (orchestrator)` (54) — phase-0 uses; need review against trunk's `.rp.md`.
+- `pipeline-versioning.md` adds review-run rules referencing "the review's prompt", `0-prompt/prompt.md`, and the ASCII tree root `0-prompt` — all phase-0 uses to rename.
+
+**Question to researcher:** which approach (merge trunk vs. direct rename) is the project's convention / cleaner here? (Full text sent via SendMessage.)
+
+**A1 (spec-researcher) — APPLY THE RENAME DIRECTLY; do NOT merge trunk. Decision adopted, with one refinement (below).** Grounding:
+- The framework has NO "re-sync an in-flight branch with main" operation. A review "reuses the existing branch and worktree — it never creates a new pipeline" (`review-pipeline.md:3`) and "NEVER create a new branch" (`review-pipeline.md:25-31`); no step merges/rebases/syncs trunk. Pipelines sync with main only at **creation/fork** (`pipeline-versioning.md:3,32` — "created from the project's main branch — never from another pipeline's tip"). A review's diff base is the **prior-run tip**, not the merge-base with main (`pipeline-versioning.md:21-28`). Reconciliation with trunk is the human's job at PR-merge time (`.rp.md:34` only pushes the branch).
+- Precedent on THIS branch: commit `2d6cbe9` already applied the rename directly to its own data artifacts (folder moves) with zero trunk merge.
+- A merge can't even reach the feature's two NEW files (`prompt-format.md`, `review-pipeline.md`) — trunk has nothing to merge into them, so a manual pass is required regardless; the merge is pure overhead and produces a noisy diff replaying all of #109 plus semantic conflicts (esp. the `manage-issues.md` inline-vs-extracted divergence).
+
+This overturns my earlier "merge trunk also catches up local-overrides drift" reasoning: that catch-up is NOT this review's job — it happens when the human merges the PR. The review's deliverable is to adapt #106's content to the rename, not to make the branch byte-identical to a future merged state.
+
+**Refinement I verified and will fold into the spec:** "apply directly" must NOT mean a blind token-swap, because #109 made some NON-mechanical edits. Example: `SKILL.md` row 0 — a naive swap yields `| 0 | Intent | 0-intent | The raw request (input, not something to create) |`, but trunk's actual #109 wording is `| 0 | Intent | 0-intent | The input |` (description rewritten). `SKILL.md` is untouched by #106, so its "prompt" is pure pre-rename staleness. Therefore the rule is: **apply the rename directly to this branch's files, aligning each occurrence to trunk's actual post-#109 wording** (for files #109 already covered, match trunk's text, not a mechanical substitution), and **apply #109's rename boundary to #106's own new/extended content** (the two new files + the union files). This yields a tight, reviewable, trunk-consistent diff with no merge and no re-introduced divergence. (Confirming this refinement with the researcher.)
+
+### Q2 — Scope boundaries discovered: `.rp.md` Linear labels + structural conflicts in `manage-issues.md`/`create-pipeline.md` (analyst evidence; cross-check pending)
+
+**(a) `.rp.md` Linear status label `0 - Prompt` is OUT of the rename scope — #109 left it as "Prompt".**
+
+On trunk, `.rp.md` line 35 STILL reads `0 - Prompt` (the Linear workflow-state label) and line 54 STILL reads the example commit `Add prompt (orchestrator)`. PR #109 did not touch them. `.rp.md` is project-local config, not part of the shipped skill/agents/docs, and the `0 - Prompt` label names an external Linear workflow state. So the branch's `.rp.md` already matches trunk's retained terminology for these. The only `.rp.md` difference the #106 feature adds on line 35 is a review-run clause that itself uses `0 - Prompt` consistently. **Conclusion: the branch's `.rp.md` needs no prompt→intent rename for the Linear labels or the example commit; it should remain identical to trunk on lines 35 and 54.** (Line 76's `/loop <prompt>` is the generic health-monitor template, also kept.)
+
+**(b) `manage-issues.md` — #106 and #109 are competing refactors of the SAME schema content.**
+
+- This branch (#106) **extracted** the phase-0 schema + authoring discipline into a new shared file `prompt-format.md` and made `manage-issues.md` *reference* it ("Author the issue using the shared schema… in `prompt-format.md`").
+- Trunk (#109) **inlined** that same schema directly into `manage-issues.md` ("So this is both the issue template and the intent format. Render these sections…") and created NO separate format file.
+- The schema bodies (Title / Goal / Constraints / Context / Assumptions) and the authoring-discipline bullets (Capture don't converge; Lead with the goal; No requirements/design/impl; Reflect hypotheses back) are **identical in substance** between the branch's `prompt-format.md` and trunk's inlined `manage-issues.md`.
+- A `git merge trunk` conflicts here, and resolving it is a **design decision**, not a mechanical rename: keep #106's shared `intent-format.md` (rename the file + repoint references) vs. collapse to trunk's inline copy and drop the new file.
+
+**(c) `create-pipeline.md` — three changes must layer together.** Branch step 4 references `prompt-format.md` AND introduces the `base/` run-folder path (`base/0-prompt/prompt.md`); trunk uses flat `0-intent/intent.md`, has its own inline phase-0 guidance ("Do not add requirements…"), and references no format file. The correct merged state is the union: trunk's "intent" terminology + #106's `base/` run folder + #106's `intent-format.md` reference → `base/0-intent/intent.md`, referencing `intent-format.md`.
+
+**Implication:** the rename is NOT a flat search-and-replace. It requires specifying the intended end-state of each affected file.
+
+> **SUPERSEDED FRAMING (read with A1):** Q2 below was written assuming a possible `git merge trunk`. A1 settled the strategy as **direct rename, no merge**. So there are no "merge conflicts" to resolve — instead, the spec states each file's renamed END-STATE directly. The substance of the per-file analysis (which files match trunk's wording, which keep #106's structure, which combine trunk terminology with #106's `base/` run-folder additions) still holds; only the mechanism changes from "resolve a conflict" to "write the end-state."
+
+**A2 (spec-researcher) — all three confirmed:**
+
+**(a) `.rp.md` is FULLY out of scope — leave it untouched entirely.** Hard reason: `0 - Prompt` (line 35) is a **live, externally-defined Linear workflow state** — the researcher live-verified via `list_issue_statuses` on team Billow (state id `6a5b291f-2df2-41ac-8c32-a21be017c9ec`, type `started`), the team behind project `15a89be6fe3c` (`.rp.md:12`) and issue BILLOW-56 (this pipeline). The orchestrator sets the issue to the state whose NAME equals that string (`.rp.md:35`); renaming the reference to `0 - Intent` without renaming the live Linear state would break the phase-0 status-set at runtime — a behavior change forbidden by "pure rename." PR #109 reasoned this out explicitly: `107/1-spec/spec.md:146-149` (Out of Scope) and `107/2-design-doc/design-doc-research.md:307,310-311`. Line 35 is constraint-driven (MUST stay); line 54 (`Add prompt (orchestrator)`, a commit-message example in the generic sense) is consistency-driven (#109 kept it for whole-file consistency). The branch's only `.rp.md` diffs vs trunk are the reviews feature's own additions (review-run status clause on line 35, "or reviewing" on line 36) — not renames, keep as-is. **Net: zero `.rp.md` rename work.**
+
+**(b) The extracted `prompt-format.md` is a DELIBERATE, reviewed #106 design decision — keep it (renamed); do NOT collapse to trunk's inline shape.** Rationale recorded in #106 base artifacts: `95-pipeline-reviews/base/2-design-doc/design-doc.md:158-161` is a titled decision "Single-source the prompt format into a new `prompt-format.md`," explicitly rejecting the inline alternative ("buries the canonical format in the tracker front-door file and creates host/borrow asymmetry inviting drift"). The driver is the THIRD prompt-authoring site the reviews feature adds (`design-doc.md:33`: "referenced by all three prompt-authoring sites — issue creation, base-prompt generation, review-prompt generation"). Traces to requirement **R13 "No prompt-format duplication"** (`base/4-code/code-review-approved.md:44`; `base/3-plan/code-plan.md:243-275` Task 4). Collapsing to trunk's inline shape would UNDO a reviewed #106 decision — out of scope; the intent is to adopt the rename, not revert #106's architecture.
+
+**(c) Target filename `intent-format.md` is unconstrained but the natural pick.** Trunk has no format file (nothing to match). #106 base artifacts reference the name only as `prompt-format.md` (`design-doc.md:45,103,158`; `code-plan.md:155-162`) and never anticipate a post-rename name. `intent-format.md` mirrors trunk's reframing of the concept as "the intent format" (`manage-issues.md:14` on trunk) and stays consistent with the other phase-0 tokens (`0-intent`, `intent.md`). Content renames: title "# The Prompt Format" → "# The Intent Format"; body line → intent wording.
+
+**DECISION — "base prompt" / "review prompt" become "base intent" / "review intent" (analyst-verified).** I checked every occurrence on the branch (`git grep "base prompt\|review prompt\|review's prompt"`): all name the PHASE-0 INPUT ARTIFACT, not an LLM/launch prompt. `review-pipeline.md:52` is explicit — "The review prompt is phase 0." `pipeline-versioning.md:55` — "its prompt is the input to phase 1, just as the base prompt is for `base`." So these are the phase-0 sense and DO get renamed: `review-pipeline.md` step-5 heading "Author and commit the review prompt" → "…the review intent"; "the base prompt is orchestrator-authored" → "the base intent…"; "issue and base prompts have none" → "issue and base intents"; "a fresh review prompt" → "a fresh review intent"; the `prompt-format.md` body "a tracker issue body, a base prompt, or a review prompt. The prompt is the input to phase 1." → "…a base intent, or a review intent. The intent is the input to phase 1." This does NOT cross #109's generic-prompt boundary, because that boundary is about LLM/launch/spawn/loop prompts — none of which these are.
+
+### Q3 — The branch is behind trunk on MORE than the rename; per-file conflict-resolution categories (analyst evidence)
+
+**The branch also predates an unrelated trunk feature (local convention overrides, PR #91/#102).** Three-way comparison shows several differing files were NOT touched by #106 at all — their diff-vs-trunk is pure trunk drift:
+
+- `.gitignore` — branch is missing trunk's `.rp.local.md` ignore line (local-overrides feature). Not #106; not the rename.
+- `conventions/load.md` (+12/-16 vs trunk) — branch is missing trunk's "Local overrides" section and the `.rp.local.md` merge step. Confirmed `git diff 3f39bee HEAD -- load.md` = empty (untouched by #106). Pure local-overrides drift, unrelated to the rename.
+- `conventions/setup.md`, `SKILL.md` — confirmed untouched by #106 (`git diff 3f39bee HEAD` empty for both); their diff vs trunk is entirely #109 (rename) + #91 (overrides) drift.
+- `.changeset/local-convention-overrides.md` and `.changeset/rename-prompt-to-intent.md` exist on trunk, absent on branch — both arrive via merge.
+
+**Consequence:** a `git merge trunk` does the right thing — it lands the rename AND catches the branch up on the other trunk drift it's missing, so #106 sits cleanly on current trunk. A manual prompt→intent edit would leave the branch still behind on local overrides and still divergent. This is a second, independent argument for the merge approach. (Scope note for the spec: the review's stated goal is the rename; the merge mechanism necessarily also catches up unrelated trunk drift. The spec should frame the deliverable as "merge trunk and adapt #106's additions to the rename," acknowledging the merge brings the rest of trunk too — which is the intended end state for a feature branch about to be merged.)
+
+**Per-file conflict-resolution categories (the merged target state):**
+
+1. **Take trunk verbatim** — files #106 did not meaningfully change; their only divergence is stale "prompt" terminology (or unrelated trunk drift). Resolution: accept trunk's version.
+   - 4 spec-* agents: `spec-analyst.md`, `spec-consolidator.md`, `spec-reviewer.md`, `spec-writer.md` (diff vs trunk is pure prompt→intent revert; `git diff trunk HEAD -- agents/spec-analyst.md` shows ONLY terminology lines).
+   - `SKILL.md` (description + phase-0 table row; trunk also rewrote the row's description text).
+   - `assisted-phases/1 - spec.md`, `2 - design-doc.md`, `3 - plan.md`; `autonomous-phases/1 - spec.md`.
+   - `assisted-workflow.md`, `autonomous-workflow.md` (phase-0 table row "0 - Prompt / 0-prompt" → trunk's "0 - Intent / 0-intent"; the autonomous-workflow "initial prompt" spawn-convention line is generic, kept).
+   - `README.md` (Phase 0 heading, completion-rate line, the agent-profile parenthetical).
+   - `website/index.html` (`prompt.md` span → `intent.md`; keep "Same prompt…" and "prompt engineering" keyword), `website/demo.js` (`reads:` arrays, tree entry, captured-issue log line, comment; keep `cc-prompt` class).
+   - `conventions/load.md`, `conventions/setup.md`, `.gitignore` — pure trunk drift (rename + local overrides); take trunk.
+   - `manage-issues.md` — see category 3 (structural).
+
+2. **Keep #106's version (no rename needed)** — files #106 changed for the reviews feature that #109 never touched.
+   - 6 reviewer agents: `code-reviewer.md`, `doc-reviewer.md`, `code-plan-reviewer.md`, `doc-plan-reviewer.md`, `design-doc-reviewer.md` — confirmed UNCHANGED on trunk by #109; their #106 edit is "only one ever exists per pipeline" → "…in this artifact folder" (reviews semantics, no prompt term). NOTE: `spec-reviewer.md` IS in category 1 because #109 did touch it.
+   - `.changeset/pipeline-reviews.md` — reviews changeset; carries no prompt/intent term, keep as-is. (Trunk's separate rename changeset arrives via the merge.)
+
+3. **Union (combine trunk's intent terminology with #106's additions)** — files both PRs changed for different reasons; the merged target is the union, NOT one side.
+   - `create-pipeline.md` — trunk's "intent"/`0-intent/intent.md` wording + #106's `base/` run-folder prefix + #106's reference to the format doc → write `<artifacts-folder>/base/0-intent/intent.md`, referencing `intent-format.md`. (Trunk dropped the explicit format-file reference and inlined "Do not add requirements…"; #106 keeps a shared format file, so the merged step references `intent-format.md`.)
+   - `fork-pipeline.md` — every `0-prompt` phase-folder token → `0-intent`, keeping #106's `base/` run-folder phrasing (`base/0-prompt` → `base/0-intent`, "only the prompt is inherited" → "only the intent is inherited").
+   - `pipeline-versioning.md` — phase-folder table row `0 – Prompt / 0-prompt/prompt.md` → `0 – Intent / 0-intent/intent.md`; ASCII-tree root and `base/0-prompt` tokens → intent; review-run rules "the review's prompt", "the prompt commit", "base prompt" (all phase-0 senses) → intent. Keep #106's `base/` run-folder model.
+   - `manage-issues.md` — DESIGN DECISION (see Q2b): #106 references the shared format file; trunk inlined the schema. Recommended merged target: keep #106's shared-file factoring, i.e. `manage-issues.md` references `intent-format.md` (and the wording becomes "The issue body _is_ the phase-0 intent — when the pipeline is created, the orchestrator turns the issue into `base/0-intent/intent.md`. Author the issue using the shared schema… in `intent-format.md`.").
+   - `review-pipeline.md` (NEW, #106 only) — phase-0 uses throughout become intent: "Author and commit the review prompt" → "review intent"; `review-N-<short-description>/0-prompt/prompt.md` → `0-intent/intent.md`; "the base prompt is orchestrator-authored" → "base intent"; "following the schema and authoring discipline in `prompt-format.md`" → `intent-format.md`. Step 5 heading and the `.rp.md`-style references must use intent. (Generic "orchestrator-authored" is fine.)
+   - `prompt-format.md` (NEW, #106 only) — RENAME FILE → `intent-format.md`; title "# The Prompt Format" → "# The Intent Format"; body "This describes a prompt — whether a tracker issue body, a base prompt, or a review prompt. The prompt is the input to phase 1." → intent wording; "A vague idea yields just a Title and a Goal. That is a complete, valid prompt." → "…valid intent." All inbound references (`create-pipeline.md`, `manage-issues.md`, `review-pipeline.md`) repoint to the new name.
+
+4. **Stays "prompt" deliberately (generic uses + Linear labels)** — preserve, do NOT rename.
+   - `.rp.md` lines 35 (`0 - Prompt` Linear status label, incl. the #106 review-run clause) and 54 (`Add prompt (orchestrator)` example commit) — trunk keeps both; branch matches trunk.
+   - `.rp.md:76`, `conventions/claude-code.md:37`, `conventions/pi.md:36` — `/loop <prompt>` health-monitor template (generic).
+   - All agent profiles — "orchestrator's launch/spawn prompt", "orchestrator's prompt cited a review file", "initial prompt" (generic LLM/launch prompts).
+   - `health-monitoring.md` — "Loop prompt template", "self-contained prompt", "The prompt references this file" (generic).
+   - `autonomous-workflow.md:59/61` — "include the following project conventions in its initial prompt" (generic spawn prompt).
+   - `README.md:13` "the same prompt… can produce a different result"; `README.md:56` already in category 1 (completion-rate line renamed by trunk).
+   - `website/index.html` — "Same prompt, different run" copy and the `prompt engineering` SEO keyword; `website/demo.js` `cc-prompt` CSS class.
+
+### Q3 (sent to researcher) — strategy + the resolution categories above: confirm or correct.
+
+### Completeness sweep (analyst-verified)
+
+**Exhaustive list of phase-0 `prompt`/`0-prompt`/`prompt.md`/`prompt-format` tokens in the branch's SHIPPED files** (`git grep -n "0-prompt\|prompt\.md" HEAD -- skills/ agents/ website/ README.md .rp.md`, excluding `.pipelines/`): all occurrences land in the files already categorized — the 4 spec-* agents, `SKILL.md`, `assisted-phases/1-3`, `autonomous-phases/1 - spec.md`, `assisted-workflow.md`, `autonomous-workflow.md`, `conventions/setup.md`, `create-pipeline.md`, `fork-pipeline.md`, `manage-issues.md`, `pipeline-versioning.md`, `review-pipeline.md`, `prompt-format.md`, `website/demo.js`, `website/index.html`. No phase-0 token falls outside the four categories.
+
+**`prompt-format.md` inbound references** (`git grep -n "prompt-format"`): `create-pipeline.md:25`, `manage-issues.md:14` & `:18`, `review-pipeline.md:39`. All three docs must repoint to `intent-format.md` when the file is renamed.
+
+**Non-mechanical #109 edits (analyst-verified) — the exceptions to "clean token swap".** I scanned the full #109 rename diff (`git diff 3f39bee trunk -- skills/ agents/ README.md website/`). Almost all of #109's edits are clean token swaps (`prompt`→`intent`, `0-prompt`→`0-intent`, `prompt.md`→`intent.md`), so for the take-trunk files a mechanical rename reproduces trunk's text exactly. The ONLY places where trunk's wording differs from a naive substitution:
+- **`SKILL.md` phase-0 table row (row 0).** Branch: `| 0 | Prompt | 0-prompt | The raw request (input, not something to create) |`. Trunk #109 result: `| 0 | Intent | 0-intent | The input |` — the description was rewritten AND the column widths re-aligned. The spec must specify trunk's exact row, not a token-swapped row.
+- **`create-pipeline.md` "adapt the issue content" bullet.** Pre-rename: "Adapt the issue content as a prompt directed at the agents that will run subsequent phases." Trunk #109: "Adapt the issue content into the intent that seeds the subsequent phases." (rephrased). Trunk ALSO added a new bullet "Do not add requirements, technical directions, or implementation details — agents do their own research in later phases." NOTE: `create-pipeline.md` is a union file (#106 reworked it for the `base/` run folder + `intent-format.md` reference), so its end-state combines this trunk rephrasing with #106's structure — see category 3.
+
+Every other take-trunk occurrence (the 4 spec-* agents, README Phase-0 heading / completion-rate line / agent-profile parenthetical, the assisted/autonomous phase docs, `conventions/setup.md`, `fork-pipeline.md` tokens, the workflow phase-0 table rows, website `prompt.md` tokens, demo.js arrays/log line/comment) is a clean swap matching trunk verbatim.
+
+**Frozen-artifacts precedent — CONFIRMED with evidence (settles Q3b).** PR #109's branch changed `.pipelines/` content ONLY for the pipelines active during that work: `.pipelines/107-rename-prompt-to-intent/` (its own run) and `.pipelines/91-local-convention-overrides/` (merged alongside). It did NOT rewrite OTHER pre-existing historical pipelines — `.pipelines/81-changelog-version-sync/` on current trunk STILL has its folder named `0-prompt` and STILL contains "prompt" in `1-spec/spec-research.md`. So historical run-record artifact CONTENT is out of scope. The branch's own `base/` run folder was already path-renamed by the orchestrator (commit `2d6cbe9`); its frozen content (`base/1-spec/spec.md`, etc.) does NOT need rewriting.
+
+**Files confirmed out of scope (no rename, no conflict).** `autonomous-phases/4 - code.md`, `5 - docs.md`, `resume-pipeline.md`, `work-on-an-issue.md` — changed by #106, untouched by #109, contain ZERO "prompt" tokens; merge takes #106 cleanly. The 6 reviewer agents (minus `spec-reviewer`) — changed by #106, untouched by #109, no prompt term. `.changeset/pipeline-reviews.md` — no prompt term.
+
+**A3 (spec-researcher) — frozen artifacts settled; strategy reconsidered. My adjudication below.**
+
+**(B) Frozen prior-run artifact CONTENT — OUT of scope, AIRTIGHT.** Decisive evidence: #109 modified ZERO pre-existing `.pipelines/` artifacts (`gh pr diff 109 --name-only | grep '^.pipelines/' | grep -v 107` → empty). On trunk after the rename, all 9 historical phase-0 artifacts are still `0-prompt/prompt.md` (0 renamed to `intent.md`), content untouched (e.g. `90-per-agent-model-config` still opens with `# Prompt`). The clincher: #109's OWN run record `.pipelines/107-rename-prompt-to-intent/1-spec/spec.md` keeps 92 "prompt" mentions on trunk — the rename PR didn't even rewrite itself. This matches the skill's model: `pipeline-versioning.md:19` — `base` is "never restructured or rewritten by a review"; lineage derives from byte-identical tree SHAs of frozen phase folders. So this branch's frozen `base/` artifact CONTENT (`base/1-spec/spec.md`, etc.) is out of scope — leave as historical records. (The folder rename in commit `2d6cbe9` is a separate, already-committed orchestrator action tied to the run-folder restructure; this review neither extends nor undoes it.)
+
+**(A) STRATEGY — FINAL DECISION (analyst adjudication): DIRECT RENAME, no `git merge trunk` in this review run.** The two research passes tensioned (Q1 said direct-rename; A3 partially reversed toward "merge is the right vehicle" on the overrides-drift fact). I am deciding direct-rename, for reasons that hold up against A3's strongest points:
+
+1. **Catching the branch up on trunk is NOT this review's job — it is the human's at PR-merge time.** A3 itself concedes the branch "should ultimately be brought current with trunk via a merge (or rebase) before it ships." The framework places that reconciliation at merge time, NOT mid-pipeline: a review "reuses the existing branch... never creates a new pipeline" and never touches trunk (`review-pipeline.md:3,25-31`); pipelines sync with main only at creation/fork (`pipeline-versioning.md:3,32`); a review's diff base is the prior-run tip, not the merge-base with main (`pipeline-versioning.md:21-28`). A `git merge trunk` commit on the review branch would inject all of trunk's history into the review's own diff and change its diff-base semantics — contradicting the review model. The overrides drift being real is an argument for the eventual human merge, not for this review performing one.
+
+2. **The overrides catch-up is out of THIS review's scope.** The intent's goal is narrow: make #106 consistent with the rename. Pulling in the local-overrides feature (#91) via a merge would expand the review beyond its stated goal and mix unrelated trunk work into the rename diff — the opposite of the tight, reviewable change the intent wants.
+
+3. **Both teammates agree the actual rename work is manual regardless of mechanism.** A3's stance-independent points: a merge can't reach the two trunk-absent files (`prompt-format.md`, `review-pipeline.md`), and the "union" files require manually applying #109's rename onto #106's versions (no mechanical union git can do, since both sides edited the same lines). So a merge buys nothing for the hard part; it only adds the out-of-scope overrides catch-up.
+
+**Consistency requirement (adopting A3's substance without the merge):** although this review does not merge trunk, the rename's END-STATE must MATCH trunk's actual post-#109 wording on the files #109 already covered (so the eventual human PR-merge is clean and re-introduces no divergence). That is exactly the "non-mechanical edits" refinement already recorded: take trunk's text (e.g. SKILL row-0 "The input"), not a blind token-swap.
+
+**Adopted acceptance criteria (from A3, mechanism-independent):** after the rename, (i) the two trunk-absent files are renamed by hand (`prompt-format.md`→`intent-format.md`; `review-pipeline.md` phase-0 uses → intent); (ii) the rename-overlapping files preserve #106's architecture (keep the extracted `intent-format.md` + pointers, NOT trunk's inlined prose) with intent naming throughout; (iii) a grep-based verification passes on the result — phase-0 path tokens (`0-prompt`, `prompt.md`) → 0 in shipped files, phase-label forms ("Phase 0. Prompt", "Prompt →", "| 0 | Prompt") → 0, and ONLY the generic-sense keeps remain (`cc-prompt`, `/loop <prompt>`, launch/spawn/loop/initial prompt, "prompt engineering", "same prompt", `.rp.md`'s `0 - Prompt`/`Add prompt`).
+
+Trial-merge offer from A3: DECLINED — not merging, so the conflict set is moot. The deliverable is the per-file rename end-state, which is fully enumerated above.
+
+## Consolidated Requirements
+
+Tags: **[A]** = agreed/confirmed by research; **[D]** = decided by the analyst; **[design]** = a downstream (phase 2) decision, not a requirement. Terminology: "phase-0 sense" of "prompt" = the input artifact a pipeline run starts from (the thing renamed to "intent"); "generic sense" = LLM/launch/spawn/loop prompts, the `cc-prompt` CSS class, and SEO copy (NOT renamed, per #109's preserved boundary).
+
+### A. Goal and approach
+
+1. **[A]** The goal is to make PR #106 (the reviews feature) fully consistent with the phase-0 "prompt → intent" rename that landed on trunk via PR #109, so that everything #106 introduces or touches refers to the phase-0 artifact as **intent** (`intent.md`, `0-intent/`, phase "Intent"), and the feature carries no stale phase-0 "prompt" terminology.
+2. **[D]** The rename is applied **directly to this branch's files**; this review run does **NOT** run `git merge trunk` (nor rebase onto trunk). Rationale: the framework's review model reuses the existing branch and never touches trunk, syncs with main only at creation/fork, and diffs a review against the prior-run tip (`review-pipeline.md:3,25-31`; `pipeline-versioning.md:3,21-28,32`). Reconciling the branch with trunk is the human's action at PR-merge time, not this review's.
+3. **[D]** Bringing the branch current with other trunk drift — specifically the unrelated **local-convention-overrides** feature (PR #91, e.g. trunk's `## Local overrides` in `conventions/load.md` and the `.rp.local.md` line in `.gitignore`) — is **out of scope**. This review changes only what the rename requires; the human's eventual merge resolves the rest.
+4. **[D]** "Apply the rename directly" does **NOT** mean a blind token substitution. For every file #109 already covered, each phase-0 occurrence is brought to **trunk's actual post-#109 wording** (so the eventual human merge introduces no divergence), not a mechanical swap. The known non-mechanical exceptions are enumerated in requirement 12.
+
+### B. The rename boundary (what changes vs. what is preserved)
+
+5. **[A]** Only the **phase-0 sense** of "prompt" is renamed to "intent": the phase label ("Prompt" → "Intent"), the folder token (`0-prompt` → `0-intent`), the file token (`prompt.md` → `intent.md`), and prose naming the phase-0 input artifact ("the prompt"/"the base prompt"/"the review prompt"/"the review's prompt" → "the intent"/"the base intent"/"the review intent"/"the review's intent").
+6. **[A]** The **generic sense** of "prompt" is preserved verbatim (matching #109's deliberately-kept boundary): LLM/launch/spawn prompts ("orchestrator's launch/spawn prompt", "orchestrator's prompt cited a review file", "initial prompt"), the health-monitor "loop prompt"/"self-contained prompt"/`/loop <prompt>` template, the `cc-prompt` CSS class, the website "Same prompt, different run" copy, and the `prompt engineering` SEO keyword.
+7. **[A]** `.rp.md` is **left entirely untouched** — no rename. Its `0 - Prompt` reference (line 35) names a **live external Linear workflow state** (verified on team Billow, state id `6a5b291f-2df2-41ac-8c32-a21be017c9ec`, the team behind issue BILLOW-56); the orchestrator sets the issue to the state whose name equals that string, so renaming the reference without renaming the live state would break the phase-0 status-set at runtime — a behavior change forbidden by "pure rename." The example commit `Add prompt (orchestrator)` (line 54) is likewise kept (generic sense, and for whole-file consistency). #109 left `.rp.md` untouched for the same reasons. The reviews feature's own `.rp.md` additions (review-run status clause on line 35, "or reviewing" on line 36) stay as-is.
+8. **[A]** Frozen prior-run artifact **content** is **out of scope**. The content of this branch's committed `base/` run artifacts (`base/1-spec/spec.md`, `base/2-design-doc/design-doc.md`, `base/3-plan/code-plan.md`, etc.) and of any other historical `.pipelines/` run records is left as historical record. Precedent: #109 rewrote **zero** pre-existing `.pipelines/` artifacts and did not even rewrite its own frozen run record (`.pipelines/107-rename-prompt-to-intent/1-spec/spec.md` retains 92 "prompt" mentions on trunk); `pipeline-versioning.md:19` treats run artifacts as immutable. (This branch's `base/0-intent/intent.md` folder/file was already renamed by orchestrator commit `2d6cbe9`; this review neither extends nor undoes that.)
+
+### C. Files renamed to match trunk verbatim (#106 did not meaningfully change them; their "prompt" is pre-rename staleness)
+
+9. **[A]** Each of the following is brought to trunk's exact post-#109 text. All phase-0 occurrences are clean token swaps EXCEPT the two non-mechanical edits in requirement 12.
+   - Agent profiles: `agents/spec-analyst.md`, `agents/spec-consolidator.md`, `agents/spec-reviewer.md`, `agents/spec-writer.md` (diff vs. trunk is purely phase-0 terminology).
+   - `skills/radical-pipelines/SKILL.md` (description "(Prompt → …)" → "(Intent → …)"; phase-0 table row — see req 12).
+   - `skills/radical-pipelines/reference/assisted-phases/1 - spec.md`, `2 - design-doc.md`, `3 - plan.md` (the `prompt.md` references in their input lists / standalone-reader lists).
+   - `skills/radical-pipelines/reference/autonomous-phases/1 - spec.md` (phase-0 input path + "phase 0 (prompt)").
+   - `skills/radical-pipelines/reference/assisted-workflow.md` and `autonomous-workflow.md` (phase-0 table row "0 - Prompt / 0-prompt" → "0 - Intent / 0-intent"; the autonomous-workflow "initial prompt" spawn line is generic — keep).
+   - `skills/radical-pipelines/reference/conventions/setup.md` (the `prompt.md` artifact-list entries and "initial prompt"/"pulls its initial prompt from an issue" phase-0 prose → intent, per trunk).
+   - `README.md` (Phase-0 heading "Phase 0. Prompt." → "Phase 0. Intent."; completion-rate line "from prompt to" → "from intent to"; the agent-profile parenthetical "phase 0 is the raw prompt, an input…" → "phase 0 is the intent, an input…").
+   - `website/index.html` (`<span class="file done">prompt.md</span>` → `intent.md`; keep line-153 "Same prompt…" copy and line-12 "prompt engineering" keyword).
+   - `website/demo.js` (`reads:` arrays lines 12/23, tree-entry line 140, captured-issue log line 276 `→ prompt.md` → `→ intent.md`, comment line 281 "Phase 0 is the raw prompt" → "raw intent"; keep `cc-prompt` class on line 271).
+
+### D. Files where trunk's rename must be applied ONTO #106's own additions (preserve #106 structure)
+
+10. **[A]** For these files, both #109 (rename) and #106 (reviews feature) edited overlapping content. The end-state combines trunk's intent terminology with #106's additions — it must NOT discard #106's structure to "take trunk."
+   - `skills/radical-pipelines/reference/create-pipeline.md` — keep #106's `base/` run-folder path and its reference to the shared format file, with intent naming: write to `<artifacts-folder>/base/0-intent/intent.md`, create `base/0-intent/`, reference `intent-format.md`. Apply trunk's rephrased bullet (req 12) within #106's structure.
+   - `skills/radical-pipelines/reference/fork-pipeline.md` — every phase-folder token `0-prompt` → `0-intent` (including `base/0-prompt` → `base/0-intent`), "only the prompt is inherited" → "only the intent is inherited"; keep #106's `base/` run-folder phrasing.
+   - `skills/radical-pipelines/reference/pipeline-versioning.md` — phase-folder table row `| 0 – Prompt | 0-prompt/prompt.md |` → `| 0 – Intent | 0-intent/intent.md |`; ASCII-tree root and `base/0-prompt` tokens → intent; review-run prose "the review's prompt", "the prompt commit", "base prompt", "its prompt is the input to phase 1" (all phase-0 sense) → intent; keep #106's `base/` run-folder model.
+   - `skills/radical-pipelines/reference/manage-issues.md` — **preserve #106's extracted-format architecture** (do NOT re-inline the schema as trunk did). The file references the shared format file with intent naming: "The issue body _is_ the phase-0 intent — when the pipeline is created, the orchestrator turns the issue into `base/0-intent/intent.md`. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`." and "The authoring discipline in `intent-format.md` applies across all steps below." Keeping the shared file is a reviewed #106 design decision (requirement R13 / three prompt-authoring sites; `base/2-design-doc/design-doc.md:158-161`); collapsing to trunk's inline shape would undo it and is out of scope.
+
+### E. New #106 files renamed by hand (no trunk counterpart)
+
+11. **[A/D]** These two files exist only on this branch; trunk has nothing to merge into them, so they are renamed by hand:
+   - **Rename the file** `skills/radical-pipelines/reference/prompt-format.md` → `intent-format.md`. Retitle "# The Prompt Format" → "# The Intent Format". Rewrite the body's phase-0 prose: "This describes a prompt — whether a tracker issue body, a base prompt, or a review prompt. The prompt is the input to phase 1." → "This describes an intent — whether a tracker issue body, a base intent, or a review intent. The intent is the input to phase 1." and "That is a complete, valid prompt." → "…valid intent." (Generic authoring-discipline prose without a phase-0 "prompt" token is unchanged.) **[D]** target name `intent-format.md` is the analyst's decision — unconstrained by any artifact, chosen to mirror trunk's "the intent format" phrasing and the `0-intent`/`intent.md` tokens.
+   - `skills/radical-pipelines/reference/review-pipeline.md` — rename all phase-0 uses: step-5 heading "Author and commit the review prompt" → "Author and commit the review intent"; path `review-N-<short-description>/0-prompt/prompt.md` → `review-N-<short-description>/0-intent/intent.md`; "the base prompt is orchestrator-authored" → "the base intent is orchestrator-authored"; "a fresh review prompt" → "a fresh review intent"; "before the review prompt is committed" → "…review intent…"; "issue and base prompts have none" → "issue and base intents have none"; "this review run's `0-prompt/` folder" → "`0-intent/` folder"; "issue and base prompts" → "issue and base intents"; "`base/0-prompt` are never rewritten" → "`base/0-intent`…"; "The review prompt is phase 0" → "The review intent is phase 0"; "following the schema and authoring discipline in `prompt-format.md`" → "…in `intent-format.md`". (Generic "orchestrator-authored" stays.)
+
+### F. The two non-mechanical #109 edits (must use trunk's wording, not a token-swap)
+
+12. **[A]** Apply trunk's actual wording, not a substitution, in exactly these two places:
+   - `SKILL.md` phase-0 table row: branch `| 0 | Prompt | 0-prompt | The raw request (input, not something to create) |` → trunk `| 0 | Intent | 0-intent | The input |` (description rewritten; column widths re-aligned to match trunk).
+   - `create-pipeline.md` "adapt the issue content" bullet: "Adapt the issue content into the phase-0 prompt directed at the agents that will run subsequent phases, following the schema and authoring discipline in `prompt-format.md`." → trunk's intent phrasing "Adapt the issue content into the intent that seeds the subsequent phases." PLUS keep the reference to the shared format file as `intent-format.md` (#106's structure). **[design]** whether to also adopt trunk's added bullet "Do not add requirements, technical directions, or implementation details — agents do their own research in later phases." — its substance overlaps with the authoring discipline already centralized in `intent-format.md`, so phase 2 decides whether to add the bullet or rely on the format-file reference (avoid duplicating the discipline, per R13).
+
+### G. Files explicitly NOT changed
+
+13. **[A]** No rename and no edit:
+   - `.rp.md` (req 7), `.gitignore`, `conventions/load.md`, `conventions/setup.md` insofar as their non-rename divergence is the out-of-scope overrides drift — NOTE `setup.md` DOES get the phase-0 rename per req 9 (its `prompt.md` artifact-list entries), but its overrides-related divergence is not this review's concern; `load.md`/`.gitignore` carry no phase-0 token and are left to the human merge.
+   - `conventions/claude-code.md`, `conventions/pi.md`, `health-monitoring.md` — only generic "prompt" (loop/template); keep.
+   - `autonomous-phases/4 - code.md`, `5 - docs.md`, `resume-pipeline.md`, `work-on-an-issue.md` — #106-changed, #109-untouched, zero "prompt" tokens.
+   - The 6 reviewer agents (`code-reviewer`, `doc-reviewer`, `code-plan-reviewer`, `doc-plan-reviewer`, `design-doc-reviewer`; `spec-reviewer` is in group C) — #106-changed, #109-untouched, no phase-0 token.
+   - `.changeset/pipeline-reviews.md` — no phase-0 "prompt" term; keep.
+   - All frozen `base/` and other `.pipelines/` artifact CONTENT (req 8).
+
+### H. Verification (acceptance)
+
+14. **[D]** After the rename, a grep over the SHIPPED files (`skills/`, `agents/`, `README.md`, `website/`) finds **zero** phase-0 path tokens (`0-prompt`, `prompt.md`) and **zero** phase-0 label forms (`Phase 0. Prompt`, `Prompt →`/`(Prompt →`, `| 0 | Prompt`, `0 - Prompt` outside `.rp.md`, "phase 0 (prompt)", "the/a base prompt", "the/a review prompt", "the review's prompt").
+15. **[D]** The only remaining "prompt" occurrences in shipped files are generic-sense (req 6): `cc-prompt`, `/loop <prompt>`, launch/spawn/initial/loop/self-contained prompt, "prompt engineering", "Same prompt". `.rp.md`'s `0 - Prompt` and `Add prompt (orchestrator)` remain (req 7).
+16. **[D]** `skills/radical-pipelines/reference/prompt-format.md` no longer exists; `intent-format.md` exists; and no shipped file references `prompt-format.md` (the three referencing docs — `create-pipeline.md`, `manage-issues.md`, `review-pipeline.md` — all point to `intent-format.md`).
+17. **[D]** `manage-issues.md` still references a shared external format file (the extracted-file architecture is preserved, not re-inlined).
+
+### Out of scope (explicit)
+
+- `git merge trunk` / rebasing onto trunk within this review run (req 2); catching up the local-convention-overrides feature #91 (req 3) — both are the human's PR-merge-time concern.
+- Rewriting the CONTENT of any frozen run-record artifact, including this branch's `base/` artifacts (req 8).
+- Renaming the live Linear workflow state `0 - Prompt` or any `.rp.md` line (req 7) — a separate, optional Linear-workspace operation.
+- Any behavior change to the reviews feature itself — this review only adjusts phase-0 terminology; the reviews mechanics, run-folder model, and agent profiles are unchanged.
