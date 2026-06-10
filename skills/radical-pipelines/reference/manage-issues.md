@@ -2,7 +2,7 @@
 
 This is the entry point for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention. This is the front door: it is upstream of `work-on-an-issue.md` and stops once the issue exists — it does **not** create or run pipelines.
 
-Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`). Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
+Before executing these steps, make sure project conventions are loaded (see `configuration/load.md`). Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
 
 ## What this covers
 

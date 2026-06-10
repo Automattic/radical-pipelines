@@ -10,7 +10,7 @@ Right after the team is spawned in the autonomous workflow.
 
 Defaults: **5-minute interval**, **10-minute no-output threshold**. Both are owner-tunable. Shorter intervals catch stalls sooner but spend more tokens on each check; the defaults balance the two.
 
-The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The active tool's rules (see `conventions/claude-code.md` or `conventions/pi.md`) provide the exact slash command to start the loop.
+The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The active tool's rules (see `configuration/claude-code.md` or `configuration/pi.md`) provide the exact slash command to start the loop.
 
 ## What to watch
 
@@ -76,4 +76,4 @@ The monitor stops when:
 - The autonomous run reaches its target phase and closes out.
 - The owner cancels the run.
 
-Use the tool's loop cancellation command (see `conventions/claude-code.md` or `conventions/pi.md`). Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.
+Use the tool's loop cancellation command (see `configuration/claude-code.md` or `configuration/pi.md`). Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.

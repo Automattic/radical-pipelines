@@ -4,7 +4,7 @@ The owner wants to advance pipeline work for a specific issue. Identify the issu
 
 Read `pipeline-versioning.md` first for the model — listing existing pipelines in step 2 depends on it.
 
-Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`).
+Before executing these steps, make sure project conventions are loaded (see `configuration/load.md`).
 
 ## Steps
 

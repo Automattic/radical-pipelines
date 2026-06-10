@@ -43,7 +43,7 @@ You can move forward the pipelines through the different phases in two modes: au
 
 This skill is generic; each project supplies its own configuration that you must load and verify before doing any workflow.
 
-See `reference/conventions/load.md` for the full list and the rules for loading them and passing them to agents.
+See `reference/configuration/load.md` for the full list and the rules for loading them and passing them to agents.
 
 ## Entry points
 
