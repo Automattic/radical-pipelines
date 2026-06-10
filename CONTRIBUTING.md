@@ -9,6 +9,13 @@ The package `@automattic/radical-pipelines` is **private** and consumed directly
 from git — it is **not** published to npm. There is no `npm publish` anywhere in
 this project; releases produce a git tag and a GitHub Release only.
 
+## Opening a pull request
+
+When you open a PR, GitHub pre-fills the repo's default template
+(`.github/PULL_REQUEST_TEMPLATE.md`) with **What? / Why? / How?** sections, a stub
+to link the issue it closes, and a reminder to add a changeset when your change is
+release-relevant.
+
 ## Running tests and checks locally
 
 ```bash
@@ -82,12 +89,12 @@ internal-only change (tooling, CI, website) does not require a changeset.
 This is the authoritative bump table for the project; other docs point here
 rather than restating it.
 
-| Bump | When to use |
-|------|-------------|
-| `patch` | Bug fixes and other backwards-compatible changes that don't add features. |
-| `minor` | New features; backwards-compatible additions. **Pre-1.0**, also used for breaking changes (see [Pre-1.0 policy](#pre-10-policy)). |
-| `major` | Breaking changes. **Pre-1.0 this is forbidden** — reserved for the deliberate `1.0.0` cut (see [Pre-1.0 policy](#pre-10-policy)). |
-| `none` | No version bump. Use the empty changeset for prose-only edits to a release-relevant file (see [Empty changesets](#empty-changesets)). |
+| Bump    | When to use                                                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `patch` | Bug fixes and other backwards-compatible changes that don't add features.                                                             |
+| `minor` | New features; backwards-compatible additions. **Pre-1.0**, also used for breaking changes (see [Pre-1.0 policy](#pre-10-policy)).     |
+| `major` | Breaking changes. **Pre-1.0 this is forbidden** — reserved for the deliberate `1.0.0` cut (see [Pre-1.0 policy](#pre-10-policy)).     |
+| `none`  | No version bump. Use the empty changeset for prose-only edits to a release-relevant file (see [Empty changesets](#empty-changesets)). |
 
 ### Pre-1.0 policy
 
