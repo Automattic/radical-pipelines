@@ -6,7 +6,7 @@ Closes #
 
 ## Why?
 
-<!-- What problem does it solve, or why is it needed? -->
+<!-- Why is this change needed? -->
 
 ## How?
 
