@@ -13,9 +13,7 @@ Re-verify BOTH hard gates here, independently of any menu — the direct "review
 
 These two are the ONLY preconditions. The fork-vs-review and split advisories (next step) never gate a review the owner chooses.
 
-### 2. Advisories (non-gating)
-
-Both advisories are recommendations only — the owner decides, and the orchestrator never unilaterally redirects.
+### 2. Advisories
 
 - **Fork vs. review.** If the change is drastic — it would not layer cleanly onto the existing implementation, reworks the architecture, invalidates most existing code, or is "redo this differently" — the orchestrator MAY recommend a fork via `fork-pipeline.md` instead. An accepted fork diverts to `fork-pipeline.md` entirely; the rest of this procedure does not run.
 - **Split.** If several apparently unrelated changes surface at once, the orchestrator MAY suggest splitting them into separate sequential reviews — one per change.
