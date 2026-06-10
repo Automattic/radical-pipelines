@@ -190,7 +190,9 @@
   `**If …**` arm it sits beside).
 - **Traces to.** Spec req 1–4 (always canonical; full-picture read; section mapping with comment/reference
   material not more authoritative; faithful synthesis), req 10 (any fails → synthesize + confirm; no escape
-  hatch — a resemblance to the body does not bypass the gate), req 11 (full proposed `intent.md`; optional
+  hatch — a *failing clause* is what triggers the gate, so the gate is owed even if the synthesized result
+  happens to resemble the body; the trigger is the failing clause, never a post-synthesis resemblance check),
+  req 11 (full proposed `intent.md`; optional
   summary), req 12 (iterate-until-approved; commit only on explicit approval); out-of-scope 8 (no recursive
   reference-following); KD-7, KD-9, KD-10.
 - **Acceptance.** A bolded `**If any fails**` arm exists that: instructs synthesis from body + all comments
@@ -201,7 +203,10 @@
   Goal stays an outcome, hypotheses labeled open" guardrail; runs an iterate-until-approved loop that shows
   the full proposed `intent.md` (optional accompanying summary, never a diff-only review), revises and
   re-shows on a correction request, and commits only on explicit approval; and writes no approval/review
-  file. There is no escape hatch letting a synthesized result that resembles the body skip the gate.
+  file. The gate is triggered by a *failing skip clause* (the orchestrator had to look beyond the bare body
+  and exercise judgment, and that judgment is what the owner verifies — mirroring spec req 10's framing), not
+  by re-inspecting the synthesized output: there is no escape hatch whereby a synthesized result that happens
+  to resemble the body skips the gate, and no post-synthesis resemblance test is performed.
 
 ### Task 6 — Confirm step 4's two-branch block reaches the unchanged step 5 commit on both paths
 
@@ -214,9 +219,12 @@
 - **Changes.**
   - Confirm both `**If …**` arms (Tasks 4–5) end by "proceeding to commit" via the existing step 5 rather
     than by issuing their own commit.
-  - Optionally, the step 4 header description (current line 23 area, or the file's intro at line 3) may gain
-    a few words acknowledging that confirmation may occur — this stays within the file under edit. No other
-    text in the file changes.
+  - Optionally, the step-4 **header description** — the `### 4. Generate the initial intent` step header at
+    current line 21 — may gain a few words acknowledging that confirmation may occur, exactly as sanctioned by
+    KD-12. This stays within step 4 (the file under edit, step 4 only). Do **not** touch line 3 (the file-level
+    summary) or any other line outside step 4; the file intro is out of scope. This optional touch is not
+    required — step 4's body already states confirmation may occur (Task 5), so it may be skipped entirely.
+    No other text in the file changes.
   - Leave `### 5. Commit` exactly as-is: it fires unconditionally on both paths, with no guard clause and no
     file list, so it commits whatever `0-intent/` contains (just `intent.md` plus any downloaded assets).
 - **Depends on.** Task 4, Task 5 (both branches must exist to confirm convergence).
@@ -224,7 +232,9 @@
   unchanged), req 14 (the gate sits in step 4, between generate and commit); out-of-scope 2 (no persisted
   approval artifact); KD-11.
 - **Acceptance.** Step 4 contains no commit instruction of its own; both branches reach the existing,
-  unmodified `### 5. Commit`. Step 5's text is byte-for-byte unchanged (no guard clause, no file list). The
+  unmodified `### 5. Commit`. Step 5's text is byte-for-byte unchanged (no guard clause, no file list). Any
+  optional wording added under this task lives only within step 4 (the `### 4.` header description at current
+  line 21) — line 3 (the file-level summary) and every line outside step 4 are untouched. The
   only artifact the flow can produce for phase 0 is `intent.md` (plus any downloaded assets) — no
   `intent-review-approved.md` or any other approval/review file is written on either path.
 
