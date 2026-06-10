@@ -394,11 +394,21 @@ All paths are relative to the worktree root
      - `grep -rn "reviews are not nodes" skills/` — expect no hits.
      - `grep -rn "the prior-run tip, per the" skills/` — expect no hits (old base-ref
        wording).
-  3. **CI (Changeset Gate).** Confirm the gate stays green. Run `npm ci` then `npm test`
-     (which runs `validate-changesets` and `changeset status`). Expect green:
-     `scripts/test/**` is untouched and the changeset front matter is byte-identical and the
-     body non-empty, so neither `scripts/validate-changesets.mjs` (front-matter shape only)
-     nor `changeset status` (front matter only) can break on the body reword.
+  3. **CI (Changeset Gate).** Confirm the gate stays green. The gate
+     (`.github/workflows/changeset-gate.yml`) runs **four separate steps** — `npm test`
+     does NOT invoke the changeset checks (`package.json` defines
+     `"test": "node --test 'scripts/test/**/*.test.mjs'"`), so each step must be run
+     explicitly. Run all four locally, in order:
+     1. `npm ci`
+     2. `npm test`
+     3. `node scripts/validate-changesets.mjs`
+     4. `npx changeset status --since=origin/trunk` (the workflow uses
+        `--since=origin/<PR base ref>`; for PR #106 the base is `trunk`).
+
+     Expect green: `scripts/test/**` is untouched (so step 2 passes) and the changeset front
+     matter is byte-identical and the body non-empty, so neither
+     `scripts/validate-changesets.mjs` (front-matter shape only, step 3) nor `changeset
+     status` (front matter only, step 4) can break on the body reword.
 - **Depends on:** tasks 1–9 (all edits must land first).
 - **Traces to:** Requirements 10, 11, 12, 13 / Acceptance criteria 10, 11 / design
   "Failure Modes and Observability".
