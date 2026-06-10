@@ -505,3 +505,211 @@ describe("create-pipeline.md step 4 — Task 4 skip branch (`**If all three hold
     assert.match(s, /whitespace|trailing newline/i);
   });
 });
+
+describe("create-pipeline.md step 4 — Task 5 synthesis branch (`**If any fails**`)", () => {
+  /**
+   * The synthesis arm — the bolded inline `**If any fails**` bullet that opens
+   * the second branch of the two-branch block, captured as a *block* running
+   * from its lead-in line to the end of step 4 (it is the last arm, so the
+   * block extends to the step's end). Capturing the whole block — not just the
+   * lead-in line — lets the assertions reach the multi-bullet detail the arm
+   * carries (full-picture read, section-mapping, confirmation loop, etc.).
+   *
+   * @returns {string} The text of the synthesis arm, from `**If any fails**`
+   *   to the end of step 4.
+   */
+  function synthArm() {
+    const s = step4();
+    const start = s.search(/\*\*If any fails\*\*/);
+    assert.notEqual(start, -1, "step 4 must contain a `**If any fails**` arm");
+    return s.slice(start);
+  }
+
+  test("a bolded `**If any fails**` arm exists", () => {
+    const s = step4();
+    assert.match(
+      s,
+      /\*\*If any fails\*\*/,
+      "step 4 must contain a bolded `**If any fails**` synthesis arm",
+    );
+  });
+
+  test("the synthesis arm sits after the `**If all three hold**` skip arm", () => {
+    const s = step4();
+    const skip = s.search(/\*\*If all three hold\*\*/);
+    const synth = s.search(/\*\*If any fails\*\*/);
+    assert.notEqual(skip, -1, "skip arm must exist");
+    assert.notEqual(synth, -1, "synthesis arm must exist");
+    assert.ok(
+      skip < synth,
+      "the synthesis arm must come after the skip arm (it is the paired second arm)",
+    );
+  });
+
+  test("the arm synthesizes from the full picture: body + all comments + referenced content", () => {
+    const arm = synthArm();
+    // The whole picture: the issue body, ALL of its comments, and the content
+    // its references point to.
+    assert.match(arm, /body/i);
+    assert.match(arm, /all[\s\S]*comments|comments/i);
+    assert.match(arm, /all\b[^.]*comments/i);
+    // It synthesizes — this is the path that does the judgment work.
+    assert.match(arm, /synthe/i);
+    // References are read for their content, not treated as a bare link.
+    assert.match(arm, /reference/i);
+  });
+
+  test("comments are read via the Issues convention; external URLs via a web-fetch capability naming no tool", () => {
+    const arm = synthArm();
+    // Comments read through the abstract Issues convention.
+    assert.match(arm, /\*\*Issues\*\*/);
+    // External URLs read via a web-fetch capability — at capability altitude,
+    // naming no concrete tool (no gh, no --json, no named fetch tool).
+    assert.match(arm, /web[\s-]?fetch/i);
+    assert.doesNotMatch(arm, /\bgh\b/);
+    assert.doesNotMatch(arm, /--json/);
+    assert.doesNotMatch(arm, /WebFetch|web_fetch/);
+  });
+
+  test("the one-level boundary is stated positively (read body/comment refs; do not follow refs inside fetched sources)", () => {
+    const arm = synthArm();
+    // The boundary is one level: references in the body or comments ARE read…
+    assert.match(arm, /(in|found in|from)[\s\S]*(body|comments)/i);
+    // …but references found INSIDE the fetched sources are NOT followed further.
+    assert.match(arm, /inside/i);
+    assert.match(arm, /(not\s+followed|never\s+followed|do(?:es)?\s+not\s+follow|not\s+further)/i);
+  });
+
+  test("section-mapping is delegated to manage-issues.md, not re-listed", () => {
+    const arm = synthArm();
+    // The classification rule and content guardrails live in manage-issues.md;
+    // the arm points there rather than copying the input→section table.
+    assert.match(arm, /manage-issues\.md/);
+    // No re-listed classification table: the arm must not enumerate the
+    // input→section mapping (e.g. "binding must/must-not → Constraints").
+    assert.doesNotMatch(arm, /must\/must-not[\s\S]*Constraints/i);
+    assert.doesNotMatch(arm, /prior decisions[\s\S]*Context/i);
+  });
+
+  test("the not-more-authoritative-than-the-body note is stated explicitly", () => {
+    const arm = synthArm();
+    // The synthesis-specific note absent from manage-issues.md: comment- or
+    // reference-sourced material is sorted the same way and is NOT more
+    // authoritative than the body merely because it appears later.
+    assert.match(arm, /authoritative/i);
+    assert.match(arm, /(comments|referenced|later)/i);
+    // Framed as a negation: it is NOT more authoritative. Tolerate markdown
+    // emphasis on the negation/qualifier (`**not** more authoritative`) and a
+    // short intervening qualifier ("treated as", "be") between the two.
+    assert.match(
+      arm,
+      /(not|never)[*\s]+(?:treated\s+as\s+|be\s+)?more[*\s]+authoritative/i,
+    );
+  });
+
+  test("the faithfulness guardrail is kept (no added requirements/technical directions/implementation details)", () => {
+    const arm = synthArm();
+    // Do not add what the source did not contain.
+    assert.match(arm, /(do not|don't|never)\s+add/i);
+    assert.match(arm, /requirements?/i);
+    assert.match(arm, /technical direction|implementation/i);
+    // Goal stays an outcome; hypotheses stay labeled open.
+    assert.match(arm, /Goal[\s\S]*outcome|outcome/i);
+    assert.match(arm, /hypothes[ie]s|assumption/i);
+    assert.match(arm, /open/i);
+  });
+
+  test("the confirmation loop shows the full proposed intent.md as the primary review surface (never a diff-only review)", () => {
+    const arm = synthArm();
+    // The primary review surface is the FULL proposed intent.md.
+    assert.match(arm, /full[\s\S]*proposed[\s\S]*intent\.md|proposed[\s\S]*intent\.md/i);
+    assert.match(arm, /full/i);
+    // It is never a diff or a bare change-list standing in for the artifact.
+    assert.match(arm, /diff|change[\s-]?list|list of changes/i);
+    // The diff/summary is framed as NOT the review surface (optional at most).
+    assert.match(arm, /(not|never|rather than|instead of)[\s\S]*(diff|change[\s-]?list|list of changes)|(diff|change[\s-]?list|list of changes)[\s\S]*(not|never|does not replace|may accompany|optional)/i);
+  });
+
+  test("an optional accompanying summary may be offered but never replaces the full artifact", () => {
+    const arm = synthArm();
+    // A brief optional note/summary MAY accompany the full artifact…
+    assert.match(arm, /optional|brief|may\b/i);
+    assert.match(arm, /summary|note|what (was )?drawn|what changed/i);
+    // …but never replaces showing the full proposed intent.md.
+    assert.match(arm, /(never|not)\s+(?:a\s+)?replace|does not replace|never replaces/i);
+  });
+
+  test("the loop iterates until approved: revise and re-show on a correction request", () => {
+    const arm = synthArm();
+    // On a correction request the orchestrator revises the proposal and shows
+    // it again; this repeats until approval.
+    assert.match(arm, /correction|revis(e|ion)/i);
+    assert.match(arm, /(again|re-?show|show.*again|repeat)/i);
+    assert.match(arm, /until[\s\S]*approv/i);
+  });
+
+  test("commit happens only on explicit owner approval", () => {
+    const arm = synthArm();
+    assert.match(arm, /commit/i);
+    assert.match(arm, /explicit(?:ly)?[\s\S]*approv|approv[\s\S]*explicit/i);
+    // The commit is gated on approval — "only on" / "only after" approval.
+    assert.match(arm, /only\s+(on|after|once|upon)/i);
+  });
+
+  test("the arm follows the render→show→approve idiom by delegating to manage-issues.md", () => {
+    const arm = synthArm();
+    // The confirmation interaction mirrors manage-issues.md's draft/show/approve
+    // step rather than inventing a new ceremony — the arm references it.
+    assert.match(arm, /manage-issues\.md/);
+  });
+
+  test("the synthesis arm writes no approval or review file", () => {
+    const s = step4();
+    // No phases-1–5 companion approval/review artifact filename appears.
+    assert.doesNotMatch(s, /intent-review-approved/i);
+    // No instruction to *write/create* an approval or review file. The arm may
+    // legitimately STATE that none is written ("writes no approval or review
+    // file"); only an instruction producing one is forbidden (Task-4 lesson).
+    assert.doesNotMatch(
+      s,
+      /(write|create|save|produce)\s+(an?\s+)?(approval|review)\s+(file|artifact)/i,
+      "the synthesis arm must not instruct writing an approval/review file",
+    );
+    // And the arm explicitly states it gates the single commit, writing none.
+    const arm = synthArm();
+    assert.match(arm, /no approval or review file|writes no (approval|review)|no (approval|review) (file|artifact)/i);
+  });
+
+  test("the gate is triggered by a failing skip clause, not by a post-synthesis resemblance check", () => {
+    const arm = synthArm();
+    // The trigger is a FAILING clause/condition — the orchestrator looked beyond
+    // the bare body and exercised judgment, and that judgment is confirmed.
+    assert.match(arm, /fail/i);
+    // The arm must speak to resemblance at all, framing it as the no-escape-hatch
+    // case (the gate is still owed when the result resembles the body).
+    assert.match(arm, /resembl/i, "the arm must address the resemblance case");
+    assert.match(
+      arm,
+      /resembl[^.]*(no escape|even if|still|owed)|(no escape|even if|still|owed)[^.]*resembl/i,
+      "the resemblance case must be framed as NOT bypassing the gate (no escape hatch)",
+    );
+    // There must be no instruction to perform a resemblance/comparison test that
+    // SKIPS confirmation post-synthesis. The forbidden shape is a *positive*
+    // directive — resemblance → skip/bypass — within a single clause (no
+    // sentence break) and not introduced by a negation (never/do not/no). A
+    // negated statement ("Never … resemblance … to skip") is the correct framing
+    // and must NOT trip this guard (Task-4 lesson: forbid the directive, not the
+    // word). Anchor on the bolded "If any fails" lead-in clause only, where a
+    // stray "if … resembles … skip" conditional would actually live.
+    const sentences = arm.split(/(?<=[.;])\s+/);
+    for (const sentence of sentences) {
+      if (/\bresembl/i.test(sentence) && /\b(skip|bypass|without confirmation)\b/i.test(sentence)) {
+        assert.doesNotMatch(
+          sentence,
+          /\b(if|when|whenever)\b[^.;]*\bresembl[^.;]*\b(skip|bypass|without confirmation)\b/i,
+          `a post-synthesis resemblance test that skips confirmation is forbidden, found in: ${sentence}`,
+        );
+      }
+    }
+  });
+});
