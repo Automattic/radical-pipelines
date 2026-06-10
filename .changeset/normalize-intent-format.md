@@ -2,4 +2,4 @@
 "@automattic/radical-pipelines": minor
 ---
 
-Normalize intent.md to a canonical format in phase-0: synthesize the full issue picture and confirm with the owner when no intent exists or the existing file is stale or malformed.
+Always write intent.md in the canonical Goal/Constraints/Context/Assumptions format — mapping a canonical issue directly, or synthesizing from the issue body, comments, and references with owner confirmation when the issue is non-canonical, has comments, or has body references.
