@@ -48,7 +48,7 @@ A phase is complete when all of these are committed to the pipeline branch (same
 | 4 – Code       | `4-code/code-review-approved.md`                                               |
 | 5 – Docs       | `5-docs/docs-review-approved.md`                                               |
 
-The artifact paths above are relative to a run folder: a phase's predicate is evaluated at `<artifacts-folder>/<run>/<phase>` (for the base run, `<artifacts-folder>/base/<phase>`). The rows are unchanged; only their root is the run folder.
+The artifact paths above are relative to a run folder: a phase's predicate is evaluated at `<artifacts-folder>/<run>/<phase>` (for the base run, `<artifacts-folder>/base/<phase>`).
 
 A pipeline's **completed phase** and **active phase** are those of its **latest run** — the highest-numbered `review-N` run, or `base` if there are no reviews — with the completed/active predicate evaluated within that run's folder. The **completed phase** is the highest-numbered phase whose predicate is satisfied; the **active phase** is the phase after it if any of that phase's artifacts have started appearing (in progress), otherwise none.
 
