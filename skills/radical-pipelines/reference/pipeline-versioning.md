@@ -84,7 +84,7 @@ The orchestrator rebuilds the tree on demand from artifact content:
    git rev-parse <ref>:<artifacts-folder>/base/<phase>
    ```
    `<ref>` is that pipeline's branch, or the artifact-bearing repo's main branch if its branch was deleted after merging (see "Deriving lineage from artifact content"). This yields, per pipeline, an ordered sequence of `(phase, SHA)` pairs.
-3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. `base/0-intent` is identical across every pipeline of an issue (it is the issue), so it is always the shared root. Each pipeline contributes one path through the tree from its `base/` run; a pipeline's reviews are not nodes.
+3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. `base/0-intent` is identical across every pipeline of an issue (it is the issue), so it is always the shared root. Each pipeline contributes one path through the tree from its `base/` run.
 
 ### Rendering
 
@@ -112,4 +112,4 @@ Reading conventions:
 - A linear chain of phases held by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
 - `(in progress)` annotates the trailing node when its **Per-phase completion** predicate isn't yet satisfied. It signals that work has started but not finished.
 - `[merged]` annotates a pipeline that has been merged into the project's main branch. Phase completion can be inferred from the predicate; "merged into main" cannot.
-- A pipeline's runs are reported as a linear chain annotated on the pipeline, not as tree nodes: `base → review-1-<short-description> → review-2-<short-description> …`, each annotated with its own state. The tree positions a pipeline by its `base/` run only; reviews never add or move nodes. A pipeline with no reviews shows no run chain.
+- A pipeline's runs are reported as a linear chain annotated on the pipeline, not as tree nodes: `base → review-1-<short-description> → review-2-<short-description> …`, each annotated with its own state. A pipeline with no reviews shows no run chain.
