@@ -84,7 +84,7 @@ The change is split into **two commits** so the folder rename stays a clean, rev
 
 This ordering keeps the rename commit a pure move plus link fixes; doing wording edits inside the same commit as the move muddies `git mv`'s rename detection in review. (A code agent may also do rename-first; either order is acceptable as long as the final tree is correct. The two-commit split is the recommended default.)
 
-> **Counts in this section are starting estimates, not contracts.** The authoritative requirement is *completeness*: every umbrella use becomes "configuration", every named-rule use is preserved, and the folder path resolves everywhere. The code agent **must** re-derive the actual set with the grep assertions in §6 rather than trusting any number below. The repo currently shows **34** bold "the **X** convention" named-rule occurrences and **5** inbound folder-path references; verify both during code.
+> **Counts in this section are starting estimates, not contracts.** The authoritative requirement is *completeness*: every umbrella use becomes "configuration", every named-rule use is preserved, and the folder path resolves everywhere. The code agent **must** re-derive the actual set with the grep assertions in §6 rather than trusting any number below. The repo currently shows **34** bold "the **X** convention" named-rule occurrences and **7** inbound folder-path references (the spec listed 5; a grep found 2 more in `health-monitoring.md`). Verify both during code, and treat the binding rule as the acceptance-criterion grep — "zero `reference/conventions/` or `conventions/{load,setup,claude-code,pi}.md` references outside `.pipelines/**`" — not any hardcoded number.
 
 ### Commit 1 — terminology edits
 
@@ -93,12 +93,12 @@ This ordering keeps the rename commit a pure move plus link fixes; doing wording
 | Line | Current | Target |
 |------|---------|--------|
 | 1 (title) | `# Radical Pipelines project conventions` | `# Radical Pipelines project configuration` |
-| 3 (intro prose) | "This file holds the conventions for this project. The shared section applies to every agentic coding tool used here; the per-tool sections add conventions specific to Claude Code and Pi. Read the shared section plus the section for the active tool at the start of any workflow." | Rewrite so the umbrella term is "configuration" and the "shared" reading instruction is preserved. Suggested: "This file holds the configuration for this project. Conventions are one section of it (a future Guardrails section will be a sibling). The shared Conventions section applies to every agentic coding tool used here; the per-tool sections add conventions specific to Claude Code and Pi. Read the shared section plus the section for the active tool at the start of any workflow." |
+| 3 (intro prose) | "This file holds the conventions for this project. The shared section applies to every agentic coding tool used here; **the per-tool sections add conventions specific to Claude Code and Pi.** Read the shared section plus the section for the active tool at the start of any workflow." | Rewrite so the umbrella term is "configuration" **and the per-tool-H2-sections claim is removed** (see reconciliation below). Suggested: "This file holds the configuration for this project. The Conventions section (and a future Guardrails section) apply to every agentic coding tool used here; tool-specific guidance is documented in the reference files (`claude-code.md`, `pi.md`). Read the Conventions section plus the reference file for the active tool at the start of any workflow." |
 | 5 (H2) | `## Shared conventions` | `## Conventions` |
 
 Everything from `### Managing tasks` onward (all rule headers, tables, lists, examples, commands, URLs) is **byte-for-byte unchanged**. The named-rule occurrences of "convention" inside the rule bodies are not touched.
 
-The exact intro wording is a recommendation; the binding constraints are: (a) umbrella term reads "configuration"; (b) it frames conventions as one section of the configuration with guardrails as a future sibling; (c) it preserves the shared-vs-per-tool reading instruction.
+> **Reconciliation (intro prose must not assert per-tool H2 sections).** The current L3 says "the per-tool sections add conventions specific to Claude Code and Pi", implying per-tool H2 sections exist *in this file*. They do not: the dogfood `.rp.md` is Claude-Code-only and, after flattening, has a single `## Conventions` H2 with no per-tool H2 siblings. Per-tool guidance lives in the reference files (`claude-code.md` / `pi.md`), not in `.rp.md` H2 sections. The rewritten intro must therefore point readers to those reference files for tool-specific guidance rather than to non-existent per-tool sections. Binding constraints for the rewrite: (a) umbrella term reads "configuration"; (b) it frames Conventions as one section of the configuration with Guardrails as a future sibling; (c) it preserves the shared-vs-per-tool reading instruction **without** implying per-tool H2 sections exist in this file — tool-specific guidance is in the reference files. The exact wording is a recommendation; these three constraints are binding.
 
 #### 4.2 `skills/radical-pipelines/SKILL.md`
 
@@ -120,10 +120,16 @@ Umbrella edits (line numbers approximate — grep to locate):
 2. **L145** — "each project defines its own conventions for things like the task source... A project's shared conventions live in a committed `.rp.md` file..." → "each project defines its own configuration for things like... A project's shared configuration (the Conventions section) lives in a committed `.rp.md` file..."
 3. **L147** — two umbrella uses: "If required conventions are missing when a workflow starts..." → "If required configuration is missing..."; and "Shared project conventions include task tracking..." → "Shared project configuration includes task tracking...". **Preserve named-rule uses on this same line:** "Claude Code conventions add..." and "Pi conventions add..." describe the per-tool sets of project config (umbrella → "configuration"), **but** the two `Agent models` mentions ("an optional `Agent models` convention", "the same optional `Agent models` convention") are **named rules — keep "convention"**. Also update the inline link `./skills/radical-pipelines/reference/conventions/setup.md` per Commit 2.
 4. **L149** — "A developer can override a restricted subset of conventions..." → "...a restricted subset of configuration..."; "...the convention loader for details." → "...the configuration loader for details." Update the inline link `./skills/radical-pipelines/reference/conventions/load.md#local-overrides` per Commit 2.
+5. **L155** — "The orchestrator loads and verifies conventions before launching phase agents." → "The orchestrator loads and verifies configuration before launching phase agents." (Umbrella: the per-project system the orchestrator loads.) **Preserve the named-rule list later in the same paragraph** — "the role-specific host-project conventions listed in the agent profile" refers to host-project conventions of the project being worked on, which is **generic/host-project English and out of scope** (do not change it). Classify the two occurrences on this paragraph individually.
+6. **L159 (structural reconciliation — see below)** — the sentence describing `.rp.md` as "a shared section ... followed by a per-tool section" and the dogfood file carrying "both the Claude Code and the Pi per-tool sections side-by-side" contradicts the flat single-`## Conventions` structure. Reword per the reconciliation note below.
 
 > README L147 is the trickiest line: it mixes umbrella uses ("Claude Code conventions add...", "Shared project conventions include...") with two named-rule uses ("`Agent models` convention"). Treat the bare/plural umbrella references as configuration; keep the two backtick-`Agent models`-named-rule references as "convention". When code rewrites this line, re-read the whole sentence and classify each occurrence individually.
 
 The named-rule `Agent models` mentions are the canonical example of "preserve named-rule wording inside README" (spec R4 / AC16).
+
+> **Reconciliation — README L159 structural contradiction.** The current L159 reads: *"A project's committed `.rp.md` is organized as a shared section (...) followed by a per-tool section covering only what depends on the active tool (...). A normal single-CLI consumer carries just the shared section plus the one tool block its CLI uses. This repository is the unusual case: ... so its `.rp.md` is hand-maintained to carry the shared section plus both the Claude Code and the Pi per-tool sections side-by-side."*
+>
+> This describes the **old** "shared H2 + per-tool H2 sections" split. After R1 flattens the dogfood `.rp.md` to a single `## Conventions` H2 with **no** per-tool H2 sections (per-tool guidance lives in the reference files `claude-code.md` / `pi.md`), this wording is self-contradictory against the file it documents. **Reword L159 to describe the flat structure:** `.rp.md` is organized under a `## Conventions` section (with a future `## Guardrails` section as a sibling under the configuration umbrella), and per-tool guidance is documented separately in the reference files (`claude-code.md`, `pi.md`) rather than in per-tool H2 sections of `.rp.md`. Binding constraints: (a) no claim that `.rp.md` contains per-tool H2 sections; (b) it must remain accurate that this repo is the multi-CLI dogfood case, but state that as "the reference files cover both Claude Code and Pi" rather than "both per-tool sections live side-by-side in `.rp.md`"; (c) umbrella term reads "configuration"; (d) preserve the meaning that a normal consumer needs the shared rules plus the active tool's reference file. (The earlier L129-region sentence — "its `.rp.md` is hand-maintained to carry the shared section plus both the Claude Code and the Pi per-tool sections" — is the same contradiction restated; reconcile both occurrences consistently. Grep README for "per-tool section" to find every instance.)
 
 #### 4.4 `reference/conventions/load.md` (edited in place in Commit 1; moved in Commit 2)
 
@@ -156,19 +162,23 @@ git mv skills/radical-pipelines/reference/conventions skills/radical-pipelines/r
 
 This moves all four files (`load.md`, `setup.md`, `claude-code.md`, `pi.md`) and preserves rename history (`git log --follow`, `git status` shows renames not delete+add). Internal cross-links between the four moved files use **bare filenames** (e.g. `load.md` referencing `setup.md`), so they survive the move untouched — do not edit them.
 
-#### 4.7 Update inbound path references (5 known; **grep to confirm the full set**)
+#### 4.7 Update inbound path references (7 known; **grep to confirm the full set**)
 
-| File | Current path fragment | Target |
-|------|----------------------|--------|
-| `skills/radical-pipelines/SKILL.md` | `reference/conventions/load.md` | `reference/configuration/load.md` |
-| `README.md` | `./skills/radical-pipelines/reference/conventions/setup.md` | `./skills/radical-pipelines/reference/configuration/setup.md` |
-| `README.md` | `./skills/radical-pipelines/reference/conventions/load.md#local-overrides` | `./skills/radical-pipelines/reference/configuration/load.md#local-overrides` |
-| `skills/radical-pipelines/reference/work-on-an-issue.md` | `conventions/load.md` | `configuration/load.md` |
-| `skills/radical-pipelines/reference/manage-issues.md` | `conventions/load.md` | `configuration/load.md` |
+| # | File | Current path fragment | Target |
+|---|------|----------------------|--------|
+| 1 | `skills/radical-pipelines/SKILL.md` | `reference/conventions/load.md` | `reference/configuration/load.md` |
+| 2 | `README.md` | `./skills/radical-pipelines/reference/conventions/setup.md` | `./skills/radical-pipelines/reference/configuration/setup.md` |
+| 3 | `README.md` | `./skills/radical-pipelines/reference/conventions/load.md#local-overrides` | `./skills/radical-pipelines/reference/configuration/load.md#local-overrides` |
+| 4 | `skills/radical-pipelines/reference/work-on-an-issue.md` | `conventions/load.md` | `configuration/load.md` |
+| 5 | `skills/radical-pipelines/reference/manage-issues.md` | `conventions/load.md` | `configuration/load.md` |
+| 6 | `skills/radical-pipelines/reference/health-monitoring.md` | `conventions/claude-code.md` **and** `conventions/pi.md` (one line) | `configuration/claude-code.md` **and** `configuration/pi.md` |
+| 7 | `skills/radical-pipelines/reference/health-monitoring.md` | `conventions/claude-code.md` **and** `conventions/pi.md` (a second line) | `configuration/claude-code.md` **and** `configuration/pi.md` |
 
-The `work-on-an-issue.md` and `manage-issues.md` lines are **path-only** edits. Their surrounding prose ("make sure project conventions are loaded") refers to the loaded per-project system; per the spec these are not in the umbrella-rename target list for those agent files — change **only the path string** `conventions/load.md` → `configuration/load.md`. Do not reword the prose in those two phase files; that keeps the change minimal and avoids touching named-rule/generic-English uses. (The `manage-issues.md` line also contains "the **Issues** convention" — a named rule that must stay verbatim.)
+> **Inbound references are 7, not 5.** The spec enumerated 5; a grep found **2 more in `skills/radical-pipelines/reference/health-monitoring.md`** (around L13 and L79). Each of those two lines references **both** `conventions/claude-code.md` **and** `conventions/pi.md` in the same sentence ("see `conventions/claude-code.md` or `conventions/pi.md`"), so each line needs both path strings updated. These were omitted from the spec's list but are required to satisfy AC13 ("no reference to `reference/conventions/` ... remains outside `.pipelines/**`"). The surrounding prose on those lines ("The active tool's rules ...") is fine; **only the path strings change**.
 
-The "5 known" figure is the starting set the code agent must **prove complete** via §6 grep, not assume.
+The `work-on-an-issue.md`, `manage-issues.md`, and `health-monitoring.md` lines are **path-only** edits. Their surrounding prose ("make sure project conventions are loaded", "The active tool's rules ...") refers to the loaded per-project system; per the spec these are not in the umbrella-rename target list for those agent files — change **only the path strings** (`conventions/load.md` → `configuration/load.md`, `conventions/claude-code.md` → `configuration/claude-code.md`, `conventions/pi.md` → `configuration/pi.md`). Do not reword the prose in those files; that keeps the change minimal and avoids touching named-rule/generic-English uses. (The `manage-issues.md` line also contains "the **Issues** convention" — a named rule that must stay verbatim.)
+
+The "7 known" figure is the starting set the code agent must **prove complete** via §6 grep, not assume — the binding requirement is the AC13 grep returning zero matches, whatever the count turns out to be.
 
 ---
 
@@ -208,11 +218,12 @@ git status                                                  # shows renamed:, no
 **Pass:** new folder has exactly the four files; old folder absent; history follows through the rename. (AC10–11)
 
 ### 6.2 No stale inbound path references remain
+This pattern must catch all four moved filenames (`load`, `setup`, `claude-code`, `pi`), including the two health-monitoring.md references:
 ```bash
-grep -rn "reference/conventions\|conventions/load.md\|conventions/setup.md" \
+grep -rn "reference/conventions\|conventions/load.md\|conventions/setup.md\|conventions/claude-code.md\|conventions/pi.md" \
   --include="*.md" . | grep -v "\.pipelines/"
 ```
-**Pass:** **zero** matches outside `.pipelines/`. (AC12–13)
+**Pass:** **zero** matches outside `.pipelines/`. This is the binding completeness check — it must pass regardless of how many inbound references existed (7 known). (AC12–13)
 
 ### 6.3 Every touched Markdown link resolves
 Confirm each updated path points to a real file/anchor:
@@ -269,8 +280,17 @@ Spot-check that:
 - README umbrella prose (shared per-project rules in `.rp.md`, `.rp.local.md` overrides framing, setup writing project guidance, orchestrator following the per-project system) reads "configuration", while the two `Agent models` named-rule mentions still read "convention". (AC16)
 - `load.md` title is `# Load Configuration`, `setup.md` title is `# Setup Configuration`, and umbrella-introducing prose reads "configuration". (AC17)
 
-### 6.8 No breaking / no behavioral change
-This is a review assertion, not a script: confirm the diff is confined to wording (title, umbrella prose, the single H2 rename) plus the folder rename and its inbound links. Confirm **no** edit touches loader parsing logic, the setup flow logic, per-tool canonical blocks (`claude-code.md` / `pi.md` content), or local-overrides resolution. An unmodified old-format `.rp.md` (old title, `## Shared conventions` H2, H3 rules) would still load because the loader keys on rule **names**, with no version/schema gate introduced. (AC18–20)
+### 6.8 Structural-description reconciliation (no stale per-tool-H2 claim)
+The flattened `.rp.md` has a single `## Conventions` H2 with no per-tool H2 sections. Confirm no surviving prose still claims `.rp.md` is organized into per-tool H2 sections:
+```bash
+# README and .rp.md should no longer describe per-tool H2 SECTIONS living inside .rp.md.
+grep -rn "per-tool section\|per-tool sections\|sections side-by-side" \
+  README.md .rp.md
+```
+**Pass:** any remaining "per-tool" mentions describe *reference files* (`claude-code.md` / `pi.md`) or per-tool *guidance*, not H2 sections inside `.rp.md`. The README L159-region sentence and the `.rp.md` L3 intro both read consistently with the flat single-`## Conventions` structure (per-tool guidance documented in the reference files). Manually read both passages to confirm they are internally consistent with the actual file structure.
+
+### 6.9 No breaking / no behavioral change
+This is a review assertion, not a script: confirm the diff is confined to wording (title, umbrella prose, the single H2 rename, the structural-description reconciliation) plus the folder rename and its inbound links. Confirm **no** edit touches loader parsing logic, the setup flow logic, per-tool canonical blocks (`claude-code.md` / `pi.md` content), or local-overrides resolution. An unmodified old-format `.rp.md` (old title, `## Shared conventions` H2, H3 rules) would still load because the loader keys on rule **names**, with no version/schema gate introduced. (AC18–20)
 
 ---
 
