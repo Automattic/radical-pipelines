@@ -1,14 +1,14 @@
-# Setup Conventions
+# Setup Configuration
 
-Use this setup flow when required conventions are missing before a workflow starts.
+Use this setup flow when required configuration is missing before a workflow starts. "Configuration" is the umbrella term for all project settings; "Conventions" is the section within configuration that captures per-project naming and formatting rules.
 
 Do not continue the workflow. Tell the owner:
 
-- Radical Pipelines requires project conventions before it can run.
-- Which conventions were found.
-- Which required conventions are still missing.
+- Radical Pipelines requires project configuration before it can run.
+- Which configuration was found.
+- Which required configuration is still missing.
 
-Ask whether the owner wants to run setup now. If they decline or cancel, stop and summarize the missing conventions.
+Ask whether the owner wants to run setup now. If they decline or cancel, stop and summarize the missing configuration.
 
 To run the setup, follow these steps:
 
@@ -23,7 +23,7 @@ Radical Pipelines supports the following agentic coding tools:
 | Claude Code | `claude-code.md` |
 | Pi          | `pi.md`          |
 
-## 2. Collect required conventions
+## 2. Collect required configuration
 
 Ask for the required information in a clear sequence, one convention at a time. Specify if they are required or optional, and provide examples or suggestions when possible.
 
@@ -109,7 +109,7 @@ How this project stores Radical Pipelines artifacts.
 
 Running Radical Pipelines creates three kinds of files that need a home:
 
-- The project-level `.rp.md` config file (the conventions captured during this setup).
+- The project-level `.rp.md` config file (the configuration captured during this setup).
 - A per-pipeline artifact folder containing `intent.md`, `spec.md`, `design-doc.md`, etc. — one folder per pipeline run, per the **Artifact folder** convention.
 - A `.gitignore` entry for the worktree folder used by the active agentic coding tool.
 
@@ -170,7 +170,7 @@ Capture:
 
 ## 3. Apply agentic coding tool setup actions
 
-Some agentic coding tools require setup actions beyond conventions.
+Some agentic coding tools require setup actions beyond configuration.
 
 Consult the active tool's rules file (read in Step 1) for a **Setup actions** section. If it has one, perform the actions described.
 
@@ -183,11 +183,11 @@ Before writing anything, summarize the proposed `.rp.md` content and ask for exp
 - If `.rp.md` does not exist, ask before creating it.
 - If it exists, ask before overwriting it. Offer to merge or append only when the owner explicitly chooses that approach.
 
-If any required answer is missing, do not create a misleading complete conventions file. Either stop and explain what is unresolved, or, only if the owner explicitly asks for a draft, write a file that clearly marks unresolved items and state that setup is incomplete.
+If any required answer is missing, do not create a misleading complete configuration file. Either stop and explain what is unresolved, or, only if the owner explicitly asks for a draft, write a file that clearly marks unresolved items and state that setup is incomplete.
 
 ## 5. Write human-readable Markdown
 
-Write `.rp.md` with the conventions and commit it to the main branch:
+Write `.rp.md` with the configuration and commit it to the main branch:
 
 - `artifacts-in-repo`: the project's main branch.
 - `artifacts-in-fork`: the fork's main branch only — never push it to upstream.
@@ -205,6 +205,6 @@ Remind the owner that for `artifacts-in-fork`, the `.gitignore` change lives on 
 After setup completes, tell the owner:
 
 - That `.rp.md` was created or updated.
-- That future Radical Pipelines runs should read `.rp.md` and skip setup if all required conventions are present.
+- That future Radical Pipelines runs should read `.rp.md` and skip setup if all required configuration is present.
 
 If setup was cancelled or incomplete, stop the pipeline and clearly list what remains missing.
