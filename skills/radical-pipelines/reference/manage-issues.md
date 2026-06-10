@@ -11,7 +11,7 @@ Before executing these steps, make sure project conventions are loaded (see `con
 
 ## The issue format
 
-The issue body _is_ the phase-0 intent — `create-pipeline.md` turns the issue into `0-intent/intent.md`. So this is both the issue template and the intent format. Render these sections and **omit any that are empty** — no `N/A` placeholders:
+The issue body _is_ the phase-0 intent — When the pipeline is created, the orchestrator turns the issue into `0-intent/intent.md`. So this is both the issue template and the intent format. Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 - **Title** — concise.
 - **Goal** — always present. The desired outcome, stated as an _outcome_, not a solution. ("Users can export their data as JSON" — not "add a `format` param to `ExportController`.")
