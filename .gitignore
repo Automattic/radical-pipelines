@@ -2,3 +2,5 @@ node_modules/
 .env
 .env.local
 .rp.local.md
+.claude/worktrees/
+.claude/scheduled_tasks.lock
