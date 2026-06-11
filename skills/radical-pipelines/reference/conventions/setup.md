@@ -61,7 +61,7 @@ Suggested default: `<commit-description> (<agent-name>)`.
 
 ### Issues (required)
 
-Where the project tracks issues. Each pipeline pulls its initial intent from an issue, so the orchestrator needs a way to read the issue body, read all of its comments, comment, update, and follow its in-tracker cross-references.
+Where the project tracks issues. Each pipeline pulls its initial intent from an issue, so the orchestrator needs a way to read them in full — body and all comments — comment on, and update them.
 
 Ask the owner which issue tracker is used (GitHub, Linear, Jira, GitLab, plain Markdown files in a folder, etc.) and how to access it (CLI, MCP server, API token, etc.).
 
