@@ -44,7 +44,10 @@ constrained here, both wording-only.
   normal phase work.
 - `reference/conventions/load.md` has a **Conventions** table with a
   `Required?` column; `setup.md` has a `## 2. Collect required conventions`
-  section with one `### <Name> (required/optional)` entry per convention.
+  section with one `### <Name>` entry per convention. Required entries are
+  suffixed `(required)` (e.g. `### Pipeline base slug (required)`); optional
+  entries are **unmarked** (`### Commit format`, `### Spawning teams of agents`,
+  `### Agent models`) — no `(optional)` suffix exists in the file.
 - `reference/intent-format.md` is the existing skill-owned format file — the
   precedent for `run-summary-format.md`.
 - `SKILL.md`'s **Phases** table phase-5 "Produces" cell =
@@ -88,18 +91,26 @@ Per the project's skill-modification rules, every edit must:
   shared rule once, at the most general level; reference it elsewhere).
 - Avoid **negative phrasing** ("don't do X") unless strictly necessary for
   operation.
-- Stay **generic** — no mention of any agentic coding tool, issue tracker, git,
-  or GitHub in the skill files (the project-side `agents/run-summary-writer.md`
-  and `.rp.md` row are project files and follow the project's own conventions).
+- Keep the **new format and the writer's mechanism** generic per R9: they
+  reference no git/GitHub/tracker-specific concept (no base ref, never inspect a
+  diff). This scopes R9 to the summary's format and production mechanism; it does
+  **not** touch the skill's established commit/branch vocabulary (e.g.
+  "committed on the pipeline branch", `pipeline-versioning.md`'s `git rev-parse`),
+  which stays as-is. No mention of any agentic coding tool or issue tracker in
+  the skill files (the project-side `agents/run-summary-writer.md` and `.rp.md`
+  row are project files and follow the project's own conventions).
 - Reuse the skill's existing terms (`run`, `base`, `review-N-<short-description>`,
   `<artifacts-folder>`, "Per-phase completion", "Required agents", "Outputs")
   rather than inventing notation.
 
 ## Tasks
 
-The order below is the recommended commit order: the new format file (Task 1)
-and the predicate change (Task 2) are referenced by later tasks, so they land
-first. Tasks are otherwise independent edits to distinct files; the only
+The order below is the recommended commit order. The new format file (Task 1),
+the override convention that resolves it (Task 2), and the predicate change
+(Task 3) are referenced by later tasks, so they land first; in particular the
+override convention precedes the phase-5 and fork procedures (Tasks 4, 6) that
+consume the **resolved** format, so the resolution rule exists before any task
+references it. Tasks are otherwise independent edits to distinct files; the only
 content coupling is cross-references, all of which point at files created/edited
 in an earlier-or-equal task.
 
@@ -184,7 +195,76 @@ embed the run name anywhere.
 
 ---
 
-### Task 2 — Extend the phase-5 completion predicate and generalize the layout wording (`reference/pipeline-versioning.md`)
+### Task 2 — Add the optional "Run summary format" override convention (`reference/conventions/load.md` and `setup.md`)
+
+**Goal:** Let a project override the default summary format in `.rp.md` through a
+new **optional** convention, resolved by the orchestrator (project override else
+skill default) — without making `load.md`'s missing-required block fire on a
+silent project. Landing this before the procedures (Tasks 4, 6) that consume the
+**resolved** format means the resolution rule exists before any task references
+it.
+
+**Files to change:**
+- `skills/radical-pipelines/reference/conventions/load.md`
+- `skills/radical-pipelines/reference/conventions/setup.md`
+
+**Changes:**
+
+1. **`load.md` — Conventions table:** add a row
+
+   ```
+   | Run summary format | The structure of each run's run-summary.md | No |
+   ```
+
+   `Required? = No` so the missing-required-conventions block never fires when a
+   project is silent. Match the table's existing wording density.
+
+2. **`load.md` — resolution:** the inherit-or-override semantics are already
+   stated for `.rp.local.md` ("where it names a convention its value wins, where
+   it is silent the committed value is inherited"). State, minimally and once,
+   that for the summary format the **skill default**
+   (`reference/run-summary-format.md`) applies where the project is silent — the
+   same inherit-or-override shape, with the skill file as the silent fallback. Do
+   not duplicate the generic inherit-or-override rule — extend it by naming the
+   skill-file fallback. The mechanics of handing the resolved format to the
+   writer live at the point of use (Task 4); `load.md` states only the resolution
+   rule.
+
+3. **`setup.md` — collect entry:** add an optional entry under
+   `## 2. Collect required conventions`, headed `### Run summary format`
+   (unmarked, matching the file's existing optional entries — required entries
+   carry `(required)`, optional ones are unmarked), whose suggested default is
+   the skill file `reference/run-summary-format.md`. Keep it to the few lines the
+   other optional entries use; state that a project may name its own format file
+   and that the skill default applies otherwise.
+
+Keep both edits minimal and generic. Do not restate the C-format structure
+here — `setup.md`/`load.md` reference the format file, they do not embed it
+(single source: Task 1).
+
+**Depends on:** Task 1 (the skill default file the convention points at as the
+silent fallback).
+
+**Traces to:**
+- R4, R7 / AC6 — project override yields the project's format; silence yields
+  the default. (Design C4, D4.)
+- R9 / AC9 — convention/resolution reference no git/GitHub/tracker concept.
+  (Design C4.)
+
+**Acceptance (observable, testable):**
+- `load.md`'s **Conventions** table has a "Run summary format" row with
+  `Required? = No`.
+- `load.md` states the resolved format is project-override-else-skill-default,
+  without duplicating the generic inherit-or-override rule.
+- `setup.md` has an optional "Run summary format" entry headed `### Run summary
+  format` (unmarked, like the other optional entries) whose suggested default is
+  `reference/run-summary-format.md`.
+- Neither edit embeds the C-format structure or names a tracker / agentic coding
+  tool.
+
+---
+
+### Task 3 — Extend the phase-5 completion predicate and generalize the layout wording (`reference/pipeline-versioning.md`)
 
 **Goal:** Make `run-summary.md` part of the phase-5 completion predicate so that
 gating the run on the summary happens **everywhere at once** (every
@@ -253,11 +333,11 @@ the file name is fixed by the design).
 
 ---
 
-### Task 3 — Produce the summary as the final step of phase 5 (`reference/autonomous-phases/5 - docs.md`)
+### Task 4 — Produce the summary as the final step of phase 5 (`reference/autonomous-phases/5 - docs.md`)
 
 **Goal:** Fold producing `run-summary.md` into phase 5 as its final step —
 launched after `doc-reviewer` approval, before the predicate verification — so
-the same predicate (now extended in Task 2) is checked once, after the summary
+the same predicate (now extended in Task 3) is checked once, after the summary
 is committed.
 
 **Files to change:**
@@ -278,15 +358,19 @@ is committed.
 
    - **New produce step (was the "On approved" action):** on **approved**,
      launch a fresh single-shot `run-summary-writer` with the **resolved summary
-     format** (Task 6 / C4: project override else the skill default
-     `reference/run-summary-format.md`), handed in its spawn prompt alongside
-     Artifact folder and Commit format (OQ-2 — phrase it like the existing
-     spawn-prompt inputs in `autonomous-workflow.md`). The writer reads the run's
-     committed artifacts and the shipped code/docs as files, with **no git base
-     ref**, and commits `run-summary.md` at the run-folder root.
+     format** (Task 2 / C4: project override else the skill default
+     `reference/run-summary-format.md`) as the launch-specific extra input,
+     following the step-4 base-ref precedent for naming a per-launch extra
+     (OQ-2). The writer reads the run's committed artifacts and the shipped
+     code/docs as files and commits `run-summary.md` at the run-folder root.
+     This is the single point at which the resolved format is handed to the
+     writer; name the extra here, not the universal spawn inputs
+     `autonomous-workflow.md` already owns.
    - **New final verify step:** verify the **extended** phase-5 predicate per
-     `pipeline-versioning.md` ("Per-phase completion") — `docs-review-approved.md`
-     **and** `run-summary.md` committed on the pipeline branch. The predicate is
+     `pipeline-versioning.md` ("Per-phase completion"). Extend today's
+     enumeration rather than replacing it: all documentation changes, every
+     `docs-review-N-rejected.md`, `docs-review-approved.md`, **and**
+     `run-summary.md` are committed on the pipeline branch. The predicate is
      verified **once, here**, after the summary is committed — not before it
      exists. Replace today's in-place "verify the phase 5 completion predicate"
      wording so verification no longer happens before the summary.
@@ -296,23 +380,24 @@ is committed.
    consistent with the new step split. Keep it minimal and in the existing
    diagram's style.
 
-State once that the writer runs **only after approval, exactly once per run**,
-is **not** part of the writer/reviewer rejection loop, and has **no review
-gate** (the spec excludes one). Do not duplicate the writer's source list or
-no-git contract here — those live in the agent definition (Task 9) and the
-agent's general spawn contract; reference, do not restate.
+State once that the writer runs **only after approval, exactly once per run**
+(this single-shot, launched-on-approval framing carries that it is ungated and
+outside the rejection loop, so no negative restatement is needed). Do not
+duplicate the writer's source list or mechanism here — those live in the agent
+definition (Task 8) and the agent's general spawn contract; reference, do not
+restate.
 
 **Depends on:**
 - Task 1 (the default format path `reference/run-summary-format.md` is named as
   the fallback).
-- Task 2 (the extended predicate this step verifies against).
-- The resolution mechanism is specified in Task 6; this step only consumes the
-  *resolved* format the orchestrator passes.
+- Task 2 (the resolution rule this step's "resolved summary format" refers to).
+- Task 3 (the extended predicate this step verifies against).
 
 **Traces to:**
 - R1, R2, R3 / AC1 — exactly one summary per run, produced at run completion,
   gating completion. (Design C1, D1.)
-- R9 / AC9 — writer given no base ref, reads files only. (Design C1, C3.)
+- R9 / AC9 — writer reads files only; the mechanism references no
+  git/GitHub/tracker concept. (Design C1, C3.)
 
 **Acceptance (observable, testable):**
 - The **Required agents** table lists `run-summary-writer` (non-persistent, one
@@ -321,16 +406,17 @@ agent's general spawn contract; reference, do not restate.
   run-folder root.
 - On approval the procedure launches the `run-summary-writer` (with the resolved
   format) **before** the predicate-verification step; the predicate-verification
-  step is the **final** step and checks `docs-review-approved.md` **and**
-  `run-summary.md`.
+  step is the **final** step and verifies the full enumeration — all
+  documentation changes, every `docs-review-N-rejected.md`,
+  `docs-review-approved.md`, **and** `run-summary.md`.
 - The mermaid diagram routes approval through the run-summary writer to phase
   complete.
-- The procedure states the writer is single-shot, post-approval, ungated, and
-  outside the rejection loop, without restating the writer's source list.
+- The procedure states the writer is single-shot and launched once on approval,
+  without restating the writer's source list.
 
 ---
 
-### Task 4 — Collect prior runs' summaries as review-run input (`reference/review-pipeline.md`)
+### Task 5 — Collect prior runs' summaries as review-run input (`reference/review-pipeline.md`)
 
 **Goal:** When a review run starts, collect the `run-summary.md` of every prior
 run in run order and feed the collected **content** into the review run's phase-1
@@ -375,7 +461,7 @@ file's numbered-step tone; renumber the following step if needed.
 
 **Depends on:** none structurally (it references `run-summary.md` by its fixed
 name and the existing **Runs within a pipeline** rule). Logically it presumes
-prior runs have summaries, which Task 2's predicate guarantees for any complete
+prior runs have summaries, which Task 3's predicate guarantees for any complete
 run (a run cannot be complete — and thus cannot be a *prior complete run* of a
 review — without its summary).
 
@@ -399,11 +485,11 @@ review — without its summary).
 
 ---
 
-### Task 5 — Produce the fork's own summary when it inherits `5-docs` (`reference/fork-pipeline.md`)
+### Task 6 — Produce the fork's own summary when it inherits `5-docs` (`reference/fork-pipeline.md`)
 
 **Goal:** A fork that inherits a complete `5-docs` seeds no `run-summary.md`
 (the copy loop touches only phase folders), so under the extended predicate
-(Task 2) its phase 5 would be incomplete. Launch the `run-summary-writer` for the
+(Task 3) its phase 5 would be incomplete. Launch the `run-summary-writer` for the
 fork's `base` run after seeding so the fork produces its **own** summary from its
 own (inherited) artifacts and lands complete.
 
@@ -416,8 +502,8 @@ Add a step **after step 6 (commit the seeded folders) and before step 7
 (continue normal phase work)**:
 
 - **If the inherited phase is `5-docs`**, launch a fresh `run-summary-writer`
-  for the fork's `base` run — with the **resolved summary format** (Task 6 / C4),
-  exactly as in the phase-5 procedure (Task 3) — to write and commit
+  for the fork's `base` run — with the **resolved summary format** (Task 2 / C4),
+  exactly as in the phase-5 procedure (Task 4) — to write and commit
   `run-summary.md` at the fork's `base/` run-folder root. Placing it after step 6
   means the inherited artifacts are already committed, so the writer's
   "committed before the writer runs" contract holds.
@@ -433,9 +519,11 @@ file's numbered tone; renumber the following step.
 
 **Depends on:**
 - Task 1 (default format path, as the fallback).
-- Task 2 (the extended predicate that makes this step necessary).
-- Task 3 establishes the writer-launch shape this step mirrors (resolved format
-  in spawn prompt); reference it rather than restating the writer's contract.
+- Task 2 (the resolution rule this step's "resolved summary format" refers to).
+- Task 3 (the extended predicate that makes this step necessary).
+- Task 4 establishes the writer-launch shape this step mirrors (resolved format
+  as the launch-specific extra input); reference it rather than restating the
+  writer's contract.
 
 **Traces to:**
 - R3, R10 / AC1, AC8 — a fork inheriting `5-docs` produces its own summary from
@@ -450,72 +538,6 @@ file's numbered tone; renumber the following step.
 - It states the step does not apply for inherited phases below `5-docs`.
 - It does not add a negative copy-exclusion to step 5 (the phase-folder-only
   loop already excludes run-level files structurally).
-
----
-
-### Task 6 — Add the optional "Run summary format" override convention (`reference/conventions/load.md` and `setup.md`)
-
-**Goal:** Let a project override the default summary format in `.rp.md` through a
-new **optional** convention, resolved by the orchestrator (project override else
-skill default) and passed to the writer in its spawn prompt — without making
-`load.md`'s missing-required block fire on a silent project.
-
-**Files to change:**
-- `skills/radical-pipelines/reference/conventions/load.md`
-- `skills/radical-pipelines/reference/conventions/setup.md`
-
-**Changes:**
-
-1. **`load.md` — Conventions table:** add a row
-
-   ```
-   | Run summary format | The structure of each run's run-summary.md | No |
-   ```
-
-   `Required? = No` so the missing-required-conventions block never fires when a
-   project is silent. Match the table's existing wording density.
-
-2. **`load.md` — resolution:** the inherit-or-override semantics are already
-   stated for `.rp.local.md` ("where it names a convention its value wins, where
-   it is silent the committed value is inherited"). State, minimally and once,
-   that for the summary format the **skill default**
-   (`reference/run-summary-format.md`) applies where the project is silent — the
-   same inherit-or-override shape, with the skill file as the silent fallback.
-   The orchestrator passes the **resolved** format to the `run-summary-writer` in
-   its spawn prompt (alongside Artifact folder and Commit format); agents never
-   read `.rp.md`. Do not duplicate the generic inherit-or-override rule — extend
-   it by naming the skill-file fallback.
-
-3. **`setup.md` — collect entry:** add an optional entry under
-   `## 2. Collect required conventions`, e.g.
-   `### Run summary format (optional)`, whose suggested default is the skill file
-   `reference/run-summary-format.md`. Keep it to the few lines the other optional
-   entries use; state that a project may name its own format file and that the
-   skill default applies otherwise.
-
-Keep both edits minimal and generic. Do not mention any tracker or agentic
-coding tool. Do not restate the C-format structure here — `setup.md`/`load.md`
-reference the format file, they do not embed it (single source: Task 1).
-
-**Depends on:** Task 1 (the skill default file the convention points at as the
-silent fallback).
-
-**Traces to:**
-- R4, R7 / AC6 — project override yields the project's format; silence yields
-  the default. (Design C4, D4.)
-- R9 / AC9 — convention/resolution reference no git/GitHub/tracker concept.
-  (Design C4.)
-
-**Acceptance (observable, testable):**
-- `load.md`'s **Conventions** table has a "Run summary format" row with
-  `Required? = No`.
-- `load.md` states the resolved format is project-override-else-skill-default and
-  is passed to the writer in its spawn prompt (agents never read `.rp.md`),
-  without duplicating the generic inherit-or-override rule.
-- `setup.md` has an optional "Run summary format" entry whose suggested default
-  is `reference/run-summary-format.md`.
-- Neither edit embeds the C-format structure or names a tracker / agentic coding
-  tool.
 
 ---
 
@@ -693,12 +715,12 @@ last.
 - **Consuming the artifact** — opening/updating/pushing a PR, etc. No task may
   add PR-description or push behavior; the summary is a generic run artifact.
 - **A review gate on the summary's content** — no reviewer, no rejection loop,
-  no `run-summary-review-approved.md`. The writer runs once, ungated (Task 3).
+  no `run-summary-review-approved.md`. The writer runs once, ungated (Task 4).
 - **Editing prior runs' summaries** — no task adds rewrite behavior; immutability
-  comes free from the general add-a-sibling-run rule (Task 4 adds no immutability
+  comes free from the general add-a-sibling-run rule (Task 5 adds no immutability
   sentence).
 - **Copying summaries on fork** — no task adds a copy of `run-summary.md` to the
-  fork's copy loop; exclusion is structural (Task 5).
+  fork's copy loop; exclusion is structural (Task 6).
 - **Application code / runtime / CI** — every task edits Markdown only
   (skill files, the project agent file, `.rp.md`, a changeset).
 
@@ -706,12 +728,12 @@ last.
 
 | AC | Covered by |
 | -- | ---------- |
-| AC1 (one committed summary per completed run) | Tasks 2, 3 (and 5 for forks) |
-| AC2 (no summary ⇒ run not complete) | Task 2 |
+| AC1 (one committed summary per completed run) | Tasks 3, 4 (and 6 for forks) |
+| AC2 (no summary ⇒ run not complete) | Task 3 |
 | AC3 (summary content: what/why + decisions/rejected/limitations) | Tasks 1, 8 |
-| AC4 (review-N receives prior summaries in order) | Task 4 |
-| AC5 (prior summaries byte-identical after a later run) | Task 4 (no new rule; general rule) |
-| AC6 (project override vs. default format) | Tasks 1, 6 |
-| AC7 (name reads as a single run's summary) | Tasks 1, 2 (`run-summary.md` at `<run>/` root) |
-| AC8 (no summary copied on fork; fork inheriting 5-docs lands complete) | Task 5 |
-| AC9 (format + mechanism reference no git/GitHub/tracker) | Tasks 1, 6, 8 |
+| AC4 (review-N receives prior summaries in order) | Task 5 |
+| AC5 (prior summaries byte-identical after a later run) | Task 5 (no new rule; general rule) |
+| AC6 (project override vs. default format) | Tasks 1, 2 |
+| AC7 (name reads as a single run's summary) | Tasks 1, 3 (`run-summary.md` at `<run>/` root) |
+| AC8 (no summary copied on fork; fork inheriting 5-docs lands complete) | Task 6 |
+| AC9 (format + mechanism reference no git/GitHub/tracker) | Tasks 1, 2, 8 |
