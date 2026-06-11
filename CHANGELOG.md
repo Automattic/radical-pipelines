@@ -1,5 +1,20 @@
 # @automattic/radical-pipelines
 
+## 0.3.0
+### Minor Changes
+
+
+
+- [#118](https://github.com/Automattic/radical-pipelines/pull/118) [`b40934a`](https://github.com/Automattic/radical-pipelines/commit/b40934af21bf332ee3c06f1e0a403f6165101980) Thanks [@luisherranz](https://github.com/luisherranz)! - Add a Guardrails convention: a project may now declare deterministic verification gates — each an exact command judged pass/fail solely by its exit code — that the code and doc phases must pass. Guardrails are optional and tool-agnostic: the conventions loader documents them, setup captures them per gate (name, exact command, applicable phase) and validates each command before writing, and the four phase agents read the guardrails applicable to their phase and run every one as mandatory. A declared command that cannot execute is a blocker; an absent or empty declaration runs nothing and never blocks or warns.
+
+
+
+- [#119](https://github.com/Automattic/radical-pipelines/pull/119) [`c1ad0d6`](https://github.com/Automattic/radical-pipelines/commit/c1ad0d67c3a528295c4e58772d4b8e81e6233e7d) Thanks [@luisherranz](https://github.com/luisherranz)! - When creating a pipeline from an issue, the orchestrator now reads the full picture — the issue body, all of its comments, one-level in-tracker cross-references, and linked external pages — and synthesizes that material into the canonical intent format, showing the draft to the owner for explicit approval before writing the file; a standard two-line provenance header (source reference and self-containment assertion) is prepended to every issue-derived base intent in both the synthesis and passthrough cases; a fast-path passthrough skips synthesis and the confirmation gate when the issue body is already in the canonical format, there are no comments, no cross-references, no external links, and no binary attachments.
+
+
+
+- [#106](https://github.com/Automattic/radical-pipelines/pull/106) [`45b4837`](https://github.com/Automattic/radical-pipelines/commit/45b4837ab7099caca316b6a41a642967b1afc7bc) Thanks [@SantosGuillamot](https://github.com/SantosGuillamot)! - Add pipeline reviews: layer an incremental change onto a complete, unmerged pipeline by re-running the phases as an additional run on the same branch. Phase folders now live under run folders: the original run is recorded as `base/` at pipeline creation and is never rewritten, and each review adds a sibling `review-N-<short-description>/` run.
+
 ## 0.2.0
 ### Minor Changes
 
