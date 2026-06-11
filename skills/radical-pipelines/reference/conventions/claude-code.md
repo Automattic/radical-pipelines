@@ -30,6 +30,8 @@ Agents in the same team address each other directly via `SendMessage({ to: "<age
 
 If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
 
+Be aware that teams include a shared task list and idle teammates are nudged to claim unassigned, unblocked tasks from it so track phase progress in the phase subfolders, never on the task list.
+
 ## Health monitoring
 
 Use Claude Code's bundled `/loop` skill — no install is required. Only the autonomous workflow launches the monitor; assisted runs do not.

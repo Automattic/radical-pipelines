@@ -32,9 +32,11 @@ Restate the full plan back to the owner in plain language: that this is an auton
 
 Run each phase from the next phase up to the target phase, in order.
 
-Before launching the first team, start a recurring health monitor for the run per `reference/health-monitoring.md`. The monitor watches for stalled agents, message failures, and login / network errors; it attempts bounded auto-recovery and escalates to you when it cannot resolve an issue. Surface any escalation to the owner verbatim.
+At run start:
 
-At run start, capture the run's base ref per the **Reviewer base ref** rule in `pipeline-versioning.md`.
+1. Create the pipeline's team per the **Team spawning** convention.
+2. Start a recurring health monitor for the run per `reference/health-monitoring.md`.
+3. Capture the run's base ref per the **Reviewer base ref** rule in `pipeline-versioning.md`.
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
