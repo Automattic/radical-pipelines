@@ -20,3 +20,16 @@ A vague idea yields just a Title and a Goal. That is a complete, valid intent.
 - **Lead with the goal, then invite — don't run a checklist.** Marching through "constraints? assumptions? context?" pressures the owner into manufacturing answers and re-introduces over-specification.
 - **No requirements, design, or implementation.** Acceptance criteria belong to phase 1, architecture to phase 2, task breakdown to phase 3. Putting them in **the intent** pre-empts the phase that exists to produce them.
 - **Reflect hypotheses back as open.** Anything the owner proposes about _how_ or about the current state is recorded under Assumptions, not as a requirement.
+
+## Provenance header (intents created from an issue)
+
+A base intent created from an issue by the create-pipeline flow carries a two-line blockquote placed **after the H1 title and before the first H2**:
+
+```
+> Source: <issue reference and link, per the Issues convention>.
+> This file is self-contained; agents do not need to open the source issue.
+```
+
+The header contains exactly these two lines — no other content. The concrete form of the `Source:` line is supplied by the project's Issues convention binding; the template above stays tracker-agnostic.
+
+This header applies to **base intents created from an issue**, in both the passthrough case (body already canonical) and the synthesis case (body normalized from the full issue picture). It is **not** added to tracker issue bodies authored via `manage-issues.md`, and **not** added to review intents — review intents carry their mandatory **Origin** section as their provenance mechanism instead.
