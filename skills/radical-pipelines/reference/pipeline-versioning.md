@@ -12,7 +12,7 @@ When the owner discards a pipeline or wants to try a different approach, the orc
 
 ### Runs within a pipeline
 
-A **run** is one pass of the full phase flow recorded under a pipeline. Artifacts live at `<artifacts-folder>/<run>/<phase>`, where `<artifacts-folder>` is the pipeline's own artifact folder and `<run>` is `base`, `review-1-<short-description>`, `review-2-<short-description>`, …
+A **run** is one pass of the full phase flow recorded under a pipeline. Most artifacts live at `<artifacts-folder>/<run>/<phase>`; a run-level artifact lives directly under `<artifacts-folder>/<run>/`. `<artifacts-folder>` is the pipeline's own artifact folder and `<run>` is `base`, `review-1-<short-description>`, `review-2-<short-description>`, …
 
 `base` is always the first run, always present, and never restructured or rewritten by a review; a review only ADDS a sibling run folder. `<short-description>` is a kebab-case summary of the review's goal (lowercase, hyphens, no spaces), formatted like the pipeline-slug short description, and `N` in `review-N-…` is a per-pipeline monotonic counter — the next integer after the existing `review-*` folders.
 
@@ -46,9 +46,9 @@ A phase is complete when all of these are committed to the pipeline branch (same
 | 2 – Design doc | `2-design-doc/design-doc-review-approved.md`                                   |
 | 3 – Plan       | `3-plan/code-plan-review-approved.md` and `3-plan/doc-plan-review-approved.md` |
 | 4 – Code       | `4-code/code-review-approved.md`                                               |
-| 5 – Docs       | `5-docs/docs-review-approved.md`                                               |
+| 5 – Docs       | `5-docs/docs-review-approved.md` and `run-summary.md`                          |
 
-The artifact paths above are relative to a run folder: a phase's predicate is evaluated at `<artifacts-folder>/<run>/<phase>` (for the base run, `<artifacts-folder>/base/<phase>`).
+The artifact paths above are relative to the run folder (`<artifacts-folder>/<run>/`): the common case is `<phase>/…` but a path may also name a file at the run root (e.g. `run-summary.md` in phase 5).
 
 A pipeline's **completed phase** and **active phase** are those of its **latest run** — the highest-numbered `review-N` run, or `base` if there are no reviews — with the completed/active predicate evaluated within that run's folder. The **completed phase** is the highest-numbered phase whose predicate is satisfied; the **active phase** is the phase after it if any of that phase's artifacts have started appearing (in progress), otherwise none.
 
