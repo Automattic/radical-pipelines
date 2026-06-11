@@ -97,6 +97,10 @@ Values are tool-native and opaque — the orchestrator passes them to the spawn 
 - A bare alias or first-party ID, such as `opus` or `claude-opus-4-8`.
 - A provider-qualified `provider/model`, such as `anthropic/claude-opus-4-8`.
 
+### Run summary format
+
+The structure of each run's `run-summary.md`. A project may name its own format file; if the project is silent, the skill default `reference/run-summary-format.md` applies.
+
 ### Health monitoring (required)
 
 How the orchestrator launches a recurring monitor in the autonomous workflow to detect stalls, message failures, login errors, network errors, and so on. Context-window limits are handled by each tool's own auto-compaction, not by the monitor.

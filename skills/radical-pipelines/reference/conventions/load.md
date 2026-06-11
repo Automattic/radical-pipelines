@@ -19,6 +19,7 @@ This information is necessary to execute the pipelines correctly, so you must lo
 | Team spawning      | How to define and launch teams of agents                       | No        |
 | Agent models       | Which model/settings each spawned agent runs on                | No        |
 | Health monitoring  | How to launch and cancel the recurring run-health loop         | Yes       |
+| Run summary format | The structure of each run's run-summary.md                     | No        |
 
 ## Missing conventions
 
@@ -35,3 +36,5 @@ A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.
 When you are inside a worktree, resolve the main root with `dirname(git rev-parse --git-common-dir)` and read it from there, since the git-ignored file is never copied into the worktree.
 
 After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.
+
+For the run summary format specifically, when the project is silent the skill default `reference/run-summary-format.md` applies.
