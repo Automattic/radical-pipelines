@@ -49,7 +49,7 @@ Re-assert (confirm, do not change) the existing `v<N>` version label per `pipeli
 
 The prior runs of `review-N` are `base, review-1, …, review-(N-1)` in that order — derivable from the **Runs within a pipeline** definitions in `pipeline-versioning.md` (monotonic `N`, linear `base → review-1 → …` chain). Collect each run's `run-summary.md`.
 
-Deliver the collected summaries (in run order) as **content** before mode dispatch — this is the first step that collects across all prior runs, which is why the order is made explicit:
+Collection happens before mode dispatch, so both modes receive the summaries. Deliver them, in run order, as **content**:
 
 - **Autonomous review:** pass the summaries as content in the phase-1 spawn prompts.
 - **Assisted review:** read them directly while authoring the phase-1 artifacts.
