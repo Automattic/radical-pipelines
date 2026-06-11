@@ -8,13 +8,14 @@ The change is entirely in the skill (`skills/radical-pipelines/`) and a project'
 
 ## Approach
 
-The design rests on five settled decisions, each detailed under **Key Decisions** and mapped to the skill files it changes under **Components**:
+The design rests on six settled decisions, each detailed under **Key Decisions** and mapped to the skill files it changes under **Components**:
 
-1. **Fold the summary into phase 5, gated by the existing completion predicate.** The summary is the final step of phase 5, produced after `doc-reviewer` approval; the phase-5 row of the **Per-phase completion** table is extended to require `run-summary.md`. No new phase, no second run-completion condition. *(R2, R3; AC1, AC2)*
+1. **Fold the summary into phase 5, gated by the existing completion predicate.** The summary is the final step of phase 5, produced after `doc-reviewer` approval; the phase-5 row of the **Per-phase completion** table is extended to require `run-summary.md`. The phase's existing predicate verification moves to after the summary is committed, so it is checked once against the extended predicate. No new phase, no second run-completion condition. *(R2, R3; AC1, AC2)*
 2. **Place the artifact at the run-folder root, with a constant filename.** `<artifacts-folder>/<run>/run-summary.md`, outside any phase folder. Run identity is carried by the `<run>/` path segment, never the filename — matching every existing artifact. This placement makes fork-exclusion (R10) and lineage-cleanliness structural rather than a special case. *(R1, R8, R10; AC1, AC7, AC8)*
 3. **A new single-shot `run-summary-writer` agent produces it from the run's own artifacts.** Spawned by the orchestrator after docs approval, it reads only committed artifacts inside the run folder and the shipped code/docs as files; it is given no git base ref and never inspects a diff, keeping the mechanism git-free. *(R2, R4, R9; AC1, AC3, AC9)*
 4. **The skill ships the default format; a new optional convention lets a project override it.** A new `reference/run-summary-format.md` defines the default structure; a new optional "Run summary format" convention lets a project name its own in `.rp.md`. The orchestrator resolves the winner (project override else skill default) and passes it to the writer in its spawn prompt. *(R4, R7, R9; AC3, AC6, AC9)*
 5. **`review-pipeline.md` collects prior summaries as review-run input.** When a review run starts, the orchestrator collects the `run-summary.md` of every prior run in run order and makes the collected content part of the review run's phase-1 input. Summaries are passed as content, never as run-named paths, so phase-1 agents stay run-agnostic. *(R5, R6; AC4, AC5)*
+6. **A fork that inherits `5-docs` produces its own summary.** Because the extended predicate now requires `run-summary.md`, and fork's copy loop never copies the run-level summary (decision 2), a fork inheriting phase 5 would otherwise land with phase 5 incomplete. `fork-pipeline.md` launches the `run-summary-writer` for the fork's `base` run when it inherits `5-docs`, so the fork produces its own summary from its own (inherited) artifacts — R10's "each pipeline's runs produce their own" — and lands complete. *(R3, R10; AC1, AC8)*
 
 The summary is the **first input that ever crosses run boundaries** — every existing extra spawn-prompt input (the rejection-file path, the reviewer base ref) is within-run. That novelty is why decisions 2 and 5 pin *content* delivery and run-level placement rather than run-named paths or phase-folder placement.
 
@@ -24,13 +25,14 @@ All paths are under `skills/radical-pipelines/` unless noted. Project-side files
 
 ### C1 — Phase-5 procedure: produce the summary as the final step (`reference/autonomous-phases/5 - docs.md`)
 
-After the `doc-reviewer` approves (the existing step 6, which writes `docs-review-approved.md` and verifies the phase-5 predicate), a new final step launches a fresh single-shot `run-summary-writer`. The writer writes and commits `run-summary.md` at the run-folder root, then the phase-5 predicate — now extended (C2) — is satisfied.
+Today the `doc-reviewer` writes `docs-review-approved.md` on approval (step 4), and the existing step 6 is the phase's predicate-verification step: "On **approved**, verify the phase 5 completion predicate." The summary is produced after approval and before that verification, so the verification — now reading the **extended** predicate (C2) — can pass only once `run-summary.md` is committed.
 
 Concrete edits:
 
 - Add `run-summary-writer` to the **Required agents** table: one fresh instance per run, non-persistent, "Writes the run summary after docs approval."
 - Add `<artifacts-folder>/run-summary.md` to the **Outputs** list (note the run-folder-root path, not `5-docs/`).
-- Add a step after approval: launch the `run-summary-writer` with the resolved summary format (C4), have it read the run's committed artifacts and shipped code/docs and commit `run-summary.md`, then verify the extended phase-5 predicate.
+- Change step 6's "On **approved**" outcome so it no longer verifies in place: on approval, launch a fresh single-shot `run-summary-writer` with the resolved summary format (C4); have it read the run's committed artifacts and shipped code/docs and commit `run-summary.md` at the run-folder root.
+- Add the predicate verification as the new final step, after the summary is committed: verify the extended phase-5 predicate (`docs-review-approved.md` **and** `run-summary.md`) per `pipeline-versioning.md`. The predicate is verified once, at this point — not before the summary exists.
 
 The writer runs only after approval, exactly once per run; it is not part of the writer/reviewer rejection loop and has no review gate (the spec excludes one). *(R1, R2, R3; AC1)*
 
@@ -53,8 +55,8 @@ Exact wording is an implementation choice (see **Risks and Open Questions**); th
 
 A new agent, defined skill-side only as a role (the **Required agents** row in C1) and project-side as the concrete `agents/run-summary-writer.md` plus an "Agent models" row in `.rp.md`, exactly like every other agent. Its contract:
 
-- **Single-shot, one run.** Written exactly once, after approval; never iterates.
-- **Sources, all inside the run folder and committed by end of phase 5:** what changed — `1-spec/spec.md`, `3-plan/code-plan.md` + `doc-plan.md`, the shipped code/docs read as files; why — `spec.md`, `2-design-doc/design-doc.md`; key decisions — `design-doc.md`; rejected approaches — `design-doc.md` alternatives plus the `*-review-N-rejected.md` files of phases 1–5; known limitations — `design-doc.md` risks, `spec.md` out-of-scope.
+- **Single-shot, one run.** Written exactly once for its run; never iterates. Launched after docs approval when the run executes phase 5 (C1), or after seeding when a fork inherits a complete `5-docs` (C6) — either way, once, from the run's committed artifacts.
+- **Sources, all inside the run folder and committed before the writer runs** (by end of phase 5 in C1, or by the seed commit in C6): what changed — `1-spec/spec.md`, `3-plan/code-plan.md` + `doc-plan.md`, the shipped code/docs read as files; why — `spec.md`, `2-design-doc/design-doc.md`; key decisions — `design-doc.md`; rejected approaches — `design-doc.md` alternatives plus the `*-review-N-rejected.md` files of phases 1–5; known limitations — `design-doc.md` risks, `spec.md` out-of-scope.
 - **No git.** Given no base ref; never inspects a diff. It reads shipped code/docs as files (an established writer pattern), so the mechanism references no git/GitHub/tracker concept.
 - **Writes and commits** `run-summary.md` at the run-folder root, per the Commit format convention.
 
@@ -104,9 +106,30 @@ The H1 is run-name-free (the writer is run-agnostic). R4's decisions / rejected 
 
 The intent is deliberately **not** the carrier: its Origin section captures what prompted the review, and `intent-format.md`'s capture-don't-converge discipline argues against folding pipeline history in; R5/AC4 also frame the summaries as inputs in their own right. *(R5; AC4)*
 
+### C6 — Fork that inherits `5-docs`: produce the fork's own summary (`reference/fork-pipeline.md`)
+
+Fork's copy loop (step 5) touches only `<phase>` folders, so the run-level `run-summary.md` is **structurally never copied** — satisfying R10 with no negative exclusion (D2). But that same exclusion means a fork inheriting `5-docs` seeds a `base/` run with `5-docs/docs-review-approved.md` and no `run-summary.md`. Under the extended predicate (C2) the fork's phase 5 is then **incomplete** the moment it is seeded: its completed phase is 4 and its active phase is 5. Left unaddressed, the pipeline tree would render the fork's `5-docs` "(in progress)", the review-start gate would block any review of the fork, and a resume would treat phase 5 as active and roll back the single seed commit (all inherited artifacts).
+
+The fix keeps run-level placement and reuses the writer C3 already introduces: when the inherited phase is `5-docs`, `fork-pipeline.md` launches a `run-summary-writer` for the fork's `base` run after seeding, so the fork produces its **own** summary from its own (inherited) artifacts and lands complete.
+
+Concrete edits:
+
+- Add a step after step 6 (where the seeded folders are committed) and before step 7 (continue normal phase work): **if the inherited phase is `5-docs`**, launch a fresh `run-summary-writer` for the fork's `base` run — with the resolved summary format (C4), exactly as in C1 — to write and commit `run-summary.md` at the fork's `base/` run-folder root. Placing it after step 6 means the inherited artifacts are already committed, so C3's "committed before the writer runs" holds. For any inherited phase below `5-docs`, the fork has no completed phase 5 yet and runs phase 5 (and the writer) itself later, so this step does not apply.
+
+This is the only path by which a fork's `base` run gets a summary without executing the full phase-5 procedure; it produces the summary from the inherited artifacts, which is exactly R10's "each pipeline's runs produce their own." *(R3, R10; AC1, AC8)*
+
+### C7 — Phase table: name the run summary as a phase-5 output (`SKILL.md`)
+
+`SKILL.md`'s **Phases** table lists what each phase produces; its phase-5 "Produces" cell reads "Documentation (both internal and external)". The run summary is a new phase-5 output and now gates run completion, so it belongs in that cell at the same altitude as the rest of the table (one short phrase per phase, not a file list).
+
+Concrete edit:
+
+- Extend the phase-5 "Produces" cell to name the run summary, e.g. "Documentation (both internal and external) and the run summary".
+
+This keeps the table's one-line-per-phase altitude; the run-level placement, predicate, and producer are specified in C1–C2, not here. *(R3; AC1)*
+
 ### Explicitly untouched
 
-- **`reference/fork-pipeline.md`** — its copy loop touches only `<phase>` folders, so a run-level `run-summary.md` is **structurally never copied** by a fork. No negative fork-exclusion is added (the skill's authoring rules discourage one). This is why run-level placement (C-decision in **Key Decisions** / D2) is *necessary* for a clean R10, not merely cleaner. *(R10; AC8)*
 - **`reference/resume-pipeline.md`** — delegates entirely to the **Per-phase completion** predicate, which C2 extends; no resume-specific change is needed. Resume's rollback reverts the active phase's commits; since the summary is the single last file of phase 5, re-running phase 5 simply rewrites `run-summary.md` (see Risks). *(R2; AC2)*
 - **`reference/health-monitoring.md`** — reads the artifact folder generically (signals, not layout); nothing to change.
 - **The lineage / tree-SHA logic** in `pipeline-versioning.md` — hashes `base/<phase>` folder trees only; a run-level file stays out of lineage comparison and never pollutes a phase-5 tree SHA (summaries differ per run). No change needed; correctness comes free from D2.
@@ -131,6 +154,20 @@ run-summary-writer writes & commits <run>/run-summary.md
         ▼
 phase-5 predicate satisfied: docs-review-approved.md AND run-summary.md committed
         → run complete
+```
+
+**Fork-completion flow (orchestrator, in `fork-pipeline.md`, when the inherited phase is `5-docs`).**
+
+```
+fork seeds base/0-intent … base/5-docs (copy loop; no run-summary.md copied)
+        │
+        ▼
+inherited phase == 5-docs?
+   ├─ no  → fork runs phase 5 itself later (producer flow above)
+   └─ yes → orchestrator launches run-summary-writer for the fork's base run
+                 │  reads the fork's inherited base/ artifacts; no git base ref
+                 ▼
+            writes & commits base/run-summary.md → fork's phase 5 complete
 ```
 
 **Format-resolution flow (orchestrator, before spawning the writer).**
@@ -169,7 +206,7 @@ review-N phase 1 (spec) absorbs prior context; phases 2–5 use review-N's own a
 
 **Choice:** `<artifacts-folder>/<run>/run-summary.md`, outside any phase folder, constant filename.
 **Alternatives:** Inside the phase folder (`<run>/5-docs/run-summary.md`); a dedicated run-level pseudo-phase subfolder (`<run>/summary/`).
-**Trade-offs:** A file inside `5-docs/` would be copied by a fork inheriting phase 5 (fork copies every inherited `<phase>` folder), violating R10 unless a special-case negative exclusion is added; it would also pollute the `5-docs` lineage tree SHA. A pseudo-phase subfolder is heavier with no benefit. Run-level placement costs only the wording generalization in C2 (three co-located edits in one file) and makes fork-exclusion and lineage-cleanliness structural — fork's phase-folder-only copy never touches a run-level file. The constant filename matches the universal naming convention (run-agnostic agents never see the run name, so the filename cannot embed it); the `run-` prefix makes it read as a per-run summary.
+**Trade-offs:** A file inside `5-docs/` would be copied by a fork inheriting phase 5 (fork copies every inherited `<phase>` folder), violating R10 unless a special-case negative exclusion is added; it would also pollute the `5-docs` lineage tree SHA. A pseudo-phase subfolder is heavier with no benefit. Run-level placement costs only the wording generalization in C2 (three co-located edits in one file) and makes fork-exclusion and lineage-cleanliness structural — fork's phase-folder-only copy never touches a run-level file. This satisfies R10's **no-copying** leg structurally; R10's other leg — "each pipeline's runs produce their own" — interacts with the extended predicate (C2) and is handled in D7/C6 (a fork inheriting `5-docs` produces its own summary so it lands complete). The constant filename matches the universal naming convention (run-agnostic agents never see the run name, so the filename cannot embed it); the `run-` prefix makes it read as a per-run summary.
 **Traces to:** R1, R8, R10; AC1, AC7, AC8.
 
 ### D3 — A new single-shot `run-summary-writer`, artifacts-only
@@ -200,11 +237,20 @@ review-N phase 1 (spec) absorbs prior context; phases 2–5 use review-N's own a
 **Trade-offs:** Folding into the intent fails R5/AC4 (summaries would no longer be inputs in their own right) and bloats the intent past its capture-the-request discipline. Putting collection in the shared workflow breaks that workflow's deliberate run-agnosticism (it has no run branching). `review-pipeline.md` is the only file that already knows run names and already uses the extra-spawn-input channel (rejection-file path, base ref precedents). Passing content rather than run-named paths preserves agent run-agnosticism. R6/AC5 are already covered by the general "a review only ADDS a sibling run folder, never rewrites prior runs" rule, so a summary-specific immutability sentence would duplicate it.
 **Traces to:** R5, R6; AC4, AC5.
 
+### D7 — A fork inheriting `5-docs` produces its own summary
+
+**Choice:** When `fork-pipeline.md` inherits `5-docs`, it launches the `run-summary-writer` for the fork's `base` run after seeding, so the fork produces its own `run-summary.md` from the inherited artifacts and lands complete.
+**Alternatives:** Constrain the inheritable phases to `4-code` so a fork always runs phase 5 (and the writer) itself; or define an inherited-`5-docs` state with a bespoke non-destructive completion path; or do nothing and let the run-level copy-exclusion stand alone.
+**Trade-offs:** Doing nothing regresses a state the skill explicitly supports: under the extended predicate (C2) a fork that inherits `5-docs` lands phase-5-incomplete, which surfaces as a "(in progress)" tree node, a blocked review-start gate, and a resume that rolls back the single seed commit — the cross-file interaction this design exists to settle. Constraining inheritance to `4-code` removes a capability `fork-pipeline.md` currently offers (inheriting a complete `5-docs`) that the spec does not ask to drop. A bespoke completion path adds new state semantics for no gain. Launching the writer reuses the agent C3 already defines and matches R10's "each pipeline's runs produce their own": the fork's summary is authored by the fork's own writer from the fork's own (inherited) artifacts, not copied from the parent — so R10's no-copying leg (D2) and its produce-its-own leg are both satisfied. Cost is one conditional step in `fork-pipeline.md` (C6).
+**Traces to:** R3, R10; AC1, AC8.
+
 ## Dependencies
 
 - **`reference/pipeline-versioning.md`** — the **Per-phase completion** predicate (extended, C2) and the artifact-layout wording (generalized, C2). The single source of truth every completion/resume/review-gate check reads.
 - **`reference/autonomous-phases/5 - docs.md`** — the phase where the writer is launched (C1).
 - **`reference/review-pipeline.md`** — the only run-name-aware file; carries the prior-summary collection (C5).
+- **`reference/fork-pipeline.md`** — launches the writer for the fork's `base` run when it inherits `5-docs` (C6).
+- **`SKILL.md`** — the Phases table's phase-5 "Produces" cell, extended to name the run summary (C7).
 - **`reference/conventions/load.md` and `reference/conventions/setup.md`** — the convention table and setup entry for the new optional "Run summary format" (C4).
 - **Project side** — `agents/run-summary-writer.md` (the concrete agent) and an "Agent models" row in `.rp.md`, supplied by the consuming project as for every agent (C3).
 - **No new external libraries, services, or runtime dependencies.** The mechanism is documentation/orchestration only; no application code ships.
@@ -216,12 +262,13 @@ review-N phase 1 (spec) absorbs prior context; phases 2–5 use review-N's own a
 - **FM-3 — Override drops the R4 content guarantees.** A project override replaces the format wholesale, so the key-decisions/rejected-approaches/known-limitations guarantees hold only for the skill default. **Mitigation:** accepted and AC6-sanctioned; the override is the project's deliberate choice, documented in C4/D4.
 - **FM-4 — Summary accuracy is ungated.** The spec excludes a content review gate, so an inaccurate summary could mislead a later review run. **Mitigation (only):** the writer reads the full committed run record (all phase artifacts plus the rejection files and shipped code/docs), maximizing grounding; accuracy is otherwise accepted as out of scope.
 - **FM-5 — Silent project with no override.** A project that never sets the "Run summary format" convention must still get a summary. **Mitigation:** the convention is optional with the skill file as fallback (C4/D4), so `load.md`'s missing-required block never fires and the default format applies.
+- **FM-6 — Fork inheriting `5-docs` lands phase-5-incomplete.** The run-level copy-exclusion (D2) means a fork inheriting `5-docs` seeds no `run-summary.md`, so under the extended predicate (C2) its phase 5 is incomplete — a "(in progress)" tree node, a blocked review-start gate, and a resume that would roll back the seed commit. **Mitigation:** D7/C6 — `fork-pipeline.md` launches the `run-summary-writer` for the fork's `base` run when it inherits `5-docs`, so the fork produces its own summary and lands complete.
 
-**Observability.** Verification is by inspection of committed artifacts: exactly one `<run>/run-summary.md` exists at the run-folder root and is committed once the run is complete (AC1); a run with docs approved but no summary is not complete because the phase-5 predicate is unsatisfied (AC2); the summary's sections describe what changed and why and record key decisions, rejected approaches, and known limitations (AC3); on a review-N start the orchestrator's collected input contains the prior runs' summaries in run order (AC4); prior summaries are byte-identical before and after a later run (AC5); a project override yields the project's format and silence yields the default (AC6); the filename `run-summary.md` reads as a single run's summary (AC7); a fork copies no `run-summary.md` because the copy loop touches only phase folders (AC8); the default format and the writer reference no GitHub/git/tracker concept (AC9).
+**Observability.** Verification is by inspection of committed artifacts: exactly one `<run>/run-summary.md` exists at the run-folder root and is committed once the run is complete (AC1); a run with docs approved but no summary is not complete because the phase-5 predicate is unsatisfied (AC2); the summary's sections describe what changed and why and record key decisions, rejected approaches, and known limitations (AC3); on a review-N start the orchestrator's collected input contains the prior runs' summaries in run order (AC4); prior summaries are byte-identical before and after a later run (AC5); a project override yields the project's format and silence yields the default (AC6); the filename `run-summary.md` reads as a single run's summary (AC7); a fork copies no `run-summary.md` because the copy loop touches only phase folders, and a fork that inherits `5-docs` has its own freshly written `run-summary.md` and lands complete (AC8); the default format and the writer reference no GitHub/git/tracker concept (AC9).
 
 ## Risks and Open Questions
 
-**Risks** (all addressed above): resume rewriting an incomplete run's summary (FM-1, by design); run-name leakage if delivered as paths (FM-2, mitigated by content delivery); override dropping R4 guarantees (FM-3, AC6-sanctioned); ungated summary accuracy (FM-4, spec out-of-scope, mitigated by full-record grounding).
+**Risks** (all addressed above): resume rewriting an incomplete run's summary (FM-1, by design); run-name leakage if delivered as paths (FM-2, mitigated by content delivery); override dropping R4 guarantees (FM-3, AC6-sanctioned); ungated summary accuracy (FM-4, spec out-of-scope, mitigated by full-record grounding); fork inheriting `5-docs` landing incomplete (FM-6, resolved by D7/C6).
 
 **Open questions for the implementation plan** — both are wording choices already constrained here, not design gaps:
 
