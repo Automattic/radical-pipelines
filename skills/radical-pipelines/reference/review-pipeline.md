@@ -45,7 +45,18 @@ The original issue and `base/0-intent` are never rewritten. Then commit the revi
 
 Re-assert (confirm, do not change) the existing `v<N>` version label per `pipeline-versioning.md` ("Model").
 
-### 7. Return to mode dispatch, and apply run obligations
+### 7. Collect prior runs' summaries
+
+The prior runs of `review-N` are `base, review-1, …, review-(N-1)` in that order — derivable from the **Runs within a pipeline** definitions in `pipeline-versioning.md` (monotonic `N`, linear `base → review-1 → …` chain). Collect each run's `run-summary.md`.
+
+Deliver the collected summaries (in run order) as **content** before mode dispatch — this is the first step that collects across all prior runs, which is why the order is made explicit:
+
+- **Autonomous review:** pass the summaries as content in the phase-1 spawn prompts.
+- **Assisted review:** read them directly while authoring the phase-1 artifacts.
+
+Either way the summaries are passed as content, never as run-named paths, so phase-1 agents stay run-agnostic. Scope is phase 1 only; phases 2–5 are unchanged — they work from the review run's own artifacts, into which phase 1 has already absorbed the prior context.
+
+### 8. Return to mode dispatch, and apply run obligations
 
 Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch the chosen workflow for phases 1–5. The review intent is phase 0 and is mode-independent; phases run in this review run's folder.
 
