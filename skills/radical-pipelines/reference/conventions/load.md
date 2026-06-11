@@ -19,7 +19,7 @@ This information is necessary to execute the pipelines correctly, so you must lo
 | Team spawning      | How to define and launch teams of agents                       | No        |
 | Agent models       | Which model/settings each spawned agent runs on                | No        |
 | Health monitoring  | How to launch and cancel the recurring run-health loop         | Yes       |
-| Run summary format | The structure of each run's run-summary.md                     | No        |
+| Run summary format | The structure of each run's `run-summary.md`                   | No        |
 
 ## Missing conventions
 
