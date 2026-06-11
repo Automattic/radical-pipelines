@@ -46,6 +46,12 @@ Determine the parent pipeline's worktree path per the **Worktrees** convention a
 
 Commit the seeded phase folders per the **Commit format** convention.
 
-### 7. Continue normal phase work
+### 7. Produce the fork's run summary (only when inheriting `5-docs`)
+
+If the inherited phase is `5-docs`, launch a fresh `run-summary-writer` for the fork's `base` run — with the resolved summary format (project override else the skill default `reference/run-summary-format.md`), exactly as in step 6 of the phase-5 procedure — to write and commit `run-summary.md` at the fork's `base/` run-folder root. The phase-folder-only copy loop in step 5 never copies run-level files, so `run-summary.md` is structurally absent after seeding; this step produces the fork's own summary from its own inherited artifacts, satisfying the phase-5 completion predicate.
+
+For any inherited phase below `5-docs`, this step does not apply — the fork runs phase 5 (and the writer) itself via the normal flow.
+
+### 8. Continue normal phase work
 
 The new pipeline is now a regular pipeline. Continue from the phase that follows the inherited phase, or revise the inherited phase, using the assisted or autonomous workflow as chosen by the owner. Work continues in the fork's `base/` run.
