@@ -84,32 +84,34 @@ The orchestrator rebuilds the tree on demand from artifact content:
    git rev-parse <ref>:<artifacts-folder>/base/<phase>
    ```
    `<ref>` is that pipeline's branch, or the artifact-bearing repo's main branch if its branch was deleted after merging (see "Deriving lineage from artifact content"). This yields, per pipeline, an ordered sequence of `(phase, SHA)` pairs.
-3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. `base/0-intent` is identical across every pipeline of an issue (it is the issue), so it is always the shared root. Each pipeline contributes one path through the tree from its `base/` run.
+3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. The shared root of the trie is the **issue itself** — an abstract node above every pipeline's `base/0-intent`, described by its pipeline base slug, carrying no SHA.
 
 ### Rendering
 
-Render the tree as plain ASCII using box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. Each node is a phase artifact, labeled version-first as `v<N>: <phase>`. A node shared by several pipelines is labeled with the **lowest** version among them — the earliest pipeline carrying that artifact. The root `0-intent` carries no label — it's the shared starting point.
+Render the tree as plain ASCII using box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. Each node is a phase artifact, labeled version-first as `v<N>: <phase>`. A node shared by several pipelines is labeled with the **lowest** version among them — the earliest pipeline carrying that artifact.
 
 Example:
 
 ```
-0-intent
-├── v1: 1-spec
-│   ├── v1: 2-design-doc
-│   │   └── v1: 3-plan → 4-code → 5-docs  [merged]
-│   └── v2: 2-design-doc
-│       ├── v2: 3-plan (in progress)
-│       └── v3: 3-plan → 4-code (in progress)
-└── v4: 1-spec
-    └── v4: 2-design-doc → 3-plan (in progress)
+#<pipeline-base-slug>
+├── v1: 0-intent
+│   ├── v1: 1-spec
+│   │   ├── v1: 2-design-doc
+│   │   │   └── v1: 3-plan → 4-code → 5-docs  [merged]
+│   │   └── v2: 2-design-doc
+│   │       ├── v2: 3-plan (in progress)
+│   │       └── v3: 3-plan → 4-code (in progress)
+│   └── v4: 1-spec
+│       └── v4: 2-design-doc → 3-plan (in progress)
+└── v5: 0-intent → 1-spec → 2-design-doc (in progress)
 ```
 
 Reading conventions:
 
 - A pipeline's **completed phase** is the deepest labeled node whose **Per-phase completion** predicate is satisfied. v1 has completed all five phases (and is merged); v2's deepest node is `3-plan` but the predicate is not yet satisfied, so its completed phase is `2-design-doc` and `3-plan` is its active phase; v3's completed phase is `3-plan` and `4-code` is its active phase.
-- **Sibling nodes at the same phase have diverged** — their content differs. v1, v2, and v3 share one `1-spec` node, so all three carry the same spec. v4 has its own `1-spec` node branching straight off `0-intent`: its spec differs from v1's (for instance, v4 forked from v1 and revised the spec).
-- What a pipeline **shares** is every ancestor node up to the root; those phases are byte-identical to the pipelines it shares them with. v2 shares `v1: 1-spec` and `0-intent`; v3 shares everything v2 shares plus `v2: 2-design-doc`; v4 shares only `0-intent` with the rest.
-- A linear chain of phases held by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` above).
+- **Sibling nodes at the same phase have diverged** — their content differs. v1, v2, and v3 share one `1-spec` node, so all three carry the same spec. v4 has its own `1-spec` node branching straight off the shared `v1: 0-intent`: its spec differs from v1's (for instance, v4 forked from v1 and revised the spec). v5 diverges one level higher still — it revised the **intent**, so it branches at the issue root with its own `v5: 0-intent`.
+- What a pipeline **shares** is every ancestor node up to the root; those phases are byte-identical to the pipelines it shares them with. v2 shares `v1: 1-spec` and `v1: 0-intent`; v3 shares everything v2 shares plus `v2: 2-design-doc`; v4 shares only `v1: 0-intent`; v5 shares only the issue root — its intent differs from every other pipeline's.
+- A linear chain of phases held by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` and `v5: 0-intent → 1-spec → 2-design-doc` above).
 - `(in progress)` annotates the trailing node when its **Per-phase completion** predicate isn't yet satisfied. It signals that work has started but not finished.
 - `[merged]` annotates a pipeline that has been merged into the project's main branch. Phase completion can be inferred from the predicate; "merged into main" cannot.
 - A pipeline's runs are reported as a linear chain annotated on the pipeline, not as tree nodes: `base → review-1-<short-description> → review-2-<short-description> …`, each annotated with its own state.
