@@ -22,9 +22,18 @@ Create the folder following the **Artifact folder** convention.
 
 Phase folders live under a run folder, and the first run is always `base` (see **Runs within a pipeline** in `pipeline-versioning.md`). Create the `base/` run folder and the phase 0 subfolder under it (`base/0-intent/`) inside the artifact folder. Write the intent to `<artifacts-folder>/base/0-intent/intent.md`.
 
-- Adapt the issue content into the intent that seeds the subsequent phases, following the schema and authoring discipline in `intent-format.md`.
-- If the issue has screenshots or other assets, download them (using the access mechanism captured by the **Issues** convention) and place them in `<artifacts-folder>/base/0-intent/`. Reference them explicitly in `intent.md` using relative paths.
-- The phase 0 subfolder must be self-contained — once committed, agents must not need to reach back to the issue source to understand the issue.
+Read the issue in full through the **Issues** convention: body, all comments, in-tracker cross-references, external links, and attachments.
+
+**If** the body is already in the canonical format of `intent-format.md` and the issue has nothing else — no comments, references, links, or attachments: write it to `intent.md` adding only the provenance header (per `intent-format.md`) and proceed to step 5.
+
+**Otherwise:**
+
+- **Fetch external links** with the orchestrator's own web-access tooling. Follow references one level only — deeper exploration belongs to phase 1. Note unreadable references in the draft (e.g. under Context).
+- **Synthesize** the material into the intent following the schema and authoring discipline in `intent-format.md`: fold in the substance of comments, references, and pages (links remain convenience pointers), capture the latest agreed state of the conversation, and record unsettled proposals from any participant as open Assumptions.
+- **Download screenshots or other assets** into `<artifacts-folder>/base/0-intent/` and reference them in `intent.md` by relative path.
+- **Show the rendered draft** (with provenance header) to the owner and write `intent.md` only on explicit approval.
+
+The phase 0 subfolder must be self-contained — once committed, agents must not need to reach back to the issue source to understand the issue.
 
 ### 5. Commit
 
