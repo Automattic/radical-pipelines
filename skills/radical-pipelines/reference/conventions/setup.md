@@ -63,7 +63,7 @@ Suggested default: `<commit-description> (<agent-name>)`.
 
 Where the project tracks issues. Each pipeline pulls its initial intent from an issue, so the orchestrator needs a way to read, comment on, and update them.
 
-Ask the owner which tracker is used (GitHub Issues, Linear, Jira, GitLab, plain Markdown files in a folder, etc.) and how to access it (CLI like `gh`, MCP server, API token, etc.).
+Ask the owner which issue tracker is used (GitHub, Linear, Jira, GitLab, plain Markdown files in a folder, etc.) and how to access it (CLI, MCP server, API token, etc.).
 
 ### Worktrees (required)
 

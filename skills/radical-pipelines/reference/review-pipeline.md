@@ -36,7 +36,7 @@ Determine the run name `review-N-<short-description>` per the **Runs within a pi
 
 Author the review intent at `review-N-<short-description>/0-intent/intent.md` the same way the base intent is orchestrator-authored (the `create-pipeline.md` step-4 pattern), following the schema and authoring discipline in `intent-format.md`. Beyond that shared schema, a review intent carries these review-only additions:
 
-- An **Origin** section, MANDATORY for reviews and unique to them — issue and base intents have none. It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of the owner's change, GitHub comment, or PR review) PLUS a convenience link, so a later phase reading only this review intent understands what prompted it without following the link.
+- An **Origin** section, MANDATORY for reviews and unique to them — issue and base intents have none. It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of the owner's change, a PR comment, a PR review, etc) PLUS a convenience link, so a later phase reading only this review intent understands what prompted it without following the link.
 - Any source assets (e.g. images from the source) are placed in this review run's `0-intent/` folder and referenced relatively, the same as issue and base intents.
 
 The original issue and `base/0-intent` are never rewritten. Then commit the review intent per the **Commit format** convention.
