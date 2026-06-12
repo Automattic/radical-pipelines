@@ -181,6 +181,15 @@ The deterministic verification gates the code and docs phases must pass — exac
 - A **name** (e.g. `tests`, `lint`).
 - The **exact literal command** to run (e.g. `npm test`).
 - The applicable **phase(s)** — `code`, `docs`, or both. These are the only valid phase targets.
+- An optional **level** — `writer` or `reviewer` — naming which code-phase role runs the gate; ask this only for gates whose phase(s) include `code`; when unset, the gate applies to both roles. Leveling an expensive suite `reviewer` runs it on the reviewer's side instead of on every writer commit — the owner's decision criterion.
+
+The table below shows the recommended shape; it is illustrative, not a mandated block or parser input:
+
+| Name     | Command           | Phase | Level    |
+| -------- | ----------------- | ----- | -------- |
+| tests    | `run-tests`       | code  | writer   |
+| typecheck| `check-types`     | code  | reviewer |
+| lint     | `run-lint`        | both  |          |
 
 **"None" is a complete, valid answer.** An absent guardrails declaration is valid. If the project has no command gates, capture nothing here and move on.
 
