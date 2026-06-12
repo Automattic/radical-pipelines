@@ -11,7 +11,7 @@ A fresh `doc-reviewer` is spawned **once per batch**, after every doc-writer in 
 
 ### 1. Gather context
 
-1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch, the base ref to diff against, and the rejection iteration number N (only used if this iteration ends in rejection).
+1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch, the base ref to diff against, and the rejection iteration number N (only used if this iteration ends in rejection), and the summary format to follow when writing the summary on approval.
 2. Read `<artifacts-folder>/3-plan/doc-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the docs must convey accurately.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the docs must convey accurately.
@@ -80,9 +80,11 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 **Expected:** ...
 ```
 
+On an **approved** verdict, also write `<artifacts-folder>/5-docs/docs-summary.md` following the summary format from your launch prompt.
+
 ### 5. Commit and report
 
-1. Commit the file you wrote in step 4 using the host project's commit format.
+1. On **approved**, commit `docs-review-approved.md`, `docs-summary.md`, and any assets it referenced together in a single commit using the host project's commit format. On **rejected**, commit the single rejection file using the host project's commit format.
 2. On **approved**, send a message to the orchestrator confirming the batch is approved.
 3. On **rejected**, send a message to the orchestrator listing the **deduplicated set of task IDs that have issues**. The orchestrator re-dispatches only those tasks; fresh doc-writers will read your review file and address the issues scoped to their task.
 
