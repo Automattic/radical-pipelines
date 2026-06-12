@@ -185,11 +185,11 @@ The deterministic verification gates the code and docs phases must pass — exac
 
 The table below shows the recommended shape; it is illustrative, not a mandated block or parser input:
 
-| Name     | Command           | Phase | Level    |
-| -------- | ----------------- | ----- | -------- |
-| tests    | `run-tests`       | code  | writer   |
-| typecheck| `check-types`     | code  | reviewer |
-| lint     | `run-lint`        | both  |          |
+| Name      | Command           | Phase | Level    |
+| --------- | ----------------- | ----- | -------- |
+| typecheck | `check-types`     | code  | writer   |
+| tests     | `run-tests`       | code  | reviewer |
+| lint      | `run-lint`        | both  |          |
 
 **"None" is a complete, valid answer.** An absent guardrails declaration is valid. If the project has no command gates, capture nothing here and move on.
 
