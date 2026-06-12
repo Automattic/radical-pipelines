@@ -14,6 +14,7 @@ Outputs:
 - Documentation updates (READMEs, guides, examples, configuration descriptions, changelogs, contributor docs, internal conventions, non-symbol inline narrative) committed on the pipeline branch.
 - `<artifacts-folder>/5-docs/docs-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …).
 - `<artifacts-folder>/5-docs/docs-review-approved.md` (single, unnumbered file written on approval).
+- `<artifacts-folder>/5-docs/docs-summary.md` (written by the `doc-reviewer` on approval, one per run).
 
 ## Decisions
 
@@ -33,9 +34,9 @@ This phase has no per-phase decisions.
 3. For each task in the batch, in order:
    1. Launch a fresh `doc-writer` with the verbatim task block (Goal / Audience / Files / Sections-scope / Depends on / Traces to / Acceptance) and, if this is a re-dispatch on rejection, the path to the latest `docs-review-N-rejected.md` plus the issues scoped to this task.
    2. Wait for the doc-writer to commit before launching the next task. Doc-writers share the pipeline branch's single working tree, so this step is strictly sequential.
-4. After every doc-writer in the batch has committed, launch a fresh `doc-reviewer` with the list of task IDs in the batch, the base ref to diff against (the start of the current run — see the **Reviewer base ref** rule in `pipeline-versioning.md`), and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). On rejection the reviewer writes `docs-review-N-rejected.md`; on approval it writes `docs-review-approved.md` (no number — the singleton terminator).
+4. After every doc-writer in the batch has committed, launch a fresh `doc-reviewer` with the list of task IDs in the batch, the base ref to diff against (the start of the current run — see the **Reviewer base ref** rule in `pipeline-versioning.md`), the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection), and the resolved content of `summary-format.md`. On rejection the reviewer writes `docs-review-N-rejected.md`; on approval it writes `docs-review-approved.md` (no number — the singleton terminator).
 5. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 3, with N incremented for the next rejection iteration.
-6. On **approved**, verify the phase 5 completion predicate per `pipeline-versioning.md` ("Per-phase completion"): all documentation changes, every `docs-review-N-rejected.md`, and `docs-review-approved.md` are committed on the pipeline branch.
+6. On **approved**, verify the phase 5 completion predicate per `pipeline-versioning.md` ("Per-phase completion"): all documentation changes, every `docs-review-N-rejected.md`, `docs-review-approved.md`, and `5-docs/docs-summary.md` are committed on the pipeline branch.
 
 ```mermaid
 flowchart TD
