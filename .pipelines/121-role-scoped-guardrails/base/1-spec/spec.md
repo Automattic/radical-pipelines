@@ -33,7 +33,7 @@ The `code-writer` runs every gate in its role selection, exactly as each command
 
 ### R5 — Reviewer fail-fast
 
-On a review iteration where the reviewer has already found at least one rejection finding, it may reject without running any not-yet-run gate of its role selection. The run-the-judgment-checks-first, run-reviewer-guardrails-only-if-otherwise-approving ordering is load-bearing and explicit, not merely presentational.
+The reviewer runs the judgment-based checks before running its guardrail selection. Once it has at least one rejection finding, it may reject without running any not-yet-run gate of its role selection.
 
 Each deliberately skipped gate is recorded as **skipped** in the Checks table, distinguishable from a gate that was never considered or forgotten.
 
@@ -69,10 +69,10 @@ A level value outside the `{writer, reviewer}` vocabulary follows the same impli
 2. The selection rule states that, within the code phase, the writer selects gates leveled `writer` or unscoped and the reviewer selects gates leveled `reviewer` or unscoped, with neither role running the other's leveled gates.
 3. The selection rule states that level filters the code-phase selection only; the docs-phase selection is purely phase-based and never consults level, including for both-phase gates.
 4. `agents/code-writer.md` runs its role selection (writer + unscoped code-phase gates), with the existing "run every one, exactly as written, all must pass before commit" obligations applied over that selection.
-5. `agents/code-reviewer.md` selects its role selection (reviewer + unscoped code-phase gates) and runs the judgment-based checks before its guardrails; on an iteration with at least one rejection finding it may reject without running not-yet-run gates of its selection.
-6. A deliberately skipped reviewer gate is representable as skipped in the Checks table, distinct from a gate with a pass/fail result and from one that was forgotten.
+5. `agents/code-reviewer.md` selects its role selection (reviewer + unscoped code-phase gates) and runs the judgment-based checks before running its guardrail selection; once it has at least one rejection finding it may reject without running not-yet-run gates of its selection.
+6. On a rejecting iteration, the reviewer records each deliberately skipped gate of its selection as skipped in the Checks table, distinct from a gate with a pass/fail result and from a gate that is absent.
 7. On an approving iteration, every gate in the reviewer's role selection has run and passed; the reviewer cannot approve with any of its selection unrun or skipped.
 8. `reference/conventions/setup.md` asks the level per code-applicable gate as an optional field, defaulting to unscoped, and the level lands in the committed `.rp.md`.
 9. An existing `.rp.md` with level-less gates (or no Guardrails section) produces today's behavior unchanged — both roles run every applicable gate — with no migration step.
 10. A malformed/out-of-vocabulary level matches no role filter and triggers no new error path, mirroring the existing implicit handling of an unrecognized phase target.
-11. Docs-phase behavior, the two doc agents, and the docs-phase completion path are unchanged; the change touches only `reference/conventions/load.md`, `reference/conventions/setup.md`, `agents/code-writer.md`, and `agents/code-reviewer.md`.
+11. The convention and agent edits are confined to `reference/conventions/load.md`, `reference/conventions/setup.md`, `agents/code-writer.md`, and `agents/code-reviewer.md`; `agents/doc-writer.md` and `agents/doc-reviewer.md` are unchanged, so docs-phase behavior and the docs-phase completion path are preserved. (Release artifacts such as the changeset and any docs-phase output are outside this claim.)
