@@ -129,8 +129,15 @@ relative path.
   run-level outputs from the per-phase summaries. Be concrete and concise.
 ```
 
-Load-bearing content constraints (these are fixed by the design — apply verbatim,
-not paraphrased):
+The template above is authoritative: create the file with exactly that content.
+It already honors the project's minimalist writing rules (from `CLAUDE.md`) —
+fewest words that convey the meaning, no negative phrasing unless strictly
+necessary, no duplication — and matches the tone and density of
+`intent-format.md` (the file this is shaped after).
+
+The load-bearing content constraints below restate which parts of that template
+the design fixes, so a reviewer can check them directly; they do not license
+rephrasing the template:
 
 - The H1 is exactly `# The Summary Format`.
 - The omit-empty rule line is **byte-identical** to the one in
@@ -154,13 +161,6 @@ not paraphrased):
 - Both rendered H1s are named: `# Code Summary` for `4-code/code-summary.md`,
   `# Docs Summary` for `5-docs/docs-summary.md`.
 - The file ends with a single trailing newline.
-
-Honor the project's minimalist writing rules (from `CLAUDE.md`): fewest words
-that convey the meaning, no negative phrasing unless strictly necessary, no
-duplication. Match the tone and density of `intent-format.md` (the file this is
-shaped after). The exact prose of the purpose line, the authoring-discipline
-bullets, and the asset line is implementation wording; the section set, the
-omit-empty rule, the coverage statement, and the asset clause are fixed above.
 
 **Depends on:** none (first task; the source the others reference).
 
@@ -204,23 +204,37 @@ single existing approval commit. The rejected branch is untouched.
 
 **Changes:**
 
-Two edits, both within the existing workflow steps (no new step, no shape change):
+Three edits, all within the existing workflow steps (no new step, no shape change):
 
-1. **Step 4 ("Write the review") — add a write-the-summary-on-approval
+1. **Step 1 ("Gather context") — name the summary format as a launch-prompt
+   input.** Today step 1 item 1 enumerates the batch metadata the reviewer reads
+   from the launch prompt (task IDs, base ref, iteration number N), and item 5
+   separately names the guardrails as another launch-prompt input on its own line.
+   The summary format is a new launch-prompt input the reviewer consumes in step 4,
+   so it must appear in this enumeration too, or the file tells the reviewer what
+   its launch prompt carries and omits the one item step 4 relies on. Add a new
+   enumerated item naming the summary format — one short phrase (e.g. "the summary
+   format to follow when writing the summary on approval"), mirroring how the
+   guardrails input gets its own line. Name it only; do **not** restate the format
+   schema, the omit-empty rule, the coverage statement, or the asset convention —
+   those live solely in `summary-format.md`.
+
+2. **Step 4 ("Write the review") — add a write-the-summary-on-approval
    instruction.** Today step 4 has the reviewer pick the filename by verdict and
    write the review file using the given structure. Add an instruction that, on
    an **approved** verdict only, in addition to writing
    `code-review-approved.md`, the reviewer also writes
-   `<artifacts-folder>/4-code/code-summary.md` (H1 `# Code Summary`) following the
-   summary format provided in the launch prompt. State that on a **rejected**
-   verdict nothing changes — rejected iterations produce no summary. Reference the
-   format as "the summary format from your launch prompt"; do **not** restate the
-   format schema, the omit-empty rule, the coverage statement, or the asset
-   convention here — those live solely in `summary-format.md` (delivered via the
-   launch prompt). Place this as a short instruction at the end of step 4, after
-   the review-structure template, so the verdict-then-write flow reads naturally.
+   `<artifacts-folder>/4-code/code-summary.md` following the summary format from
+   its launch prompt. The existing "Approved" / "Rejected" verdict split already
+   scopes this to approval, so no separate sentence about rejected iterations is
+   needed. Reference the format as "the summary format from your launch prompt";
+   do **not** restate the format schema (including the rendered H1), the
+   omit-empty rule, the coverage statement, or the asset convention here — the
+   launch-prompt format already determines all of them. Place this as a short
+   instruction at the end of step 4, after the review-structure template, so the
+   verdict-then-write flow reads naturally.
 
-2. **Step 5 ("Commit and report") — commit both files together on approval.**
+3. **Step 5 ("Commit and report") — commit both files together on approval.**
    Today step 5.1 reads "Commit the file you wrote in step 4 using the host
    project's commit format." Change it so that on an approved verdict the reviewer
    commits **both** the approval marker and `code-summary.md` (and any assets it
@@ -237,8 +251,10 @@ Constraints:
   summary onto the reviewer's approval path, in one commit"): the wording must
   make clear both markdown files land in the **same** commit, so there is never a
   committed state with the approval marker but no summary.
-- Do not alter the review-file structure template, the verdict/filename rules, the
-  guardrail/blocker guidance, or any other step.
+- The three edits above (the new step 1 enumerated item, the end of step 4, step
+  5.1) are the only changes. Do not alter the review-file structure template, the
+  verdict/filename rules, the guardrail/blocker guidance, the existing
+  gather-context items, or any other step.
 
 **Depends on:** Task 1 (the format this step references must exist).
 
@@ -251,24 +267,30 @@ Constraints:
   files in one commit.
 
 **Acceptance (observable, testable):**
-- `agents/code-reviewer.md` step 4 instructs the reviewer, on an approved verdict
-  only, to also write `<artifacts-folder>/4-code/code-summary.md` (H1
-  `# Code Summary`) following the summary format from its launch prompt, and
-  states that a rejected verdict produces no summary.
+- `agents/code-reviewer.md` step 1's launch-prompt enumeration names the summary
+  format as a launch-prompt input the reviewer reads, alongside the existing batch
+  metadata and the guardrails input.
+- Step 4 instructs the reviewer, on an approved verdict only, to also write
+  `<artifacts-folder>/4-code/code-summary.md` following the summary format from its
+  launch prompt. The instruction names only the file path and defers everything
+  else to the launch-prompt format; it adds no separate rejected-verdict sentence
+  (the existing verdict split already scopes it to approval).
 - Step 5 instructs the reviewer, on approval, to commit the approval marker and
   `code-summary.md` together in a single commit using the host project's commit
   format; the rejected path commits the single rejection file as before.
-- The file does **not** restate the summary format schema, the omit-empty rule,
-  the coverage statement, or the asset convention; it references the launch-prompt
-  format instead.
-- No other step or guidance bullet in the file is changed.
+- The file does **not** restate the summary format schema (including the rendered
+  H1), the omit-empty rule, the coverage statement, or the asset convention; it
+  references the launch-prompt format instead.
+- No step or guidance bullet other than the new step 1 enumerated item, the end of
+  step 4, and step 5.1 is changed.
 
 ### Task 3 — `doc-reviewer`: write the summary on approval and commit it with the approval marker
 
-**Goal:** The same two changes as Task 2, mirrored for the docs phase: on
-approval the `doc-reviewer` writes `5-docs/docs-summary.md` (H1 `# Docs Summary`)
-following the launch-prompt format and commits it together with
-`docs-review-approved.md` in one commit.
+**Goal:** The same three changes as Task 2, mirrored for the docs phase: name the
+summary format as a launch-prompt input in the gather-context step, and on
+approval have the `doc-reviewer` write `5-docs/docs-summary.md` following the
+launch-prompt format and commit it together with `docs-review-approved.md` in one
+commit.
 
 **Files to change:**
 - `agents/doc-reviewer.md`
@@ -277,19 +299,25 @@ following the launch-prompt format and commits it together with
 
 Mirror Task 2 exactly, against `doc-reviewer.md`'s equivalent steps:
 
-1. **Step 4 ("Write the review")** — add the write-on-approval instruction: on an
+1. **Step 1 ("Gather context"), launch-prompt enumeration** — name the summary
+   format as a launch-prompt input the reviewer reads, one short phrase mirroring
+   how the guardrails input is named, alongside the existing batch metadata. Name
+   it only; do not restate schema, omit-empty rule, coverage statement, or asset
+   convention.
+2. **Step 4 ("Write the review")** — add the write-on-approval instruction: on an
    approved verdict only, also write `<artifacts-folder>/5-docs/docs-summary.md`
-   (H1 `# Docs Summary`) following the summary format from the launch prompt; a
-   rejected verdict produces no summary. Reference the launch-prompt format; do
-   not restate schema, omit-empty rule, coverage statement, or asset convention.
-2. **Step 5 ("Commit and report"), step 5.1** — on approval commit
+   following the summary format from the launch prompt. The existing verdict split
+   already scopes this to approval, so no separate rejected-verdict sentence is
+   needed. Reference the launch-prompt format; do not restate schema (including
+   the rendered H1), omit-empty rule, coverage statement, or asset convention.
+3. **Step 5 ("Commit and report"), step 5.1** — on approval commit
    `docs-review-approved.md` and `docs-summary.md` (and any assets) together in
    one commit; on rejection commit the single rejection file as today. Steps 5.2
    and 5.3 unchanged.
 
 Constraints: identical to Task 2 — minimalist wording, no restatement of the
-format or coverage statement, single-commit coupling explicit, no other step
-altered.
+format or coverage statement, single-commit coupling explicit; the three edits
+above are the only changes, no other step altered.
 
 **Depends on:** Task 1.
 
@@ -301,15 +329,19 @@ altered.
   mirrored for the docs phase."
 
 **Acceptance (observable, testable):**
-- `agents/doc-reviewer.md` step 4 instructs the reviewer, on an approved verdict
-  only, to also write `<artifacts-folder>/5-docs/docs-summary.md` (H1
-  `# Docs Summary`) following the launch-prompt format, and states a rejected
-  verdict produces no summary.
+- `agents/doc-reviewer.md` step 1's launch-prompt enumeration names the summary
+  format as a launch-prompt input the reviewer reads, alongside the existing batch
+  metadata.
+- Step 4 instructs the reviewer, on an approved verdict only, to also write
+  `<artifacts-folder>/5-docs/docs-summary.md` following the launch-prompt format.
+  The instruction names only the file path and defers everything else to the
+  launch-prompt format; it adds no separate rejected-verdict sentence.
 - Step 5 instructs committing `docs-review-approved.md` and `docs-summary.md`
   together in one commit on approval; the rejected path is unchanged.
-- The file does not restate the format schema, omit-empty rule, coverage
-  statement, or asset convention.
-- No other step or guidance bullet is changed.
+- The file does not restate the format schema (including the rendered H1),
+  omit-empty rule, coverage statement, or asset convention.
+- No step or guidance bullet other than step 1's launch-prompt enumeration, the
+  end of step 4, and step 5.1 is changed.
 
 ### Task 4 — Phase 4 reference: add the summary to Outputs, the launch prompt, and the completion predicate
 
@@ -333,10 +365,12 @@ Three edits:
    "with the list of task IDs in the batch, the base ref to diff against …, and
    the rejection iteration number N." Add one launch-prompt item: **the resolved
    content of `summary-format.md`** (read by the orchestrator and passed as
-   resolved content, the same way every other resolved item reaches an agent).
-   State that the format is included in **every** reviewer launch because the
-   verdict is not known in advance. Name it as a launch-prompt item alongside the
-   base ref and iteration number; do not restate the format itself.
+   resolved content, the same way every other resolved item reaches an agent),
+   included on every reviewer launch alongside the base ref and iteration number.
+   Mandate only that operational content — the resolved format is a launch-prompt
+   item on every launch; do not add a rationale clause explaining why (e.g.
+   "because the verdict is not known in advance"), and do not restate the format
+   itself.
 
 3. **Step 6 (completion predicate)** — today step 6 lists "every
    `code-review-N-rejected.md`, and `code-review-approved.md` are committed." Add
@@ -371,8 +405,8 @@ Constraints:
 - The Outputs list in `4 - code.md` includes `<artifacts-folder>/4-code/code-summary.md`.
 - Step 4 instructs the orchestrator to include the resolved content of
   `summary-format.md` in every `code-reviewer` launch prompt, alongside the task
-  IDs, base ref, and iteration number, and states it is included on every launch
-  because the verdict is unknown in advance.
+  IDs, base ref, and iteration number; it adds no rationale clause explaining why
+  the format is sent on every launch.
 - Step 6's committed-artifacts list includes `4-code/code-summary.md`, joined by
   "and".
 - The file does not inline or paraphrase the summary format schema; it references
@@ -397,9 +431,10 @@ Mirror Task 4 against `5 - docs.md`:
 1. **Outputs list** — add `<artifacts-folder>/5-docs/docs-summary.md` (written by
    the `doc-reviewer` on approval, one per run).
 2. **Step 4 (launch the `doc-reviewer`)** — add the resolved content of
-   `summary-format.md` as a launch-prompt item, included on every launch because
-   the verdict is unknown in advance, alongside the existing task IDs, base ref,
-   and iteration number.
+   `summary-format.md` as a launch-prompt item, included on every launch alongside
+   the existing task IDs, base ref, and iteration number. Mandate only that
+   operational content; do not add a rationale clause explaining why it is sent on
+   every launch.
 3. **Step 6 (completion predicate)** — add `5-docs/docs-summary.md` to the
    committed-artifacts list, joined with "and."
 
@@ -420,7 +455,8 @@ section, and the agents table untouched.
 - The Outputs list in `5 - docs.md` includes `<artifacts-folder>/5-docs/docs-summary.md`.
 - Step 4 instructs the orchestrator to include the resolved content of
   `summary-format.md` in every `doc-reviewer` launch prompt, alongside the task
-  IDs, base ref, and iteration number, included on every launch.
+  IDs, base ref, and iteration number; it adds no rationale clause explaining why
+  the format is sent on every launch.
 - Step 6's committed-artifacts list includes `5-docs/docs-summary.md`, joined by
   "and".
 - The file references `summary-format.md` and does not inline the format.
