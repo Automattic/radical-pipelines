@@ -23,11 +23,11 @@ This information is necessary to execute the pipelines correctly, so you must lo
 
 ## Guardrails
 
-A guardrail is an exact command, judged pass/fail solely by its exit code (0 = pass, any non-zero = fail), mandatory within the phase(s) it applies to. "Run the tests" is not a guardrail; `npm test` is. The only valid phase targets are `code` and `docs`; a guardrail may apply to one or both.
+A guardrail is an exact command, judged pass/fail solely by its exit code (0 = pass, any non-zero = fail), mandatory within the phase(s) it applies to. "Run the tests" is not a guardrail; `npm test` is. The only valid phase targets are `code` and `docs`; a guardrail may apply to one or both. A guardrail may also carry an optional level — `writer` or `reviewer` — naming which code-phase role runs it; a guardrail with no level applies to both roles.
 
 An absent or empty Guardrails declaration means no command gates — a valid, complete state, never a blocker and never a warning.
 
-To load the guardrails for a phase, select the guardrails whose phase(s) include the current phase; an empty selection means run none and proceed.
+To load the guardrails for a phase, select the guardrails whose phase(s) include the current phase. Within the code phase, apply a second filter: the writer selects gates leveled `writer` or unscoped; the reviewer selects gates leveled `reviewer` or unscoped. The docs-phase selection never consults level; a both-phase gate carrying a level still runs for both doc agents. An empty selection after these filters means run none and proceed.
 
 ## Missing conventions
 
