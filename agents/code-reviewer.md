@@ -16,7 +16,8 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Read the guardrails applicable to the code phase — the code-tagged guardrails you must run during review.
-6. Inspect the diff for the batch (base ref → current HEAD).
+6. Read the summary format to follow when writing the summary on approval.
+7. Inspect the diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
 
@@ -79,9 +80,11 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 **Expected:** ...
 ```
 
+On an **approved** verdict, also write `<artifacts-folder>/4-code/code-summary.md` following the summary format from your launch prompt.
+
 ### 5. Commit and report
 
-1. Commit the file you wrote in step 4 using the host project's commit format.
+1. On **approved**, commit `code-review-approved.md`, `code-summary.md`, and any assets it referenced together in a single commit using the host project's commit format. On **rejected**, commit the single rejection file using the host project's commit format.
 2. On **approved**, send a message to the orchestrator confirming the batch is approved.
 3. On **rejected**, send a message to the orchestrator listing the **deduplicated set of task IDs that have issues**. The orchestrator re-dispatches only those tasks; fresh code-writers will read your review file and address the issues scoped to their task.
 
