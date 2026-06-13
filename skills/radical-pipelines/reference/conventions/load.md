@@ -19,15 +19,17 @@ This information is necessary to execute the pipelines correctly, so you must lo
 | Team spawning      | How to define and launch teams of agents                                                                            | No        |
 | Agent models       | Which model/settings each spawned agent runs on                                                                     | No        |
 | Health monitoring  | How to launch and cancel the recurring run-health loop                                                              | Yes       |
-| Guardrails         | The deterministic verification gates — exact commands judged pass/fail by exit code — the code/doc phases must pass | No        |
+| Guardrails         | The deterministic verification gates — exact commands judged pass/fail by exit code                                 | No        |
 
 ## Guardrails
 
-A guardrail is an exact command, judged pass/fail solely by its exit code (0 = pass, any non-zero = fail), mandatory within the phase(s) it applies to. "Run the tests" is not a guardrail; `npm test` is. The only valid phase targets are `code` and `docs`; a guardrail may apply to one or both. A guardrail may also carry an optional level — `writer` or `reviewer` — naming which code-phase role runs it; a guardrail with no level applies to both roles.
+A guardrail is an exact command, judged pass/fail solely by its exit code (0 = pass, any non-zero = fail), and mandatory for every gate-running agent that selects it. "Run the tests" is not a guardrail; `npm test` is. A guardrail may optionally name one or more gate-running agents; a guardrail that names no agents runs for every gate-running agent. This is a load-level fact: whether no Agents column exists or an Agents cell is blank, the result is the same — all agents.
 
 An absent or empty Guardrails declaration means no command gates — a valid, complete state, never a blocker and never a warning.
 
-To load the guardrails for a phase, select the guardrails whose phase(s) include the current phase. Within the code phase, apply a second filter: the writer selects gates leveled `writer` or unscoped; the reviewer selects gates leveled `reviewer` or unscoped. The docs-phase selection never consults level; a both-phase gate carrying a level still runs for both doc agents. An empty selection after these filters means run none and proceed.
+The gate-running agents are `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer`; this enumeration is load-bearing — adding a future gate-running agent updates it. Each agent selects the guardrails that name it plus the guardrails that name no agents. Phase plays no part in this selection. An empty selection means run none and proceed. A guardrail naming only agents outside this set is selected by no current agent and is inert until such an agent exists; this causes no error, blocker, or warning.
+
+A **writer-type** agent produces commits — it runs every gate in its selection exactly as each command is written, all passing before each commit. A **reviewer-type** agent issues verdicts — it runs its judgment-based checks first, may fail-fast (rejecting without running not-yet-run gates of its selection, recording each as skipped), and approves only when every gate in its selection has run and passed in that same iteration, each instance fresh and stateless. An agent is writer-type if it commits work and reviewer-type if it reviews it.
 
 ## Missing conventions
 
