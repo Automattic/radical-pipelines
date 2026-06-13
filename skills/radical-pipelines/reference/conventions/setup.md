@@ -170,7 +170,7 @@ Capture:
 
 ### Guardrails
 
-The deterministic verification gates the code and docs phases must pass — exact commands, judged pass/fail by exit code.
+The deterministic verification gates — exact commands, judged pass/fail by exit code.
 
 **Why they matter.** Guardrails are backpressure. They are objective gates that reject incomplete work, so the agent has to produce concrete evidence — `tests: pass, lint: pass` — instead of "I think it works," and keeps iterating until every deterministic gate passes. Without them, "done" is a claim; with them, it is a verified state.
 
@@ -180,16 +180,15 @@ The deterministic verification gates the code and docs phases must pass — exac
 
 - A **name** (e.g. `tests`, `lint`).
 - The **exact literal command** to run (e.g. `npm test`).
-- The applicable **phase(s)** — `code`, `docs`, or both. These are the only valid phase targets.
-- An optional **level** — `writer` or `reviewer` — naming which code-phase role runs the gate; ask this only for gates whose phase(s) include `code`; when unset, the gate applies to both roles. Leveling an expensive suite `reviewer` runs it on the reviewer's side instead of on every writer commit — the owner's decision criterion.
+- The optional **agents** that run the gate — one or more of `code-writer`, `code-reviewer`, `doc-writer`, `doc-reviewer`; asked for every gate. When unset, the gate runs for every gate-running agent, doc agents included — so name the agents of any code-specific or expensive gate deliberately. Naming only `code-reviewer`, for example, runs an expensive suite on the reviewer's side instead of on every writer commit — the owner's decision criterion.
 
 The table below shows the recommended shape; it is illustrative, not a mandated block or parser input:
 
-| Name      | Command           | Phase | Level    |
-| --------- | ----------------- | ----- | -------- |
-| typecheck | `check-types`     | code  | writer   |
-| tests     | `run-tests`       | code  | reviewer |
-| lint      | `run-lint`        | both  |          |
+| Name      | Command       | Agents          |
+| --------- | ------------- | --------------- |
+| typecheck | `check-types` | `code-writer`   |
+| tests     | `run-tests`   | `code-reviewer` |
+| lint      | `run-lint`    |                 |
 
 **"None" is a complete, valid answer.** An absent guardrails declaration is valid. If the project has no command gates, capture nothing here and move on.
 
