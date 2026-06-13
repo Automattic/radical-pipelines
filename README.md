@@ -109,7 +109,7 @@ This routes through the single Pi manifest (`package.json` at the repo root), wh
 The package installs:
 
 - the `radical-pipelines` skill;
-- phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer` (phase 0 is the intent, an input rather than an agent-produced artifact, so it has no agent profile);
+- phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer-tdd`, `code-writer-e2e`, `code-reviewer`, `doc-writer`, and `doc-reviewer` (phase 0 is the intent, an input rather than an agent-produced artifact, so it has no agent profile);
 - bundled `pi-teams`, `@zenobius/pi-worktrees`, and `@pi-agents/loop` Pi resources.
 
 During package development in this repository, install dependencies once from the repository root and then install the local path:

@@ -180,13 +180,13 @@ The deterministic verification gates — exact commands, judged pass/fail by exi
 
 - A **name** (e.g. `tests`, `lint`).
 - The **exact literal command** to run (e.g. `npm test`).
-- The optional **agents** that run the gate — one or more of `code-writer`, `code-reviewer`, `doc-writer`, `doc-reviewer`; asked for every gate. When unset, the gate runs for every gate-running agent, doc agents included — so name the agents of any code-specific or expensive gate deliberately. Naming only `code-reviewer`, for example, runs an expensive suite on the reviewer's side instead of on every writer commit — the owner's decision criterion.
+- The optional **agents** that run the gate — one or more of `code-writer-tdd`, `code-writer-e2e`, `code-reviewer`, `doc-writer`, `doc-reviewer`; asked for every gate. When unset, the gate runs for every gate-running agent, doc agents included — so name the agents of any code-specific or expensive gate deliberately. Naming only `code-reviewer`, for example, runs an expensive suite on the reviewer's side instead of on every writer commit — the owner's decision criterion.
 
 The table below shows the recommended shape; it is illustrative, not a mandated block or parser input:
 
 | Name      | Command       | Agents          |
 | --------- | ------------- | --------------- |
-| typecheck | `check-types` | `code-writer`   |
+| typecheck | `check-types` | `code-writer-tdd`   |
 | tests     | `run-tests`   | `code-reviewer` |
 | lint      | `run-lint`    |                 |
 
