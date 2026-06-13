@@ -15,7 +15,7 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 2. Read `<artifacts-folder>/3-plan/code-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
-5. Read the code-phase guardrails leveled `reviewer` or unscoped — the gates you must run during review.
+5. Read the guardrails that name `code-reviewer` or name no agents — the gates you must run during review.
 6. Inspect the diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
@@ -38,7 +38,7 @@ If any task in the batch changes user-observable behavior — UI, CLI output, ge
 
 This step runs only after the step-2 review checks and the step-3 behavior verification, so judgment-based checks always precede the guardrail selection.
 
-Run every gate of the reviewer's selection (the code-phase guardrails leveled `reviewer` or unscoped), exactly as each command is written. Record each gate and its result in the Checks table. Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
+Run every gate of the reviewer's selection (the guardrails that name `code-reviewer` or name no agents), exactly as each command is written. Record each gate and its result in the Checks table. Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
 
 Once you have at least one rejection finding you may reject without running any not-yet-run gate of your selection; record each deliberately skipped gate as **skipped** in the Checks table. You may also choose to run gates while rejecting.
 
@@ -107,7 +107,7 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 - **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the code — they are not failures.
 - **Do NOT rewrite code or tests.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan or the design.** Those phases have been approved. Flag deviations from them, not the plan or design themselves.
-- **Run the guardrails.** Don't just read the code. A review without verification evidence is not a review. Run every gate in the reviewer's selection (the code-phase guardrails leveled `reviewer` or unscoped) per step 4, including its fail-fast permission and approval guarantee. If your selection is empty, run none and proceed — that is not a blocker and warrants no warning.
+- **Run the guardrails.** Don't just read the code. A review without verification evidence is not a review. Run every gate in the reviewer's selection (the guardrails that name `code-reviewer` or name no agents) per step 4, including its fail-fast permission and approval guarantee. If your selection is empty, run none and proceed — that is not a blocker and warrants no warning.
 - **The outcome model is two questions: did the command execute? and did the gate pass?** They sort every result in the reviewer's selection:
   - **The reviewer's selection is empty** — run none and proceed. Not a blocker, no warning.
   - **A declared gate of the reviewer's selection cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol. This is the drift guard; it triggers only when an attempted gate cannot run, never when no gates are declared. A skipped gate is never attempted, so fail-fast cannot manufacture a false drift blocker.
