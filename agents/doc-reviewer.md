@@ -17,7 +17,8 @@ A fresh `doc-reviewer` is spawned **once per batch**, after every doc-writer in 
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the docs must convey accurately.
 5. Read the shipped code from phase 4 — the *what* every concrete claim in the docs must match.
 6. Read the host project's documentation convention.
-7. Inspect the doc diff for the batch (base ref → current HEAD).
+7. Read the guardrails that name `doc-reviewer` or name no agents — the gates you must run during review.
+8. Inspect the doc diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
 
@@ -30,13 +31,22 @@ Check, for the tasks in this batch:
 - **Drift sweep** — does the batch leave any surface named by `doc-plan.md` with stale references to the old behavior? Did the code introduce any public surface that no task in `doc-plan.md` documents?
 - **Doc-plan adherence** — no scope creep beyond `doc-plan.md`; no work on tasks not in this batch.
 - **Convention compliance** — host project's documentation conventions (voice, structure, formatting, cross-linking).
-- **Docs-phase guardrails** — run every guardrail applicable to the docs phase exactly as its command is written, and record each in the Checks table. Many projects tag none; in that case, the accuracy spot-check in step 3 is the sole gate.
 
 ### 3. Accuracy spot-check
 
 For at least one concrete claim per task — a signature, an example, a configuration key, a path, a cross-link — verify the claim against the shipped code. An example that looks right but does not actually run is an issue. A signature that names a parameter the code does not have is an issue. A spot-check claim without evidence is not a spot-check — either produce the evidence or reject the batch.
 
-### 4. Write the review
+### 4. Run the reviewer guardrail selection
+
+This step runs only after the step-2 review checks and the step-3 accuracy spot-check, so judgment-based checks always precede the guardrail selection.
+
+Run every gate of the reviewer's selection (the guardrails that name `doc-reviewer` or name no agents), exactly as each command is written. Record each gate and its result in the Checks table. Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
+
+Once you have at least one rejection finding you may reject without running any not-yet-run gate of your selection; record each deliberately skipped gate as **skipped** in the Checks table. You may also choose to run gates while rejecting.
+
+You approve only when every gate in your selection has run and passed in this iteration. No gate in your selection may be unrun or skipped on an approving iteration. Each reviewer instance is fresh and stateless — there is no cross-iteration caching of gate results.
+
+### 5. Write the review
 
 Decide your verdict first, then pick the filename:
 
@@ -60,6 +70,10 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 
 ## Checks
 
+<!-- One row per gate in the reviewer's selection. Result: pass | fail | skipped.
+     A skipped row shows the gate's literal command but the command was not run.
+     A forgotten gate is an absent row; a deliberately skipped gate is a present skipped row;
+     a run gate is a present pass/fail row. -->
 | Check | Command | Result |
 | ----- | ------- | ------ |
 | ...   | ...     | ...    |
@@ -80,9 +94,9 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 **Expected:** ...
 ```
 
-### 5. Commit and report
+### 6. Commit and report
 
-1. Commit the file you wrote in step 4 using the host project's commit format.
+1. Commit the file you wrote in step 5 using the host project's commit format.
 2. On **approved**, send a message to the orchestrator confirming the batch is approved.
 3. On **rejected**, send a message to the orchestrator listing the **deduplicated set of task IDs that have issues**. The orchestrator re-dispatches only those tasks; fresh doc-writers will read your review file and address the issues scoped to their task.
 
@@ -95,5 +109,9 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 - **Reject liberally.** Any real inaccuracy or coverage gap is worth rejecting for. Rejections improve the docs — they are not failures.
 - **Do NOT rewrite the docs.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan, spec, or design.** Those phases have been approved. Flag deviations, not the artifacts themselves.
-- **Run the docs-phase guardrails if any exist.** Do not just read the docs. Run every docs-phase guardrail; a review without their evidence is not a review. If none are tagged, the accuracy spot-check is your only evidence — produce it.
-- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, etc.) go in a rejection verdict, not a blocker. The model for the docs-phase guardrails is two questions: **did the command execute?** and **did the gate pass?** When no docs-phase guardrails apply (the selection is empty), run none and proceed — the accuracy spot-check carries the review; that is not a blocker. When a **declared** docs-phase guardrail's command **cannot execute** (it does not resolve or run — a missing binary, a renamed script), that **is** a blocker. A docs-phase guardrail that runs and exits non-zero is a normal rejection finding, not a blocker. Otherwise reserve blockers for broken inputs — for example, `doc-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
+- **Run the guardrails.** Don't just read the docs. A review without verification evidence is not a review. Run every gate in the reviewer's selection (the guardrails that name `doc-reviewer` or name no agents) per step 4, including its fail-fast permission and approval guarantee. If your selection is empty, the accuracy spot-check is your only evidence — produce it; that is not a blocker and warrants no warning.
+- **The outcome model is two questions: did the command execute? and did the gate pass?** They sort every result in the reviewer's selection:
+  - **The reviewer's selection is empty** — run none and proceed. The accuracy spot-check carries the review; that is not a blocker, no warning.
+  - **A declared gate of the reviewer's selection cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol. This is the drift guard; it triggers only when an attempted gate cannot run, never when no gates are declared. A skipped gate is never attempted, so fail-fast cannot manufacture a false drift blocker.
+  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is a normal review finding: it belongs in a rejection verdict, not a blocker.
+- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, a gate in the reviewer's selection that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `doc-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; a declared gate of the reviewer's selection cannot execute. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
