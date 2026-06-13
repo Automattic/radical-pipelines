@@ -80,7 +80,7 @@ The phase-4 reference (`autonomous-phases/4 - code.md`) is updated so the orches
 
 ### R10 — Assisted phase-3 consistency
 
-The assisted phase-3 reference (`assisted-phases/3 - plan.md`) gains the two new planner sections (required-test-commands and e2e test plan) plus the matching self-checks, and inverts its test-planning rules with the same boundary as R3. Because the assisted reviewer is the owner and the flow is owner-driven Q&A, the required-test-command execution validation maps to that owner-driven flow; the assisted path must carry an equivalent validation expectation (the exact mechanism is a design detail). Incidental singular-`code-writer` mentions across the assisted phase-2 and phase-3 references that read stale after the split are reconciled with the two-writer reality. The assisted code and docs phases do not exist and are untouched.
+The assisted phase-3 reference (`assisted-phases/3 - plan.md`) gains the two new planner sections (required-test-commands and e2e test plan) plus the matching self-checks, and inverts its test-planning rules with the same boundary as R3. Because the assisted reviewer is the owner and the flow is owner-driven Q&A, the required-test-command execution validation maps to that owner-driven flow; the assisted path must carry an equivalent validation expectation (the exact mechanism is a design detail). Singular-`code-writer` mentions that read stale after the split are reconciled with the two-writer reality across the assisted phase-2 and phase-3 references and the repository's human-facing agent roster in `README.md`. The assisted code and docs phases do not exist and are untouched.
 
 ## Out of Scope
 
@@ -97,5 +97,5 @@ The assisted phase-3 reference (`assisted-phases/3 - plan.md`) gains the two new
 4. code-reviewer.md step 3 retains its free-form verification and evidence text verbatim and adds re-driving the planned e2e flows.
 5. The load.md gate-running enumeration and the setup.md Agents-field list both name the two new writers and not the old `code-writer`, and they agree with each other.
 6. `4 - code.md` dispatches by task type (two writer rows; type-conditional launch); no required-agents table row or step still names a single `code-writer`; the table no longer attributes behavior verification to the writer.
-7. `assisted-phases/3 - plan.md` carries the two new planner sections and inverted test-planning rules; no live skill file (excluding `.pipelines/` artifacts and the project `.rp.md`) still names `code-writer` in a way that contradicts the split.
+7. `assisted-phases/3 - plan.md` carries the two new planner sections and inverted test-planning rules; no live skill file (excluding `.pipelines/` artifacts and the project `.rp.md`) still names `code-writer` in a way that contradicts the split — a roster or role mention that presents `code-writer` as a current agent (e.g., `README.md`'s shipped-agent roster) is a violation, while a purely illustrative example that does not present it as a current agent is not.
 8. No migration or backward-compatibility text is introduced anywhere.
