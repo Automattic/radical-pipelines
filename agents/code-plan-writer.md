@@ -27,6 +27,24 @@ Use the following structure:
 
 <!-- One paragraph: what is being implemented and the order at a high level. -->
 
+## Required test commands
+
+<!-- Exact literal commands every writer runs and must pass before every commit, on top of project guardrails. A floor, not the full set. "None" is valid. -->
+
+| Name | Command | Covers |
+| ---- | ------- | ------ |
+| ...  | ...     | ...    |
+
+## E2E test plan
+
+<!-- The spec's acceptance criteria and edge cases as explicit end-to-end flows. Concrete enough for the e2e writer to automate and the reviewer to manually re-drive. -->
+
+### Flow 1: <title>
+
+- **Steps:** ...
+- **Expected:** ...
+- **Traces to:** Acceptance criterion 1 / Edge case <desc>
+
 ## Tasks
 
 <!-- Ordered, numbered. Each task must be small enough that a code-writer can execute it without making design decisions. -->
@@ -34,6 +52,7 @@ Use the following structure:
 ### Task 1: <title>
 
 - **Goal:** ...
+- **Type:** tdd | e2e
 - **Files to change:** ...
 - **Changes:** ...
 - **Depends on:** none / Task N
@@ -57,11 +76,11 @@ Use the following structure:
 - **Ordered and granular.** Tasks must be sequenced correctly and small enough that the code-writer never has to make a design decision mid-task.
 - **Trace every task.** Each task must point to a spec acceptance criterion or a design decision it implements.
 - **Cover every acceptance criterion.** Every spec acceptance criterion must be addressed by at least one task.
-- **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and testable, but they describe **what**, not **which test** — the code-writer turns them into tests in the RED phase of TDD. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
+- **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and testable, but they describe **what**, not **which test** — the **tdd writer** turns them into unit tests in the RED phase of TDD. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
 - **Name exact files.** Use real paths from the codebase wherever possible. "Update the auth module" is not enough; "update `src/auth/session.ts`" is.
 - **Stay within spec and design.** Do not invent functionality, alternative designs, or extra scope.
 - **Stop and report blockers.** If a required input is missing, contradictory (e.g., the spec and design disagree), or would force you to invent a decision that belongs to a prior phase (e.g., a task needs a design choice that isn't in the design doc), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce a partial artifact. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
-- **Do NOT plan tests.** The code-writer writes tests using test-driven development — unit tests during red/green/refactor, and end-to-end tests derived from browser verification plus edge cases. Tasks describe what to build, not which tests to write.
+- **Plan the test floor and e2e flows, not unit tests.** Choose the required-test-commands floor and transform the spec's acceptance criteria and edge cases into the e2e test plan (the two sections above). Per-task unit-test selection stays the writer's: task Acceptance describes _what must be true_, and the tdd writer turns it into unit tests in the RED phase. Do not prescribe which unit tests a task writes.
 - **Do NOT plan documentation.** Documentation is planned separately as `doc-plan.md` and executed in phase 5. Do not include documentation tasks here.
 - **Do NOT write code.** Describe the change; do not produce the implementation.
 - **Address review feedback explicitly** when revising. Each issue raised in the cited review file must be resolved or explicitly answered.
