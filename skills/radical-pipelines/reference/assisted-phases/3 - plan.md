@@ -27,7 +27,7 @@ These rules apply across all steps:
 - You MUST give every task one or more acceptance criteria. Code tasks: observable behavior, scoped to the task. Doc tasks: drift-resistant coverage and outcomes (what the reader leaves with, what the docs must cover) — never exact wording, function names, or parameter lists.
 - You MUST propose 2-3 credible options with trade-offs when there is a real choice (task slicing, ordering, file boundaries, doc surfaces, audiences). Do not collapse to a single option without surfacing the alternatives.
 - You MUST work through ONE topic at a time. Never dump multiple unrelated planning questions on the owner in a single message.
-- You MUST NOT plan tests in the code plan — that is the code-writer's responsibility in phase 4 (TDD).
+- You MUST plan the required-test-commands floor and the e2e flows in the code plan. Per-task unit-test selection stays the writer's: a task's Acceptance describes *what must be true*, and the tdd writer turns it into unit tests in phase 4 (TDD).
 - You MUST NOT plan documentation in the code plan, and MUST NOT include code tasks in the doc plan.
 - You MUST NOT write code or documentation content. Describe what to do, not how to phrase it.
 - You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into either plan. If a scope question surfaces, log it as an open question or send the owner back to revise the spec or design doc — do not decide it in this phase.
@@ -107,6 +107,7 @@ The code plan is ready for synthesis when every spec acceptance criterion and de
 Before synthesis, privately run a review-style check against `spec.md` and `design-doc.md`:
 
 - **Coverage of acceptance criteria** — does every spec acceptance criterion map to at least one task?
+- **E2E coverage** — do the planned e2e flows cover the spec's acceptance criteria and edge cases?
 - **Coverage of the design** — does the plan execute every key design decision?
 - **Traceability** — does each task point to a specific spec acceptance criterion or design decision?
 - **Per-task acceptance** — does every task have observable, testable acceptance criteria, scoped to the task and consistent with the spec criterion it traces to?
@@ -114,7 +115,7 @@ Before synthesis, privately run a review-style check against `spec.md` and `desi
 - **Granularity** — are tasks small enough that the code-writer never has to make a design decision mid-task?
 - **Feasibility** — does each task reference real files, modules, and APIs?
 - **Scope** — does the plan stay within the spec and design? Anything beyond, or out-of-scope items that crept back in?
-- **No test planning** — does the plan refrain from prescribing specific unit or end-to-end tests?
+- **Required-test-commands validate** — execute each command in the Required test commands section and surface the result to the owner: did the command's runner resolve and terminate? The feature isn't implemented yet, so a runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent.
 - **No doc tasks** — does the plan refrain from including documentation work?
 
 For any gap, return to step 3 and work through the missing topic.
@@ -128,11 +129,29 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 
 ## Overview
 
+## Required test commands
+
+<!-- Exact literal commands every writer runs and must pass before every commit, on top of project guardrails. A floor, not the full set. "None" is valid. -->
+
+| Name | Command | Covers |
+| ---- | ------- | ------ |
+
+## E2E test plan
+
+<!-- The spec's acceptance criteria and edge cases as explicit end-to-end flows. Concrete enough for the e2e writer to automate and the reviewer to manually re-drive. -->
+
+### Flow N: <title>
+
+- **Steps:** ...
+- **Expected:** ...
+- **Traces to:** Acceptance criterion N / Edge case <desc>
+
 ## Tasks
 
 ### Task 1: <title>
 
 - **Goal:** ...
+- **Type:** tdd | e2e
 - **Files to change:** ...
 - **Changes:** ...
 - **Depends on:** none / Task N
@@ -149,7 +168,7 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 - **Ordered and granular** — tasks are sequenced correctly and small enough that the code-writer never has to make a design decision mid-task.
 - **Trace every task** — each task points to a spec acceptance criterion or design decision.
 - **Cover every acceptance criterion** — every spec acceptance criterion is addressed by at least one task.
-- **Per-task acceptance is required** — describe *what must be true*, not *which test to write*. Tests are the code-writer's job in phase 4 (TDD).
+- **Per-task acceptance is required** — describe *what must be true*, not *which test to write*. The tdd writer turns it into unit tests in phase 4 (TDD).
 - **Name exact files** — use real paths from the codebase.
 - **Stay within spec and design** — do not invent functionality, alternative designs, or extra scope.
 
