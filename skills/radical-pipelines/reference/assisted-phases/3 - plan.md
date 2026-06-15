@@ -27,7 +27,7 @@ These rules apply across all steps:
 - You MUST give every task one or more acceptance criteria. Code tasks: observable behavior, scoped to the task. Doc tasks: drift-resistant coverage and outcomes (what the reader leaves with, what the docs must cover) — never exact wording, function names, or parameter lists.
 - You MUST propose 2-3 credible options with trade-offs when there is a real choice (task slicing, ordering, file boundaries, doc surfaces, audiences). Do not collapse to a single option without surfacing the alternatives.
 - You MUST work through ONE topic at a time. Never dump multiple unrelated planning questions on the owner in a single message.
-- You MUST plan the required-test-commands floor and the e2e flows in the code plan. Per-task unit-test selection stays the code-writer's: a task's Acceptance describes *what must be true*, and the code-writer-tdd turns it into unit tests in phase 4 (TDD).
+- You MUST, for each gate you marked plan-completed in `.rp.md`, author a feature-scoped command and record it in `## Plan-completed guardrails` — `None` when you marked none — and plan the e2e flows in the code plan. Per-task unit-test selection stays the code-writer's: a task's Acceptance describes *what must be true*, and the code-writer-tdd turns it into unit tests in phase 4 (TDD).
 - You MUST NOT plan documentation in the code plan, and MUST NOT include code tasks in the doc plan.
 - You MUST NOT write code or documentation content. Describe what to do, not how to phrase it.
 - You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into either plan. If a scope question surfaces, log it as an open question or send the owner back to revise the spec or design doc — do not decide it in this phase.
@@ -115,7 +115,7 @@ Before synthesis, privately run a review-style check against `spec.md` and `desi
 - **Granularity** — are tasks small enough that the code-writer never has to make a design decision mid-task?
 - **Feasibility** — does each task reference real files, modules, and APIs?
 - **Scope** — does the plan stay within the spec and design? Anything beyond, or out-of-scope items that crept back in?
-- **Required-test-commands validate** — execute each command in the Required test commands section and surface the result to the owner: did the command's runner resolve and terminate? The feature isn't implemented yet, so a runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent.
+- **Plan-completed guardrails validate** — execute each command in the `## Plan-completed guardrails` section and surface the result to the owner: did the command's runner resolve and terminate? The feature isn't implemented yet, so a runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent — and confirm the section carries exactly the gates you marked plan-completed in `.rp.md`, one row each, `None` if you marked none.
 - **No doc tasks** — does the plan refrain from including documentation work?
 
 For any gap, return to step 3 and work through the missing topic.
@@ -129,12 +129,12 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 
 ## Overview
 
-## Required test commands
+## Plan-completed guardrails
 
-<!-- Exact literal commands every writer runs and must pass before every commit, on top of project guardrails. A floor, not the full set. "None" is valid. -->
+<!-- One row per gate marked plan-completed in `.rp.md` — exactly that set, no more, no fewer. Gate must match the marked gate's exact `.rp.md` name (it binds by name). Command is the exact literal feature-scoped command the marked agents run for that gate this pipeline. Rationale is free prose naming the feature surface the command exercises, as a coverage-check aid. "None" when no gate is marked. -->
 
-| Name | Command | Covers |
-| ---- | ------- | ------ |
+| Gate | Command | Rationale |
+| ---- | ------- | --------- |
 
 ## E2E test plan
 
