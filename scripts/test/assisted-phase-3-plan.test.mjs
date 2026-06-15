@@ -78,8 +78,8 @@ describe("assisted phase-3 inverted test-planning boundary", () => {
     assert.match(ref, /e2e flows/i);
   });
 
-  test("attributes turning Acceptance into unit tests to the tdd writer in phase 4", () => {
-    assert.match(ref, /tdd writer/);
+  test("attributes turning Acceptance into unit tests to code-writer-tdd in phase 4", () => {
+    assert.match(ref, /code-writer-tdd/);
   });
 });
 

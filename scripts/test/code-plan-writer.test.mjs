@@ -82,8 +82,8 @@ describe("code-plan-writer guidelines", () => {
     assert.doesNotMatch(agent, /derived from browser verification/);
   });
 
-  test("attributes turning Acceptance into unit tests to the tdd writer's RED phase", () => {
-    assert.match(agent, /tdd writer/);
+  test("attributes turning Acceptance into unit tests to code-writer-tdd's RED phase", () => {
+    assert.match(agent, /code-writer-tdd/);
     assert.match(agent, /RED phase/);
   });
 });

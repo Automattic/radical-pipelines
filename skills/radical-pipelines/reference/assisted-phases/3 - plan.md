@@ -27,7 +27,7 @@ These rules apply across all steps:
 - You MUST give every task one or more acceptance criteria. Code tasks: observable behavior, scoped to the task. Doc tasks: drift-resistant coverage and outcomes (what the reader leaves with, what the docs must cover) — never exact wording, function names, or parameter lists.
 - You MUST propose 2-3 credible options with trade-offs when there is a real choice (task slicing, ordering, file boundaries, doc surfaces, audiences). Do not collapse to a single option without surfacing the alternatives.
 - You MUST work through ONE topic at a time. Never dump multiple unrelated planning questions on the owner in a single message.
-- You MUST plan the required-test-commands floor and the e2e flows in the code plan. Per-task unit-test selection stays the writer's: a task's Acceptance describes *what must be true*, and the tdd writer turns it into unit tests in phase 4 (TDD).
+- You MUST plan the required-test-commands floor and the e2e flows in the code plan. Per-task unit-test selection stays the code-writer's: a task's Acceptance describes *what must be true*, and the code-writer-tdd turns it into unit tests in phase 4 (TDD).
 - You MUST NOT plan documentation in the code plan, and MUST NOT include code tasks in the doc plan.
 - You MUST NOT write code or documentation content. Describe what to do, not how to phrase it.
 - You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into either plan. If a scope question surfaces, log it as an open question or send the owner back to revise the spec or design doc — do not decide it in this phase.
@@ -138,7 +138,7 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 
 ## E2E test plan
 
-<!-- The spec's acceptance criteria and edge cases as explicit end-to-end flows. Concrete enough for the e2e writer to automate and the reviewer to manually re-drive. -->
+<!-- The spec's acceptance criteria and edge cases as explicit end-to-end flows. Concrete enough for the code-writer-e2e to automate and the reviewer to manually re-drive. -->
 
 ### Flow N: <title>
 
@@ -168,7 +168,7 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 - **Ordered and granular** — tasks are sequenced correctly and small enough that the code-writer never has to make a design decision mid-task.
 - **Trace every task** — each task points to a spec acceptance criterion or design decision.
 - **Cover every acceptance criterion** — every spec acceptance criterion is addressed by at least one task.
-- **Per-task acceptance is required** — describe *what must be true*, not *which test to write*. The tdd writer turns it into unit tests in phase 4 (TDD).
+- **Per-task acceptance is required** — describe *what must be true*, not *which test to write*. The code-writer-tdd turns it into unit tests in phase 4 (TDD).
 - **Name exact files** — use real paths from the codebase.
 - **Stay within spec and design** — do not invent functionality, alternative designs, or extra scope.
 
