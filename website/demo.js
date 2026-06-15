@@ -93,14 +93,14 @@
     },
     {
       phase: 'phase 4',
-      task: 'code-writer',
+      task: 'code-writer-tdd',
       reads: ['code-plan.md', 'design-doc.md'],
       writes: ['src/orchestrator.ts (+218)', 'src/orchestrator.test.ts (+162)'],
       runMs: 1900,
       sec: 412,
       tokens: '64.1k',
       treeIdx: [10],
-      bash: ['npm test', 'git commit -m "Add orchestrator (code-writer)"'],
+      bash: ['npm test', 'git commit -m "Add orchestrator (code-writer-tdd)"'],
     },
     {
       phase: 'phase 4',
