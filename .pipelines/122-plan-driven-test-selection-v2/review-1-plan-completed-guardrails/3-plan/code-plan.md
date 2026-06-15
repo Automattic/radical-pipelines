@@ -66,7 +66,7 @@ None
 - **Type:** tdd
 - **Files to change:** `skills/radical-pipelines/reference/autonomous-phases/4 - code.md`
 - **Changes:** In the per-task writer launch and the code-reviewer launch (the `## Steps` per-spawn steps), add a single *when* clause: before spawning each writer or reviewer, the orchestrator resolves marked gates, substituting each marked agent's feature command from `## Plan-completed guardrails` into that agent's resolved `Guardrails:` line. State only the timing. Add no binding text, no missing-row text, and no assisted parenthetical (assisted mode structurally cannot reach this file).
-- **Depends on:** Task 1
+- **Depends on:** Task 1, Task 6 (names the `## Plan-completed guardrails` section this *when*-clause references; Task 6 introduces it in the producer)
 - **Traces to:** Spec R7, R10 / Acceptance criteria 7, 10 / Design "`reference/autonomous-phases/3 - plan.md` and `4 - code.md` — when only"
 - **Acceptance:**
   - The code-phase file states that before spawning each writer or reviewer the orchestrator resolves marked gates, substituting each marked agent's feature command from `## Plan-completed guardrails` into its `Guardrails:` line.
