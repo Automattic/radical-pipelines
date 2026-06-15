@@ -15,8 +15,7 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 2. Read `<artifacts-folder>/3-plan/code-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
-5. Read your guardrails — the gates you must run during review.
-6. Inspect the diff for the batch (base ref → current HEAD).
+5. Inspect the diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
 
@@ -34,15 +33,15 @@ Check, for the tasks in this batch:
 
 If any task in the batch changes user-observable behavior — UI, CLI output, generated files, API responses, log output, anything a user or downstream consumer can see — exercise it end-to-end yourself: drive the changed path the way a user or downstream consumer would reach it, and confirm the new behavior actually happens. Decide the evidence appropriate to what changed and capture it (screenshots, transcripts, output samples, response diffs). This is behavior verification, not a guardrail — it is a step you perform here, separate from running the guardrails in step 4. A verification claim without evidence is not a verification — either produce the evidence or reject the batch.
 
-### 4. Run the reviewer guardrail selection
+### 4. Run the guardrails
 
-This step runs only after the step-2 review checks and the step-3 behavior verification, so judgment-based checks always precede the guardrail selection.
+By the time you reach this step you have a provisional verdict from steps 2–3.
 
-Run every gate of the reviewer's selection, exactly as each command is written. Record each gate and its result in the Checks table. Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
+**If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the gates would tell you nothing. Record each gate as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
 
-Once you have at least one rejection finding you may reject without running any not-yet-run gate of your selection; record each deliberately skipped gate as **skipped** in the Checks table. You may also choose to run gates while rejecting.
+**If that verdict is approve, run every gate** in the guardrails convention, exactly as each command is written, recording each result in the Checks table. To approve, every gate must run and pass in this iteration. A gate that exits non-zero is itself a rejection finding: your verdict becomes reject, and you may leave any remaining gates unrun (recorded as **skipped**). Never bypass a gate to force a pass (no `--no-verify`, no `skip`, no commented-out checks).
 
-You approve only when every gate in your selection has run and passed in this iteration. No gate in your selection may be unrun or skipped on an approving iteration. Each reviewer instance is fresh and stateless — there is no cross-iteration caching of gate results.
+If there is no guardrails convention, there are no gates to run and your step-2/3 judgment stands.
 
 ### 5. Write the review
 
@@ -68,10 +67,11 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 
 ## Checks
 
-<!-- One row per gate in the reviewer's selection. Result: pass | fail | skipped.
+<!-- One row per gate in the guardrails. Result: pass | fail | skipped.
      A skipped row shows the gate's literal command but the command was not run.
      A forgotten gate is an absent row; a deliberately skipped gate is a present skipped row;
      a run gate is a present pass/fail row. -->
+
 | Check | Command | Result |
 | ----- | ------- | ------ |
 | ...   | ...     | ...    |
@@ -107,9 +107,5 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 - **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the code — they are not failures.
 - **Do NOT rewrite code or tests.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan or the design.** Those phases have been approved. Flag deviations from them, not the plan or design themselves.
-- **Run the guardrails.** Don't just read the code. A review without verification evidence is not a review. Run every gate in the reviewer's selection per step 4, including its fail-fast permission and approval guarantee. If your selection is empty, run none and proceed — that is not a blocker and warrants no warning.
-- **The outcome model is two questions: did the command execute? and did the gate pass?** They sort every result in the reviewer's selection:
-  - **The reviewer's selection is empty** — run none and proceed. Not a blocker, no warning.
-  - **A declared gate of the reviewer's selection cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol. This is the drift guard; it triggers only when an attempted gate cannot run, never when no gates are declared. A skipped gate is never attempted, so fail-fast cannot manufacture a false drift blocker.
-  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is a normal review finding: it belongs in a rejection verdict, not a blocker.
-- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, scope creep, a gate in the reviewer's selection that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `code-plan.md`, `spec.md`, or `design-doc.md` is missing or unreadable; batch metadata is missing; a declared gate of the reviewer's selection cannot execute. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
+- **Run the guardrails.** Don't just read the code. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, run every gate per step 4 and approve only if all pass. If you already reject on judgment, skip them and go to step 5.
+- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, scope creep, a gate that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `code-plan.md`, `spec.md`, or `design-doc.md` is missing or unreadable; batch metadata is missing; a declared gate cannot execute. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
