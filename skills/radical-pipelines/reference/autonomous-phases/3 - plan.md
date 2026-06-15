@@ -31,6 +31,8 @@ This phase has no per-phase decisions.
 
 ## Steps
 
+Before spawning the `code-plan-writer` and `code-plan-reviewer`, the orchestrator passes them `Guardrails to complete:` — the marked-gate set (see `autonomous-workflow.md`).
+
 1. Launch a fresh `code-plan-writer` to write `code-plan.md`.
 2. Launch a fresh `code-plan-reviewer`. On rejection it writes `code-plan-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `code-plan-review-approved.md` (no number — the singleton terminator).
 3. On **rejected**, launch a fresh `code-plan-writer` with the rejection file's path. It revises `code-plan.md`. The `code-plan-reviewer` re-reviews.
