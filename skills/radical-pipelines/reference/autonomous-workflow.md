@@ -60,9 +60,10 @@ If a phase fails, stop and report to the owner.
 Important:
 
 - Follow the **Team spawning** convention for how to define and launch teams of agents.
-- Each time you spawn an agent, include the following project conventions in its initial prompt:
-  - **Artifact folder** — the absolute and full path to the active run's folder (`<artifacts-folder>/<run>/`, e.g. `<artifacts-folder>/base/`); this is what the agent treats as its artifact folder. The agent is run-agnostic and never sees the run name.
-  - **Commit format** — the commit message format the agent must use.
+- Each time you spawn an agent, include a `## Conventions` block at the top of its initial prompt, each field labeled exactly as shown:
+  - **Artifact folder:** the absolute path to the active run's folder (e.g. `<artifacts-folder>/base/`).
+  - **Commit format:** the commit message format the agent must use. Omit when the project defines none.
+  - **Guardrails:** the gates that name this agent — one per line as a name and its exact command. Omit when no gate names it.
 - Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply the result as parameters of the spawn itself.
 - Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
 
