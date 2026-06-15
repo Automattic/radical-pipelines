@@ -4,7 +4,7 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 
 ## Rules when modifying the skill
 
-- The skill must be written in a minimalist way with the minimum amount of information possible to convey the same meaning. Every word must serve a purpose. Read the current skill to get the tone. After writing something, ask yourself: "Can I say this in fewer words without losing meaning?" If the answer is yes, rewrite it. The skill must be concise and to the point.
+- The skill must be written in a minimalist way with the minimum amount of information possible to convey the same meaning. Every word must serve a purpose. State the instruction, not the reasoning behind it. After writing something, ask yourself: "Can I say this in fewer words without losing meaning?" If the answer is yes, rewrite it. The skill must be concise and to the point.
 - The skill must not contain duplicate information in the current reading path. For example, if a file can only be accessed through another and that one already contains certain information, there is no need to repeat it again.
 - When a general rule already covers a case, state it once at that general level. Don't add special-case restatements of it, even correct ones.
 - The skill must not contain negative phrases (don't do this, don't do that) unless that information is strictly necessary for its operation. That is, if by default the orchestrator or any of the agents have no reason to do something, there is no need to tell them not to do it.
