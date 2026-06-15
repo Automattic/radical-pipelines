@@ -25,13 +25,13 @@ Check, for the tasks in this batch:
 - **Spec acceptance coverage** — do the spec acceptance criteria the batch tasks trace to actually pass against the resulting code?
 - **Design alignment** — does the code honor every design-doc decision the batch tasks trace to?
 - **Plan adherence** — no scope creep beyond `code-plan.md`; no design changes; no work done for tasks that weren't in the batch.
-- **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for any user-observable behavior the batch changed.
+- **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
 
 ### 3. Behavior verification
 
-If any task in the batch changes user-observable behavior — UI, CLI output, generated files, API responses, log output, anything a user or downstream consumer can see — exercise it end-to-end yourself: drive the changed path the way a user or downstream consumer would reach it, and confirm the new behavior actually happens. Decide the evidence appropriate to what changed and capture it (screenshots, transcripts, output samples, response diffs). This is behavior verification, not a guardrail — it is a step you perform here, separate from running the guardrails in step 4. A verification claim without evidence is not a verification — either produce the evidence or reject the batch.
+If any task in the batch changes user-observable behavior — UI, CLI output, generated files, API responses, log output, anything a user or downstream consumer can see — exercise it end-to-end yourself: drive the changed path the way a user or downstream consumer would reach it, and confirm the new behavior actually happens. Decide the evidence appropriate to what changed and capture it (screenshots, transcripts, output samples, response diffs). This is behavior verification, not a guardrail — it is a step you perform here, separate from running the guardrails in step 4. Additionally, manually re-drive each flow in the E2E test plan section of `code-plan.md`: perform the flow's Steps and confirm its Expected outcome, capturing evidence as above. A verification claim without evidence is not a verification — either produce the evidence or reject the batch.
 
 ### 4. Run the guardrails
 
