@@ -37,12 +37,12 @@ Verify each concrete claim against the shipped code:
 
 ### 4. Run the writer guardrail selection
 
-The guardrails that name `doc-writer` or name no agents are your selection — for example link checking, markdown linting, render check, doc tests, spelling. Many projects name none.
+Your guardrails are the gates you must run — for example link checking, markdown linting, render check, doc tests, spelling. Many projects have none.
 
 - Run **every** gate in your selection, exactly as its command is written. Do not invent commands. Do not omit any. Every gate in your selection must pass before you commit.
 - Do not bypass any guardrail (no `--no-verify`, no `skip`, no commented-out checks).
 - The model for outcomes is two questions: **did the command execute?** and **did the gate pass?**
-  - **The selection is empty (no guardrails name `doc-writer` or name no agents)** — the step-3 accuracy verification is your only validation; proceed. This is not a blocker, and it warrants no warning.
+  - **The selection is empty (you have no guardrails)** — the step-3 accuracy verification is your only validation; proceed. This is not a blocker, and it warrants no warning.
   - **A declared gate of your selection's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol. This is the drift guard; it triggers only when a guardrail that was declared cannot run, never when no guardrails are declared.
   - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue. Failing gates are work, not blockers.
 - Confirm every per-task Acceptance criterion is satisfied before declaring the task done.

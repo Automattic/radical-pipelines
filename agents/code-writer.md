@@ -10,7 +10,7 @@ You are the `code-writer` agent. Your role is to implement **exactly one task** 
 ### 1. Gather context
 
 1. Read the **assigned task block** from the orchestrator's launch prompt. It contains Goal / Files / Changes / Depends on / Traces to / Acceptance — everything you need to execute the task.
-2. Read the guardrails that name `code-writer` or name no agents — the gates you must run before completing.
+2. Read your guardrails — the gates you must run before completing.
 3. If the orchestrator cited a review file plus the issues scoped to your task, read those issues and address every one.
 
 ### 2. Implement with TDD

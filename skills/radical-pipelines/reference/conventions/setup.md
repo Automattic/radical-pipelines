@@ -140,6 +140,7 @@ Then collect the information needed to operate in fork mode:
 
 - If two or more remotes are configured, ask the owner to confirm which one is the upstream (canonical) repository and which one is the fork (where Radical Pipelines work happens).
 - If only one remote is configured or no fork exists, a fork must be created. Ask the owner two things in sequence:
+
   - Whether the fork should be **public** or **private**. A private fork keeps the artifact-bearing branches out of public view; the PR itself reveals nothing about the fork either way.
   - To create the fork (e.g. via `gh repo fork`, then `gh repo edit <owner>/<repo> --visibility private` if private was chosen) and add it as a remote.
 
@@ -180,15 +181,10 @@ The deterministic verification gates — exact commands, judged pass/fail by exi
 
 - A **name** (e.g. `tests`, `lint`).
 - The **exact literal command** to run (e.g. `npm test`).
-- The optional **agents** that run the gate — one or more of `code-writer`, `code-reviewer`, `doc-writer`, `doc-reviewer`; asked for every gate. When unset, the gate runs for every gate-running agent, doc agents included — so name the agents of any code-specific or expensive gate deliberately. Naming only `code-reviewer`, for example, runs an expensive suite on the reviewer's side instead of on every writer commit — the owner's decision criterion.
-
-The table below shows the recommended shape; it is illustrative, not a mandated block or parser input:
-
-| Name      | Command       | Agents          |
-| --------- | ------------- | --------------- |
-| typecheck | `check-types` | `code-writer`   |
-| tests     | `run-tests`   | `code-reviewer` |
-| lint      | `run-lint`    |                 |
+- The **agents** that run the gate — one or more of `code-writer`, `code-reviewer`, `doc-writer`, `doc-reviewer`. Every gate names at least one.
+- Remind the owner:
+  - `code-writer`s and `doc-writer`s run once per task, but `code-reviewer`s and `doc-reviewer`s run once per pipeline run.
+  - In large projects where commands run slowly, scope the `code-writer`s' gates to the feature or bug, leaving the complete, slower commands for the `code-reviewer`s.
 
 **"None" is a complete, valid answer.** An absent guardrails declaration is valid. If the project has no command gates, capture nothing here and move on.
 
