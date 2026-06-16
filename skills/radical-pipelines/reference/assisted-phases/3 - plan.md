@@ -27,7 +27,7 @@ These rules apply across all steps:
 - You MUST give every task one or more acceptance criteria. Code tasks: observable behavior, scoped to the task. Doc tasks: drift-resistant coverage and outcomes (what the reader leaves with, what the docs must cover) — never exact wording, function names, or parameter lists.
 - You MUST propose 2-3 credible options with trade-offs when there is a real choice (task slicing, ordering, file boundaries, doc surfaces, audiences). Do not collapse to a single option without surfacing the alternatives.
 - You MUST work through ONE topic at a time. Never dump multiple unrelated planning questions on the owner in a single message.
-- You MUST, for each gate you marked plan-completed in `.rp.md`, author a feature-scoped command and record it in `## Plan-completed guardrails` — `None` when you marked none — and plan the e2e flows in the code plan. Per-task unit-test selection stays the code-writer's: a task's Acceptance describes *what must be true*, and the code-writer-tdd turns it into unit tests in phase 4 (TDD).
+- You MUST, for each scoped gate the driver defined in `.rp.md` whose agents run in a phase, choose a `{scope}` value — from the gate's `fill-guidance` when present, otherwise derived from the spec and design — and record it in that plan's `## Guardrail scopes` (gate → value), `None` when the plan runs no scoped gate. The code plan fills its code-run scoped gates and the doc plan fills its doc-run ones. Authority is the single driver (both `.rp.md` author and plan author), so there is no spawn channel. Plan the e2e flows in the code plan. Per-task unit-test selection stays the code-writer's: a task's Acceptance describes *what must be true*, and the code-writer-tdd turns it into unit tests in phase 4 (TDD). See `guardrails.md` for the model.
 - You MUST NOT plan documentation in the code plan, and MUST NOT include code tasks in the doc plan.
 - You MUST NOT write code or documentation content. Describe what to do, not how to phrase it.
 - You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into either plan. If a scope question surfaces, log it as an open question or send the owner back to revise the spec or design doc — do not decide it in this phase.
@@ -115,7 +115,7 @@ Before synthesis, privately run a review-style check against `spec.md` and `desi
 - **Granularity** — are tasks small enough that the code-writer never has to make a design decision mid-task?
 - **Feasibility** — does each task reference real files, modules, and APIs?
 - **Scope** — does the plan stay within the spec and design? Anything beyond, or out-of-scope items that crept back in?
-- **Plan-completed guardrails validate** — execute each command in the `## Plan-completed guardrails` section and surface the result to the owner: did the command's runner resolve and terminate? The feature isn't implemented yet, so a runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent — and confirm the section carries exactly the gates you marked plan-completed in `.rp.md`, one row each, `None` if you marked none.
+- **Guardrail scopes** — for each row in `## Guardrail scopes`, substitute its value into the gate's command template and execute the filled command, surfacing the result to the owner: did the command's runner resolve and terminate? The feature isn't implemented yet, so a runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent — and confirm the section carries exactly the scoped gates the code phase runs, one row each, `None` if none.
 - **No doc tasks** — does the plan refrain from including documentation work?
 
 For any gap, return to step 3 and work through the missing topic.
@@ -129,12 +129,12 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 
 ## Overview
 
-## Plan-completed guardrails
+## Guardrail scopes
 
-<!-- One row per gate marked plan-completed in `.rp.md` — exactly that set, no more, no fewer. Gate must match the marked gate's exact `.rp.md` name (it binds by name). Command is the exact literal feature-scoped command the marked agents run for that gate this pipeline. Rationale is free prose naming the feature surface the command exercises, as a coverage-check aid. "None" when no gate is marked. -->
+<!-- One row per scoped gate the code phase runs — exactly that set, no more, no fewer. Records the chosen `{scope}` value per gate, not the command: the `.rp.md` template stays the source of truth per `guardrails.md`. "None" when none were passed. -->
 
-| Gate | Command | Rationale |
-| ---- | ------- | --------- |
+| Gate | Scope |
+| ---- | ----- |
 
 ## E2E test plan
 
@@ -208,6 +208,7 @@ Before synthesis, privately run a review-style check against `spec.md`, `design-
 - **Per-task acceptance** — does every task have evaluable, drift-resistant acceptance criteria (coverage and outcomes, not function names or wording)?
 - **Audience** — does every task name its audience?
 - **Drift resistance** — does the plan avoid prescribing exact wording, function names, parameter lists, or other implementation details?
+- **Guardrail scopes** — for each row in `## Guardrail scopes`, substitute its value into the gate's command template and execute the filled command, surfacing the result to the owner: did the command's runner resolve and terminate? A runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent — and confirm the section carries exactly the scoped gates the docs phase runs, one row each, `None` if none.
 - **Scope** — does the plan stay within spec and design? No invented documentation for unrequested features.
 - **No code tasks** — does the plan refrain from including code work?
 
@@ -221,6 +222,13 @@ Write `<artifacts-folder>/3-plan/doc-plan.md` as a standalone document — under
 # Doc Plan: <feature name>
 
 ## Overview
+
+## Guardrail scopes
+
+<!-- One row per scoped gate the docs phase runs — exactly that set, no more, no fewer. Records the chosen `{scope}` value per gate, not the command: the `.rp.md` template stays the source of truth per `guardrails.md`. "None" when none were passed. -->
+
+| Gate | Scope |
+| ---- | ----- |
 
 ## Tasks
 
