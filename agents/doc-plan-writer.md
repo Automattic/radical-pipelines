@@ -14,8 +14,9 @@ You plan **what to document, where, and for whom** — not what the docs actuall
 1. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the feature must satisfy.
 2. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
 3. Read `<artifacts-folder>/3-plan/code-plan.md` — the code tasks that determine what surfaces will exist and need documentation.
-4. Explore the host project's existing documentation as needed to identify the right files, sections, conventions, and audiences.
-5. If the orchestrator's prompt cited a review file, read it and address every issue.
+4. Read `Guardrail scopes to fill:` — the scoped gates whose `{scope}` this plan must supply (those whose agents run in the docs phase), each with its command template and `fill-guidance`. Absent means no scoped gates this phase runs and `## Guardrail scopes` reads `None` (the default when no set is received, not an explicit empty signal).
+5. Explore the host project's existing documentation as needed to identify the right files, sections, conventions, and audiences.
+6. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the plan
 
@@ -29,6 +30,13 @@ Use the following structure:
 ## Overview
 
 <!-- One paragraph: what documentation surfaces are being added or updated and why. -->
+
+## Guardrail scopes
+
+<!-- One row per scoped gate the docs phase runs — exactly that set, no more, no fewer. Records the chosen `{scope}` value per gate, not the command: the `.rp.md` template stays the source of truth per `guardrails.md`. "None" when none were passed. -->
+
+| Gate | Scope |
+| ---- | ----- |
 
 ## Tasks
 
@@ -58,6 +66,7 @@ Use the following structure:
 ## Guidelines
 
 - **Standalone.** A reader should understand the plan from your output alone.
+- **Fill the guardrail scopes.** For each gate passed in `Guardrail scopes to fill:`, choose a `{scope}` value — from the gate's `fill-guidance` when present, otherwise derived from the spec and design — and record it in `## Guardrail scopes` (gate → value) — exactly those gates, `None` when none were passed; you own each scope value but not the set.
 - **What, where, and for whom — not what the docs say.** Specify which files, sections, and audiences. Do not prescribe exact wording, function names, parameter lists, or other details that depend on the final implementation. The doc-writer fills those in by reading the actual code in phase 5.
 - **Drift-resistant.** Avoid anything that locks in implementation details. ❌ "Document `loginUser(email, password)` returning `{userId, token}`." ✅ "Document the login flow API in `docs/api/auth.md`. Cover parameters, return values, error cases, and a usage example. Audience: external API consumers."
 - **Cover every relevant surface.** Documentation lives wherever someone has written it — across the entire codebase, not only in the most obvious places. Sweep the repository end-to-end for any text that already references the behavior the code phase will change, and treat every reference you find as a documentation surface that must be addressed by a task. If you skip one, the code phase will leave it out of sync with what landed. Common surfaces include READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, and internal conventions — treat that list as a starting point, not a checklist.
