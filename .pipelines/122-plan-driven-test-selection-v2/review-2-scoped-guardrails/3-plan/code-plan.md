@@ -140,23 +140,7 @@ None
   - It references the field by name without restating its shape, deferring to `passing.md`/`guardrails.md`.
   - No `Guardrails to complete:` or `plan-completed` wording remains; the rest of the file (steps, agents table, diagram) is unchanged.
 
-### Task 7: Resolve scoped gates before spawn in autonomous `4 - code.md`
-
-- **Goal:** Retarget the code phase's resolve-before-spawn steps from the `plan-completed` model to the scoped model — substitute each scoped gate's scope value from `## Guardrail scopes` into the running agent's `Guardrails:` line before spawn — deferring the mechanic to `guardrails.md`.
-- **Type:** tdd
-- **Files to change:** `skills/radical-pipelines/reference/autonomous-phases/4 - code.md`
-- **Changes:** In `## Steps`:
-  - In the per-task writer launch (step 3.1), replace "Before spawning, resolve marked gates: substitute each marked agent's feature command from the plan's `## Plan-completed guardrails` into that agent's `Guardrails:` line." with: before spawning, resolve this agent's scoped gates — substitute each scoped gate's scope value from the code plan's `## Guardrail scopes` into the gate's `.rp.md` command template and place the resolved command on the agent's `Guardrails:` line (defer the substitution mechanic to `guardrails.md`).
-  - In the code-reviewer launch (step 4), retarget the same way: resolve the reviewer's scoped gates by substituting from `## Guardrail scopes` before spawn.
-  - State only the timing and the source section; defer the model and the substitution algorithm to `guardrails.md`. Leave the batch logic, the reviewer base-ref reference, the rejection/approval flow, and the mermaid diagram unchanged.
-- **Depends on:** Task 1 (substitution mechanic lives in `guardrails.md`), Task 8 (names `## Guardrail scopes`, introduced in the code-plan-writer)
-- **Traces to:** Spec requirements 4, 8 / Acceptance criteria 3, 6 / Design "Symmetric code/docs wiring", components `reference/autonomous-phases/4 - code.md`, Interfaces "Flow"
-- **Acceptance:**
-  - The per-task writer launch states that before spawning, the orchestrator resolves the agent's scoped gates by substituting each scope value from `## Guardrail scopes` into the gate's command template and placing the resolved command on the `Guardrails:` line.
-  - The code-reviewer launch resolves its scoped gates the same way before spawn.
-  - The file defers the model and substitution algorithm to `guardrails.md` and restates neither; no `plan-completed` or feature-command wording remains; the batch logic, base-ref reference, flow, and diagram are unchanged.
-
-### Task 8: Author and validate `## Guardrail scopes` in `code-plan-writer.md`
+### Task 7: Author and validate `## Guardrail scopes` in `code-plan-writer.md`
 
 - **Goal:** Replace the code-plan-writer's `Guardrails to complete:` read and its `## Plan-completed guardrails` output section with the scoped model: read `Guardrail scopes to fill:`, produce a `## Guardrail scopes` section recording gate → scope value, and choose each `{scope}` from `fill-guidance` or the spec and design.
 - **Type:** tdd
@@ -173,6 +157,22 @@ None
   - The authoring guideline directs the writer to choose `{scope}` from `fill-guidance` when present, otherwise from the spec and design, record exactly the passed gates as gate → value, render `None` when none, and notes the writer owns the value but not the set; the e2e and unit-test halves are kept.
   - `## E2E test plan` and `## Tasks` in the structure block are unchanged; no `plan-completed` wording remains.
 
+### Task 8: Resolve scoped gates before spawn in autonomous `4 - code.md`
+
+- **Goal:** Retarget the code phase's resolve-before-spawn steps from the `plan-completed` model to the scoped model — substitute each scoped gate's scope value from `## Guardrail scopes` into the running agent's `Guardrails:` line before spawn — deferring the mechanic to `guardrails.md`.
+- **Type:** tdd
+- **Files to change:** `skills/radical-pipelines/reference/autonomous-phases/4 - code.md`
+- **Changes:** In `## Steps`:
+  - In the per-task writer launch (step 3.1), replace "Before spawning, resolve marked gates: substitute each marked agent's feature command from the plan's `## Plan-completed guardrails` into that agent's `Guardrails:` line." with: before spawning, resolve this agent's scoped gates — substitute each scoped gate's scope value from the code plan's `## Guardrail scopes` into the gate's `.rp.md` command template and place the resolved command on the agent's `Guardrails:` line (defer the substitution mechanic to `guardrails.md`).
+  - In the code-reviewer launch (step 4), retarget the same way: resolve the reviewer's scoped gates by substituting from `## Guardrail scopes` before spawn.
+  - State only the timing and the source section; defer the model and the substitution algorithm to `guardrails.md`. Leave the batch logic, the reviewer base-ref reference, the rejection/approval flow, and the mermaid diagram unchanged.
+- **Depends on:** Task 1 (substitution mechanic lives in `guardrails.md`), Task 7 (names `## Guardrail scopes`, introduced in the code-plan-writer)
+- **Traces to:** Spec requirements 4, 8 / Acceptance criteria 3, 6 / Design "Symmetric code/docs wiring", components `reference/autonomous-phases/4 - code.md`, Interfaces "Flow"
+- **Acceptance:**
+  - The per-task writer launch states that before spawning, the orchestrator resolves the agent's scoped gates by substituting each scope value from `## Guardrail scopes` into the gate's command template and placing the resolved command on the `Guardrails:` line.
+  - The code-reviewer launch resolves its scoped gates the same way before spawn.
+  - The file defers the model and substitution algorithm to `guardrails.md` and restates neither; no `plan-completed` or feature-command wording remains; the batch logic, base-ref reference, flow, and diagram are unchanged.
+
 ### Task 9: Validate `## Guardrail scopes` and bind in `code-plan-reviewer.md`
 
 - **Goal:** Retarget the code-plan-reviewer's checks from the `plan-completed` model to the scoped model: read `Guardrail scopes to fill:`, validate that each gate's filled command executes, and bind the section to the passed scoped-gate set.
@@ -184,7 +184,7 @@ None
   - In `### 3. Review the plan`, retarget the coverage check: judge that each chosen `{scope}` is appropriate for its gate — consistent with the gate's `fill-guidance` and the spec/design — replacing the old "credibly completes its marked gate" framing.
   - Retarget the **bind** check: every row's **Gate** matches a gate passed in `Guardrail scopes to fill:`, every passed scoped gate has exactly one row; a row for an unpassed or nonexistent gate is a rejection, a passed gate with no row is a rejection, and a `None` body is the valid rendering when no scoped gate was passed.
   - Retarget the "No unit-test planning" check's reference to the old section name so it points at `## Guardrail scopes`; its logic is unchanged.
-- **Depends on:** Task 1 (the substitution/model lives in `guardrails.md`), Task 2 (`Guardrail scopes to fill:`), Task 8 (validates the `## Guardrail scopes` section the writer produces)
+- **Depends on:** Task 1 (the substitution/model lives in `guardrails.md`), Task 2 (`Guardrail scopes to fill:`), Task 7 (validates the `## Guardrail scopes` section the writer produces)
 - **Traces to:** Spec requirements 4, 6 / Acceptance criteria 3, 5 / Design "The plan records the scope value, not the command", components `agents/code-plan-reviewer.md`, Failure modes "filled command cannot run … the plan-reviewer rejects"
 - **Acceptance:**
   - Gather-context instructs the reviewer to read `Guardrail scopes to fill:` as its only channel to the scoped-gate set, with absence meaning the empty set.
@@ -202,7 +202,7 @@ None
   - In `### 1. Gather context`, add an item: read `Guardrail scopes to fill:` — the scoped gates whose `{scope}` this plan must supply (those whose agents run in the docs phase), each with its command template and `fill-guidance`. Absent means no scoped gates this phase runs and `## Guardrail scopes` reads `None`.
   - In the `### 2. Write the plan` structure block, add a `## Guardrail scopes` section (between `## Overview` and `## Tasks`) identical in shape to the code-plan-writer's: a `Gate | Scope` table recording the chosen `{scope}` value per gate the docs phase runs, a comment deferring the value-not-command rule to `guardrails.md`, and the bare-`None` rule.
   - Add an authoring guideline mirroring the code-plan-writer's: for each gate passed in `Guardrail scopes to fill:`, choose a `{scope}` value — from `fill-guidance` when present, otherwise from the spec and design — and record it (gate → value), exactly those gates, `None` when none; the writer owns each value but not the set. Keep all existing doc-plan guidance (drift-resistance, surface coverage, no code tasks) intact.
-- **Depends on:** Task 1 (model), Task 2 (`Guardrail scopes to fill:`), Task 8 (the `## Guardrail scopes` shape is authored there; reuse identical shape)
+- **Depends on:** Task 1 (model), Task 2 (`Guardrail scopes to fill:`), Task 7 (the `## Guardrail scopes` shape is authored there; reuse identical shape)
 - **Traces to:** Spec requirements 4, 5, 8 / Acceptance criteria 4, 5, 6 / Design "Symmetric code/docs wiring", "The plan records the scope value, not the command", components `agents/doc-plan-writer.md`
 - **Acceptance:**
   - Gather-context instructs the doc-plan-writer to read `Guardrail scopes to fill:` (scoped gates whose `{scope}` the docs phase must supply, with command template and `fill-guidance`) with `None` as the default when no set is received.
@@ -237,7 +237,7 @@ None
   - In the per-task doc-writer launch (step 3.1), add a resolve-before-spawn clause mirroring `4 - code.md`: before spawning, resolve the doc-writer's scoped gates — substitute each scope value from the doc plan's `## Guardrail scopes` into the gate's `.rp.md` command template and place the resolved command on the agent's `Guardrails:` line (defer the substitution mechanic to `guardrails.md`).
   - In the doc-reviewer launch (step 4), add the same resolve-before-spawn clause.
   - State only the timing and source section; defer the model to `guardrails.md`. Leave the batch logic, base-ref reference, rejection/approval flow, inputs, and mermaid diagram unchanged.
-- **Depends on:** Task 1 (substitution mechanic), Task 7 (mirror the wording authored in `4 - code.md`), Task 10 (names the doc plan's `## Guardrail scopes`)
+- **Depends on:** Task 1 (substitution mechanic), Task 8 (mirror the wording authored in `4 - code.md`), Task 10 (names the doc plan's `## Guardrail scopes`)
 - **Traces to:** Spec requirement 8 / Acceptance criterion 6 / Design "Symmetric code/docs wiring", components `reference/autonomous-phases/5 - docs.md`, Interfaces "Flow"
 - **Acceptance:**
   - The per-task doc-writer launch states that before spawning, the orchestrator resolves the agent's scoped gates by substituting each scope value from the doc plan's `## Guardrail scopes` into the gate's command template and placing the resolved command on the `Guardrails:` line.
@@ -257,7 +257,7 @@ None
   - **Doc-plan synthesis skeleton** (current `## Tasks`-only doc-plan structure, step 9): add a `## Guardrail scopes` section (between `## Overview` and `## Tasks`) for the doc plan, identical in shape, recording the doc-run scoped gates' scope values, `None` when none — mirroring Task 10.
   - **Doc-plan coverage self-check** (step 8): add a `## Guardrail scopes` validate+bind bullet for the doc plan mirroring the code-plan one above.
   - Invent no `Guardrail scopes to fill:` spawn field (assisted mode has a single driver, no spawn channel); reference `guardrails.md` for the model rather than restating it.
-- **Depends on:** Task 1 (model), Task 8 (the code-plan `## Guardrail scopes` block shape), Task 10 (the doc-plan `## Guardrail scopes` block shape)
+- **Depends on:** Task 1 (model), Task 7 (the code-plan `## Guardrail scopes` block shape), Task 10 (the doc-plan `## Guardrail scopes` block shape)
 - **Traces to:** Spec requirements 4, 5, 8, 9 / Acceptance criteria 3, 4, 5, 6, 7 / Design "Removed … everywhere they appear", "Symmetric code/docs wiring", "The plan records the scope value, not the command"
 - **Acceptance:**
   - The constraint directs the single driver to choose `{scope}` (from `fill-guidance` or the spec/design) for each scoped gate the plan's phase runs and record it in that plan's `## Guardrail scopes` (gate → value, `None` when none), with no spawn field; the e2e and unit-test tail is kept.
