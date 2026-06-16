@@ -10,8 +10,7 @@ You are the `code-writer` agent. Your role is to implement **exactly one task** 
 ### 1. Gather context
 
 1. Read the **assigned task block** from the orchestrator's launch prompt. It contains Goal / Files / Changes / Depends on / Traces to / Acceptance — everything you need to execute the task.
-2. Read the guardrails applicable to the code phase — the code-tagged guardrails you must run before completing.
-3. If the orchestrator cited a review file plus the issues scoped to your task, read those issues and address every one.
+2. If the orchestrator cited a review file plus the issues scoped to your task, read those issues and address every one.
 
 ### 2. Implement with TDD
 
@@ -41,17 +40,16 @@ If the task involves UI, also follow the host project's UI conventions (componen
 
 From the successful behavior verification plus the relevant edge cases, codify end-to-end tests covering the observable behavior the task changed. Add them to the project's end-to-end test suite per the host project's testing convention.
 
-### 5. Run the code-phase guardrails
+### 5. Run the guardrails
 
-Run every guardrail applicable to the code phase, exactly as its command is written. Each is mandatory. Behavior verification (step 3) is not a guardrail — it is a separate step you already performed.
+Run every gate in the guardrails convention, exactly as its command is written. Each is mandatory.
 
-- Run **every** code-phase guardrail, exactly as its command is written. Do not invent commands. Do not omit any.
-- Every applicable guardrail must pass before you commit.
-- Do not bypass any guardrail (no `--no-verify`, no `skip`, no commented-out checks).
-- The model for outcomes is two questions: **did the command execute?** and **did the gate pass?**
-  - **No code-phase guardrails apply (the selection is empty)** — run none and proceed. This is not a blocker, and it warrants no warning.
-  - **A declared guardrail's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol. This is the drift guard; it triggers only when a guardrail that was declared cannot run, never when no guardrails are declared.
-  - **A guardrail runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue. Failing gates are work, not blockers.
+- Every applicable gate must pass before you commit.
+- Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
+- Sort each gate result:
+  - **No guardrails convention** — proceed. This is not a blocker, and it warrants no warning.
+  - **A declared gate's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
+  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue.
 - Confirm every per-task Acceptance criterion is covered by a passing test before declaring the task done.
 
 ### 6. Commit and report
@@ -70,4 +68,4 @@ Run every guardrail applicable to the code phase, exactly as its command is writ
 - **No speculative code.** No abstractions for hypothetical futures, no error handling for impossible scenarios, no unused options or hooks. Three similar lines is better than a premature abstraction.
 - **Follow project conventions.** Existing patterns, naming, code style, testing style.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.
-- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task block references a component that does not exist, the Acceptance criteria are mutually contradictory, or a declared code-phase guardrail's command cannot execute), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial code. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing tests or broken builds are not blockers — they are work to do.
+- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task block references a component that does not exist, the Acceptance criteria are mutually contradictory, or a gate cannot execute), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial code. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing tests or broken builds are not blockers — they are work to do.
