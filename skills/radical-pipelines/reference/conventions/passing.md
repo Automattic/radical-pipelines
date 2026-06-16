@@ -11,4 +11,4 @@ Agent models are not a `## Conventions` field: the orchestrator resolves each ag
 
 Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
 
-See `guardrails.md` for the guardrail model.
+See `reference/guardrails.md` for the guardrail model.

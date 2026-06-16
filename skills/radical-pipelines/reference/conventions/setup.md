@@ -176,7 +176,7 @@ The deterministic verification gates — exact commands, judged pass/fail by exi
 
 **What kinds to consider.** Tests, lint, typecheck, build, format, audit, e2e, and any project-specific validators. Ask the owner which of these the project runs and which ones a change must pass before it is considered complete. Offer to investigate.
 
-**Capture per gate** as the per-gate block defined in `guardrails.md` (consult it for the block shape and the model):
+**Capture per gate** as the per-gate block defined in `reference/guardrails.md` (consult it for the block shape and the model):
 
 - A **name** (e.g. `tests`, `lint`).
 - The **command** to run (e.g. `npm test`), containing `{scope}` if the gate is scoped.
