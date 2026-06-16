@@ -176,16 +176,16 @@ The deterministic verification gates — exact commands, judged pass/fail by exi
 
 **What kinds to consider.** Tests, lint, typecheck, build, format, audit, e2e, and any project-specific validators. Ask the owner which of these the project runs and which ones a change must pass before it is considered complete. Offer to investigate.
 
-**Capture per gate:**
+**Capture per gate** as the per-gate block defined in `guardrails.md` (consult it for the block shape and the model):
 
 - A **name** (e.g. `tests`, `lint`).
-- The **exact literal command** to run (e.g. `npm test`).
+- The **command** to run (e.g. `npm test`), containing `{scope}` if the gate is scoped.
 - The **agents** that run the gate — one or more of `code-writer-tdd`, `code-writer-e2e`, `code-reviewer`, `doc-writer`, `doc-reviewer`. Every gate names at least one.
-- Optionally, the gate's **`plan-completed-for`** agents — a non-empty subset of the gate's agents (it may equal them) that run a feature-scoped command instead of the captured full one. The full command is validated here at setup like any gate command; the feature-scoped command does not exist yet — the `code-plan-writer` supplies it per pipeline and the `code-plan-reviewer` validates it later, at the plan phase. Absence leaves an ordinary gate.
+- For a scoped gate, an optional **`fill-guidance`** note telling the planning agent how to choose `{scope}`.
 
-Remind the owner *when* to reach for this: the per-task agents (`code-writer-tdd`, `code-writer-e2e`, `doc-writer`) run once per task, while the once-per-run agents (`code-reviewer`, `doc-reviewer`) run once per pipeline run — so a slow gate in a large project is the case for marking it `plan-completed-for`.
+A gate is scoped iff its command contains `{scope}`; capture `fill-guidance` only for scoped gates.
 
-**Validate each command as you capture it** — this is the only capture step that _executes_ commands, and validating immediately lets an unrunnable one be corrected or dropped before the confirm-before-write. The only question here is **did the command execute?** — whether it _passes_ is the agents' concern at run time, not yours.
+**Validate each command as you capture it** — this is the only capture step that _executes_ commands, and validating immediately lets an unrunnable one be corrected or dropped before the confirm-before-write. Validate a **fixed** gate by running its literal command; validate a **scoped** gate by substituting a realistic, made-up `{scope}` into its command and running that. Either way the only question is **did the command execute?** — whether it _passes_ is the agents' concern at run time, not yours; for a scoped gate this confirms the runner resolves.
 
 Sort each command into one of two outcomes:
 
@@ -196,7 +196,7 @@ Also:
 
 - **Per-command and independent.** One unrunnable command does not block writing the others or abort the wider capture — drop or correct it and finish the rest.
 - **Match the agents' environment as closely as you can reach.** Setup runs in the main checkout, since no worktree exists yet, so validate in at least the project's standard shell and working directory. Perfect parity is impossible but the floor still catches the realistic failures — command-not-found, tool-not-installed, bad invocation or wrong-shell quoting.
-- **Validation has side effects.** Running a gate that writes, deploys, or destroys takes effect on the owner's checkout. Confirm before running such a command, or accept the owner's word and use the escape hatch.
+- **Validation has side effects.** Running a gate that writes, deploys, or destroys takes effect on the owner's checkout — including a scoped gate whose realistic scope runs real work. Confirm before running such a command, or accept the owner's word and use the escape hatch. Setup's interactive, one-time nature accommodates a bounded real run.
 
 ## 3. Apply agentic coding tool setup actions
 
