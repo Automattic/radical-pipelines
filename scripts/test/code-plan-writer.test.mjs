@@ -15,7 +15,7 @@ const planTemplate = agent.match(/```markdown\n([\s\S]*?)\n```/)?.[1] ?? "";
 
 describe("code-plan-writer plan template", () => {
   test("declares the four top-level sections in order", () => {
-    const order = ["## Overview", "## Required test commands", "## E2E test plan", "## Tasks"];
+    const order = ["## Overview", "## Plan-completed guardrails", "## E2E test plan", "## Tasks"];
     let cursor = -1;
     for (const heading of order) {
       const at = planTemplate.indexOf(heading);
@@ -28,21 +28,21 @@ describe("code-plan-writer plan template", () => {
     }
   });
 
-  test("Required test commands carries the floor comment and Name | Command | Covers table", () => {
-    assert.match(
-      planTemplate,
-      /A floor, not the full set\. "None" is valid\./,
-      "Required test commands is missing the floor / None-is-valid comment",
-    );
-    assert.match(
-      planTemplate,
-      /Name\s*\|\s*Command\s*\|\s*Covers/,
-      "Required test commands is missing the Name | Command | Covers table",
-    );
+  test("Plan-completed guardrails carries the floor-free bare-None comment and Gate | Command | Rationale table", () => {
     assert.doesNotMatch(
       planTemplate,
-      /Name\s*\|\s*Command\s*\|\s*Covers\s*\|\s*Agents/,
-      "Required test commands must not add an Agents column",
+      /floor/i,
+      "Plan-completed guardrails comment must be floor-free",
+    );
+    assert.match(
+      planTemplate,
+      /"None" when no gate is marked\./,
+      "Plan-completed guardrails is missing the bare-None rule",
+    );
+    assert.match(
+      planTemplate,
+      /Gate\s*\|\s*Command\s*\|\s*Rationale/,
+      "Plan-completed guardrails is missing the Gate | Command | Rationale table",
     );
   });
 

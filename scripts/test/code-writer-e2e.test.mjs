@@ -149,11 +149,11 @@ describe("code-writer-e2e Gather context", () => {
     );
   });
 
-  test("names the Required test commands section as an input", () => {
-    assert.match(
+  test("does not name a Required test commands section as an input", () => {
+    assert.doesNotMatch(
       section,
-      /Required test commands section of `code-plan\.md`/,
-      "Gather context must name the Required test commands section of code-plan.md",
+      /Required test commands/,
+      "Gather context must not name a Required test commands section",
     );
   });
 
@@ -171,12 +171,16 @@ describe("code-writer-e2e Run the guardrails", () => {
   const section =
     agent.match(/###[^\n]*Run the guardrails[\s\S]*?(?=\n### )/)?.[0] ?? "";
 
-  test("runs both the gates and the required-test-commands floor", () => {
-    assert.match(section, /floor/i, "must run the required-test-commands floor");
+  test("runs one unified gate set with no floor", () => {
+    assert.doesNotMatch(
+      section,
+      /floor/i,
+      "must not reference a required-test-commands floor",
+    );
     assert.match(
       section,
-      /gate/i,
-      "must run the guardrails convention's gates",
+      /every gate in the guardrails convention/i,
+      "must run every gate in the guardrails convention",
     );
   });
 
@@ -208,11 +212,16 @@ describe("code-writer-e2e Run the guardrails", () => {
 });
 
 describe("code-writer-e2e guidelines", () => {
-  test("self-containment guideline names the task block, the E2E test plan section, and the Required test commands section", () => {
+  test("self-containment guideline names the task block and the E2E test plan section", () => {
     assert.match(
       agent,
-      /The task block, the E2E test plan section, and the Required test commands section of `code-plan\.md` are your inputs/,
-      "self-containment guideline must name the task block, the E2E test plan section, and the Required test commands section",
+      /The task block and the E2E test plan section of `code-plan\.md` are your inputs/,
+      "self-containment guideline must name the task block and the E2E test plan section",
+    );
+    assert.doesNotMatch(
+      agent,
+      /Required test commands/,
+      "self-containment guideline must not reference Required test commands",
     );
   });
 });

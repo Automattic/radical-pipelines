@@ -23,7 +23,7 @@ describe("assisted phase-3 code-plan skeleton", () => {
   test("declares the four top-level sections in autonomous order", () => {
     const order = [
       "## Overview",
-      "## Required test commands",
+      "## Plan-completed guardrails",
       "## E2E test plan",
       "## Tasks",
     ];
@@ -36,11 +36,21 @@ describe("assisted phase-3 code-plan skeleton", () => {
     }
   });
 
-  test("Required test commands carries the Name | Command | Covers table", () => {
+  test("Plan-completed guardrails carries the floor-free bare-None comment and Gate | Command | Rationale table", () => {
+    assert.doesNotMatch(
+      planSkeleton,
+      /floor/i,
+      "Plan-completed guardrails comment must be floor-free",
+    );
     assert.match(
       planSkeleton,
-      /Name\s*\|\s*Command\s*\|\s*Covers/,
-      "Required test commands is missing the Name | Command | Covers table",
+      /"None" when no gate is marked\./,
+      "Plan-completed guardrails is missing the bare-None rule",
+    );
+    assert.match(
+      planSkeleton,
+      /Gate\s*\|\s*Command\s*\|\s*Rationale/,
+      "Plan-completed guardrails is missing the Gate | Command | Rationale table",
     );
   });
 
@@ -73,8 +83,11 @@ describe("assisted phase-3 inverted test-planning boundary", () => {
     assert.doesNotMatch(ref, /No test planning/);
   });
 
-  test("states the planner owns the required-test-commands floor and e2e flows", () => {
-    assert.match(ref, /required[- ]test[- ]commands floor/i);
+  test("states the planner authors a feature command per marked gate and owns the e2e flows", () => {
+    assert.doesNotMatch(ref, /floor/i);
+    assert.doesNotMatch(ref, /required[- ]test[- ]commands/i);
+    assert.doesNotMatch(ref, /Guardrails to complete:/);
+    assert.match(ref, /for each gate you marked plan-completed in `\.rp\.md`, author a feature-scoped command/i);
     assert.match(ref, /e2e flows/i);
   });
 
@@ -84,9 +97,15 @@ describe("assisted phase-3 inverted test-planning boundary", () => {
 });
 
 describe("assisted phase-3 step-4 self-check additions", () => {
-  test("adds a Required-test-commands validation item", () => {
-    assert.match(ref, /Required-test-commands validate/);
+  test("adds a Plan-completed-guardrails validation-plus-bind item", () => {
+    assert.match(ref, /\*\*Plan-completed guardrails validate\*\*/);
     assert.match(ref, /resolve and terminate/i);
+    const item = ref.slice(ref.indexOf("**Plan-completed guardrails validate**"));
+    assert.match(
+      item.slice(0, item.indexOf("\n- ")),
+      /exactly the gates you marked plan-completed/i,
+      "the self-check item must include the bind to the marked gates",
+    );
   });
 
   test("adds an E2E coverage item", () => {

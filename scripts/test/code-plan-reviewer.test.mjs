@@ -33,8 +33,8 @@ describe("code-plan-reviewer execution step", () => {
     assert.ok(step2 < step3, "step 2 must precede the review step");
   });
 
-  test("step 2 instructs executing each required-test-command exactly as written", () => {
-    assert.match(exec, /Required test commands/);
+  test("step 2 instructs executing each command in Plan-completed guardrails exactly as written", () => {
+    assert.match(exec, /Plan-completed guardrails/);
     assert.match(exec, /exactly as written/);
   });
 
@@ -68,8 +68,25 @@ describe("code-plan-reviewer execution step", () => {
 });
 
 describe("code-plan-reviewer review checklist", () => {
-  test("contains a required-test-commands-coverage item", () => {
-    assert.match(agent, /\*\*Required-test-commands coverage\*\*/);
+  test("contains a plan-completed-guardrails-coverage item", () => {
+    assert.match(agent, /\*\*Plan-completed-guardrails coverage\*\*/);
+  });
+
+  test("contains a plan-completed-guardrails-bind item", () => {
+    assert.match(agent, /\*\*Plan-completed-guardrails bind\*\*/);
+    const bind = agent.slice(
+      agent.indexOf("**Plan-completed-guardrails bind**"),
+    );
+    assert.match(
+      bind.slice(0, bind.indexOf("\n- ")),
+      /Guardrails to complete:/,
+      "bind check must require each row's Gate to match a gate in Guardrails to complete:",
+    );
+    assert.match(
+      bind.slice(0, bind.indexOf("\n- ")),
+      /exactly one row|every passed marked gate have exactly one row/i,
+      "bind check must require every passed marked gate to have exactly one row",
+    );
   });
 
   test("contains an e2e-coverage item", () => {
@@ -89,12 +106,12 @@ describe("code-plan-reviewer scoped unit-test check", () => {
     assert.match(check, /prescrib/i);
   });
 
-  test("the scoped check does not treat the planner-owned floor or e2e plan as a violation", () => {
+  test("the scoped check does not treat the planner-owned guardrails section or e2e plan as a violation", () => {
     const check = agent.slice(
       agent.indexOf("**No unit-test planning**"),
       agent.indexOf("**No documentation planning**"),
     );
-    assert.match(check, /required-test-commands floor/i);
+    assert.match(check, /Plan-completed guardrails/);
     assert.match(check, /e2e test plan/i);
     assert.match(check, /not a violation/i);
   });
