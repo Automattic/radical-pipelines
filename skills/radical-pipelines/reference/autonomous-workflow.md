@@ -60,13 +60,7 @@ If a phase fails, stop and report to the owner.
 Important:
 
 - Follow the **Team spawning** convention for how to define and launch teams of agents.
-- Each time you spawn an agent, include a `## Conventions` block at the top of its initial prompt, each field labeled exactly as shown:
-  - **Artifact folder:** the absolute path to the active run's folder (e.g. `<artifacts-folder>/base/`).
-  - **Commit format:** the commit message format the agent must use. Omit when the project defines none.
-  - **Guardrails:** the gates that name this agent — one per line as a name and its exact command. For a gate marked plan-completed for this agent, that line's command is the feature command resolved from `code-plan.md` before spawn, not the setup-fixed full command. Omit when no gate names it.
-  - **Guardrails to complete:** the gates marked plan-completed whose command the code-plan-writer supplies this pipeline — one per line as a name and its setup-fixed full command — passed only to the code-plan-writer and code-plan-reviewer in the plan phase; these agents *complete* these gates rather than *run* them, and the full command rides along as context so the writer authors a feature command of the right kind. Omit when no gate is marked.
-- Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply the result as parameters of the spawn itself.
-- Agents commit their own artifacts following the **Commit format** convention. The orchestrator does not commit on their behalf.
+- Each time you spawn an agent, include the `## Conventions` block at the top of its initial prompt per `reference/conventions/passing.md`.
 
 ## 6. Handle blockers
 
