@@ -26,7 +26,7 @@ Check for:
 - **Granularity** — are tasks small enough that the code-writer never has to make a design decision mid-task? Flag tasks that hide an unresolved design choice.
 - **Feasibility** — can each task actually be executed against the current codebase? Flag tasks that reference files, modules, or APIs that don't exist or behave differently.
 - **No test planning** — does the plan refrain from specifying which unit or end-to-end tests to write? Tests are the code-writer's responsibility (unit via TDD, end-to-end derived from browser verification). Flag any task that prescribes specific tests.
-- **No documentation planning** — does the plan refrain from including documentation tasks? Documentation is planned separately as `doc-plan.md` and executed in phase 5. Flag any task that produces or updates docs.
+- **No documentation planning** — does the plan refrain from including documentation tasks? Documentation is planned separately as `docs-plan.md` and executed in phase 5. Flag any task that produces or updates docs.
 - **Scope** — does the plan stay within the spec and design? Flag tasks that add functionality, redesign, or expand scope.
 - **Clarity and consistency** — is every task unambiguous? If two code-writers executed this plan independently, would they produce the same changes in the same order? Do the sections agree with each other?
 

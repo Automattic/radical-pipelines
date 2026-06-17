@@ -62,6 +62,6 @@ Use the following structure:
 - **Stay within spec and design.** Do not invent functionality, alternative designs, or extra scope.
 - **Stop and report blockers.** If a required input is missing, contradictory (e.g., the spec and design disagree), or would force you to invent a decision that belongs to a prior phase (e.g., a task needs a design choice that isn't in the design doc), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce a partial artifact. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
 - **Do NOT plan tests.** The code-writer writes tests using test-driven development — unit tests during red/green/refactor, and end-to-end tests derived from browser verification plus edge cases. Tasks describe what to build, not which tests to write.
-- **Do NOT plan documentation.** Documentation is planned separately as `doc-plan.md` and executed in phase 5. Do not include documentation tasks here.
+- **Do NOT plan documentation.** Documentation is planned separately as `docs-plan.md` and executed in phase 5. Do not include documentation tasks here.
 - **Do NOT write code.** Describe the change; do not produce the implementation.
 - **Address review feedback explicitly** when revising. Each issue raised in the cited review file must be resolved or explicitly answered.
