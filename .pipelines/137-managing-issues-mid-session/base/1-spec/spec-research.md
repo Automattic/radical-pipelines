@@ -87,3 +87,29 @@ Bottom line: structural cause is that `manage-issues.md` is presented purely as 
 3. **Missing `merge-pipeline.md` / `close-pipeline.md` are out of scope** — a pre-existing structural gap unrelated to #137's goal. Record as a noted known gap (e.g. under Out of Scope), do not fold in.
 
 **Ground rule (team-lead):** the intent is ground truth. If research surfaces concrete evidence a premise is false (e.g. the entry point is NOT actually lost mid-session), STOP and report it as a blocker rather than silently changing the goal.
+
+### Q3 — Return/re-entry mechanics and whether the lone precedent returns correctly
+
+**A3 (spec-researcher), summarized with citations:**
+
+1. The skill has TWO one-way jump idioms; **no general suspend-and-resume primitive exists**:
+   - **(i) "read X, then continue to step N"** — caller dispatches into a sub-procedure and names the landing point: `work-on-an-issue.md:30` (resume → step 3), `:31` (fork → step 3), `:34` (review → step 3), `:43` (no matches → create → step 3). (`:33,:35` Merge/Close are terminal, no "continue", and the files don't exist.)
+   - **(ii) "Return to X"** — callee closes by pointing back: `resume-pipeline.md:42` "Return to `work-on-an-issue.md`."; `review-pipeline.md:50` "Return to `work-on-an-issue.md` step 3…"; `review-pipeline.md:58` footer; `fork-pipeline.md:51` softer "Continue from the phase that follows…".
+   - Intra-file step loops ("return to step N") exist within the assisted phase files but are not cross-file detours.
+   - **Key finding:** idioms (i) and (ii) are complementary halves of one round-trip, but only between `work-on-an-issue.md` and the pipeline-action files. Every existing return hard-codes ONE fixed destination (`work-on-an-issue.md`, usually step 3). There is NO generic "do sub-procedure X, then resume wherever you were" primitive. A mid-session detour into `manage-issues.md` from an arbitrary point (blocker mid-run, review advisory, merge) has no existing variable-return pattern to inherit.
+
+2. **The lone precedent (`review-pipeline.md:12`) has NO explicit return — it is itself incomplete.** It is a bare hand-off ("handle it as a NEW issue via `manage-issues.md`"); it does not say "then return here." After it, `manage-issues.md`'s Close out (`:52-54`) points the orchestrator toward `work-on-an-issue.md` to start fresh pipeline work. For the merged-pipeline case that happens to be coherent (a review IS the wrong tool there, fresh pipeline work IS the right next step), so line 12 isn't broken — but it succeeds *by luck*: its desired return coincides with the callee's hard-coded forward-only exit. The gap appears the moment the same hand-off is reused from a call site whose desired return is NOT "go start pipeline work" (e.g. a blocker where you want to resume the run). **Conclusion: line 12 is a precedent for the route IN, not for return behavior. The fix must make return-behavior explicit rather than copy line 12's bare hand-off.**
+
+3. **No mid-session entry-point re-determination exists.** `SKILL.md:50` "When the owner starts a new session, determine which entry point applies…" is a once-at-session-start decision. Nothing in the skill re-runs it or re-reads the Entry-points table mid-run. `manage-issues.md` is reached only from the table at session start (`SKILL.md:55`) or the single hand-off at `review-pipeline.md:12`. So there is NO re-entry hook to lean on — the fix must establish the route.
+
+**Analyst's working conclusions from A3:**
+- **Return-behavior must be a stated requirement.** A general "mid-session create/modify → `manage-issues.md`" rule, entered from arbitrary points, cannot inherit the existing single-fixed-destination return; the orchestrator must end up back at whatever it was doing (resume the run / finish the review / report the blocker), not be force-funneled toward starting fresh pipeline work.
+- The specific spot that hard-codes the wrong return for a mid-session caller is `manage-issues.md` Close out (`:52-54`), reinforced by its front-door framing (`:3`). The fix's mid-session-aware adjustment lives there.
+- The fix establishes a route that does not exist; it is not merely re-wording an existing hook.
+
+### On the intent's open premise (no blocker)
+
+The intent's open assumption — "the skill's entry point gets lost over a long session" — is **refined, not falsified**, by the research, so no blocker per the ground rule. There are two contributing causes pointing to the same fix:
+- **Framing defect:** `manage-issues.md` is scoped to session start (`SKILL.md:50` "When the owner starts a new session"); the skill never frames it as applying mid-session. The orchestrator may not realize the Managing Issues workflow applies at all mid-run.
+- **Retrieval defect:** even the framing lives in SKILL.md, which (unlike `conventions/load.md`) has no re-read discipline, so it can fall out of context over a long run — matching the intent's stated hypothesis.
+Both point at the same behavioral goal (mid-session issue authoring re-enters `manage-issues.md`), so the goal stands unchanged.
