@@ -109,6 +109,35 @@
   reads a PRIOR phase's research file. So adding the prior research file as a
   next-phase input is a new, additive cross-phase read.
 
+- **Coverage map (spec requirement / acceptance criterion → topic).** Every spec
+  requirement and acceptance criterion maps to a design decision:
+  - Req 1 / AC1, AC2 → Topic: Recording-trigger formulation.
+  - Req 2 / AC3, AC4 → Topic: Spec-phase home for collaborative exploration
+    (AC3 = the section; AC4 = the explicit naming of owner-initiated dialogue as
+    recordable in the step-2 guidance).
+  - Req 3 / AC5 → Topic: Advocate-vs-record distinction.
+  - Req 4 / AC6 → Topic: Next-phase-drift flag (spec + design-doc only, absent in
+    plan).
+  - Req 5 / AC7 → Topic: Carry-across mechanism.
+  - Req 6 / AC8 → satisfied jointly by the Topic 2 hybrid (extract identical core,
+    keep per-phase specifics inline → consistency without flattening asymmetry),
+    Topic 3 (spec phase reaches parity), and Topics 4-5 (one trigger / one
+    advocate-vs-record principle across all three).
+  - Req 7 / AC9 → Topic 2 (no duplication: shared file for the identical core) +
+    threaded through every topic (generic, minimalist, no unnecessary negatives,
+    system-as-designed); the design adds no tool- or issue-tracker-specific
+    content.
+  - AC10 (scoped to assisted only) → guaranteed by the Topic 1 decision (research
+    stays in the assisted reading path; standalone artifacts and the autonomous
+    path untouched) and by the change set touching only the three assisted phase
+    files plus one new `assisted-phases/` shared reference file; artifact
+    filenames, phase ordering, approval-file mechanism, and completion predicate
+    are unchanged. AC10's "only the three assisted phase references are modified"
+    is honored: the new shared file is an ADDITION within the assisted reading
+    path, explicitly sanctioned by spec Out of Scope item 4 ("a new shared
+    `assisted-phases/`-level file referenced by all three"); no out-of-scope file
+    (autonomous references, analyst agent definitions) is touched.
+
 ## Topics
 
 (One entry per design decision worked through with the owner. Shape: Spec link /
@@ -232,6 +261,14 @@ Options / Trade-offs / Decision / Rationale.)
   `## Research`) clean so design-adjacent exploration cannot leak into the
   requirements-only `spec.md`. It is also the section the carry-across mechanism
   (Topic 1) hands to the design-doc phase.
+- **Also covers AC4 (owner-initiated dialogue named as recordable).** Beyond
+  providing the section, the spec phase's step-2 guidance must explicitly NAME
+  questions the owner raises, and the explanatory exchanges that resolve them, as
+  research worth preserving — alongside the orchestrator's own questions — so the
+  orchestrator knows to route them into the new `## Topics` home. This is a
+  guidance change in the spec phase's Q&A-loop step, not just a new section
+  heading. The recording trigger (Topic 4) then fires on these owner-initiated
+  threads the same way it fires on the orchestrator's.
 
 ### Topic: Recording-trigger formulation
 
