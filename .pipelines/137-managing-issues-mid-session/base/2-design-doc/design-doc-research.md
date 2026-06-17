@@ -47,6 +47,11 @@ Researcher's independent trace confirmed the analyst map and sharpened it:
 - The one existing mid-session caller is `review-pipeline.md:12` (precondition (b) Unmerged) — names the file, no restatement, no explicit return.
 - "Orchestrator updates during a run" (status/labels/push/version/assignee) is a **project convention in `.rp.md`** (referenced from `review-pipeline.md:54`), not part of the generic skill and not part of Managing Issues — consistent with the spec's Out-of-Scope.
 
+**"Touches the tracker" splits by operation type (important for scoping, R5/AC5):**
+
+- **Per-run metadata updates** (status, labels, push, version, assignee) fire mid-run repeatedly but are out of scope (spec Out-of-Scope, line 41). They neither pass through a candidate home nor should — no design change touches them.
+- **Genuine issue create/modify mid-run** is the only in-scope tracker op, and today exactly one reading path produces it: `review-pipeline.md:12`. It already re-enters the workflow by naming `manage-issues.md` inline. The R1/R3 gap is the absence of a *general* statement that any future mid-run create/modify routes through the workflow — `review-pipeline.md:12` is a hand-written one-off, not a general rule.
+
 **Conclusion of Topic 1:** Neither candidate home is on a path that is structurally re-traversed mid-run. Both SKILL.md and `load.md` are reached only at skill-activation / workflow-start / entry-point-start. R3's "reliably re-encountered mid-run" therefore cannot be satisfied by *placing the rule on a re-traversed path* — no such path exists. It must be satisfied by the **inheritance pattern R2 already names**: a rule stated once at the entry-point root that downstream procedures inherit silently, the same way `manage-issues.md:18` inherits `intent-format.md`'s authoring discipline "across all steps," and the way SKILL.md's "## Rules" already governs everything. The design question becomes WHICH root, and whether the lone mid-run caller needs anything beyond inheritance.
 
 ### Topic 2 mechanism — the skill's real durability pattern (researcher-confirmed)
