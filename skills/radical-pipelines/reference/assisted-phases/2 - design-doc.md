@@ -4,7 +4,8 @@ Advances the pipeline from phase 1 (spec) to phase 2 (design-doc) by working thr
 
 Inputs:
 
-- `<artifacts-folder>/1-spec/spec.md`
+- `<artifacts-folder>/1-spec/spec.md` — the authoritative statement of intent.
+- `<artifacts-folder>/1-spec/spec-research.md` — supplementary collaborative context (not a second source of truth).
 
 Outputs:
 
@@ -19,10 +20,10 @@ These rules apply across all steps:
 - You MUST anchor every design choice in the spec — point at the requirement or acceptance criterion it serves.
 - You MUST propose 2-3 credible options with trade-offs when there is a real choice. Do not collapse to a single option without surfacing the alternatives.
 - You MUST work through ONE topic at a time. Never dump multiple unrelated design questions on the owner in a single message.
-- You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into the design. If a scope question surfaces during design, log it as an open question or send the owner back to revise the spec — do not decide it in this phase.
+- You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into the design. If a scope question surfaces during design, log it as an open question or send the owner back to revise the spec — do not decide it in this phase. When discussion drifts into plan territory, flag it to the owner and recommend running the assisted plan phase once the design-doc phase completes, while context is fresh.
 - You MUST NOT write production code. Interface sketches and small illustrative snippets are fine.
-- You MUST NOT write the implementation plan (ordered steps, task breakdown) — that belongs to phase 3.
-- You MUST append every option, trade-off, and decision to `design-doc-research.md` in real time, not in batches.
+- You MUST NOT advocate for or commit to the implementation plan (ordered steps, task breakdown) — that belongs to phase 3 — per the advocate-vs-record principle in `collaborative-research.md`.
+- You MUST record collaborative exploration with the owner per `collaborative-research.md`. Append each settled topic to `design-doc-research.md` as it settles, not in batches.
 - You MUST NOT proceed past any gate without explicit owner confirmation.
 - You MUST NOT commit until the owner has explicitly approved the final `design-doc.md`.
 - You SHOULD read the codebase extensively to ground the design in existing patterns, components, and conventions. Record non-trivial findings under `## Research` in `design-doc-research.md` with sources cited.
@@ -63,7 +64,7 @@ Each Topic entry follows this shape:
 
 ### 2. Gather context
 
-Read `<artifacts-folder>/1-spec/spec.md` — the authoritative statement of intent for this phase. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-doc-research.md` with sources cited (file paths, function names).
+Read `<artifacts-folder>/1-spec/spec.md` — the authoritative statement of intent for this phase — and `<artifacts-folder>/1-spec/spec-research.md` for supplementary collaborative context. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-doc-research.md` with sources cited (file paths, function names).
 
 You will keep reading the codebase as new questions surface in step 3; this step just establishes the baseline.
 
@@ -74,7 +75,7 @@ Work through each design topic in turn. For each:
 1. **Frame the topic** — what is the question, and which spec requirement(s) or acceptance criterion(s) does it serve?
 2. **Propose 2-3 credible options** grounded in what the codebase already does. Spell out the trade-offs.
 3. **Present the topic to the owner.** The owner may pick an option, propose a different one, or ask for more research. Iterate until the owner decides.
-4. **Append the topic** (frame, options, trade-offs, decision, rationale) to `design-doc-research.md` under `## Topics`. If the topic uncovers an unresolved sub-question, log it under `## Open Questions`. If it surfaces a risk, log it under `## Risks`.
+4. **Append the topic** (frame, options, trade-offs, decision, rationale) to `design-doc-research.md` under `## Topics` once it settles. If the topic uncovers an unresolved sub-question, log it under `## Open Questions`. If it surfaces a risk, log it under `## Risks`.
 
 Cover these topics — order is flexible, and not every topic needs a multi-option choice:
 
