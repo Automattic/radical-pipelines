@@ -4,8 +4,9 @@ Advances the pipeline from phase 2 (design doc) to phase 3 (`code-plan.md` + `do
 
 Inputs:
 
-- `<artifacts-folder>/1-spec/spec.md`
-- `<artifacts-folder>/2-design-doc/design-doc.md`
+- `<artifacts-folder>/1-spec/spec.md` — an authoritative input.
+- `<artifacts-folder>/2-design-doc/design-doc.md` — an authoritative input.
+- `<artifacts-folder>/2-design-doc/design-doc-research.md` — supplementary collaborative context (not a second source of truth).
 
 Outputs:
 
@@ -29,9 +30,9 @@ These rules apply across all steps:
 - You MUST work through ONE topic at a time. Never dump multiple unrelated planning questions on the owner in a single message.
 - You MUST NOT plan tests in the code plan — that is the code-writer's responsibility in phase 4 (TDD).
 - You MUST NOT plan documentation in the code plan, and MUST NOT include code tasks in the doc plan.
-- You MUST NOT write code or documentation content. Describe what to do, not how to phrase it.
+- You MUST NOT advocate for or commit to code or documentation content — that belongs to phases 4 and 5 — per the advocate-vs-record principle in `collaborative-research.md`. Describe what to do, not how to phrase it.
 - You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into either plan. If a scope question surfaces, log it as an open question or send the owner back to revise the spec or design doc — do not decide it in this phase.
-- You MUST append every option, trade-off, and decision to `plan-notes.md` in real time, not in batches.
+- You MUST record collaborative exploration with the owner per `collaborative-research.md`. Append each settled topic to `plan-notes.md` as it settles, not in batches.
 - You MUST NOT proceed past any gate without explicit owner confirmation.
 - You MUST NOT commit until the owner has explicitly approved both `code-plan.md` and `doc-plan.md`. Once both are approved, you also write the two approval files (`code-plan-review-approved.md` and `doc-plan-review-approved.md`) as part of the same commit.
 - You SHOULD read the codebase to ground tasks in actual files, modules, and conventions. Record non-trivial findings under `## Research` in `plan-notes.md` with sources cited.
@@ -74,7 +75,7 @@ Each Topic entry follows this shape:
 
 ### 2. Gather context
 
-Read `<artifacts-folder>/1-spec/spec.md` and `<artifacts-folder>/2-design-doc/design-doc.md`. Then explore the codebase to identify the exact files, modules, and conventions tasks will touch — enough to propose grounded task breakdowns, not exhaustively.
+Read `<artifacts-folder>/1-spec/spec.md` and `<artifacts-folder>/2-design-doc/design-doc.md` — the authoritative inputs — and `<artifacts-folder>/2-design-doc/design-doc-research.md` for supplementary collaborative context. Then explore the codebase to identify the exact files, modules, and conventions tasks will touch — enough to propose grounded task breakdowns, not exhaustively.
 
 Sweep the repository end-to-end for existing text that references the behavior the code phase will change — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions. Each match is a documentation surface that may need a task in step 7.
 
@@ -89,7 +90,7 @@ Work through each code-plan topic in turn. For each:
 1. **Frame the topic** — what is the planning question (task slicing, file scope, ordering, granularity, acceptance), and which spec acceptance criterion or design decision does it serve?
 2. **Propose 2-3 credible options** grounded in the design doc and the codebase. Spell out the trade-offs.
 3. **Present the topic to the owner.** The owner may pick, propose a different option, or ask for more research. Iterate until the owner decides.
-4. **Append the topic** to `plan-notes.md` under `## Code Plan Topics`. If the topic uncovers an unresolved sub-question, log it under `## Open Questions`. If it surfaces a risk, log it under `## Risks`.
+4. **Append the topic** to `plan-notes.md` under `## Code Plan Topics` as it settles, per `collaborative-research.md`. If the topic uncovers an unresolved sub-question, log it under `## Open Questions`. If it surfaces a risk, log it under `## Risks`.
 
 Cover these topics — order is flexible, and not every topic needs a multi-option choice:
 
@@ -166,7 +167,7 @@ Work through each doc-plan topic in turn. For each:
 1. **Frame the topic** — what is the planning question (which surface, which audience, what scope), and which spec requirement, acceptance criterion, or code task does it serve?
 2. **Propose 2-3 credible options** grounded in the host project's existing documentation conventions and the audiences that already exist. Spell out the trade-offs.
 3. **Present the topic to the owner.** Iterate until the owner decides.
-4. **Append the topic** to `plan-notes.md` under `## Doc Plan Topics`. Log unresolved sub-questions and risks in their respective sections.
+4. **Append the topic** to `plan-notes.md` under `## Doc Plan Topics` as it settles, per `collaborative-research.md`. Log unresolved sub-questions and risks in their respective sections.
 
 Cover these topics — order is flexible:
 
