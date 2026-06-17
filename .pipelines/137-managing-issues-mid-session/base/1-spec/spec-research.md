@@ -52,3 +52,30 @@ Bottom line: structural cause is that `manage-issues.md` is presented purely as 
 - The actor is always the **orchestrator** (no agent touches the tracker). The fix lives in orchestrator-facing reference text.
 - The behavior to guarantee is: *whenever the orchestrator, mid-session, decides to create or modify a tracker issue, it follows `manage-issues.md` (capture Q&A + Issues-convention routing), the same as from the entry point.*
 - Category B (labels/status/assignee/branch) is out of scope (issue metadata mirroring, not issue authoring). To confirm with owner.
+
+### Q2 — What cross-cutting-rule idioms does the skill use, and is `manage-issues.md` mid-session-ready?
+
+**A2 (spec-researcher), summarized with citations:**
+
+1. The skill uses BOTH rule mechanisms, for different jobs:
+   - **(a) Central general rules** — `SKILL.md:12-16` "Rules": cross-cutting invariants stated once, globally, never restated (`SKILL.md:14` "Humans only talk with you, never with the other agents."; `SKILL.md:15` artifacts invariant). This is the home for a truly cross-cutting orchestrator invariant.
+   - **(b) Central pointer to a shared file** — `SKILL.md:42-46` "Project conventions" points to `conventions/load.md` (the DRY mechanism CLAUDE.md prescribes).
+   - **(c) Per-entry-point repeated pointer** — the exact line "Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`)." appears ONLY at the two entry points: `work-on-an-issue.md:7` and `manage-issues.md:5` (the latter continues "Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention."). It is NOT carried by `create-pipeline.md`/`fork-pipeline.md`/`resume-pipeline.md`/`review-pipeline.md` — those are reached from within `work-on-an-issue.md` after conventions are loaded, so restating would be forbidden duplication. Discipline: the pointer sits at the reading-path root and everything reachable inherits it silently.
+   - **Style verdict:** the skill favors "state the rule once at the right altitude" over "patch each silent spot." Patching the Part-3 silent spots individually would violate CLAUDE.md ("when a general rule already covers a case, state it once at that general level — don't add special-case restatements"). **Idiomatic fix = ONE general rule, not five edits.**
+
+2. Where a "any create/modify routes through `manage-issues.md`" rule attaches:
+   - `SKILL.md` Rules — most idiomatic *home* for the canonical statement, but on its own shares the out-of-view-over-a-long-run fragility the intent flags. Necessary-but-maybe-not-sufficient.
+   - Entry-points table framing (`SKILL.md:50` "When the owner starts a new session") — this framing IS the bug; it scopes `manage-issues.md` to session start. Broadening it fixes the *framing* defect but not the *retrieval* defect (still in SKILL.md).
+   - `manage-issues.md` own opening — only on the path if something already routed you there; can't be the trigger, it's the destination.
+   - **Issues-convention description (`load.md:16`, `setup.md:62-66`)** — STRONG: `load.md` is re-read at the start of any workflow (`load.md:6` "Read it at the start of any workflow"; `load.md:7` "load and verify it before starting any workflow"), so it is more reliably in-view over a long run than SKILL.md Rules. The Issues convention is the abstraction every tracker op already routes through; co-locates with `manage-issues.md:5`.
+   - **Design tension (researcher's flag):** placement isn't just "where it reads best once," but "where it's reliably re-encountered when the orchestrator acts." The skill already has a re-read discipline for conventions (`load.md`) but NOT for SKILL.md. So a lone SKILL.md line is weak against the intent's context-loss hypothesis. (This is largely a phase-2 design decision; spec should state the durability requirement, not the exact file.)
+
+3. `manage-issues.md` mid-session fitness — mostly self-contained, but TWO bits assume a fresh session-start entry and would read wrong mid-run:
+   - **Opening `manage-issues.md:3`** — "This is the **front door**: it is upstream of `work-on-an-issue.md` and stops once the issue exists — it does **not** create or run pipelines." The front-door/upstream framing presumes a fresh start flowing forward into work-on-an-issue.md; entered mid-session the orchestrator is already downstream (inside a run, pipeline may already exist).
+   - **Close out `manage-issues.md:52-54`** — "The issue now exists; advancing it into a pipeline happens separately through `work-on-an-issue.md`." Assumes the next step is to START pipeline work; mid-session the orchestrator typically needs to RETURN to what it was doing (finish the review, resume the run, report the blocker), not advance the new issue.
+   - Everything else (capture Q&A steps 1-5, modify→read-first branch line 30, approval gate lines 20/50, "report the issue reference" line 53) is situation-neutral and reusable as-is. So the body is reusable; only the front-door framing and forward-only Close out need a mid-session-aware adjustment (e.g. a "return to where you were" off-ramp).
+
+**Analyst's working conclusions from A2:**
+- Fix shape = a single general rule ("any time the orchestrator creates or modifies an issue, it does so through `manage-issues.md`"), placed at an altitude where it stays reliably in view mid-run; PLUS a small adjustment to `manage-issues.md`'s front-door framing and Close out so a mid-session entry returns the orchestrator to what it was doing. NOT per-spot patches of the Part-3 silent moments.
+- The spec must state the durability requirement (rule stays in view / is re-encountered when the orchestrator acts mid-run) without pinning the exact file — that placement is a phase-2 design choice.
+- Open scope decisions for the owner (via team-lead): (i) confirm category B exclusion; (ii) whether the fix is purely the behavior guarantee (Option A, matches intent wording) or also adds proactive recognition of the Part-3 silent spots (Option B); (iii) whether the missing `merge-pipeline.md`/`close-pipeline.md` files are in scope.
