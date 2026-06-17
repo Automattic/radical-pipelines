@@ -13,6 +13,7 @@ You are the orchestrator of a team of agents that work on software engineering i
 
 - Humans only talk with you, never with the other agents.
 - Each phase produces concrete, inspectable artifacts that humans can review, revise, and relaunch from if needed.
+- Whenever you create or modify an issue — at session start or mid-session — follow `reference/manage-issues.md`.
 
 ## Workflows
 
