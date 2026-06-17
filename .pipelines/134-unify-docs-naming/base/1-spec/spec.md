@@ -44,12 +44,12 @@ This change standardizes the documentation concept on the plural form `docs` eve
 - Given the derived name copies, when `.rp.md`'s Agent models table and `website/demo.js` are inspected, then both list the four agents under their plural `docs-*` names, and `website/demo.js` uses the plural plan-artifact names; and when `.changeset/agent-scoped-guardrails.md` is inspected, then it names `docs-writer` and `docs-reviewer`.
 
 - Given the in-scope trees (`skills`, `agents`, `.rp.md`, `website`, `.changeset`) and excluding `.pipelines/`, when an implementer runs the design-doc-anchored, match-counting search below, then it returns zero matches after the change (the same searches return the catalogued occurrences before the change). Counting matches rather than lines is required, because some lines carry both an in-scope `doc-plan.md` token and a protected `design-doc.md` token (e.g. `setup.md`, `doc-reviewer.md`).
-  - `grep -roP '(?<!design-)\bdoc-(plan-writer|plan-reviewer|plan-review|plan|writers?|reviewers?)\b' skills agents .rp.md website .changeset`
-  - `grep -roP '(?<!Design )\b[Dd]oc [Pp]lan\b' skills agents .rp.md website .changeset`
-  - `grep -roP '(?<!Design )\bDoc (Writer|Reviewer)\b' skills agents .rp.md website .changeset`
-  - `grep -roP '\bdoc tasks?\b|\bdoc-plan topic\b|\bdoc planning\b' skills agents .rp.md website .changeset`
+  - `grep -roiP '(?<![Dd]esign-)\bdoc-(plan-writer|plan-reviewer|plan-review|plan|writers?|reviewers?)\b' skills agents .rp.md website .changeset`
+  - `grep -roiP '(?<![Dd]esign )\b[Dd]oc [Pp]lan\b' skills agents .rp.md website .changeset`
+  - `grep -roiP '(?<![Dd]esign )\bdoc (writer|reviewer)\b' skills agents .rp.md website .changeset`
+  - `grep -roiP '\bdoc tasks?\b|\bdoc-plan topic\b|\bdoc planning\b' skills agents .rp.md website .changeset`
 
-  The optional trailing `s` on the role nouns (`writers?`/`reviewers?`) and on `tasks?` catches the plural inflections `doc-writers`/`Doc-writers` and `doc tasks` that Requirements 4 and 5 name; the `(?<!design-)` and `(?<!Design )` lookbehinds still exclude every `design-doc` form, and already-plural `docs-*` forms remain unmatched.
+  The `-i` flag makes the leading token case-insensitive, so capitalized concept forms are caught too — including `Doc-writers`, `Doc-plan`, and `Doc tasks` (the title-case `Doc Plan`/`Doc Writer`/`Doc Reviewer` and `Doc tasks` display forms that Requirement 4 names, alongside the lowercase prose of Requirement 5). The optional trailing `s` on the role nouns (`writers?`/`reviewers?`) and on `tasks?` catches the plural inflections `doc-writers`/`Doc-writers` and `doc tasks`. The case-insensitive `(?<![Dd]esign-)` and `(?<![Dd]esign )` lookbehinds still exclude every `design-doc`/`Design Doc` form (the `doc-writer`/`doc-reviewer` substrings inside `design-doc-writer`/`design-doc-reviewer` stay unmatched), and already-plural `docs-*`/`Docs` forms remain unmatched.
 
 - Given the absence checks above could be satisfied by deletion, when the new names are checked positively, then they exist — e.g. `agents/docs-writer.md` exists with `name: docs-writer` (and likewise for the other three renamed agents).
 
