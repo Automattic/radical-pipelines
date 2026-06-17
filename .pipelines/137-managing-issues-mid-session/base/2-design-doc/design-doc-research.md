@@ -17,8 +17,11 @@ Candidate homes: SKILL.md Rules section, vs. the Issues-convention description r
 ## Open questions
 
 - Topic 1 — RESOLVED (re-read mechanics).
-- Topic 2 — RESOLVED. Central placement decided: state the rule once in SKILL.md `## Rules`. See Decisions D1.
-- Topic 3 (next): `manage-issues.md` framing rewrite — front-door (`:3`) and forward-only close-out (`:52-54`) made mid-session-safe with no hard-coded next step (R4/AC3); the Entry points table wording (`SKILL.md:50` "starts a new session") checked for consistency; `review-pipeline.md:12` return behavior (R5/AC4) checked.
+- Topic 2 — RESOLVED. Central placement decided: state the rule once in SKILL.md `## Rules`. See Decisions D1; plus D2 (Entry points preamble de-exclusivized).
+- Topic 3 — RESOLVED. `manage-issues.md` framing rewrite (D3) + `review-pipeline.md:12` unchanged (D4).
+- Topic 4 — RESOLVED. Close-out carries NO caller examples; bare situation-neutral instruction only. Folded into D3.
+
+All topics resolved. Design complete. See the AC coverage map below.
 
 ## Findings
 
@@ -133,10 +136,39 @@ Line 3 tangles three distinct claims; only one is the forward-only hard-coding R
 - **Claim B — hard-coded next step** ("advancing it into a pipeline happens separately through `work-on-an-issue.md`", `:54`; "it is upstream of `work-on-an-issue.md`", `:3`): the forward-only commitment. False for the merged caller (its review was abandoned) and for a hypothetical mid-run caller (which resumes its run). **REMOVE** (make situation-dependent).
 - **Claim C — positional framing** ("This is the front door: it is upstream of `work-on-an-issue.md`", `:3`): encodes "reached first, at session start, ahead of pipeline work" — the session-start-only assumption the spec names as root cause (spec:9; R4 "no longer assumes it is reached only at session start"). **SOFTEN** (drop the positional "front door / upstream" sequencing; the scope boundary in Claim A already states what the workflow does without claiming a fixed position in a fixed sequence).
 
-**The close-out rewrite (R4 needle).** Replace Claim B with a situation-neutral return: the issue now exists; control returns to the situation that invoked the workflow, which decides the next step. R4/AC3 forbid *forcing* a single next step — they do NOT forbid *naming* one as an example. The needle is threaded by attributing the next step to the **situation**, not the workflow: at most one or two short illustrations (a session-start owner typically advances the new issue via `work-on-an-issue.md`; a mid-run caller resumes its run), kept illustrative, never an enumeration of callers (R2 warns against enumerating mid-session situations) and never the forced step. This preserves the legitimate forward affordance for the session-start case without mandating it for any caller.
+**The close-out rewrite (R4 needle) — situation-neutral instruction, NO examples (Topic 4 resolution).** Replace Claim B with a bare situation-neutral return: the issue now exists; report the issue reference (the existing situation-neutral first sentence, kept); control returns to the situation that invoked the workflow, which decides what happens next. **No enumerated caller examples.** This is the leanest form that still satisfies AC3, settled by audit:
+
+- **AC3 is a negative criterion** — verified by confirming an *absence* (nothing forces a single next step). The bare instruction "the invoker decides" satisfies all three of its clauses (nothing forces start-fresh; nothing forces a return; control goes back to the invoking situation, which decides) — the last clause is literally AC3 restated as the instruction. No example is load-bearing: AC3 never asks the close-out to *demonstrate* both branches are reachable, only to not force one.
+- **R2/AC2 anti-enumeration** — even two examples is a mini-enumeration of caller situations, sitting in the workflow file and inviting future editors to "add my caller." "The invoker decides" scales to all callers, current and future, with zero enumeration — exactly the property R2 buys.
+- **Minimalism** — examples illustrate consequences of the instruction for particular callers (reasoning), not the instruction; CLAUDE.md says state the instruction, not the reasoning.
+- **Describe-as-designed (the strongest)** — a "mid-run caller resumes its run" example documents a caller that does NOT concretely exist today (the only concrete mid-run caller, `review-pipeline.md:12`, proceeds toward *fresh* pipeline work, not resume); R4 itself phrases it speculatively ("a mid-run caller WOULD resume"). And dropping that speculative example leaves only "session-start → `work-on-an-issue.md`", which is just Claim B (the hard-coded next step) creeping back in softened clothing and re-privileging the de-hardcoded step. So neither example may stay.
+
+Nothing is lost at zero examples: the session-start owner is served because their invoking situation decides (and `work-on-an-issue.md` stays discoverable via the Entry points "Work on an issue" row); the merged caller is served because its situation decides (D4). Indicative close-out (final wording to the design-doc-writer): *"The issue now exists. Report the issue reference to the owner. Control returns to the situation that invoked this workflow, which decides what happens next."*
 
 ### D4 — `review-pipeline.md:12` stays byte-for-byte unchanged (R5/AC4)
 
 **Decision.** Make NO edit to `review-pipeline.md:12`. It relies on D1 for routing and on D3's situation-neutral close-out for return.
 
-**Why no return note is needed.** `review-pipeline.md:12` is a *terminal redirect* — "handle it as a NEW issue via `manage-issues.md`, not a review." Once it sends control to `manage-issues.md`, the review is abandoned; there is no post-redirect review logic for that branch to return into. So D3's "control returns to the invoking situation" lands the merged caller back at the point where it already determined the change is new work, from which the correct, natural move is a fresh pipeline for the new issue (spec:31 "proceeds toward fresh pipeline work because its review was abandoned"). Adding an explicit return note would be a redundant restatement (AC4) and a per-procedure patch (AC2) — exactly what D1 + the situation-neutral close-out exist to avoid. (Today the forward-only close-out is *accidentally* correct for this one caller; D3 makes it correct *by construction* for every caller.)
+**Why no return note is needed.** `review-pipeline.md:12` is a *terminal redirect* — "handle it as a NEW issue via `manage-issues.md`, not a review." Once it sends control to `manage-issues.md`, the review is abandoned; there is no post-redirect review logic for that branch to return into. So D3's "control returns to the invoking situation" lands the merged caller back at the point where it already determined the change is new work, from which the correct, natural move is a fresh pipeline for the new issue (spec:31 "proceeds toward fresh pipeline work because its review was abandoned"). Adding an explicit return note would be a redundant restatement (AC4) and a per-procedure patch (AC2) — exactly what D1 + the situation-neutral close-out exist to avoid. (Today the forward-only close-out is *accidentally* correct for this one caller; D3 makes it correct *by construction* for every caller.) Its triggering condition — recognizing a merged-pipeline change as new work — is an unchanged review-domain judgment (spec:37, R5); this change adds no new recognition trigger.
+
+## Summary for the design-doc-writer
+
+### Files touched (the complete change surface)
+
+1. **`SKILL.md` — `## Rules`**: add ONE bullet stating R1 (create/modify an issue → follow the Managing Issues workflow, `reference/manage-issues.md`), in the silently-inherited style of the two existing bullets. (D1)
+2. **`SKILL.md` — Entry points preamble (`:50`)**: minimal de-exclusivity touch so it no longer asserts the Manage-issues route is session-start-ONLY; keep the "Manage issues" row. (D2)
+3. **`reference/manage-issues.md` — framing (`:3`)**: keep the scope boundary (Claim A); remove the hard-coded next step (Claim B); soften the positional "front door / upstream" framing (Claim C). (D3)
+4. **`reference/manage-issues.md` — close-out (`:52-54`)**: replace the forward-only pointer with the bare situation-neutral return instruction; NO caller examples. Keep "report the issue reference." (D3)
+
+Untouched (by design): `manage-issues.md` steps 1-5, modify-reads-first branch, approval gate; `review-pipeline.md:12` (D4); `conventions/load.md` / the Issues-convention row (D1 rejection); all phase files, both workflow files, `create-pipeline.md`, the absent `merge-pipeline.md`/`close-pipeline.md`; all run-time tracker-metadata handling.
+
+### Acceptance-criteria coverage map
+
+| AC | Covered by | How |
+| --- | --- | --- |
+| AC1 — mid-session (incl. mid-pipeline) routed into the workflow, beyond the merged case | D1 | Standing recognition rule in `## Rules` fires for any create/modify decision; orchestrator follows the pointer into `manage-issues.md` and runs the capture Q&A + Issues convention. |
+| AC2 — not duplicated special-case patches; previously-silent spots covered by the general rule | D1 + site inventory | One general rule; the complete issue-write site set is `manage-issues.md` + `review-pipeline.md:12`, neither patched. Nothing to patch elsewhere. |
+| AC3 — `manage-issues.md` hard-codes no single next step | D3 | Situation-neutral close-out, bare instruction, no examples; satisfies AC3's negative criterion. |
+| AC4 — merged hand-off routes + returns correctly, reads consistently, no restatement; trigger unchanged | D4 | Terminal redirect lands correctly via the situation-neutral close-out; no note added; trigger is unchanged review-domain judgment. |
+| AC5 — metadata handling, trigger set, agent phase files, absent merge/close files all unchanged | D1 scope guard + D4 + files-touched | Rule scoped to "create or modify an issue"; metadata is the out-of-scope `.rp.md` convention; no phase/workflow/merge/close file edited. |
+| AC6 — minimalist, generic, no cross-path duplication, no unneeded negatives, reuse existing terms | All decisions | Generic workflow-routing rule kept out of the project-supplied Issues convention; reuses "Managing Issues workflow", "Issues convention", "work on an issue"; one statement, no restatements; close-out drops a negative ("does not... separately") in favor of a positive instruction. |
