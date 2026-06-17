@@ -181,8 +181,9 @@ The deterministic verification gates — exact commands, judged pass/fail by exi
 - A **name** (e.g. `tests`, `lint`).
 - The **exact literal command** to run (e.g. `npm test`).
 - The **agents** that run the gate — one or more of `code-writer`, `code-reviewer`, `doc-writer`, `doc-reviewer`. Every gate names at least one.
+- Optionally, the gate's **`plan-completed-for`** agents — a non-empty subset of the gate's agents (it may equal them) that run a feature-scoped command instead of the captured full one. The full command is validated here at setup like any gate command; the feature-scoped command does not exist yet — the `code-plan-writer` supplies it per pipeline and the `code-plan-reviewer` validates it later, at the plan phase. Absence leaves an ordinary gate.
 
-Remind the owner that `code-writer`s and `doc-writer`s run once per task, but `code-reviewer`s and `doc-reviewer`s run once per pipeline run, so in large projects where commands run slowly, scope the `code-writer`s' gates to the feature or bug, leaving the complete, slower commands for the `code-reviewer`s.
+Remind the owner *when* to reach for this: per-task agents (`code-writer`s, `doc-writer`s) run once per task, while once-per-run agents (`code-reviewer`s, `doc-reviewer`s) run once per pipeline run — so a slow gate in a large project is the case for marking it `plan-completed-for`.
 
 **Validate each command as you capture it** — this is the only capture step that _executes_ commands, and validating immediately lets an unrunnable one be corrected or dropped before the confirm-before-write. The only question here is **did the command execute?** — whether it _passes_ is the agents' concern at run time, not yours.
 
