@@ -16,8 +16,9 @@ Candidate homes: SKILL.md Rules section, vs. the Issues-convention description r
 
 ## Open questions
 
-- Topic 1 — RESOLVED (see Findings → Topic 1 resolution).
-- Topic 2 — converging on the placement. Researcher's Topic-1 trace already supplies the mechanism evidence (see Findings → Topic 2 mechanism + the emerging two-job framing). Confirming synthesis with researcher.
+- Topic 1 — RESOLVED (re-read mechanics).
+- Topic 2 — RESOLVED. Central placement decided: state the rule once in SKILL.md `## Rules`. See Decisions D1.
+- Topic 3 (next): `manage-issues.md` framing rewrite — front-door (`:3`) and forward-only close-out (`:52-54`) made mid-session-safe with no hard-coded next step (R4/AC3); the Entry points table wording (`SKILL.md:50` "starts a new session") checked for consistency; `review-pipeline.md:12` return behavior (R5/AC4) checked.
 
 ## Findings
 
@@ -74,6 +75,14 @@ R1 actually asks for two things, and conflating them is what makes the WHERE que
 
 Under this split: R3's "reliably re-encountered" is satisfied because the recognition rule routes the orchestrator to `manage-issues.md`, which it then re-reads in full. SKILL.md Rules' read-once weakness is mitigated because the rule there is short and is the kind of standing behavioral rule the orchestrator is meant to hold for the whole session (like "humans only talk with you"). `load.md` / Issues-convention is rejected as the home: that convention is *where issues live and how to read/create/modify them* (a project-supplied, generic-by-abstraction convention), not a *workflow-routing* behavior; folding workflow routing into it would blur a clean term (CLAUDE.md: reuse existing terms, stay generic) and still wouldn't be re-traversed mid-run.
 
+### Topic 2 stress-tests — researcher-confirmed (the basis for D1)
+
+The researcher ran the three stress-tests and the synthesis held; the key correction it produced reframed the whole decision:
+
+- **Test 1 (is SKILL.md Rules enough for R3?).** Yes — but NOT because it stays in context. The intent's failure (intent.md:14) is that the workflow is framed ONLY as a session-start entry-point routing decision (`SKILL.md:50`), with **no general rule at all today**. The fix is to promote it to a standing `## Rules` invariant. `## Rules` durability comes from being an always-on policy the orchestrator carries, proven by the two existing bullets (`:14`, `:15`) that are never re-read mid-run yet reliably govern. So the model "general rule held all session" IS the design's answer; the failure was the *absence of a rule* (only an entry-point row), not a rule scrolling away.
+- **Test 2 (AC2 / no per-procedure patches).** Confirmed: the general rule is the ONLY admissible mechanism, because AC2 forbids per-procedure patches. `review-pipeline.md:12` keeps working by inheritance and needs no routing change. Researcher grep found no other mid-run issue-create/modify site today (consistent with spec "no new triggers").
+- **Test 3 / part (c) (load.md / Issues-convention rejected).** The Issues convention is project-supplied tracker mechanism; the routing rule is generic skill behavior. Different altitude, different referent. Placing the rule there breaks "stay generic" and conflates "Issues convention" with "Managing Issues workflow" — two concepts the skill keeps separate (and `manage-issues.md` uses side by side). Verified precedent: both existing `## Rules` bullets have zero downstream restatements (pure silent inheritance) — the R2 pattern, empirically.
+
 ### The two R4 spots in `manage-issues.md`
 
 - Front-door framing — `manage-issues.md:3`: "This is the front door: it is upstream of `work-on-an-issue.md` and stops once the issue exists — it does **not** create or run pipelines."
@@ -83,4 +92,23 @@ Both presume the next step is the session-start forward path (advance into a pip
 
 ## Decisions
 
-_(populated as the Q&A proceeds)_
+### D1 — The general rule lives once in SKILL.md `## Rules` (the central placement decision)
+
+**Decision.** State R1 as a single new bullet in SKILL.md `## Rules`, at the same altitude and in the same silently-inherited style as the two existing bullets. It points at `reference/manage-issues.md` and does not restate the capture Q&A. Do NOT place it in `load.md` or the Issues-convention row. Do NOT add per-procedure pointers. The existing `review-pipeline.md:12` caller then *relies on* this rule (R2/R5) and is unchanged for routing.
+
+Indicative wording (final phrasing is the design-doc-writer's, subject to the writer's minimalism pass): *"Whenever you create or modify an issue — at session start or mid-session — follow the Managing Issues workflow (`reference/manage-issues.md`)."*
+
+**Why this home, on evidence:**
+
+- **It reframes the rule's STATUS, which is the actual fix.** The intent's failure (intent.md:14) is not "general rules scroll out of context." It is that the Managing Issues workflow exists today ONLY as a session-start **entry-point decision** (`SKILL.md:50` "When the owner starts a new session, determine which entry point applies") — a one-time routing choice, with no general rule at all. The fix is to *promote* it from a once-at-start entry-point row to a standing `## Rules` invariant. That is precisely what `## Rules` is for.
+- **`## Rules` durability does not depend on re-reading.** Both existing bullets (`SKILL.md:14` "Humans only talk with you"; `:15` "Each phase produces inspectable artifacts") are never re-read mid-run (zero downstream back-pointers, researcher-grepped) yet reliably govern — because they are always-on invariants the orchestrator carries as policy, not procedural steps it must re-encounter. The new bullet inherits exactly that mechanism. This satisfies R3 ("reliably encounters it when it acts mid-session") in the same way the skill already relies on for its other invariants, and it does not depend SOLELY on the session-start entry-point framing (R3's explicit requirement) because it is a separate, standing statement, not the entry-point row.
+- **It is the only mechanism admissible under AC2.** AC2 forbids covering the previously-silent mid-session spots with per-procedure patches; a single general rule is the only way to govern all such spots (current and future) at once. `## Rules` is where the skill already states this kind of cross-cutting, never-restated invariant.
+- **The R2 inheritance pattern is empirically the established one here.** The two existing `## Rules` bullets are stated once and never restated downstream (researcher grep: zero hits). Adding a third structurally-identical bullet matches the skill's own idiom.
+
+**Why NOT `load.md` / the Issues-convention row (rejected):**
+
+- The **Issues convention** is a PROJECT-SUPPLIED convention about WHERE issues live and HOW to read/create/modify them at the tracker level (`load.md:16`; `setup.md:66` asks which tracker and how to access it) — i.e. tool mechanism, filled in per project. The R1 rule is a GENERIC, tool-agnostic workflow-routing behavior. Putting generic skill behavior inside a project-supplied convention slot breaks CLAUDE.md "stay generic."
+- It conflates two referents the skill deliberately keeps separate — the **Issues convention** (tracker mechanism) vs the **Managing Issues workflow** (capture process); note `manage-issues.md` uses BOTH side by side. CLAUDE.md says reuse existing terms for the SAME concept; these are different concepts. Merging muddies both.
+- `load.md` is also only read at workflow start (no mid-run re-traversal), so it offers no durability advantage, and it is the wrong altitude: `load.md` is about loading/verifying conventions, not about when to run a workflow.
+
+**Scope guard (R5/AC5).** The rule governs only genuine issue create/modify. Per-run tracker metadata (status/labels/push/version/assignee — the `.rp.md` "Orchestrator updates during a run" convention) is out of scope and is NOT routed through the workflow; the rule's wording stays on "create or modify an issue" so it does not accidentally capture metadata ops.
