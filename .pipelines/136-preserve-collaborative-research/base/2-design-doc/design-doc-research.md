@@ -140,7 +140,7 @@
 
 ## Topics
 
-(One entry per design decision worked through with the owner. Shape: Spec link /
+(One entry per design decision, decided on the evidence. Shape: Spec link /
 Options / Trade-offs / Decision / Rationale.)
 
 ### Topic: Carry-across mechanism
@@ -167,13 +167,18 @@ Options / Trade-offs / Decision / Rationale.)
   - (3) Keeps standalone artifacts clean but introduces new artifact machinery
     (against spec Out of Scope 6) and duplicates the research file that already
     holds this material.
-- **Decision:** _pending owner_ (recommended: Option 1).
+- **Decision:** Option 1 — the next assisted phase reads the prior phase's
+  research artifact directly, added as a supplementary input to the assisted
+  phase only. The assisted design-doc phase adds `1-spec/spec-research.md` as an
+  input; the assisted plan phase adds `2-design-doc/design-doc-research.md`. The
+  input is framed as *supplementary collaborative context*; the prior standalone
+  artifact (`spec.md` / `design-doc.md`) remains the authoritative statement of
+  intent.
 - **Rationale:** Option 1 is the only mechanism that stays inside the in-scope
   reading path, respects the standalone guarantees, leaves the autonomous path
-  untouched, and carries the research losslessly. Word the new input as
-  *supplementary collaborative context*; the prior standalone artifact remains
-  the authoritative statement of intent so the research file is not mistaken for
-  a second source of truth.
+  untouched, and carries the research losslessly. Framing the new input as
+  supplementary context keeps the research file from being mistaken for a second
+  source of truth.
 
 ### Topic: Home for the shared cross-phase rules (shared file vs per-file restatement)
 
@@ -205,9 +210,12 @@ Options / Trade-offs / Decision / Rationale.)
     risk spec Req 7 / AC9 and CLAUDE.md forbid within one reading path. The
     existing triple "in real time" line is itself a latent de-dup debt, not a
     licence to add more.
-- **Decision:** _pending owner_ (recommended: Option 3, hybrid — extract the
-  identical core into a shared `assisted-phases/` reference file; keep each
-  phase's unit/section/later-phase specifics inline).
+- **Decision:** Option 3 (hybrid) — extract the genuinely identical core (the
+  recording trigger and the advocate-vs-record principle) into one new shared
+  reference file under `assisted-phases/`, referenced by name from all three
+  phase files the way they already reference `pipeline-versioning.md`. Each phase
+  file keeps its own specifics inline (its recording unit and section name, and
+  the particular later-phase choices it must not advocate).
 - **Rationale:** The recording trigger's identical core ("when a thread of
   exploration settles, before moving to the next question/topic, append the
   distilled entry") and the advocate-vs-record distinction are genuinely
@@ -254,7 +262,14 @@ Options / Trade-offs / Decision / Rationale.)
     `spec.md` and muddying the requirements transcript.
   - (3) Blurs `## Research`'s clean "codebase reads, sources cited" meaning;
     collaborative exploration is not a cited codebase finding.
-- **Decision:** _pending owner_ (recommended: Option 2).
+- **Decision:** Option 2 — add a new `## Topics` section to `spec-research.md`,
+  the spec-phase parallel of the design-doc/plan `## Topics`, holding
+  owner-initiated questions, the explanatory exchanges that resolve them, and
+  design-adjacent collaborative exploration as distilled per-settled-thread
+  entries. Reuse the existing `## Topics` name and `### Topic:` entry shape,
+  adapted to a lighter spec-phase shape (frame / exploration / outcome) since
+  spec threads are not always multi-option decisions. `## Q&A` stays the
+  requirements transcript and `## Research` stays codebase reads.
 - **Rationale:** Option 2 gives the spec phase the missing home at parity with
   design-doc/plan (Req 2, Req 6 / AC3, AC8), reuses the skill's existing
   `## Topics` term, and keeps the two requirement-feeding sections (`## Q&A`,
@@ -302,7 +317,12 @@ Options / Trade-offs / Decision / Rationale.)
     append, which Topic 3 provides).
   - (2) Reliable but violates AC2 (raw transcript) and adds noise.
   - (3) Fails AC1.
-- **Decision:** _pending owner_ (recommended: Option 1).
+- **Decision:** Option 1 — make the settled-thread trigger explicit and apply it
+  to all three phases: when a thread of exploration settles (a question or topic
+  is resolved), before moving to the next, append the distilled entry. This
+  replaces sole reliance on "in real time, not in batches" and is the shared-file
+  core from Topic 2. The recorded unit is a distilled per-thread entry, not a raw
+  transcript.
 - **Rationale:** Option 1 directly satisfies AC1 + AC2, unifies the three phases
   on one trigger (AC8), and reuses the concrete moment design/plan already carry
   implicitly. The "in real time, not in batches" phrase is no longer the sole
@@ -339,7 +359,13 @@ Options / Trade-offs / Decision / Rationale.)
     forbidding the recording the spec now requires.
   - (2) Works but risks two adjacent clauses that can drift; more words.
   - (3) Fails AC5 — the prohibition still "reads as forbidding the recording."
-- **Decision:** _pending owner_ (recommended: Option 1).
+- **Decision:** Option 1 — reword the "don't do the next phase's job" rules so
+  they constrain advocating for or committing to a later-phase choice, and place
+  the identical advocate-vs-record principle in the Topic 2 shared file:
+  recording design-adjacent (or plan-adjacent) exploration that arose with the
+  owner is preserved. Each phase keeps its specific later-phase targets inline
+  (spec: design and implementation; design-doc: the implementation plan; plan:
+  tests, code, and documentation content).
 - **Rationale:** AC5 requires the rule itself to permit recording; only Option 1
   changes the rule's meaning rather than bolting on an exception. The shared
   principle is identical across phases, so it belongs in the Topic 2 shared file;
@@ -378,7 +404,13 @@ Options / Trade-offs / Decision / Rationale.)
   - (3) The scope-drift handler is about scope (spec didn't ask for it) routing
     backward; phase-drift is a topic belonging to the NEXT phase routing forward.
     Conflating them muddies two distinct rules (spec-research Q4b).
-- **Decision:** _pending owner_ (recommended: Option 1).
+- **Decision:** Option 1 — add a new inline instruction to the spec and
+  design-doc phases only: when the discussion drifts into the next phase's
+  territory, flag it to the owner and recommend running the next assisted phase
+  once this phase completes, while the context is still fresh. The plan phase
+  carries no such flag (its next phase has no assisted form). It is kept out of
+  the Topic 2 shared file and is distinct from the existing backward scope-drift
+  handler.
 - **Rationale:** The drift flag is genuinely a two-phase rule, not a three-phase
   one, so it belongs inline in the spec and design-doc phases — keeping it out of
   the Topic 2 shared file (which is reserved for rules identical across all
@@ -397,8 +429,9 @@ Options / Trade-offs / Decision / Rationale.)
   its purpose; the precise field list is a wording call for later phases.
 - Whether the carried-across prior research file (Topic 1) is read in full or the
   next phase is told to mine only its collaborative-exploration section. Design
-  recommends reading it as supplementary collaborative context; the exact framing
-  is a wording call.
+  fixes that it is read as supplementary collaborative context (not a second
+  source of truth); the exact framing of that instruction is a wording call for
+  later phases.
 
 ## Risks
 
