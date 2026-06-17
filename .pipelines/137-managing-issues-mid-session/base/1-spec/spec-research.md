@@ -113,3 +113,38 @@ The intent's open assumption — "the skill's entry point gets lost over a long 
 - **Framing defect:** `manage-issues.md` is scoped to session start (`SKILL.md:50` "When the owner starts a new session"); the skill never frames it as applying mid-session. The orchestrator may not realize the Managing Issues workflow applies at all mid-run.
 - **Retrieval defect:** even the framing lives in SKILL.md, which (unlike `conventions/load.md`) has no re-read discipline, so it can fall out of context over a long run — matching the intent's stated hypothesis.
 Both point at the same behavioral goal (mid-session issue authoring re-enters `manage-issues.md`), so the goal stands unchanged.
+
+---
+
+## Consolidated requirements (analyst's conclusion for the spec-writer)
+
+The subject is the Radical Pipelines skill (`skills/radical-pipelines/`). The actor throughout is the **orchestrator** (no spawned agent touches the tracker). All requirements concern orchestrator-facing reference prose and must respect the project's skill-writing rules in `CLAUDE.md` (minimalist, no duplication across reading paths, no special-case restatement of a general rule, generic, prose-not-software).
+
+### Functional requirements
+
+- **R1 — Mid-session issue authoring re-enters the Managing Issues workflow.** Whenever the orchestrator, partway through a "work on an issue" session (including while running a pipeline), creates or modifies a tracker issue, it follows the Managing Issues workflow — the owner-led capture Q&A and the Issues-convention routing — the same workflow it follows when a session starts at that entry point. The behavior must not be limited to session start.
+- **R2 — Stated as one general rule, not per-spot patches.** The guarantee in R1 is expressed once, at a general level, so it covers every mid-session situation (current and future). It is NOT a set of special-case restatements added to individual procedures (which `CLAUDE.md` forbids when a general rule already covers the case).
+- **R3 — The rule stays reachable mid-run.** The rule is placed so the orchestrator reliably encounters it when it acts mid-session — it must not depend solely on the session-start entry-point framing that is the current cause of the skip. (Spec states the durability requirement; the exact file/section is a phase-2 design decision.)
+- **R4 — `manage-issues.md` is safe to enter mid-session.** Its framing no longer assumes it is reached only at session start. Entering it mid-session must not mis-steer the orchestrator: once the issue exists, the orchestrator returns to whatever it was doing (e.g. resume the run, finish the review, report the blocker) rather than being funneled toward starting fresh pipeline work. (Concretely, the front-door framing at `manage-issues.md:3` and the forward-only Close out at `manage-issues.md:52-54` are the spots that currently assume a fresh, session-start entry.)
+- **R5 — The existing precedent becomes consistent with the general rule.** The one existing mid-session hand-off (`review-pipeline.md:12`, merged-pipeline change → new issue) remains correct and is consistent with R1–R4 — it neither contradicts the general rule nor restates it as a redundant special case.
+
+### Out of scope
+
+- **Run-time tracker metadata** (status, labels, assignee, version label, branch push) — governed by the separate "Orchestrator updates during a run" project conventions, not the Managing Issues workflow. Unchanged.
+- **New recognition triggers** — the fix does NOT teach the orchestrator to proactively recognize new moments to spin off an issue (e.g. a blocker that is separate work, an unrelated change during a review). It only governs what happens once the orchestrator decides to create/modify an issue. (Option A, per scope decision 2.)
+- **The missing `merge-pipeline.md` / `close-pipeline.md` files** — referenced by `work-on-an-issue.md:33,35` but absent from the skill. A pre-existing structural gap, noted but not addressed here.
+- **No spawned-agent behavior changes** — agents never touch the tracker; nothing in the autonomous/assisted phase files changes.
+
+### Acceptance criteria (behavioral, verifiable by reading the skill — not structural assertions about wording/sections/ordering)
+
+- **AC1.** Following the skill's reading paths, an orchestrator that decides mid-session (including mid-pipeline) to create or modify an issue is routed into the Managing Issues workflow (capture Q&A + Issues-convention routing) — not left to author the issue ad hoc. This holds for entry points beyond the single merged-pipeline case.
+- **AC2.** The guarantee is locatable as a single general rule; the skill does not satisfy it by adding duplicate special-case instructions to individual procedures.
+- **AC3.** Reading `manage-issues.md` as if entered mid-session, nothing in it instructs or implies the orchestrator must start fresh pipeline work on the just-created/modified issue; it accommodates returning to the in-progress work the orchestrator left.
+- **AC4.** `review-pipeline.md`'s merged-pipeline hand-off still routes correctly and reads consistently with the general rule (no contradiction, no redundant restatement).
+- **AC5.** Run-time tracker metadata handling, the set of moments that trigger issue creation, the spawned-agent phase files, and the (absent) merge/close files are all unchanged by the fix.
+- **AC6.** The change conforms to `CLAUDE.md`'s skill-writing rules: minimalist, generic (no tool/tracker-platform specifics), no duplication across reading paths, no unnecessary negative phrasing, reusing existing terms (e.g. "Issues convention", "Managing Issues workflow", "work on an issue").
+
+### Notes for downstream phases
+
+- Placement of the general rule (R3) is the central phase-2 design decision. Research surfaced two strong candidate altitudes — `SKILL.md` "Rules" (idiomatic home for cross-cutting orchestrator invariants, but shares the out-of-view fragility) and the Issues-convention description reached via `conventions/load.md` (re-read at the start of any workflow, so more reliably in-view, and the natural altitude for "all issue mutations funnel here"). Possibly both. Design picks.
+- `manage-issues.md`'s body (capture Q&A steps 1–5, modify→read-first branch, approval gate, "report the issue reference") is already situation-neutral and reusable as-is; only its front-door framing and Close out need the mid-session-aware adjustment (R4).
