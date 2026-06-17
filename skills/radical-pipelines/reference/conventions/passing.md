@@ -7,7 +7,7 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 - **Commit format:**
   - Agents: all
   - Omit when not defined.
-- **Guardrails:** the gates naming this agent. For a scoped gate, that command is the resolved command after `{scope}` substitution. See `reference/guardrails.md`.
+- **Guardrails:** place the gates naming this agent. For a scoped gate, read its chosen scope value from the plan's `## Guardrail scopes` section, substitute it into the gate's `{scope}` command, and place the resolved command; a fixed gate's command passes literally. See `reference/guardrails.md` for the model.
   - Agents: `code-writer-tdd`, `code-writer-e2e`, `code-reviewer`, `doc-writer`, `doc-reviewer`
   - Omit when not defined or when agent doesn't have any gates.
 - **Guardrail scopes to fill:** the scoped gates whose `{scope}` the plan must supply. See `reference/guardrails.md`.
