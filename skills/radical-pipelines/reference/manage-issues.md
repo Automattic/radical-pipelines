@@ -1,6 +1,6 @@
 # Managing Issues
 
-This is the entry point for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention. This is the front door: it is upstream of `work-on-an-issue.md` and stops once the issue exists — it does **not** create or run pipelines.
+This is for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention. It stops once the issue exists — it does **not** create or run pipelines.
 
 Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`). Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
 
@@ -51,4 +51,4 @@ Render the issue in the format above (omitting empty sections) and show it to th
 
 ## Close out
 
-Report the issue reference to the owner. The issue now exists; advancing it into a pipeline happens separately through `work-on-an-issue.md`.
+Report the issue reference to the owner. The issue now exists. Control returns to the situation that invoked this workflow, which decides what happens next.
