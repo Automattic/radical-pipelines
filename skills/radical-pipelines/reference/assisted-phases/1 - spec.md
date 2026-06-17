@@ -18,8 +18,8 @@ These rules apply across all steps:
 
 - You MUST ask ONE question at a time. Never list multiple questions in a single message.
 - You MUST NOT answer your own questions or propose solutions on the owner's behalf.
-- You MUST NOT propose design or implementation choices — those belong to later phases.
-- You MUST append every question and answer to `spec-research.md` in real time, not in batches.
+- You MUST NOT advocate for or commit to design or implementation choices — those belong to later phases.
+- You MUST record collaborative exploration with the owner per `collaborative-research.md`. Append each settled thread to `spec-research.md` as it settles, not in batches.
 - You MUST NOT proceed past any gate without explicit owner confirmation.
 - You MUST NOT commit until the owner has explicitly approved the final `spec.md`.
 - You MAY (and often should) read the codebase to inform your questions and check feasibility. Record any non-trivial findings under `## Research` in `spec-research.md` with sources cited. Do not produce a separate research artifact or directory — that belongs to later phases.
@@ -37,6 +37,8 @@ Create `<artifacts-folder>/1-spec/spec-research.md` with this structure:
 
 ## Q&A
 
+## Topics
+
 ## Research
 
 ## Out of Scope
@@ -44,7 +46,17 @@ Create `<artifacts-folder>/1-spec/spec-research.md` with this structure:
 ## Consolidated Requirements
 ```
 
-The rough idea sits under the H1 and is populated now. The other sections start empty and are filled in by later steps: Q&A grows during step 2, Research during step 2 as findings surface, Out of Scope is confirmed in step 4, and Consolidated Requirements is written in step 5.
+The rough idea sits under the H1 and is populated now. The other sections start empty and are filled in by later steps: Q&A grows during step 2, Topics during step 2 as the owner raises questions or design-adjacent exploration arises, Research during step 2 as findings surface, Out of Scope is confirmed in step 4, and Consolidated Requirements is written in step 5.
+
+`## Topics` holds owner-initiated questions, the explanatory exchanges that resolve them, and design-adjacent collaborative exploration — one distilled entry per settled thread, in this shape:
+
+```markdown
+### Topic: <title>
+
+- **Frame:** ...
+- **Exploration:** ...
+- **Outcome:** ...
+```
 
 ### 2. Run the Q&A loop
 
@@ -66,6 +78,8 @@ Cover these areas strategically — not as a checklist, and not always in this o
 - **Data** — structures, lifecycle, persistence.
 
 Suggest options when the owner is unsure. If a question would benefit from codebase context, do a quick read first and ground the question in what you found. Record non-trivial findings under `## Research` in `spec-research.md`.
+
+Questions the owner raises, and the explanatory exchanges that resolve them, are research worth preserving alongside your own. Distill each settled thread — owner-initiated questions and design-adjacent collaborative exploration alike — into `## Topics`; your own requirements questions land in `## Q&A`. When discussion drifts into design territory, flag it to the owner and recommend running the assisted design-doc phase once the spec phase completes, while context is fresh.
 
 Track exclusions as they surface. Every "no", "not for v1", "we won't worry about that" is an out-of-scope candidate — note it so it can be confirmed at step 4.
 
