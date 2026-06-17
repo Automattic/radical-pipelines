@@ -48,7 +48,7 @@ See `reference/conventions/load.md` for the full list and the rules for loading 
 
 ## Entry points
 
-When the owner starts a new session, determine which entry point applies from the table below.
+At session start, pick an entry point from the table below.
 
 | When the owner wants to... | Read                            |
 | -------------------------- | ------------------------------- |
