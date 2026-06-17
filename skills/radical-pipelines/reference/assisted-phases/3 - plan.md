@@ -172,7 +172,7 @@ Cover these topics — order is flexible:
 
 - **Surface inventory** — which existing documentation surfaces reference the behavior the code phase will change. Use the sweep from step 2; confirm each surface is in or out of scope.
 - **New surfaces** — what new docs need to exist (e.g., a new API page, a new guide).
-- **Audience** — for each surface, who the doc is for (external API consumers, internal contributors, end users).
+- **Audience** — for each surface, who the surface is for (external API consumers, internal contributors, end users).
 - **Scope per surface** — what sections to add or modify, framed as coverage and audience outcomes rather than exact wording. Stay drift-resistant.
 - **Ordering and dependencies** — which doc tasks block which.
 - **Per-task acceptance** — what the reader leaves with (capability, understanding) or what the documentation must cover (section, example, cross-link). Drift-resistant.
