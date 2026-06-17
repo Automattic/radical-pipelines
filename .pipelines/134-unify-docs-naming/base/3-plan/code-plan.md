@@ -32,7 +32,7 @@ This plan contains no documentation tasks (those belong to the separate docs pla
   - `skills/radical-pipelines/reference/assisted-phases/3 - plan.md` reads "who the surface is for" where it previously read "who the doc is for".
   - `agents/doc-writer.md` reads "a reference page may" where it previously read "a reference doc may".
   - `agents/doc-writer.md` reads "into a reader-facing page" where it previously read "into a reader-facing doc".
-  - The leading-noun oracle (`grep -roiP '(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b[- ]' skills agents .rp.md website .changeset README.md | wc -l`) reads **157** — the three reworded leading-token occurrences are removed; the fourth ("a reader-facing doc") was a bare end-of-token `doc` the oracle never matched, so it does not change the count.
+  - The leading-noun oracle (`grep -roiP '(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b[- ]' skills agents .rp.md website .changeset README.md | wc -l`) reads **161** — the three reworded leading-token occurrences are removed; the fourth ("a reader-facing doc") was a bare end-of-token `doc` the oracle never matched, so it does not change the count.
   - No other text in these files changes; the substitution token count for `design-doc`/`Design Doc` is unchanged except the single net addition from the `design-doc-reviewer.md` disambiguation.
 
 ### Task 2: Run the single anchored, case-preserving substitution
