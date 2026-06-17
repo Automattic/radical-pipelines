@@ -16,7 +16,7 @@ This change standardizes the documentation concept on the plural form `docs` eve
 
 4. **Display labels and headings are plural.** Title-case labels and template headings for the concept read `Docs Plan`, `Docs Plan Review`, `Docs Plan Topics`, `Docs Writer`, `Docs Reviewer`, `Docs Plan Writer`, and `Docs Plan Reviewer` (for example, the plan template title `# Docs Plan: <feature name>`).
 
-5. **Lowercase prose is plural.** Running-text forms read "docs plan", "docs task", "docs-plan topic", "docs planning", and "docs-writers"/"Docs-writers". No singular "doc plan"/"doc task" remains for the concept.
+5. **Lowercase prose is plural.** Running-text forms read "docs plan", "docs task"/"docs tasks", "docs-plan topic", "docs planning", and "docs-writers"/"Docs-writers". No singular "doc plan", "doc task"/"doc tasks", or "doc-writers"/"Doc-writers" remains for the concept — the leading noun is `docs` regardless of any trailing plural inflection on the following word.
 
 6. **Derived copies of the names stay in sync.** The `.rp.md` Agent models table lists the four agents under their plural names (so the orchestrator resolves their models by an exact name match), and the `website/demo.js` pipeline demo uses the plural agent names and plural plan-artifact names (so the shipped homepage demo no longer spells the same concept singular and plural at once).
 
@@ -44,10 +44,12 @@ This change standardizes the documentation concept on the plural form `docs` eve
 - Given the derived name copies, when `.rp.md`'s Agent models table and `website/demo.js` are inspected, then both list the four agents under their plural `docs-*` names, and `website/demo.js` uses the plural plan-artifact names; and when `.changeset/agent-scoped-guardrails.md` is inspected, then it names `docs-writer` and `docs-reviewer`.
 
 - Given the in-scope trees (`skills`, `agents`, `.rp.md`, `website`, `.changeset`) and excluding `.pipelines/`, when an implementer runs the design-doc-anchored, match-counting search below, then it returns zero matches after the change (the same searches return the catalogued occurrences before the change). Counting matches rather than lines is required, because some lines carry both an in-scope `doc-plan.md` token and a protected `design-doc.md` token (e.g. `setup.md`, `doc-reviewer.md`).
-  - `grep -roP '(?<!design-)\bdoc-(plan-writer|plan-reviewer|plan-review|plan|writer|reviewer)\b' skills agents .rp.md website .changeset`
+  - `grep -roP '(?<!design-)\bdoc-(plan-writer|plan-reviewer|plan-review|plan|writers?|reviewers?)\b' skills agents .rp.md website .changeset`
   - `grep -roP '(?<!Design )\b[Dd]oc [Pp]lan\b' skills agents .rp.md website .changeset`
   - `grep -roP '(?<!Design )\bDoc (Writer|Reviewer)\b' skills agents .rp.md website .changeset`
-  - `grep -roP '\bdoc task\b|\bdoc-plan topic\b|\bdoc planning\b' skills agents .rp.md website .changeset`
+  - `grep -roP '\bdoc tasks?\b|\bdoc-plan topic\b|\bdoc planning\b' skills agents .rp.md website .changeset`
+
+  The optional trailing `s` on the role nouns (`writers?`/`reviewers?`) and on `tasks?` catches the plural inflections `doc-writers`/`Doc-writers` and `doc tasks` that Requirements 4 and 5 name; the `(?<!design-)` and `(?<!Design )` lookbehinds still exclude every `design-doc` form, and already-plural `docs-*` forms remain unmatched.
 
 - Given the absence checks above could be satisfied by deletion, when the new names are checked positively, then they exist — e.g. `agents/docs-writer.md` exists with `name: docs-writer` (and likewise for the other three renamed agents).
 
