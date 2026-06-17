@@ -61,6 +61,7 @@ Important:
 
 - Follow the **Team spawning** convention for how to define and launch teams of agents.
 - Each time you spawn an agent, include the `## Conventions` block at the top of its initial prompt per `reference/conventions/passing.md`.
+- Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
 
 ## 6. Handle blockers
 

@@ -23,8 +23,6 @@ For each flow named in the task block:
 
 The per-task Acceptance — the named flows covered by passing e2e tests — is your contract.
 
-If your task involves UI, follow the host project's UI conventions (components, design tokens, styling, i18n, accessibility, fonts, and any other UI conventions the host project documents).
-
 ### 3. Run the guardrails
 
 Run every gate in the guardrails convention, exactly as its command is written. Each is mandatory.
@@ -45,12 +43,11 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 ## Guidelines
 
 - **Single task only.** Implement exactly the task assigned to you. Do not execute other tasks, redo earlier tasks, or anticipate later tasks.
-- **The task block and the E2E test plan section of `code-plan.md` are your inputs.** You should not need the prompt, spec, design doc, or other tasks in the code plan. If the task as delivered is incomplete, contradictory, or forces you to make a design decision, stop and report a blocker — that means the plan is under-specified, not something for you to fix mid-flight.
+- **The task block and the E2E test plan section of `code-plan.md` are your inputs.** You should not need the intent, spec, design doc, or other tasks in the code plan. If the task as delivered is incomplete, contradictory, or forces you to make a design decision, stop and report a blocker — that means the plan is under-specified, not something for you to fix mid-flight.
 - **Acceptance is the contract.** Every per-task Acceptance criterion must be covered by a passing test.
 - **Follow project conventions for test code, including any inline documentation the test convention expects.**
 - **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.
-- **No speculative code.** No abstractions for hypothetical futures, no error handling for impossible scenarios, no unused options or hooks. Three similar lines is better than a premature abstraction.
 - **Follow project conventions.** Existing patterns, naming, code style, testing style.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.
 - **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task block references a flow that does not exist, the Acceptance criteria are mutually contradictory, or a gate cannot execute), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial code. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing tests or broken builds are not blockers — they are work to do.

@@ -52,7 +52,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 ## Guidelines
 
 - **Single task only.** Implement exactly the task assigned to you. Do not execute other tasks, redo earlier tasks, or anticipate later tasks.
-- **The task block is your input.** You should not need the prompt, spec, design doc, or other tasks in the code plan. If the task as delivered is incomplete, contradictory, or forces you to make a design decision, stop and report a blocker — that means the plan is under-specified, not something for you to fix mid-flight.
+- **The task block is self-contained by design.** You should not need to read the intent, spec, design doc, or other tasks in the code plan. If the task as delivered is incomplete, contradictory, or forces you to make a design decision, stop and report a blocker — that means the plan is under-specified, not something for you to fix mid-flight.
 - **Acceptance is the test contract.** Drive RED from it. Every per-task Acceptance criterion must be covered by a passing test.
 - **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.

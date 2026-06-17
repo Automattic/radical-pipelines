@@ -20,20 +20,20 @@ This phase has no per-phase decisions.
 
 ## Required agents
 
-| Agent             | Role                                                                                          | Persistent? |
-| ----------------- | --------------------------------------------------------------------------------------------- | ----------- |
-| `code-writer-tdd` | One fresh instance per task. Implements its assigned task with TDD, runs the gates, commits.   | No          |
-| `code-writer-e2e` | One fresh instance per task. Implements the planned e2e flows, runs the gates, commits.        | No          |
-| `code-reviewer`   | One fresh instance per batch. Reviews the full batch.                                          | No          |
+| Agent             | Role                                                                                         | Persistent? |
+| ----------------- | -------------------------------------------------------------------------------------------- | ----------- |
+| `code-writer-tdd` | One fresh instance per task. Implements its assigned task with TDD, runs the gates, commits. | No          |
+| `code-writer-e2e` | One fresh instance per task. Implements the planned e2e flows, runs the gates, commits.      | No          |
+| `code-reviewer`   | One fresh instance per batch. Reviews the full batch.                                        | No          |
 
 ## Steps
 
-1. If your runtime exposes a task-list tool, you must use it. Create one entry per task from `code-plan.md` and use the list to track dispatch status (pending / in progress / done) throughout the phase, including re-dispatches, capturing each task's Type.
+1. If your runtime exposes a task-list tool, you must use it. Create one entry per task from `code-plan.md` and use the list to track dispatch status (pending / in progress / done) throughout the phase, including re-dispatches.
 2. Determine the **initial batch**: every task in `code-plan.md`, in the order specified.
 3. For each task in the batch, in order:
-   1. Before spawning, resolve this agent's scoped gates: substitute each scoped gate's scope value from the code plan's `## Guardrail scopes` into the gate's `.rp.md` command template and place the resolved command on the agent's `Guardrails:` line (per `guardrails.md`). Then launch a fresh writer chosen by the task's `Type` — `code-writer-tdd` for a `tdd` task, `code-writer-e2e` for an `e2e` task — with the verbatim task block (Goal / Files / Changes / Type / Depends on / Traces to / Acceptance) and, if this is a re-dispatch on rejection, the path to the latest `code-review-N-rejected.md` plus the issues scoped to this task.
+   1. Launch a fresh writer chosen by the task's `Type` — `code-writer-tdd` for a `tdd` task, `code-writer-e2e` for an `e2e` task — with the verbatim task block (Goal / Files / Changes / Type / Depends on / Traces to / Acceptance) and, if this is a re-dispatch on rejection, the path to the latest `code-review-N-rejected.md` plus the issues scoped to this task.
    2. Wait for the code-writer to commit before launching the next task. Code-writers share the pipeline branch's single working tree, so this step is strictly sequential.
-4. After every code-writer in the batch has committed, resolve the reviewer's scoped gates the same way — substitute each scope value from `## Guardrail scopes` into the gate's command template onto its `Guardrails:` line — then launch a fresh `code-reviewer` with the list of task IDs in the batch, the base ref to diff against (the start of the current run — see the **Reviewer base ref** rule in `pipeline-versioning.md`), and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). On rejection the reviewer writes `code-review-N-rejected.md`; on approval it writes `code-review-approved.md` (no number — the singleton terminator).
+4. After every code-writer in the batch has committed, launch a fresh `code-reviewer` with the list of task IDs in the batch, the base ref to diff against (the start of the current run — see the **Reviewer base ref** rule in `pipeline-versioning.md`), and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). On rejection the reviewer writes `code-review-N-rejected.md`; on approval it writes `code-review-approved.md` (no number — the singleton terminator).
 5. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 3, with N incremented for the next rejection iteration.
 6. On **approved**, verify the phase 4 completion predicate per `pipeline-versioning.md` ("Per-phase completion"): all code changes, unit tests, end-to-end tests, every `code-review-N-rejected.md`, and `code-review-approved.md` are committed on the pipeline branch.
 

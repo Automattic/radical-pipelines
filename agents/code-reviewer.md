@@ -39,7 +39,7 @@ By the time you reach this step you have a provisional verdict from steps 2–3.
 
 **If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the gates would tell you nothing. Record each gate as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
 
-**If that verdict is approve, run every gate** in the guardrails convention, exactly as each command is written, recording each result in the Checks table. To approve, every gate must run and pass in this iteration. A gate that exits non-zero is itself a rejection finding: your verdict becomes reject, and you may leave any remaining gates unrun (recorded as **skipped**). Never bypass a gate to force a pass (no `--no-verify`, no `skip`, no commented-out checks).
+**If that verdict is approve, run every gate** in the guardrails convention, exactly as each command is written, recording each result in the Checks table. To finally approve, every gate must run and pass in this iteration. A gate that exits non-zero is itself a rejection finding: your verdict becomes reject, and you may leave any remaining gates unrun (recorded as **skipped**). Never bypass a gate to force a pass (no `--no-verify`, no `skip`, no commented-out checks).
 
 If there is no guardrails convention, there are no gates to run and your step-2/3 judgment stands.
 

@@ -170,22 +170,13 @@ Capture:
 
 ### Guardrails
 
-The deterministic verification gates — exact commands, judged pass/fail by exit code.
-
 **Why they matter.** Guardrails are backpressure. They are objective gates that reject incomplete work, so the agent has to produce concrete evidence — `tests: pass, lint: pass` — instead of "I think it works," and keeps iterating until every deterministic gate passes. Without them, "done" is a claim; with them, it is a verified state.
 
-**What kinds to consider.** Tests, lint, typecheck, build, format, audit, e2e, and any project-specific validators. Ask the owner which of these the project runs and which ones a change must pass before it is considered complete. Offer to investigate.
+**What kinds to consider.** Unit tests, lint, typecheck, build, format, audit, e2e, and any project-specific validators. Ask the owner which of these the project runs and which ones a change must pass before it is considered complete. Offer to investigate.
 
-**Capture per gate** as the per-gate block defined in `reference/guardrails.md` (consult it for the block shape and the model):
+**Capture per gate** as the per-gate block defined in `reference/guardrails.md`, asking the owner for each field.
 
-- A **name** (e.g. `tests`, `lint`).
-- The **command** to run (e.g. `npm test`), containing `{scope}` if the gate is scoped.
-- The **agents** that run the gate — one or more of `code-writer-tdd`, `code-writer-e2e`, `code-reviewer`, `doc-writer`, `doc-reviewer`. Every gate names at least one.
-- For a scoped gate, an optional **`fill-guidance`** note telling the planning agent how to choose `{scope}`.
-
-A gate is scoped iff its command contains `{scope}`; capture `fill-guidance` only for scoped gates.
-
-**Validate each command as you capture it** — this is the only capture step that _executes_ commands, and validating immediately lets an unrunnable one be corrected or dropped before the confirm-before-write. Validate a **fixed** gate by running its literal command; validate a **scoped** gate by substituting a realistic, made-up `{scope}` into its command and running that. Either way the only question is **did the command execute?** — whether it _passes_ is the agents' concern at run time, not yours; for a scoped gate this confirms the runner resolves.
+**Validate each command as you capture it.** Validating immediately lets an unrunnable one be corrected or dropped before the confirm-before-write. Validate a **fixed** gate by running its literal command; validate a **scoped** gate by substituting a realistic, made-up `{scope}` into its command and running that. Either way the only question is **did the command execute?** — whether it _passes_ is the agents' concern at run time, not yours; for a scoped gate this confirms the runner resolves.
 
 Sort each command into one of two outcomes:
 

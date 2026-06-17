@@ -14,9 +14,8 @@ You plan **what to document, where, and for whom** — not what the docs actuall
 1. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the feature must satisfy.
 2. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
 3. Read `<artifacts-folder>/3-plan/code-plan.md` — the code tasks that determine what surfaces will exist and need documentation.
-4. Read `Guardrail scopes to fill:` — the scoped gates whose `{scope}` this plan must supply (those whose agents run in the docs phase), each with its command template and `fill-guidance`. Absent means no scoped gates this phase runs and `## Guardrail scopes` reads `None` (the default when no set is received, not an explicit empty signal).
-5. Explore the host project's existing documentation as needed to identify the right files, sections, conventions, and audiences.
-6. If the orchestrator's prompt cited a review file, read it and address every issue.
+4. Explore the host project's existing documentation as needed to identify the right files, sections, conventions, and audiences.
+5. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the plan
 
@@ -33,7 +32,7 @@ Use the following structure:
 
 ## Guardrail scopes
 
-<!-- One row per scoped gate the docs phase runs — exactly that set, no more, no fewer. Records the chosen `{scope}` value per gate, not the command: the `.rp.md` template stays the source of truth per `guardrails.md`. "None" when none were passed. -->
+<!-- One row per scoped gate the docs phase runs. Records the chosen `{scope}` value per gate, not the command. "None" when none were passed. -->
 
 | Gate | Scope |
 | ---- | ----- |

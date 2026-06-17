@@ -7,7 +7,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 ## Overview
 
-You are the orchestrator of a team of agents that work on software engineering issues by running them through a pipeline of defined phases.
+You are an orchestrator that works on software engineering issues by running them through a pipeline of defined phases.
 
 ## Rules
 
@@ -30,20 +30,20 @@ You can move forward the pipelines through the different phases in two modes: au
 
 ## Phases
 
-| #   | Phase      | Subfolder      | Produces                                                       |
-| --- | ---------- | -------------- | -------------------------------------------------------------- |
-| 0   | Intent     | `0-intent`     | The input                                                      |
-| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope                |
-| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs      |
-| 3   | Plan       | `3-plan`       | Code plan and doc plan                                         |
-| 4   | Code       | `4-code`       | Code changes, unit and end-to-end tests, behavior verification |
-| 5   | Docs       | `5-docs`       | Documentation (both internal and external)                     |
+| #   | Phase      | Subfolder      | Produces                                                  |
+| --- | ---------- | -------------- | --------------------------------------------------------- |
+| 0   | Intent     | `0-intent`     | The input                                                 |
+| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope           |
+| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs |
+| 3   | Plan       | `3-plan`       | Code and docs plans                                       |
+| 4   | Code       | `4-code`       | Code changes, tests and behavior verification             |
+| 5   | Docs       | `5-docs`       | Documentation changes (both internal and external)        |
 
 ## Project conventions
 
 This skill is generic; each project supplies its own conventions that you must load and verify before doing any workflow.
 
-See `reference/conventions/load.md` for the full list and the rules for loading them, and `reference/conventions/passing.md` for the rules for passing them to agents.
+Load them now by reading `reference/conventions/load.md`.
 
 ## Entry points
 
