@@ -29,4 +29,4 @@ A scoped gate's `{scope}` is chosen per pipeline by the planning agent of the ph
 
 A scoped gate whose agents span both phases is filled by each phase's plan independently — each fills `{scope}` for its own agents — so the gate may carry a different scope value per phase.
 
-The plan records the chosen scope **value** (gate → scope value) in its `## Guardrail scopes` section of either `code-plan.md` and/or `docs-plan.md`.
+The plan records the chosen scope **value** (gate → scope value) in its `## Guardrail scopes` section of either `code-plan.md` and/or `doc-plan.md`.
