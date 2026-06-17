@@ -25,7 +25,20 @@ _(open — for later phases to confirm or revise)_
 
 ## Q&A
 
+### Q1 (to researcher): How do phase artifacts carry across phases today, in assisted and autonomous modes? Does any downstream phase read a prior phase's research artifact, or only the standalone artifact?
+
+**A (researcher):**
+- The three assisted research artifacts and their sections: `spec-research.md` (`## Q&A`, `## Research`, `## Out of Scope`, `## Consolidated Requirements`); `design-doc-research.md` (`## Research`, `## Topics`, `## Open Questions`, `## Risks`, with each Topic = Spec link / Options / Trade-offs / Decision / Rationale); `plan-notes.md` (`## Research`, `## Code Plan Topics`, `## Doc Plan Topics`, `## Open Questions`, `## Risks`, same Topic shape).
+- WITHIN a phase, the writer reads its own research artifact: autonomous `design-doc-writer` reads BOTH `spec.md` AND `design-doc-research.md` (`autonomous-phases/2`, lines 26, 33).
+- ACROSS phases, the next phase reads ONLY the prior phase's standalone artifact. Design-doc input is just `spec.md` (`assisted-phases/2` line 7; `autonomous-phases/2` line 7). Plan inputs are `spec.md` + `design-doc.md` (lines 7-8). The research files (`spec-research.md`, `design-doc-research.md`, `plan-notes.md`) are NEVER listed as a downstream phase input anywhere.
+- The standalone artifacts explicitly tell the reader they should NOT need the research file (e.g. `spec.md` "the reader should not need `spec-research.md`", `assisted-phases/1` line 110).
+- Conclusion: the carry-across gap is real — collaborative exploration recorded in a phase's research artifact has no path into the next phase, which by design reads only the standalone artifact.
+
 ## Research
+
+(Findings below cite the orchestrator's own reads of the skill source.)
+
+- The assisted workflow runs exactly ONE phase per session: "continuing to a later phase happens in a separate session" (`reference/assisted-workflow.md` line 32). The phase run is the pipeline's "next phase" (line 5). This is load-bearing for the intent's "recommend running the next assisted phase" direction — the recommendation is a cross-session handoff, not an in-session continuation.
 
 ## Out of Scope
 
