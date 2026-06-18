@@ -17,7 +17,7 @@ Each gate is captured at setup as a block in `.rp.md`:
 ### <name>
 
 - command: `<command, with {scope} if scoped>`
-- agents: <one or more of code-writer-tdd, code-writer-e2e, code-reviewer, doc-writer, doc-reviewer>
+- agents: <one or more of code-writer-tdd, code-writer-e2e, code-reviewer, docs-writer, docs-reviewer>
 - fill-guidance: <optional; scoped gates only>
 ```
 
@@ -25,8 +25,8 @@ Each gate is captured at setup as a block in `.rp.md`:
 
 ## The fill lifecycle
 
-A scoped gate's `{scope}` is chosen per pipeline by the planning agent of the phase whose agents run the gate — code-run gates by the code plan, doc-run gates by the doc plan.
+A scoped gate's `{scope}` is chosen per pipeline by the planning agent of the phase whose agents run the gate — code-run gates by the code plan, docs-run gates by the docs plan.
 
 A scoped gate whose agents span both phases is filled by each phase's plan independently — each fills `{scope}` for its own agents — so the gate may carry a different scope value per phase.
 
-The plan records the chosen scope **value** (gate → scope value) in its `## Guardrail scopes` section of either `code-plan.md` and/or `doc-plan.md`.
+The plan records the chosen scope **value** (gate → scope value) in its `## Guardrail scopes` section of either `code-plan.md` and/or `docs-plan.md`.

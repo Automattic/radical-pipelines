@@ -44,7 +44,7 @@ A phase is complete when all of these are committed to the pipeline branch (same
 | 0 – Intent     | `0-intent/intent.md`                                                           |
 | 1 – Spec       | `1-spec/spec-review-approved.md`                                               |
 | 2 – Design doc | `2-design-doc/design-doc-review-approved.md`                                   |
-| 3 – Plan       | `3-plan/code-plan-review-approved.md` and `3-plan/doc-plan-review-approved.md` |
+| 3 – Plan       | `3-plan/code-plan-review-approved.md` and `3-plan/docs-plan-review-approved.md` |
 | 4 – Code       | `4-code/code-review-approved.md` and `4-code/code-summary.md`                  |
 | 5 – Docs       | `5-docs/docs-review-approved.md` and `5-docs/docs-summary.md`                  |
 
