@@ -186,3 +186,65 @@ done
 It is the base pattern with the trailing `(?=[- ])` removed (the lockstep relaxation of
 Q3), with a capture/replacement bolted on — i.e. the acceptance oracle's pattern plus
 `${1}s`.
+
+### Q3 — Lockstep anchor relaxation (the core decision) → relax both, in lockstep
+
+**Question.** Ground the *reasoning*, not just the counts: why both oracle and substitution
+must drop the trailing anchor together (the mirror invariant); why the manual-one-off-edit
+alternative is rejected; and the no-over-reach safety proof.
+
+**A (researcher; all experiments run + restored, worktree clean).**
+
+**Why both must relax — the mirror invariant, with the mechanical why.** The backtick token
+on `passing.md:16` is `` for the scoped gates of `doc` agents ``. `od -c` of the span shows
+the char immediately after the bare `doc` is a **backtick** (octal 0140), not `-` or space.
+- *Substitution side:* the trailing lookahead `(?=[- ])` requires the next char to be `-`
+  or space; a backtick is neither → lookahead fails → the anchored substitution skips the
+  token → `` `doc` `` survives singular.
+- *Oracle side (symmetric):* the base **anchored** oracle ends `\b[- ]`, which likewise
+  requires a following `-`/space → it also cannot see `` `doc` ``. Proven pre-fix over the
+  full Option-B scope: anchored oracle = **9**, relaxed oracle = **10**; the anchored
+  oracle undercounts by exactly the backtick.
+- *The killer asymmetry — false certification (demonstrated):* apply the **anchored**
+  substitution, then run the **anchored** oracle → it reads **0** ("clean"), while the
+  relaxed oracle reads **1** and points at the surviving `` `doc` `` on L16. An anchored
+  oracle would **falsely certify** a tree that still carries the straggler — it is
+  structurally blind to the exact token the anchored substitution cannot fix. That is why
+  oracle and substitution must drop the anchor **together** to stay mirror images.
+
+**Rejected alternative — manual one-off backtick edit, keep both patterns anchored.**
+- *(a) Breaks the mirror.* With both anchored and the backtick hand-edited, the anchored
+  oracle reads 0 — but produced by a non-mechanism edit, not by the substitution. The
+  oracle no longer proves "the substitution reached every concept token"; it would read 0
+  even where the mechanism missed a token, as long as a human happened to patch it. The
+  base design's equivalence (oracle ≡ substitution-minus-capture, so passing the oracle ≡
+  the mechanism reached every token) is voided.
+- *(b) Reintroduces per-form enumeration fragility* — a manual carve-out is exactly the
+  "list of literal find-replace pairs per form" the base design explicitly rejected. Each
+  future punctuation-bounded form would need its own hand edit; relaxing catches the whole
+  class by construction.
+- *Not hand-waving a class:* enumerating all 10 relaxed-oracle hits by following char, 9
+  are `doc-`/`doc ` (anchor-satisfying) and exactly 1 is `` doc` ``. The filter `(?![- ])`
+  (relaxed hits whose next char is not `-`/space) returns exactly that single hit
+  scope-wide. **One and only one** punctuation-bounded bare concept token exists in the
+  whole tree.
+
+**No over-reach — the safety proof.**
+- Relaxed vs anchored oracle over full scope differ by **exactly 1** (10 vs 9), and that 1
+  is the backtick. Dropping the anchor adds zero matches anywhere else.
+- Scope-wide protected-class census, pre-fix → post-fix (relaxed substitution applied, then
+  restored): `design-doc`/`Design Doc` **247 → 247** (unchanged); `document(ation)`
+  **132 → 132** (unchanged); plural `docs`/`Docs` **248 → 258** (+10 = exactly the 10
+  newly-pluralized tokens); oracle post = 0. The +10 equals the +10 fixed tokens; the two
+  singular-protected classes are byte-for-byte invariant.
+- Conclusion: the **lookbehind + two lookaheads** do all the protecting; the trailing
+  `[- ]` anchor **never protected anything** — it only narrowed which concept forms were
+  counted (excluding the punctuation-bounded backtick). Safe to drop in both.
+
+**Design decision (the review's central Key Decision).** Relax the trailing anchor in the
+acceptance oracle (`[- ]` removed) and the substitution (`(?=[- ])` removed) **in
+lockstep**, keeping them mirror images. Rationale: preserve the mirror invariant (passing
+the oracle proves the mechanism reached every token); the anchor was a counting-narrowing
+artifact, not a protection; exactly one punctuation-bounded token exists today and the whole
+class is caught by construction, not by enumeration. The anchored + hand-edit path is the
+cautionary Failure Mode (false certification + enumeration fragility).
