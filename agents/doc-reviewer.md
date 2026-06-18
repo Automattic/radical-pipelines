@@ -40,11 +40,11 @@ For at least one concrete claim per task — a signature, an example, a configur
 
 By the time you reach this step you have a provisional verdict from steps 2–3.
 
-**If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the gates would tell you nothing. Record each gate as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
+**If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the guardrails would tell you nothing. Record each guardrail as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
 
-**If that verdict is approve, run every gate** in the guardrails convention, exactly as each command is written, recording each result in the Checks table. To approve, every gate must run and pass in this iteration. A gate that exits non-zero is itself a rejection finding: your verdict becomes reject, and you may leave any remaining gates unrun (recorded as **skipped**). Never bypass a gate to force a pass (no `--no-verify`, no `skip`, no commented-out checks).
+**If that verdict is approve, evaluate every guardrail** in the guardrails convention — running a command guardrail's command and checking whether the check it describes is satisfied, or assessing whether a judgment guardrail's rule is satisfied — recording each per-guardrail result in the Checks table. To approve, every guardrail must be evaluated and satisfied in this iteration. A guardrail that is unsatisfied (a command guardrail whose check fails, or a judgment guardrail assessed as violated) is itself a rejection finding: your verdict becomes reject, and any remaining guardrails may be left unevaluated (recorded as **skipped**). Never bypass a guardrail to force a pass (no `--no-verify`, no `skip`, no commented-out checks).
 
-If there is no guardrails convention, there are no gates to run and the step-3 accuracy spot-check is your only evidence.
+If there is no guardrails convention, there are no guardrails to evaluate and the step-3 accuracy spot-check is your only evidence.
 
 ### 5. Write the review
 
@@ -70,13 +70,14 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 
 ## Checks
 
-<!-- One row per gate in the guardrails. Result: pass | fail | skipped.
-     A skipped row shows the gate's literal command but the command was not run.
-     A forgotten gate is an absent row; a deliberately skipped gate is a present skipped row;
-     a run gate is a present pass/fail row. -->
-| Check | Command | Result |
-| ----- | ------- | ------ |
-| ...   | ...     | ...    |
+<!-- One row per guardrail in the guardrails. Result: satisfied | unsatisfied | skipped.
+     The Guardrail column holds the guardrail's body — a command or a rule — so a commandless row is valid.
+     A skipped row shows the guardrail's body but it was not evaluated.
+     A forgotten guardrail is an absent row; a deliberately skipped guardrail is a present skipped row;
+     an evaluated guardrail is a present satisfied/unsatisfied row. -->
+| Check | Guardrail | Result |
+| ----- | --------- | ------ |
+| ...   | ...       | ...    |
 
 ## Accuracy spot-check
 
@@ -111,5 +112,5 @@ On an **approved** verdict, also write `<artifacts-folder>/5-docs/docs-summary.m
 - **Reject liberally.** Any real inaccuracy or coverage gap is worth rejecting for. Rejections improve the docs — they are not failures.
 - **Do NOT rewrite the docs.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan, spec, or design.** Those phases have been approved. Flag deviations, not the artifacts themselves.
-- **Run the guardrails.** Don't just read the docs. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, run every gate per step 4 and approve only if all pass. If you already reject on judgment, skip them and go to step 5.
-- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, a gate that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `doc-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; a declared gate cannot execute. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
+- **Run the guardrails.** Don't just read the docs. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, evaluate every guardrail per step 4 and approve only if all are satisfied. If you already reject on judgment, skip them and go to step 5.
+- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, a guardrail the reviewer finds unsatisfied, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — for example, `doc-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; a declared command guardrail cannot run. In those cases stop and report a blocker to the orchestrator per the workflow's blocker protocol, including what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so.
