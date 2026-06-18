@@ -1,32 +1,37 @@
 # Guardrails
 
-Guardrails are the deterministic verification gates a project's running agents must pass — exact commands judged pass/fail by exit code.
+A guardrail is a prose rule an agent must satisfy.
 
-## Gate kinds
+## Guardrail kinds
 
-A guardrail gate is **fixed** or **scoped**:
+A guardrail is one of two kinds:
 
-- **Fixed** — a literal command run as-is.
-- **Scoped** — a command containing a `{scope}` placeholder filled per pipeline.
+- **command guardrail** — its body tells the agent to run a command and confirm the check it describes is satisfied.
+  - **Fixed** — the command is run as-is.
+  - **Scoped** — the command contains a `{scope}` placeholder filled per pipeline.
+  - Fixed/scoped is a property of command guardrails only; a judgment guardrail is neither.
+- **judgment guardrail** — a prose rule the named agent satisfies by its own assessment, with no command to run.
 
-## The `.rp.md` per-gate block
+## The `.rp.md` per-guardrail block
 
-Each gate is captured at setup as a block in `.rp.md`:
+Each guardrail is captured at setup as a block in `.rp.md`:
 
 ```markdown
 ### <name>
 
-- command: `<command, with {scope} if scoped>`
+- rule: <the rule; for a command guardrail, embeds the command, with {scope} if scoped>
 - agents: <one or more of code-writer-tdd, code-writer-e2e, code-reviewer, doc-writer, doc-reviewer>
-- fill-guidance: <optional; scoped gates only>
+- fill-guidance: <optional; scoped command guardrails only>
 ```
 
 `fill-guidance` is an optional owner-authored note telling the planning agent how to choose `{scope}`. Absent, the planning agent chooses `{scope}` from the spec and design.
 
+A judgment guardrail's block is name + `rule` + `agents`, omitting the `{scope}` placeholder — which lives only inside a command — and `fill-guidance`, the way a fixed command guardrail already omits `fill-guidance`.
+
 ## The fill lifecycle
 
-A scoped gate's `{scope}` is chosen per pipeline by the planning agent of the phase whose agents run the gate — code-run gates by the code plan, doc-run gates by the doc plan.
+A scoped command guardrail's `{scope}` is chosen per pipeline by the planning agent of the phase whose agents run the guardrail — code-run guardrails by the code plan, doc-run guardrails by the doc plan.
 
-A scoped gate whose agents span both phases is filled by each phase's plan independently — each fills `{scope}` for its own agents — so the gate may carry a different scope value per phase.
+A scoped command guardrail whose agents span both phases is filled by each phase's plan independently — each fills `{scope}` for its own agents — so the guardrail may carry a different scope value per phase.
 
-The plan records the chosen scope **value** (gate → scope value) in its `## Guardrail scopes` section of either `code-plan.md` and/or `doc-plan.md`.
+The plan records the chosen scope **value** (guardrail → scope value) in its `## Guardrail scopes` section of either `code-plan.md` and/or `doc-plan.md`.
