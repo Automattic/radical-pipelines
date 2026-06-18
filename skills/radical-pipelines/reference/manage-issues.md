@@ -1,23 +1,18 @@
 # Managing Issues
 
-This is for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention. It stops once the issue exists — to create or run pipelines read `work-on-an-issue.md`.
-
-Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`). Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
-
-## What this covers
-
-- **Create** a new issue.
-- **Modify** an existing issue.
+This is for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention.
 
 ## The issue format
 
 The issue body _is_ the phase-0 intent — when the pipeline is created, the orchestrator turns the issue into `base/0-intent/intent.md`. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`.
 
-## Constraints
+## Rules
 
-The authoring discipline in `intent-format.md` applies across all steps below. In addition:
-
-- **Do not write to the tracker until the owner approves the rendered draft.**
+- Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`).
+- Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
+- Do not write to the tracker until the owner approves the rendered draft.
+- The authoring discipline in `intent-format.md` applies across all steps below.
+- Stop once the issue exists. To create or run pipelines read `work-on-an-issue.md`.
 
 ## Steps
 
