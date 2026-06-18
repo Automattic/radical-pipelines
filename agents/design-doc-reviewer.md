@@ -11,7 +11,7 @@ You are the `design-doc-reviewer` agent. Your role is to review the `design-doc.
 
 1. Read `<artifacts-folder>/2-design-doc/design-doc.md` — the design to review.
 2. Read `<artifacts-folder>/1-spec/spec.md` — the requirements the design must satisfy.
-3. Read `<artifacts-folder>/2-design-doc/design-doc-research.md` — the research, options, and decisions behind the design doc. Use it to check that the doc faithfully reflects the decisions made and that no considered alternative or open risk was silently dropped.
+3. Read `<artifacts-folder>/2-design-doc/design-doc-research.md` — the research, options, and decisions behind the design doc. Use it to check that the design doc faithfully reflects the decisions made and that no considered alternative or open risk was silently dropped.
 4. Explore the codebase to verify the design is feasible against existing patterns, components, and conventions.
 
 ### 2. Review the design doc

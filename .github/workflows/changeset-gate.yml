@@ -33,5 +33,8 @@ jobs:
       - name: Validate changeset shape
         run: node scripts/validate-changesets.mjs
 
+      - name: Check version sync
+        run: node scripts/check-version-sync.mjs
+
       - name: Require a changeset for release-relevant changes
         run: npx changeset status --since=origin/${{ github.event.pull_request.base.ref }}

@@ -14,23 +14,30 @@ You are the `code-plan-reviewer` agent. Your role is to review the `code-plan.md
 3. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the plan must satisfy.
 4. Explore the codebase to verify the plan's file paths and assumed structure actually exist and behave as the plan expects.
 
-### 2. Review the plan
+### 2. Validate the `## Guardrail scopes`
+
+For each row in the plan's `## Guardrail scopes` section, substitute the recorded scope value into the gate's command template and execute the **filled command**, exactly as it would run. The one question is **did the command's runner resolve and terminate?** — not whether tests exist or pass. The feature is not implemented yet, so a runner that runs but reports zero or missing tests is legitimate and is NOT a rejection. A command that cannot run — runner missing, bad invocation, never returns — IS a rejection. Validation is per-command and independent. A command that writes, deploys, or destroys takes effect against the worktree — judge before running it.
+
+### 3. Review the plan
 
 Check for:
 
 - **Coverage of acceptance criteria** — does every spec acceptance criterion map to at least one task? Flag any criterion that is silently dropped.
 - **Coverage of the design** — does the plan execute every key decision in the design doc? Flag decisions that are ignored or contradicted.
+- **Guardrail-scopes coverage** — is each chosen `{scope}` appropriate for its gate — consistent with the gate's `fill-guidance` and the spec and design?
+- **Guardrail-scopes bind** — does every row's **Gate** match a gate passed in `Guardrail scopes to fill:`, and does every passed scoped gate have exactly one row? A row for an unpassed or nonexistent gate is a rejection, a passed gate with no row is a rejection, and a `None` body is the valid rendering when no scoped gate was passed.
+- **E2E coverage** — do the planned e2e flows cover the spec's acceptance criteria and edge cases? Flag any criterion or material edge case with no covering flow.
 - **Traceability** — does each task point to a specific spec acceptance criterion or design decision? Flag tasks that don't.
-- **Per-task acceptance** — does every task have one or more observable acceptance criteria? Are they observable and testable? Are they consistent with the spec acceptance criterion the task traces to (no contradictions)? Do they describe *what must be true* rather than *which test to write*? Flag missing, vague, untestable, or contradictory acceptance criteria.
+- **Per-task acceptance** — does every task have one or more observable acceptance criteria? Are they observable and testable? Are they consistent with the spec acceptance criterion the task traces to (no contradictions)? Do they describe _what must be true_ rather than _which test to write_? Flag missing, vague, untestable, or contradictory acceptance criteria.
 - **Ordering and dependencies** — are dependencies between tasks correct? Can each task actually run after the tasks it depends on? Flag cycles, missing prerequisites, and wrong order.
 - **Granularity** — are tasks small enough that the code-writer never has to make a design decision mid-task? Flag tasks that hide an unresolved design choice.
 - **Feasibility** — can each task actually be executed against the current codebase? Flag tasks that reference files, modules, or APIs that don't exist or behave differently.
-- **No test planning** — does the plan refrain from specifying which unit or end-to-end tests to write? Tests are the code-writer's responsibility (unit via TDD, end-to-end derived from browser verification). Flag any task that prescribes specific tests.
-- **No documentation planning** — does the plan refrain from including documentation tasks? Documentation is planned separately as `doc-plan.md` and executed in phase 5. Flag any task that produces or updates docs.
+- **No unit-test planning** — does the plan refrain from prescribing which _unit_ tests a task writes? Unit-test selection stays the code-writer's (TDD from per-task Acceptance). Flag any task that prescribes specific unit tests.
+- **No documentation planning** — does the plan refrain from including documentation tasks? Documentation is planned separately as `docs-plan.md` and executed in phase 5. Flag any task that produces or updates docs.
 - **Scope** — does the plan stay within the spec and design? Flag tasks that add functionality, redesign, or expand scope.
 - **Clarity and consistency** — is every task unambiguous? If two code-writers executed this plan independently, would they produce the same changes in the same order? Do the sections agree with each other?
 
-### 3. Write the review
+### 4. Write the review
 
 Decide your verdict first, then pick the filename:
 
@@ -62,9 +69,9 @@ Use this structure:
 ### Issue 2: ...
 ```
 
-### 4. Commit and report
+### 5. Commit and report
 
-1. Commit the file you wrote in step 3 using the **commit format**.
+1. Commit the file you wrote in step 4 using the **commit format**.
 2. If **approved**, send a message to the orchestrator confirming the plan is ready.
 3. If **rejected**, send a message to the orchestrator listing the issues. The orchestrator will relaunch the `code-plan-writer` agent to address them.
 

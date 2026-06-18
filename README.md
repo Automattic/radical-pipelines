@@ -109,7 +109,7 @@ This routes through the single Pi manifest (`package.json` at the repo root), wh
 The package installs:
 
 - the `radical-pipelines` skill;
-- phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `doc-plan-writer`, `doc-plan-reviewer`, `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer` (phase 0 is the intent, an input rather than an agent-produced artifact, so it has no agent profile);
+- phase agent profiles for the shipped phases and phase pairs: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `code-plan-writer`, `code-plan-reviewer`, `docs-plan-writer`, `docs-plan-reviewer`, `code-writer-tdd`, `code-writer-e2e`, `code-reviewer`, `docs-writer`, and `docs-reviewer` (phase 0 is the intent, an input rather than an agent-produced artifact, so it has no agent profile);
 - bundled `pi-teams`, `@zenobius/pi-worktrees`, and `@pi-agents/loop` Pi resources.
 
 During package development in this repository, install dependencies once from the repository root and then install the local path:
@@ -170,9 +170,10 @@ For how to author a changeset, choose its bump type, and when one is required, s
 
 ### The single source of truth
 
-The `version` field in the root `package.json` is authoritative. The other version-bearing files are kept identical to it and are never edited independently:
+The `version` field in the root `package.json` is authoritative. The other version-bearing locations are kept identical to it and are never edited independently:
 
 - `.claude-plugin/plugin.json`
+- `package-lock.json` — in two fields, the top-level `version` and the root package's `packages[""].version`.
 
 `.claude-plugin/marketplace.json` carries no version field — it references the plugin by `source: "./"` — so it is intentionally left out of version sync.
 
@@ -181,7 +182,7 @@ The `version` field in the root `package.json` is authoritative. The other versi
 Releases are driven by CI (`.github/workflows/release.yml`), not by a local operator action. Changesets accumulate on `trunk` until a release is cut; the flow is:
 
 1. **Changesets land on `trunk`.** As pull requests merge, their `.changeset/*.md` files pile up on `trunk`.
-2. **CI opens a "Version Packages" PR.** With pending changesets, the Release workflow runs `npm run release:version` and surfaces the result as a "Version Packages" pull request. In one fail-fast invocation that script: (a) runs `changeset version` to consume the pending `.changeset/*.md` files, write or update the root `CHANGELOG.md`, and bump the `version` in the root `package.json`; (b) runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json` — so `package.json` and `.claude-plugin/plugin.json` read the same string.
+2. **CI opens a "Version Packages" PR.** With pending changesets, the Release workflow runs `npm run release:version` and surfaces the result as a "Version Packages" pull request. In one fail-fast invocation that script: (a) runs `changeset version` to consume the pending `.changeset/*.md` files, write or update the root `CHANGELOG.md`, and bump the `version` in the root `package.json`; (b) runs `node scripts/sync-version.mjs` to copy the new root version into `.claude-plugin/plugin.json`; (c) reconciles `package-lock.json` so its two recorded-version fields match the bumped root version. After it runs, all version-bearing locations — `package.json`, `.claude-plugin/plugin.json`, and the two `package-lock.json` fields — read the same string.
 3. **A maintainer merges the Version Packages PR.** The human merge is what advances the flow.
 4. **CI creates the tag and Release.** The next run creates the `v<version>` git tag and a matching GitHub Release.
 

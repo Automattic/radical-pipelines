@@ -1,5 +1,27 @@
 # @automattic/radical-pipelines
 
+## 0.4.0
+### Minor Changes
+
+
+
+- [#124](https://github.com/Automattic/radical-pipelines/pull/124) [`d019d49`](https://github.com/Automattic/radical-pipelines/commit/d019d496a6a357fb23251012bab42975aad1320c) Thanks [@luisherranz](https://github.com/luisherranz)! - A code- or doc-phase guardrail can now name the agents that run it — one or more of `code-writer`, `code-reviewer`, `doc-writer`, and `doc-reviewer` — so a project can scope an expensive gate to the agents where it pays off. A guardrail that names no agents runs for every gate-running agent.
+
+
+
+- [#133](https://github.com/Automattic/radical-pipelines/pull/133) [`5690a1a`](https://github.com/Automattic/radical-pipelines/commit/5690a1a45cdbfacf192ecaaf047c74536a5e5796) Thanks [@SantosGuillamot](https://github.com/SantosGuillamot)! - Add per-phase summaries for the code and docs phases: on approval the reviewer writes a human-friendly `code-summary.md` / `docs-summary.md` into the phase folder, so a run's artifact folder records what every phase produced.
+
+
+
+- [#127](https://github.com/Automattic/radical-pipelines/pull/127) [`985ce53`](https://github.com/Automattic/radical-pipelines/commit/985ce53e198c940fd2e10916c1e20135ed46043e) Thanks [@luisherranz](https://github.com/luisherranz)! - A guardrail gate is now either fixed or scoped: a fixed gate is a literal command run as-is, while a scoped gate carries a `{scope}` placeholder filled per pipeline by the plan of the phase whose agents run the gate — applying the same way to the code and docs phases. Test selection is a planning duty: the plan turns the spec's acceptance criteria and edge cases into an explicit e2e test plan — so the suite a change must pass is decided up front rather than per writer. Behavior verification moves to the code-reviewer, which re-drives the planned e2e flows when reviewing a batch. The single `code-writer` agent is split into `code-writer-tdd` and `code-writer-e2e`, dispatched by a task's `Type`, so each task runs the writer suited to its work.
+
+
+### Patch Changes
+
+
+
+- [#129](https://github.com/Automattic/radical-pipelines/pull/129) [`4b47422`](https://github.com/Automattic/radical-pipelines/commit/4b47422c783b51aef4acfdf471cef01e81889412) Thanks [@luisherranz](https://github.com/luisherranz)! - Give each run its own uniquely named team. A new run no longer collides with a stale team left over from a prior run or session, and you no longer have to manually clean up leftover team state before starting a run.
+
 ## 0.3.0
 ### Minor Changes
 

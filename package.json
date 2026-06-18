@@ -1,6 +1,6 @@
 {
   "name": "@automattic/radical-pipelines",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Radical Pipelines Pi package — installable from this repository via git source (pi install git:github.com/Automattic/radical-pipelines) or local path (pi install . -l).",
   "keywords": [
@@ -9,7 +9,7 @@
   ],
   "type": "module",
   "scripts": {
-    "release:version": "changeset version && node scripts/sync-version.mjs",
+    "release:version": "changeset version && node scripts/sync-version.mjs && npm install --package-lock-only --no-audit --no-fund",
     "test": "node --test 'scripts/test/**/*.test.mjs'"
   },
   "dependencies": {
