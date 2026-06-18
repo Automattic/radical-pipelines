@@ -58,3 +58,53 @@ These confirm the spec's premises; the Q&A below settles the concrete design poi
 ---
 
 ## Q&A
+
+### Q1 — Exact in-scope file set and oracle completeness → 2 files, complete and minimal
+
+**Question.** Prove the 10 stragglers live *only* in the 2 known files (per-file grouped
+count, not just "the 2 known files match"); confirm the +2 (oracle without the
+`pr-description.md` exclusion) come *only* from `pr-description.md`; and confirm no other
+trunk-added/modified tracked file outside `.pipelines/` carries an oracle-caught concept
+token.
+
+**A (researcher, confirmed; analyst re-ran the grouped census independently).**
+
+Per-file Option B oracle (relaxed pattern `(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b`)
+over all-tracked excl. `.pipelines/`/`CHANGELOG.md`/`pr-description.md`, nonzero files only:
+
+```
+5    skills/radical-pipelines/reference/conventions/passing.md
+5    skills/radical-pipelines/reference/guardrails.md
+```
+
+→ exactly **10**, in **exactly those 2 files**, nothing else in scope contributes. With the
+`pr-description.md` exclusion dropped:
+
+```
+2    pr-description.md
+5    skills/radical-pipelines/reference/conventions/passing.md
+5    skills/radical-pipelines/reference/guardrails.md
+```
+
+→ **12**; the +2 come **only** from `pr-description.md` (the frozen `doc-run`/`doc plan`).
+
+Researcher cross-checks: base **anchored** pattern over the same Option-B file set → 9 (it
+misses the backtick `` `doc` `` on `passing.md:16`, the gap Option B closes). All 10
+in-scope matches are the bare token `doc`; the match set contains zero
+`design-doc`/`document`/`docs` hits (no over-reach). Both target files contain **zero**
+`design-doc` and **zero** `document(ation)` tokens, so there are no protected tokens
+adjacent to in-scope ones in these files — the substitution is fully surgical here.
+
+**Design decision.** The in-scope file set is exactly two files —
+`skills/radical-pipelines/reference/guardrails.md` and
+`skills/radical-pipelines/reference/conventions/passing.md` — and it is **complete and
+minimal**: the all-tracked Option B oracle proves no other in-scope file carries a
+straggler. The exclusion list is exactly `{.pipelines/, CHANGELOG.md, pr-description.md}`;
+nothing else needs excluding.
+
+The 10 tokens (for the Components section):
+- `guardrails.md` (5): L20 `doc-writer`, `doc-reviewer`; L28 `doc-run`, `doc plan`; L32
+  `doc-plan.md`.
+- `passing.md` (5): L11 `doc-writer`, `doc-reviewer`; L16 `doc-plan-writer`,
+  `doc-plan-reviewer`, and the backtick `` `doc` `` (→ `` `docs` ``, parallel to L15's
+  `` `code` ``).
