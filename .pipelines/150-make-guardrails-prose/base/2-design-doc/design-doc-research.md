@@ -431,10 +431,97 @@ question, the researcher's findings, and the design decision reached.)_
   command guardrail" closes the received-but-commandless case without new prose. "satisfied" unifies
   the result vocabulary across all five running agents and the spec.
 
+### Topic: Setup / capture of both kinds
+
+- **Spec link:** Requirement 12; acceptance criteria `:73` (command capture) and `:74` (judgment
+  capture, commit-format analogy). File: `setup.md` Guardrails section (171-191) — the heaviest
+  remaining exit-code vocabulary.
+- **Question to researcher:** the 179-184 rewrite (run-vs-cannot-run without exit-code words), the
+  judgment-capture path, whether "Why they matter"/"What kinds" need broadening, and the "Also"
+  bullets.
+- **Findings (researcher):**
+  - **Exit-code vocabulary in this section is confined to `:183`** ("Any exit code counts, including
+    non-zero", "not 'exit 0'") **and `:184`** ("the error and exit code"); `:186-190` have none.
+    "did the command execute?" (`:179`) is not strictly exit-code framing, but "execute"→"run"
+    aligns with the spec's "runs"/"cannot run" words.
+  - **Dropping "and exit code" from `:184` loses nothing load-bearing** — the *error*
+    (command-not-found, not-executable, hang) is what the owner acts on; the exit code carries no
+    additional information here.
+  - **Option (a) for judgment capture is decisive.** The commit-format precedent (`setup.md:54-60`:
+    "Ask the owner for the format and capture at least one concrete example" — verbatim, no
+    validation) is exactly the analogy the spec draws (AC `:74`). A single command-scoping opener
+    clause ("a judgment guardrail has no command to run, so this validation does not apply — capture
+    its rule verbatim, the way the commit format is captured") is minimal and idiomatic; a separate
+    paragraph (option b) adds structure for a "do nothing special" path.
+  - **`:173` "Why they matter" needs no rewrite** (no exit-code framing); one light touch: "every
+    deterministic gate passes" → "every guardrail is satisfied" (drops lingering deterministic
+    framing, reuses vocabulary). Do **not** restate the two-kinds definition here — it lives in
+    `guardrails.md` (no cross-path duplication); `:177` already references it for the block.
+  - **`:175` "What kinds to consider" should gain a judgment-guardrail prompt.** The ACs mandate
+    only that setup *accept* a judgment guardrail (`:74`), but "What kinds to consider" is setup's
+    *prompting* surface — leaving it command-only would make the motivating use case practically
+    unreachable while technically satisfying the ACs. This is the one "prompt vs only-accept"
+    judgment call.
+  - **`:186-190` "Also" bullets:** no exit-code words; terminology only (gate→command guardrail);
+    the scoped-command reference at `:190` stays. No judgment caveat (would be a needless negative).
+- **Decision:**
+  1. **Rewrite the validation step + two outcomes (`:179-184`)** to remove all exit-code vocabulary
+     while preserving run-vs-cannot-run (AC `:73`):
+     - Validation step opens by scoping to command guardrails and routing judgment guardrails to
+       verbatim capture (the commit-format analogy); "did the command execute?" → "did the command
+       run?"; "whether it _passes_" → "whether its check is currently satisfied."
+     - Outcome 1: "**It runs ⇒ write it.** The bar is that the command runs, not that its check
+       currently passes — a command guardrail whose check fails right now is just today's code state
+       (red tests, mid-development work), and that's fine."
+     - Outcome 2: "**It does not run ⇒ do NOT write it.** … surface the failure to the owner (the
+       error) …" (drop "and exit code"; "drop the gate" → "drop the guardrail").
+  2. **Judgment capture = option (a):** the single opener clause; judgment guardrails captured
+     verbatim like the commit format (req 12, AC `:74`). No separate paragraph.
+  3. **`:173`:** "every deterministic gate passes" → "every guardrail is satisfied"; motivation
+     otherwise untouched; do not restate the two-kinds definition.
+  4. **`:175`:** add a **generic** judgment-guardrail clause to "kinds to consider" (recommended),
+     describing it as "a style or content rule an agent satisfies by its own assessment" and asking
+     whether any judgment rules should gate the work. **Strictly minimal fallback** (if the writer
+     prefers AC-only scope): add just a brief "a guardrail may also be a judgment rule" note. Either
+     way, **never name `AGENTS.md` or any project-specific file** — the skill stays generic.
+  5. **`:186-190`:** terminology only (gate→command guardrail / scoped command guardrail); the
+     scoped-command reference at `:190` stays; no judgment caveat.
+- **Rationale:** the rewrite preserves the load-bearing "accept runnable-but-currently-failing /
+  reject cannot-run" meaning (req 12, AC `:73`) with zero exit-code words; the commit-format analogy
+  gives the judgment path a precedent the reader already knows (AC `:74`); the kinds stay defined
+  once, upstream in `guardrails.md`. Prompting for judgment guardrails at `:175` is the on-theme
+  broadening the motivating use case depends on.
+
 ## Open Questions
 
 <!-- Unresolved sub-questions deferred to the implementation phases. -->
 
+- **`setup.md:175` — prompt for judgment guardrails, or only accept one?** The acceptance criteria
+  mandate only that setup *accept* a judgment guardrail (AC `:74`). Whether "What kinds to consider"
+  is broadened into a full prompt (recommended — the motivating use case depends on the owner being
+  asked) or limited to a brief "a guardrail may also be a judgment rule" note is a minimalism call
+  left to the design-doc-writer / plan. Both satisfy the ACs; the recommended fuller prompt better
+  serves req 1/12's purpose. Not a blocker — a wording-scope choice.
+
 ## Risks
 
 <!-- Anything worth flagging to the design-doc-writer and downstream phases. -->
+
+- **Generic-ness of judgment-guardrail examples (project authoring rule).** The spec motivates the
+  feature with "this project's own `AGENTS.md`" reviewer rules, but the skill must stay generic — no
+  tool-, tracker-, or project-specific mentions. Any judgment-guardrail example added to the skill
+  (`guardrails.md`, `setup.md`) must be described generically ("a style or content rule an agent
+  satisfies by its own assessment"), never by naming `AGENTS.md` or this project. The AGENTS.md
+  reference belongs only in the spec/design as motivation. The design-doc-writer and code-writers
+  must hold this line.
+- **Vocabulary consistency across eight files (Topic 7).** The change introduces one result word
+  ("satisfied"/"unsatisfied"), one umbrella verb for reviewers ("evaluate"), and consistent
+  "guardrail"/"command guardrail"/"judgment guardrail" terminology. These must be applied uniformly
+  across all in-scope files or the prose drifts. Topic 7 settles the exact sweep; the risk is a
+  partial application that leaves "gate"/"pass/fail"/"execute" stragglers — the acceptance criterion
+  at `spec.md:75` requires zero exit-code framing across all eight files.
+- **"Prose, not software" — no structural tests.** The project rule forbids structural tests that
+  assert the content, sections, wording, or ordering of skill or agent files (constraint 14, AC
+  `:76`). Because this whole change is prose, the code phase must verify it by reading, not by adding
+  tests that restate the skill. The design-doc-writer should state this explicitly so the code plan
+  does not introduce such tests.
