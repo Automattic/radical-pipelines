@@ -2,9 +2,11 @@
 
 The owner wants to advance pipeline work for a specific issue. Identify the issue, check for existing pipelines or create a new one and dispatch to autonomous or assisted mode.
 
-Read `pipeline-versioning.md` first for the model — listing existing pipelines in step 2 depends on it.
+## Rules
 
-Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`).
+- Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`).
+- Read `pipeline-versioning.md` to understand how pipelines are versioned and managed.
+- If the owner ever wants to create or modify an issue while working on an issue, make sure to read `manage-issues.md` first.
 
 ## Steps
 

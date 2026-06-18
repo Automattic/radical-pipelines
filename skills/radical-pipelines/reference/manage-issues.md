@@ -1,23 +1,18 @@
 # Managing Issues
 
-This is the entry point for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention. This is the front door: it is upstream of `work-on-an-issue.md` and stops once the issue exists — it does **not** create or run pipelines.
-
-Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`). Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
-
-## What this covers
-
-- **Create** a new issue.
-- **Modify** an existing issue.
+This is for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention.
 
 ## The issue format
 
 The issue body _is_ the phase-0 intent — when the pipeline is created, the orchestrator turns the issue into `base/0-intent/intent.md`. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`.
 
-## Constraints
+## Rules
 
-The authoring discipline in `intent-format.md` applies across all steps below. In addition:
-
-- **Do not write to the tracker until the owner approves the rendered draft.**
+- Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`).
+- Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
+- Do not write to the tracker until the owner approves the rendered draft.
+- The authoring discipline in `intent-format.md` applies across all steps below.
+- Stop once the issue exists. To create or run pipelines read `work-on-an-issue.md`.
 
 ## Steps
 
@@ -51,4 +46,4 @@ Render the issue in the format above (omitting empty sections) and show it to th
 
 ## Close out
 
-Report the issue reference to the owner. The issue now exists; advancing it into a pipeline happens separately through `work-on-an-issue.md`.
+Report the issue reference to the owner. The issue now exists. Control returns to the situation that invoked this workflow, which decides what happens next.
