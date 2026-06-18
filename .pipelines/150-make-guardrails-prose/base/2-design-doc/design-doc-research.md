@@ -135,6 +135,159 @@ question, the researcher's findings, and the design decision reached.)_
 
 ## Topics
 
+### Topic: Redefinition and the two kinds in `guardrails.md`
+
+- **Spec link:** Requirements 1, 2, 3; bears on 6.
+- **Question to researcher:** the new shape of `guardrails.md` — the redefinition sentence, how
+  the two kinds are introduced, how fixed/scoped is repositioned, and whether anything actively
+  rejects a commandless block.
+- **Findings (researcher):**
+  - The skill's idiom for a multi-kind model is: one-sentence concept definition → an H2 naming the
+    kinds as **bolded-label + em-dash-gloss** bullets → an H2 with the serialized block → lifecycle
+    H2s. `guardrails.md` already follows this skeleton (`:9-10` fixed/scoped bullets).
+  - The "one concept whose serialized form has a sub-distinction" precedent is
+    `pipeline-versioning.md:7-11`: a sub-case is a **nested sub-bullet under its parent bullet**,
+    not promoted to its own H2.
+  - The model files mark not-always-present parts with an inline italic `_(optional)_` tag
+    (`intent-format.md:11`, `summary-format.md:13`). The `(required)` parenthetical is a **setup.md**
+    convention-header idiom (`setup.md:32,46,62,74`), not a model-file idiom — so use `_(optional)_`
+    here.
+  - The top-level partition "a guardrail gate is **fixed** or **scoped**" is declared in exactly
+    **one** place: `guardrails.md:5-10` (the `## Gate kinds` H2). Every other fixed/scoped or
+    `{scope}` mention merely *uses* the machinery. In-scope spots that presuppose a command:
+    `passing.md:10`, `setup.md:179,190` (handled in later topics). Out-of-scope spots (the `{scope}`
+    lifecycle, preserved): `assisted-phases/3 - plan.md` and the four plan agents — all touch only
+    **scoped command gates**, so a judgment guardrail never reaches them.
+  - Req 3 is pure prose-permission: **no parser, no required-field enumeration** anywhere (grep for
+    "must have a command"/required-field patterns → zero hits across `skills/` and `agents/`). The
+    only thing implying "always a command" is the block template's untagged `command:` field
+    (`guardrails.md:19`), unlike `fill-guidance` which is already tagged optional (`:21`).
+  - The clause "exact commands judged pass/fail by exit code" is duplicated **verbatim** in exactly
+    two places: `guardrails.md:3` (canonical) and `load.md:22` (a table-cell gloss). Today's
+    definition is positively phrased, so the redefinition stays positive — no new "don't" clauses.
+- **Decision:**
+  1. **Restate the definition** at `guardrails.md:3` in one positive sentence — a guardrail is a
+     prose rule an agent must satisfy — with no exit-code framing (req 1).
+  2. **Replace `## Gate kinds`** (which currently names fixed/scoped) with an H2 that introduces the
+     **two kinds** as two bolded-label + em-dash-gloss bullets: **command guardrail** (its prose
+     tells the agent to run a command and confirm the check it describes is satisfied) and
+     **judgment guardrail** (a prose rule the named agent satisfies by its own assessment, with no
+     command to run) — req 2.
+  3. **Demote fixed/scoped** to nested sub-bullets **under the command-guardrail bullet** (the
+     `pipeline-versioning.md` nested-case pattern), stating there that fixed vs scoped is a property
+     of command guardrails only and that a judgment guardrail is neither (req 6). This is the only
+     change to the fixed/scoped *definition* anywhere in the skill.
+  4. **Keep** the block H2 and the fill-lifecycle H2 (their reshaping is Topics 2 and 3). The
+     fill-lifecycle prose already speaks of "a scoped gate," which now reads correctly as "a scoped
+     command guardrail" with only terminology consistency to apply (Topic 7).
+  5. **No validation to relax** — req 3 is met by the block making command-only fields omittable
+     (Topic 2) plus broadening the two command-presupposing prose spots (`passing.md`, `setup.md`).
+- **Rationale:** reuses the skill's own "concept → kinds → block → lifecycle" skeleton and its
+  nested-sub-case and `_(optional)_` idioms, so the change reads like the surrounding model files
+  and introduces no new structure (req 14). Demoting the single partition declaration is the
+  minimal, duplication-free way to make fixed/scoped a command-only sub-distinction.
+
+### Topic: The unified per-gate block shape
+
+- **Spec link:** Requirements 4, 5; constraint 14; bears on 3, 6.
+- **Question to researcher:** which body-field shape (A rename `command:` to a kind-neutral prose
+  field / B add a second body field / C single field + a distinguishing convention) keeps the block
+  to "one unified block + the existing `agents:` field" with no new structure, and whether (A)
+  breaks `{scope}` resolution or any consumer that would need a machine-distinguishable kind flag.
+- **Findings (researcher):**
+  - The block today has exactly four pieces and no more (`guardrails.md:16-22`): `### <name>`,
+    `command:` (a backticked-token field), `agents:`, and `fill-guidance:` (a free-prose field
+    tagged "optional; scoped gates only"). `{scope}` is **not** a field — it is a placeholder inside
+    the command value (`:19` "with {scope} if scoped").
+  - The block **already contains both idioms**: a backticked-token field (`command:`) and a
+    free-prose field (`fill-guidance:`). "Prose that embeds a backticked command" also has precedent
+    outside the block (`.rp.md:101` "**Start:** `/loop 15m <prompt>` where …"; `setup.md:60`). So a
+    kind-neutral prose body that may embed a backticked command is fully idiomatic.
+  - The spec's own phrasing makes the body the prose carrier: req 2's command example ("run this
+    command and check that it doesn't fail: [command]") IS a prose body that embeds a command; req 7
+    and req 10 treat "the check it describes" as the body's prose. This is exactly option (A).
+  - **(A) does not break `{scope}` resolution.** Resolution keys on the **gate name** — the plan's
+    `## Guardrail scopes` table is keyed by **Gate** (`guardrails.md:32`, `code-plan-writer.md:32`,
+    `assisted-phases/3 - plan.md:134`), never by a `command:` field. Placement is **textual token
+    substitution** (`passing.md:10` "substitute … place the resolved command") — indifferent to
+    whether `{scope}` sits in a dedicated field or inside a backticked command embedded in prose.
+  - **Pressure-test (does any consumer need a structural kind flag?): NO.** Setup's run-time
+    validation applies only when the body names a command — its presence/absence in the prose is the
+    discriminator (and req 12 wants exactly that). The reviewer's Checks table needs its `Command`
+    column generalized so a commandless row is valid (Topic 4), not a kind flag. The writer relies
+    on `agents:` to keep judgment guardrails away from it (req 5). The orchestrator is gate-name-
+    keyed and kind-agnostic. So (C)'s distinguishing convention is unneeded structure; (B)'s second
+    body field is literal new structure (violates req 14).
+  - **`.rp.md` has no guardrails block today** (confirmed — this repo's `.rp.md` declares no
+    guardrails), so `guardrails.md` is the sole source of the block template and there is nothing to
+    migrate. This matches the spec's framing that the change *enables* the owner's motivating use
+    case without authoring any guardrail.
+- **Decision — option (A): a single kind-neutral prose body field replacing `command:`.**
+  1. **Rename/repurpose `command:` to a kind-neutral body field whose value is prose.** Recommended
+     label: **`rule:`** — it reads best against the spec's "a prose rule an agent must satisfy"
+     (req 1) and the project's own `AGENTS.md` "rules." For a **command guardrail** the `rule:` prose
+     tells the agent to run a command and confirm the check it describes is satisfied, embedding the
+     command in backticks (with `{scope}` inside it if scoped); for a **judgment guardrail** the
+     `rule:` prose is the rule itself, with no command. *(The exact label is a non-load-bearing
+     wording call the design-doc-writer may finalize; `rule:` is the recommended default. Whatever
+     label is chosen, the structure is identical.)*
+  2. **`agents:` is unchanged** (req 5). An owner confines a judgment guardrail to reviewers by
+     listing only `code-reviewer`/`doc-reviewer` there — no new mechanism.
+  3. **`fill-guidance:` stays, tagged optional and scoped-command-only** — unchanged in role; a
+     judgment guardrail omits it exactly as a fixed command guardrail already does (req 4).
+  4. **A judgment guardrail's block is: name + `rule:` (the rule prose) + `agents:`** — omitting the
+     `{scope}` placeholder (which only ever lives inside a command) and `fill-guidance`, the way a
+     fixed command guardrail already omits `fill-guidance` (req 4). Mark the command-only nature with
+     the model-file `_(optional)_` idiom on the relevant lines, phrased positively ("present for
+     scoped command guardrails"), never as a "judgment guardrails must not …" negative.
+  5. **No new structure** — the block is still name + one body field + `agents:` + optional
+     `fill-guidance:`; (A) renames one field and adds none (req 14).
+- **Rationale:** (A) is the only shape that adds zero fields while expressing both kinds; the two
+  kinds differ solely in what the `rule:` prose says (one embeds a command, the other is the rule).
+  Because every consumer reads the body or keys on the gate name, no machine-distinguishable flag is
+  needed, so the distinguishing convention (C) and the second body field (B) are both rejected on
+  minimalism grounds. `{scope}` resolution survives untouched because it is name-keyed and textual.
+
+### Topic: `{scope}` lifecycle preserved; judgment guardrails neither fixed nor scoped
+
+- **Spec link:** Requirement 6; spec "Out of Scope" (the `{scope}` fill lifecycle and
+  `## Guardrail scopes` plan sections are preserved, not removed).
+- **No fresh research round:** req 6 is settled by evidence already gathered under Topics 1 and 2;
+  there is no open design question to put to the researcher. Recording the synthesis (mirrors how a
+  preserved-behavior requirement is handled — decision from prior findings, not a manufactured
+  question).
+- **Decision — the scope machinery is untouched; judgment guardrails structurally never reach it:**
+  1. **The fill lifecycle stays exactly as written.** A scoped command guardrail still carries a
+     `{scope}` placeholder; the planning agent of the phase whose agents run it still chooses the
+     value and records it in the plan's `## Guardrail scopes` section (gate → value); the
+     orchestrator still resolves it before passing the guardrail. The two plan writers
+     (`code-plan-writer.md`, `doc-plan-writer.md`), the two plan reviewers (`code-plan-reviewer.md`,
+     `doc-plan-reviewer.md`), and `assisted-phases/3 - plan.md` are **not edited** — they are not in
+     the spec's eight in-scope files, and their "did the command's runner resolve and terminate?"
+     check is an **execution check, not an exit-code check** (spec Out of Scope).
+  2. **Judgment guardrails never reach the scope machinery — structurally, not by a guard clause.**
+     Every scope-fill and scope-validation step operates only on **scoped command guardrails** (a
+     `{scope}` placeholder lives only inside a command). A judgment guardrail is neither fixed nor
+     scoped (it has no command), so it is never passed in `Guardrail scopes to fill:`, never gets a
+     `## Guardrail scopes` row, and is never substituted or validated. No negative phrasing is
+     needed to keep it out — the existing "scoped command guardrails only" scoping already excludes
+     it.
+  3. **The one place to state "fixed/scoped is command-only" is `guardrails.md`** — the demoted,
+     nested fixed/scoped sub-bullets under the command-guardrail bullet (Topic 1, decision 3),
+     stating there that a judgment guardrail is neither. No other file restates it (avoids
+     cross-path duplication, req 14); the plan files keep saying "scoped gate/command guardrail" and
+     that now reads correctly.
+  4. **`passing.md:10` is the only in-scope file touching this lifecycle**, and only its wording
+     broadens (Topic 2, decision: substitute `{scope}` in the guardrail's **body**, place the
+     resolved body; any other guardrail's body passes literally). The lookup-by-gate-name and
+     textual-substitution mechanics are unchanged, so the lifecycle is preserved verbatim in
+     behavior while shedding the command-presupposing phrasing.
+- **Rationale:** the spec preserves the `{scope}` lifecycle and the execution checks; the cleanest
+  realization is to leave every scope-machinery file untouched and rely on the fact that a judgment
+  guardrail is structurally never scoped, so it never enters that machinery. Stating the
+  command-only nature of fixed/scoped once, where the kinds are defined, keeps the fact in a single
+  reading path.
+
 ## Open Questions
 
 <!-- Unresolved sub-questions deferred to the implementation phases. -->
