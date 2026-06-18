@@ -362,6 +362,75 @@ question, the researcher's findings, and the design decision reached.)_
   header relabel and a Result-value swap — no new column, no kind flag (req 14). The blocker
   asymmetry falls out of the fact that a judgment guardrail can always be assessed.
 
+### Topic: Writer behavior and the no-guardrails path
+
+- **Spec link:** Requirements 10, 11; req 13/AC `:75` (writers in the file list for exit-code
+  removal). Files: `code-writer-tdd.md`, `code-writer-e2e.md`, `doc-writer.md` (shared "Run the
+  guardrails" core; duplication is Topic 7).
+- **Question to researcher:** the load-bearing call — does the spec require writer-side **judgment-
+  guardrail assessment**, or do writers stay command-focused? — plus the three-way-sort rewrite, the
+  "pass"→"satisfied" question, and the blocker guideline.
+- **Findings (researcher):**
+  - **The spec scopes writers to command guardrails only.** Req 10 (`spec.md:36`) and the writer AC
+    (`spec.md:71`) are entirely command-specific; there is **no** "given a writer that received a
+    judgment guardrail …" acceptance criterion, while the reviewer has **both** (`spec.md:68`
+    command + `:69` judgment). The asymmetry is deliberate. Writers appear in req 13/AC `:75` only
+    for exit-code-framing removal, not to gain judgment machinery. Every "records a per-guardrail
+    result for both kinds / assesses as violated" requirement names the **reviewer**.
+  - Adding writer-side judgment gating (option b) is **speculative scope** the authoring rules
+    forbid ("describe the system only as it is designed to work, not a future need that doesn't yet
+    exist"; "no speculative code"). Reject (b).
+  - **No hole in option (a).** If an owner names a writer in a judgment guardrail's `agents:`,
+    `passing.md` places the rule prose in the writer's prompt. The device that prevents a spurious
+    blocker: name the sort entries "**a command guardrail** …" rather than "a gate." A judgment-
+    guardrail body is neither "a command guardrail you cannot run" nor "a command guardrail that runs
+    but isn't satisfied" — it simply isn't a command guardrail, so the writer follows it as guidance
+    (like any convention prose it receives), and the reviewer remains the agent that formally gates
+    on it. No added writer prose, no spurious blocker.
+  - The three-way-sort rewrite preserves exact meaning: "cannot run at all" ↔ "cannot execute";
+    "runs but whose check is not satisfied — the command ran, but the check it describes is not met"
+    ↔ "exits non-zero — the command executed but the gate did not pass" (the load-bearing meaning
+    req 13/AC `:75` preserves). "cannot run" / "runs but is not satisfied" are the spec's own words
+    (`spec.md:36,71`).
+  - **"pass" → "satisfied":** natural for a command guardrail (its check is satisfied = it passed)
+    and keeps one result vocabulary across writers, reviewers, and the spec. Not over-engineering.
+  - The writer "Run the guardrails" intro keeps **command framing** ("Run every command guardrail …
+    exactly as its command is written") — it does **not** adopt the reviewer's "evaluate" umbrella,
+    because writers run commands and only the reviewer evaluates (runs-or-assesses) both kinds.
+  - **doc-writer divergence** (`:45` "the step-3 accuracy verification is your only validation") is
+    the doc analog of req 11's "other validation" (`spec.md:37`); the two code writers say just
+    "proceed." Keep it.
+  - The writer **blocker guideline** bullets contain **no exit-code phrases** today; only "a gate
+    cannot execute" → "a command guardrail cannot run" + gate→guardrail terminology. "Failing
+    tests/broken builds" already covers the runs-but-not-satisfied work-not-blocker case.
+- **Decision — writers stay command-focused (option a):**
+  1. **Do not add writer-side judgment-guardrail assessment/gating.** The design doc must state
+     explicitly that writer-side judgment *gating* is intentionally out of scope (the spec assigns
+     judgment-result-recording to reviewers), so the omission is not read as a gap (reqs 10, 11).
+  2. **Three-way sort, exit-code words dropped**, entries named "a command guardrail …":
+     - No guardrails convention — proceed; not a blocker, no warning.
+     - A command guardrail you cannot run at all (its command does not resolve or run — a missing
+       binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
+     - A command guardrail that runs but whose check is not satisfied — the command ran, but the
+       check it describes is not met. That is work, not a blocker: fix the underlying issue.
+  3. **"pass" → "satisfied":** "Every guardrail's check must be satisfied before you commit"; "Only
+     commit when every guardrail is satisfied" (mirrored across the three writers).
+  4. **Intro + no-bypass:** "Run every command guardrail … exactly as its command is written. Each
+     is mandatory." and "Do not bypass any guardrail (no `--no-verify`, no `skip`, no commented-out
+     checks)." — terminology only; command framing kept (no "evaluate" umbrella for writers).
+  5. **No-guardrails branch / doc-writer divergence:** keep each writer's branch; doc-writer keeps
+     "the step-3 accuracy verification is your only validation" (req 11).
+  6. **Blocker guideline:** "a gate cannot execute" → "a command guardrail cannot run" (blocker);
+     "Failing tests or broken builds are not blockers — they are work to do" unchanged (covers the
+     runs-but-not-satisfied case); doc-writer's "Failing doc gates" → a gate-free phrasing
+     ("Failing doc checks" or "a doc command guardrail that runs but isn't satisfied"). No exit-code
+     words to drop (reqs 10, 11).
+- **Rationale:** the spec's writer/reviewer AC asymmetry is the design — writers produce and gate on
+  commands they can run; reviewers gate on both kinds, including judgment. Keeping writers
+  command-focused is the minimal-correct, non-speculative realization; naming the sort entries "a
+  command guardrail" closes the received-but-commandless case without new prose. "satisfied" unifies
+  the result vocabulary across all five running agents and the spec.
+
 ## Open Questions
 
 <!-- Unresolved sub-questions deferred to the implementation phases. -->
