@@ -108,3 +108,21 @@ The 10 tokens (for the Components section):
 - `passing.md` (5): L11 `doc-writer`, `doc-reviewer`; L16 `doc-plan-writer`,
   `doc-plan-reviewer`, and the backtick `` `doc` `` (→ `` `docs` ``, parallel to L15's
   `` `code` ``).
+
+**Completeness, beyond the oracle (researcher's extra grounding).** Three independent
+checks confirm nothing concept-shaped hides outside the 2 files:
+- *Superset sweep* (Option B pattern minus its trailing `\b`, a strict superset that would
+  also catch compound forms like `doc-plan`, `doc tasks`, `doc-phase`, `doc-writers`)
+  returns only the 5+5 plus three false positives — `website/index.html` `<!doctype html>`
+  and two `website/assets/*.svg` `sodipodi:docname="…"`. Each continues with a letter, so
+  the real oracle's trailing `\b` rejects all three (Option B oracle = 0 on those files,
+  verified). They are not concept tokens.
+- *No-protections census* (bare `doc`, guards removed) floods with `design-doc-*` files
+  (e.g. `design-doc-analyst.md`=26), all `doc` inside `design-doc`, correctly excluded by
+  the lookbehind — confirming nothing concept-shaped hides behind the protections.
+- *Merge provenance* ties the scope to the merge: both in-scope files were authored on
+  trunk independently of the base run (`guardrails.md` from `8ae67f0`, even with a later
+  `91be728 Fix doc-plan.md typo` writing singular; `passing.md` from `05869fd`). Every
+  other concept surface predates the merge and already carries the base run's `docs`
+  renames (which survived). That is precisely why these two — and only these two — carry
+  stragglers the base run never saw.
