@@ -47,13 +47,24 @@ include a changeset; CI enforces this (see [The changeset gate (CI)](#the-change
 ### The changeset gate (CI)
 
 The **Changeset Gate** workflow (`.github/workflows/changeset-gate.yml`) runs on
-every pull request to `trunk` and runs **two independent checks**. The PR **fails
-if either check fails**:
+every pull request to `trunk` and runs **three independent checks**. The PR
+**fails if any check fails**:
 
 1. **Shape** — `node scripts/validate-changesets.mjs` validates every staged
    `.changeset/*.md` file (rejecting malformed front matter, unknown bump types,
    and — while pre-1.0 — `major` bumps; see [Pre-1.0 policy](#pre-10-policy)).
-2. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is
+2. **Version drift** — a version-sync guard that asserts the project's version is
+   consistent across all four version-bearing locations: `package.json`,
+   `.claude-plugin/plugin.json`, and `package-lock.json`'s two recorded-version
+   fields (its top-level `version` and the root package's `packages[""].version`).
+   It fails the PR if any of those disagree — for example a hand-edited
+   `package.json`, or a lockfile left frozen at an older version. On failure it
+   reports an actionable message naming the offending file(s) (and, for the
+   lockfile, which field) alongside the conflicting version(s), so you can see
+   exactly what to reconcile. It passes silently when all four agree. The release
+   flow keeps these in sync automatically (see [Versioning policy](#versioning-policy));
+   this check is the safety net for drift introduced outside that flow.
+3. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is
    the PR's base branch) fails when a release-relevant change has no changeset.
 
 The auto-generated `changeset-release/trunk` Version Packages PR is **exempt**
