@@ -119,3 +119,22 @@ skill's intended steady state or a leftover; (3) does it fall under the base int
 Weighing (a) OUT — frozen #122 PR body, parallel to historical records, regenerated for
 this branch's PR anyway; vs (b) IN — tracked repo-root file an implementer reads, leaving
 `doc-run`/`doc plan` perpetuates the exact split the intent kills.
+
+**Analyst grounding (independent):** `pr-description.md` is referenced in exactly ONE
+place in the whole skill — `setup.md:134`, inside the `artifacts-in-fork` lifecycle:
+"Opens the PR in `upstream` from that clean branch, using `pr-description.md` as the
+body." There is no template for it anywhere in the skill, and the skill never prescribes
+its content. The root `pr-description.md` is simply the PR body the most recent pipeline
+run (issue #122) produced and left checked in — a per-PR transient artifact, not a
+durable skill surface. This very pipeline will itself produce a fresh `pr-description.md`
+(the body for THIS PR), overwriting the #122 content. Rewriting the #122 body's naming
+would be editing a record of an already-shipped, different feature — squarely the spirit
+of the base intent's "leave historical records untouched" constraint.
+
+**Analyst decision: `pr-description.md` is OUT of scope** (matches researcher's lean;
+grounded in its single fork-mode consumer, absence of any template, and its
+overwrite-per-PR transience). Its 2 stragglers are therefore not in-scope to fix.
+
+**Resulting in-scope target:** the two durable skill reference files only —
+`guardrails.md` (5 tokens) + `passing.md` (5 tokens, incl. the 1 oracle-blind backtick
+`` `doc` ``) = **10 stragglers in 2 files**, all → `docs`.
