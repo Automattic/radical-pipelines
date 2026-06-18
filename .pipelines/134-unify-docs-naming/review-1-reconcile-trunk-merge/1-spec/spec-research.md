@@ -109,7 +109,7 @@ punctuation-bounded bare concept token in the entire scope. Intended form `` `do
 File provenance: `guardrails.md` + `passing.md` are durable packaged skill reference
 files (clearly in scope). `pr-description.md` is the only ambiguous one — see Q2.
 
-### Q2 — Is `pr-description.md` in scope or out? (pending researcher)
+### Q2 — Is `pr-description.md` in scope or out? → OUT
 
 Decision criteria: (1) provenance/durability — does the skill treat `pr-description.md`
 as a durable shipped template/convention or a per-pipeline transient artifact the
@@ -138,3 +138,44 @@ overwrite-per-PR transience). Its 2 stragglers are therefore not in-scope to fix
 **Resulting in-scope target:** the two durable skill reference files only —
 `guardrails.md` (5 tokens) + `passing.md` (5 tokens, incl. the 1 oracle-blind backtick
 `` `doc` ``) = **10 stragglers in 2 files**, all → `docs`.
+
+**Researcher confirmation (independent evidence):** OUT, with extra grounding —
+`git log --follow -- pr-description.md` shows a SINGLE commit `2e88eb7`, a MANUAL owner
+commit (author `luisherranz`, not a pipeline agent; commit "Refactor agent documentation
+and workflows…"), never updated since; the file is NOT in setup.md:110-113's enumeration
+of durable workflow-produced files; the skill only READS it (no write/create/generate
+instruction anywhere). It is a frozen #122 record this #134 pipeline must not rewrite —
+parallel to `CHANGELOG.md`/`.pipelines/**`.
+
+**Consequence to carry into the spec (researcher flagged, analyst agrees):** the original
+oracle's hardcoded file list (`skills agents .rp.md website .changeset README.md`)
+structurally cannot see `pr-description.md` (a root file), so under the original oracle no
+exclusion is needed. But IF the spec's acceptance oracle broadens to "all tracked files
+excl. `.pipelines/` + `CHANGELOG.md`", it MUST add `pr-description.md` to the exclusion
+list, else the check fails on a file we intentionally froze. This is a Q3 (verification)
+decision — see below.
+
+### Q3 — The review's acceptance oracle (pending researcher)
+
+Two gaps in the base oracle this review exposes: (1) pattern blind spot — trailing
+`[- ]` anchor misses backtick `` `doc` `` on `passing.md:16`; (2) file-list gap — base
+list omits root files (convenient: never sees out-of-scope `pr-description.md`, but can't
+certify the whole tree).
+
+Analyst pre-verified: the anchor-relaxed pattern
+`(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b` (base pattern minus trailing `[- ]`)
+keeps all three protections and returns:
+- over the 6-path base list: **10** today (9 base-visible + 1 backtick), → 0 after fix.
+- over all-tracked excl. `.pipelines/` + `CHANGELOG.md`: **12** (those 10 + 2 in
+  `pr-description.md`), → 0 after fix only if `pr-description.md` is ALSO excluded.
+
+Deciding between:
+- **Option A** — relax pattern, keep 6-path list. 10→0. `pr-description.md` excluded
+  structurally; no explicit carve-out needed.
+- **Option B** — relax pattern + broaden to all-tracked excl.
+  `.pipelines/`/`CHANGELOG.md`/`pr-description.md`. 12→0. Stronger whole-tree guarantee;
+  must hardcode the `pr-description.md` exclusion.
+
+Also asking: does the FIX require relaxing the anchor in BOTH the oracle AND the
+substitution mechanism (to actually convert the backtick `` `doc` `` → `` `docs` ``), or
+can that one token be handled another way?
