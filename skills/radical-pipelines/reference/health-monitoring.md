@@ -10,7 +10,7 @@ Right after the team is spawned in the autonomous workflow.
 
 Defaults: **5-minute interval**, **10-minute no-output threshold**. Both are owner-tunable. Shorter intervals catch stalls sooner but spend more tokens on each check; the defaults balance the two.
 
-The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The active tool's rules (see `conventions/claude-code.md` or `conventions/pi.md`) provide the exact slash command to start the loop.
+The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The active tool's convention describes how the monitor is provided and, if applicable, how it is started — a tool whose supervision is always-on has nothing to start.
 
 ## What to watch
 
@@ -21,7 +21,7 @@ The monitor checks every interval for the following signals:
 - **Login / API-key error** — a spawned agent or the orchestrator hit a provider authentication failure.
 - **Network failure** — a tool call failed with a transient network error.
 
-Context-window limits are not watched here. Both Claude Code and Pi auto-compact agent context near the limit, so the monitor would only react after the tool has already handled it.
+Context-window limits are not watched here. They are handled by each tool's own mechanism, not by the monitor.
 
 The monitor reads from the artifact folder (last commits, agent logs if available) and from the team's messaging state.
 
@@ -51,7 +51,7 @@ After escalation, stop attempting recovery for that issue. The monitor keeps run
 
 ## Loop prompt template
 
-The orchestrator hands the monitor a self-contained prompt that names the pipeline:
+The monitor works from a self-contained prompt that names the pipeline and lists what to check:
 
 ```
 Check pipeline at <artifact-folder>, team <pipeline-slug>-<random-suffix>.
@@ -67,7 +67,7 @@ For each detected issue, apply up to 2 auto-recovery actions per the recovery ta
 If unresolved after 2 attempts, stop and report to the owner with: agent name, error verbatim, last-known progress, suggested next step.
 ```
 
-The prompt references this file so the monitor reads the recovery table fresh on each fire.
+The prompt references this file so the monitor reads the recovery table fresh each time it checks.
 
 ## Stopping the monitor
 
@@ -76,4 +76,4 @@ The monitor stops when:
 - The autonomous run reaches its target phase and closes out.
 - The owner cancels the run.
 
-Use the tool's loop cancellation command (see `conventions/claude-code.md` or `conventions/pi.md`). Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.
+The active tool's convention describes how the monitor is cancelled, if applicable — a tool whose supervision is always-on has nothing to cancel. Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.
