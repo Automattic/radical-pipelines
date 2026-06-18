@@ -19,7 +19,7 @@ This information is necessary to execute the pipelines correctly, so you must lo
 | Team spawning      | How to define and launch teams of agents                                            | No        |
 | Agent models       | Which model/settings each spawned agent runs on                                     | No        |
 | Health monitoring  | How to launch and cancel the recurring run-health loop                              | Yes       |
-| Guardrails         | The deterministic verification gates — exact commands judged pass/fail by exit code | No        |
+| Guardrails         | The prose rules — command or judgment — a project's agents must satisfy             | No        |
 
 ## Missing conventions
 
