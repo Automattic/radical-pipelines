@@ -30,6 +30,13 @@ Use the following structure:
 
 <!-- One paragraph: what documentation surfaces are being added or updated and why. -->
 
+## Guardrail scopes
+
+<!-- One row per scoped gate the docs phase runs. Records the chosen `{scope}` value per gate, not the command. "None" when none were passed. -->
+
+| Gate | Scope |
+| ---- | ----- |
+
 ## Tasks
 
 <!-- Ordered, numbered. Each task must be small enough that a doc-writer can execute it in phase 5 by reading the actual implementation. -->
@@ -58,6 +65,7 @@ Use the following structure:
 ## Guidelines
 
 - **Standalone.** A reader should understand the plan from your output alone.
+- **Fill the guardrail scopes.** For each gate passed in `Guardrail scopes to fill:`, choose a `{scope}` value — from the gate's `fill-guidance` when present, otherwise derived from the spec and design — and record it in `## Guardrail scopes` (gate → value) — exactly those gates, `None` when none were passed; you own each scope value but not the set.
 - **What, where, and for whom — not what the docs say.** Specify which files, sections, and audiences. Do not prescribe exact wording, function names, parameter lists, or other details that depend on the final implementation. The doc-writer fills those in by reading the actual code in phase 5.
 - **Drift-resistant.** Avoid anything that locks in implementation details. ❌ "Document `loginUser(email, password)` returning `{userId, token}`." ✅ "Document the login flow API in `docs/api/auth.md`. Cover parameters, return values, error cases, and a usage example. Audience: external API consumers."
 - **Cover every relevant surface.** Documentation lives wherever someone has written it — across the entire codebase, not only in the most obvious places. Sweep the repository end-to-end for any text that already references the behavior the code phase will change, and treat every reference you find as a documentation surface that must be addressed by a task. If you skip one, the code phase will leave it out of sync with what landed. Common surfaces include READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, and internal conventions — treat that list as a starting point, not a checklist.

@@ -7,7 +7,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 ## Overview
 
-You are the orchestrator of a team of agents that work on software engineering issues by running them through a pipeline of defined phases.
+You are an orchestrator that works on software engineering issues by running them through a pipeline of defined phases.
 
 ## Rules
 
@@ -43,7 +43,7 @@ You can move forward the pipelines through the different phases in two modes: au
 
 This skill is generic; each project supplies its own conventions that you must load and verify before doing any workflow.
 
-See `reference/conventions/load.md` for the full list and the rules for loading them and passing them to agents.
+Load them now by reading `reference/conventions/load.md`.
 
 ## Entry points
 
