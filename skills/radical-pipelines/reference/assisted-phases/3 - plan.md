@@ -27,7 +27,7 @@ These rules apply across all steps:
 - You MUST give every task one or more acceptance criteria. Code tasks: observable behavior, scoped to the task. Docs tasks: drift-resistant coverage and outcomes (what the reader leaves with, what the docs must cover) — never exact wording, function names, or parameter lists.
 - You MUST propose 2-3 credible options with trade-offs when there is a real choice (task slicing, ordering, file boundaries, docs surfaces, audiences). Do not collapse to a single option without surfacing the alternatives.
 - You MUST work through ONE topic at a time. Never dump multiple unrelated planning questions on the owner in a single message.
-- You MUST NOT plan tests in the code plan — that is the code-writer's responsibility in phase 4 (TDD).
+- You MUST NOT plan unit tests in the code plan — that is the code-writer's responsibility in phase 4 (TDD).
 - You MUST NOT plan documentation in the code plan, and MUST NOT include code tasks in the docs plan.
 - You MUST NOT write code or documentation content. Describe what to do, not how to phrase it.
 - You MUST NOT invent functionality the spec did not ask for, and MUST NOT collapse out-of-scope items into either plan. If a scope question surfaces, log it as an open question or send the owner back to revise the spec or design doc — do not decide it in this phase.
@@ -107,6 +107,7 @@ The code plan is ready for synthesis when every spec acceptance criterion and de
 Before synthesis, privately run a review-style check against `spec.md` and `design-doc.md`:
 
 - **Coverage of acceptance criteria** — does every spec acceptance criterion map to at least one task?
+- **E2E coverage** — do the planned e2e flows cover the spec's acceptance criteria and edge cases?
 - **Coverage of the design** — does the plan execute every key design decision?
 - **Traceability** — does each task point to a specific spec acceptance criterion or design decision?
 - **Per-task acceptance** — does every task have observable, testable acceptance criteria, scoped to the task and consistent with the spec criterion it traces to?
@@ -114,7 +115,7 @@ Before synthesis, privately run a review-style check against `spec.md` and `desi
 - **Granularity** — are tasks small enough that the code-writer never has to make a design decision mid-task?
 - **Feasibility** — does each task reference real files, modules, and APIs?
 - **Scope** — does the plan stay within the spec and design? Anything beyond, or out-of-scope items that crept back in?
-- **No test planning** — does the plan refrain from prescribing specific unit or end-to-end tests?
+- **Guardrail scopes** — for each row in `## Guardrail scopes`, substitute its value into the gate's command template and execute the filled command, surfacing the result to the owner: did the command's runner resolve and terminate? The feature isn't implemented yet, so a runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent — and confirm the section carries exactly the scoped gates the code phase runs, one row each, `None` if none.
 - **No docs tasks** — does the plan refrain from including documentation work?
 
 For any gap, return to step 3 and work through the missing topic.
@@ -128,11 +129,29 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 
 ## Overview
 
+## Guardrail scopes
+
+<!-- One row per scoped gate the code phase runs — exactly that set, no more, no fewer. Records the chosen `{scope}` value per gate, not the command: the `.rp.md` template stays the source of truth per `guardrails.md`. "None" when none were passed. -->
+
+| Gate | Scope |
+| ---- | ----- |
+
+## E2E test plan
+
+<!-- The spec's acceptance criteria and edge cases as explicit end-to-end flows. Concrete enough for the code-writer-e2e to automate and the reviewer to manually re-drive. -->
+
+### Flow N: <title>
+
+- **Steps:** ...
+- **Expected:** ...
+- **Traces to:** Acceptance criterion N / Edge case <desc>
+
 ## Tasks
 
 ### Task 1: <title>
 
 - **Goal:** ...
+- **Type:** tdd | e2e
 - **Files to change:** ...
 - **Changes:** ...
 - **Depends on:** none / Task N
@@ -149,7 +168,7 @@ Write `<artifacts-folder>/3-plan/code-plan.md` as a standalone document — unde
 - **Ordered and granular** — tasks are sequenced correctly and small enough that the code-writer never has to make a design decision mid-task.
 - **Trace every task** — each task points to a spec acceptance criterion or design decision.
 - **Cover every acceptance criterion** — every spec acceptance criterion is addressed by at least one task.
-- **Per-task acceptance is required** — describe *what must be true*, not *which test to write*. Tests are the code-writer's job in phase 4 (TDD).
+- **Per-task acceptance is required** — describe _what must be true_, not _which test to write_. The code-writer-tdd turns it into unit tests in phase 4 (TDD).
 - **Name exact files** — use real paths from the codebase.
 - **Stay within spec and design** — do not invent functionality, alternative designs, or extra scope.
 
@@ -189,6 +208,7 @@ Before synthesis, privately run a review-style check against `spec.md`, `design-
 - **Per-task acceptance** — does every task have evaluable, drift-resistant acceptance criteria (coverage and outcomes, not function names or wording)?
 - **Audience** — does every task name its audience?
 - **Drift resistance** — does the plan avoid prescribing exact wording, function names, parameter lists, or other implementation details?
+- **Guardrail scopes** — for each row in `## Guardrail scopes`, substitute its value into the gate's command template and execute the filled command, surfacing the result to the owner: did the command's runner resolve and terminate? A runner reporting zero or missing tests is fine; a command that cannot run (runner missing, bad invocation, never returns) is a problem to fix with the owner before synthesis. Per-command and independent — and confirm the section carries exactly the scoped gates the docs phase runs, one row each, `None` if none.
 - **Scope** — does the plan stay within spec and design? No invented documentation for unrequested features.
 - **No code tasks** — does the plan refrain from including code work?
 
@@ -202,6 +222,13 @@ Write `<artifacts-folder>/3-plan/docs-plan.md` as a standalone document — unde
 # Docs Plan: <feature name>
 
 ## Overview
+
+## Guardrail scopes
+
+<!-- One row per scoped gate the docs phase runs — exactly that set, no more, no fewer. Records the chosen `{scope}` value per gate, not the command: the `.rp.md` template stays the source of truth per `guardrails.md`. "None" when none were passed. -->
+
+| Gate | Scope |
+| ---- | ----- |
 
 ## Tasks
 
