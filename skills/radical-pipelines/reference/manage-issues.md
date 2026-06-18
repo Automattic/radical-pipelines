@@ -1,6 +1,6 @@
 # Managing Issues
 
-This is for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention. It stops once the issue exists — it does **not** create or run pipelines.
+This is for **creating or modifying an issue**. You drive a short Q&A directly with the owner and write the issue yourself, through the **Issues** convention. It stops once the issue exists — to create or run pipelines read `work-on-an-issue.md`.
 
 Before executing these steps, make sure project conventions are loaded (see `conventions/load.md`). Every tracker operation — reading, creating, modifying an issue — goes through the **Issues** convention.
 
