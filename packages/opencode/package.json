@@ -1,0 +1,29 @@
+{
+  "name": "@automattic/radical-pipelines-opencode",
+  "version": "0.3.0",
+  "description": "Radical Pipelines opencode meta-plugin — re-exports @hueyexe/opencode-ensemble as the single team-layer plugin entry and bundles the shared Radical Pipelines agents and skill tree.",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "radical-pipelines"
+  ],
+  "type": "module",
+  "main": "src/plugin.ts",
+  "exports": {
+    ".": "./src/plugin.ts"
+  },
+  "engines": {
+    "node": ">=24",
+    "bun": ">=1.0"
+  },
+  "files": [
+    "src",
+    "agents",
+    "skills"
+  ],
+  "dependencies": {
+    "@hueyexe/opencode-ensemble": "0.15.1",
+    "@opencode-ai/plugin": "^1.15.1",
+    "@opencode-ai/sdk": "^1.15.1"
+  }
+}
