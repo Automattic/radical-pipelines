@@ -76,3 +76,46 @@ forms, and (b) require fixing `` `doc` ``→`` `docs` `` on `passing.md:16`?
 ---
 
 ## Q&A
+
+### Q1 — Post-merge straggler inventory (evidence-based)
+
+**A (researcher, confirmed against analyst recon):**
+
+The merge is clean for the original 17 files: all four agents renamed and present
+(`agents/docs-plan-writer.md`, `docs-plan-reviewer.md`, `docs-writer.md`,
+`docs-reviewer.md`) with matching `name:` frontmatter; old `doc-*.md` gone. The new split
+agents `code-writer-tdd.md` / `code-writer-e2e.md` carry ZERO concept stragglers.
+Corruption invariants over full scope incl. `pr-description.md`: `docss`=0,
+`design-doc(s)`=0.
+
+Oracle counts (base pattern):
+- base 6-path scope (`skills agents .rp.md website .changeset README.md`): **9 matches**
+- adding `pr-description.md`: **11 matches**
+- plus 1 oracle-blind token (the backtick `` `doc` `` on `passing.md:16`): real total **12**
+
+The 11 oracle-visible stragglers, all genuine docs-PHASE concept, all in 3 trunk-added
+files (none generic-document, none colliding with `design-doc`/`document`; substitution
+dry-run converts all 11 cleanly, no Requirement-8 rewording needed):
+- `guardrails.md` (5): L20 `doc-writer, doc-reviewer`; L28 `doc-run gates by the doc plan`
+  (2 tokens); L32 `doc-plan.md`.
+- `passing.md` (4): L11 `doc-writer, doc-reviewer`; L16 `doc-plan-writer`,
+  `doc-plan-reviewer`.
+- `pr-description.md` (2): L10 `doc-run gates by the doc plan` (2 tokens).
+
+Researcher confirmed the oracle-blind `` `doc` `` on `passing.md:16` is the ONLY
+punctuation-bounded bare concept token in the entire scope. Intended form `` `docs` ``
+(parallel to line-15's `` `code` ``).
+
+File provenance: `guardrails.md` + `passing.md` are durable packaged skill reference
+files (clearly in scope). `pr-description.md` is the only ambiguous one — see Q2.
+
+### Q2 — Is `pr-description.md` in scope or out? (pending researcher)
+
+Decision criteria: (1) provenance/durability — does the skill treat `pr-description.md`
+as a durable shipped template/convention or a per-pipeline transient artifact the
+orchestrator writes fresh per PR; (2) is a #122-specific PR body checked into trunk the
+skill's intended steady state or a leftover; (3) does it fall under the base intent's
+"leave historical records untouched" constraint (`CHANGELOG.md` + `.pipelines/**`).
+Weighing (a) OUT — frozen #122 PR body, parallel to historical records, regenerated for
+this branch's PR anyway; vs (b) IN — tracked repo-root file an implementer reads, leaving
+`doc-run`/`doc plan` perpetuates the exact split the intent kills.
