@@ -51,7 +51,7 @@ Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch the chosen 
 
 An assisted review advances only through phase 3, so an assisted-only review is itself incomplete and cannot satisfy the completeness precondition (step 1a) for a later review until it is finished autonomously through phases 4–5.
 
-A review is a normal run: apply every orchestrator-update obligation the project's conventions define for a run, fired afresh for this review run — run-start and run-end actions for every outcome, with any per-phase or per-run progress restarted to reflect this review's phases rather than continuing the prior run's. The review operates on the pipeline's existing tracker issue and creates no new one. If the project runs a health monitor, an autonomous review follows the normal monitor lifecycle (cancel any leftover monitor, launch a fresh one) pointed at this review run's folder, with the pipeline slug and team unchanged; an assisted review launches no monitor.
+A review is a normal run: apply every orchestrator-update obligation the project's conventions define for a run, fired afresh for this review run — run-start and run-end actions for every outcome, with any per-phase or per-run progress restarted to reflect this review's phases rather than continuing the prior run's. The review operates on the pipeline's existing tracker issue and creates no new one. If the project runs a health monitor, an autonomous review follows the normal monitor lifecycle (cancel any leftover monitor, launch a fresh one) pointed at this review run's folder, with the pipeline slug unchanged; an assisted review launches no monitor.
 
 ---
 

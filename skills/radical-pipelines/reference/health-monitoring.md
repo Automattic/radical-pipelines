@@ -54,7 +54,7 @@ After escalation, stop attempting recovery for that issue. The monitor keeps run
 The orchestrator hands the monitor a self-contained prompt that names the pipeline:
 
 ```
-Check pipeline at <artifact-folder>, team <pipeline-slug>.
+Check pipeline at <artifact-folder>, team <pipeline-slug>-<random-suffix>.
 
 Signals to look for:
 - Any agent with no output for >10 minutes

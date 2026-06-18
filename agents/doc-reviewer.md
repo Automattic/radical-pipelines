@@ -17,7 +17,8 @@ A fresh `doc-reviewer` is spawned **once per batch**, after every doc-writer in 
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the docs must convey accurately.
 5. Read the shipped code from phase 4 — the *what* every concrete claim in the docs must match.
 6. Read the host project's documentation convention.
-7. Inspect the doc diff for the batch (base ref → current HEAD).
+7. Read the summary format to follow when writing the summary on approval.
+8. Inspect the doc diff for the batch (base ref → current HEAD).
 
 ### 2. Review the changes
 
@@ -93,9 +94,11 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 **Expected:** ...
 ```
 
+On an **approved** verdict, also write `<artifacts-folder>/5-docs/docs-summary.md` following the summary format from your launch prompt.
+
 ### 6. Commit and report
 
-1. Commit the file you wrote in step 5 using the host project's commit format.
+1. On **approved**, commit `docs-review-approved.md`, `docs-summary.md`, and any assets it referenced together in a single commit using the host project's commit format. On **rejected**, commit the single rejection file using the host project's commit format.
 2. On **approved**, send a message to the orchestrator confirming the batch is approved.
 3. On **rejected**, send a message to the orchestrator listing the **deduplicated set of task IDs that have issues**. The orchestrator re-dispatches only those tasks; fresh doc-writers will read your review file and address the issues scoped to their task.
 

@@ -106,11 +106,11 @@
       phase: 'phase 4',
       task: 'code-reviewer',
       reads: ['src/orchestrator.ts', 'code-plan.md'],
-      writes: ['code-review-approved.md'],
+      writes: ['code-review-approved.md', 'code-summary.md'],
       runMs: 1100,
       sec: 96,
       tokens: '14.3k',
-      treeIdx: [11],
+      treeIdx: [11, 12],
       verdict: 'approved',
     },
     {
@@ -121,17 +121,17 @@
       runMs: 1200,
       sec: 89,
       tokens: '8.7k',
-      treeIdx: [12],
+      treeIdx: [13],
     },
     {
       phase: 'phase 5',
       task: 'doc-reviewer',
       reads: ['README.md', 'docs/orchestrator.md'],
-      writes: ['docs-review-approved.md'],
+      writes: ['docs-review-approved.md', 'docs-summary.md'],
       runMs: 800,
       sec: 31,
       tokens: '4.9k',
-      treeIdx: [13],
+      treeIdx: [14, 15],
       verdict: 'approved',
     },
   ];
@@ -149,8 +149,10 @@
     'doc-plan-review-approved.md',
     'src/orchestrator.ts + test',
     'code-review-approved.md',
+    'code-summary.md',
     'README.md, docs/',
     'docs-review-approved.md',
+    'docs-summary.md',
   ];
 
   const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
@@ -290,7 +292,7 @@
       line(
         logEl,
         'cc-summary',
-        '● Pipeline complete · 6 phases · 14 artifacts · 18m 38s total'
+        '● Pipeline complete · 6 phases · 16 artifacts · 18m 38s total'
       );
       autoScroll();
 
