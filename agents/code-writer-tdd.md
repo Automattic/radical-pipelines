@@ -34,19 +34,19 @@ Document every public symbol you add or modify:
 
 ### 3. Run the guardrails
 
-Run every gate in the guardrails convention, exactly as its command is written. Each is mandatory.
+Run every command guardrail in the guardrails convention, exactly as its command is written. Each is mandatory.
 
-- Every gate must pass before you commit.
-- Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
-- Sort each gate result:
+- Gate your commit on every guardrail's check being satisfied before you commit.
+- Do not bypass any guardrail (no `--no-verify`, no `skip`, no commented-out checks).
+- Sort each outcome:
   - **No guardrails convention** — proceed. This is not a blocker, and it warrants no warning.
-  - **A declared gate's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
-  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue.
+  - **A command guardrail that cannot run at all** (it does not resolve or run — a missing tool, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
+  - **A command guardrail that runs but whose check is not satisfied** — the command ran but the check it describes is not satisfied. That is work, not a blocker: fix the underlying issue.
 - Confirm every per-task Acceptance criterion is covered by a passing test before declaring the task done.
 
 ### 4. Commit and report
 
-1. Commit the code, tests, and inline documentation using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the code, tests, and inline documentation using the host project's commit format. Group changes logically. Only commit when every guardrail's check is satisfied.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
@@ -60,4 +60,4 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 - **No speculative code.** No abstractions for hypothetical futures, no error handling for impossible scenarios, no unused options or hooks. Three similar lines is better than a premature abstraction.
 - **Follow project conventions.** Existing patterns, naming, code style, testing style.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.
-- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task block references a component that does not exist, the Acceptance criteria are mutually contradictory, or a gate cannot execute), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial code. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing tests or broken builds are not blockers — they are work to do.
+- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task block references a component that does not exist, the Acceptance criteria are mutually contradictory, or a command guardrail cannot run), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial code. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing tests or broken builds are not blockers — they are work to do.

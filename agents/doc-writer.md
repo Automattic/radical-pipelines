@@ -32,24 +32,24 @@ Verify each concrete claim against the shipped code:
 
 - Symbol references (functions, types, modules) name things that actually exist with the actual signatures.
 - File paths, command names, and configuration keys resolve.
-- Runnable examples actually run. If a gate covers doc tests, exercise them; otherwise trace by hand.
+- Runnable examples actually run. If a command guardrail covers doc tests, exercise them; otherwise trace by hand.
 - Cross-links resolve.
 
 ### 4. Run the guardrails
 
-Run every gate in the guardrails convention, exactly as its command is written. Each is mandatory.
+Run every command guardrail in the guardrails convention, exactly as its command is written. Each is mandatory.
 
-- Every gate must pass before you commit.
-- Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
-- Sort each gate result:
+- Gate your commit on every guardrail's check being satisfied before you commit.
+- Do not bypass any guardrail (no `--no-verify`, no `skip`, no commented-out checks).
+- Sort each outcome:
   - **No guardrails convention** — the step-3 accuracy verification is your only validation; proceed. This is not a blocker, and it warrants no warning.
-  - **A declared gate's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
-  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue.
+  - **A command guardrail that cannot run at all** (it does not resolve or run — a missing tool, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
+  - **A command guardrail that runs but whose check is not satisfied** — the command ran but the check it describes is not satisfied. That is work, not a blocker: fix the underlying issue.
 - Confirm every per-task Acceptance criterion is satisfied before declaring the task done.
 
 ### 5. Commit and report
 
-1. Commit the documentation changes using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the documentation changes using the host project's commit format. Group changes logically. Only commit when every guardrail's check is satisfied.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
@@ -64,4 +64,4 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 - **Design↔code drift is a blocker.** Where the design doc and the shipped code disagree on a point your task must cover, stop and report a blocker — do not invent a rationale for behavior that does not match what shipped, and do not document behavior that does not match the rationale. Wording-level mismatches (the plan said document the "login flow"; the code-writer renamed `loginUser` to `signIn`) are NOT drift — adapt naturally from reading the code.
 - **Follow project conventions.** Existing patterns, voice, structure, formatting.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.
-- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task's Files reference paths that do not exist, the doc-plan named a surface no shipped code populates, the design doc and the shipped code disagree on a point your task must cover, or a gate cannot execute), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial documentation. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing doc gates are not blockers — they are work to do.
+- **Stop and report blockers.** If a required input is missing, contradictory, or would force you to invent a decision that belongs to a prior phase (e.g., the task's Files reference paths that do not exist, the doc-plan named a surface no shipped code populates, the design doc and the shipped code disagree on a point your task must cover, or a command guardrail cannot run), stop and report a blocker to the orchestrator per the workflow's blocker protocol. Do not produce partial documentation. Your blocker message must include: what is missing or contradictory, which prior-phase artifact must change to unblock you, and (if you can identify it) the smallest revision that would do so. Failing doc guardrails are not blockers — they are work to do.
