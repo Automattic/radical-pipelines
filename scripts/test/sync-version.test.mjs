@@ -6,18 +6,20 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 
 import {
   readRootVersion,
+  syncLockfileVersion,
   syncManifestVersion,
   syncVersion,
   TARGET_MANIFESTS,
 } from "../sync-version.mjs";
 
 /**
- * Build a throwaway repo-root fixture on disk with a root `package.json` plus
- * the two target manifests, each formatted with 2-space indent and a trailing
- * newline. Returns the temp root directory.
+ * Build a throwaway repo-root fixture on disk with a root `package.json`, the
+ * target manifests, and a canonical `package-lock.json`, each formatted with
+ * 2-space indent and a trailing newline. Returns the temp root directory.
  *
  * @param {string} rootVersion Version to place in the root `package.json`.
- * @param {string} targetVersion Version to place in both target manifests.
+ * @param {string} targetVersion Version to place in both target manifests and
+ *   in the lockfile's version fields and dependency entry.
  * @returns {string} Absolute path to the temp repo root.
  */
 function makeFixture(rootVersion, targetVersion) {
@@ -39,6 +41,27 @@ function makeFixture(rootVersion, targetVersion) {
     };
     writeFileSync(targetPath, JSON.stringify(manifest, null, 2) + "\n");
   }
+
+  const lock = {
+    name: "root-pkg",
+    version: targetVersion,
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      "": {
+        name: "root-pkg",
+        version: targetVersion,
+      },
+      "node_modules/some-dep": {
+        version: targetVersion,
+        resolved: "https://registry.example/some-dep/-/some-dep.tgz",
+      },
+    },
+  };
+  writeFileSync(
+    join(root, "package-lock.json"),
+    JSON.stringify(lock, null, 2) + "\n",
+  );
 
   return root;
 }
@@ -66,7 +89,9 @@ describe("sync-version", () => {
 
   test("reports which targets changed", () => {
     const result = syncVersion({ repoRoot: root });
-    assert.deepEqual(result.changed.sort(), [...TARGET_MANIFESTS].sort());
+    for (const target of TARGET_MANIFESTS) {
+      assert.ok(result.changed.includes(target));
+    }
   });
 
   test("preserves 2-space indent and trailing newline (only version line differs)", () => {
@@ -118,5 +143,79 @@ describe("sync-version", () => {
     const target = join(root, TARGET_MANIFESTS[0]);
     assert.equal(syncManifestVersion(target, "9.9.9"), true);
     assert.equal(syncManifestVersion(target, "9.9.9"), false);
+  });
+
+  test("sets both lockfile version fields to the root version", () => {
+    syncVersion({ repoRoot: root });
+
+    const lock = JSON.parse(
+      readFileSync(join(root, "package-lock.json"), "utf8"),
+    );
+    assert.equal(lock.version, "0.1.1");
+    assert.equal(lock.packages[""].version, "0.1.1");
+  });
+
+  test("reports package-lock.json among the changed targets", () => {
+    const result = syncVersion({ repoRoot: root });
+    assert.ok(result.changed.includes("package-lock.json"));
+  });
+
+  test("leaves the node_modules dependency entry at its stale version", () => {
+    syncVersion({ repoRoot: root });
+
+    const lock = JSON.parse(
+      readFileSync(join(root, "package-lock.json"), "utf8"),
+    );
+    assert.equal(lock.packages["node_modules/some-dep"].version, "0.1.0");
+  });
+
+  test("changes only the two version lines of package-lock.json", () => {
+    const before = readFileSync(join(root, "package-lock.json"), "utf8");
+
+    syncVersion({ repoRoot: root });
+
+    const after = readFileSync(join(root, "package-lock.json"), "utf8");
+
+    // 2-space indent and trailing newline preserved.
+    assert.match(after, /\n {2}"name"/);
+    assert.ok(after.endsWith("}\n"));
+    assert.ok(!after.endsWith("}\n\n"));
+
+    // Exactly two lines differ: the top-level and self-entry version lines.
+    const beforeLines = before.split("\n");
+    const afterLines = after.split("\n");
+    assert.equal(beforeLines.length, afterLines.length);
+    const diffs = afterLines.filter((line, j) => line !== beforeLines[j]);
+    assert.equal(diffs.length, 2);
+    for (const diff of diffs) {
+      assert.match(diff, /"version": "0\.1\.1"/);
+    }
+  });
+
+  test("is idempotent for the lockfile: a second run reports no change", () => {
+    syncVersion({ repoRoot: root });
+    const afterFirst = readFileSync(join(root, "package-lock.json"), "utf8");
+
+    const secondResult = syncVersion({ repoRoot: root });
+
+    assert.ok(!secondResult.changed.includes("package-lock.json"));
+    assert.equal(
+      readFileSync(join(root, "package-lock.json"), "utf8"),
+      afterFirst,
+    );
+  });
+
+  test("syncLockfileVersion returns false when versions already match", () => {
+    const lockfilePath = join(root, "package-lock.json");
+    assert.equal(syncLockfileVersion(lockfilePath, "9.9.9"), true);
+    assert.equal(syncLockfileVersion(lockfilePath, "9.9.9"), false);
+  });
+
+  test("syncLockfileVersion throws ENOENT when the lockfile is absent", () => {
+    const missing = join(root, "no-such-lock.json");
+    assert.throws(
+      () => syncLockfileVersion(missing, "1.0.0"),
+      (err) => err.code === "ENOENT",
+    );
   });
 });

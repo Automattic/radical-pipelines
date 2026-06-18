@@ -72,7 +72,46 @@ function syncManifestVersion(manifestPath, version) {
 }
 
 /**
- * Propagate the root `package.json` version to all secondary manifests.
+ * Set both version fields of a `package-lock.json` to the given value, leaving
+ * the rest of the lockfile untouched.
+ *
+ * The lockfile carries the package version in two places that npm keeps in step
+ * with the root `package.json`: the top-level `.version` and the self-entry
+ * `.packages[""].version`. Both are patched in place; every other field — the
+ * `lockfileVersion`, dependency entries, entry ordering — is preserved by
+ * re-serializing through the same canonical path the manifests use
+ * (`JSON.stringify(obj, null, 2) + "\n"`), so an unchanged tree round-trips
+ * byte-identically apart from those two version lines. The patch is structured
+ * and offline: it reads and writes only this one file via `node:fs`.
+ *
+ * The file must exist; a missing lockfile surfaces the underlying `ENOENT`
+ * rather than being silently skipped, since the lockfile is a mandatory target.
+ *
+ * @param {string} lockfilePath Absolute path to the `package-lock.json`.
+ * @param {string} version Version string to write into both version fields.
+ * @returns {boolean} `true` if the file content changed, `false` if unchanged.
+ */
+function syncLockfileVersion(lockfilePath, version) {
+  const original = readFileSync(lockfilePath, "utf8");
+  const lock = JSON.parse(original);
+  lock.version = version;
+  lock.packages[""].version = version;
+  const updated = JSON.stringify(lock, null, 2) + "\n";
+  if (updated === original) {
+    return false;
+  }
+  writeFileSync(lockfilePath, updated);
+  return true;
+}
+
+/**
+ * Propagate the root `package.json` version to all secondary manifests and to
+ * the `package-lock.json`.
+ *
+ * Secondary manifests are synced first via the `TARGET_MANIFESTS` loop, then the
+ * lockfile is synced via {@link syncLockfileVersion}. The lockfile is a
+ * mandatory target and is always attempted; `"package-lock.json"` is added to
+ * `changed` only when its version fields actually moved.
  *
  * @param {object} [options] Optional overrides, primarily for testing.
  * @param {string} [options.repoRoot] Repository root to resolve paths against.
@@ -94,10 +133,22 @@ function syncVersion(options = {}) {
       changed.push(target);
     }
   }
+
+  const lockfilePath = join(repoRoot, "package-lock.json");
+  if (syncLockfileVersion(lockfilePath, version)) {
+    changed.push("package-lock.json");
+  }
+
   return { version, changed };
 }
 
-export { readRootVersion, syncManifestVersion, syncVersion, TARGET_MANIFESTS };
+export {
+  readRootVersion,
+  syncLockfileVersion,
+  syncManifestVersion,
+  syncVersion,
+  TARGET_MANIFESTS,
+};
 
 /**
  * Whether this module was executed directly as a CLI (rather than imported,
