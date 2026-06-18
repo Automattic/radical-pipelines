@@ -22,16 +22,22 @@ release-relevant.
 npm test
 ```
 
-This runs the `node --test 'scripts/test/**/*.test.mjs'` suite (the
-`sync-version` and changeset-validator tests). There is no `lint` or `typecheck`
-step — this repo has none.
+This runs the `node --test 'scripts/test/**/*.test.mjs'` suite — the
+`sync-version` tests (now covering the `package-lock.json` sync), the
+version-drift-check tests, the changeset-validator tests, the changeset-gate
+workflow-wiring tests, and the end-to-end version-sync flows. There is no `lint`
+or `typecheck` step — this repo has none.
 
 ## Versioning policy
 
 The project has a single version. The source of truth is the root
-`package.json`'s `version`, which is kept in sync to
-`.claude-plugin/plugin.json` by `scripts/sync-version.mjs` (invoked as part of
-`npm run release:version`). The package is `private` and consumed direct-from-git
+`package.json`'s `version`, which `scripts/sync-version.mjs` (invoked as part of
+`npm run release:version`) copies into the other version-bearing files:
+`.claude-plugin/plugin.json` and the two places `package-lock.json` records the
+package's own version (the top-level `.version` and the root self-entry
+`.packages[""].version`). The lockfile's dependency tree is left untouched —
+only those two fields track `package.json`. The package is `private` and
+consumed direct-from-git
 (a Pi package and a Claude Code plugin served from the repo root), so there is no
 registry release — only a `v<version>` git tag and a matching GitHub Release.
 
@@ -44,19 +50,29 @@ include a changeset; CI enforces this (see [The changeset gate (CI)](#the-change
 ### The changeset gate (CI)
 
 The **Changeset Gate** workflow (`.github/workflows/changeset-gate.yml`) runs on
-every pull request to `trunk` and runs **two independent checks**. The PR **fails
-if either check fails**:
+every pull request to `trunk` and runs **three independent checks**. The PR
+**fails if any check fails**:
 
 1. **Shape** — `node scripts/validate-changesets.mjs` validates every staged
    `.changeset/*.md` file (rejecting malformed front matter, unknown bump types,
    and — while pre-1.0 — `major` bumps; see [Pre-1.0 policy](#pre-10-policy)).
-2. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is
+2. **Version sync** — `node scripts/check-version-sync.mjs` is a read-only drift
+   guard: it fails when the root `package.json` version disagrees with any of the
+   three tracked fields — `package-lock.json`'s `.version`, its
+   `.packages[""].version`, or `.claude-plugin/plugin.json`'s `.version` —
+   reporting every mismatched file and field, not just the first. This catches a
+   version drift introduced on a PR before it merges, rather than letting it ride
+   until the next release overwrites it. It runs regardless of whether the PR
+   needs a changeset.
+3. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is
    the PR's base branch) fails when a release-relevant change has no changeset.
 
 The auto-generated `changeset-release/trunk` Version Packages PR is **exempt**
-(the job-level `if:` condition skips it), so it does not need a changeset of its
-own. Every other PR — including [Dependabot](#dependency-bump-prs) — is gated
-normally.
+from the whole job (the job-level `if:` condition skips it), so it does not need
+a changeset of its own and is not subject to the version-sync check — the release
+version step has already brought its lockfile and `plugin.json` into agreement
+with `package.json`, so it is correct by construction. Every other PR — including
+[Dependabot](#dependency-bump-prs) — is gated normally.
 
 ### When a changeset is required
 
@@ -82,7 +98,10 @@ Changes that touch **only** the following are **not** release-relevant and need
 - meta files: `package-lock.json`, `AGENTS.md`, `LICENSE`, `.gitignore`
 
 So a `package-lock.json`-only change (e.g. a dependency lockfile resync) or an
-internal-only change (tooling, CI, website) does not require a changeset.
+internal-only change (tooling, CI, website) does not require a changeset. The
+gate's [version-sync check](#the-changeset-gate-ci) still runs on such a PR — it
+is independent of changeset relevance — but it only objects if a version field
+has drifted out of sync, not because a lockfile change lacks a changeset.
 
 ### Bump types
 
@@ -182,9 +201,11 @@ publishing anywhere. The flow:
    `trunk`, the Release workflow runs.
 2. **CI opens/updates the "Version Packages" PR.** With pending changesets, the
    workflow runs `npm run release:version`, which bumps the version, regenerates
-   `CHANGELOG.md`, and syncs `.claude-plugin/plugin.json`. The result is pushed to
-   the `changeset-release/trunk` branch and surfaced as a "Version Packages" pull
-   request.
+   `CHANGELOG.md`, and syncs `.claude-plugin/plugin.json` and the two version
+   fields of `package-lock.json`. The synced `package-lock.json` is committed
+   into the PR alongside `package.json`, `.claude-plugin/plugin.json`, and the
+   changelog. The result is pushed to the `changeset-release/trunk` branch and
+   surfaced as a "Version Packages" pull request.
 3. **A maintainer reviews and merges** the Version Packages PR.
 4. **CI creates the tag and Release.** The human merge of the Version PR is what
    advances the flow: the next run creates the `v<version>` git tag (via
@@ -217,7 +238,8 @@ git checkout trunk && git pull --ff-only
 npm ci
 export GITHUB_TOKEN=<token>          # or place it in a gitignored .env
 
-# 1. Consume changesets: bump version, regenerate CHANGELOG, sync plugin.json.
+# 1. Consume changesets: bump version, regenerate CHANGELOG, sync plugin.json
+#    and the two package-lock.json version fields.
 #    Inspect the result; run `git restore .` to abort cleanly.
 npm run release:version
 
