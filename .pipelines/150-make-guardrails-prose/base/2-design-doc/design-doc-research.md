@@ -288,6 +288,80 @@ question, the researcher's findings, and the design decision reached.)_
   command-only nature of fixed/scoped once, where the kinds are defined, keeps the fact in a single
   reading path.
 
+### Topic: Reviewer behavior for both kinds
+
+- **Spec link:** Requirements 7, 8, 9. Files: `code-reviewer.md` and `doc-reviewer.md` (mirrored
+  guardrail machinery; the duplication question is Topic 7).
+- **Question to researcher:** the Checks-table broadening (column + Result vocabulary), the gate-
+  running step rewrite, skipped semantics, the no-guardrails branch, the blocker-vs-finding split,
+  and any residual command-presupposition in the spawn-time block.
+- **Findings (researcher):**
+  - **Result vocabulary:** the spec condemns only the *qualified* phrase "pass/fail **by exit
+    code**" (`spec.md:32`) / "judged pass/fail by exit code" (`:45,:75`), not the bare words. But
+    the spec's own per-guardrail result vocabulary is **satisfied / unsatisfied / violated**
+    (`:15,:30,:31,:70`). So changing the Result values is a *both-kinds-fit* choice (a judgment
+    guardrail is assessed, not "run," so "is the rule satisfied?" reads correctly for both), not a
+    response to a prohibition — and terminology reuse (a project authoring rule) favors "satisfied".
+  - **Command column:** repurpose the middle column to a kind-neutral **`Guardrail`** column holding
+    the body (the command for a command guardrail, the rule for a judgment guardrail). A permanently
+    blank `Command` cell for a whole kind is worse minimalism and still reads as command framing
+    (reject option ii).
+  - **Umbrella verb:** "evaluate" cleanly covers "run a command" and "assess a rule"; it is the
+    generalization of today's "run every gate exactly as each command is written."
+  - **Skipped** already means "deliberately did not do the step because the verdict was already
+    reject" (`code-reviewer.md:41`); re-gloss it from "command was not run" to "not evaluated this
+    iteration" and it covers both kinds with no new word.
+  - **No-guardrails branch** presupposes no *kind*; "no guardrails convention" already means neither
+    kind. Only "gates to run" → "guardrails to evaluate" terminology. It is the reviewer counterpart
+    of writer req 11 — and neither reviewer branch raises a blocker or warning, so req 11's intent
+    already holds for reviewers.
+  - **Blocker asymmetry confirmed:** a judgment guardrail has nothing that "fails to run," so there
+    is no "cannot execute" blocker analog for it. The blocker case stays command-guardrail-only; the
+    normal-finding case broadens to both kinds.
+  - **passing.md residual:** none. Only `passing.md:10` is command-presupposing, and the Topic-2
+    body rewrite fully covers req 9's spawn-block clause; reviewers are named in its Agents list
+    (`passing.md:11`). `passing.md:13-17` ("Guardrail scopes to fill") targets the four plan agents,
+    not reviewers, and is out of scope.
+  - **Both reviewers mirror**, with two pre-existing intentional differences to preserve:
+    code-reviewer says "finally approve" / doc-reviewer "approve" (`:43` vs `:45`); doc-reviewer's
+    no-guardrails branch cites the "accuracy spot-check," code-reviewer's the "step-2/3 judgment."
+- **Decision:**
+  1. **Checks table → `| Check | Guardrail | Result |`**, Result ∈ **satisfied | unsatisfied |
+     skipped**. The `Guardrail` column shows the body (command for a command guardrail, rule for a
+     judgment guardrail). Re-gloss the table comment: a skipped row shows the guardrail but it was
+     not evaluated this iteration; a forgotten guardrail is an absent row; a deliberately skipped one
+     is a present skipped row; an evaluated one is a present satisfied/unsatisfied row. **State the
+     rationale as both-kinds-fit + terminology reuse, not as a prohibition on "pass/fail"** — so a
+     downstream reviewer doesn't think bare pass/fail was banned (reqs 7, 9).
+  2. **Gate-running step (provisional-approve branch):** "evaluate every guardrail … recording each
+     result in the Checks table. Evaluate a command guardrail by running the command its body names
+     and checking whether the check it describes is satisfied; evaluate a judgment guardrail by
+     assessing whether its rule is satisfied. To approve, every guardrail must be satisfied in this
+     iteration. A guardrail you find unsatisfied is itself a rejection finding: your verdict becomes
+     reject, and you may leave any remaining guardrails unevaluated (recorded as skipped). Never
+     bypass a guardrail to force it (no `--no-verify`, no `skip`, no commented-out checks)." Keep
+     code-reviewer's "finally approve" / doc-reviewer's "approve" distinction (reqs 7, 8, 9).
+  3. **Reject branch + skipped:** keep "record each guardrail as skipped … so the skip reads as
+     deliberate rather than forgotten," with "gates"→"guardrails" and the run framing softened to
+     evaluation (req 9).
+  4. **No-guardrails branch:** keep verbatim except "gates to run"→"guardrails to evaluate"; each
+     reviewer keeps its own fallback evidence clause (req 11 intent for reviewers).
+  5. **Blocker guideline:** normal-finding list broadens to "a command guardrail whose check is not
+     satisfied, a judgment guardrail you assess as violated"; the blocker example becomes "a declared
+     command guardrail cannot run" (judgment guardrails excluded by construction). Drops "exits
+     non-zero" (reqs 8, 9). Also align the "Run the guardrails" guideline bullet
+     (`code-reviewer.md:113` / `doc-reviewer.md:114`) to "evaluate every guardrail … approve only if
+     all are satisfied."
+  6. **Must-fix/reject preserved:** an unsatisfied guardrail of either kind is a rejection finding
+     driving the verdict to reject through the existing must-fix machinery; binary approve/reject
+     unchanged (req 8). No edit to the verdict machinery itself.
+  7. **Spawn-time block:** no reviewer-specific edit beyond the Topic-2 `passing.md:10` body rewrite
+     (req 9).
+- **Rationale:** "evaluate" + "satisfied/unsatisfied" are the minimal kind-neutral generalizations
+  of "run" + "pass/fail," and both reuse the spec's own words. The Checks table broadens by one
+  header relabel and a Result-value swap — no new column, no kind flag (req 14). The blocker
+  asymmetry falls out of the fact that a judgment guardrail can always be assessed.
+
 ## Open Questions
 
 <!-- Unresolved sub-questions deferred to the implementation phases. -->
