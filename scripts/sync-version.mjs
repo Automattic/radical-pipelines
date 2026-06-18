@@ -3,9 +3,16 @@
  * Version-sync script.
  *
  * Copies the `version` field from the root `package.json` (the single source of
- * truth) into every secondary manifest in the repository, keeping each target
+ * truth) into every version-bearing target in the repository, keeping each
  * file's formatting (2-space indent + trailing newline) intact apart from the
- * version line.
+ * version line(s).
+ *
+ * There are two kinds of target. Secondary manifests (e.g. the plugin manifest)
+ * carry the version in a single `version` field. The `package-lock.json` is a
+ * mandatory target that carries the version in two distinct places — its
+ * top-level field and its root self-entry — both of which are set in step; it
+ * is patched by JSON path so the dependency tree and every other field are left
+ * untouched.
  *
  * Data flows strictly outward from the root: the script never computes its own
  * version bump and never reads a target version back into the root. Running it
@@ -13,7 +20,8 @@
  * which lets the same script serve both normal propagation and one-time drift
  * correction.
  *
- * Uses only built-in Node modules; no external dependencies and no network.
+ * Uses only built-in Node modules; no external dependencies and no network — the
+ * lockfile patch is pure local file I/O and contacts no package registry.
  *
  * Usage:
  *   node scripts/sync-version.mjs
