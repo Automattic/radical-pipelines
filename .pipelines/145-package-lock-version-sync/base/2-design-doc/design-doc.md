@@ -26,7 +26,11 @@ Today this script reads the root `package.json` version and, for each entry in `
 
 The lockfile breaks the script's current "one `.version` field per target" model because it needs two paths set in one file. It must **not** be added to `TARGET_MANIFESTS`, because `syncManifestVersion` would set only `.version` and leave `.packages[""].version` stale.
 
-The modification adds a dedicated, narrowly-scoped function — `syncLockfileVersion(lockfilePath, version)` — that parses the lockfile, sets both `obj.version` and `obj.packages[""].version`, reserializes through the same `JSON.stringify(obj, null, 2) + "\n"` write path, and writes only if changed (returning a `changed` boolean). `syncVersion()` calls both the existing per-manifest path (unchanged) and the new lockfile path, and folds the lockfile into its combined `changed` list. The existing `TARGET_MANIFESTS` / `syncManifestVersion` behavior for `plugin.json` is left untouched, preserving its already-passing tests.
+The modification adds a dedicated, narrowly-scoped function — `syncLockfileVersion(lockfilePath, version)` — that parses the lockfile, sets both `obj.version` and `obj.packages[""].version`, reserializes through the same `JSON.stringify(obj, null, 2) + "\n"` write path, and writes only if changed (returning a `changed` boolean). `syncVersion()` calls both the existing per-manifest path (unchanged) and the new lockfile path, and folds the lockfile into its combined `changed` list.
+
+**Lockfile contract: the lockfile is mandatory, not optional.** Because the lockfile is the second target the feature exists to keep in sync, `syncVersion()` always resolves `package-lock.json` from `repoRoot` (`join(repoRoot, "package-lock.json")`) and always runs `syncLockfileVersion` against it; a missing lockfile is a hard error (`readFileSync` throws `ENOENT`), not a skipped step. There is deliberately no "skip if absent" robustness branch: a repository without a lockfile is a broken state the sync should surface loudly, consistent with the script's outward-only, fail-loud philosophy and with the drift check's identical treatment of a missing lockfile.
+
+The existing per-manifest *logic* (`TARGET_MANIFESTS` / `syncManifestVersion`) is left untouched, so `plugin.json` propagation behaves exactly as before. However, because every existing test drives `syncVersion({ repoRoot })` against a shared fixture that today builds no lockfile (`scripts/test/sync-version.test.mjs`, `makeFixture`), making the lockfile mandatory means that **shared fixture must change** to also write a `package-lock.json`, or those existing `syncVersion` tests would throw `ENOENT`. This is a fixture change, not a behavior change to the manifest path: the assertions about `plugin.json` continue to hold unchanged; the fixture simply gains a lockfile so `syncVersion` has the file its new contract requires. See "Components → tests" and "Interfaces and Data Flow" for the precise contract and fixture impact.
 
 ### `scripts/check-version-sync.mjs` (new)
 
@@ -34,7 +38,14 @@ A read-only verifier modeled on `scripts/validate-changesets.mjs`. It exports a 
 
 ### `scripts/test/sync-version.test.mjs` (modified) and `scripts/test/check-version-sync.test.mjs` (new)
 
-Tests following the established `scripts/test/*.test.mjs` conventions (`node:test`, `node:assert/strict`, temp-dir fixtures via `mkdtempSync`, torn down in `afterEach`; run by `npm test` = `node --test 'scripts/test/**/*.test.mjs'`). `sync-version.test.mjs` gains lockfile-fixture cases; `check-version-sync.test.mjs` is new, mirroring `validate-changesets.test.mjs` (pure-function unit tests plus a `spawnSync` CLI test).
+Tests following the established `scripts/test/*.test.mjs` conventions (`node:test`, `node:assert/strict`, temp-dir fixtures via `mkdtempSync`, torn down in `afterEach`; run by `npm test` = `node --test 'scripts/test/**/*.test.mjs'`).
+
+`sync-version.test.mjs` changes in two ways, both forced by the mandatory-lockfile contract above:
+
+- **Shared fixture (`makeFixture`) gains a lockfile.** Because `syncVersion()` now always patches `package-lock.json` from `repoRoot`, the shared fixture must write a minimal canonical `package-lock.json` (`lockfileVersion: 3`, a `.version`, and a `.packages` object containing the `""` self-entry with `name`/`version`, plus at least one `node_modules/...` dependency entry to guard the structured-vs-text-replace assertion) alongside the existing `package.json` and target manifests. Without this, the already-passing `syncVersion` tests ("copies the root version…", "reports which targets changed", idempotency) would throw `ENOENT`. The existing assertions about `plugin.json` are unchanged; the fixture only grows.
+- **New lockfile assertions.** Added cases assert both `.version` and `.packages[""].version` are set to the root version, that only those two lines change (byte-level format preservation in the same line-diff style already used for manifests), idempotency on a second run, and that a `node_modules/...` dependency at the same value as the stale package version is **not** touched (the structured-patch correctness guard).
+
+`check-version-sync.test.mjs` is new, mirroring `validate-changesets.test.mjs` (pure-function unit tests plus a `spawnSync` CLI test).
 
 ### `.github/workflows/changeset-gate.yml` (modified)
 
@@ -59,11 +70,17 @@ The existing single `changeset` job (triggered `on: pull_request: branches: [tru
 syncLockfileVersion(lockfilePath: string, version: string) -> boolean   // changed?
 // parse lockfile; set obj.version and obj.packages[""].version;
 // reserialize JSON.stringify(obj, null, 2) + "\n"; write only if changed.
+// REQUIRES the file at lockfilePath to exist; throws (ENOENT) if absent.
 
 syncVersion(options?) -> { version: string, changed: string[] }
-// unchanged signature; `changed` now also includes the lockfile path when its
+// unchanged signature; `changed` now also includes "package-lock.json" when its
 // version fields moved. The existing options.repoRoot override (used by tests)
-// is extended to locate the lockfile as well.
+// is extended to locate the lockfile (join(repoRoot, "package-lock.json")).
+// CONTRACT: the lockfile is a MANDATORY target — syncVersion always calls
+// syncLockfileVersion. There is no skip-if-absent branch: if no
+// package-lock.json exists under repoRoot, syncVersion throws (ENOENT).
+// Consequence for tests: any fixture passed via options.repoRoot must include a
+// package-lock.json; the shared makeFixture is updated accordingly.
 ```
 
 Existing exports (`readRootVersion`, `syncManifestVersion`, `syncVersion`, `TARGET_MANIFESTS`) are preserved; `syncLockfileVersion` is added to the exports for direct unit testing. CLI behavior is unchanged in shape: it prints which targets changed (now including `package-lock.json` when applicable) or a "already in sync" message.
@@ -106,7 +123,8 @@ The three checked fields are:
 
 - **Choice:** Add a separate `syncLockfileVersion(path, version)` for the two-field lockfile; keep `TARGET_MANIFESTS` + `syncManifestVersion` exactly as-is for single-`.version` manifests like `plugin.json`. `syncVersion()` calls both and combines the `changed` list.
 - **Alternatives:** (a) Generalize every target to a `(path, [fieldPaths])` model; (b) add the lockfile to `TARGET_MANIFESTS` and make `syncManifestVersion` also set `packages[""].version` "if present."
-- **Trade-offs:** The dedicated function is the smallest, clearest change; the simple-manifest path stays exactly as tested today, and the lockfile gets a single-responsibility handler whose two-field / format-preservation contract is directly unit-testable. Slight duplication of the parse/reserialize/write-if-changed skeleton. Alternative (a) over-engineers a two-element world and rewrites a path covered by passing tests, raising regression risk on `plugin.json` for no current benefit. Alternative (b) conflates two field-shapes in one function (murkier contract, branchier tests, risk of an accidental `packages[""]` write on a non-lockfile manifest).
+- **Trade-offs:** The dedicated function is the smallest, clearest change; the simple-manifest *logic* stays exactly as it is today, and the lockfile gets a single-responsibility handler whose two-field / format-preservation contract is directly unit-testable. Slight duplication of the parse/reserialize/write-if-changed skeleton. Alternative (a) over-engineers a two-element world and rewrites a path covered by passing tests, raising regression risk on `plugin.json` for no current benefit. Alternative (b) conflates two field-shapes in one function (murkier contract, branchier tests, risk of an accidental `packages[""]` write on a non-lockfile manifest).
+- **Test impact (explicit):** This decision makes the lockfile a mandatory target of `syncVersion`, so the shared test fixture (`makeFixture`) must be extended to include a `package-lock.json`; the existing `plugin.json` assertions are unchanged, but the fixture and the `syncVersion`-driven tests do touch the lockfile now. The manifest *logic* is preserved; the test *fixture* changes.
 - **Traces to:** Requirements 4, 5, 6, 7, 12, 13; Acceptance criteria for the release-step sync, idempotency, no-churn, and `plugin.json` staying correct.
 
 ### Decision: A new read-only `check-version-sync.mjs` modeled on `validate-changesets.mjs`
@@ -147,7 +165,7 @@ This satisfies Requirement 13 (no new external runtime dependency) by constructi
 
 - Pure file I/O; no network, so it cannot fail on registry or cache access (Requirement 8 holds unconditionally).
 - It reports via stdout which targets changed (existing behavior, now including `package-lock.json`), or "already in sync" on a no-op.
-- Foreseeable failure: the lockfile is missing or malformed JSON → `JSON.parse` throws and the script exits non-zero with the error. This is intentional and loud — a broken lockfile is a real problem, not something to skip silently.
+- Foreseeable failure: the lockfile is missing (`readFileSync` → `ENOENT`) or malformed JSON (`JSON.parse` throws) → the function/script throws and exits non-zero with the error. This is the *defined* contract for both the CLI-against-the-real-repo case and the `syncVersion` function itself (which always requires a lockfile under `repoRoot`): there is no skip-if-absent path. It is intentional and loud — a broken or absent lockfile is a real problem, not something to skip silently.
 - Edge: the patch sets an existing `.packages[""].version`. In this `lockfileVersion: 3` repo the root self-entry always exists (it carries `name`/`version`), so this is a set on a present field rather than a creation. (If a future lockfile format removed the root self-entry, this assumption would need revisiting — low likelihood; see Risks.)
 
 ### Drift check (`check-version-sync.mjs`)
@@ -156,6 +174,7 @@ This satisfies Requirement 13 (no new external runtime dependency) by constructi
 - All-match → exit `0`, empty stderr (mirrors `validate-changesets`).
 - Any mismatch → exit `1` with one stderr line per mismatched field, so a simultaneous multi-field divergence (e.g. both lockfile fields, as in the live drift) reports every field, not only the first.
 - Foreseeable failure: a missing or malformed file among the three → throws, exits non-zero — surfacing the problem rather than passing falsely.
+- **Shared lockfile-shape invariant.** The drift check reads `.packages[""].version`, so it relies on the *same* `lockfileVersion: 3` / `.packages[""]`-present invariant as the sync. A structurally malformed lockfile (parses, but lacks `.packages` or the `""` self-entry) therefore throws (a `TypeError` reading `undefined.version`) and exits non-zero rather than silently skipping or falsely passing — this is intentional for both the sync and the check, so the regression guard cannot be defeated by an unexpected lockfile shape.
 
 ### Observability
 
@@ -166,5 +185,5 @@ Failures surface in CI logs via the gate job's stderr and the non-zero exit that
 - **"Blocks merge" depends on external repo configuration (Requirement 11).** Whether `changeset-gate.yml` is a *required* status check that actually blocks merge is GitHub branch-protection / ruleset configuration, not expressible in-tree. This design adds the drift-check step to a gate that runs on PRs to `trunk` and that is presumably already a required check; making (or keeping) it merge-blocking is a repo-settings dependency the code/plan phase cannot satisfy purely in-repo. Downstream phases should call this out explicitly.
 - **"Commits all working-tree changes" is documented action behavior, not asserted by the YAML (Requirement 9).** `release.yml` confirms `version: npm run release:version`; that the changesets release action then commits the resulting `package-lock.json` into the bot PR is documented version-mode behavior of the action, not provable from the YAML alone. Low risk, but worth a verification note in a later phase (inspect a produced bot PR).
 - **The structured (not text) patch is load-bearing.** The lockfile has a real dependency (`@changesets/logger`) at `0.1.1` — the same as the stale package version — so a regex/sed replace would corrupt it. The implementation must set the two fields by JSON path. Captured so the plan/code phase does not regress to a text replace.
-- **`packages[""]` presence assumption.** The patch sets an existing `.packages[""].version`, valid for this `lockfileVersion: 3` repo where the root self-entry always exists. A future change to the lockfile format would require revisiting this assumption — low likelihood, noted for completeness.
+- **`packages[""]` presence assumption (shared by sync and check).** Both the patch (setting `.packages[""].version`) and the drift check (reading `.packages[""].version`) rely on the root self-entry existing, valid for this `lockfileVersion: 3` repo. Neither path defensively tolerates its absence: an unexpected lockfile shape throws on both paths by design (see Failure Modes). A future change to the lockfile format would require revisiting this assumption — low likelihood, noted for completeness.
 - **Open questions:** None blocking. The only implementation-phase detail to settle in code is the exact stderr message wording for the drift check (a quality choice, not a design risk).
