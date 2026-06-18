@@ -126,3 +126,63 @@ checks confirm nothing concept-shaped hides outside the 2 files:
   other concept surface predates the merge and already carries the base run's `docs`
   renames (which survived). That is precisely why these two — and only these two — carry
   stragglers the base run never saw.
+
+### Q2 — Substitution recipe and file iteration → one relaxed substitution, plain 2-file loop
+
+**Question.** Does the review still need the base run's `find … -print0` null-safe
+iteration? Verify the exact relaxed recipe end-to-end on the real tree (then restore).
+Settle the shell-quoting (escaped `\${1}s` vs single-quoted form).
+
+**A (researcher; applied in place then restored to HEAD — worktree left clean, oracle back
+to 10).**
+
+**Drop `find -print0`.** Neither in-scope path contains a space or odd char (both are plain
+`[A-Za-z0-9/._-]`). The base's null-safe machinery existed solely for the two phase files
+whose *paths* contain literal `" - "` (`autonomous-phases/3 - plan.md`, etc.), which are
+not in scope here. With a fixed 2-file list and no spaces, a plain loop suffices.
+
+**End-to-end dry run (relaxed `PAT`, replacement `${1}s`, applied to the 2 files):**
+- BEFORE: Option B oracle (full scope) = 10. AFTER: Option B oracle = **0**.
+- Corruption over full Option B scope: `docss` = **0**, `design-docs` = **0**.
+- Byte-exact word-diff (5 insertions / 5 deletions across the 2 files): every change is
+  `doc`→`docs`; every `code-*` token byte-identical. Specifically — `guardrails.md` L20
+  `docs-writer, docs-reviewer`; L28 `docs-run`/`docs plan` (the `code-run`/`code plan` on
+  the same line untouched); L32 `docs-plan.md` (`code-plan.md` untouched). `passing.md` L11
+  the two `docs-*` agents (the three `code-*` agents on the line untouched); L16
+  `docs-plan-writer`/`docs-plan-reviewer` AND the backtick `` `doc` ``→`` `docs` `` (now
+  parallel to L15's byte-identical `` `code` `` agents). Zero `code`→`codes`.
+
+**Shell-quoting (both forms verified byte-identical on copies):**
+- *FORM A* — pattern in a variable, double-quoted perl program:
+  `perl -i -pe "s/$PAT/\${1}s/g" "$f"`. The replacement **must** be `\${1}s` (escaped) so
+  the shell leaves `$1` for perl. With an **unescaped** `${1}`, the shell expands `$1` to
+  empty → program becomes `s/.../s/g` → corruption (`` `doc-plan-writer` ``→
+  `` `s-plan-writer` ``). This is the exact hazard the base design flagged.
+- *FORM B* — single-quoted program, pattern inlined:
+  `perl -i -pe 's/(?<![Dd]esign[- ])\b([Dd]oc)(?![Ss])(?!ument)\b/${1}s/g' "$f"`. No shell
+  escaping needed at all; result byte-identical to FORM A.
+
+**Design decision.** Mechanism = **one relaxed substitution** over the **2 named files**
+via a plain loop (no null-safety). Use **FORM A** (pattern in a variable named once,
+double-quoted program with `\${1}s`): it makes the oracle↔substitution **mirror** visually
+explicit — the identical `PAT` string appears in both the substitution and the acceptance
+oracle, which is the base design's load-bearing invariant — at the cost of the documented
+escaping footgun, which the design records as a failure mode (unescaped `$1` → corruption).
+The base run's step 1 (rewords) and step 3 (`git mv` renames) are **both dropped**: no
+single-document "doc" exists in these 2 files (no rewords), and the four `docs-*` agents
+already exist post-merge (no renames). Ordering is therefore trivial — the substitution is
+the only step.
+
+The concrete recipe:
+
+```
+PAT='(?<![Dd]esign[- ])\b([Dd]oc)(?![Ss])(?!ument)\b'
+for f in skills/radical-pipelines/reference/guardrails.md \
+         skills/radical-pipelines/reference/conventions/passing.md; do
+  perl -i -pe "s/$PAT/\${1}s/g" "$f"
+done
+```
+
+It is the base pattern with the trailing `(?=[- ])` removed (the lockstep relaxation of
+Q3), with a capture/replacement bolted on — i.e. the acceptance oracle's pattern plus
+`${1}s`.
