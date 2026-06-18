@@ -5,7 +5,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "description": "Radical Pipelines Pi package — installable from this repository via git source (pi install git:github.com/Automattic/radical-pipelines) or local path (pi install . -l).",
+  "description": "Home of the Radical Pipelines methodology, shipped across Claude Code, Pi, and opencode. This repository is a workspace root: it serves the Pi package from this manifest and hosts the publishable @automattic/radical-pipelines-opencode sub-package under packages/.",
   "keywords": [
     "pi-package",
     "radical-pipelines"
