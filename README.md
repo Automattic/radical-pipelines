@@ -59,7 +59,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 # Project Usage
 
-The repository ships a Claude Code plugin, a Pi package, and a standalone [agent skill](https://agentskills.io). All three capture the same methodology so a compatible agent can run a task through the pipeline.
+The repository ships a Claude Code plugin, a Pi package, an opencode package, and a standalone [agent skill](https://agentskills.io). All capture the same methodology and run the same pipeline, so a compatible agent can run a task through it on any of the three tools (Claude Code, Pi, opencode) or from the standalone skill.
 
 ## Claude Code plugin install
 
@@ -130,13 +130,27 @@ The orchestrator creates one `pi-teams` team per pipeline and spawns the phase a
 
 Validation for the local package has verified `pi install . -l`, `pi list`, and `/skill:radical-pipelines`. The local validation used print mode rather than a full manual interactive UI.
 
+## opencode package install
+
+For opencode, install the published `@automattic/radical-pipelines-opencode` package. It is a meta-plugin: a single `plugin:[]` entry that re-exports the third-party [`@hueyexe/opencode-ensemble`](https://www.npmjs.com/package/@hueyexe/opencode-ensemble) coordination layer (spawn-by-name, peer-to-peer messaging, the shared task board, per-agent model selection, and always-on supervision) as the team layer the orchestrator runs on. The package pins the ensemble version it ships against, and bundles the same `agents/` profiles and `radical-pipelines` skill tree that the Claude Code plugin and Pi package use.
+
+Running opencode requires Node ≥ 24 (for `node:sqlite`) or Bun ≥ 1.0; setup surfaces this prerequisite and will not declare opencode ready until it is met.
+
+List **only** the meta-plugin in opencode's plugin configuration — never `@hueyexe/opencode-ensemble` alongside it. Listing both double-initializes ensemble, which arms a second watchdog and collides on the dashboard port.
+
+## opencode usage
+
+After listing the meta-plugin and asking opencode to run Radical Pipelines, the skill's setup flow installs RP's agents and skill tree so opencode can discover them. The install location is keyed to the project's **Artifact storage** convention — the committed `.opencode/agent/` and `.opencode/skill/radical-pipelines/` so a team picks them up on clone, or `~/.config/opencode/` for a per-user install. Setup also writes `.opencode/ensemble.json` to tune ensemble for Radical Pipelines.
+
+The orchestrator runs one ensemble team per pipeline and spawns the phase agents at runtime, following the project conventions. See the [opencode conventions](./skills/radical-pipelines/reference/conventions/opencode.md) for the worktree, team-spawning, model, and supervision mechanics.
+
 ## Dependency bundling
 
-The repository ships a single Pi manifest: the root `package.json` (`pi-package` keyword). It declares Radical Pipelines-owned resources under its `pi` block — the skill resolves from the root `skills/` directory — and references bundled third-party Pi resources through `node_modules/...` paths. Its runtime `dependencies` are `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, and `@sinclair/typebox`. Pi core packages are wildcard peer dependencies and are not declared as runtime dependencies.
+The repository ships two publishable packages. The first is the Pi manifest: the root `package.json` (`pi-package` keyword). It declares Radical Pipelines-owned resources under its `pi` block — the skill resolves from the root `skills/` directory — and references bundled third-party Pi resources through `node_modules/...` paths. Its runtime `dependencies` are `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, and `@sinclair/typebox`. Pi core packages are wildcard peer dependencies and are not declared as runtime dependencies. The second is the opencode package at `packages/opencode/` (`@automattic/radical-pipelines-opencode`), whose dependencies pin `@hueyexe/opencode-ensemble` and the `@opencode-ai/*` plugin and SDK packages.
 
 Dependency delivery is not a `bundledDependencies` mechanism. Both Pi install paths resolve this same root manifest — the `git:` install at the cloned repo root, `pi install . -l` at the local path — and Pi runs `npm install` against it after the clone, so the declared `dependencies` (and their `node_modules/...` resources referenced from the `pi` block) are present at runtime.
 
-The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root. There is no hidden source directory and no mirror-symlink scheme: the directories the Claude Code plugin and the Pi package read are the canonical sources themselves.
+The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root. There is no hidden source directory and no mirror-symlink scheme: the directories the Claude Code plugin and the Pi package read are the canonical sources themselves. The opencode package shares that same single source: a build step (`packages/opencode/build.mjs`, run on `prepack`) populates the package's published `agents/` and `skills/` trees from the root, converting each agent's frontmatter for opencode and copying the skill tree verbatim. The root `agents/` + `skills/` stay the single edit point — the build copies and transforms, it never forks content.
 
 ## Configuration
 
