@@ -29,9 +29,12 @@ step — this repo has none.
 ## Versioning policy
 
 The project has a single version. The source of truth is the root
-`package.json`'s `version`, which is kept in sync to
-`.claude-plugin/plugin.json` by `scripts/sync-version.mjs` (invoked as part of
-`npm run release:version`). The package is `private` and consumed direct-from-git
+`package.json`'s `version`, which the release version step (`npm run
+release:version`) keeps in sync across the other version-bearing locations:
+`.claude-plugin/plugin.json` (via `scripts/sync-version.mjs`) and
+`package-lock.json`, in its two recorded-version fields — the top-level
+`version` and the root package's `packages[""].version`. The package is
+`private` and consumed direct-from-git
 (a Pi package and a Claude Code plugin served from the repo root), so there is no
 registry release — only a `v<version>` git tag and a matching GitHub Release.
 
@@ -182,9 +185,10 @@ publishing anywhere. The flow:
    `trunk`, the Release workflow runs.
 2. **CI opens/updates the "Version Packages" PR.** With pending changesets, the
    workflow runs `npm run release:version`, which bumps the version, regenerates
-   `CHANGELOG.md`, and syncs `.claude-plugin/plugin.json`. The result is pushed to
-   the `changeset-release/trunk` branch and surfaced as a "Version Packages" pull
-   request.
+   `CHANGELOG.md`, syncs `.claude-plugin/plugin.json`, and reconciles
+   `package-lock.json` so its two recorded-version fields match the bumped
+   version. The result is pushed to the `changeset-release/trunk` branch and
+   surfaced as a "Version Packages" pull request.
 3. **A maintainer reviews and merges** the Version Packages PR.
 4. **CI creates the tag and Release.** The human merge of the Version PR is what
    advances the flow: the next run creates the `v<version>` git tag (via
@@ -217,8 +221,9 @@ git checkout trunk && git pull --ff-only
 npm ci
 export GITHUB_TOKEN=<token>          # or place it in a gitignored .env
 
-# 1. Consume changesets: bump version, regenerate CHANGELOG, sync plugin.json.
-#    Inspect the result; run `git restore .` to abort cleanly.
+# 1. Consume changesets: bump version, regenerate CHANGELOG, sync plugin.json,
+#    and reconcile package-lock.json's recorded version — all in one command,
+#    nothing edited by hand. Inspect the result; run `git restore .` to abort.
 npm run release:version
 
 # 2. Commit the bump (config is commit:false, so this is manual) and push.
