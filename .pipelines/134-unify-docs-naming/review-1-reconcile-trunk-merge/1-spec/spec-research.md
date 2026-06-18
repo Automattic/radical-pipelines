@@ -155,7 +155,7 @@ excl. `.pipelines/` + `CHANGELOG.md`", it MUST add `pr-description.md` to the ex
 list, else the check fails on a file we intentionally froze. This is a Q3 (verification)
 decision — see below.
 
-### Q3 — The review's acceptance oracle (pending researcher)
+### Q3 — The review's acceptance oracle → Option B
 
 Two gaps in the base oracle this review exposes: (1) pattern blind spot — trailing
 `[- ]` anchor misses backtick `` `doc` `` on `passing.md:16`; (2) file-list gap — base
@@ -179,3 +179,101 @@ Deciding between:
 Also asking: does the FIX require relaxing the anchor in BOTH the oracle AND the
 substitution mechanism (to actually convert the backtick `` `doc` `` → `` `docs` ``), or
 can that one token be handled another way?
+
+**A (researcher, reproduced + analyst-verified): Option B.**
+
+**Counts (verified both sides):**
+- Option B oracle (relaxed pattern over all-tracked excl.
+  `.pipelines/`/`CHANGELOG.md`/`pr-description.md`): **10 today → 0 after fix**
+  (`passing.md` 5, `guardrails.md` 5). Without the `pr-description.md` exclusion: 12
+  (confirms the Q2 exclusion is load-bearing). Option A (relaxed pattern, 6-path list):
+  also 10 → 0; differs only by not certifying root-level files.
+
+**No over-reach (proof):** the relaxed pattern matches ONLY the bare token `doc` (all 10
+hits are literally `doc`; zero `design-doc`/`document`/`docs`). The three protections come
+entirely from the lookbehind `(?<![Dd]esign[- ])` and lookaheads `(?![Ss])(?!ument)`; the
+trailing `[- ]` never protected anything — it only narrowed which concept forms were
+counted. Scope-independent census (must stay untouched, all-tracked-excl-3):
+`design-doc`/`Design Doc` = 247–248, `document(ation)` = 125–132, plural `docs`/`Docs` =
+247–248 (small count drift is just my-vs-researcher path inclusion; the point — these are
+NOT consumed — holds). Over-pluralization risk: the ONLY bare-end-of-token `doc` in scope
+is the backtick `` `doc` `` itself (which IS the concept); the base run already reworded
+the lone generic single-document use ("a reader-facing doc" → "page"), so nothing is left
+to wrongly pluralize. The anchor is safe to drop.
+
+**The fix needs BOTH patterns relaxed (key technical finding).** Dry-run of the base perl
+one-liner on `passing.md`:
+- anchored (`…\b(?=[- ])`): leaves `` `doc` `` singular (lookahead fails on the trailing
+  backtick) — the straggler survives.
+- relaxed (`…\b`, anchor dropped): `` of `doc` agents `` → `` of `docs` agents `` — fixed,
+  now matching its `` `code` `` parallel.
+So the substitution's trailing `(?=[- ])` must drop in lockstep with the oracle's `[- ]`,
+keeping them mirror images (oracle = substitution minus capture/replacement) — the base
+design's core invariant. Handling the one backtick token by a manual one-off edit (leaving
+both patterns anchored) is rejected: it breaks the mirror (anchored oracle would read 0
+while a non-mechanism edit did the work) and reintroduces the enumerate-the-special-case
+fragility the base design explicitly rejected ("single anchored substitution, not per-form
+edits"). Dropping the anchor in both is the philosophy-faithful fix.
+
+**End-to-end dry run (relaxed substitution, 2 in-scope files):** relaxed-oracle after = 0;
+`docss` = 0, `design-docs` = 0; all 10 tokens correctly pluralized (`docs-writer`,
+`docs-reviewer`, `docs-run gates by the docs plan`, `docs-plan.md`,
+`` for the scoped gates of `docs` agents ``); `code-*` lines untouched (no `code`→`codes`).
+
+**Why B over A:** strictly stronger and philosophy-faithful. A re-bakes the file-list
+blind spot that originally masked README in the base run (a future merge could add another
+off-list root file with singular naming that A's hardcoded list never sees). B certifies
+the whole tracked tree. The `pr-description.md` exclusion sits right next to `CHANGELOG.md`
+(already excluded by the base spec) and is fully reasoned in Q2 — a deliberate one-line
+addition, not a hack; the spec should record its rationale in Out-of-Scope. Both options
+use the identical leading-noun anchored pattern; B just removes the arbitrary file-list
+ceiling, preserving the base design's "anchor on the leading concept noun" intent exactly.
+
+**Suggested concrete acceptance oracle for the spec:**
+```
+git ls-files | grep -vE '^\.pipelines/' | grep -vE '^(CHANGELOG\.md|pr-description\.md)$' \
+  | while IFS= read -r f; do grep -oiP '(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b' "$f"; done | wc -l   # → 0
+```
+plus the unchanged scope-independent corruption invariants (`docss` → 0, `design-docs` →
+0) and positive-existence checks for the four already-renamed `docs-*` agents (already
+satisfied post-merge; kept so the suite stays a full regression guard).
+
+---
+
+## Conclusions — requirements for the review
+
+1. **In-scope fix target.** Two durable skill reference files, 10 genuine
+   documentation-PHASE concept stragglers, all → `docs`:
+   - `skills/radical-pipelines/reference/guardrails.md` (5): L20 `doc-writer`,
+     `doc-reviewer`; L28 `doc-run`, `doc plan`; L32 `doc-plan.md`.
+   - `skills/radical-pipelines/reference/conventions/passing.md` (5): L11 `doc-writer`,
+     `doc-reviewer`; L16 `doc-plan-writer`, `doc-plan-reviewer`, and the backtick
+     `` `doc` `` (→ `` `docs` ``, parallel to line-15 `` `code` ``).
+   All are category (i) genuine concept; none generic-document, none `design-doc`, none
+   `document(ation)`; no Requirement-8-style rewording needed.
+
+2. **Verification (Option B).** The acceptance oracle is the anchor-relaxed leading-noun
+   pattern `(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b` run over all tracked files
+   except `.pipelines/`, `CHANGELOG.md`, and `pr-description.md`: 10 → 0. The SUBSTITUTION
+   mechanism must drop its trailing `(?=[- ])` in lockstep so it actually fixes the
+   backtick token, preserving the oracle↔substitution mirror. Corruption invariants
+   `docss`/`design-docs` stay 0; the four `docs-*` agents keep existing.
+
+3. **Out of scope (unchanged from base intent + this review's additions).**
+   - `pr-description.md` — frozen #122 PR body, single fork-mode consumer (`setup.md:134`),
+     manual owner commit never updated, overwritten per-PR; named in the oracle exclusion.
+   - `.pipelines/**` and the published `CHANGELOG.md` — historical records, untouched.
+   - The phase-2 `design-doc` concept, the long word `document(ation)`, already-plural
+     `docs` — protected by the pattern.
+   - Everything else in the post-merge tree is already correctly plural: the four
+     `docs-*` agent files + frontmatter, `.rp.md` Agent models table, README roster
+     (incl. the new `code-writer-tdd`/`code-writer-e2e`), `setup.md` (`docs-plan.md`),
+     phase-3 completion predicate, phase-5 references. The new split agents
+     `code-writer-tdd`/`code-writer-e2e` carry zero concept stragglers. The empty
+     `.changeset/unify-docs-naming.md` is an intentional base-run stub, not a breakage.
+
+4. **Net.** This review's substantive change vs. the base run is small and surgical
+   (10 tokens, 2 files) PLUS a deliberate strengthening of the verification mechanism
+   (relax the trailing anchor in both oracle and substitution; broaden the file list and
+   name `pr-description.md` in the exclusion) so the same class of trunk-introduced
+   straggler — including punctuation-bounded and off-list forms — is caught next time.
