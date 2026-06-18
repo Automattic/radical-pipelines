@@ -248,3 +248,101 @@ the oracle proves the mechanism reached every token); the anchor was a counting-
 artifact, not a protection; exactly one punctuation-bounded token exists today and the whole
 class is caught by construction, not by enumeration. The anchored + hand-edit path is the
 cautionary Failure Mode (false certification + enumeration fragility).
+
+### Q4 — The acceptance/verification suite → Option B oracle + invariants + existence; drop 6-path
+
+**Question.** Lock the exact, runnable acceptance suite (each check with its expected
+number, verified post-fix); decide whether to also keep the base run's 6-path-scoped oracle.
+
+**A (researcher; suite applied in place then restored — worktree clean).**
+
+The suite, verified to pass on the post-fix tree:
+
+**Check 1 — Acceptance oracle (Option B): 10 → 0.**
+```
+git ls-files | grep -vE '^\.pipelines/' | grep -vE '^(CHANGELOG\.md|pr-description\.md)$' \
+  | while IFS= read -r f; do grep -oiP '(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b' "$f"; done | wc -l
+```
+Before = 10, after = **0**.
+
+**Check 2 — `pr-description.md` exclusion is load-bearing → 2.** Same oracle dropping only
+the `pr-description.md` exclusion (excl `.pipelines/` + `CHANGELOG.md`), run after the fix:
+```
+git ls-files | grep -vE '^\.pipelines/' | grep -vE '^(CHANGELOG\.md)$' \
+  | while IFS= read -r f; do grep -oiP '(?<![Dd]esign[- ])\b[Dd]oc(?![Ss])(?!ument)\b' "$f"; done | wc -l
+```
+After = **2** (the two frozen `doc-run`/`doc plan` in `pr-description.md`) — confirms they
+are intentionally left and the exclusion, not a fix, accounts for them.
+
+**Check 3 — Corruption invariants → 0 / 0** (over the Option-B file set, after the fix):
+```
+... | while IFS= read -r f; do grep -oiP 'docss' "$f"; done | wc -l            # 0
+... | while IFS= read -r f; do grep -oiP '[Dd]esign[- ]docs' "$f"; done | wc -l # 0
+```
+`docss` = **0**, `design-docs` = **0**.
+
+**Check 4 — Positive existence (not satisfied by deletion).** Already satisfied post-merge;
+kept as a full regression guard:
+```
+for n in docs-plan-writer docs-plan-reviewer docs-writer docs-reviewer; do
+  test -f "agents/$n.md" && grep -qE "^name: $n\$" "agents/$n.md" && echo "$n OK"; done
+```
+All four → OK.
+
+**Check 5 — In-scope eyeball (aid, not a gate).** Post-fix `doc`/`code` lines in the 2
+files: all 8 distinct concept forms plural (`docs-writer`, `docs-reviewer`, `docs-run`,
+`docs plan`, `docs-plan.md`, `docs-plan-writer`, `docs-plan-reviewer`, `` `docs` ``); every
+`code-*` line byte-identical (`guardrails.md` keeps `code-writer-tdd/e2e`, `code-reviewer`,
+`code-run gates by the code plan`, `code-plan.md`; `passing.md` keeps its three `code-*`
+agents and L15's `` `code` `` line).
+
+**Drop the 6-path oracle — Option B strictly dominates (proven by file-set comparison).**
+- 6-path scope (`skills agents .rp.md website .changeset README.md`) = 59 tracked files.
+- Option B scope (all-tracked excl. the 3) = 78 tracked files.
+- `comm -23 sixpath optb` = **empty** → every one of the 59 6-path files is also in Option
+  B's set; Option B is a strict file superset using the identical pattern.
+- The 19 extra files Option B covers (`.claude-plugin/{plugin,marketplace}.json`,
+  `.github/**`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `scripts/**`, `package.json`,
+  …) are exactly the kind of off-list area whose blind spot originally masked README:112 in
+  the base run.
+
+**Design decision.** The acceptance suite is **Checks 1–4** as gates (Option B oracle 10→0;
+the load-bearing exclusion assertion → 2; the two corruption invariants → 0/0; positive
+existence of the four `docs-*` agents), with Check 5 as a human eyeball aid. **Drop the base
+run's 6-path oracle**: it adds zero coverage and re-bakes the file-list blind spot — Option
+B, anchored on the same leading concept noun, certifies the whole tracked tree instead.
+
+---
+
+## Conclusions — the design (settled, fully grounded)
+
+1. **Scope.** Two trunk-added skill reference files only —
+   `skills/radical-pipelines/reference/guardrails.md` (5 tokens) and
+   `skills/radical-pipelines/reference/conventions/passing.md` (5 tokens, incl. the backtick
+   `` `doc` `` on L16) — 10 stragglers, all `doc` → `docs`. Complete and minimal (Q1).
+
+2. **Mechanism.** A single anchor-**relaxed** substitution
+   (`PAT='(?<![Dd]esign[- ])\b([Dd]oc)(?![Ss])(?!ument)\b'`, replacement `${1}s`) applied to
+   the 2 named files via a plain loop — no `find -print0` (no spaces in the paths), no
+   manual rewords (no single-document "doc" in these files), no `git mv` renames (the four
+   `docs-*` agents already exist). Pattern stated once in a variable (FORM A) so the
+   oracle↔substitution mirror is visually explicit; `\${1}s` escaping required, with the
+   unescaped-`$1` corruption recorded as a failure mode (Q2).
+
+3. **Central decision — lockstep anchor relaxation.** The oracle drops its trailing `[- ]`
+   and the substitution drops its trailing `(?=[- ])` **together**, keeping them mirror
+   images. The anchor was a counting-narrowing artifact, never a protection (the lookbehind
+   + two lookaheads protect; census `design-doc` 247→247, `document` 132→132, `docs`
+   248→258 = +10). Exactly one punctuation-bounded concept token exists (the backtick), and
+   the whole class is caught by construction. The anchored + hand-edit alternative is
+   rejected (false certification + enumeration fragility) (Q3).
+
+4. **Acceptance suite.** Gates: Option B oracle 10→0; load-bearing exclusion → 2; corruption
+   invariants `docss`/`design-docs` → 0/0; positive existence of the four `docs-*` agents.
+   The base run's 6-path oracle is dropped (Option B strictly dominates it) (Q4).
+
+5. **Out of scope (carried from spec + base intent).** `pr-description.md` (frozen #122 PR
+   body, named in the oracle exclusion); `.pipelines/**` and `CHANGELOG.md` (historical
+   records); the phase-2 `design-doc` concept, the word `document(ation)`, and already-plural
+   `docs` (all protected by the pattern). Everything else in the post-merge tree is already
+   correctly plural.
