@@ -28,8 +28,10 @@ phrasing, "prose, not software"), drives the choices — not code elegance.
 
 ## Implementation surface (established from the codebase before Q&A)
 
-The eight in-scope files the spec enumerates (req 13), with the exact exit-code framing each
-currently carries:
+The in-scope files the spec enumerates (req 13: "the guardrails reference, the convention loader,
+the setup convention file, the passing convention file, the two code writers, the doc writer, and
+the two reviewers") — **nine files** in total — with the exact exit-code framing each currently
+carries:
 
 - **`reference/guardrails.md`** (33 lines) — the canonical model. Line 3 defines guardrails as
   "the deterministic verification gates a project's running agents must pass — exact commands
@@ -123,8 +125,8 @@ design adopts it verbatim:
    even when its check fails) without "exit 0"/"exit code"; judgment guardrail captured verbatim
    like commit format (req 12).
 7. **Exit-code removal sweep + `load.md` table + `passing.md` + terminology + duplication** — the
-   complete edit surface, the de-duplication of the writers' and reviewers' shared guardrail prose,
-   and the consistent vocabulary across all eight files (req 13-14).
+   complete edit surface, whether to de-duplicate the writers' and reviewers' shared guardrail prose,
+   and the consistent vocabulary across all nine in-scope files (req 13-14).
 
 ---
 
@@ -263,7 +265,7 @@ question, the researcher's findings, and the design decision reached.)_
      orchestrator still resolves it before passing the guardrail. The two plan writers
      (`code-plan-writer.md`, `doc-plan-writer.md`), the two plan reviewers (`code-plan-reviewer.md`,
      `doc-plan-reviewer.md`), and `assisted-phases/3 - plan.md` are **not edited** — they are not in
-     the spec's eight in-scope files, and their "did the command's runner resolve and terminate?"
+     the spec's nine in-scope files, and their "did the command's runner resolve and terminate?"
      check is an **execution check, not an exit-code check** (spec Out of Scope).
   2. **Judgment guardrails never reach the scope machinery — structurally, not by a guard clause.**
      Every scope-fill and scope-validation step operates only on **scoped command guardrails** (a
@@ -492,6 +494,72 @@ question, the researcher's findings, and the design decision reached.)_
   once, upstream in `guardrails.md`. Prompting for judgment guardrails at `:175` is the on-theme
   broadening the motivating use case depends on.
 
+### Topic: Exit-code removal sweep, `load.md` cell, terminology, and the duplication constraint
+
+- **Spec link:** Requirements 13, 14; acceptance criteria `:75` (zero exit-code framing across all
+  in-scope files) and `:76` (no new structure, no structural tests, shared instructions once).
+- **Question to researcher:** the `load.md:22` cell rewrite, the complete terminology sweep, and —
+  the genuine design call — whether req 14 obligates factoring the shared writer/reviewer guardrail
+  prose into a new shared reference file or is satisfied by in-place edits.
+- **Findings (researcher) + my own corroboration:**
+  - **`load.md:22` cell:** sibling "What it covers" cells are terse verb-phrases (`:13-21`).
+    Recommended gloss (A): **"The prose rules a project's running agents must satisfy"** — terse,
+    no exit-code framing, both-kinds (a "rule" spans command and judgment), kinds defined upstream in
+    `guardrails.md` (no cross-path duplication). Fallback (B) surfaces both kinds: "Rules running
+    agents must satisfy — by command or by judgment." `load.md:38` (local-override policy) needs
+    **no change**.
+  - **Duplication call → EDIT IN PLACE, do not factor out.** Evidence (researcher + my own checks):
+    1. The two code writers' guardrail sections are **byte-identical**; the three writers diverge
+       only at doc-writer's no-convention branch and doc-test wording.
+    2. **All five running agent profiles have zero `reference/` references** — agent profiles are
+       self-contained by design; reference docs are read by the *orchestrator*, not pulled in by
+       profiles.
+    3. The profiles **already tolerate heavy verbatim duplication**: the two code writers share six
+       identical guideline bullets today ("Single task only.", "Files is a guide…", "Stay within
+       the task.", "Follow project conventions.", "Address review feedback…", "Stop and report
+       blockers."), never factored out. The skill's norm is per-profile self-containment.
+    4. Writer and reviewer guardrail prose **genuinely differs** (writer: run-and-gate-commit,
+       three-way sort with a blocker branch, command-only; reviewer: evaluate-both-kinds, Checks
+       table, skipped-on-reject, verdict) — the truly-shared core is too thin to extract cleanly.
+    5. A new shared `reference/run-guardrails.md` the profiles point to **is new structure** that
+       constraint 14 / AC `:76` explicitly forbids, and a new cross-file path the profiles don't
+       currently have.
+    The duplication **pre-dates** this change; req 14's "states shared instructions once rather than
+    duplicating across reading paths" is correctly read as "this change adds no *new* cross-path
+    duplication," consistent with the authoring rule "describe the system as designed, not transient
+    or historical situations." Retroactive de-dup is refactoring the spec did not ask for.
+  - **Definitive exit-code scan:** exactly **10 lines** carry exit-code framing across the entire
+    `skills/` + `agents/` trees, all inside the nine in-scope files and all already assigned —
+    `guardrails.md:3`, `load.md:22`, `setup.md:183,184`, `code-writer-tdd.md:44`,
+    `code-writer-e2e.md:35`, `doc-writer.md:47`, `code-reviewer.md:43,114`, `doc-reviewer.md:45,115`.
+    None outside the nine files. The out-of-scope `assisted-phases/3 - plan.md` execution check
+    carries no exit-code framing (correctly excluded).
+  - **Two easy-to-miss sweep items:** `doc-writer.md:35` ("If a gate covers doc tests") sits in the
+    step-3 accuracy verification, *outside* the guardrail step — needs the gate→guardrail swap, no
+    exit-code framing. `passing.md:12-17` (the "Guardrail scopes to fill" plumbing) is gate→guardrail
+    **cosmetic only** — its scoped-command-to-plan-agents semantics are out of scope and must **not**
+    be broadened for judgment guardrails (a judgment guardrail is never scoped).
+- **Decision:**
+  1. **`load.md:22` → gloss (A)** ("The prose rules a project's running agents must satisfy"); (B)
+     as a fallback if the writer prefers the kinds visible at table level. `load.md:38` unchanged.
+  2. **Edit each guardrail section in place; introduce no shared reference file.** The design doc
+     must state this explicitly: pre-existing parallel duplication is out of scope; this change is
+     consistent with the skill's self-contained agent-profile norm and adds no new structure (req 14,
+     AC `:76`). This pre-empts a reviewer reading the surviving duplication as a constraint-14 miss.
+  3. **Implementation note:** the two code writers are byte-identical in this section — apply the
+     identical rewrite to **both** so they stay identical; a divergence would be a new inconsistency.
+  4. **Terminology sweep** standardizes on "guardrail" / "command guardrail" / "judgment guardrail";
+     "satisfied"/"unsatisfied" for results; "run"/"cannot run" for command execution. The full
+     file:line checklist is captured in the consolidated edit list below. Don't miss `doc-writer.md:35`
+     or the cosmetic-only `passing.md:12-17`.
+  5. **No structural tests** assert skill/agent content (constraint 14, AC `:76`); the change is
+     verified by reading.
+- **Rationale:** the skill's own norm (self-contained profiles, reference files only for the
+  orchestrator's path and for shared artifact/model formats) plus the explicit "no new structure"
+  clause settle the duplication call against factoring out. The terminology sweep + the 10-line
+  exit-code removal, applied uniformly, satisfy AC `:75` with the load-bearing meanings preserved per
+  Topics 4-6.
+
 ## Open Questions
 
 <!-- Unresolved sub-questions deferred to the implementation phases. -->
@@ -514,14 +582,156 @@ question, the researcher's findings, and the design decision reached.)_
   satisfies by its own assessment"), never by naming `AGENTS.md` or this project. The AGENTS.md
   reference belongs only in the spec/design as motivation. The design-doc-writer and code-writers
   must hold this line.
-- **Vocabulary consistency across eight files (Topic 7).** The change introduces one result word
+- **Vocabulary consistency across the nine files (Topic 7).** The change introduces one result word
   ("satisfied"/"unsatisfied"), one umbrella verb for reviewers ("evaluate"), and consistent
   "guardrail"/"command guardrail"/"judgment guardrail" terminology. These must be applied uniformly
   across all in-scope files or the prose drifts. Topic 7 settles the exact sweep; the risk is a
   partial application that leaves "gate"/"pass/fail"/"execute" stragglers — the acceptance criterion
-  at `spec.md:75` requires zero exit-code framing across all eight files.
+  at `spec.md:75` requires zero exit-code framing across all in-scope files.
+- **Scope-boundary terminology mismatch ("Gate" survives in out-of-scope plan files).** After this
+  change the in-scope files say "guardrail" while the out-of-scope `{scope}` plan machinery (the four
+  plan agents and `assisted-phases/3 - plan.md`) still says "gate"/"scoped gate" and uses a `| Gate |
+  Scope |` column header. This is a deliberate scope boundary (the spec preserves the `{scope}`
+  lifecycle and lists only the nine files), **not** an inconsistency this change fixes. The
+  design-doc-writer should note it so a reviewer does not flag the surviving "Gate" column as a missed
+  edit; aligning them is possible future work, out of scope here.
+- **The two code writers must stay byte-identical.** Their guardrail sections are byte-identical
+  today; the identical rewrite must land in both `code-writer-tdd.md` and `code-writer-e2e.md`. A
+  divergence introduced by editing only one would be a new inconsistency.
 - **"Prose, not software" — no structural tests.** The project rule forbids structural tests that
   assert the content, sections, wording, or ordering of skill or agent files (constraint 14, AC
   `:76`). Because this whole change is prose, the code phase must verify it by reading, not by adding
   tests that restate the skill. The design-doc-writer should state this explicitly so the code plan
   does not introduce such tests.
+
+---
+
+## Consolidated design (all topics decided)
+
+The design is complete. Every change, by file, for the design-doc-writer and the plan/code phases.
+Nine files change; the four `{scope}` plan agents and `assisted-phases/3 - plan.md` are deliberately
+untouched (the `{scope}` lifecycle and its execution checks are preserved per spec Out of Scope).
+
+### The model — `skills/radical-pipelines/reference/guardrails.md`
+
+- **Definition (`:3`):** restate as one positive sentence — a guardrail is a prose rule an agent
+  must satisfy — with no exit-code framing. _(Topic 1; reqs 1, 13.)_
+- **Kinds (`## Gate kinds`, `:5-10`):** replace with an H2 introducing the **two kinds** as two
+  bolded-label + em-dash-gloss bullets: **command guardrail** (its `rule:` prose tells the agent to
+  run a command and confirm the check it describes is satisfied) and **judgment guardrail** (a prose
+  rule the named agent satisfies by its own assessment, no command). Demote **fixed**/**scoped** to
+  nested sub-bullets under the command-guardrail bullet, stating fixed/scoped is a property of
+  command guardrails only and a judgment guardrail is neither. _(Topics 1, 2, 3; reqs 2, 6.)_
+- **Per-gate block (`:12-25`):** rename `command:` to a kind-neutral prose body field — recommended
+  label **`rule:`** (non-load-bearing wording the writer may finalize). For a command guardrail the
+  `rule:` prose names a command (in backticks, `{scope}` inside it if scoped); for a judgment
+  guardrail it is the rule itself. Keep `agents:` unchanged and `fill-guidance:` tagged optional /
+  scoped-command-only. A judgment guardrail's block = name + `rule:` + `agents:`, omitting the
+  `{scope}` placeholder and `fill-guidance` the way a fixed command guardrail already omits
+  `fill-guidance`; mark command-only fields with the model-file `_(optional)_` idiom, phrased
+  positively. Rename the H2 "per-gate block" → "per-guardrail block". _(Topic 2; reqs 3, 4, 5, 14.)_
+- **Fill lifecycle (`:27-33`):** behavior unchanged; terminology "scoped gate" → "scoped command
+  guardrail", "(gate → scope value)" → "(guardrail → scope value)". _(Topics 3, 7; req 6.)_
+
+### The loader cell — `skills/radical-pipelines/reference/conventions/load.md`
+
+- **`:22`:** replace the Guardrails "What it covers" cell with a terse non-exit-code gloss —
+  recommended **"The prose rules a project's running agents must satisfy"** (fallback "Rules running
+  agents must satisfy — by command or by judgment"). `:38` unchanged. _(Topics 1, 7; reqs 1, 13.)_
+
+### The spawn-time block — `skills/radical-pipelines/reference/conventions/passing.md`
+
+- **`:10`:** rewrite to substitute the chosen scope value for the `{scope}` placeholder in the
+  guardrail's **body** and place the resolved **body**; any other guardrail's body passes literally.
+  "gates" → "guardrails". This single rewrite covers req 9's spawn-block clause for the reviewers.
+  _(Topics 2, 4; reqs 6, 9.)_
+- **`:12-17`** ("Guardrail scopes to fill" plumbing): cosmetic "gate" → "guardrail" only; semantics
+  (scoped-command `{scope}` plumbing to plan agents) preserved unchanged — never broadened for
+  judgment guardrails. _(Topic 7; spec Out of Scope.)_
+
+### Setup capture — `skills/radical-pipelines/reference/conventions/setup.md`
+
+- **`:173`:** "every deterministic gate passes" → "every guardrail is satisfied"; motivation
+  otherwise untouched; do not restate the two-kinds definition. _(Topic 6.)_
+- **`:175`:** add a **generic** judgment-guardrail clause to "kinds to consider" (recommended; the
+  minimal fallback is a brief "a guardrail may also be a judgment rule" note). Never name `AGENTS.md`
+  or this project. _(Topic 6; reqs 1, 12; open question on prompt-vs-accept.)_
+- **`:177`:** "Capture per gate" / "per-gate block" → "per guardrail" / "per-guardrail block".
+- **`:179-184`:** rewrite the validation step + two outcomes to remove all exit-code vocabulary,
+  scope validation to command guardrails, route judgment guardrails to verbatim capture (the
+  commit-format analogy), and preserve run-vs-cannot-run: "did the command execute?" → "did the
+  command run?"; outcome 1 "**It runs ⇒ write it.** The bar is that the command runs, not that its
+  check currently passes …"; outcome 2 "**It does not run ⇒ do NOT write it.** … surface the failure
+  to the owner (the error) …"; "drop the gate" → "drop the guardrail". _(Topic 6; req 12, AC `:73`,
+  `:74`.)_
+- **`:186-190`:** terminology only — "gate" → "command guardrail" / "scoped command guardrail"; the
+  scoped-command reference at `:190` stays; no judgment caveat. _(Topic 6.)_
+
+### Writers — `agents/code-writer-tdd.md`, `agents/code-writer-e2e.md`, `agents/doc-writer.md`
+
+Apply the **identical** rewrite to the two code writers (byte-identical today; keep them identical).
+Writers stay **command-focused** — no judgment-assessment/gating added (the spec assigns judgment
+result-recording to reviewers only; state this non-gap explicitly).
+
+- **"Run the guardrails" step** (`code-writer-tdd.md:37-45`, `code-writer-e2e.md:28-36`,
+  `doc-writer.md:40-48`): "Run every **command guardrail** … exactly as its command is written. Each
+  is mandatory."; "Do not bypass any guardrail (no `--no-verify`, no `skip`, no commented-out
+  checks)."; "pass" → "satisfied" ("Every guardrail's check must be satisfied before you commit").
+  Three-way sort with entries named "**a command guardrail** …": no-guardrails ⇒ proceed (no
+  blocker, no warning); cannot-run-at-all ⇒ blocker; runs-but-check-not-satisfied ⇒ work, not a
+  blocker. _(Topic 5; reqs 10, 11, 13.)_
+- **No-convention branch:** doc-writer keeps "the step-3 accuracy verification is your only
+  validation"; the code writers say just "proceed". _(Topic 5; req 11.)_
+- **Commit bullet** (`code-writer-tdd.md:49` etc.): "Only commit when every guardrail is satisfied."
+- **Blocker guideline** (`code-writer-tdd.md:63`, `code-writer-e2e.md:53`, `doc-writer.md:67`): "a
+  gate cannot execute" → "a command guardrail cannot run"; "Failing tests or broken builds are not
+  blockers" unchanged; doc-writer's "Failing doc gates" → a gate-free phrasing. _(Topic 5.)_
+- **`doc-writer.md:35`** ("If a gate covers doc tests", inside step-3 accuracy verification): "gate"
+  → "guardrail". _(Topic 7.)_
+
+### Reviewers — `agents/code-reviewer.md`, `agents/doc-reviewer.md`
+
+Mirror each other; preserve the two pre-existing intentional differences ("finally approve" vs
+"approve"; "step-2/3 judgment" vs "accuracy spot-check"). Reviewers cover **both kinds**.
+
+- **Gate-running step** (`code-reviewer.md:42-46`, `doc-reviewer.md:44-47`): "**evaluate** every
+  guardrail … recording each result in the Checks table. Evaluate a command guardrail by running the
+  command its body names and checking whether the check it describes is satisfied; evaluate a
+  judgment guardrail by assessing whether its rule is satisfied. To approve, every guardrail must be
+  satisfied in this iteration. A guardrail you find unsatisfied is itself a rejection finding …
+  recorded as **skipped**. Never bypass a guardrail (no `--no-verify`, no `skip`, no commented-out
+  checks)." _(Topic 4; reqs 7, 8, 9.)_
+- **Reject branch** (`code-reviewer.md:41`, `doc-reviewer.md:43`): "record each guardrail as
+  **skipped** … so the skip reads as deliberate"; "gates" → "guardrails", run framing softened to
+  evaluation.
+- **No-guardrails branch** (`code-reviewer.md:45`, `doc-reviewer.md:47`): "gates to run" →
+  "guardrails to evaluate"; each keeps its own fallback-evidence clause. _(Topic 4; req 11 intent.)_
+- **Checks table** (`code-reviewer.md:69-78`, `doc-reviewer.md:71-79`): header `| Check | Guardrail |
+  Result |`; Result ∈ **satisfied | unsatisfied | skipped**; re-gloss the comment — the `Guardrail`
+  column shows the body (command for a command guardrail, rule for a judgment guardrail); a skipped
+  row shows the guardrail not evaluated this iteration; forgotten = absent row, deliberately skipped
+  = present skipped row, evaluated = present satisfied/unsatisfied row. (Rationale: both-kinds fit +
+  terminology reuse — **not** a ban on bare "pass/fail".) _(Topic 4; reqs 7, 9, 14.)_
+- **Blocker guideline** (`code-reviewer.md:114`, `doc-reviewer.md:115`): normal-finding list →
+  "a command guardrail whose check is not satisfied, a judgment guardrail you assess as violated";
+  blocker example → "a declared command guardrail cannot run". Drops "exits non-zero". _(Topic 4;
+  reqs 8, 9.)_
+- **"Run the guardrails" guideline bullet** (`code-reviewer.md:113`, `doc-reviewer.md:114`):
+  "evaluate every guardrail per step 4 and approve only if all are satisfied." _(Topic 4.)_
+
+### Verdict machinery — unchanged
+
+The binary approve/reject outcome and the must-fix review model are not edited. Only the per-guardrail
+fail *source* broadens (a judgment guardrail can fail by assessment), routed through the existing
+machinery. _(Reqs 8; spec Out of Scope.)_
+
+### Deliberately not changed
+
+- The four plan agents (`code-plan-writer.md`, `code-plan-reviewer.md`, `doc-plan-writer.md`,
+  `doc-plan-reviewer.md`) and `assisted-phases/3 - plan.md` — the `{scope}` fill/validation lifecycle
+  and its "did the command's runner resolve and terminate?" execution check are preserved (spec Out
+  of Scope). They keep "gate"/"Gate" terminology — a deliberate scope boundary.
+- No new shared reference file for the writers' or reviewers' guardrail prose (would be new structure
+  forbidden by constraint 14; pre-existing duplication is out of scope).
+- No concrete guardrail is added to this project's `.rp.md` (the change enables, it does not author).
+- `load.md:38`, `passing.md:5-9`, and all non-guardrail prose in the nine files — untouched.
