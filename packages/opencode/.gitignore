@@ -1,0 +1,4 @@
+# Build output of build.mjs — regenerated from the shared root agents/ + skills/
+# on `npm run build` and `prepack`. The shared source is the single edit point.
+/agents/
+/skills/
