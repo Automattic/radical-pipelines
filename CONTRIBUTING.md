@@ -23,7 +23,8 @@ npm test
 ```
 
 This runs the `node --test 'scripts/test/**/*.test.mjs'` suite (the
-`sync-version` and changeset-validator tests). There is no `lint` or `typecheck`
+`sync-version`, changeset-validator, and version-drift-guard tests, including the
+end-to-end coverage of the version-sync flow). There is no `lint` or `typecheck`
 step — this repo has none.
 
 ## Versioning policy
