@@ -6,10 +6,10 @@
     <title>Radical Pipelines — Autonomous software engineering by Automattic</title>
     <meta
       name="description"
-      content="Radical Pipelines is an agent orchestrator from Automattic. Six phases, each producing an inspectable artifact, so teams of AI agents can ship work autonomously while humans review at checkpoints. Runs on Claude Code and Pi."
+      content="Radical Pipelines is an agent orchestrator from Automattic. Six phases, each producing an inspectable artifact, so teams of AI agents can ship work autonomously while humans review at checkpoints. Runs on Claude Code, Pi, and opencode."
     />
     <meta name="author" content="Automattic" />
-    <meta name="keywords" content="Radical Pipelines, Automattic, AI agents, Claude Code, Pi, agent orchestration, autonomous software engineering, agent pipelines, prompt engineering" />
+    <meta name="keywords" content="Radical Pipelines, Automattic, AI agents, Claude Code, Pi, opencode, agent orchestration, autonomous software engineering, agent pipelines, prompt engineering" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://automattic.github.io/radical-pipelines/" />
 
@@ -105,8 +105,8 @@
             </div>
             <ul class="hero-stats">
               <li><strong>6</strong><span>phases</span></li>
-              <li><strong>15</strong><span>agents shipped</span></li>
-              <li><strong>2</strong><span>CLIs supported</span></li>
+              <li><strong>17</strong><span>agents shipped</span></li>
+              <li><strong>3</strong><span>CLIs supported</span></li>
             </ul>
           </div>
           <aside class="hero-visual" aria-hidden="true">
@@ -201,7 +201,8 @@
           <span class="kicker">What it actually does</span>
           <h2>Files in your repo, one phase at a time.</h2>
           <p class="lede">
-            No new UI. The orchestrator runs in your CLI (Claude Code or Pi) and
+            No new UI. The orchestrator runs in your CLI (Claude Code, Pi, or
+            opencode) and
             writes artifacts into a pipeline folder in the repo. Your team reads
             them like any other file.
           </p>
@@ -276,7 +277,7 @@
             </div>
             <div>
               <h3>Tooling caught up.</h3>
-              <p>Claude Code and Pi already ship skills, teams, hooks, worktrees. We build on top.</p>
+              <p>Claude Code, Pi, and opencode already ship skills, teams, hooks, worktrees. We build on top.</p>
             </div>
           </div>
         </div>
@@ -300,10 +301,19 @@
               <h3>Pi</h3>
               <pre><code>pi install git:github.com/Automattic/radical-pipelines</code></pre>
             </div>
+            <div class="install-block">
+              <h3>opencode</h3>
+              <div class="install-cmd">
+                <pre><code>"plugin": ["@automattic/radical-pipelines-opencode"]</code></pre>
+                <span class="install-aside">add this single entry to <code>opencode.json</code> — the meta-plugin only, never the ensemble alongside it</span>
+              </div>
+            </div>
           </div>
           <p class="install-note">
             Pi also needs the phase agents available in <code>.pi/agents/</code> or
-            <code>~/.pi/agent/agents/</code>.
+            <code>~/.pi/agent/agents/</code>. For opencode, setup installs the agents and
+            skill tree into <code>.opencode/</code> or <code>~/.config/opencode/</code>
+            (Node ≥ 24 or Bun ≥ 1.0 required).
             <a href="https://github.com/Automattic/radical-pipelines#readme" target="_blank" rel="noopener">See README for full setup →</a>
           </p>
         </div>
