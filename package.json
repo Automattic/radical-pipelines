@@ -9,7 +9,7 @@
   ],
   "type": "module",
   "scripts": {
-    "release:version": "changeset version && node scripts/sync-version.mjs",
+    "release:version": "changeset version && node scripts/sync-version.mjs && npm install --package-lock-only --no-audit --no-fund",
     "test": "node --test 'scripts/test/**/*.test.mjs'"
   },
   "dependencies": {
