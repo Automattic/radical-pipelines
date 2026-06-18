@@ -5,9 +5,11 @@ home for the release mechanics: when a changeset is required, how to author one,
 how the CI gate and the release flow work, and the maintainer procedures
 (including the manual escape hatch and recovery steps).
 
-The package `@automattic/radical-pipelines` is **private** and consumed directly
-from git — it is **not** published to npm. There is no `npm publish` anywhere in
-this project; releases produce a git tag and a GitHub Release only.
+The root package `@automattic/radical-pipelines` is **private** and consumed
+directly from git — it is **not** published to npm. The repo also ships the
+npm-publishable `packages/opencode/` sub-package, but the release flow does not
+publish it either: there is no `npm publish` anywhere in the release flow.
+Releases produce a git tag and a GitHub Release only.
 
 ## Opening a pull request
 
@@ -30,10 +32,12 @@ step — this repo has none.
 
 The project has a single version. The source of truth is the root
 `package.json`'s `version`, which is kept in sync to
-`.claude-plugin/plugin.json` by `scripts/sync-version.mjs` (invoked as part of
-`npm run release:version`). The package is `private` and consumed direct-from-git
-(a Pi package and a Claude Code plugin served from the repo root), so there is no
-registry release — only a `v<version>` git tag and a matching GitHub Release.
+`.claude-plugin/plugin.json` and `packages/opencode/package.json` by
+`scripts/sync-version.mjs` (invoked as part of `npm run release:version`). The
+root package is `private` and consumed direct-from-git (a Pi package and a
+Claude Code plugin served from the repo root); the release flow publishes
+nothing to a registry — only a `v<version>` git tag and a matching GitHub
+Release.
 
 ## Adding a changeset
 
@@ -66,8 +70,10 @@ are the `changedFilePatterns` configured in `.changeset/config.json`:
 - `skills/**`
 - `agents/**`
 - `.claude-plugin/**`
-- the **root** `package.json` (the pattern is anchored — nested `package.json`
-  files do not match)
+- `packages/**` (the `packages/opencode/` sub-package, including its
+  `package.json`)
+- the **root** `package.json` (the pattern is anchored — a nested `package.json`
+  matches only via `packages/**` above, not via this root pattern)
 - `README.md`
 
 Changes that touch **only** the following are **not** release-relevant and need
@@ -175,15 +181,17 @@ These enriched entries also become the body of the corresponding GitHub Release.
 
 ## Release process
 
-Releases are driven by CI (`.github/workflows/release.yml`), with **no npm**
-publishing anywhere. The flow:
+Releases are driven by CI (`.github/workflows/release.yml`), with **no npm
+publish** in the flow (the publishable `packages/opencode/` sub-package is left
+unpublished too). The flow:
 
 1. **Pending changesets land on `trunk`.** When a PR with changesets is merged to
    `trunk`, the Release workflow runs.
 2. **CI opens/updates the "Version Packages" PR.** With pending changesets, the
    workflow runs `npm run release:version`, which bumps the version, regenerates
-   `CHANGELOG.md`, and syncs `.claude-plugin/plugin.json`. The result is pushed to
-   the `changeset-release/trunk` branch and surfaced as a "Version Packages" pull
+   `CHANGELOG.md`, and syncs `.claude-plugin/plugin.json` and
+   `packages/opencode/package.json`. The result is pushed to the
+   `changeset-release/trunk` branch and surfaced as a "Version Packages" pull
    request.
 3. **A maintainer reviews and merges** the Version Packages PR.
 4. **CI creates the tag and Release.** The human merge of the Version PR is what
@@ -217,7 +225,7 @@ git checkout trunk && git pull --ff-only
 npm ci
 export GITHUB_TOKEN=<token>          # or place it in a gitignored .env
 
-# 1. Consume changesets: bump version, regenerate CHANGELOG, sync plugin.json.
+# 1. Consume changesets: bump version, regenerate CHANGELOG, sync manifests.
 #    Inspect the result; run `git restore .` to abort cleanly.
 npm run release:version
 
