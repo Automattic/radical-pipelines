@@ -100,7 +100,7 @@
       sec: 412,
       tokens: '64.1k',
       treeIdx: [10],
-      bash: ['npm test', 'git commit -m "Add orchestrator (code-writer-tdd)"'],
+      bash: ['npm test', 'git commit -m "Add orchestrator"'],
     },
     {
       phase: 'phase 4',
