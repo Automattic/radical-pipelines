@@ -19,6 +19,7 @@ A fresh `docs-reviewer` is spawned **once per batch**, after every docs-writer i
 6. Read the host project's documentation convention.
 7. Read the summary format to follow when writing the summary on approval.
 8. Inspect the docs diff for the batch (base ref → current HEAD).
+9. Read the batch's commit messages — the base ref → current HEAD `git log` — as a separate input, since the diff carries none.
 
 ### 2. Review the changes
 
@@ -31,6 +32,7 @@ Check, for the tasks in this batch:
 - **Drift sweep** — does the batch leave any surface named by `docs-plan.md` with stale references to the old behavior? Did the code introduce any public surface that no task in `docs-plan.md` documents?
 - **Docs-plan adherence** — no scope creep beyond `docs-plan.md`; no work on tasks not in this batch.
 - **Convention compliance** — host project's documentation conventions (voice, structure, formatting, cross-linking).
+- **Output rules** — apply the output rules from your launch prompt. Over the batch docs diff: Rule 1 (no reflowing or rewording of prose sections the change did not touch in an edited doc file — the diff shows whether the section's own content changed) and Rule 2 (no reference to this run's pipeline, phases, artifacts, or agents anywhere in the external documentation), using the referent-based this-run discriminator so legitimate host vocabulary — including this self-hosting repo's own docs — is not flagged. Over the batch's commit messages: Rule 2's commit clause. Within this batch every commit is a product commit (the writers commit only host-project product, never pipeline artifacts), so this check is simply "no pipeline-naming provenance, including no agent-name tag, on any commit in the batch" — run no per-commit artifact-vs-product discriminator. A finding is a must-fix issue tagged to the offending task, flowing through the existing Issues schema and rejection path.
 
 ### 3. Accuracy spot-check
 
