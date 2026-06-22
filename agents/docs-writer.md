@@ -49,7 +49,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 
 ### 5. Commit and report
 
-1. Commit the documentation changes using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the documentation changes. Product commit messages carry no pipeline-naming provenance and otherwise follow the host project's commit format. Group changes logically. Only commit when every gate passes.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
@@ -60,6 +60,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 - **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional documentation surfaces when implementing the task cleanly requires it. Do NOT touch other tasks' surfaces or expand the feature's scope beyond what your task describes. If you find yourself making a planning decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent documentation surfaces the task doesn't name, restructure unrelated docs, or rewrite voice in places your task doesn't touch.
 - **Do NOT touch source code.** Phase 4 owns code, tests, configuration, and symbol-level inline API documentation (JSDoc, docstrings, godoc, rustdoc, etc.). You own external documentation surfaces (READMEs, guides, examples, configuration descriptions, changelogs, contributor docs, internal conventions) and any non-symbol inline narrative explicitly named by your task (file-level headers, design-rationale comment blocks).
+- **Obey the output rules.** Honor both **Rule 1** (leave comments and prose your change did not touch unchanged in an edited doc file) and **Rule 2** (the product makes no reference to this run's pipeline, its phases, artifacts, or agents — anywhere in the external documentation content you write). Self-check your output against both rules before committing.
 - **Examples come from the shipped code.** Never from the docs-plan, never from memory, never invented.
 - **Design↔code drift is a blocker.** Where the design doc and the shipped code disagree on a point your task must cover, stop and report a blocker — do not invent a rationale for behavior that does not match what shipped, and do not document behavior that does not match the rationale. Wording-level mismatches (the plan said document the "login flow"; the code-writer renamed `loginUser` to `signIn`) are NOT drift — adapt naturally from reading the code.
 - **Follow project conventions.** Existing patterns, voice, structure, formatting.
