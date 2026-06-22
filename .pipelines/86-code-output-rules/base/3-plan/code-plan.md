@@ -10,11 +10,26 @@ Two cross-cutting constraints from the project's own rules govern every task: th
 
 Naming convention used throughout this plan (settled here so writers need not choose): the two rules are referred to collectively by the name-handle **"the output rules"**, and individually as **"Rule 1"** (leave unchanged comments and prose untouched) and **"Rule 2"** (the host-project product is transparent to the pipeline). These names are used consistently in the canonical file and in all five profile restatements.
 
+**Task `Type` for this feature.** Every task below is `tdd`. The two allowed `Type` values dispatch the Code-phase writer: `e2e` for tasks that implement planned end-to-end flows, `tdd` for every other task. This feature is prose-only edits to skill reference files and agent profile `.md` files; there is no runnable product surface and therefore no end-to-end flow to automate (see `## E2E test plan`). No task is `e2e`, so by elimination every task is `tdd` — `code-writer-tdd` is the correct writer for a prose edit driven by its task-level Acceptance. The project constraint that forbids structural tests of skill/agent files (see `CLAUDE.md`) bears on *which* checks the writer performs in its RED phase, not on the dispatch `Type`; it does not prevent assigning `Type` and is not a blocker.
+
+## Guardrail scopes
+
+The orchestrator passed no `Guardrail scopes to fill:` input for this plan, and this feature runs no scoped gates.
+
+| Gate | Scope |
+| ---- | ----- |
+| None | None  |
+
+## E2E test plan
+
+No end-to-end flows apply. This feature is entirely prose edits to skill reference files (`skills/radical-pipelines/reference/output-rules.md`, `.../conventions/setup.md`, the two `autonomous-phases/*.md` phase files) and agent profile `.md` files (the five Code/Docs producing and reviewing profiles), plus the in-repo host config `.rp.md`. There is no runnable product surface — no CLI, server, UI, or library API — for an end-to-end flow to exercise, and the project constraint forbids structural tests that assert the content of skill or agent files. Each acceptance criterion is verified instead by the per-task Acceptance entries below (read against the resulting file text) and, at runtime, by the `code-reviewer` / `docs-reviewer` applying the output rules — which is itself the enforcement mechanism this feature installs, not a flow to be re-driven here. The `code-reviewer` re-driving this section should therefore expect no flows; the spec's acceptance criteria map to tasks, not to e2e flows, for this change.
+
 ## Tasks
 
 ### Task 1: Create the canonical `output-rules.md` reference file
 
 - **Goal:** Create the single authoritative statement of both output rules as a new skill reference file, to be reached by name (the `summary-format.md` pattern) and never referenced by an agent profile.
+- **Type:** tdd
 - **Files to change:**
   - Create `skills/radical-pipelines/reference/output-rules.md`.
 - **Changes:** Write a new minimalist reference file. It is the single source of truth for both rules. Include, in prose consistent with the existing reference files (e.g. `summary-format.md`):
@@ -40,6 +55,7 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 2: Reconcile the commit-format convention in `setup.md`
 
 - **Goal:** Reconcile the tool's commit-format convention guidance so the `(agent-name)` provenance tag is documented as belonging to artifact-only commits, not to commits that introduce host-project product.
+- **Type:** tdd
 - **Files to change:**
   - `skills/radical-pipelines/reference/conventions/setup.md` (the "Commit format" subsection, lines 54-60).
 - **Changes:** Edit the "Commit format" subsection so its guidance and suggested default distinguish two commit kinds:
@@ -57,6 +73,7 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 3: Reconcile the in-repo host commit format in `.rp.md`
 
 - **Goal:** Reconcile the Radical Pipelines repository's own commit-format convention so it does not mandate the agent-name parenthetical on product commits, preventing the tool from flagging its own product commits.
+- **Type:** tdd
 - **Files to change:**
   - `.rp.md` (the "Commit format" subsection, lines 49-58).
 - **Changes:** Edit the "Commit format" subsection so the agent-name parenthetical (or `assisted`) is documented as belonging to **artifact-only** commits, while commits that introduce host-project product (code or external documentation) carry **no** agent-name provenance tag. Keep the existing imperative-mood / sentence-case / no-trailing-period rules unchanged — only the provenance-tag scope changes. Adjust the examples so they illustrate both kinds: an artifact-only commit retaining the tag (e.g. `Add intent (orchestrator)`) and a product commit without a tag. Keep it consistent in meaning with the reconciled `setup.md` convention from Task 2, but written as this repo's own host config (this file is the host format, not the tool convention).
@@ -71,6 +88,7 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 4: Update `code-writer-tdd.md` — obey/self-check obligation, reworded commit step, remove superseded line
 
 - **Goal:** Give `code-writer-tdd` the shared obey-both-output-rules-and-self-check obligation under the name-handle "the output rules", reword its commit step so the no-provenance and host-format instructions cohere, and remove the superseded narrower Rule 2 line.
+- **Type:** tdd
 - **Files to change:**
   - `agents/code-writer-tdd.md` (line 33; the commit step at line 49; and a new obligation in the Guidelines or workflow, mirroring the blocker-protocol restatement placement).
 - **Changes:**
@@ -89,6 +107,7 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 5: Update `code-writer-e2e.md` — obey/self-check obligation and reworded commit step
 
 - **Goal:** Give `code-writer-e2e` the same shared obey-and-self-check obligation under "the output rules", and reword its commit step to cohere with the no-provenance obligation.
+- **Type:** tdd
 - **Files to change:**
   - `agents/code-writer-e2e.md` (the commit step at line 40; and a new obligation in the Guidelines, mirroring Task 4).
 - **Changes:**
@@ -105,6 +124,7 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 6: Update `docs-writer.md` — obey/self-check obligation and reworded commit step
 
 - **Goal:** Give `docs-writer` the same shared obey-and-self-check obligation under "the output rules", and reword its commit step to cohere with the no-provenance obligation.
+- **Type:** tdd
 - **Files to change:**
   - `agents/docs-writer.md` (the commit step at line 52; and a new obligation in the Guidelines, mirroring Task 4).
 - **Changes:**
@@ -121,12 +141,13 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 7: Update `code-reviewer.md` — commit-messages gather-context input and "Output rules" check
 
 - **Goal:** Give `code-reviewer` the data and the checklist entry to enforce the output rules: a new gather-context input (the batch's commit messages) and an "Output rules" entry in its step-2 review checklist.
+- **Type:** tdd
 - **Files to change:**
   - `agents/code-reviewer.md` (step 1 "Gather context", after the diff input at line 19; step 2 "Review the changes" checklist, lines 23-31).
 - **Changes:**
   - **Add a gather-context input** in step 1, alongside the existing "Inspect the diff for the batch (base ref → current HEAD)": the batch's commit messages — the base→HEAD `git log` — as an explicit, separate input, since the diff carries no commit messages. State it as a distinct step, not folded into "inspect the diff".
-  - **Add an "Output rules" entry** to the step-2 checklist (the list that already covers Acceptance coverage, design alignment, plan adherence, test quality, inline docs, convention compliance). The entry directs the reviewer to apply the output rules from its launch prompt over two inputs: (a) the batch diff — Rule 1 (no tidying of comments/prose belonging to content the change did not touch) and Rule 2 (no reference to this run's pipeline, phases, artifacts, or agents, and no process/provenance narration, anywhere in code, identifiers, string literals, log/error messages, or inline docs), applying the referent-based this-run discriminator so legitimate host vocabulary (including this self-hosting repo's own README/website) is not flagged; and (b) the batch's commit messages — Rule 2's commit clause (R6). State that within this batch every commit is a product commit (the writers commit only host-project product, never pipeline artifacts), so the commit-message check is simply "no pipeline-naming provenance (including no agent-name tag) on any commit in the batch"; the reviewer runs no per-commit artifact-vs-product discriminator here. Refer to the rules by the handle "the output rules from your launch prompt", mirroring how step 5 already refers to "the summary format from your launch prompt" — do not name the skill file. A finding flows through the existing Issues schema (a must-fix issue tagged to the offending task) and rejection path with no structural change.
-- **Depends on:** Task 1 (defines the rules and the discriminator the reviewer applies), Task 9 (the phase file that actually inlines the rules into the launch prompt — but the profile edit references "your launch prompt" so it does not require Task 9 to be present in the file; ordered before Task 9 is acceptable, the dependency is logical not textual). Mark **Depends on: Task 1**.
+  - **Add an "Output rules" entry** to the step-2 checklist (the list that already covers Acceptance coverage, design alignment, plan adherence, test quality, inline docs, convention compliance). The entry directs the reviewer to apply the output rules from its launch prompt over two inputs: (a) the batch diff — Rule 1 (no tidying of comments/prose belonging to content the change did not touch) and Rule 2 (no reference to this run's pipeline, phases, artifacts, or agents, and no process/provenance narration, anywhere in code, identifiers, string literals, log/error messages, or inline docs), applying the referent-based this-run discriminator so legitimate host vocabulary (including this self-hosting repo's own README/website) is not flagged; and (b) the batch's commit messages — Rule 2's commit clause (R6). State that within this batch every commit is a product commit (the writers commit only host-project product, never pipeline artifacts), so the commit-message check is simply "no pipeline-naming provenance (including no agent-name tag) on any commit in the batch"; the reviewer runs no per-commit artifact-vs-product discriminator here. Refer to the rules by the handle "the output rules from your launch prompt", mirroring how step 5 already refers to "the summary format from your launch prompt" — do not name the skill file. A finding flows through the existing Issues schema (a must-fix issue tagged to the offending task) and rejection path with no structural change. (Note on ordering relative to Task 9: this profile edit refers only to "the output rules from your launch prompt"; it does not name or read `output-rules.md` or any phase file, so it does not depend textually on Task 9 wiring the canonical content into the launch prompt. The runtime anchoring of that handle is Task 9's concern; this task can land before or after Task 9. Hence the only dependency is Task 1, which fixes the rule names and the discriminator this entry's wording must match.)
+- **Depends on:** Task 1.
 - **Traces to:** Design "Reviewer profiles" (new gather-context input + "Output rules" checklist entry) / Decision "Reviewer-style enforcement…"; Spec R8/AC7 (enforcement), AC4 (code content), AC5 (commit messages), R6/AC9, R4/AC6 (discriminator).
 - **Acceptance:**
   - `code-reviewer.md` step 1 lists the batch's commit messages (base→HEAD `git log`) as an explicit gather-context input, distinct from the diff.
@@ -139,6 +160,7 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 8: Update `docs-reviewer.md` — commit-messages gather-context input and "Output rules" check
 
 - **Goal:** Give `docs-reviewer` the same new gather-context input and "Output rules" checklist entry as `code-reviewer`, scoped to docs output.
+- **Type:** tdd
 - **Files to change:**
   - `agents/docs-reviewer.md` (step 1 "Gather context", after the diff input at line 21; step 2 "Review the changes" checklist, lines 25-33).
 - **Changes:**
@@ -156,6 +178,7 @@ Naming convention used throughout this plan (settled here so writers need not ch
 ### Task 9: Wire `output-rules.md` into the two phase files' reviewer-dispatch step
 
 - **Goal:** Have the orchestrator pass the resolved content of `output-rules.md` to each reviewer at launch, mirroring how it already passes the resolved content of `summary-format.md`, so the reviewers' "Output rules from your launch prompt" handle is anchored to the canonical statement without any profile referencing the file.
+- **Type:** tdd
 - **Files to change:**
   - `skills/radical-pipelines/reference/autonomous-phases/4 - code.md` (step 4, line 37).
   - `skills/radical-pipelines/reference/autonomous-phases/5 - docs.md` (step 4, line 37).
