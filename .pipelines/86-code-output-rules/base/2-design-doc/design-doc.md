@@ -1,0 +1,166 @@
+# Design Doc: Default output rules for generated code
+
+## Overview
+
+Every Radical Pipelines run ships output into a host repository: source code, tests, inline documentation, and external documentation, plus the commit messages that carry them. Two desirable properties of that output are today hand-passed to each pipeline by the owner, and one has already leaked in practice — generated code carried a comment narrating the pipeline's own process. This feature promotes both properties into the tool itself so every run gets them for free, always-on, with no owner action and no opt-out:
+
+- **Rule 1 — leave unchanged comments and prose untouched.** A change must not reword, reflow, or reformat comments on code it did not modify, or prose sections of a documentation file it edits but did not otherwise touch.
+- **Rule 2 — the host-project product is transparent to the pipeline.** The shipped product must not reference this run's pipeline, its phases, its artifacts, or its agents, anywhere in its content; it must read as if written by hand.
+
+The host project here is Radical Pipelines itself, which is a prompt/skill system, so this design is a change to the tool's own skill reference files and agent prompts — not to runtime code. The chosen approach states both rules once canonically in a new skill reference file, restates the role-specific obligation in the five Code/Docs producing and reviewing agent profiles under a shared name-handle (mirroring the existing blocker-protocol pattern), and enforces compliance through the one gate that already governs Code/Docs phase completion: the per-batch reviewer. No new gate type, artifact, completion predicate, or runtime mechanism is introduced.
+
+## Approach
+
+The producing surface is narrow and fixed. Only two phases ship host-project product: the Code phase (writers `code-writer-tdd`, `code-writer-e2e`) and the Docs phase (writer `docs-writer`). Each phase is gated by a single adversarial reviewer (`code-reviewer`, `docs-reviewer`), and a phase reaches "complete" *only* when its reviewer approves — approval is the sole path that writes `code-review-approved.md` / `docs-review-approved.md`, which the orchestrator's completion predicate requires. The Code and Docs phases are autonomous-only (they cannot run in the assisted workflow), so these five profiles are the complete set the rules must reach.
+
+The design realizes the spec along four coordinated moves:
+
+1. **One canonical statement of both rules** lives in a new skill reference file, `skills/radical-pipelines/reference/output-rules.md`. It defines each rule, its total reach across product surfaces, the carve-outs that prevent over-reach (Rule 1's "content the change *did* touch" exemption; Rule 2's referent-based "this run" test), and the commit-message clause. This is the single source of truth, reached by name the way the skill already reaches `summary-format.md`, `pipeline-versioning.md`, and other cross-cutting definitions.
+
+2. **Role-specific obligations restated in the five profiles** under the shared name-handle "the output rules." Writers get an *obey + self-check before commit* obligation plus guidance to write product commit messages with no pipeline-naming provenance. Reviewers get an *Output rules* check folded into their existing review checklist. The profiles do not reference the skill file (a project constraint forbids it); they restate the operative obligation, exactly as every profile already restates the blocker protocol under the handle "the workflow's blocker protocol."
+
+3. **Removal of the pre-existing narrower Rule 2 line** at `agents/code-writer-tdd.md:33` ("Comments must be self-contained — never reference the spec, the plan, or any other artifact"), replaced by the consistent statement so no two overlapping versions survive to drift apart.
+
+4. **Reconciliation of the commit-format convention** so the agent-name provenance tag is documented as belonging to artifact-only commits, not product commits — removing a standing conflict between the tool's default commit format and Rule 2 as it reaches commit messages.
+
+Enforcement reuses the existing gate verbatim. A writer commits its product (ideally clean after self-checking); the per-batch reviewer runs the Output-rules check over the batch diff and the batch's product commit messages; any violation becomes a must-fix issue tagged to the offending task, producing a rejection file; the orchestrator re-dispatches only the flagged tasks; the loop repeats until the reviewer approves. Because the completion predicate requires the approval file, and approval is only written when the reviewer finds no violation, **the phase cannot complete while a known violation stands** — AC7 is satisfied mechanically, not by exhortation.
+
+The implementer's mental model: this is the same shape as every other always-on behavioral obligation in the tool — one canonical definition in the skill, role-specific restatements in the profiles tied by a name-handle, and enforcement by the adversarial reviewer that already gates the phase. The output rules add rule text and one convention edit; they add no new machinery.
+
+## Components
+
+### New
+
+- **`skills/radical-pipelines/reference/output-rules.md`** — the canonical, authoritative statement of both rules. Holds: each rule's name and obligation; the total reach across product surfaces (Rule 2 covers code comments, identifiers/names, string literals, log/error messages, inline API docs, and external docs; Rule 1 covers comments and prose wherever they exist in an edited file); Rule 1's carve-out (content the change itself touched is exempt) and Rule 2's referent-based carve-out (the this-run discriminator and the type-level-vs-this-run distinction, with the self-hosting repo as the worked example); the commit-message clause (product commits carry no pipeline-naming provenance; artifact-only commits are exempt); and the enforcement note that the Code/Docs reviewers gate on these rules. Referenced by name from orchestrator-read context; never referenced by an agent profile.
+
+### Modified
+
+- **Producing profiles** — `agents/code-writer-tdd.md`, `agents/code-writer-e2e.md`, `agents/docs-writer.md`. Each gains the *obey both output rules + self-check own output before committing* obligation, stated consistently and tied to the "the output rules" name-handle, plus guidance that product commit messages carry no pipeline-naming provenance. `code-writer-tdd.md` additionally **loses** its narrower line 33, which the new consistent statement supersedes.
+- **Reviewer profiles** — `agents/code-reviewer.md`, `agents/docs-reviewer.md`. Each gains an **"Output rules"** entry in its step-2 review checklist (the existing list that already covers Acceptance coverage, design alignment, plan adherence, inline docs, and convention compliance). The check covers Rule 1 and Rule 2 over the batch diff, and Rule 2/R6 over the batch's product commit messages. A finding flows into the existing Issues schema (a must-fix issue tagged to the offending task), rejection file, and re-dispatch path with no structural change.
+- **Commit-format convention** — `skills/radical-pipelines/reference/conventions/setup.md`. Its guidance is reconciled so the `(agent-name)` provenance tag is documented as belonging to artifact-only commits, not product commits. The Radical-Pipelines repo's own `.rp.md` commit-format convention (which currently mandates the agent parenthetical on every commit) needs the same reconciliation, or the tool would flag its own product commits.
+- **Phase files** — `skills/radical-pipelines/reference/autonomous-phases/4 - code.md` and `5 - docs.md`. The reviewer-dispatch step (step 4 in each) gains a by-name pass of `output-rules.md` to the reviewer, mirroring how it already passes "the resolved content of `summary-format.md`." This anchors the reviewer's Output-rules check to the canonical statement without a profile referencing the file.
+
+### Untouched but relevant
+
+- **The completion predicate** (`pipeline-versioning.md`) and the **reviewer → orchestrator → re-dispatch loop** (steps 4–6 of each phase file) are reused exactly as-is; enforcement needs no change to them.
+- **The assisted workflow** needs nothing — Code and Docs are autonomous-only, so no assisted producing path exists to cover.
+- **Planners, plan-reviewers, spec/design-phase agents, and the two reviewers' commits** emit only pipeline artifacts. Their commits stay artifact-only, so they keep the provenance tag, and Rule 2 does not reach their output (AC9).
+
+## Interfaces and Data Flow
+
+The "interfaces" here are prompt contracts, not code APIs. Two delivery channels carry the rules, both already used by the codebase.
+
+### Skill → reviewer (orchestrator-inlined content)
+
+Precedent: the orchestrator passes "the resolved content of `summary-format.md`" into each reviewer's launch prompt (`4 - code.md:37`, `5 - docs.md:37`); the reviewer profile then refers to "the summary format from your launch prompt" and never names the skill file. The output rules use the identical channel: the orchestrator inlines the resolved content of `output-rules.md` when launching `code-reviewer` / `docs-reviewer`, and the profile refers to "the output rules" by name-handle. This keeps the profile free of skill-file references while anchoring it to the single canonical statement.
+
+### Profile-resident obligation (restated text)
+
+The writers' *obey + self-check* obligation and the reviewers' *Output rules* check are written directly into the profiles — the blocker-protocol device — in consistent wording tied together by the "the output rules" name-handle.
+
+### Content interface of `output-rules.md`
+
+For each rule, the file states: a name/handle, the obligation, the reach (the R5 surfaces), the carve-out, and (for Rule 2) the commit-message clause. Writers read it as "what to produce / self-check"; reviewers read it as "what to flag." The two roles read the same statement from opposite sides.
+
+### Violation data flow (reuses the existing loop verbatim)
+
+1. A writer emits product and commits (ideally clean after self-check).
+2. The reviewer's step-2 Output-rules check inspects the batch diff base→HEAD — Rule 1 over untouched comments/prose, Rule 2 over this-run references in code/identifiers/strings/logs/inline+external docs — and the batch's product commit messages (Rule 2/R6).
+3. On any violation, the reviewer records a must-fix issue in the rejection file, **tagged to the offending task** (existing Issues schema), verdict reject, file `*-review-N-rejected.md`.
+4. The reviewer reports the deduplicated flagged task IDs; the orchestrator re-dispatches only those; a fresh writer reads the scoped issues and fixes them.
+5. The loop repeats until the reviewer approves, writes `*-review-approved.md` plus the summary, and the completion predicate becomes satisfiable. While a violation stands, no approval file exists, so the phase cannot complete.
+
+### The Rule 2 "this-run" discriminator (the content interface that prevents over-reach)
+
+Rule 2 forbids a reference whose **referent is *this run's* pipeline process, artifacts, or agents** — not the vocabulary. Concretely, it flags:
+
+1. a pointer to *this run's actual* artifact files or artifacts-folder path (e.g. the concrete `.pipelines/<this-run-slug>/.../spec.md`);
+2. a reference to a phase or plan task *of this run* (e.g. "implements task 4.2 of this code plan", "in the Docs phase");
+3. narration of the *writing agent's own* task/process (e.g. a comment explaining code in terms of the task the agent was given);
+4. any claim the output was produced by the pipeline or its agents, including an agent-name provenance tag.
+
+It does **not** flag the tool's vocabulary, nor a host project (including the Radical Pipelines repo) documenting pipeline concepts or its own artifact *types* in general. The reviewer can apply this test because it holds three anchors: (i) the run's concrete `<artifacts-folder>` path from its launch context, to test "is this *this run's* instance?"; (ii) the R4/AC6 carve-out from the spec it reads; and (iii) the diff, which makes process/provenance narration (cases 3–4) detectable regardless of vocabulary, since "the agent that wrote this" is intrinsically this-run.
+
+## Key Decisions
+
+### Decision: Express the rules as tool defaults, not host-configurable conventions
+
+- **Choice:** State both rules as tool constants — canonical text in `output-rules.md` plus profile restatements — outside the `## Conventions` block the orchestrator builds.
+- **Alternatives:** Inject the rules as an always-present field in the `## Conventions` block. Rejected because that block is the host-configurable layer, sourced entirely from `.rp.md`; placing a tool constant there breaks the block's meaning and implies host-overridability.
+- **Trade-offs:** The rules live in skill/profile text rather than a single config field, but that is where tool constants belong and it is the only home that cannot be overridden.
+- **Traces to:** R1 / AC1 (always-on, no owner action), Out-of-scope #3 (no override or opt-out).
+
+### Decision: "State once" = one canonical skill statement + consistent name-handled restatements
+
+- **Choice:** Put the one authoritative statement of both rules in `output-rules.md`, and restate the role-specific obligation in each of the five Code/Docs profiles, tied together by the shared name-handle "the output rules." Remove the narrower line at `code-writer-tdd.md:33` so no overlapping version survives.
+- **Alternatives:** (a) A single skill file the profiles point at — rejected outright: a project constraint forbids a profile from referencing any skill file or `.rp.md`; a profile reads only itself and its initial prompt. (b) Copy the full statement into both phase files — rejected: that is duplication across two reading paths, which the project's no-duplication rule forbids, and the project's own answer is to extract a shared named file.
+- **Trade-offs:** The obligation's operative wording physically appears in five profiles. This is the project's established and accepted norm for cross-cutting tool defaults — the blocker protocol is delivered the same way (one canonical definition in a skill file plus ~14 per-profile restatements under "the workflow's blocker protocol"). The no-duplication rule governs the skill's own reading paths, which keep exactly one copy in `output-rules.md`; the per-profile reading path is separate. The residual risk is drift between the five restatements over time, mitigated by the single canonical file they all track and the shared name-handle. AC8's literal test is met: the rules are stated once and consistently, and the narrower `code-writer-tdd.md:33` no longer exists as a separate, conflicting version. "Once" here means one authoritative wording, exactly as the blocker protocol is "one protocol" despite many restatements — not one physical copy.
+- **Traces to:** R7 / AC8 (stated once and consistently; the narrower version removed).
+
+### Decision: Canonical home is a new `reference/output-rules.md`
+
+- **Choice:** Create a dedicated `skills/radical-pipelines/reference/output-rules.md` and reference it by name, at minimum from the two phase files where the orchestrator hands the reviewers their job.
+- **Alternatives:** (a) Carry the statement in both phase files — rejected as cross-path duplication. (b) Fold it into `autonomous-workflow.md` near the blocker protocol — rejected: that file is the orchestrator-loop procedure; the output rules are a property of agent output enforced by reviewers, not an orchestrator-loop concern, and the project's habit is a dedicated named file per cross-cutting concept.
+- **Trade-offs:** Adds one file, but matches the dominant established pattern (`pipeline-versioning.md`, `guardrails.md`, `intent-format.md`, and especially `summary-format.md`, which is already pulled into both phase reviewers — the exact structural twin of "one definition, both producing-phase reviewers anchor to it").
+- **Traces to:** R7 / AC8.
+
+### Decision: Referent-based discriminator for Rule 2 over-reach
+
+- **Choice:** Rule 2 forbids only references whose referent is *this run's* pipeline process, artifacts, or agents (the four cases enumerated under Interfaces). It explicitly does not flag the tool's vocabulary or a host's documentation of pipeline concepts/artifact types in general.
+- **Alternatives:** A token-based check — keyword scan, or even a literal `<artifacts-folder>`/`.pipelines/` path scan. Rejected because it over-reaches catastrophically on the self-hosting repo, the canonical AC6 fixture: `README.md` legitimately uses "spec / design doc / pipeline / phases / artifacts" (including a sentence that mirrors AC4's exact phrasings) and lists all agent names as product documentation; `website/index.html` and `website/demo.js` literally contain `spec.md`, `design-doc.md`, `code-plan.md`, and `.pipelines/` as documentation of the tool's artifact *types*. A literal path scan still hits `.pipelines/` in `website/index.html`. None of these reference *this run's* artifacts, so all must pass — a token check cannot tell them apart from a real violation.
+- **Trade-offs:** Referent-based judgment is not command-decidable; it relies on the reviewer reading and applying the distinction. This is inherent — the spec requires distinguishing "this run's spec.md" from "the host's legitimate word 'spec'" — and the rule text in `output-rules.md` carries the type-level-vs-this-run distinction with the README/website as the worked fixture so the reviewer applies it consistently. The README is the standing regression fixture: a comment like "// added per task 3 of the code plan" fails the referent test and is correctly flagged; the README's prose passes.
+- **Traces to:** R4 / AC6 (this-run, not vocabulary; Radical Pipelines as host), AC4 (forbidden cases in code content), Out-of-scope #2 (no vocabulary ban).
+
+### Decision: Reviewer-style enforcement, with a writer self-check as prevention
+
+- **Choice:** Two layers. *Prevention* — the three writers obey both rules and self-check their output before committing. *Enforcement (load-bearing)* — `code-reviewer` and `docs-reviewer` each gain an "Output rules" check in their step-2 checklist; a violation is a must-fix, task-tagged rejection that re-dispatches the flagged tasks; the phase cannot reach its approval file until the violation is gone.
+- **Alternatives:** (a) A deterministic tool-shipped command gate — rejected on two independent grounds: there is no mechanism for the *tool* to ship a mandatory gate (all guardrail gates are host-declared, optional, and authored in `.rp.md`), and the rules are not command-decidable (Rule 1's "gratuitous tidy" vs "comment updated with its own code" per AC3, and Rule 2's "this-run reference" vs "legitimate vocabulary" per R4/AC6 are semantic judgments a diff cannot make). (b) A hybrid (reviewer + deterministic assist) — rejected as the primary architecture because the deterministic half has no mechanism to run as a tool default and so cannot be relied on.
+- **Trade-offs:** Judgment-based enforcement inherits the reviewer's fallibility — a subtle violation could pass a given pass — but that is true of every check the gate already performs (Acceptance coverage, design alignment, scope creep, convention compliance), and the adversarial "reject liberally" posture is the project's accepted answer. In exchange it reuses 100% of the existing infrastructure: no new mechanism, artifact, or completion predicate. The writer self-check reduces reject loops but is not the gate — a writer can commit a violation; the reviewer is what stops the phase. AC7 holds mechanically: no approval file ⇒ predicate unsatisfied ⇒ phase blocked.
+- **Traces to:** R8 / AC7 (enforced; a violation blocks phase completion), Out-of-scope #4 (the spec defers the mechanism choice).
+
+### Decision: Confine the provenance tag to artifact-only commits; R6 is part of Rule 2's reach
+
+- **Choice:** Treat "no pipeline-naming provenance in a product commit message" as part of Rule 2 (R6), enforced by the reviewer's Output-rules check over the batch's product commit messages. The `(agent-name)` provenance tag is confined to artifact-only commits. The commit-format convention's guidance (`setup.md`, and the repo's own `.rp.md`) is reconciled so its default no longer puts the agent tag on product commits.
+- **Alternatives:** (a) Rely on the `artifacts-in-fork` upstream transform that strips attribution — rejected: R6 requires the boundary to hold "the same whether ... a separate fork or directly in the upstream repository," and `artifacts-in-repo` has no transform, leaving the tagged commit as the permanent product commit; the fork transform also only runs at PR time. (b) Have the reviewer flag R6 while leaving the host format untouched — rejected as insufficient: if the configured format injects `(agent-name)` on every commit, the reviewer would reject every run for faithfully following the host's own commit-format convention, putting two tool instructions in direct conflict.
+- **Trade-offs:** This touches more surface (the convention text, the writers' commit guidance, and the reviewer check) but is the only option that satisfies R6 in both storage modes and removes the default-format-vs-R6 conflict at its source. It preserves AC9 — artifact-only commits keep the tag, preserving provenance where the spec allows it. This is a change to the commit-format convention's *meaning* (which commits carry the tag), not merely its default string.
+- **Traces to:** R6 (product commit messages, including any provenance tag) / AC9 (artifact-only commits exempt).
+
+## Dependencies
+
+The design depends only on existing, internal mechanisms; it introduces no external libraries, services, runtime code, or new architectural concepts:
+
+- The **agent-profile reading path** (a profile reads only itself and its launch prompt).
+- The orchestrator's **launch-prompt assembly** and the phase files' reviewer-dispatch step, which already inline resolved skill content (the `summary-format.md` precedent) — reused to deliver `output-rules.md` to the reviewers.
+- The **reviewer → orchestrator → re-dispatch loop** and the per-phase **completion predicate** (`pipeline-versioning.md`), both reused unchanged.
+- The **commit-format convention** (`setup.md` and the host's `.rp.md`), which this design edits.
+- The **shared-reference-file-by-name pattern** (`summary-format.md`, `pipeline-versioning.md`), reused as the model for `output-rules.md`.
+
+The only **new dependency** is the new skill file `output-rules.md` itself, which is a prose addition, not an installable component.
+
+## Failure Modes and Observability
+
+The pipeline's existing inspectable artifacts are the entire observability surface; this design adds no new logging. Every violation and every clean gate is recorded in committed review files — `*-review-N-rejected.md` (each finding, tagged to a task, in the Issues section) and `*-review-approved.md` (the clean gate). A human can audit these directly.
+
+Failure modes and their handling:
+
+1. **False negative — the reviewer misses a violation.** A subtle this-run reference or a tidy-of-untouched-comment slips past a judgment-based pass. Mitigation: the adversarial "reject liberally" posture, an explicit and anchored rule statement, and the committed review files that allow later audit. Residual risk is accepted — it is the same risk every semantic check the gate performs already carries. Downstream phases should not over-promise "guaranteed" detection; the guarantee is "the gate is instructed to detect and reject, and a violation cannot be approved once seen."
+2. **False positive — the reviewer flags legitimate host vocabulary (AC6),** most acutely on the self-hosting repo. Mitigation: the referent-based discriminator plus the README/website fixture cited in `output-rules.md`, so the reviewer applies the type-level-vs-this-run test; a wrong flag is named in the rejection file and is therefore visible and correctable on the next pass.
+3. **Rule 1 over-reach — flagging a comment legitimately updated with its own code (AC3).** Mitigation: the rule's carve-out is stated explicitly, and the reviewer has the diff to see whether the comment's *own* code changed.
+4. **Commit-format conflict — a host's configured format still injects the agent tag on product commits.** Mitigation: the convention reconciliation removes the conflict at the source; until a host updates its `.rp.md`, the reviewer check surfaces it as a normal rejection (named in the review file), not a silent pass.
+
+## Risks and Open Questions
+
+### Risks
+
+- **Judgment-based enforcement is inherently fallible (R8/AC7).** Both rules are decided by the reviewer's reading, not a deterministic gate (a tool-default gate is impossible in this architecture, and the rules are not command-decidable). A subtle violation can pass a given review. This is the accepted trade-off — it is how every semantic check in the pipeline already works.
+- **"State once" / AC8 self-application.** The design intentionally restates the obligation per profile (the blocker-protocol pattern). A reviewer of this very feature could misread "stated once" as "one physical copy." The Key Decisions section above makes explicit that "once" means one canonical skill statement plus consistent name-handled restatements, and that AC8's literal test — the narrower `code-writer-tdd.md:33` no longer exists as a *conflicting* version — is met. The drift risk between the five restatements is mitigated by the single canonical file and the shared name-handle.
+- **The commit-format convention is host-owned (R6).** The fix reconciles the tool's guidance, but a host that has already configured a format with `(agent-name)` on product commits would, until it updates `.rp.md`, trip the reviewer's R6 check on every product commit. For the Radical Pipelines repo itself, `.rp.md`'s commit-format convention ("Include the name of the agent in parenthesis", e.g. `Add intent (orchestrator)`) needs the same reconciliation, or the tool would flag its own product commits. The reconciliation must reframe the provenance tag as artifact-only, not merely change a default string.
+- **AC6 over-flagging on the self-hosting repo.** Because Radical Pipelines builds itself, its README, website, and skill legitimately contain every flaggable token. If the referent-based discriminator is stated weakly, the reviewer will reject legitimate content and stall the phase. The README is the canonical regression fixture; the rule text must carry the type-level-vs-this-run distinction and the concrete this-run anchor. This is a high-attention item for the writer and for the Code/Docs phases.
+- **Scope of Rule 1 "prose" in docs files (R2/R5).** Rule 1 covers "unrelated prose sections of a documentation file the change edits." The docs-reviewer must distinguish prose the task legitimately rewrote from untouched prose merely reflowed. The diff supports this, but the rule wording must make the "did the change touch this section" line clear to avoid AC3-style over-reach in docs.
+
+### Open Questions (deferred to the implementation/plan phase)
+
+- **Commit-format convention rewording (R6).** The decision (confine the agent tag to artifact-only commits) is settled; the exact phrasing in `setup.md` and the host `.rp.md` example — without breaking the existing default for the many artifact-only commits — is a writer/plan-phase wording detail, including whether the in-repo upstream/PR step needs any analogous note.
+- **Naming of the rules.** Whether to give the two rules short handles ("Rule 1 / Rule 2", "the output rules") used consistently across the five profiles and the canonical statement. The shared name-handle is recommended; the exact names are a writer-phase choice.
+- **Exact orchestrator-pass wording in the phase files.** Whether `output-rules.md` content is passed to the reviewer as "resolved content" (mirroring `summary-format.md`) or the reviewer is told to apply "the output rules" with content inlined — pick the phrasing that mirrors `summary-format.md` most closely.
+- **Whether writers also need the canonical content inlined.** Writers must obey and self-check; their profile restatement may suffice, or the orchestrator may also inline `output-rules.md` at writer launch (no current precedent for passing a skill doc to writers beyond conventions). Lean on the profile restatement; confirm in planning.
