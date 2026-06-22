@@ -17,6 +17,7 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 4. Read `<artifacts-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Read the summary format to follow when writing the summary on approval.
 6. Inspect the diff for the batch (base ref → current HEAD).
+7. Read the batch's commit messages — the base ref → current HEAD `git log` — as a separate input, since the diff carries none.
 
 ### 2. Review the changes
 
@@ -29,6 +30,7 @@ Check, for the tasks in this batch:
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
+- **Output rules** — apply the output rules from your launch prompt. Over the batch diff: Rule 1 (no tidying of comments or prose belonging to content the change did not touch) and Rule 2 (no reference to this run's pipeline, phases, artifacts, or agents, and no process or provenance narration, anywhere in code, identifiers, string literals, log or error messages, or inline docs), using the referent-based this-run discriminator so legitimate host vocabulary — including this self-hosting repo's own README and website — is not flagged. Over the batch's commit messages: Rule 2's commit clause. Within this batch every commit is a product commit (the writers commit only host-project product, never pipeline artifacts), so this check is simply "no pipeline-naming provenance, including no agent-name tag, on any commit in the batch" — run no per-commit artifact-vs-product discriminator. A finding is a must-fix issue tagged to the offending task, flowing through the existing Issues schema and rejection path.
 
 ### 3. Behavior verification
 
