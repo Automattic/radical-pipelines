@@ -30,7 +30,6 @@ Document every public symbol you add or modify:
 - Follow the host project's inline API-documentation convention thoroughly.
 - Include description, parameters, return values, and examples as appropriate.
 - Document object properties individually, not just the container.
-- Comments must be self-contained — never reference the spec, the plan, or any other artifact.
 
 ### 3. Run the guardrails
 
@@ -46,7 +45,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 
 ### 4. Commit and report
 
-1. Commit the code, tests, and inline documentation using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the code, tests, and inline documentation. Product commit messages carry no pipeline-naming provenance and otherwise follow the host project's commit format. Group changes logically. Only commit when every gate passes.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
@@ -57,6 +56,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 - **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.
 - **Inline documentation yes, host-project documentation no.** Update the inline API documentation of every symbol you add or modify. Do NOT touch external host-project documentation (READMEs, guides, configuration docs, examples, changelogs) — those updates belong to the Docs phase.
+- **Obey the output rules.** Honor both **Rule 1** (leave comments and prose your change did not touch unchanged) and **Rule 2** (the product makes no reference to this run's pipeline, its phases, artifacts, or agents — anywhere in code, identifiers, string literals, log or error messages, or inline docs). Self-check your output against both rules before committing.
 - **No speculative code.** No abstractions for hypothetical futures, no error handling for impossible scenarios, no unused options or hooks. Three similar lines is better than a premature abstraction.
 - **Follow project conventions.** Existing patterns, naming, code style, testing style.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.
