@@ -1,0 +1,20 @@
+# Design Doc Review
+
+## Verdict: approved
+
+## Summary
+
+The revised design doc is sound, complete, traceable, and feasible, and it genuinely resolves all three issues from the prior rejection rather than merely gesturing at them. Every spec requirement and acceptance criterion traces to a named decision or component, no considered alternative from `design-doc-research.md` was silently dropped, and the chosen approach is anchored to real, verified codebase precedents: the blocker-protocol restatement pattern (one canonical definition in `autonomous-workflow.md` §6 plus 15 per-profile restatements under the shared name-handle "the workflow's blocker protocol"), the `summary-format.md` launch-prompt delivery channel passed in step 4 of both phase files (`4 - code.md:37`, `5 - docs.md:37`), the reviewer-as-sole-gate completion predicate (`4 - code.md:39`, `5 - docs.md:39`), and the exact lines it must reconcile (`code-writer-tdd.md:33`, the three writers' "use the host project's commit format" commit steps, and `.rp.md:51` / `setup.md:54-60`). The enforcement story is mechanically sound for AC7: no approval file ⇒ predicate unsatisfied ⇒ phase blocked. I checked for new problems beyond the prior three and found none that rise to rejection.
+
+## Resolution of the prior rejection
+
+- **Issue 1 (reviewer R6 commit-message check had no specified input).** Resolved. The doc now adds an explicit new gather-context input — the batch's commit messages from the base→HEAD `git log`, alongside the existing diff — and states it as a reviewer-workflow addition, "not something folded implicitly into 'inspect the diff.'" It appears consistently across Approach move 2, Components → Reviewer profiles (first sub-bullet), Interfaces → Violation data flow step 2, Failure Mode 4, and the provenance Key Decision. This is feasible: the reviewer already holds the base ref, so a base→HEAD `git log` is trivially obtainable.
+
+- **Issue 2 (the product-vs-artifact distinction is vacuous inside the Code/Docs batch).** Resolved. The doc now states explicitly that within the batch a Code/Docs reviewer evaluates, every writer commit is a product commit, so the R6 check is simply "no pipeline-naming provenance on any commit in the batch," and that the reviewer runs no per-commit artifact discriminator there. It correctly relocates the AC9 exemption to where it actually does work ("Untouched but relevant"): protecting other phases' artifact commits and the reviewer's own approval commit, which is made after the step-2 check and outside the base→HEAD batch diff. Verified against the profiles: writers commit only product; the reviewer's approval commit is written in step 6, after the step-2 review.
+
+- **Issue 3 (writer-profile commit step collided with "use the host commit format").** Resolved. The doc now reworks the writer profiles' commit step itself — "product commit messages carry no pipeline-naming provenance, otherwise follow the host commit format" — and names the three-file coordination (the convention `setup.md`, the in-repo host `.rp.md`, and each writer profile's commit step), explicitly noting that reconciling the convention and `.rp.md` without the profile commit-step rewording is insufficient because an agent reads only its own profile. This removes the in-profile contradiction at its source.
+
+## Notes (non-blocking)
+
+- The deferred open questions (exact convention/`.rp.md`/commit-step phrasing, rule naming, the precise orchestrator-pass wording, and whether writers also get `output-rules.md` inlined) are genuine implementation/plan-phase details. The decisions they depend on are settled in the doc; only the wording is deferred. This is correct altitude for a design doc and does not leave a requirement unserved.
+- The "referent-based discriminator" decision is framed as the only sound option, but it earns that framing: it explicitly rejects the token-based alternative with the README/`website` self-hosting fixture, so the alternative is considered and refuted rather than left unexamined.
