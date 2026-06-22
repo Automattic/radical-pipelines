@@ -55,9 +55,14 @@ Suggested default: `.pipelines/<pipeline-slug>/`.
 
 The project's commit message format. Passed verbatim to every spawned agent so all commits in a pipeline match the project's style.
 
+A commit that introduces host-project product (code or external documentation) carries no pipeline-naming provenance. A commit that changes only pipeline artifacts may carry the agent-name provenance tag.
+
 Ask the owner for the format and capture at least one concrete example.
 
-Suggested default: `<commit-description> (<agent-name>)`.
+Suggested defaults:
+
+- Product commit: `<commit-description>` (no agent-name tag).
+- Artifact-only commit: `<commit-description> (<agent-name>)`.
 
 ### Issues (required)
 
