@@ -11,7 +11,7 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 - The skill must remain generic and must not contain any mention, even in examples, of things that are specific to any agentic coding tool (with the only exception of the files specifically dedicated to documenting these tools and that the orchestrator loads conditionally depending on the tool in question).
 - The skill must remain generic and must not contain any mention, even in examples, of issue tracking platforms, like GitHub or Linear.
 - On different paths, the skill must remain free of all duplication: if there is an instruction that is repeated in multiple files, that instruction must be moved to a separate file that the other files reference.
-- Agent profiles must not reference any skill file or `.rp.md`; an agent reads only its own profile and its initial prompt.
+- Agent profiles must not reference any skill file or `.rp.md`; an agent reads only its own profile and its initial prompt. A shared instruction is duplicated into each profile, not extracted to a referenced file.
 - The skill must describe the system only as it is designed to work, not transient, historical, or speculative situations. A case earns a place in the skill only when it is a durable part of the design — not a one-off (like a migration leftover) or a future need that doesn't yet exist.
 - Reuse the terms and identifiers the skill already defines instead of introducing new notation for the same concept.
 - The skill is prose, not software. Do not write structural tests that assert the content of skill or agent files — their sections, wording, or ordering. Such tests merely restate the skill and break on every legitimate edit.
