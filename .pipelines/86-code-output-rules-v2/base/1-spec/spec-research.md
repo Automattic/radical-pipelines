@@ -117,3 +117,68 @@ Pre-Q&A grounding (codebase as of branch base `2d57460`):
 6. Commit messages — Rule 2 applies to the message of any commit that introduces host-project product (code or docs); commits that change only pipeline artifacts are exempt. This holds the same whether artifacts live in a fork or directly in the upstream repo. (Rule 1 does not apply to commit messages — they carry no pre-existing comments/prose.)
 7. The rules govern every phase that produces host-project output — the Code phase and the Docs phase — consistently. The tool states them once, replacing the pre-existing narrower statement (`agents/code-writer-tdd.md`) so no two overlapping versions remain.
 8. Enforcement — a violation of either rule is detected and the producing phase cannot reach its complete/approved state until it is resolved. The detection mechanism is left to the design phase.
+
+---
+
+# v2 Revision — make the output rules overridable
+
+> v2 forks v1 at the spec (sharing v1's intent). The change reverses v1's **Q5/A5** decision ("always-on, no opt-out"): the rules are **on by default**, but a project may **disable the overridable ones** via a host convention. Per the owner's direction, **Rule 1 stays mandatory** (pure hygiene — nothing to disable); the override covers **Rule 2's content-transparency and the commit-provenance clause**. This section records only the revision Q&A; v1's Q&A above still grounds every requirement that is not changing.
+
+## v2 Q&A
+
+### RQ1 — Granularity of the override
+
+When a project disables the overridable rules, is it one control or several?
+
+- (a) **Single switch** — one control toggles "the overridable output rules" as a unit (Rule 2 content-transparency + the commit-provenance clause together); off means neither applies.
+- (b) **Separate switches** — independent controls for (i) Rule 2 content-transparency (no references to this run's pipeline anywhere in shipped code/docs) and (ii) the commit-provenance clause (whether product commits may carry the agent-name tag), so a project can disable one and keep the other — e.g. keep product reading as hand-written but still tag commits for attribution.
+- (c) Other.
+
+**A-RQ1:** (b) **Separate switches.** Two independent controls — (i) Rule 2 content-transparency and (ii) the commit-provenance clause — each disable-able on its own (e.g. keep hand-written-looking product while still tagging commits for attribution, or the reverse).
+
+### RQ2 — Where the switches can be set (level)
+
+- (a) **Per-project only** — set once in the project's host convention (`.rp.md`), applying to every run of that project; no per-run override.
+- (b) **Per-project default + per-run override** — the project sets a default, and an individual run can flip a switch for that run only.
+- (c) Other.
+
+**A-RQ2:** (a) **Per-project only.** The switches live in the project's host convention (`.rp.md`); no per-run override. Honors the intent's "set once, no per-run restating."
+
+### RQ3 — What the provenance switch toggles (the commit-message boundary)
+
+Rule 2's commit-message clause has two parts: (A) the message carries no pipeline **narrative/references** (e.g. no "implements task 4.2 of the code plan"); (B) the message carries no agent-name **provenance tag** (e.g. no `(code-writer-tdd)`). With two switches, which switch owns which part?
+
+- (a) Switch (ii) toggles **only (B) the provenance tag**; (A) no-pipeline-narrative-in-messages stays under switch (i) content-transparency (the commit message is "product" content). → A project can allow an attribution tag while still keeping pipeline narrative out of messages.
+- (b) Switch (ii) toggles the **entire commit-message clause (A)+(B)**; switch (i) governs only non-commit content. → Disabling (ii) allows both the tag and pipeline narrative in product commit messages.
+- (c) Other.
+
+**A-RQ3:** (a) Switch (ii) toggles **only the provenance tag (B)**. Pipeline narrative in commit messages (A) stays under switch (i) content-transparency, since a commit message is product content.
+
+### RQ4 — Default state of the switches
+
+Owner question: is "attribution tag disabled by default for the two product-producing agents (`code-writer`, `docs-writer`)" a good default, and does it interfere with any internal pipeline process? Owner noted an alternative: keep the tag during the run and strip it at PR/cherry-pick time.
+
+Orchestrator analysis (informing, not deciding):
+
+- The agent-name tag is load-bearing for provenance only on **artifact** commits (the pipeline's own process trail), which keep it. On **product** commits it serves no internal purpose: during v1's run, writers were tracked by task ID and by observing each commit land — never by the tag; the reviewer reads commit messages only to *enforce* the no-tag rule; completion predicates key on artifact files, not commit tags. Per-commit attribution stays recoverable from the message + code-plan mapping. So "no tag on product commits" loses no operational signal.
+- The "tag-now, strip-at-cherry-pick" alternative was considered in v1 and rejected as the *default* because (1) it only works in `artifacts-in-fork` mode — `artifacts-in-repo` projects commit product straight into the upstream repo with no cherry-pick step, leaving the tagged commit permanent; (2) PR-time cleanup is later and more fallible than never adding the tag and letting the existing reviewer gate check it at source.
+- In v2 this is exactly what the override enables: a project preferring tag-during-run + strip-at-PR simply **disables the provenance switch**, so writers keep the tag and strip at cherry-pick per its own PR rules. Default and alternative coexist.
+
+Question: confirm the defaults — **both switches default ON** (Rule 2 content-transparency applies; provenance tag confined to artifact-only, so product commits are untagged), a project disabling either in `.rp.md`. (Rule 1 stays always-on/mandatory — already settled, not a switch.)
+
+**A-RQ4:** Confirmed. Both switches **default ON**; a project disables either in `.rp.md`. Rule 1 stays mandatory.
+
+### Coverage self-check (v2 revision)
+
+- Granularity (RQ1), level (RQ2), commit-message boundary (RQ3), defaults + Rule 1 mandatory (RQ4) all settled. The override is **per-project, two independent rule-level switches, default-on**; disabling a rule means it does not apply and its reviewer enforcement is skipped for that rule. The switch *encoding* in `.rp.md` and how the enabled/disabled state reaches the reviewers are **mechanism — deferred to design**.
+- Everything else in v1's spec (Rule 1; Rule 2's content and reach; the this-run discriminator; surfaces; consistency/replace-narrower-statement; enforcement-blocks-completion) is unchanged.
+- No remaining spec gaps.
+
+### Out of Scope — v2 deltas
+
+- **Replaces v1 #3** ("any per-run or per-project override — always-on"): an override now exists. New exclusions in its place:
+  - **Per-run override** — the switches are per-project only (RQ2a); a single run cannot flip them.
+  - **Overriding Rule 1** — Rule 1 is always-on; only Rule 2 content-transparency and the provenance clause are switchable.
+  - **Per-agent / per-phase granularity** — a switch applies project-wide across both producing phases, not to individual agents.
+  - **The switch encoding in `.rp.md` and how its state reaches the reviewers** — design/mechanism, not spec.
+- v1 out-of-scope #1 (adjacent-still-valid comments), #2 (no vocabulary ban), #4 (enforcement mechanism), #5 (artifact-only commit messages) carry over unchanged.
