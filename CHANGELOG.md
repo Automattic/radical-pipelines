@@ -1,5 +1,27 @@
 # @automattic/radical-pipelines
 
+## 0.5.0
+### Minor Changes
+
+
+
+- [#161](https://github.com/Automattic/radical-pipelines/pull/161) [`b438113`](https://github.com/Automattic/radical-pipelines/commit/b4381136e4751eb2f6340ef20250050c101a6ece) Thanks [@SantosGuillamot](https://github.com/SantosGuillamot)! - Rename the runs that follow a pipeline's `base` run from `review-N` to `revision-N`, and the activity that creates them from "review"/"reviewing" to "revise"/"revising", so "review" denotes the phase-auditing activity only. `base` keeps its name, and the phase-audit "review" terms (reviewer agents, `*-review-approved.md`, `*-review-N-rejected.md`) are preserved. The command file `reference/review-pipeline.md` is renamed to `reference/revision-pipeline.md` and the `Reviewer base ref` heading to `Revision base ref`. This is a going-forward convention change — existing on-disk `review-N` run folders are not migrated.
+
+
+
+- [#135](https://github.com/Automattic/radical-pipelines/pull/135) [`5f13308`](https://github.com/Automattic/radical-pipelines/commit/5f133087f61e21e991d07f3186a1abb9cf6be0e5) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: rename the four documentation-phase agents from the singular `doc-*` to the plural `docs-*` (`docs-plan-writer`, `docs-plan-reviewer`, `docs-writer`, `docs-reviewer`), unifying the documentation concept on `docs` across the skill, agents, and plugin. Any reference to the old singular agent names must be updated.
+
+
+### Patch Changes
+
+
+
+- [#139](https://github.com/Automattic/radical-pipelines/pull/139) [`c1c284f`](https://github.com/Automattic/radical-pipelines/commit/c1c284f140f1b680446cdad9c5058dd885f0d531) Thanks [@luisherranz](https://github.com/luisherranz)! - Follow the issue create/modify workflow — the owner-led capture Q&A routed through the project's Issues convention — whenever the orchestrator creates or modifies an issue, including mid-session and mid-pipeline, rather than only at session start. A mid-run decision to author or revise an issue now re-enters that workflow instead of risking an ad-hoc issue authored outside it.
+
+
+
+- [#148](https://github.com/Automattic/radical-pipelines/pull/148) [`24fb66b`](https://github.com/Automattic/radical-pipelines/commit/24fb66b57460009d4366e459bcf7c19c7d51222c) Thanks [@SantosGuillamot](https://github.com/SantosGuillamot)! - Keep `package-lock.json`'s version fields in sync with the root package version: the release version step now also runs `npm install --package-lock-only` to reconcile the lockfile, the existing drift in the committed lockfile is corrected, and a CI drift check guards against future divergence.
+
 ## 0.4.0
 ### Minor Changes
 
