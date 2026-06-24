@@ -33,11 +33,11 @@ For each match capture, per the **Per-phase completion** rules in `pipeline-vers
 - **Fork a new pipeline** → read `fork-pipeline.md` to create a new pipeline from an existing one, then continue to step 3.
 - If the pipeline's completed phase is the last phase (phase 5) and there is no active phase, also offer:
   - **Merge** read `merge-pipeline.md`.
-  - **Review** read `review-pipeline.md`, then continue to step 3.
+  - **Revise** read `revision-pipeline.md`, then continue to step 3.
   - **Close** read `close-pipeline.md`.
 - When the owner is unsure which same-issue action to take, apply this rule:
   - **Resume** — finish an incomplete latest run, on the same branch.
-  - **Review** — layer an incremental change on a complete run, on the same branch, building on the existing code.
+  - **Revise** — layer an incremental change on a complete run, on the same branch, building on the existing code.
   - **Fork** — diverge onto a fresh branch from main.
 
 If the owner has already specified what to do, skip the question.
