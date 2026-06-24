@@ -18,7 +18,7 @@ None — this project defines no guardrails.
 
 - **Goal:** Bring the README sentence that enumerates what the orchestrator passes to a spawned agent at spawn time back into sync with the two new always-/conditionally-passed `## Conventions`-block items the code phase added, so a reader of the README's Configuration section gets an accurate picture of the spawn payload.
 - **Audience:** Skill users/consumers reading the README to understand how the pipeline isolates each spawned agent's work and what context an agent receives at spawn.
-- **Files to change:** `README.md` (the "Configuration" section; the sentence beginning "The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent or team, it passes …", currently the second-to-last paragraph of that section).
+- **Files to change:** `README.md` (the "Configuration" section; the sentence beginning "The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent or team, it passes …" — the verbatim opening locates it uniquely, so use that as the anchor rather than a paragraph position).
 - **Sections / scope:** Only the spawn-payload enumeration sentence and, if needed for accuracy, its immediate neighbors in the "Configuration" section. Do not restate the per-tool worktree/branch convention catalog already covered earlier in the same section, and do not duplicate the field-level prose that lives in the skill's `conventions/passing.md`.
 - **Depends on:** none
 - **Traces to:** Spec requirements 1, 2, 4, 5; design "Interfaces and Data Flow" (the new shape of the spawn-time `## Conventions` block); code-plan Task 1 (adds the worktree-root and branch fields to the block).
@@ -35,7 +35,7 @@ None — this project defines no guardrails.
 - **Files to change:** a new file under `.changeset/` (one `.changeset/<name>.md` entry, in the repository's standard changeset front-matter format).
 - **Sections / scope:** A single changeset entry for `@automattic/radical-pipelines` describing this change in imperative mood. Determine the bump type from the project's authoritative bump table and pre-1.0 policy in `CONTRIBUTING.md` ("Bump types" / "Pre-1.0 policy") against what actually landed — this is a behavioral improvement to the skill, not a bug fix and not a breaking change. Do not edit `CHANGELOG.md` directly (it is generated at release time).
 - **Depends on:** none
-- **Traces to:** Spec requirements 1–6 (the user-facing behavior the changeset describes); code-plan Tasks 1–3 (the `skills/**` edits that make a changeset mandatory under the changeset gate); the repository's standing changeset rule recorded in `AGENTS.md` and detailed in `CONTRIBUTING.md`.
+- **Traces to:** Spec requirements 1–6 (the user-facing behavior the changeset describes); code-plan Tasks 1–3 (the `skills/**` edits that make a changeset mandatory under the changeset gate); the repository's changeset rule in `CONTRIBUTING.md` (`### When a changeset is required`, which lists `skills/**`), mirrored by `.changeset/config.json` (`changedFilePatterns`).
 - **Acceptance:**
   - A committed `.changeset/*.md` entry exists for `@automattic/radical-pipelines`, in the standard changeset front-matter format, so the changeset gate's Presence check passes for a PR that touches `skills/**`.
   - The summary, in imperative mood, conveys that spawned agents' edits and commits are now kept inside the pipeline's worktree and on the pipeline branch via explicit spawn-time anchoring rather than implicit working-directory inheritance.
