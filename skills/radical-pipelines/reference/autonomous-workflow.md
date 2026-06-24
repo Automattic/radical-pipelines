@@ -36,7 +36,7 @@ At run start:
 
 1. Create the pipeline's team per the **Team spawning** convention.
 2. Start a recurring health monitor for the run per `reference/health-monitoring.md`.
-3. Capture the run's base ref per the **Reviewer base ref** rule in `pipeline-versioning.md`.
+3. Capture the run's base ref per the **Revision base ref** rule in `pipeline-versioning.md`.
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
