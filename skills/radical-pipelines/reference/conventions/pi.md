@@ -15,6 +15,10 @@ Use `@zenobius/pi-worktrees`; never use raw `git worktree` commands.
 
 Spawned teammates must use the Pi worktree as `cwd`, never the main checkout.
 
+To inject the worktree-root field, reuse this same absolute Pi worktree path: capture it from `/worktree create` if that surfaces an absolute path, otherwise resolve `.pi/worktrees/<folder-name>` against the repo root.
+
+> Note: the exact Pi-tooling specifics are unverified against live `@zenobius/pi-worktrees` — whether `/worktree create` emits an absolute path, the on-disk folder name (`worktree-<slug>` vs `<slug>`), and whether the spawn `cwd` value is absolute or repo-relative. A later check can pin the precise folder name without reopening this.
+
 ## Pi branch names
 
 Use `worktree-<pipeline-slug>`; this is the branch argument passed to `/worktree create`.
