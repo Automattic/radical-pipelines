@@ -75,12 +75,12 @@ generic "revised" (keep) AND phase-audit "review" (keep):
   live `grep -rni 'review'` / `grep -rni 'revis'` over `skills/`, `agents/`, `.rp.md` and
   classified every hit. Both the researcher and the analyst ran the grep; the two passes agree.
 
-**Decision — the authoritative rename map is 35 lines across exactly 5 files; everything else is
-KEEP.** Reconciliation: 252 `review` lines total = 35 bucket-A (rename) + 217 bucket-B
+**Decision — the authoritative rename map is 36 lines across exactly 5 files; everything else is
+KEEP.** Reconciliation: 252 `review` lines total = 36 bucket-A (rename) + 216 bucket-B
 (phase-audit, keep); plus 32 `revis` lines, all bucket-D (generic edit, keep). The 5 rename files
 are the entire surface. No agent profile is touched.
 
-**Rename file 1 — `pipeline-versioning.md` (8 of its 15 review-lines):**
+**Rename file 1 — `pipeline-versioning.md` (9 of its 15 review-lines):**
 
 | Line | Token (current) | Target |
 | ---- | --------------- | ------ |
@@ -128,7 +128,7 @@ etc. headings; "review-style check", "review file"; generic owner-review (`SKILL
 unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11, 12.
 
 - **Rationale:** The map is the binding completeness artifact. Confining the rename to 5 files and
-  35 lines makes the change auditable: the writer edits a closed set, and verification (Topic 5)
+  36 lines makes the change auditable: the writer edits a closed set, and verification (Topic 5)
   re-runs the same greps to prove the bucket boundaries held.
 - **Closure proof (two independent passes agree).** A corpus-wide regex for run-creation tokens
   (`review run|review intent|new review|review-N-<short|review-[0-9]+-<short`) over `skills/`,
@@ -137,7 +137,7 @@ unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11
   (`autonomous-phases/3 - plan.md` 16, `assisted-phases/3 - plan.md` 16, `code-plan-writer.md` 3)
   were line-checked: all phase-audit (`*-plan-review-N-rejected.md` / `*-plan-review-approved.md`
   artifacts, reviewer-agent rows, "review-style check", "# … Plan Review" headings), zero
-  run-creation. Invariants 3/11/12 hold under the 35-line / 5-file partition. (Source: live regex,
+  run-creation. Invariants 3/11/12 hold under the 36-line / 5-file partition. (Source: live regex,
   this session, run by both researcher and analyst.)
 
 ### Topic 1a — FLAG-1: `review-pipeline.md:39` "a PR review" (within-line keep)
@@ -171,9 +171,9 @@ unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11
 
 - **Spec link:** Overview; all requirements (this is the execution shape).
 - **Decision:** A scoped, mechanical find-and-replace executed as **per-file precision edits over a
-  closed 5-file / 35-line set**, plus **one file rename** (`review-pipeline.md` →
+  closed 5-file / 36-line set**, plus **one file rename** (`review-pipeline.md` →
   `revision-pipeline.md`) and **one inbound filename-reference update** (`work-on-an-issue.md:36`).
-  Not a blanket `sed s/review/revision/` — the corpus has 252 `review` lines of which only 35 are
+  Not a blanket `sed s/review/revision/` — the corpus has 252 `review` lines of which only 36 are
   in scope, and three files (`pipeline-versioning.md`, `.rp.md`, and within `review-pipeline.md`
   line 39) mix rename and keep tokens on adjacent or same lines. The implementer works the Topic 1
   map line by line, then verifies by re-grep (Topic 5).
@@ -225,7 +225,7 @@ unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11
 - **Decision:** Verify by re-running the same greps that defined the map and asserting the bucket
   boundaries held:
   1. `grep -rni 'review' skills/ agents/ .rp.md` — every remaining hit must be phase-audit
-     (the 217 KEEP lines); zero run/run-creation "review" tokens remain (invariant 3 / AC).
+     (the 216 KEEP lines); zero run/run-creation "review" tokens remain (invariant 3 / AC).
   2. `grep -rn 'review-pipeline' skills/ agents/ .rp.md` — zero hits (file renamed, sole inbound
      ref updated).
   3. `grep -rn 'Reviewer base ref' skills/ agents/ .rp.md` — zero hits; `grep -rn 'Revision base

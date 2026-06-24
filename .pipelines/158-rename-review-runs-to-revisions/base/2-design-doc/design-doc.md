@@ -24,10 +24,10 @@ does not migrate existing on-disk run folders.
 The corpus (`skills/`, `agents/`, `.rp.md`) contains **252** case-insensitive `review` lines
 and **32** `revis` lines. The design partitions every one of those lines into four buckets:
 
-- **Bucket A — rename (run-creation "review"):** 35 lines across exactly **5 files**. These name
+- **Bucket A — rename (run-creation "review"):** 36 lines across exactly **5 files**. These name
   the follow-up run, the act of creating it, the command document, the route, the intent, the
   dispatch label, and the base-ref convention. They become "revision"/"revise".
-- **Bucket B — keep (phase-audit "review"):** 217 lines. Reviewer agent names,
+- **Bucket B — keep (phase-audit "review"):** 216 lines. Reviewer agent names,
   `*-review-approved.md`, `*-review-N-rejected.md`, phase-audit reviewing prose ("review-style
   check", "review file"), `# Spec Review` / `# Code Review` artifact headings, and generic
   owner-review-of-artifacts. Unchanged.
@@ -41,7 +41,7 @@ The implementer works the bucket-A map line by line — **not** a blanket
 same line (`pipeline-versioning.md`, `.rp.md`, and `review-pipeline.md:39`). After editing, the
 implementer re-runs the same greps that defined the map to prove the bucket boundaries held (see
 Failure Modes and Observability). The mental model is: **the rename surface is a closed set of 5
-files / 35 lines; everything else is provably out of scope, and the proof is a re-grep.**
+files / 36 lines; everything else is provably out of scope, and the proof is a re-grep.**
 
 A standing disambiguation rule governs all bucket-A prose: the run is always written as a
 **"revision run"** or as **`revision-N`**, never as a bare "revision". This keeps the run sense
@@ -56,7 +56,7 @@ This is a documentation change; "components" are skill files and their roles.
 
 - `skills/radical-pipelines/reference/pipeline-versioning.md` — defines the run-folder naming
   convention, the `Reviewer base ref` heading (renamed to `Revision base ref`), the `Review run`
-  convention term (→ `Revision run`), and the latest-run / next-number rules. 8 of its 15
+  convention term (→ `Revision run`), and the latest-run / next-number rules. 9 of its 15
   review-lines are bucket A; the rest are keep (see below).
 - `skills/radical-pipelines/reference/review-pipeline.md` → **renamed** to `revision-pipeline.md`
   (bucket C). The run-creation command document. All 20 of its review-lines are bucket A except
@@ -138,7 +138,7 @@ The map below is the binding completeness artifact. It was produced by an indepe
 `grep -rni 'review'` / `grep -rni 'revis'` over `skills/`, `agents/`, `.rp.md`, classifying every
 hit, and re-verified against the live tree while writing this doc. Two independent passes agree.
 
-**`pipeline-versioning.md` (8 bucket-A lines):**
+**`pipeline-versioning.md` (9 bucket-A lines):**
 
 | Line | Token (current) | Target |
 | ---- | --------------- | ------ |
@@ -194,10 +194,10 @@ and `:37` action-list verb "creating, resuming, forking, or reviewing" → "…o
 
 ### Decision: Per-file precision edits over a blanket substitution
 
-- **Choice:** Edit the closed 35-line / 5-file map line by line; never a global
+- **Choice:** Edit the closed 36-line / 5-file map line by line; never a global
   `sed s/review/revision/`.
 - **Alternatives:** A corpus-wide find-and-replace.
-- **Trade-offs:** A blanket replace is faster but would corrupt the 217 phase-audit lines and the 32
+- **Trade-offs:** A blanket replace is faster but would corrupt the 216 phase-audit lines and the 32
   generic-`revis` lines, and would mis-handle the three files that mix buckets on adjacent or same
   lines. Precision edits are more work but are the only way to honor both the named-token target
   wordings and the keep-invariants.
