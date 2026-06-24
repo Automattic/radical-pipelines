@@ -1,0 +1,17 @@
+# Design Doc Review
+
+## Verdict: approved
+
+## Summary
+
+The design is sound, complete, faithful to the spec, and traceable. It proposes a two-part, prose-only fix — inject two new values (absolute worktree root, pipeline branch) into the spawn-time `## Conventions` block, and instruct agents to anchor absolute paths on the passed root and confirm the branch before committing — carried centrally in `passing.md` (generic) with the worktree-root derivation deferred to `claude-code.md`/`pi.md`. Every Key Decision lists credible alternatives with trade-offs and a "Traces to" line. I verified the load-bearing technical claims against the live codebase and they all hold: `git rev-parse --show-toplevel` returns the worktree root from inside the worktree while `load.md:36`'s `dirname(git rev-parse --git-common-dir)` returns the main root (so the design correctly avoids the latter as a worktree anchor); the current branch is `worktree-<slug>`; the `## Conventions` block is the agent's only channel and is never consumed by the orchestrator (Requirement 7 holds by construction); profiles are self-contained and reference no skill files; the Guardrails behavior-precedent is real; `health-monitoring.md:13` is a genuine generic-instruction-with-tool-defer precedent; and `passing.md`/`autonomous-workflow.md` are currently tool-mention-free, so keeping `passing.md` generic is consistent with both the current state and CLAUDE.md:11. The design honors the authoring rules (minimal, non-duplicative across reading paths, self-contained profiles, no special-case carve-out for Requirement 7).
+
+## Notes (non-blocking)
+
+These do not affect the verdict; they are recorded for the plan/code phases.
+
+- **The "no conflicting worktree/branch prose in profiles" claim is slightly imprecise but harmless.** The Components section states no profile contains conflicting worktree/branch prose needing reconciling. In fact two profiles — `code-plan-reviewer.md:19` and `docs-plan-reviewer.md:20` — already carry worktree-related prose ("A command that writes, deploys, or destroys takes effect against the worktree — judge before running it"). That prose is *aligned* with the new discipline, not conflicting, and those two agents are not committing agents receiving the new branch field, so there is nothing to reconcile and no implementation risk. The claim is therefore technically true (no *conflicting* prose) but glosses over the existence of aligned prose; the plan phase may wish to note these two lines exist so wording stays consistent.
+
+- **Committing-agent set verified exact.** Of the 18 profiles, exactly `spec-researcher` and `design-doc-researcher` have no own commit step, and their analysts (`spec-analyst`, `design-doc-analyst`) commit the research artifacts — matching the design's "committing agents = all except the two researchers" scoping precisely. The researchers' own profiles confirm they run experiments / mutate the working tree, validating the design's choice to still send them the worktree-anchor (all-agents) field per Requirement 3.
+
+- **Pi open question is correctly deferred.** The three Pi specifics (does `/worktree create` emit an absolute path; exact on-disk folder name; is spawn `cwd` absolute) are genuinely unverifiable in this repo and do not change the design shape (orchestrator derives an absolute worktree root and injects it). The deterministic fallback is stated. Appropriate to defer to implementation against live Pi tooling.
