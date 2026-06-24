@@ -4,6 +4,10 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 
 - **Artifact folder:**
   - Agents: all
+- **Worktree root:** the absolute path of the pipeline's worktree root. Anchor every absolute path on this root; never construct a path into the main checkout. The active tool's rules (see `conventions/claude-code.md` or `conventions/pi.md`) provide how to derive the value.
+  - Agents: all
+- **Branch:** `worktree-<pipeline-slug>`. Commit on this branch; confirm the current branch (`git branch --show-current`) matches before committing.
+  - Agents: committing agents — every role except `spec-researcher` and `design-doc-researcher`.
 - **Commit format:**
   - Agents: all
   - Omit when not defined.
