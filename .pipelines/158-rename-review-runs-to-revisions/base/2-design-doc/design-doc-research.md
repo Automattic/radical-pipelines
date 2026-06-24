@@ -75,10 +75,16 @@ generic "revised" (keep) AND phase-audit "review" (keep):
   live `grep -rni 'review'` / `grep -rni 'revis'` over `skills/`, `agents/`, `.rp.md` and
   classified every hit. Both the researcher and the analyst ran the grep; the two passes agree.
 
-**Decision — the authoritative rename map is 36 lines across exactly 5 files; everything else is
-KEEP.** Reconciliation: 252 `review` lines total = 36 bucket-A (rename) + 216 bucket-B
-(phase-audit, keep); plus 32 `revis` lines, all bucket-D (generic edit, keep). The 5 rename files
-are the entire surface. No agent profile is touched.
+**Decision — the authoritative rename map is 39 line-edits across 8 files; everything else is
+KEEP.** The surface is two groups: the **prose-rename group** (36 lines across the 5 run-creation
+files) plus the **base-ref inbound group** (3 lines in 3 further files — `autonomous-workflow.md:39`,
+`autonomous-phases/4 - code.md:37`, `autonomous-phases/5 - docs.md:37` — each carrying an inbound
+`**Reviewer base ref**` reference that req 9 forces to rename in lockstep with the heading
+definition). Reconciliation: 252 `review` lines total = 39 bucket-A (rename) + 213 bucket-B
+(phase-audit, keep); plus 32 `revis` lines, all bucket-D (generic edit, keep). No agent profile is
+touched. (Verified live: `review` = 252, `revis` = 32, `agents/` = 105 all phase-audit, base-ref
+heading = 1 def + 4 inbound; `autonomous-workflow.md:39` carries only the base-ref token while
+`4 - code.md:37` / `5 - docs.md:37` keep their phase-audit tokens on the same line.)
 
 **Rename file 1 — `pipeline-versioning.md` (9 of its 15 review-lines):**
 
@@ -127,18 +133,21 @@ etc. headings; "review-style check", "review file"; generic owner-review (`SKILL
 `assisted-workflow.md`); and all 32 generic `revis` sites (the "smallest revision that would
 unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11, 12.
 
-- **Rationale:** The map is the binding completeness artifact. Confining the rename to 5 files and
-  36 lines makes the change auditable: the writer edits a closed set, and verification (Topic 5)
-  re-runs the same greps to prove the bucket boundaries held.
-- **Closure proof (two independent passes agree).** A corpus-wide regex for run-creation tokens
-  (`review run|review intent|new review|review-N-<short|review-[0-9]+-<short`) over `skills/`,
-  `agents/`, `.rp.md` **excluding the 5 bucket-A files returns zero hits** — no run/run-creation
-  "review" token exists outside the 5 rename files. The 3 highest non-A counts
-  (`autonomous-phases/3 - plan.md` 16, `assisted-phases/3 - plan.md` 16, `code-plan-writer.md` 3)
-  were line-checked: all phase-audit (`*-plan-review-N-rejected.md` / `*-plan-review-approved.md`
-  artifacts, reviewer-agent rows, "review-style check", "# … Plan Review" headings), zero
-  run-creation. Invariants 3/11/12 hold under the 36-line / 5-file partition. (Source: live regex,
-  this session, run by both researcher and analyst.)
+- **Rationale:** The map is the binding completeness artifact. Confining the rename to 39 line-edits
+  across 8 files (36 prose-rename lines in 5 files + 3 base-ref inbound lines in 3 files) makes the
+  change auditable: the writer edits a closed set, and verification (Topic 5) re-runs the same greps
+  to prove the bucket boundaries held.
+- **Closure proof (two independent passes agree).** A corpus-wide regex for *prose* run-creation
+  tokens (`review run|review intent|new review|review-N-<short|review-[0-9]+-<short`) over `skills/`,
+  `agents/`, `.rp.md` **excluding the 5 prose-rename files returns zero hits** — no prose
+  run/run-creation "review" token exists outside the 5 files. (The base-ref token `**Reviewer base
+  ref**` is a distinct token, not matched by this regex; its full inbound set — 1 def + 4 inbound —
+  is enumerated in FLAG-2 and is the source of the 3 extra base-ref inbound lines.) The 3 highest
+  non-A counts (`autonomous-phases/3 - plan.md` 16, `assisted-phases/3 - plan.md` 16,
+  `code-plan-writer.md` 3) were line-checked: all phase-audit (`*-plan-review-N-rejected.md` /
+  `*-plan-review-approved.md` artifacts, reviewer-agent rows, "review-style check", "# … Plan
+  Review" headings), zero run-creation. Invariants 3/11/12 hold under the 39-line-edit / 8-file
+  partition. (Source: live regex, this session, run by both researcher and analyst.)
 
 ### Topic 1a — FLAG-1: `review-pipeline.md:39` "a PR review" (within-line keep)
 
@@ -171,12 +180,13 @@ unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11
 
 - **Spec link:** Overview; all requirements (this is the execution shape).
 - **Decision:** A scoped, mechanical find-and-replace executed as **per-file precision edits over a
-  closed 5-file / 36-line set**, plus **one file rename** (`review-pipeline.md` →
-  `revision-pipeline.md`) and **one inbound filename-reference update** (`work-on-an-issue.md:36`).
-  Not a blanket `sed s/review/revision/` — the corpus has 252 `review` lines of which only 36 are
-  in scope, and three files (`pipeline-versioning.md`, `.rp.md`, and within `review-pipeline.md`
-  line 39) mix rename and keep tokens on adjacent or same lines. The implementer works the Topic 1
-  map line by line, then verifies by re-grep (Topic 5).
+  closed 8-file / 39-line-edit set** (36 prose-rename lines in 5 files + 3 base-ref inbound lines in
+  3 files), plus **one file rename** (`review-pipeline.md` → `revision-pipeline.md`) and **one
+  inbound filename-reference update** (`work-on-an-issue.md:36`). Not a blanket `sed
+  s/review/revision/` — the corpus has 252 `review` lines of which only 39 are in scope, and several
+  lines mix rename and keep tokens on adjacent or same lines (`pipeline-versioning.md`, `.rp.md`,
+  `review-pipeline.md:39`, and the two per-phase base-ref lines `4 - code.md:37` / `5 - docs.md:37`).
+  The implementer works the Topic 1 map line by line, then verifies by re-grep (Topic 5).
 - **Rationale:** The named-token requirements fix exact target wordings and the invariants forbid
   collateral damage to phase-audit "review" and generic "revise"; both demand surgical edits, not
   a global substitution.
@@ -225,7 +235,7 @@ unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11
 - **Decision:** Verify by re-running the same greps that defined the map and asserting the bucket
   boundaries held:
   1. `grep -rni 'review' skills/ agents/ .rp.md` — every remaining hit must be phase-audit
-     (the 216 KEEP lines); zero run/run-creation "review" tokens remain (invariant 3 / AC).
+     (the 213 KEEP lines); zero run/run-creation "review" tokens remain (invariant 3 / AC).
   2. `grep -rn 'review-pipeline' skills/ agents/ .rp.md` — zero hits (file renamed, sole inbound
      ref updated).
   3. `grep -rn 'Reviewer base ref' skills/ agents/ .rp.md` — zero hits; `grep -rn 'Revision base
@@ -237,7 +247,9 @@ unblock you" blocker lines, fork "revised the spec/intent", etc.). Invariants 11
      `spec-review-2-rejected.md` are unambiguously different) — automatic once runs are
      `revision-N`.
   6. Confirm the 6 reviewer agent names, `*-review-approved.md`, `*-review-N-rejected.md` are
-     byte-unchanged (diff the KEEP files; they should show no change).
+     byte-unchanged (diff the bucket-B KEEP files; they should show no change **except the base-ref
+     substring on the 3 base-ref inbound files** — `autonomous-workflow.md:39` (whole line),
+     `4 - code.md:37`, `5 - docs.md:37` (substring only; same-line phase-audit tokens stay)).
 - **Rationale:** The greps that establish completeness are the same greps that prove it; making
   verification a re-grep keeps the binding invariant checkable rather than asserted.
 

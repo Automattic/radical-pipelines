@@ -24,10 +24,15 @@ does not migrate existing on-disk run folders.
 The corpus (`skills/`, `agents/`, `.rp.md`) contains **252** case-insensitive `review` lines
 and **32** `revis` lines. The design partitions every one of those lines into four buckets:
 
-- **Bucket A — rename (run-creation "review"):** 36 lines across exactly **5 files**. These name
+- **Bucket A — rename (run-creation "review"):** **39 line-edits across 8 files**. These name
   the follow-up run, the act of creating it, the command document, the route, the intent, the
-  dispatch label, and the base-ref convention. They become "revision"/"revise".
-- **Bucket B — keep (phase-audit "review"):** 216 lines. Reviewer agent names,
+  dispatch label, and the base-ref convention. They become "revision"/"revise". The surface
+  splits into two groups: the **prose-rename group** — 36 lines across the **5 run-creation
+  files** — and the **base-ref inbound group** — 3 additional lines in 3 further files that each
+  carry an inbound `**Reviewer base ref**` reference (req 9 forces these to rename in lockstep
+  with the heading definition). On two of those three lines, only the base-ref substring renames
+  (within-line keep — the phase-audit tokens on the same line stay).
+- **Bucket B — keep (phase-audit "review"):** 213 lines. Reviewer agent names,
   `*-review-approved.md`, `*-review-N-rejected.md`, phase-audit reviewing prose ("review-style
   check", "review file"), `# Spec Review` / `# Code Review` artifact headings, and generic
   owner-review-of-artifacts. Unchanged.
@@ -36,12 +41,17 @@ and **32** `revis` lines. The design partitions every one of those lines into fo
 - **Bucket D — keep (generic "revise"/"revision"):** all 32 `revis` lines (e.g. "the smallest
   revision that would unblock you"; a fork that "revised the spec/intent"). Unchanged.
 
+Reconciliation: 252 `review` lines = 39 bucket-A + 213 bucket-B; plus 32 `revis` lines, all
+bucket-D. (Verified live: `grep -rni 'review'` = 252; `grep -rni 'revis'` = 32; `agents/` = 105,
+all phase-audit; the base-ref heading has 1 definition + 4 inbound references.)
+
 The implementer works the bucket-A map line by line — **not** a blanket
-`sed s/review/revision/`, because three files mix rename and keep tokens on adjacent or even the
-same line (`pipeline-versioning.md`, `.rp.md`, and `review-pipeline.md:39`). After editing, the
-implementer re-runs the same greps that defined the map to prove the bucket boundaries held (see
-Failure Modes and Observability). The mental model is: **the rename surface is a closed set of 5
-files / 36 lines; everything else is provably out of scope, and the proof is a re-grep.**
+`sed s/review/revision/`, because several lines mix rename and keep tokens on adjacent or even the
+same line (`pipeline-versioning.md`, `.rp.md`, `review-pipeline.md:39`, and the two per-phase
+base-ref lines `4 - code.md:37` / `5 - docs.md:37`). After editing, the implementer re-runs the
+same greps that defined the map to prove the bucket boundaries held (see Failure Modes and
+Observability). The mental model is: **the rename surface is a closed set of 39 line-edits across
+8 files; everything else is provably out of scope, and the proof is a re-grep.**
 
 A standing disambiguation rule governs all bucket-A prose: the run is always written as a
 **"revision run"** or as **`revision-N`**, never as a bare "revision". This keeps the run sense
@@ -68,15 +78,21 @@ This is a documentation change; "components" are skill files and their roles.
 - `.rp.md` — the project conventions file. Carries orchestrator-update prose for a revision run
   and the action-list verb "revising".
 
-**Modified (bucket A — single base-ref heading reference each):**
+**Modified (bucket A — base-ref inbound group, single base-ref heading reference each):**
 
-- `skills/radical-pipelines/reference/autonomous-workflow.md`
-- `skills/radical-pipelines/reference/autonomous-phases/4 - code.md`
-- `skills/radical-pipelines/reference/autonomous-phases/5 - docs.md`
+- `skills/radical-pipelines/reference/autonomous-workflow.md` — line 39 carries **only** the
+  `**Reviewer base ref**` token (no phase-audit token on the line), so the whole line renames.
+- `skills/radical-pipelines/reference/autonomous-phases/4 - code.md` — line 37 carries the
+  `**Reviewer base ref**` token alongside phase-audit tokens (`code-reviewer`,
+  `code-review-N-rejected.md`, `code-review-approved.md`); only the base-ref substring renames.
+- `skills/radical-pipelines/reference/autonomous-phases/5 - docs.md` — line 37 carries the
+  `**Reviewer base ref**` token alongside phase-audit tokens (`docs-reviewer`,
+  `docs-review-N-rejected.md`, `docs-review-approved.md`); only the base-ref substring renames.
 
-These three each contain exactly one in-scope token — the `**Reviewer base ref**` reference —
-and (for the two phase files) it sits embedded in otherwise phase-audit prose. Only the
-heading-reference substring changes.
+These three lines are the **base-ref inbound group** — the +3 over the 36-line prose-rename map.
+They are pulled into bucket A by req 9 (the renamed `### Revision base ref` heading must leave no
+inbound reference dangling). The 4th inbound site, `revision-pipeline.md:29`, lives inside the
+renamed command file and is already counted in its 20 bucket-A lines; only these 3 are extra.
 
 **Untouched-but-relevant (must not move):**
 
@@ -132,11 +148,13 @@ resolve to the renamed heading after the change (req 9 is an invariant on inboun
 | `autonomous-phases/4 - code.md:37` | Inbound `**Reviewer base ref**` reference, embedded in phase-audit prose |
 | `autonomous-phases/5 - docs.md:37` | Inbound `**Reviewer base ref**` reference, embedded in phase-audit prose |
 
-### Authoritative rename map (bucket A)
+### Authoritative rename map (bucket A — 39 line-edits across 8 files)
 
-The map below is the binding completeness artifact. It was produced by an independent live
-`grep -rni 'review'` / `grep -rni 'revis'` over `skills/`, `agents/`, `.rp.md`, classifying every
-hit, and re-verified against the live tree while writing this doc. Two independent passes agree.
+The map below is the binding completeness artifact: all **39** bucket-A line-edits — the 36-line
+prose-rename group across the 5 run-creation files, plus the 3-line base-ref inbound group. It was
+produced by an independent live `grep -rni 'review'` / `grep -rni 'revis'` over `skills/`,
+`agents/`, `.rp.md`, classifying every hit, and re-verified against the live tree while writing
+this doc. Two independent passes agree.
 
 **`pipeline-versioning.md` (9 bucket-A lines):**
 
@@ -178,6 +196,18 @@ layer an incremental change…" → "**Revise** —…" (same-issue-action advis
 and `:37` action-list verb "creating, resuming, forking, or reviewing" → "…or revising". Keep:
 `:56` commit example `(spec-reviewer)`; `:83,87,89,91,93,95` reviewer model-table rows.
 
+**Base-ref inbound group (3 lines in 3 files, the +3 over the 36-line prose-rename group):** each
+carries an inbound `**Reviewer base ref**` reference to the renamed heading and renames it to
+`**Revision base ref**` in lockstep (req 9):
+
+| Line | Token (current) | Target | Same-line keep |
+| ---- | --------------- | ------ | -------------- |
+| `autonomous-workflow.md:39` | `**Reviewer base ref**` (only review token on the line) | `**Revision base ref**` | none — whole line renames |
+| `autonomous-phases/4 - code.md:37` | `**Reviewer base ref**` substring only | `**Revision base ref**` | `code-reviewer`, `code-review-N-rejected.md`, `code-review-approved.md` stay verbatim |
+| `autonomous-phases/5 - docs.md:37` | `**Reviewer base ref**` substring only | `**Revision base ref**` | `docs-reviewer`, `docs-review-N-rejected.md`, `docs-review-approved.md` stay verbatim |
+
+(The 4th inbound site, `revision-pipeline.md:29`, is already in the `review-pipeline.md` map above.)
+
 ## Key Decisions
 
 ### Decision: Rename the run-creation activity and its command, not only the run folders
@@ -194,13 +224,15 @@ and `:37` action-list verb "creating, resuming, forking, or reviewing" → "…o
 
 ### Decision: Per-file precision edits over a blanket substitution
 
-- **Choice:** Edit the closed 36-line / 5-file map line by line; never a global
+- **Choice:** Edit the closed 39-line / 8-file bucket-A map line by line; never a global
   `sed s/review/revision/`.
 - **Alternatives:** A corpus-wide find-and-replace.
-- **Trade-offs:** A blanket replace is faster but would corrupt the 216 phase-audit lines and the 32
-  generic-`revis` lines, and would mis-handle the three files that mix buckets on adjacent or same
-  lines. Precision edits are more work but are the only way to honor both the named-token target
-  wordings and the keep-invariants.
+- **Trade-offs:** A blanket replace is faster but would corrupt the 213 phase-audit lines and the 32
+  generic-`revis` lines, and would mis-handle the lines that mix buckets — `pipeline-versioning.md`
+  and `.rp.md` (mixed buckets across the file), `review-pipeline.md:39` (mixed tokens on one line),
+  and the two per-phase base-ref lines `4 - code.md:37` / `5 - docs.md:37` (base-ref substring
+  renames while phase-audit tokens on the same line stay). Precision edits are more work but are the
+  only way to honor both the named-token target wordings and the keep-invariants.
 - **Traces to:** Requirements 4–10 (named-token target wordings) and invariants 11, 12 (no
   collateral damage to phase-audit "review" or generic "revise").
 
@@ -282,12 +314,19 @@ re-grep that re-runs the analysis that defined the map:
 1. **Collateral rename** — a phase-audit (bucket B) or generic-`revis` (bucket D) token is changed by
    mistake. Detected by: `grep -rni 'revision' skills/ agents/ .rp.md` must show every new
    "revision"/"revise" token on a run/run-creation concept; the 32-line generic `revis` baseline must
-   be unchanged; diffing the KEEP files must show zero change except the single base-ref substring on
-   the two phase files.
+   be unchanged; diffing the bucket-B KEEP files must show zero change **except the base-ref
+   substring on the three base-ref inbound files** — `autonomous-workflow.md:39` (whole line),
+   `autonomous-phases/4 - code.md:37`, and `autonomous-phases/5 - docs.md:37` (substring only; the
+   phase-audit tokens on those two lines stay verbatim). This exception list is exactly the
+   outside-the-5 base-ref inbound group; it matches Failure Mode 3's `Revision base ref` →
+   1 definition + 4 inbound (the 4th inbound, `revision-pipeline.md:29`, is in a bucket-A file, not a
+   KEEP file).
 2. **Missed rename** — a run-creation token left as "review". Detected by: `grep -rni 'review'
    skills/ agents/ .rp.md` — every remaining hit must be phase-audit. A corpus-wide regex for
-   run-creation tokens (`review run|review intent|new review|review-[0-9]+-<short`) excluding the 5
-   rename files must return zero hits.
+   prose run-creation tokens (`review run|review intent|new review|review-[0-9]+-<short`) excluding
+   the 5 prose-rename files must return zero hits. (A missed base-ref reference is a distinct token
+   — `**Reviewer base ref**` — caught by Failure Mode 3's `Reviewer base ref` → zero check, not by
+   this regex.)
 3. **Dangling reference** — a reference left pointing at the old filename or heading. Detected by:
    `grep -rn 'review-pipeline' skills/ agents/ .rp.md` → zero; `grep -rn 'Reviewer base ref'` → zero;
    `grep -rn 'Revision base ref'` → 1 definition + 4 inbound.
@@ -297,7 +336,10 @@ Additional verification, mapping directly to the acceptance criteria:
 - No `revision-N` run name collides with a rejection-iteration name (e.g. `revision-2` vs
   `spec-review-2-rejected.md` are unambiguously different) — automatic once runs are `revision-N`.
 - The 6 reviewer agent names, `*-review-approved.md`, and `*-review-N-rejected.md` are byte-unchanged
-  — confirmed by diffing the KEEP files to zero change.
+  — confirmed by diffing the bucket-B KEEP files to zero change, allowing the one expected exception
+  above (the base-ref substring on `autonomous-workflow.md:39`, `4 - code.md:37`, `5 - docs.md:37`).
+  The phase-audit tokens on `4 - code.md:37` / `5 - docs.md:37` (`code-reviewer`/`docs-reviewer`, the
+  rejection/approval artifacts) remain byte-unchanged within those lines.
 
 These re-greps are the observability surface for this change. The downstream design-doc-reviewer and
 code/docs reviewers provide the human-style audit.
@@ -313,6 +355,12 @@ code/docs reviewers provide the human-style audit.
   phase-audit names (invariant 11) and/or land "revision" on a phase-audit concept (invariant 12).
   Mitigation: the map calls these out; only the heading-reference substring changes; the KEEP-files
   diff catches a slip.
+- **Easily-missed base-ref reference (`autonomous-workflow.md:39`).** This is the third member of
+  the base-ref inbound group. Unlike the two per-phase lines it carries no phase-audit token — the
+  whole line renames — but it lives outside the 5 prose-rename files, so an implementer who treats
+  the 5-file set as exhaustive would leave it dangling (a req-9 violation). Mitigation: it is an
+  explicit bucket-A map row, and Failure Mode 3's `Reviewer base ref` → zero / `Revision base ref`
+  → 1 def + 4 inbound check catches a miss.
 - **Same-line mixed tokens in `revision-pipeline.md:39`** — "MANDATORY for reviews"/"this review
   intent" rename, but "a PR review" keeps. Mitigation: per-token edit plus the `revision` re-grep.
 - **Same-file mixed buckets.** `pipeline-versioning.md` (`:112` generic "revised" must survive while
