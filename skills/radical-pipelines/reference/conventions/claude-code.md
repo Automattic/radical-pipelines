@@ -14,6 +14,7 @@ All work for a pipeline happens inside a Claude Code worktree. Never modify file
 - **Create and enter:** `EnterWorktree({ name: "<pipeline-slug>" })`. Creates the worktree at `.claude/worktrees/<pipeline-slug>` and enters it. All subsequent tool calls and spawned agents inherit the worktree as their working directory.
 - **Re-enter an existing worktree:** `EnterWorktree({ path: ".claude/worktrees/<pipeline-slug>" })`.
 - **Exit:** `ExitWorktree`.
+- **Worktree root for injection:** to fill the worktree-root field, the orchestrator runs `git rev-parse --show-toplevel` from its own cwd (the worktree) to get the absolute worktree root.
 
 ## Branch names
 
