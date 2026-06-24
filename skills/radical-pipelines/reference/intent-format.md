@@ -1,6 +1,6 @@
 # The Intent Format
 
-This describes an intent — whether a tracker issue body, a base intent, or a review intent. The intent is the input to phase 1.
+This describes an intent — whether a tracker issue body, a base intent, or a revision intent. The intent is the input to phase 1.
 
 ## Schema and rendering
 
@@ -30,4 +30,4 @@ A base intent created from an issue carries a two-line blockquote placed **after
 > This file is self-contained; agents do not need to open the source issue.
 ```
 
-Review intents carry their mandatory **Origin** section as their provenance instead.
+Revision intents carry their mandatory **Origin** section as their provenance instead.
