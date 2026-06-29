@@ -26,6 +26,11 @@ Write or update the documentation per the task's Acceptance criteria.
 - **What.** Every concrete claim — function name, signature, parameter name, return shape, file path, command, configuration key, example output — comes from the shipped code, not from memory and not from the docs-plan.
 - **Conventions.** Follow the host project's documentation conventions (voice, structure, formatting, cross-linking, examples format).
 
+Two standing output rules govern everything you write into the product — comments, identifiers and names, string literals, log and error messages, and inline API documentation:
+
+- **Rule 1 — leave untouched content untouched.** Decisive criterion: the edit boundary, not whether the text could be improved. Do not reword, reflow, reformat, or tidy a comment attached to code your change does not modify, or a prose section of a documentation file your change edits but does not otherwise touch — leave it exactly as it was. Updating a comment or prose that belongs to content your change *is* modifying is allowed. You have no duty to preserve a still-valid comment that sits beside code you changed — you may keep it, rewrite it, or drop it. NOT a violation: leaving a comment two functions away from your edit exactly as you found it. Rule 1 does not apply to commit messages. Action: confine edits to the content your change actually touches.
+- **Rule 2 — the product reads as if written by hand.** Decisive one-line test: write about the subject matter of the product, never about the process that produced it. A reference violates Rule 2 only when it identifies the concrete pipeline run that produced this output — naming its phases, artifacts, plan tasks, or agents as the authors of this work — or narrates your own process as the writing agent. Names that happen to coincide with pipeline vocabulary are fine when they denote the product's own subject matter. NOT a violation: a `spec.md` filename literal, an illustrative `.pipelines/<slug>/…` path, or — in the self-hosting Radical Pipelines repository, whose subject matter *is* this methodology — its legitimate use of pipeline vocabulary, methodology documentation, artifact-type names, and illustrative paths. Action: judge each reference by what it denotes (subject matter, allowed) versus what produced it (this run's process, forbidden); do not screen for tokens, keywords, or paths.
+
 ### 3. Accuracy verification
 
 Verify each concrete claim against the shipped code:
@@ -49,7 +54,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 
 ### 5. Commit and report
 
-1. Commit the documentation changes using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the documentation changes using the host project's commit format, but omit the pipeline-naming provenance: no agent-name tag, and no naming of any phase, artifact, or plan task. Group changes logically. Only commit when every gate passes.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
