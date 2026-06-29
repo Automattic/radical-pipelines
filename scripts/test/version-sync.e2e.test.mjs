@@ -8,8 +8,9 @@
  * - The lockfile reconciliation runs the real
  *   `npm install --package-lock-only --no-audit --no-fund` subprocess against a
  *   dependency-consistent temp-dir fixture (Flows 5–6) — no function override.
- * - The release-script composition (Flow 7) and the one-time backfill (Flow 8)
- *   are asserted against the committed repository files, read-only.
+ * - The release-script composition (Flow 7) and the committed lockfile/
+ *   package.json version consistency (Flow 8) are asserted against the
+ *   committed repository files, read-only.
  *
  * Built-in Node modules only; every temp fixture is created with `mkdtempSync`
  * and removed in `afterEach`; the real repository working tree is never mutated.
@@ -332,7 +333,7 @@ describe("E2E Flow 7: the committed release:version chain reaches the lockfile s
   });
 });
 
-describe("E2E Flow 8: the committed lockfile is backfilled to 0.4.0", () => {
+describe("E2E Flow 8: the committed lockfile stays in sync with package.json", () => {
   test("both committed lockfile version fields equal the committed package.json version", () => {
     const pkg = JSON.parse(
       readFileSync(join(REPO_ROOT, "package.json"), "utf8"),
@@ -342,10 +343,8 @@ describe("E2E Flow 8: the committed lockfile is backfilled to 0.4.0", () => {
     );
 
     // Read by structured JSON path, never by text search.
-    assert.equal(pkg.version, "0.4.0");
-    assert.equal(lock.version, "0.4.0");
-    assert.equal(lock.packages[""].version, "0.4.0");
-    // Tie the assertion to the source of truth, not just the literal.
+    // Tie the assertion to the source of truth, not a hardcoded literal, so it
+    // survives every version bump.
     assert.equal(lock.version, pkg.version);
     assert.equal(lock.packages[""].version, pkg.version);
   });
