@@ -23,6 +23,11 @@ For each flow named in the task block:
 
 The per-task Acceptance — the named flows covered by passing e2e tests — is your contract.
 
+Two standing output rules govern everything you write into the product — comments, identifiers and names, string literals, log and error messages, and inline API documentation:
+
+- **Rule 1 — leave untouched content untouched.** Do not reword, reflow, reformat, or tidy a comment attached to code your change does not modify, or a prose section of a documentation file your change edits but does not otherwise touch — leave it exactly as it was. Updating a comment or prose that belongs to content your change *is* modifying is allowed, and you have no duty to preserve a still-valid comment beside code you changed. Rule 1 does not apply to commit messages.
+- **Rule 2 — the product reads as if written by hand.** Write about the product's subject matter, never about the process that produced it. A reference violates Rule 2 only when it identifies the concrete pipeline run that produced this output — naming its phases, artifacts, plan tasks, or agents as the authors of this work — or narrates your own process as the writing agent. Names that coincide with pipeline vocabulary are fine when they denote the product's own subject matter. Judge each reference by what it denotes, not by screening for tokens, keywords, or paths.
+
 ### 3. Run the guardrails
 
 Run every gate in the guardrails convention, exactly as its command is written. Each is mandatory.
@@ -37,7 +42,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 
 ### 4. Commit and report
 
-1. Commit the tests using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the tests using the host project's commit format, but omit the pipeline-naming provenance: no agent-name tag, and no naming of any phase, artifact, or plan task. Group changes logically. Only commit when every gate passes.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines

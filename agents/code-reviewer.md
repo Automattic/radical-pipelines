@@ -20,6 +20,11 @@ A fresh `code-reviewer` is spawned **once per batch**, after every code-writer i
 
 ### 2. Review the changes
 
+Two standing output rules govern everything you write into the product — comments, identifiers and names, string literals, log and error messages, and inline API documentation:
+
+- **Rule 1 — leave untouched content untouched.** Do not reword, reflow, reformat, or tidy a comment attached to code your change does not modify, or a prose section of a documentation file your change edits but does not otherwise touch — leave it exactly as it was. Updating a comment or prose that belongs to content your change *is* modifying is allowed, and you have no duty to preserve a still-valid comment beside code you changed. Rule 1 does not apply to commit messages.
+- **Rule 2 — the product reads as if written by hand.** Write about the product's subject matter, never about the process that produced it. A reference violates Rule 2 only when it identifies the concrete pipeline run that produced this output — naming its phases, artifacts, plan tasks, or agents as the authors of this work — or narrates your own process as the writing agent. Names that coincide with pipeline vocabulary are fine when they denote the product's own subject matter. Judge each reference by what it denotes, not by screening for tokens, keywords, or paths.
+
 Check, for the tasks in this batch:
 
 - **Per-task Acceptance coverage** — does each task in the batch satisfy its per-task Acceptance criteria, with passing tests covering each criterion?
@@ -28,7 +33,8 @@ Check, for the tasks in this batch:
 - **Plan adherence** — no scope creep beyond `code-plan.md`; no design changes; no work done for tasks that weren't in the batch.
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
-- **Convention compliance** — host project's coding, testing, build, and commit conventions.
+- **Output rules** — a Rule 1 or Rule 2 violation in the batch's product content is a must-fix issue. Apply the referent-based discriminator above: judge each reference by what it denotes, leaving legitimate pipeline vocabulary, methodology documentation, artifact-type names, and illustrative paths unflagged.
+- **Convention compliance** — host project's coding, testing, build, and commit conventions. This includes the product-commit no-provenance check: a commit is a product commit when at least one of its changed paths lies outside the artifacts folder `.pipelines/<slug>/`; a product commit carrying an agent-name tag or any pipeline-naming provenance (naming a phase, artifact, or plan task) fails convention compliance and is a must-fix violation.
 
 ### 3. Behavior verification
 
