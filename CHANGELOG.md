@@ -1,5 +1,12 @@
 # @automattic/radical-pipelines
 
+## 0.6.0
+### Minor Changes
+
+
+
+- [#166](https://github.com/Automattic/radical-pipelines/pull/166) [`ddfb2ba`](https://github.com/Automattic/radical-pipelines/commit/ddfb2ba82224b265f83b2032df9ed4f5d5ba181f) Thanks [@DAreRodz](https://github.com/DAreRodz)! - Hold every pipeline run's host-project output to two always-on rules, with no opt-out and no owner action. A change now leaves comments and prose it did not touch exactly as they were, and the product it ships — code, tests, documentation, and commit messages — reads as if written by hand, with no trace of the pipeline that produced it. Both rules are enforced at the existing per-phase review gate, where a violation is a must-fix issue that blocks the phase until it is resolved.
+
 ## 0.5.0
 ### Minor Changes
 
