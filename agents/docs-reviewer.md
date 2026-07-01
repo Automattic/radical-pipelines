@@ -31,7 +31,7 @@ Check, for the tasks in this batch:
 - **Drift sweep** — does the batch leave any surface named by `docs-plan.md` with stale references to the old behavior? Did the code introduce any public surface that no task in `docs-plan.md` documents?
 - **Docs-plan adherence** — no scope creep beyond `docs-plan.md`; no work on tasks not in this batch.
 - **Convention compliance** — host project's documentation conventions (voice, structure, formatting, cross-linking).
-- **No run-pointers in host-project output** — does any documentation the batch writes outside the `<artifacts-folder>`, producer commit subjects included, point at this run: a number tying it to a task or requirement/review, a named artifact of this change (the spec, plan, design doc, or review) cited as its authority, or another agent credited as author? Judge by the referent, not a token scan: the domain's own vocabulary used as subject matter and illustrative or example artifact references are not violations, and the commit's agent-name tag is allowed. A real pointer is a must-fix that blocks approval.
+- **Software-only output** — does any task output (including commit messages) reference a specific task, requirement, acceptance criterion, etc, or cite a specific artifact? The run's own artifacts, under the artifacts folder, are exempt.
 
 ### 3. Accuracy spot-check
 

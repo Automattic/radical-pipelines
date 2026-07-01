@@ -29,7 +29,7 @@ Check, for the tasks in this batch:
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
-- **No run-pointers in host-project output** — does anything the batch writes outside the `<artifacts-folder>`, producer commit subjects included, point at this run: a number tying it to a task or requirement/review, a named artifact of this change (the spec, plan, design doc, or review) cited as its authority, or another agent credited as author? Judge by the referent, not a token scan: the domain's own vocabulary used as subject matter and illustrative or example artifact references are not violations, and the commit's agent-name tag is allowed. A real pointer is a must-fix that blocks approval.
+- **Software-only output** — does any task output (including commit messages) reference a specific task, requirement, e2e flow, acceptance criterion, etc, or cite a specific artifact? The run's own artifacts, under the artifacts folder, are exempt.
 
 ### 3. Behavior verification
 
