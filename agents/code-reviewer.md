@@ -29,6 +29,7 @@ Check, for the tasks in this batch:
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
+- **Software-only output** — does any task output (including commit messages) reference a specific task, requirement, e2e flow, acceptance criterion, etc, or cite a specific artifact? The run's own artifacts, under the artifacts folder, are exempt.
 
 ### 3. Behavior verification
 

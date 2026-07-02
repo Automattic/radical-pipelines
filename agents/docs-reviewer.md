@@ -31,6 +31,7 @@ Check, for the tasks in this batch:
 - **Drift sweep** — does the batch leave any surface named by `docs-plan.md` with stale references to the old behavior? Did the code introduce any public surface that no task in `docs-plan.md` documents?
 - **Docs-plan adherence** — no scope creep beyond `docs-plan.md`; no work on tasks not in this batch.
 - **Convention compliance** — host project's documentation conventions (voice, structure, formatting, cross-linking).
+- **Software-only output** — does any task output (including commit messages) reference a specific task, requirement, acceptance criterion, etc, or cite a specific artifact? The run's own artifacts, under the artifacts folder, are exempt.
 
 ### 3. Accuracy spot-check
 

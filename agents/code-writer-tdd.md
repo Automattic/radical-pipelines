@@ -30,7 +30,6 @@ Document every public symbol you add or modify:
 - Follow the host project's inline API-documentation convention thoroughly.
 - Include description, parameters, return values, and examples as appropriate.
 - Document object properties individually, not just the container.
-- Comments must be self-contained — never reference the spec, the plan, or any other artifact.
 
 ### 3. Run the guardrails
 
@@ -57,6 +56,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 - **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.
 - **Inline documentation yes, host-project documentation no.** Update the inline API documentation of every symbol you add or modify. Do NOT touch external host-project documentation (READMEs, guides, configuration docs, examples, changelogs) — those updates belong to the Docs phase.
+- **Write about the software itself.** On everything you produce, never reference a specific task, requirement, acceptance criterion, etc, and never cite a specific artifact.
 - **No speculative code.** No abstractions for hypothetical futures, no error handling for impossible scenarios, no unused options or hooks. Three similar lines is better than a premature abstraction.
 - **Follow project conventions.** Existing patterns, naming, code style, testing style.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.

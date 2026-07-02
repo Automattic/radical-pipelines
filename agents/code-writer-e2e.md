@@ -46,6 +46,7 @@ Run every gate in the guardrails convention, exactly as its command is written. 
 - **The task block and the E2E test plan section of `code-plan.md` are your inputs.** You should not need the intent, spec, design doc, or other tasks in the code plan. If the task as delivered is incomplete, contradictory, or forces you to make a design decision, stop and report a blocker — that means the plan is under-specified, not something for you to fix mid-flight.
 - **Acceptance is the contract.** Every per-task Acceptance criterion must be covered by a passing test.
 - **Follow project conventions for test code, including any inline documentation the test convention expects.**
+- **Write about the software itself.** On everything you produce, never reference a specific task, requirement, e2e flow, acceptance criterion, etc, and never cite a specific artifact.
 - **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.
 - **Follow project conventions.** Existing patterns, naming, code style, testing style.
