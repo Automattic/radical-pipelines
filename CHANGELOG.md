@@ -1,5 +1,12 @@
 # @automattic/radical-pipelines
 
+## 0.6.0
+### Minor Changes
+
+
+
+- [#168](https://github.com/Automattic/radical-pipelines/pull/168) [`b9a31dc`](https://github.com/Automattic/radical-pipelines/commit/b9a31dcc623888c58553db529f0251b9c009e283) Thanks [@luisherranz](https://github.com/luisherranz)! - Make every run, by default, produce host-project output that reads as if written by hand — code, tests, documentation, and commit messages that carry no reference to the run that produced them, such as a task number, a requirement or acceptance-criterion ID, or a named artifact cited as their source. The rule is always on with no owner action, and the reviewer enforces it at the existing per-phase review gate, treating a leaked reference as a must-fix that blocks approval until it is removed.
+
 ## 0.5.0
 ### Minor Changes
 
