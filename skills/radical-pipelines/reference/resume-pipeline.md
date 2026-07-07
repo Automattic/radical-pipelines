@@ -26,7 +26,7 @@ Evaluate the **Per-phase completion** predicates (`pipeline-versioning.md`) with
 
 1. Tell the owner plainly that the active phase will be restarted: its commits on the run branch reverted and any uncommitted changes discarded, leaving the completed phase and everything earlier untouched. Ask the owner to confirm; if they decline, stop and offer alternatives — for example a fork per `fork-pipeline.md`, which leaves the partial state intact.
 2. On confirmation, revert the active phase's commits — reverting adds inverse commits, so a pushed branch needs no force-update — and discard uncommitted changes. The run returns to the completed-phase state.
-3. Delete the aborted attempt's lane branches and their worktrees: lane branches are the permanent record of completed phases only, and the re-run needs their names free.
+3. Delete the aborted attempt's lane branches and their worktrees, including pushed copies: lane branches are the permanent record of completed phases only, and the re-run needs their names free.
 
 ---
 

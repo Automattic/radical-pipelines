@@ -9,13 +9,13 @@ Creates a new pipeline version by branching at a **cut commit** in a parent pipe
 Show the owner the pipeline tree for this issue, rendered per `pipeline-versioning.md` ("Rendering the pipeline tree"). Then ask:
 
 - **Parent pipeline** — which existing pipeline to fork from.
-- **Inherited phase** — the highest phase to inherit, by folder name (`0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`). Pick `0-intent` to start the new pipeline over with only the intent. The inherited phase must be **complete** in the parent (per **Per-phase completion** in `pipeline-versioning.md`).
+- **Inherited point** — the run to cut in (default: the parent's latest run) and the highest phase to inherit within it, by folder name (`0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`). Pick `base`'s `0-intent` to start the new pipeline over with only the intent. The inherited phase must be **complete** in that run (per **Per-phase completion** in `pipeline-versioning.md`).
 
 If the owner has already specified either, skip the question.
 
 ### 2. Locate the cut commit
 
-The cut commit is the commit that completed the inherited phase's completion predicate. On the parent's latest run branch, find the commit that added each of the phase's required artifacts in its phase folder (`git log --diff-filter=A -1 <parent-run-branch> -- <artifact-folder>/<run>/<phase>/<file>`); the newest of those commits is the cut commit.
+The cut commit is the commit that completed the inherited phase's completion predicate. On the branch of the run containing the cut, find the commit that added each of the phase's required artifacts in that run's phase folder (`git log --diff-filter=A -1 <parent-run-branch> -- <artifact-folder>/<run>/<phase>/<file>`); the newest of those commits is the cut commit.
 
 ### 3. Compute the new version
 
@@ -23,12 +23,12 @@ Find the highest existing `v<N>` in the family per `pipeline-versioning.md` ("Li
 
 ### 4. Create the branch and worktree
 
-Create the fork's base run branch `<branch-base>_v<N+1>` at the cut commit, and its worktree per the **Worktrees** convention.
+Create the fork's first run branch at the cut commit, and its worktree per the **Worktrees** convention. The branch carries the cut run's segment: `<branch-base>_v<N+1>` for a cut in `base`, `<branch-base>_v<N+1>_rev-<K>-<desc>` for a cut in a revision run.
 
 ### 5. Update `pipeline.md`
 
-As the fork's first commit, set `pipeline.md` to `v<N+1>` and commit per the **Commit format** convention.
+As the fork's first commit, set `pipeline.md`'s version to `v<N+1>` and its start to the parent branch of the cut, and commit per the **Commit format** convention.
 
 ### 6. Continue as a normal pipeline
 
-The fork continues from the phase after the inherited phase, or re-runs the inherited phase to change it, in its base run. Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch.
+The fork continues from the phase after the inherited phase, or re-runs the inherited phase to change it, in the run containing the cut. Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch.

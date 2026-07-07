@@ -20,7 +20,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 5. Read the shipped code from the build phase — the _what_ every concrete claim in the docs must match.
 6. Read the host project's existing documentation for its conventions.
 7. Read the summary format to follow when writing the summary on approval.
-8. Derive the diff base yourself — it is never passed to you. It is `git merge-base` between your branch and the branch the run chained from: the previous run's branch (your branch name with its `rev-<N>-<desc>` segment removed for `rev-1`, or decremented otherwise), or, for a base run (no `rev` segment), the pipeline's start ref — the project's main branch by default. Inspect the diff from that base to `HEAD`; it spans the whole run.
+8. Derive the diff base yourself — it is never passed to you. It is `git merge-base` between your branch and the branch the run chained from: the previous run's branch (your branch name with its `rev-<N>-<desc>` segment removed for `rev-1`, or decremented otherwise), or, for a base run (no `rev` segment), the pipeline's start ref — the `start` line of `<artifact-folder>/pipeline.md`. Inspect the diff from that base to `HEAD`; it spans the whole run.
 
 ### 2. Review the changes
 

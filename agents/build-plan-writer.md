@@ -27,7 +27,7 @@ Use the following structure:
 
 ## Overview
 
-<!-- One paragraph: what is being implemented and the order at a high level. -->
+<!-- One paragraph: what is being implemented and the order at a high level, plus the investigation behind the plan's scope — including searches that came back empty. -->
 
 ## Guardrail scopes
 

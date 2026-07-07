@@ -29,7 +29,7 @@ Branches exist at exactly two levels; there is no pipeline-level branch.
 
 **Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what merges into the project's main branch.
 
-**Lane branches** carry the parallel work of the spec and design-doc phases: one branch per lane, forked from the run branch at phase start. Every lane writes the same canonical artifact paths as the run branch — lane identity lives only in the ref. The phase's consolidator reads the lane artifacts off their branches (`git show <lane-ref>:<path>`) and commits the consolidated artifact on the run branch. Lane worktrees are removed after consolidation; lane branches are never merged — they are pushed and kept permanently as the record of the parallel work.
+**Lane branches** carry the parallel work of the spec and design-doc phases: one branch per lane, forked from the run branch at phase start. Every lane writes the same canonical artifact paths as the run branch — lane identity lives only in the ref. The phase's consolidator reads the lane artifacts off their branches (`git show <lane-ref>:<path>`) and commits the consolidated artifact on the run branch. Lane worktrees are removed after consolidation; lane branches are never merged — they are pushed and kept as the record of a completed phase's parallel work. Rolling back an in-progress phase deletes its lane branches (see `resume-pipeline.md`).
 
 ## Artifacts
 
@@ -39,14 +39,14 @@ Artifacts live at `<artifact-folder>/<run>/<phase>`, where `<run>` is `base` or 
 git show <ref>:<artifact-folder>/base/1-spec/spec.md
 ```
 
-A one-line `pipeline.md` identity file at the artifact-folder root records the pipeline version. A fork's first commit updates it: the legible fork marker in history, and how a merged, branch-deleted pipeline's version is recovered from the main branch.
+A `pipeline.md` identity file at the artifact-folder root records the pipeline version and the base run's start ref (`version: v1` / `start: <ref>` — recorded because git does not preserve where a branch started). A fork's first commit updates it: the legible fork marker in history, and how a merged, branch-deleted pipeline's version is recovered from the main branch.
 
 ## Start refs
 
 The owner names the base run's start ref. The default is the project's main branch; two alternatives are first-class:
 
 - **Stacking** — another pipeline's run-branch tip, to build on unmerged work.
-- **Forking** — the **cut commit** in the parent pipeline's history: the commit that completed the last inherited phase's completion predicate. A fork is a branch at the cut commit; the inherited history carries the inherited work itself — artifacts, code, and commits.
+- **Forking** — the **cut commit** in the parent pipeline's history: the commit that completed the last inherited phase's completion predicate. A fork is a branch at the cut commit; the inherited history carries the inherited work itself — artifacts, code, and commits. The fork's first branch carries the run segment of the run containing the cut (`base` stays implicit), and work continues in that run's folder.
 
 ## Per-phase completion
 
@@ -68,14 +68,14 @@ Plan approval is the build and document phases' inner gate: a phase with its pla
 
 ## Diff bases
 
-A run's diff base is derived on demand: `git merge-base <run-branch> <previous-run-branch>` — for the base run, with the start ref. Any reviewer recomputes the same answer at any time; a run's commits are `git log <run-branch> ^<previous-run-branch>`.
+A run's diff base is derived on demand: `git merge-base <run-branch> <previous-run-branch>` — for the base run, with the start ref recorded in `pipeline.md`. Any reviewer recomputes the same answer at any time; a run's commits are `git log <run-branch> ^<previous-run-branch>`.
 
 ## Lineage
 
 Two layers answer two different questions:
 
 - **Ancestry** (primary) answers what a pipeline started from. Fork points — `git merge-base` between family branches — define the tree, permanently and exactly, even after either side rewrites an inherited artifact.
-- **Content** (annotation) answers what is identical right now. Tree SHAs over the canonical artifact paths (`git rev-parse <ref>:<artifact-folder>/base/<phase>`) compare a fork's phase against the cut commit and the parent's tip, yielding per-phase labels:
+- **Content** (annotation) answers what is identical right now. Tree SHAs over the canonical artifact paths (`git rev-parse <ref>:<artifact-folder>/<run>/<phase>`, `<run>` being the run containing the cut) compare a fork's phase against the cut commit and the parent's tip, yielding per-phase labels:
   - `inherited-identical` — fork and parent both still match the cut commit.
   - `inherited-modified` — the fork changed the inherited artifact.
   - `parent-diverged` — the fork matches the cut commit but the parent has since changed it.

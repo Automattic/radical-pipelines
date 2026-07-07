@@ -34,7 +34,7 @@ Run each phase from the next phase up to the target phase, in order.
 
 At run start:
 
-1. Create the run branch and its worktree per the **Branch names** and **Worktrees** conventions, starting the branch per `pipeline-versioning.md` ("Branches").
+1. Ensure the run branch's worktree exists per the **Worktrees** convention — the run branch was created when the run's intent was committed.
 2. Start a recurring health monitor for the run per `reference/health-monitoring.md`.
 
 You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. You never change your own working directory: address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch.

@@ -18,7 +18,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/<run>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/<run>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Read the summary format to follow when writing the summary on approval.
-6. Derive the diff base yourself — it is never passed to you. It is `git merge-base` between your branch and the branch the run chained from: the previous run's branch (your branch name with its `rev-<N>-<desc>` segment removed for `rev-1`, or decremented otherwise), or, for a base run (no `rev` segment), the pipeline's start ref — the project's main branch by default. Inspect the diff from that base to `HEAD`.
+6. Derive the diff base yourself — it is never passed to you. It is `git merge-base` between your branch and the branch the run chained from: the previous run's branch (your branch name with its `rev-<N>-<desc>` segment removed for `rev-1`, or decremented otherwise), or, for a base run (no `rev` segment), the pipeline's start ref — the `start` line of `<artifact-folder>/pipeline.md`. Inspect the diff from that base to `HEAD`.
 
 ### 2. Review the changes
 

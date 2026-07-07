@@ -20,7 +20,7 @@ Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) 
 
 Inside the worktree, create the artifact folder containing:
 
-- `pipeline.md` — the one-line identity file, recording the pipeline version: `v1`.
+- `pipeline.md` — the identity file: `version: v1` and `start: <start-ref>`.
 - `base/0-intent/` — the base run's phase-0 folder.
 
 ### 5. Author the intent

@@ -9,6 +9,8 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 - **Family** — all of an issue's pipelines (`v1`, `v2`, …); shares one artifact folder and
   one branch-base.
 - **Intent** — the phase-0 input: goal, constraints, context, open assumptions.
+- **Origin section** — the revision intent's mandatory, self-contained provenance section:
+  the substance of the request plus a convenience link.
 - **Pipeline** — one attempt at an issue: a chain of runs sharing an artifact folder and a
   version.
 - **Pipeline version** — `v1`, `v2`, … One per fork of the same issue; `v1` is implicit in
@@ -21,9 +23,10 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 - **Artifact folder** — the single folder holding all of an issue-pipeline family's
   artifacts, produced by the Artifact folder convention; identical across forks (no version
   in its name). Artifacts live at `<artifact-folder>/<run>/<phase>`.
-- **`pipeline.md`** — one-line identity file at the artifact-folder root recording the
-  pipeline version; a fork's first commit updates it (fork marker; version recovery for
-  merged, branch-deleted pipelines).
+- **`pipeline.md`** — identity file at the artifact-folder root recording the pipeline
+  version and the base run's start ref (`version: v1` / `start: <ref>`); a fork's first
+  commit updates it (fork marker; version recovery for merged, branch-deleted pipelines;
+  the start ref is the one fact git does not record).
 - **Owner** — the human running the pipeline. Talks only to the orchestrator.
 - **Orchestrator** — the top-level agent executing the skill: loads conventions, creates
   topology, spawns agents, verifies predicates, reports to the owner.
@@ -39,18 +42,23 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
   the previous run's tip. There is no pipeline-level branch; the pipeline's tip is its
   latest run branch, which is what merges to main.
 - **Lane branch** — a branch forked from the run branch at phase start for one lane of a
-  multilane phase. Never merged; permanent record; writes the same canonical artifact paths
-  as the run branch (lane identity lives only in the ref).
+  multilane phase. Never merged; pushed and kept once its phase completes (a rolled-back
+  phase's lanes are deleted); writes the same canonical artifact paths as the run branch
+  (lane identity lives only in the ref).
 - **Start ref** — where a base run's branch begins: the project's main branch (default),
   another pipeline's run-branch tip (stacking), or a cut commit (fork).
 - **Stacking** — starting a pipeline on top of an unmerged pipeline's run tip.
 - **Fork** — a new pipeline version created by branching at a cut commit in a parent
-  pipeline's history; inherited history carries the inherited work itself.
+  pipeline's history; inherited history carries the inherited work itself. The fork's first
+  branch carries the run segment of the run containing the cut, and work continues in that
+  run's folder.
 - **Cut commit** — the commit that completed the last inherited phase's completion
   predicate; the fork point.
 - **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and
   removes all branches and worktrees and never changes its own working directory; agents
   only occupy worktrees prepared for them.
+- **Worktree root** — the path from the Worktrees convention under which the orchestrator
+  creates one worktree per branch (`<worktree-root>/<branch>`).
 - **Anchors** — the absolute Worktree path and Branch passed to every agent; verified
   before the first write and before every commit.
 
@@ -70,7 +78,10 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
   approval markers) that marks a phase complete, evaluated in the run folder on the run
   branch.
 - **Inner gate** — the plan-approval checkpoint inside Build/Document: plan approved, tasks
-  pending marks the phase in progress at a known point.
+  pending marks the phase in progress at a known point; on approval the phase proceeds
+  directly to task execution.
+- **Shipped code** — the code, tests, and inline API documentation the build phase
+  committed on the run branch.
 - **Summary** — the human-readable record of what Build or Document produced
   (`build-summary.md`, `document-summary.md`), written by the phase reviewer on approval.
 
@@ -87,6 +98,12 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 - **Writer / reviewer loop** — a fresh writer per iteration produces the artifact; an
   adversarial reviewer rejects (numbered rejection file) or approves (singleton approval
   file).
+- **Batch** — the set of build/document tasks dispatched since the previous review; scopes
+  the reviewer's expected new work, never the review's boundaries (the reviewed diff spans
+  the whole run; issues may attach to any task in the plan).
+- **Conventions block** — the `## Conventions` block the orchestrator places at the top of
+  every agent's initial prompt (fields defined in `passing.md`): Artifact folder, Run,
+  Worktree path, Branch, Commit format, Guardrails, Guardrail scopes to fill.
 - **Consolidator** — merges approved lane artifacts into the consolidated artifact and
   consolidated research on the run branch; plays the writer role against the final
   reviewer.
@@ -113,6 +130,9 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 
 - **Lane** — one independent execution of a phase's full machinery on its own lane branch,
   producing a lane-approved artifact.
+- **Lane flow** — one execution of a phase's full machinery (research → artifact →
+  adversarial review) to a lane-approved artifact; on the run branch at N=1, on each lane
+  branch at N>1.
 - **Lane count (N)** — a per-phase decision. At N=1 the lane branch is the run branch and
   consolidation is skipped (the degenerate case).
 - **Isolated mode** — lanes run in parallel, mutually blind (spec always; design-doc
