@@ -58,6 +58,8 @@ For each phase:
 
 If a phase fails, stop and report to the owner.
 
+A writer/reviewer loop that reaches three consecutive rejections also stops the run: surface the latest rejection to the owner and perform the close-out (step 7). The owner may set a different budget when confirming the run plan.
+
 Each time you spawn an agent:
 
 - Follow the **Team spawning** convention.
