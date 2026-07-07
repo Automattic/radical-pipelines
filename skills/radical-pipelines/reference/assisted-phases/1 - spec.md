@@ -1,16 +1,16 @@
 # Running the Spec Phase (Phase 1)
 
-Advances the pipeline from phase 0 (`intent.md`) to phase 1 (`spec.md`) by driving an iterative Q&A directly with the owner. No agents are spawned.
+Advances the pipeline from phase 0 (`intent.md`) to phase 1 (`spec.md`) by driving an iterative Q&A directly with the owner.
 
 Inputs:
 
-- `<artifacts-folder>/0-intent/intent.md`
+- `<artifact-folder>/<run>/0-intent/intent.md`
 
 Outputs:
 
-- `<artifacts-folder>/1-spec/spec-research.md`
-- `<artifacts-folder>/1-spec/spec.md`
-- `<artifacts-folder>/1-spec/spec-review-approved.md` (the assisted-mode approval file you write on the owner's behalf — see step 8)
+- `<artifact-folder>/<run>/1-spec/spec-research.md`
+- `<artifact-folder>/<run>/1-spec/spec.md`
+- `<artifact-folder>/<run>/1-spec/spec-review-approved.md` (written on the owner's approval — see step 8)
 
 ## Constraints
 
@@ -28,7 +28,7 @@ These rules apply across all steps:
 
 ### 1. Initialize `spec-research.md`
 
-Create `<artifacts-folder>/1-spec/spec-research.md` with this structure:
+Create `<artifact-folder>/<run>/1-spec/spec-research.md` with this structure:
 
 ```markdown
 # Spec Research: <feature name>
@@ -93,7 +93,7 @@ Append a `## Consolidated Requirements` section at the bottom of `spec-research.
 
 ### 6. Synthesize `spec.md`
 
-Write `<artifacts-folder>/1-spec/spec.md` as a standalone document — understandable without reading any other file. Use this structure:
+Write `<artifact-folder>/<run>/1-spec/spec.md` as a standalone document — understandable without reading any other file. Use this structure:
 
 ```markdown
 # Spec: <feature name>
@@ -109,6 +109,7 @@ Write `<artifacts-folder>/1-spec/spec.md` as a standalone document — understan
 
 - **Standalone** — the reader should not need `spec-research.md` or `intent.md`.
 - **Specific** — name exact types, functions, files where possible.
+- **Sized by the evidence** — the spec's depth follows what the Q&A and research found; omit sections with nothing to record.
 - **No implementation details** — describe WHAT, not HOW to code it.
 - **Acceptance criteria** in Given-When-Then format. They drive the tests.
 - Architectural and structural details (components, data models, error handling, etc.) belong to phase 2 (the design doc), not here.
@@ -117,9 +118,9 @@ Write `<artifacts-folder>/1-spec/spec.md` as a standalone document — understan
 
 Show the owner `spec.md`. Iterate on edits, additions, or removals. The owner may also send you back to step 2 for more Q&A; that is allowed and expected. Repeat until the owner explicitly approves.
 
-### 8. Commit
+### 8. Write the approval file
 
-Write `<artifacts-folder>/1-spec/spec-review-approved.md` recording the owner's approval (this is the assisted-mode equivalent of the autonomous `spec-reviewer`'s approval file, and it satisfies the phase 1 completion predicate in `pipeline-versioning.md`):
+Write `<artifact-folder>/<run>/1-spec/spec-review-approved.md` recording the owner's approval:
 
 ```markdown
 # Spec Review
@@ -135,4 +136,4 @@ Owner (assisted workflow)
 <one or two lines capturing anything the owner wants recorded about the approval — leave empty if nothing>
 ```
 
-Commit `spec-research.md`, `spec.md`, and `spec-review-approved.md` together in a single commit, following the **Commit format** convention.
+The artifacts to commit together: `spec-research.md`, `spec.md`, and `spec-review-approved.md`.
