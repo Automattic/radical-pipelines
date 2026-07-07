@@ -1,27 +1,17 @@
 # Pi Rules
 
-When the active agentic coding tool is Pi, use Pi-specific worktree and team tools.
+When the active agentic coding tool is Pi, use Pi-specific team tools.
 
 ## Canonical `.rp.md` content for Pi
 
 ```markdown
-## Pi worktrees
+## Worktrees
 
-Use `@zenobius/pi-worktrees`; never use raw `git worktree` commands.
+Worktrees live under `<worktree-root>` (suggested: `.pi/worktrees`). The orchestrator creates and removes them with raw `git worktree` shell commands — one worktree per branch, at `<worktree-root>/<branch>`. Agents never run `git worktree`; each occupies the worktree named in its Conventions block.
 
-- **Setup:** `/worktree settings worktreeRoot .pi/worktrees`
-- **Create:** `/worktree create worktree-<pipeline-slug> --name <pipeline-slug>`
-- **Remove:** `/worktree remove <pipeline-slug>`
+## Team spawning
 
-Spawned teammates must use the Pi worktree as `cwd`, never the main checkout.
-
-## Pi branch names
-
-Use `worktree-<pipeline-slug>`; this is the branch argument passed to `/worktree create`.
-
-## Pi team spawning
-
-Use one `pi-teams` team per pipeline, named `<pipeline-slug>`. Prefer `create_predefined_team`; otherwise use `team_create` plus `spawn_teammate`. Always spawn agents with the worktree as `cwd`.
+Use one `pi-teams` team per run, named after the run branch. Prefer `create_predefined_team`; otherwise use `team_create` plus `spawn_teammate`. `spawn_teammate` supports a per-agent `cwd`: always set it to the agent's worktree. Pass each agent's model and settings, resolved from the **Agent models** convention, as spawn parameters. Agents message the orchestrator when their work completes.
 
 Agents in the same team address each other directly via pi-teams messaging. When a phase reference says two agents exchange messages, the orchestrator does not relay between them by default. It only spawns, monitors, and waits for completion signals.
 

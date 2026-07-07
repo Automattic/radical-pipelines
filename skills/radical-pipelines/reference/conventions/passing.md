@@ -4,14 +4,20 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 
 - **Artifact folder:**
   - Agents: all
+- **Run:** the run folder name — `base` or `rev-<N>-<desc>`. Agent profiles resolve their inputs and outputs as `<artifact-folder>/<run>/…` paths.
+  - Agents: all
+- **Worktree path:** the absolute path of the agent's assigned worktree.
+  - Agents: all
+- **Branch:** the branch checked out in that worktree.
+  - Agents: all
 - **Commit format:**
   - Agents: all
   - Omit when not defined.
-- **Guardrails:** place the gates naming this agent. For a scoped gate, read its chosen scope value from the plan's `## Guardrail scopes` section, substitute it into the gate's `{scope}` command, and place the resolved command; a fixed gate's command passes literally. See `reference/guardrails.md` for the model.
-  - Agents: `code-writer-tdd`, `code-writer-e2e`, `code-reviewer`, `docs-writer`, `docs-reviewer`
-  - Omit when not defined or when agent doesn't have any gates.
+- **Guardrails:** place the gates naming this agent. For a scoped gate, read its chosen scope value from the phase plan's `## Guardrail scopes` section, substitute it into the gate's `{scope}` command, and place the resolved command; a fixed gate's command passes literally. See `reference/guardrails.md` for the model.
+  - Agents: `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`, `document-writer`, `document-reviewer`
+  - Omit when not defined or when the agent has no gates.
 - **Guardrail scopes to fill:** the scoped gates whose `{scope}` the plan must supply. See `reference/guardrails.md`.
   - Agents:
-    - `code-plan-writer` and `code-plan-reviewer` for the scoped gates of `code` agents
-    - `docs-plan-writer` and `docs-plan-reviewer` for the scoped gates of `docs` agents
-  - Omit when not defined or when agents don't have any scoped gates to fill.
+    - `build-plan-writer` and `build-plan-reviewer` for the scoped gates of build agents
+    - `document-plan-writer` and `document-plan-reviewer` for the scoped gates of document agents
+  - Omit when not defined or when the agents have no scoped gates to fill.

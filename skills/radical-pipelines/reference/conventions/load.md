@@ -8,18 +8,18 @@ This information is necessary to execute the pipelines correctly, so you must lo
 
 ## Conventions
 
-| Convention         | What it covers                                                                      | Required? |
-| ------------------ | ----------------------------------------------------------------------------------- | --------- |
-| Pipeline base slug | How to uniquely identify pipelines                                                  | Yes       |
-| Artifact folder    | Where to store the pipeline artifacts                                               | Yes       |
-| Commit format      | How to write commits                                                                | No        |
-| Issues             | Where to find the project issues and how to create/modify them                      | Yes       |
-| Worktrees          | How to set up and manage worktrees for each pipeline                                | Yes       |
-| Branch names       | How to name branches for each pipeline                                              | Yes       |
-| Team spawning      | How to define and launch teams of agents                                            | No        |
-| Agent models       | Which model/settings each spawned agent runs on                                     | No        |
-| Health monitoring  | How to launch and cancel the recurring run-health loop                              | Yes       |
-| Guardrails         | The deterministic verification gates — exact commands judged pass/fail by exit code | No        |
+| Convention        | What it covers                                                                       | Required? |
+| ----------------- | ------------------------------------------------------------------------------------ | --------- |
+| Branch names      | Produces the `<branch-base>`: deterministic from the issue, a valid git ref, no `_`  | Yes       |
+| Artifact folder   | Produces the family's single artifact folder: deterministic from the issue           | Yes       |
+| Issues            | Where the project tracks issues and how to read, comment on, and update them         | Yes       |
+| Worktrees         | Where worktrees live                                                                 | Yes       |
+| Commit format     | How to write commits                                                                 | No        |
+| Team spawning     | How to spawn and address agents                                                      | No        |
+| Agent models      | Which model/settings each spawned agent runs on                                      | No        |
+| Health monitoring | How to launch and cancel the recurring run-health loop                               | Yes       |
+| Guardrails        | The deterministic verification gates — exact commands judged pass/fail by exit code  | No        |
+| Artifact storage  | Whether `.rp.md` and the artifact folder live in the project's repository or a fork  | Yes       |
 
 ## Missing conventions
 
