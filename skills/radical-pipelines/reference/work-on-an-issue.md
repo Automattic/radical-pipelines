@@ -1,6 +1,6 @@
 # Work on an Issue
 
-The owner wants to advance pipeline work for a specific issue. Identify the issue, check for existing pipelines or create a new one and dispatch to autonomous or assisted mode.
+The owner wants to advance pipeline work for a specific issue. Identify the issue, check for existing pipelines or create a new one, and dispatch to autonomous or assisted mode.
 
 ## Rules
 
@@ -18,31 +18,23 @@ Use the **Issues** convention to verify the issue exists and capture its content
 
 ### 2. Check for existing pipelines
 
-For the identified issue, list any pipelines that already exist by following the steps in `pipeline-versioning.md` ("Listing pipelines for an issue"). Then reconstruct the pipeline tree per `pipeline-versioning.md` ("Reconstructing the pipeline tree").
+List the issue's pipelines per `pipeline-versioning.md` ("Listing pipelines for an issue") and render the tree per `pipeline-versioning.md` ("Rendering the pipeline tree").
 
-For each match capture, per the **Per-phase completion** rules in `pipeline-versioning.md`:
-
-- The branch (local/remote/both)
-- State (in progress, complete and unmerged, or merged into main)
-- The **completed phase** (the highest-numbered phase whose completion predicate is satisfied)
-- The **active phase**, if any (the phase after the completed phase has artifacts on disk but its predicate is not yet met)
-
-**If matches exist**, surface them to the owner with the tree and per-pipeline metadata, and ask how to proceed:
+**If pipelines exist**, show the owner the tree and ask how to proceed:
 
 - **Resume** an in-progress pipeline → read `resume-pipeline.md`, then continue to step 3.
-- **Fork a new pipeline** → read `fork-pipeline.md` to create a new pipeline from an existing one, then continue to step 3.
-- If the pipeline's completed phase is the last phase (phase 5) and there is no active phase, also offer:
-  - **Merge** read `merge-pipeline.md`.
-  - **Revise** read `revision-pipeline.md`, then continue to step 3.
-  - **Close** read `close-pipeline.md`.
-- When the owner is unsure which same-issue action to take, apply this rule:
-  - **Resume** — finish an incomplete latest run, on the same branch.
-  - **Revise** — layer an incremental change on a complete run, on the same branch, building on the existing code.
-  - **Fork** — diverge onto a fresh branch from main.
+- **Revise** a pipeline whose latest run is complete → read `revision-pipeline.md`, then continue to step 3.
+- **Fork** a new pipeline version from an existing one → read `fork-pipeline.md`, then continue to step 3.
+
+When the owner is unsure which same-issue action to take:
+
+- **Resume** — finish an incomplete latest run.
+- **Revise** — layer a new run branch on a complete run, building on the existing work.
+- **Fork** — a new pipeline version branched at a cut commit, to try a different approach.
 
 If the owner has already specified what to do, skip the question.
 
-**If no matches exist**, create the pipeline per `create-pipeline.md`, and continue to step 3.
+**If no pipelines exist**, create the pipeline per `create-pipeline.md`, and continue to step 3.
 
 ### 3. Pick the workflow mode
 

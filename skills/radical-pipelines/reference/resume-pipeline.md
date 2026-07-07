@@ -1,42 +1,33 @@
 # Resuming a Pipeline
 
-Resumes an in-progress pipeline.
+Resumes an in-progress pipeline by finishing its latest run.
 
 ## Steps
 
 ### 1. Cancel any leftover health monitor
 
-Cancel any health-monitor loop still registered for this pipeline's slug, per the **Health monitoring** convention. Leftover loops from a previous session persist and must be cancelled before the workflow launches a new one for the same pipeline (see `health-monitoring.md`).
+Cancel any health monitor still registered for this pipeline per the **Health monitoring** convention — a loop from a previous session persists until cancelled, and the workflow will launch a fresh one.
 
-### 2. Re-attach to the branch and worktree
+### 2. Locate the latest run branch and its worktree
 
-All subsequent work happens inside the pipeline's worktree, per the **Worktrees** convention. Re-attach to the existing worktree for the pipeline's versioned slug:
+Enumerate the family's branches and parse them with the branch grammar (`pipeline-versioning.md`); the latest run is the highest-`N` revision, or `base`. Reuse the run branch's worktree if it exists; otherwise recreate it from the branch per the **Worktrees** convention.
 
-- **If the worktree exists**, re-enter it per the **Worktrees** convention.
-- **If the worktree is gone but the branch exists**, recreate the worktree from the existing branch per the **Worktrees** convention.
+### 3. Verify state against the completion predicates
 
-### 3. Verify on-disk state against the completion predicate
+Evaluate the **Per-phase completion** predicates (`pipeline-versioning.md`) within the latest run on its branch to establish the completed phase and the active phase. Read the active phase's artifacts end-to-end to establish exactly how far it got.
 
-Read the actual files on the branch and confirm the state against the **Per-phase completion** predicate in `pipeline-versioning.md`, evaluated within the pipeline's **latest run**; read the completed/active-phase artifacts inside that run's folder:
+### 4. Determine the resume point
 
-- Confirm the **completed phase**'s required artifacts are present and committed.
-- For the **active phase** (if any), read its latest artifact end-to-end to establish exactly how far it got and why its predicate is not yet met.
+**No active phase.** The resume point is the phase after the completed phase; there is nothing to roll back.
 
-### 4. Determine the resume point and restart a partial active phase
+**Active build or document phase with its plan approved.** Resume investigatively, per `pipeline-versioning.md` ("Per-phase completion"): inspect the plan, the commits, and the diff; judge how far the tasks got; revert partial-task work only and discard uncommitted changes. The phase re-dispatches from the last complete task.
 
-If the pipeline has an **active phase** (partially complete), that is the resume point. Otherwise the resume point is the phase **after** the latest run's completed phase; the worktree is already clean, so skip the rollback below.
+**Any other in-progress active phase.** The phase restarts clean:
 
-The workflow phase references assume a phase starts fresh, so a partially-complete active phase must be **rolled back to a clean state** before the workflow re-runs it.
-
-Confirm with the owner first:
-
-1. Tell the owner plainly that the active phase will be **restarted and its state reset**: its commits on this branch will be reverted and any uncommitted changes in the worktree discarded, so the phase starts clean. The completed phase and every earlier phase are left untouched.
-2. **Ask the owner to confirm.** If they decline, do not roll anything back — stop and offer alternatives, for example forking a new pipeline from the completed phase per `fork-pipeline.md`, which leaves this pipeline's partial state intact.
-3. On confirmation, **revert the active phase's commits** so the branch tip returns to the completed-phase state.
-   - Reverting adds inverse commits rather than rewriting history, so a branch already on the remote needs no force-update.
-   - Then discard any uncommitted changes so the worktree is clean.
-   - The active phase folder is now gone from the tip: the pipeline's completed phase is unchanged and it has no active phase.
+1. Tell the owner plainly that the active phase will be restarted: its commits on the run branch reverted and any uncommitted changes discarded, leaving the completed phase and everything earlier untouched. Ask the owner to confirm; if they decline, stop and offer alternatives — for example a fork per `fork-pipeline.md`, which leaves the partial state intact.
+2. On confirmation, revert the active phase's commits — reverting adds inverse commits, so a pushed branch needs no force-update — and discard uncommitted changes. The run returns to the completed-phase state.
+3. Delete the aborted attempt's lane branches and their worktrees: lane branches are the permanent record of completed phases only, and the re-run needs their names free.
 
 ---
 
-Resume ends here. Return to `work-on-an-issue.md`.
+Resume ends here. Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch.
