@@ -20,8 +20,8 @@ relative path.
 ## Authoring discipline
 
 - **Cover the whole run.** Include every rejected iteration's surviving work, not
-  only the final approved batch; the reviewer's base-ref → HEAD diff already spans
-  this scope.
+  only the final approved batch; the run diff you derived already spans this
+  scope.
 - **Record, don't re-argue.** State what was produced and why; the spec, design,
   and plan are already settled.
 - **Write for a human reader of the artifact folder** — and for a project building
