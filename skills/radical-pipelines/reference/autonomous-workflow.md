@@ -22,7 +22,7 @@ If the owner does not specify, default to the last phase.
 
 ## 3. Collect per-phase decisions
 
-For each phase included in the autonomous run, read its reference and look at the `Decisions` section. Ask the owner about any choice the owner has not already specified.
+For each phase included in the autonomous run, read its reference and look at the `Decisions` section. Ask the owner about any choice the owner has not already specified — the lane count for the spec and design-doc phases, and the lane mode (isolated or divergent) for the design-doc phase.
 
 ## 4. Confirm the plan
 
@@ -34,51 +34,56 @@ Run each phase from the next phase up to the target phase, in order.
 
 At run start:
 
-1. Create the pipeline's team per the **Team spawning** convention.
+1. Create the run branch and its worktree per the **Branch names** and **Worktrees** conventions, starting the branch per `pipeline-versioning.md` ("Branches").
 2. Start a recurring health monitor for the run per `reference/health-monitoring.md`.
-3. Capture the run's base ref per the **Revision base ref** rule in `pipeline-versioning.md`.
+
+You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. You never change your own working directory: address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch.
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
 | 0 - Intent     | `0-intent`     | Already in place                      |
 | 1 - Spec       | `1-spec`       | `autonomous-phases/1 - spec.md`       |
 | 2 - Design doc | `2-design-doc` | `autonomous-phases/2 - design-doc.md` |
-| 3 - Plan       | `3-plan`       | `autonomous-phases/3 - plan.md`       |
-| 4 - Code       | `4-code`       | `autonomous-phases/4 - code.md`       |
-| 5 - Docs       | `5-docs`       | `autonomous-phases/5 - docs.md`       |
+| 3 - Build      | `3-build`      | `autonomous-phases/3 - build.md`      |
+| 4 - Document   | `4-document`   | `autonomous-phases/4 - document.md`   |
 
 For each phase:
 
-1. Create the phase subfolder inside the active run's folder (the artifacts folder for this run). Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`.
+1. Create the phase subfolder inside the run folder (`<artifact-folder>/<run>/<phase>` per `pipeline-versioning.md`). Creating the folder marks the phase as **in progress**.
 2. Read its phase reference.
 3. Run the phase per its reference, applying the per-phase decisions collected in step 3.
-4. When the phase's completion predicate is satisfied, give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of rejected review iterations, deviations from defaults). Do not ask questions — this is informational only.
-5. Continue with the following phase, until the target phase has completed.
+4. Verify the phase's completion predicate per `pipeline-versioning.md` ("Per-phase completion").
+5. Give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of rejected review iterations, deviations from defaults). Do not ask questions — this is informational only.
+6. Continue with the following phase, until the target phase has completed.
 
 If a phase fails, stop and report to the owner.
 
-Important:
+Each time you spawn an agent:
 
-- Follow the **Team spawning** convention for how to define and launch teams of agents.
-- Each time you spawn an agent, include the `## Conventions` block at the top of its initial prompt per `reference/conventions/passing.md`.
-- Each time you spawn an agent, resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
+- Follow the **Team spawning** convention.
+- Include the `## Conventions` block at the top of its initial prompt per `reference/conventions/passing.md`.
+- Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
 
 ## 6. Handle blockers
 
 Agents are instructed to stop and report a blocker — instead of inventing a missing decision — when a required input is missing, contradictory, or would force them to make a choice that belongs to a prior phase. Every agent that reports a blocker is expected to include the same payload:
 
 - **What is missing or contradictory** — the specific gap or conflict.
-- **Which prior-phase artifact must change to unblock it** — for example, `<artifacts-folder>/2-design-doc/design-doc.md`.
-- **(If known) The smallest revision that would unblock** — a sentence or two the prior-phase agent could act on.
+- **Which prior-phase artifact must change to unblock it** — for example, `<artifact-folder>/<run>/2-design-doc/design-doc.md`.
+- **(If identifiable) The smallest revision that would unblock** — a sentence or two the prior-phase agent could act on.
 
 When a blocker arrives:
 
 1. Stop the autonomous run immediately. Do not advance to the next phase, and do not relaunch the blocked agent without an input change.
-2. Surface the blocker to the owner verbatim, including the three fields above and the path to any partial artifact the agent committed (most agents do not commit a partial artifact; some — see `spec-consolidator` — leave clearly-marked TODOs and commit, which is a documented exception).
+2. Surface the blocker to the owner verbatim, including the three fields above and the path to any partial artifact the agent committed.
 3. Name the prior phase the owner needs to re-run to address the gap.
 
-Resume is currently manual: the owner re-runs the prior phase in a fresh session (treating the blocker payload as feedback), confirms the new artifact is committed, then re-launches the blocked phase. Automatic backtracking is out of scope for this version of the workflow.
+The owner re-runs the prior phase treating the blocker payload as revision input, then relaunches the blocked phase.
 
 ## 7. Close out the run
 
-Once the target phase has been reported, stop the health monitor (see `reference/health-monitoring.md` for the cancellation command) and tell the owner that the autonomous run is complete.
+Once the target phase has been reported:
+
+1. Stop the health monitor (see `reference/health-monitoring.md` for the cancellation command).
+2. Push the run branch and its lane branches, and apply the project's other run-end obligations from its conventions.
+3. Tell the owner that the autonomous run is complete.

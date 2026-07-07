@@ -406,3 +406,27 @@ Execution notes: run today's pipelines on the OLD installed skill (2a: new-pipel
 don't update the installed skill mid-flight). #1 can run assisted (context already lives in
 this session/doc) or autonomous-high; #2–#7 are ideal autonomous material — sharply scoped,
 spec-ready, disjoint.
+
+## Canonical cross-cutting texts (copy verbatim into agent profiles)
+
+### Worktree/branch anchor rule (every agent profile)
+
+Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and
+**Branch**. If you did not start inside your worktree, your first action is to move there —
+once. Before your first write and before every commit, verify that your working directory is
+under the worktree path and that `HEAD` equals the branch; on mismatch, stop and report —
+never change directory or switch branches to fix it.
+
+### Self-sizing review check (reviewer profiles)
+
+A minimal artifact is legitimate only when the research record shows the investigation that
+came back empty. For each "none" the artifact claims — no risks, no alternatives, no
+affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks
+that evidence.
+
+### Blocker payload (every agent profile)
+
+When a required input is missing, contradictory, or would force a choice that belongs to a
+prior phase, stop and report a blocker with: what is missing or contradictory; which
+prior-phase artifact must change to unblock you; and, if identifiable, the smallest revision
+that would do so.

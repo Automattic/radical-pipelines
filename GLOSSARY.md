@@ -6,6 +6,8 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 ## Core concepts
 
 - **Issue** — the tracked unit of work a pipeline realizes; its body is the intent.
+- **Family** — all of an issue's pipelines (`v1`, `v2`, …); shares one artifact folder and
+  one branch-base.
 - **Intent** — the phase-0 input: goal, constraints, context, open assumptions.
 - **Pipeline** — one attempt at an issue: a chain of runs sharing an artifact folder and a
   version.
@@ -44,8 +46,8 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 - **Stacking** — starting a pipeline on top of an unmerged pipeline's run tip.
 - **Fork** — a new pipeline version created by branching at a cut commit in a parent
   pipeline's history; inherited history carries the inherited work itself.
-- **Cut commit** — the commit that added the inherited phase's terminal artifact; the fork
-  point.
+- **Cut commit** — the commit that completed the last inherited phase's completion
+  predicate; the fork point.
 - **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and
   removes all branches and worktrees and never changes its own working directory; agents
   only occupy worktrees prepared for them.

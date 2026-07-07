@@ -2,7 +2,7 @@
 
 This is the entry point of the **assisted workflow**. You drive a single phase directly with the owner — typically through Q&A — and write the artifacts yourself. No agents are spawned. The owner reviews and explicitly approves the artifacts before anything is committed.
 
-The phase to run is the **next phase** — the pipeline's active phase if one exists; otherwise the phase after the completed phase (see `pipeline-versioning.md`).
+The phase to run is the **next phase** — the pipeline's active phase if one exists; otherwise the phase after the completed phase (see `pipeline-versioning.md`). Assisted mode covers the spec and design-doc phases: a pipeline's intent is already in place, and the build and document phases run in the autonomous workflow. If the next phase is `3-build` or `4-document`, tell the owner and offer the autonomous workflow.
 
 ## 1. Frame the conversation
 
@@ -14,19 +14,15 @@ Map the next phase to its reference file:
 
 | Phase          | Subfolder      | Reference                           |
 | -------------- | -------------- | ----------------------------------- |
-| 0 - Intent     | `0-intent`     | Already in place                    |
 | 1 - Spec       | `1-spec`       | `assisted-phases/1 - spec.md`       |
 | 2 - Design doc | `2-design-doc` | `assisted-phases/2 - design-doc.md` |
-| 3 - Plan       | `3-plan`       | `assisted-phases/3 - plan.md`       |
-| 4 - Code       | `4-code`       | Can't be run in assisted workflow   |
-| 5 - Docs       | `5-docs`       | Can't be run in assisted workflow   |
 
-## 4. Execute the phase
+## 3. Execute the phase
 
-Create the phase subfolder inside the active run's folder (the artifacts folder for this run). Creating the folder marks the phase as **in progress**; completion is determined separately by the **Per-phase completion** predicate in `pipeline-versioning.md`. Run the phase per its reference.
+Create the phase subfolder inside the run folder (`<artifact-folder>/<run>/<phase>` per `pipeline-versioning.md`). Creating the folder marks the phase as **in progress**. Run the phase per its reference.
 
-You write the artifacts yourself. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does.
+You write the artifacts yourself, in the run branch's worktree addressed by absolute path. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does.
 
-## 5. Report and close out
+## 4. Report and close out
 
 Once the phase's completion predicate is satisfied, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.

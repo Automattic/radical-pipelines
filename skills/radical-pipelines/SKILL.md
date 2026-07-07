@@ -1,6 +1,6 @@
 ---
 name: radical-pipelines
-description: Run an autonomous software engineering pipeline that takes an issue through six sequential phases (Intent → Spec → Design doc → Plan → Code → Docs), each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
+description: Run an autonomous software engineering pipeline that takes an issue through five sequential phases (Intent → Spec → Design doc → Build → Document), each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
 ---
 
 # Radical Pipelines
@@ -30,14 +30,13 @@ You can move forward the pipelines through the different phases in two modes: au
 
 ## Phases
 
-| #   | Phase      | Subfolder      | Produces                                                       |
-| --- | ---------- | -------------- | -------------------------------------------------------------- |
-| 0   | Intent     | `0-intent`     | The input                                                      |
-| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope                |
-| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs      |
-| 3   | Plan       | `3-plan`       | Code plan and docs plan                                         |
-| 4   | Code       | `4-code`       | Code changes, unit and end-to-end tests, behavior verification, and a code summary |
-| 5   | Docs       | `5-docs`       | Documentation (both internal and external) and a docs summary  |
+| #   | Phase      | Subfolder      | Produces                                                                                             |
+| --- | ---------- | -------------- | ---------------------------------------------------------------------------------------------------- |
+| 0   | Intent     | `0-intent`     | The input                                                                                            |
+| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope                                                      |
+| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs                                            |
+| 3   | Build      | `3-build`      | The build plan, code changes, unit and end-to-end tests, behavior verification, and a build summary |
+| 4   | Document   | `4-document`   | The document plan, documentation (both internal and external), and a document summary                |
 
 ## Project conventions
 
