@@ -335,33 +335,18 @@ verification-chosen-by-artifact.
 
 ## Canonical vocabulary (interface contract for all work packages)
 
-Every work package uses EXACTLY these names. No synonyms, no alternatives.
+**The vocabulary lives in `/GLOSSARY.md` (repo root) — the single source.** Every work
+package uses EXACTLY those names; no synonyms. Agents propose glossary additions/changes in
+their final reports; the orchestrator curates the file (never edit it from a work package).
 
-- **Phases / folders:** `0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`.
+Scope calls that accompany the vocabulary:
+
 - **Phase reference files:** `autonomous-phases/1 - spec.md`, `2 - design-doc.md`,
-  `3 - build.md`, `4 - document.md`; `assisted-phases/1 - spec.md`, `2 - design-doc.md`
-  (assisted mode covers ONLY spec and design-doc in v2; the old assisted plan guide is
-  dropped — assisted build-planning is a future follow-up issue).
-- **Agents (19):** `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`,
-  `spec-consolidator`; `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`,
-  `design-doc-reviewer`, `design-doc-consolidator`; `build-plan-writer`,
-  `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`;
-  `document-plan-writer`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
-- **Build artifacts** (in `<run>/3-build/`): `build-plan.md`,
-  `build-plan-review-N-rejected.md`, `build-plan-review-approved.md`,
-  `build-review-N-rejected.md`, `build-review-approved.md`, `build-summary.md`.
-- **Document artifacts** (in `<run>/4-document/`): `document-plan.md`,
-  `document-plan-review-N-rejected.md`, `document-plan-review-approved.md`,
-  `document-review-N-rejected.md`, `document-review-approved.md`, `document-summary.md`.
-- **Spec/design artifacts:** filenames unchanged (`spec-research.md`, `spec.md`,
-  `spec-review-*.md`; `design-doc-research.md`, `design-doc.md`, `design-doc-review-*.md`).
-  Lanes write the SAME canonical paths on their lane branches; consolidated versions land on
-  the run branch under the same names.
-- **Branch grammar:** `<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]` — `v1` and
-  `base` implicit; `<branch-base>` from the Branch names convention, must not contain `_`.
-- **Identity file:** `pipeline.md` at the artifact-folder root (pipeline version record).
+  `3 - build.md`, `4 - document.md`; `assisted-phases/1 - spec.md`, `2 - design-doc.md`.
+  Assisted mode covers ONLY spec and design-doc in v2 (the old assisted plan guide is
+  dropped — assisted build-planning is a future follow-up issue). Approved by Luis.
 - **`work-on-an-issue.md` options in v2:** resume / fork / revise only (merge and close are
-  WS6; no dangling references).
+  WS6; no dangling references). Approved by Luis.
 - **Canonical cross-cutting texts** (anchor rule, self-sizing reviewer check, blocker
   payload) are appended below by work package #1 and copied VERBATIM by packages 4–7 into
   their agent profiles.
