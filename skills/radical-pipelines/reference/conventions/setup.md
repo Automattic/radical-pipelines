@@ -146,6 +146,7 @@ Explain this and ask the owner:
   4. Pushes the clean branch directly to `upstream`.
   5. Opens the PR in `upstream` from that clean branch.
 - The PR's source branch lives in `upstream`, not in the fork — viewers of the PR never see the fork. If the fork is private, its existence is hidden entirely.
+- Pushing the clean branch to `upstream` requires **write access to the canonical repository**. Confirm with the owner now that they have it; without it the flow stops at PR time.
 
 Then collect the information needed to operate in fork mode:
 
