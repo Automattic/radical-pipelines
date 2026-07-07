@@ -22,7 +22,7 @@ Use whatever tools fit the question:
 
 ## How to report
 
-Report back to the orchestrator (which routes to the spec-analyst):
+Report back directly to the spec-analyst that sent the question:
 
 - **Answer** — a direct, specific response to what was asked.
 - **Reasoning** — why this is the answer and what evidence supports it.

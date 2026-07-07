@@ -18,7 +18,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/<run>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/<run>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Read the summary format to follow when writing the summary on approval.
-6. Derive the diff base yourself — it is never passed to you. It is `git merge-base` between your branch and the branch the run chained from: the previous run's branch (your branch name with its `rev-<N>-<desc>` segment removed for `rev-1`, or decremented otherwise), or, for a base run (no `rev` segment), the pipeline's start ref — the `start` line of `<artifact-folder>/pipeline.md`. Inspect the diff from that base to `HEAD`.
+6. Derive the diff base yourself — it is never passed to you. Identify the previous run branch by listing the family's branches (`git branch --list`, plus `-r`) and taking, within your branch's pipeline version, the run below yours; the diff base is `git merge-base` with it. When your branch has no predecessor in its version — a base run or a fork's first run — the diff base is the start commit on the `start` line of `<artifact-folder>/pipeline.md`. Inspect the diff from that base to `HEAD`.
 
 ### 2. Review the changes
 
@@ -101,7 +101,7 @@ On an **approved** verdict, also write `<artifact-folder>/<run>/3-build/build-su
 
 ### 6. Commit and report
 
-1. On **approved**, commit `build-review-approved.md`, `build-summary.md`, and any assets it referenced together in a single commit using the host project's commit format. On **rejected**, commit the single rejection file using the host project's commit format.
+1. On **approved**, commit `build-review-approved.md`, `build-summary.md`, and any assets it referenced together in a single commit using the **Commit format**. On **rejected**, commit the single rejection file using the **Commit format**.
 2. On **approved**, send a message to the orchestrator confirming the batch is approved.
 3. On **rejected**, send a message to the orchestrator listing the **deduplicated set of task IDs that have issues**. The orchestrator re-dispatches only those tasks; fresh build-writers will read your review file and address the issues scoped to their task.
 

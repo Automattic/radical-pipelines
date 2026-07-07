@@ -42,7 +42,7 @@ When the owner offers a direction or belief, record it under Assumptions and say
 
 ### 5. Draft, confirm, write
 
-Render the issue in the format above (omitting empty sections) and show it to the owner. Do not write to the tracker until the owner explicitly approves. On approval, create the new issue — or apply the modification — through the **Issues** convention.
+Render the issue in the format above (omitting empty sections) and show it to the owner. On approval, create the new issue — or apply the modification — through the **Issues** convention.
 
 ## Close out
 

@@ -73,7 +73,7 @@ Use this structure:
 
 ### 5. Commit and report
 
-1. Commit the file you wrote in step 4 using the **commit format**.
+1. Commit the file you wrote in step 4 using the **Commit format**.
 2. If **approved**, send a message to the orchestrator confirming the plan is ready.
 3. If **rejected**, send a message to the orchestrator listing the issues. The orchestrator will relaunch the `build-plan-writer` agent to address them.
 

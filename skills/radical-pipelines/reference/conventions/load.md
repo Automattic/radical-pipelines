@@ -1,10 +1,6 @@
 # Load Conventions
 
-This skill is generic, but each project has its own conventions that you must follow.
-
-Project-specific conventions are stored in the `.rp.md` file. Read it at the start of any workflow.
-
-This information is necessary to execute the pipelines correctly, so you must load and verify it before starting any workflow.
+Project-specific conventions are stored in the `.rp.md` file.
 
 ## Conventions
 

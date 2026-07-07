@@ -25,7 +25,7 @@ When a required input is missing, contradictory, or would force a choice that be
 ### 1. Understand the intent
 
 1. Read `<artifact-folder>/<run>/0-intent/intent.md` and any other artifacts already in `<artifact-folder>/<run>/1-spec/`.
-2. Create `<artifact-folder>/<run>/1-spec/spec-research.md` with the rough idea (the contents of `intent.md`) at the top, followed by a `## Q&A` heading ready to receive entries.
+2. Create `<artifact-folder>/<run>/1-spec/spec-research.md` per the document format below, with the intent's content under the H1; the other sections start empty.
 
 ### 2. Requirements clarification
 
@@ -48,7 +48,7 @@ Cover these areas strategically — not as a checklist, and not always in this o
 
 When a question would benefit from codebase investigation, ask the spec-researcher to research it before answering.
 
-Track exclusions as they surface, and note the out-of-scope candidates in the consolidated requirements.
+Record exclusions under `## Out of Scope` as they surface.
 
 ### 3. Research requests
 
@@ -81,7 +81,7 @@ You can move between clarification and research as many times as needed. Require
 
 When done:
 
-1. Append a `## Consolidated Requirements` section at the bottom of `<artifact-folder>/<run>/1-spec/spec-research.md` — a numbered list of all requirements distilled from the Q&A, each phrased as an observable outcome.
+1. Fill `## Consolidated Requirements` in `<artifact-folder>/<run>/1-spec/spec-research.md` — a numbered list of all requirements distilled from the Q&A, each phrased as an observable outcome.
 2. Commit `<artifact-folder>/<run>/1-spec/spec-research.md` following the **Commit format**.
 3. Send a message to the orchestrator that requirements are complete.
 
@@ -90,11 +90,9 @@ When done:
 Write to `<artifact-folder>/<run>/1-spec/spec-research.md`:
 
 ```markdown
-# Spec Research
+# Spec Research: <feature name>
 
-## Rough Idea
-
-<!-- The original idea from intent.md -->
+<contents of `intent.md`, copied verbatim>
 
 ## Q&A
 
@@ -127,6 +125,8 @@ Write to `<artifact-folder>/<run>/1-spec/spec-research.md`:
 <spec-researcher's findings>
 
 ...
+
+## Out of Scope
 
 ## Consolidated Requirements
 

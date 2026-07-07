@@ -13,10 +13,10 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 - **Commit format:**
   - Agents: all
   - Omit when not defined.
-- **Guardrails:** place the gates naming this agent. For a scoped gate, read its chosen scope value from the phase plan's `## Guardrail scopes` section, substitute it into the gate's `{scope}` command, and place the resolved command; a fixed gate's command passes literally. See `reference/guardrails.md` for the model.
+- **Guardrails:** place the gates naming this agent. For a scoped gate, read its chosen scope value from the phase plan's `## Guardrail scopes` section, substitute it into the gate's `{scope}` command, and place the resolved command; a fixed gate's command passes literally. See `../guardrails.md` for the model.
   - Agents: `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`, `document-writer`, `document-reviewer`
   - Omit when not defined or when the agent has no gates.
-- **Guardrail scopes to fill:** the scoped gates whose `{scope}` the plan must supply. See `reference/guardrails.md`.
+- **Guardrail scopes to fill:** the scoped gates whose `{scope}` the plan must supply, each as its full per-gate block (command template and fill-guidance). See `../guardrails.md`.
   - Agents:
     - `build-plan-writer` and `build-plan-reviewer` for the scoped gates of build agents
     - `document-plan-writer` and `document-plan-reviewer` for the scoped gates of document agents

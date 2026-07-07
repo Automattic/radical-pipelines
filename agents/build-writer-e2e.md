@@ -11,7 +11,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 ### 1. Gather context
 
-1. Read the **assigned task block** from the orchestrator's launch prompt. It contains Goal / Files / Changes / Depends on / Traces to / Acceptance — everything you need to execute the task — and names the flow(s) it implements.
+1. Read the **assigned task block** from the orchestrator's launch prompt. It contains Goal / Type / Files to change / Changes / Depends on / Traces to / Acceptance — everything you need to execute the task — and names the flow(s) it implements.
 2. If the orchestrator cited a review file plus the issues scoped to your task, read those issues and address every one.
 3. Read the E2E test plan section of `<artifact-folder>/<run>/3-build/build-plan.md` — the source of the flow specs you implement.
 
@@ -39,7 +39,7 @@ Run every gate in your `## Conventions` block's **Guardrails** field, exactly as
 
 ### 4. Commit and report
 
-1. Commit the tests using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the tests using the **Commit format**. Group changes logically. Only commit when every gate passes.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
@@ -49,7 +49,7 @@ Run every gate in your `## Conventions` block's **Guardrails** field, exactly as
 - **Acceptance is the contract.** Every per-task Acceptance criterion must be covered by a passing test.
 - **Follow project conventions for test code, including any inline documentation the test convention expects.**
 - **Write about the software itself.** On everything you produce, never reference a specific task, requirement, e2e flow, acceptance criterion, etc, and never cite a specific artifact.
-- **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
+- **Files to change is a guide, not a hard boundary.** The task's Files to change list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.
 - **Follow project conventions.** Existing patterns, naming, code style, testing style.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.

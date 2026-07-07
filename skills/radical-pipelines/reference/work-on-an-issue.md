@@ -40,8 +40,8 @@ If the owner has already specified what to do, skip the question.
 
 Ask the owner which mode this run uses:
 
-- **Autonomous** — agents drive each phase end-to-end without further questions until the target phase is reached.
-- **Assisted** — orchestrator drives a single phase directly with the owner, typically through Q&A. No agents are spawned.
+- **Autonomous** — teams of agents run phases end-to-end.
+- **Assisted** — the orchestrator drives a single phase directly with the owner.
 
 If the owner has already specified the mode, skip the question.
 

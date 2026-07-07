@@ -20,7 +20,7 @@ Evaluate the **Per-phase completion** predicates (`pipeline-versioning.md`) with
 
 **No active phase.** The resume point is the phase after the completed phase; there is nothing to roll back.
 
-**Active build or document phase with its plan approved.** Resume investigatively, per `pipeline-versioning.md` ("Per-phase completion"): inspect the plan, the commits, and the diff; judge how far the tasks got; revert partial-task work only and discard uncommitted changes. The phase re-dispatches from the last complete task.
+**Active build or document phase with its plan approved.** Resume investigatively, per `pipeline-versioning.md` ("Per-phase completion").
 
 **Any other in-progress active phase.** The phase restarts clean:
 

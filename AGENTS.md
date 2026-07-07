@@ -15,3 +15,8 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 - The skill must describe the system only as it is designed to work, not transient, historical, or speculative situations. A case earns a place in the skill only when it is a durable part of the design — not a one-off (like a migration leftover) or a future need that doesn't yet exist.
 - Reuse the terms and identifiers the skill already defines instead of introducing new notation for the same concept.
 - The skill is prose, not software. Do not write structural tests that assert the content of skill or agent files — their sections, wording, or ordering. Such tests merely restate the skill and break on every legitimate edit.
+
+## Repository rules
+
+- Every change to the repository records a changeset (authoring guidance in CONTRIBUTING.md).
+- README.md is updated when a change alters behavior it describes.

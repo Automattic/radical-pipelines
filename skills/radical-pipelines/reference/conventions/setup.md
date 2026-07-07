@@ -84,12 +84,14 @@ Which model — and optional settings such as reasoning `effort` — each spawne
 
 Values are tool-native and opaque — the orchestrator passes them to the spawn mechanism verbatim, so the same logical choice may need a different string per tool:
 
-- A bare alias or first-party ID, such as `opus` or `claude-opus-4-8`.
-- A provider-qualified `provider/model`, such as `anthropic/claude-opus-4-8`.
+- A bare alias or first-party ID: `<alias>`.
+- A provider-qualified form: `<provider>/<model>`.
+
+Alternatively, a project may key models by a difficulty tier the owner picks at run start — a table of agent × tier — resolved to the tool-native value before spawning.
 
 ### Health monitoring (required)
 
-How the orchestrator launches a recurring monitor in the autonomous workflow to detect stalls, message failures, login errors, network errors, and so on. Context-window limits are handled by each tool's own auto-compaction, not by the monitor.
+How the orchestrator launches a recurring monitor in the autonomous workflow to detect stalls, message failures, login errors, network errors, and so on.
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run. Try to document the commands to start, list, and cancel this monitoring.
 
@@ -99,7 +101,7 @@ This is highly dependent on the agentic coding tool but you can document the exi
 
 **What kinds to consider.** Unit tests, lint, typecheck, build, format, audit, e2e, and any project-specific validators. Ask the owner which of these the project runs and which ones a change must pass before it is considered complete. Offer to investigate.
 
-**Capture per gate** as the per-gate block defined in `reference/guardrails.md`, asking the owner for each field.
+**Capture per gate** as the per-gate block defined in `../guardrails.md`, asking the owner for each field.
 
 **Validate each command as you capture it.** Validating immediately lets an unrunnable one be corrected or dropped before the confirm-before-write. Validate a **fixed** gate by running its literal command; validate a **scoped** gate by substituting a realistic, made-up `{scope}` into its command and running that. Either way the only question is **did the command execute?** — whether it _passes_ is the agents' concern at run time, not yours; for a scoped gate this confirms the runner resolves.
 

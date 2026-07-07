@@ -1,6 +1,6 @@
 # Running the Design Doc Phase (Phase 2)
 
-Advances the pipeline from phase 1 (spec) to phase 2 by running N lanes, each a team of agents that drives iterative design Q&A, synthesizes a standalone design doc, and reviews it adversarially. When N > 1, a consolidator merges the lane designs on the run branch.
+Advances the pipeline from phase 1 (spec) to phase 2 by running lanes, each a team of agents that drives iterative design Q&A, synthesizes a standalone design doc, and reviews it adversarially. With multiple lanes, a consolidator merges the lane designs on the run branch.
 
 Inputs:
 
@@ -14,12 +14,12 @@ Outputs, committed on the run branch:
 - `<artifact-folder>/<run>/2-design-doc/design-doc-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
 - `<artifact-folder>/<run>/2-design-doc/design-doc-review-approved.md` (single, unnumbered file written on approval)
 
-When N > 1, each lane branch carries its lane-approved versions of the same paths.
+With multiple lanes, each lane branch carries its lane-approved versions of the same paths.
 
 ## Decisions
 
-- **Lane count (N)** — how many lanes design independently. Default: 1.
-- **Lane mode** — `isolated` or `divergent`; meaningful only when N > 1. Default: isolated.
+- **Lane count** — how many lanes design independently. Default: 1.
+- **Lane mode** — `isolated` or `divergent`; meaningful only with multiple lanes. Default: isolated.
 
 ## Required agents
 
@@ -29,7 +29,7 @@ When N > 1, each lane branch carries its lane-approved versions of the same path
 | `design-doc-researcher`   | Investigates the codebase, web, and runs experiments to answer questions.                                                                                 | Yes         |
 | `design-doc-writer`       | Writes a standalone `design-doc.md` from `spec.md` and `design-doc-research.md`.                                                                          | No          |
 | `design-doc-reviewer`     | Reviews a design adversarially; writes `design-doc-review-N-rejected.md` on rejection or `design-doc-review-approved.md` on approval.                     | No          |
-| `design-doc-consolidator` | Merges the lane-approved designs and research records into the consolidated `design-doc.md` and `design-doc-research.md` on the run branch (N > 1 only). | No          |
+| `design-doc-consolidator` | Merges the lane-approved designs and research records into the consolidated `design-doc.md` and `design-doc-research.md` on the run branch (multiple lanes only). | No          |
 
 ## The lane flow
 
@@ -42,9 +42,9 @@ Each lane runs the full flow in its assigned worktree:
 
 ## Steps
 
-**N = 1** — run the lane flow on the run branch, in the run branch's worktree. The lane approval is the phase approval; there is no consolidation.
+**A single lane** — run the lane flow on the run branch, in the run branch's worktree. The lane approval is the phase approval; there is no consolidation.
 
-**N > 1:**
+**Multiple lanes:**
 
 1. Create one lane branch and worktree per lane, forked from the run branch (branch segment `2-design-doc-lane-<K>`).
 2. Run the lane flow in every lane:
@@ -66,8 +66,8 @@ flowchart TD
         E --> F{Approved?}
         F -->|no| D
     end
-    F -->|"yes — N = 1"| K[Phase complete]
-    F -->|"yes — N > 1, all lanes"| H[Design Doc Consolidator]
+    F -->|"yes — single lane"| K[Phase complete]
+    F -->|"yes — multiple lanes, all approved"| H[Design Doc Consolidator]
     H -->|consolidated design-doc.md + design-doc-research.md| I[Design Doc Reviewer]
     I --> J{Approved?}
     J -->|no| H

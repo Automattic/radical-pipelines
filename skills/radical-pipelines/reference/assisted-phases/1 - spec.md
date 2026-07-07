@@ -21,7 +21,6 @@ These rules apply across all steps:
 - You MUST NOT propose design or implementation choices — those belong to later phases.
 - You MUST append every question and answer to `spec-research.md` in real time, not in batches.
 - You MUST NOT proceed past any gate without explicit owner confirmation.
-- You MUST NOT commit until the owner has explicitly approved the final `spec.md`.
 - You MAY (and often should) read the codebase to inform your questions and check feasibility. Record any non-trivial findings under `## Research` in `spec-research.md` with sources cited. Do not produce a separate research artifact or directory — that belongs to later phases.
 
 ## Steps
@@ -89,7 +88,7 @@ Surface the exclusions you collected during Q&A back to the owner in one consoli
 
 ### 5. Consolidate requirements
 
-Append a `## Consolidated Requirements` section at the bottom of `spec-research.md`: a numbered list distilled from the Q&A. Exclusions belong in the spec's Out of Scope section, not here.
+Fill `## Consolidated Requirements` in `spec-research.md`: a numbered list distilled from the Q&A. Exclusions belong in the spec's Out of Scope section, not here.
 
 ### 6. Synthesize `spec.md`
 

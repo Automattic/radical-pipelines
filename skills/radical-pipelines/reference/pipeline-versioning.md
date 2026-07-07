@@ -39,7 +39,7 @@ Artifacts live at `<artifact-folder>/<run>/<phase>`, where `<run>` is `base` or 
 git show <ref>:<artifact-folder>/base/1-spec/spec.md
 ```
 
-A `pipeline.md` identity file at the artifact-folder root records the pipeline version and the base run's start ref (`version: v1` / `start: <ref>` — recorded because git does not preserve where a branch started). A fork's first commit updates it: the legible fork marker in history, and how a merged, branch-deleted pipeline's version is recovered from the main branch.
+A `pipeline.md` identity file at the artifact-folder root records the pipeline version and the start ref's resolved commit (`version: v1` / `start: <commit>` — recorded because git does not preserve where a branch started). A fork's first commit updates it: the legible fork marker in history, and how a merged, branch-deleted pipeline's version is recovered from the main branch.
 
 ## Start refs
 
@@ -55,20 +55,20 @@ A phase's predicate is evaluated at `<artifact-folder>/<run>/<phase>` on the run
 | Phase          | Required artifacts                                                                              |
 | -------------- | ----------------------------------------------------------------------------------------------- |
 | 0 – Intent     | `intent.md`                                                                                      |
-| 1 – Spec       | `spec.md`, `spec-review-approved.md`                                                             |
-| 2 – Design doc | `design-doc.md`, `design-doc-review-approved.md`                                                 |
+| 1 – Spec       | `spec-research.md`, `spec.md`, `spec-review-approved.md`                                         |
+| 2 – Design doc | `design-doc-research.md`, `design-doc.md`, `design-doc-review-approved.md`                       |
 | 3 – Build      | `build-plan.md`, `build-plan-review-approved.md`, `build-review-approved.md`, `build-summary.md` |
 | 4 – Document   | `document-plan.md`, `document-plan-review-approved.md`, `document-review-approved.md`, `document-summary.md` |
 
-Phase folders are created at phase start, so a phase whose folder or some artifacts exist with the predicate unsatisfied is **in progress**.
+A phase with artifacts present — in the worktree or committed — but its predicate unsatisfied is **in progress**.
 
-A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` revision, or `base`. The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none. A revision run with only its `0-intent/intent.md` committed has `1-spec` as the pipeline's next phase — the revision intent is its input.
+A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` revision, or `base`. The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none. The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase. A revision run with only its `0-intent/intent.md` committed has `1-spec` as the pipeline's next phase — the revision intent is its input.
 
 Plan approval is the build and document phases' inner gate: a phase with its plan approved and tasks pending is in progress. Resuming it is investigative: inspect the plan, the commits, and the diff to judge how far the tasks got, revert partial-task work, and re-dispatch from the last complete task — the commits and the diff are the only record of task progress.
 
 ## Diff bases
 
-A run's diff base is derived on demand: `git merge-base <run-branch> <previous-run-branch>` — for the base run, with the start ref recorded in `pipeline.md`. Any reviewer recomputes the same answer at any time; a run's commits are `git log <run-branch> ^<previous-run-branch>`.
+A run's diff base is derived on demand. The previous run branch is the run below it among its pipeline version's branches, parsed with the branch grammar; the diff base is `git merge-base` between the run branch and that previous run branch. A run with no predecessor branch in its version — the base run, or a fork's first run — uses the start commit recorded in `pipeline.md` directly. A run's commits are `git log <run-branch> ^<diff-base>`.
 
 ## Lineage
 

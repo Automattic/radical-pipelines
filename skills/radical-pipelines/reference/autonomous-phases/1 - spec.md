@@ -1,6 +1,6 @@
 # Running the Spec Phase (Phase 1)
 
-Turns the run's intent into an approved spec. The phase runs as N isolated lanes — independent derivations of the requirements from the same intent — consolidated into one spec on the run branch. N = 1 is the degenerate case: the lane runs on the run branch itself and consolidation is skipped.
+Turns the run's intent into an approved spec. The phase runs as isolated lanes — independent derivations of the requirements from the same intent — consolidated into one spec on the run branch. A single lane is the degenerate case: it runs on the run branch itself and consolidation is skipped.
 
 Inputs:
 
@@ -8,16 +8,16 @@ Inputs:
 
 Outputs, at `<artifact-folder>/<run>/1-spec/` on the run branch:
 
-- `spec-research.md` — the requirements record; consolidated at N > 1. The design-doc phase reads it.
-- `spec.md` — the spec; consolidated at N > 1.
+- `spec-research.md` — the requirements record; consolidated when multiple lanes run. The design-doc phase reads it.
+- `spec.md` — the spec; consolidated when multiple lanes run.
 - `spec-review-N-rejected.md` (one per rejected iteration)
 - `spec-review-approved.md` (single, unnumbered file written on approval)
 
-At N > 1, each lane branch holds the same paths with its lane-approved artifacts.
+With multiple lanes, each lane branch holds the same paths with its lane-approved artifacts.
 
 ## Decisions
 
-- **Lane count (N)** — how many spec lanes to run. Default: 1.
+- **Lane count** — how many spec lanes to run. Default: 1.
 
 ## Required agents
 
@@ -27,7 +27,7 @@ At N > 1, each lane branch holds the same paths with its lane-approved artifacts
 | `spec-researcher`   | Investigates the codebase, web, and runs experiments to answer questions.                                                                 | Yes         |
 | `spec-writer`       | Writes a standalone `spec.md`.                                                                                                            | No          |
 | `spec-reviewer`     | Reviews the spec adversarially; writes `spec-review-N-rejected.md` on rejection or `spec-review-approved.md` on approval.                 | No          |
-| `spec-consolidator` | Merges the lane-approved specs and research records into the consolidated `spec.md` and `spec-research.md` on the run branch (N > 1 only). | No          |
+| `spec-consolidator` | Merges the lane-approved specs and research records into the consolidated `spec.md` and `spec-research.md` on the run branch (multiple lanes only). | No          |
 
 ## The lane flow
 
@@ -41,29 +41,29 @@ Each lane runs this flow independently, in its own worktree on its own branch:
 
 ## Steps
 
-**N = 1.** Run the lane flow on the run branch, in the run branch's worktree. The lane review is the phase review; its approval ends the flow — continue at **Completion**.
+**A single lane.** Run the lane flow on the run branch, in the run branch's worktree. The lane review is the phase review; its approval ends the flow — continue at **Completion**.
 
-**N > 1:**
+**Multiple lanes:**
 
-1. Create one lane branch and worktree per lane (branch segment `1-spec-lane-<K>`, K = 1…N, forked from the run branch) per the **Worktrees** convention.
+1. Create one lane branch and worktree per lane (branch segment `1-spec-lane-<K>`, forked from the run branch) per the **Worktrees** convention.
 2. Run the lane flow in all lanes in parallel. Every lane writes the same canonical artifact paths on its own branch — lane identity lives only in the ref.
 3. When every lane is approved, launch `spec-consolidator` in the run branch's worktree with the list of lane branches. It reads each lane's `spec.md` and `spec-research.md` (`git show <lane-ref>:<path>`), writes the consolidated `spec.md` and `spec-research.md` at the canonical paths, and commits them on the run branch.
-4. Launch a fresh `spec-reviewer` against the consolidated spec on the run branch. On rejection, relaunch the `spec-consolidator` with the rejection file's path — it plays the writer role in this loop. On approval it writes `spec-review-approved.md`.
-5. Remove the lane worktrees; the lane branches remain.
+4. Remove the lane worktrees; the lane branches remain.
+5. Launch a fresh `spec-reviewer` against the consolidated spec on the run branch. On rejection, relaunch the `spec-consolidator` with the rejection file's path — it plays the writer role in this loop. On approval it writes `spec-review-approved.md`.
 
 **Completion.** Verify the phase's completion predicate per `pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD
-    subgraph lane ["Lane flow — on the run branch at N = 1, on each lane branch at N > 1"]
+    subgraph lane ["Lane flow — on the run branch with a single lane, on each lane branch with multiple lanes"]
         B[spec-analyst] <-->|Q&A| C[spec-researcher]
         B -->|requirements complete| D[spec-writer]
         D -->|spec.md| E[spec-reviewer]
         E --> F{Approved?}
         F -->|rejected| D
     end
-    F -->|approved · N = 1| K[Phase complete]
-    F -->|all lanes approved · N > 1| H[spec-consolidator]
+    F -->|approved · single lane| K[Phase complete]
+    F -->|all lanes approved · multiple lanes| H[spec-consolidator]
     H -->|consolidated spec.md + spec-research.md| I[spec-reviewer]
     I --> J{Approved?}
     J -->|rejected| H

@@ -24,9 +24,9 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
   artifacts, produced by the Artifact folder convention; identical across forks (no version
   in its name). Artifacts live at `<artifact-folder>/<run>/<phase>`.
 - **`pipeline.md`** — identity file at the artifact-folder root recording the pipeline
-  version and the base run's start ref (`version: v1` / `start: <ref>`); a fork's first
-  commit updates it (fork marker; version recovery for merged, branch-deleted pipelines;
-  the start ref is the one fact git does not record).
+  version and the base run's start commit (`version: v1` / `start: <commit>`); a fork's
+  first commit updates it (fork marker; version recovery for merged, branch-deleted
+  pipelines; the start commit is the one fact git does not record).
 - **Owner** — the human running the pipeline. Talks only to the orchestrator.
 - **Orchestrator** — the top-level agent executing the skill: loads conventions, creates
   topology, spawns agents, verifies predicates, reports to the owner.
@@ -116,8 +116,8 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 - **Assisted workflow** — the orchestrator drives one phase directly with the owner (spec
   and design-doc only); no agents spawned; the owner's explicit approval produces the
   approval file.
-- **Decisions** — per-phase choices collected at run start; currently lane count (spec,
-  design-doc) and lane mode (design-doc).
+- **Decisions** — per-phase choices collected at run start; lane count (spec, design-doc)
+  and lane mode (design-doc).
 - **Target phase** — the highest phase an autonomous run executes before stopping.
 - **Blocker** — an agent's stop-and-report when required input is missing, contradictory,
   or would force a prior phase's decision; payload: what is missing/contradictory, which
@@ -131,9 +131,9 @@ synonyms, no alternate notation. Updated whenever the architecture evolves.
 - **Lane** — one independent execution of a phase's full machinery on its own lane branch,
   producing a lane-approved artifact.
 - **Lane flow** — one execution of a phase's full machinery (research → artifact →
-  adversarial review) to a lane-approved artifact; on the run branch at N=1, on each lane
-  branch at N>1.
-- **Lane count (N)** — a per-phase decision. At N=1 the lane branch is the run branch and
+  adversarial review) to a lane-approved artifact; on the run branch with a single lane, on
+  each lane branch with multiple.
+- **Lane count** — a per-phase decision. With a single lane the lane branch is the run branch and
   consolidation is skipped (the degenerate case).
 - **Isolated mode** — lanes run in parallel, mutually blind (spec always; design-doc
   optionally).

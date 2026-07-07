@@ -11,7 +11,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 ### 1. Gather context
 
-1. Read the **assigned task block** from the orchestrator's launch prompt. It contains Goal / Files / Changes / Depends on / Traces to / Acceptance — everything you need to execute the task.
+1. Read the **assigned task block** from the orchestrator's launch prompt. It contains Goal / Type / Files to change / Changes / Depends on / Traces to / Acceptance — everything you need to execute the task.
 2. If the orchestrator cited a review file plus the issues scoped to your task, read those issues and address every one.
 
 ### 2. Implement with TDD
@@ -47,7 +47,7 @@ Run every gate in your `## Conventions` block's **Guardrails** field, exactly as
 
 ### 4. Commit and report
 
-1. Commit the code, tests, and inline documentation using the host project's commit format. Group changes logically. Only commit when every gate passes.
+1. Commit the code, tests, and inline documentation using the **Commit format**. Group changes logically. Only commit when every gate passes.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
@@ -55,7 +55,7 @@ Run every gate in your `## Conventions` block's **Guardrails** field, exactly as
 - **Single task only.** Implement exactly the task assigned to you. Do not execute other tasks, redo earlier tasks, or anticipate later tasks.
 - **The task block is self-contained by design.** You should not need to read the intent, spec, design doc, or other tasks in the build plan. If the task as delivered is incomplete, contradictory, or forces you to make a design decision, stop and report a blocker — that means the plan is under-specified, not something for you to fix mid-flight.
 - **Acceptance is the test contract.** Drive RED from it. Every per-task Acceptance criterion must be covered by a passing test.
-- **Files is a guide, not a hard boundary.** The task's Files list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
+- **Files to change is a guide, not a hard boundary.** The task's Files to change list is the planned set. You may touch additional files when implementing the task cleanly requires it — utility extraction, small co-located refactors, test infrastructure the plan didn't anticipate. Do NOT implement other tasks' work or expand the feature's scope beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.
 - **Inline documentation yes, host-project documentation no.** Update the inline API documentation of every symbol you add or modify. Do NOT touch external host-project documentation (READMEs, guides, configuration docs, examples, changelogs) — those updates belong to the document phase.
 - **Write about the software itself.** On everything you produce, never reference a specific task, requirement, acceptance criterion, etc, and never cite a specific artifact.

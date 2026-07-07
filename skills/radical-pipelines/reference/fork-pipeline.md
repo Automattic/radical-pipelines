@@ -27,7 +27,7 @@ Create the fork's first run branch at the cut commit, and its worktree per the *
 
 ### 5. Update `pipeline.md`
 
-As the fork's first commit, set `pipeline.md`'s version to `v<N+1>` and its start to the parent branch of the cut, and commit per the **Commit format** convention.
+As the fork's first commit, set `pipeline.md`'s version to `v<N+1>` and its start to the cut commit, and commit per the **Commit format** convention.
 
 ### 6. Continue as a normal pipeline
 

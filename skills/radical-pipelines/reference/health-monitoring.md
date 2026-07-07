@@ -10,7 +10,7 @@ At run start in the autonomous workflow, right after the run branch and its work
 
 Defaults: **5-minute interval**, **10-minute no-output threshold**. Both are owner-tunable. Shorter intervals catch stalls sooner but spend more tokens on each check; the defaults balance the two.
 
-The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The active tool's rules (see `conventions/claude-code.md` or `conventions/pi.md`) provide the exact command to start the loop.
+The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The project's **Health monitoring** convention provides the exact command to start the loop.
 
 ## What to watch
 
@@ -33,7 +33,7 @@ Each issue gets a **2-retry budget** before escalation. Recovery actions are app
 | --------------------- | ------------------------------------------------------------------ | ----------------------------------- | --------------- |
 | No-output stall       | Ping the agent with a status request                               | Restart the agent                   | Report to owner |
 | Message failure       | Re-send the message                                                | Restart the target agent            | Report to owner |
-| Login / API-key error | Swap to an authenticated provider-qualified model (see tool rules) | Re-spawn the agent on the new model | Report to owner |
+| Login / API-key error | Swap to an authenticated provider-qualified model (per the project's conventions) | Re-spawn the agent on the new model | Report to owner |
 | Network failure       | Retry the tool call once                                           | Wait one interval and retry         | Report to owner |
 
 When a retry succeeds, reset that issue's budget. The 2-retry budget is per issue occurrence, not per session.
@@ -58,17 +58,17 @@ Check the run on branch <run-branch>, artifacts at <artifact-folder>/<run>/.
 Agents work in the run and lane worktrees under <worktree-root>.
 
 Signals to look for:
-- Any agent with no output for >10 minutes
+- Any agent with no output for <no-output-threshold>
 - A failed inter-agent message
 - Login / API-key errors
 - Network failures on tool calls
 
-For each detected issue, apply up to 2 auto-recovery actions per the recovery table in reference/health-monitoring.md.
+For each detected issue, apply up to 2 auto-recovery actions per this recovery table: <recovery-table>
 
 If unresolved after 2 attempts, stop and report to the owner with: agent name, error verbatim, last-known progress, suggested next step.
 ```
 
-The prompt references this file so the monitor reads the recovery table fresh on each fire.
+The orchestrator fills every placeholder when starting the loop, inlining the Recovery table from this file — the prompt must be self-contained for a monitor that cannot read the skill's files.
 
 ## Stopping the monitor
 
@@ -77,4 +77,4 @@ The monitor stops when:
 - The autonomous run reaches its target phase and closes out.
 - The owner cancels the run.
 
-Use the tool's loop cancellation command (see `conventions/claude-code.md` or `conventions/pi.md`). Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.
+Use the loop cancellation command from the project's **Health monitoring** convention. Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.

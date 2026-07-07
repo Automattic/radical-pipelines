@@ -68,7 +68,7 @@ Use the following structure:
 
 ### 3. Commit and report
 
-1. Commit your output using the **commit format**.
+1. Commit your output using the **Commit format**.
 2. Send a message to the orchestrator that the build plan is ready.
 
 ## Guidelines
