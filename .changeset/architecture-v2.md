@@ -1,0 +1,5 @@
+---
+"@automattic/radical-pipelines": minor
+---
+
+Architecture v2. The pipeline is now five phases (Intent → Spec → Design doc → Build → Document): the standalone Plan phase is gone, folded into Build and Document as an inner plan-approval gate. Pipelines are chains of run branches with lane branches, and forks are new pipeline versions created by branching at cut commits — inherited history carries the inherited work itself, with no copying. The spec and design-doc phases run as N independent lanes consolidated into one artifact by new consolidator agents (N=1 is the default single flow), with design-doc lanes supporting isolated and divergent modes. Worktrees are raw `git worktree` checkouts, one per branch, with all branch and worktree topology owned by the orchestrator. Agents are renamed to the phase-prefixed set: `build-plan-writer`/`build-plan-reviewer`, `build-writer-tdd`/`build-writer-e2e`/`build-reviewer`, `document-plan-writer`/`document-plan-reviewer`, `document-writer`/`document-reviewer`, plus the new `design-doc-consolidator`.
