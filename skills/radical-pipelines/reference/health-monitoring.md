@@ -73,6 +73,6 @@ The orchestrator fills every placeholder when starting the loop, inlining the Re
 The monitor stops when:
 
 - The autonomous run reaches its target phase and closes out.
-- The owner cancels the run.
+- The owner cancels or interrupts the run.
 
 Use the loop cancellation command from the project's **Health monitoring** convention. Leftover loops from a previous session must be cancelled before launching a new one for the same pipeline.

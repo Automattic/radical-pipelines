@@ -7,17 +7,13 @@ The block below is the canonical content for `.rp.md`.
 ```markdown
 ## Team spawning
 
-Spawn each agent as a Claude Code teammate, passing the model and settings resolved from the **Agent models** convention as spawn parameters. When the spawn mechanism supports a working-directory parameter, set it to the agent's worktree; otherwise the agent seats itself from the Worktree path in its Conventions block. Agents message the orchestrator when their work completes.
-
-If an inter-agent message fails (the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
+Spawn each agent as a Claude Code teammate.
 
 ## Health monitoring
 
-Use Claude Code's bundled `/loop` skill — no install is required. Only the autonomous workflow launches the monitor; assisted runs do not.
+Use Claude Code's bundled `/loop` skill — no install is required.
 
 - **Start:** `/loop 5m <prompt>` where `<prompt>` is the template from `reference/health-monitoring.md`.
 - **List active loops:** `/loop-list`.
 - **Cancel:** `/loop-kill <id>` using the id returned at start.
-
-The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
 ```

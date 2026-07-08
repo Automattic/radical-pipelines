@@ -63,6 +63,9 @@ Each time you spawn an agent:
 - Follow the **Team spawning** convention.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
+- When the spawn mechanism supports a working-directory parameter, set it to the agent's worktree; otherwise the agent seats itself from the Worktree path in its Conventions block.
+
+Agents message you when their work completes.
 
 ## 6. Handle blockers
 
