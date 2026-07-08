@@ -27,7 +27,7 @@ Parsing is deterministic because the segment shapes are reserved: `v<digits>` is
 
 Branches exist at exactly two levels.
 
-**Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what merges into the project's main branch.
+**Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what merges into the project's main branch. A run's commits start at its intent commit and end at its branch's tip.
 
 **Lane branches** carry the parallel work of the spec and design-doc phases: one branch per lane, forked from the run branch at phase start. Every lane writes the same canonical artifact paths as the run branch — lane identity lives only in the ref. The phase's consolidator reads the lane artifacts off their branches (`git show <lane-ref>:<path>`) and commits the consolidated artifact on the run branch. Lane worktrees are removed after consolidation; lane branches are never merged — they are pushed and kept as the record of a completed phase's parallel work. Rolling back an in-progress phase deletes its lane branches (see `resume-pipeline.md`).
 
@@ -71,7 +71,7 @@ A run's diff base is derived on demand:
 - **Base run** — the parent of the commit that added the run's `intent.md`: the run's first own commit, whether the pipeline started at the main branch or stacked on another pipeline's tip.
 - **A fork's first run** — the cut commit: the nearest ancestor among `git merge-base` with the parent pipeline's branches.
 
-A run's commits in this pipeline are `git log <run-branch> ^<diff-base>`. Every run begins at its intent commit; a run a fork continues past the cut began in the parent, so its commits in the fork pick up mid-run while its artifacts stay whole. The fork derivation needs a parent branch — or the main branch, once the parent merges — to still exist: deleting an unmerged branch that live forks were cut from loses their derivation, like any comparison against a deleted branch.
+The reviewed diff is `<diff-base>` → the run branch's tip: the pipeline's whole work on the run. The fork derivation needs a parent branch — or the main branch, once the parent merges — to still exist: deleting an unmerged branch that live forks were cut from loses their derivation, like any comparison against a deleted branch.
 
 ## Lineage
 
