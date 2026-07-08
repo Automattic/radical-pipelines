@@ -49,7 +49,7 @@ You own all branch and worktree topology: you create every branch and worktree (
 
 For each phase:
 
-1. Create the phase subfolder inside the run folder (`<artifact-folder>/<run>/<phase>` per `pipeline-versioning.md`).
+1. Create the phase subfolder inside the run folder (`<pipeline-family-folder>/<run>/<phase>` per `pipeline-versioning.md`).
 2. Read its phase reference.
 3. Run the phase per its reference, applying the per-phase decisions collected in step 3.
 4. Verify the phase's completion predicate per `pipeline-versioning.md` ("Per-phase completion").
@@ -69,7 +69,7 @@ Each time you spawn an agent:
 Agents are instructed to stop and report a blocker — instead of inventing a missing decision — when a required input is missing, contradictory, or would force them to make a choice that belongs to a prior phase. Every agent that reports a blocker is expected to include the same payload:
 
 - **What is missing or contradictory** — the specific gap or conflict.
-- **Which prior-phase artifact must change to unblock it** — for example, `<artifact-folder>/<run>/2-design-doc/design-doc.md`.
+- **Which prior-phase artifact must change to unblock it** — for example, `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`.
 - **(If identifiable) The smallest revision that would unblock** — a sentence or two the prior-phase agent could act on.
 
 When a blocker arrives:

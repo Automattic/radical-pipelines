@@ -2,13 +2,11 @@
 
 Each time the orchestrator spawns an agent, it includes a `## Conventions` block at the top of that agent's initial prompt, each field labeled exactly as shown:
 
-- **Artifact folder:**
-  - Agents: all
-- **Run:** the run folder name — `base` or `rev-<N>-<desc>`. Agent profiles resolve their inputs and outputs as `<artifact-folder>/<run>/…` paths.
-  - Agents: all
 - **Worktree path:** the absolute path of the agent's assigned worktree.
   - Agents: all
-- **Branch:** the branch checked out in that worktree.
+- **Branch name:** the branch checked out in that worktree.
+  - Agents: all
+- **Artifact folder:** `<pipeline-family-folder>/<run>` — the folder where the agent reads and writes all of its artifacts. Agent profiles resolve their inputs and outputs as `<artifact-folder>/…` paths.
   - Agents: all
 - **Commit format:**
   - Agents: all

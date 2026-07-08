@@ -33,10 +33,10 @@ Branches exist at exactly two levels.
 
 ## Artifacts
 
-Artifacts live at `<artifact-folder>/<run>/<phase>`, where `<run>` is `base` or `rev-<N>-<desc>` (matching the run's branch segment) and `<phase>` is the phase folder. The **Artifact folder** convention produces one artifact folder per family, identical across all forks, so cross-fork comparison is a constant path under a varying ref:
+Artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` or `rev-<N>-<desc>` (matching the run's branch segment) and `<phase>` is the phase folder. The **Pipeline family folder** convention produces one folder per family, identical across all forks, so cross-fork comparison is a constant path under a varying ref:
 
 ```
-git show <ref>:<artifact-folder>/base/1-spec/spec.md
+git show <ref>:<pipeline-family-folder>/base/1-spec/spec.md
 ```
 
 ## Start refs
@@ -48,7 +48,7 @@ The owner names the base run's start ref. The default is the project's main bran
 
 ## Per-phase completion
 
-A phase's predicate is evaluated at `<artifact-folder>/<run>/<phase>` on the run branch. A phase is **complete** when all of its required artifacts are committed there — the same predicate in both workflow modes:
+A phase's predicate is evaluated at `<pipeline-family-folder>/<run>/<phase>` on the run branch. A phase is **complete** when all of its required artifacts are committed there — the same predicate in both workflow modes:
 
 | Phase          | Required artifacts                                                                                           |
 | -------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -68,7 +68,7 @@ A phase's predicate is evaluated at `<artifact-folder>/<run>/<phase>` on the run
 Two layers answer two different questions:
 
 - **Ancestry** (primary) answers what a pipeline started from. Fork points — `git merge-base` between family branches — define the tree, permanently and exactly, even after either side rewrites an inherited artifact.
-- **Content** (annotation) answers what is identical right now. Tree SHAs over the canonical artifact paths (`git rev-parse <ref>:<artifact-folder>/<run>/<phase>`, `<run>` being the run containing the cut) compare a fork's phase against the cut commit, yielding per-phase labels:
+- **Content** (annotation) answers what is identical right now. Tree SHAs over the canonical artifact paths (`git rev-parse <ref>:<pipeline-family-folder>/<run>/<phase>`, `<run>` being the run containing the cut) compare a fork's phase against the cut commit, yielding per-phase labels:
   - `identical` — the inherited artifact is unchanged since the cut.
   - `modified` — the fork changed it.
 
@@ -77,7 +77,7 @@ Two layers answer two different questions:
 ## Listing pipelines for an issue
 
 1. **Branches** — enumerate the family's branch namespace, local and remote (`git branch --list '<branch-base>*'`, `git branch -r --list '*<branch-base>*'`), and parse each name with the branch grammar.
-2. **Artifact folder** — read the family's artifact folder on the main branch of the artifact-bearing repository (per the **Artifact storage** convention). A merged, branch-deleted pipeline is visible only here.
+2. **Pipeline family folder** — read the family's folder on the main branch of the artifact-bearing repository (per the **Artifact storage** convention). A merged, branch-deleted pipeline is visible only here.
 
 ## Rendering the pipeline tree
 

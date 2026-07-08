@@ -4,15 +4,15 @@ Advances the pipeline from phase 1 (spec) to phase 2 by running lanes, each a te
 
 Inputs:
 
-- `<artifact-folder>/<run>/1-spec/spec.md`
-- `<artifact-folder>/<run>/1-spec/spec-research.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec-research.md`
 
 Outputs, committed on the run branch:
 
-- `<artifact-folder>/<run>/2-design-doc/design-doc-research.md`
-- `<artifact-folder>/<run>/2-design-doc/design-doc.md`
-- `<artifact-folder>/<run>/2-design-doc/design-doc-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
-- `<artifact-folder>/<run>/2-design-doc/design-doc-review-approved.md` (single, unnumbered file written on approval)
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc-research.md`
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc-review-approved.md` (single, unnumbered file written on approval)
 
 With multiple lanes, each lane branch carries its lane-approved versions of the same paths.
 

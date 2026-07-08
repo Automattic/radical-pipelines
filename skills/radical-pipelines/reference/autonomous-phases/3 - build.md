@@ -4,18 +4,18 @@ Advances the run from phase 2 (design doc) to phase 3, entirely on the run branc
 
 Inputs:
 
-- `<artifact-folder>/<run>/1-spec/spec.md`
-- `<artifact-folder>/<run>/2-design-doc/design-doc.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec.md`
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`
 
 Outputs:
 
-- `<artifact-folder>/<run>/3-build/build-plan.md`
-- `<artifact-folder>/<run>/3-build/build-plan-review-N-rejected.md` (one per rejected plan iteration, N = 1, 2, 3, …)
-- `<artifact-folder>/<run>/3-build/build-plan-review-approved.md` (single, unnumbered file written on plan approval)
+- `<pipeline-family-folder>/<run>/3-build/build-plan.md`
+- `<pipeline-family-folder>/<run>/3-build/build-plan-review-N-rejected.md` (one per rejected plan iteration, N = 1, 2, 3, …)
+- `<pipeline-family-folder>/<run>/3-build/build-plan-review-approved.md` (single, unnumbered file written on plan approval)
 - Code changes, unit tests, and end-to-end tests committed on the run branch
-- `<artifact-folder>/<run>/3-build/build-review-N-rejected.md` (one per rejected batch iteration, N = 1, 2, 3, …)
-- `<artifact-folder>/<run>/3-build/build-review-approved.md` (single, unnumbered file written on approval)
-- `<artifact-folder>/<run>/3-build/build-summary.md` (written by the `build-reviewer` on approval)
+- `<pipeline-family-folder>/<run>/3-build/build-review-N-rejected.md` (one per rejected batch iteration, N = 1, 2, 3, …)
+- `<pipeline-family-folder>/<run>/3-build/build-review-approved.md` (single, unnumbered file written on approval)
+- `<pipeline-family-folder>/<run>/3-build/build-summary.md` (written by the `build-reviewer` on approval)
 
 ## Decisions
 

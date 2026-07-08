@@ -15,7 +15,7 @@ If the owner has already specified either, skip the question.
 
 ### 2. Locate the cut commit
 
-The cut commit is the commit that completed the inherited phase's completion predicate. On the branch of the run containing the cut, find the commit that added each of the phase's required artifacts in that run's phase folder (`git log --diff-filter=A -1 <parent-run-branch> -- <artifact-folder>/<run>/<phase>/<file>`); the newest of those commits is the cut commit.
+The cut commit is the commit that completed the inherited phase's completion predicate. On the branch of the run containing the cut, find the commit that added each of the phase's required artifacts in that run's phase folder (`git log --diff-filter=A -1 <parent-run-branch> -- <pipeline-family-folder>/<run>/<phase>/<file>`); the newest of those commits is the cut commit.
 
 ### 3. Compute the new version
 

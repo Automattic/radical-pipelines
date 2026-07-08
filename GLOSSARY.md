@@ -5,15 +5,15 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 ## Core concepts
 
 - **Issue** — the tracked unit of work a pipeline realizes.
-- **Pipeline family** — all of an issue's pipelines (`v1`, `v2`, …); shares one artifact folder and one branch-base.
+- **Pipeline family** — all of an issue's pipelines (`v1`, `v2`, …); shares one pipeline family folder and one branch-base.
 - **Intent** — the phase-0 input: goal, constraints, context, open assumptions.
 - **Origin section** — the revision intent's mandatory, self-contained provenance section: the substance of the request plus a convenience link.
-- **Pipeline** — one attempt at an issue: a chain of runs sharing an artifact folder and a version.
+- **Pipeline** — one attempt at an issue: a chain of runs sharing a pipeline family folder and a version.
 - **Pipeline version** — `v1`, `v2`, … One per fork of the same issue; `v1` is implicit in names.
 - **Run** — one pass of the phase flow: `base` (always first, implicit in names) or `rev-<N>-<desc>` (a revision).
 - **Revision** — a run layered on a complete previous run, driven by a revision intent.
 - **Phase** — one stage of a run: `0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`.
-- **Artifact folder** — the single folder holding all of a pipeline family's artifacts, produced by the Artifact folder convention; identical across forks (no version in its name). Artifacts live at `<artifact-folder>/<run>/<phase>`.
+- **Pipeline family folder** — the single folder holding all of a pipeline family's artifacts, produced by the convention of the same name; identical across forks (no version in its name). Artifacts live at `<pipeline-family-folder>/<run>/<phase>`.
 - **Owner** — the human running the pipeline. Talks only to the orchestrator.
 - **Orchestrator** — the top-level agent executing the skill: loads conventions, creates topology, spawns agents, verifies predicates, reports to the owner.
 
@@ -48,7 +48,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Document phase** — `document-plan-writer`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
 - **Writer / reviewer loop** — a fresh writer per iteration produces the artifact; an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file).
 - **Batch** — the set of build/document tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
-- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Artifact folder, Run, Worktree path, Branch, Commit format, Guardrails, Guardrail scopes to fill.
+- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Artifact folder, Worktree path, Branch name, Commit format, Guardrails, Guardrail scopes to fill.
 - **Consolidator** — merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch; plays the writer role against the final reviewer.
 
 ## Workflows

@@ -5,7 +5,7 @@ description: Synthesize requirements into a standalone spec.md (Overview, Requir
 
 You are the `spec-writer` agent. Your role is to synthesize the intent and the spec research record into a standalone `spec.md`.
 
-Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch; on mismatch, stop and report — never change directory or switch branches to fix it.
+Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which prior-phase artifact must change to unblock you; and, if identifiable, the smallest revision that would do so. A requirement that neither `spec-research.md` nor `intent.md` confirms is such a forced choice — report it instead of inventing it.
 
@@ -13,14 +13,14 @@ When a required input is missing, contradictory, or would force a choice that be
 
 ### 1. Gather context
 
-1. Read `<artifact-folder>/<run>/0-intent/intent.md` — the original idea.
-2. Read `<artifact-folder>/<run>/1-spec/spec-research.md` — the full Q&A record, research notes, and consolidated requirements.
+1. Read `<artifact-folder>/0-intent/intent.md` — the original idea.
+2. Read `<artifact-folder>/1-spec/spec-research.md` — the full Q&A record, research notes, and consolidated requirements.
 3. Explore the codebase as needed to verify feasibility.
 4. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the spec
 
-Write a **standalone document** in `<artifact-folder>/<run>/1-spec/spec.md`. It must be understandable without reading any other artifact.
+Write a **standalone document** in `<artifact-folder>/1-spec/spec.md`. It must be understandable without reading any other artifact.
 
 Use this structure:
 

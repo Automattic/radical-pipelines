@@ -4,20 +4,20 @@ Advances the run from phase 3 (build) to phase 4, entirely on the run branch. A 
 
 Inputs:
 
-- `<artifact-folder>/<run>/1-spec/spec.md`
-- `<artifact-folder>/<run>/2-design-doc/design-doc.md`
-- `<artifact-folder>/<run>/3-build/build-summary.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec.md`
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`
+- `<pipeline-family-folder>/<run>/3-build/build-summary.md`
 - The code, tests, and inline API documentation shipped by the build phase.
 
 Outputs:
 
-- `<artifact-folder>/<run>/4-document/document-plan.md`
-- `<artifact-folder>/<run>/4-document/document-plan-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
-- `<artifact-folder>/<run>/4-document/document-plan-review-approved.md` (single, unnumbered file written on approval)
+- `<pipeline-family-folder>/<run>/4-document/document-plan.md`
+- `<pipeline-family-folder>/<run>/4-document/document-plan-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
+- `<pipeline-family-folder>/<run>/4-document/document-plan-review-approved.md` (single, unnumbered file written on approval)
 - Documentation updates (READMEs, guides, examples, configuration descriptions, changelogs, contributor docs, internal conventions, non-symbol inline narrative) committed on the run branch.
-- `<artifact-folder>/<run>/4-document/document-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
-- `<artifact-folder>/<run>/4-document/document-review-approved.md` (single, unnumbered file written on approval)
-- `<artifact-folder>/<run>/4-document/document-summary.md` (written by the `document-reviewer` on approval, committed together with the approval file)
+- `<pipeline-family-folder>/<run>/4-document/document-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
+- `<pipeline-family-folder>/<run>/4-document/document-review-approved.md` (single, unnumbered file written on approval)
+- `<pipeline-family-folder>/<run>/4-document/document-summary.md` (written by the `document-reviewer` on approval, committed together with the approval file)
 
 ## Decisions
 

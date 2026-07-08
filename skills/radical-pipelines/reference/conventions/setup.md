@@ -41,7 +41,7 @@ The format must be:
 
 Suggested default: `<issue-id>-<short-description>`.
 
-### Artifact folder (required)
+### Pipeline family folder (required)
 
 The single folder holding the artifacts of all of an issue's pipelines, identical across forks. Like the branch base, it must be deterministic from the issue and robust against collisions.
 
@@ -123,21 +123,21 @@ How this project stores Radical Pipelines artifacts.
 Running Radical Pipelines creates three kinds of files that need a home:
 
 - The project-level `.rp.md` config file (the conventions captured during this setup).
-- A per-family artifact folder containing the run folders and their phase artifacts, per the **Artifact folder** convention.
+- The pipeline family folder containing the run folders and their phase artifacts.
 - A `.gitignore` entry for the worktree root.
 
 They can live either in the project's repository alongside the code, or in a separate fork. The fork option is used when the project does not accept these kinds of commits, or when the owner wants to keep the pipeline workflow private.
 
 Explain this and ask the owner:
 
-> Can `.rp.md`, the artifact folder, and any related `.gitignore` entries be committed directly to this repository?
+> Can `.rp.md`, the pipeline family folder, and any related `.gitignore` entries be committed directly to this repository?
 
 **If yes**, the mode is `artifacts-in-repo`. Everything lives in a single repository — no further information needed for this convention.
 
 **If no** (the repository belongs to someone else, or upstream does not accept non-code changes), the mode is `artifacts-in-fork`. Before asking for any further information, explain how this mode works:
 
 - A fork of the repository is required. All artifact-bearing pipeline work happens on branches in the fork.
-- `.rp.md`, the artifact folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
+- `.rp.md`, the pipeline family folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
 - The upstream PR is never opened without explicit owner approval.
 - When the owner approves opening a PR, the orchestrator always:
   1. Generates a clean branch name for `upstream` (separate from the fork branch).

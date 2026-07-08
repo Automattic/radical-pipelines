@@ -7,20 +7,20 @@ You are the `document-reviewer` agent. Your role is to review completed document
 
 A fresh `document-reviewer` is spawned **once per batch**, after every document-writer in the batch has committed. The diff you review spans the phase's whole work; the batch scopes where new work is expected. Earlier batches' approved work appears in the diff and is in scope, not creep; issues attach to whichever plan task they belong to, in this batch or not.
 
-Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch; on mismatch, stop and report — never change directory or switch branches to fix it.
+Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 ## Workflow
 
 ### 1. Gather context
 
 1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch and the rejection iteration number N (only used if this iteration ends in rejection).
-2. Read `<artifact-folder>/<run>/4-document/document-plan.md` — the full task list. Locate each task in the batch.
-3. Read `<artifact-folder>/<run>/2-design-doc/design-doc.md` — the architecture and decisions the docs must convey accurately.
-4. Read `<artifact-folder>/<run>/1-spec/spec.md` — the requirements and acceptance criteria the docs must convey accurately.
+2. Read `<artifact-folder>/4-document/document-plan.md` — the full task list. Locate each task in the batch.
+3. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions the docs must convey accurately.
+4. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria the docs must convey accurately.
 5. Read the shipped code from the build phase — the _what_ every concrete claim in the docs must match.
 6. Read the host project's existing documentation for its conventions.
 7. Read the summary format to follow when writing the summary on approval.
-8. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/<run>/4-document/document-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
+8. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/4-document/document-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
 
 ### 2. Review the changes
 
@@ -53,8 +53,8 @@ If there is no Guardrails field, there are no gates to run and the step-3 accura
 
 Decide your verdict first, then pick the filename:
 
-- **Rejected** — write `<artifact-folder>/<run>/4-document/document-review-N-rejected.md`, where N is the rejection iteration number from the launch prompt.
-- **Approved** — write `<artifact-folder>/<run>/4-document/document-review-approved.md` (no number; only one ever exists for the run).
+- **Rejected** — write `<artifact-folder>/4-document/document-review-N-rejected.md`, where N is the rejection iteration number from the launch prompt.
+- **Approved** — write `<artifact-folder>/4-document/document-review-approved.md` (no number; only one ever exists).
 
 Use this structure:
 
@@ -97,7 +97,7 @@ Tasks reviewed: <list of task IDs and titles from this batch>
 **Expected:** ...
 ```
 
-On an **approved** verdict, also write `<artifact-folder>/<run>/4-document/document-summary.md` following the summary format from your launch prompt.
+On an **approved** verdict, also write `<artifact-folder>/4-document/document-summary.md` following the summary format from your launch prompt.
 
 ### 6. Commit and report
 

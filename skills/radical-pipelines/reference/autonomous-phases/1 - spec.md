@@ -4,9 +4,9 @@ Turns the run's intent into an approved spec. The phase runs as isolated lanes �
 
 Inputs:
 
-- `<artifact-folder>/<run>/0-intent/intent.md`
+- `<pipeline-family-folder>/<run>/0-intent/intent.md`
 
-Outputs, at `<artifact-folder>/<run>/1-spec/` on the run branch:
+Outputs, at `<pipeline-family-folder>/<run>/1-spec/` on the run branch:
 
 - `spec-research.md` — the requirements record; consolidated when multiple lanes run. The design-doc phase reads it.
 - `spec.md` — the spec; consolidated when multiple lanes run.

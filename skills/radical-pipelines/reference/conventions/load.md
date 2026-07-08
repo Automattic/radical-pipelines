@@ -7,7 +7,7 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Convention        | What it covers                                                                      | Required? |
 | ----------------- | ----------------------------------------------------------------------------------- | --------- |
 | Branch name base  | Produces the `<branch-base>`: deterministic from the issue, a valid git ref, no `_` | Yes       |
-| Artifact folder   | Produces the family's single artifact folder: deterministic from the issue          | Yes       |
+| Pipeline family folder | Produces the family's single folder: deterministic from the issue | Yes |
 | Issues            | Where the project tracks issues and how to read, comment on, and update them        | Yes       |
 | Worktree root     | Where worktrees live                                                                | Yes       |
 | Commit format     | How to write commits                                                                | No        |
@@ -15,7 +15,7 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Agent models      | Which model/settings each spawned agent runs on                                     | No        |
 | Health monitoring | How to launch and cancel the recurring run-health loop                              | Yes       |
 | Guardrails        | The deterministic verification gates — exact commands judged pass/fail by exit code | No        |
-| Artifact storage  | Whether `.rp.md` and the artifact folder live in the project's repository or a fork | Yes       |
+| Artifact storage | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes |
 
 ## Missing conventions
 

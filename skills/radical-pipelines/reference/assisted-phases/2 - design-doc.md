@@ -4,14 +4,14 @@ Advances the pipeline from phase 1 (spec) to phase 2 (design-doc) by working thr
 
 Inputs:
 
-- `<artifact-folder>/<run>/1-spec/spec.md`
-- `<artifact-folder>/<run>/1-spec/spec-research.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec-research.md`
 
 Outputs:
 
-- `<artifact-folder>/<run>/2-design-doc/design-doc-research.md`
-- `<artifact-folder>/<run>/2-design-doc/design-doc.md`
-- `<artifact-folder>/<run>/2-design-doc/design-doc-review-approved.md` (the assisted-mode approval file you write on the owner's behalf — see step 7)
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc-research.md`
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`
+- `<pipeline-family-folder>/<run>/2-design-doc/design-doc-review-approved.md` (the assisted-mode approval file you write on the owner's behalf — see step 7)
 
 ## Constraints
 
@@ -31,7 +31,7 @@ These rules apply across all steps:
 
 ### 1. Initialize `design-doc-research.md`
 
-Create `<artifact-folder>/<run>/2-design-doc/design-doc-research.md` with this structure:
+Create `<pipeline-family-folder>/<run>/2-design-doc/design-doc-research.md` with this structure:
 
 ```markdown
 # Design Research: <feature name>
@@ -63,7 +63,7 @@ Each Topic entry follows this shape:
 
 ### 2. Gather context
 
-Read `<artifact-folder>/<run>/1-spec/spec.md` — the authoritative statement of intent for this phase — and `<artifact-folder>/<run>/1-spec/spec-research.md` — the investigation that grounds it; build on its findings instead of re-digging them. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-doc-research.md` with sources cited (file paths, function names).
+Read `<pipeline-family-folder>/<run>/1-spec/spec.md` — the authoritative statement of intent for this phase — and `<pipeline-family-folder>/<run>/1-spec/spec-research.md` — the investigation that grounds it; build on its findings instead of re-digging them. Then explore the codebase for the components, patterns, and conventions this design will touch — enough to propose grounded options in step 3, not exhaustively. Record non-trivial findings under `## Research` in `design-doc-research.md` with sources cited (file paths, function names).
 
 You will keep reading the codebase as new questions surface in step 3; this step just establishes the baseline.
 
@@ -103,7 +103,7 @@ For any gap, return to step 3 and work through the missing topic.
 
 ### 5. Synthesize `design-doc.md`
 
-Write `<artifact-folder>/<run>/2-design-doc/design-doc.md` as a standalone document — understandable without reading `design-doc-research.md`, `spec.md`, or `intent.md`. Use this structure:
+Write `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md` as a standalone document — understandable without reading `design-doc-research.md`, `spec.md`, or `intent.md`. Use this structure:
 
 ```markdown
 # Design Doc: <feature name>
@@ -144,7 +144,7 @@ Show the owner `design-doc.md`. Iterate on edits, additions, or removals. The ow
 
 ### 7. Approval file
 
-Write `<artifact-folder>/<run>/2-design-doc/design-doc-review-approved.md` recording the owner's approval:
+Write `<pipeline-family-folder>/<run>/2-design-doc/design-doc-review-approved.md` recording the owner's approval:
 
 ```markdown
 # Design Doc Review

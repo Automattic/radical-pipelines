@@ -4,13 +4,13 @@ Advances the pipeline from phase 0 (`intent.md`) to phase 1 (`spec.md`) by drivi
 
 Inputs:
 
-- `<artifact-folder>/<run>/0-intent/intent.md`
+- `<pipeline-family-folder>/<run>/0-intent/intent.md`
 
 Outputs:
 
-- `<artifact-folder>/<run>/1-spec/spec-research.md`
-- `<artifact-folder>/<run>/1-spec/spec.md`
-- `<artifact-folder>/<run>/1-spec/spec-review-approved.md` (written on the owner's approval — see step 8)
+- `<pipeline-family-folder>/<run>/1-spec/spec-research.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec.md`
+- `<pipeline-family-folder>/<run>/1-spec/spec-review-approved.md` (written on the owner's approval — see step 8)
 
 ## Constraints
 
@@ -27,7 +27,7 @@ These rules apply across all steps:
 
 ### 1. Initialize `spec-research.md`
 
-Create `<artifact-folder>/<run>/1-spec/spec-research.md` with this structure:
+Create `<pipeline-family-folder>/<run>/1-spec/spec-research.md` with this structure:
 
 ```markdown
 # Spec Research: <feature name>
@@ -92,7 +92,7 @@ Fill `## Consolidated Requirements` in `spec-research.md`: a numbered list disti
 
 ### 6. Synthesize `spec.md`
 
-Write `<artifact-folder>/<run>/1-spec/spec.md` as a standalone document — understandable without reading any other file. Use this structure:
+Write `<pipeline-family-folder>/<run>/1-spec/spec.md` as a standalone document — understandable without reading any other file. Use this structure:
 
 ```markdown
 # Spec: <feature name>
@@ -119,7 +119,7 @@ Show the owner `spec.md`. Iterate on edits, additions, or removals. The owner ma
 
 ### 8. Write the approval file
 
-Write `<artifact-folder>/<run>/1-spec/spec-review-approved.md` recording the owner's approval:
+Write `<pipeline-family-folder>/<run>/1-spec/spec-review-approved.md` recording the owner's approval:
 
 ```markdown
 # Spec Review

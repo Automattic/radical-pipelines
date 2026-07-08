@@ -54,7 +54,7 @@ After escalation, stop attempting recovery for that issue. The monitor keeps run
 The orchestrator hands the monitor a self-contained prompt that names the run:
 
 ```
-Check the run on branch <run-branch>, artifacts at <artifact-folder>/<run>/.
+Check the run on branch <run-branch>, artifacts at <pipeline-family-folder>/<run>/.
 Agents work in the run and lane worktrees under <worktree-root>.
 
 Signals to look for:
