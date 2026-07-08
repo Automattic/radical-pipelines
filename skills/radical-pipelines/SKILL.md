@@ -30,13 +30,13 @@ You can move forward the pipelines through the different phases in two modes: au
 
 ## Phases
 
-| #   | Phase      | Subfolder      | Produces                                                                                             |
-| --- | ---------- | -------------- | ---------------------------------------------------------------------------------------------------- |
-| 0   | Intent     | `0-intent`     | The input                                                                                            |
-| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope                                                      |
-| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs                                            |
+| #   | Phase      | Subfolder      | Produces                                                                                            |
+| --- | ---------- | -------------- | --------------------------------------------------------------------------------------------------- |
+| 0   | Intent     | `0-intent`     | The input                                                                                           |
+| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope                                                     |
+| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs                                           |
 | 3   | Build      | `3-build`      | The build plan, code changes, unit and end-to-end tests, behavior verification, and a build summary |
-| 4   | Document   | `4-document`   | The document plan, documentation (both internal and external), and a document summary                |
+| 4   | Document   | `4-document`   | The document plan, documentation (both internal and external), and a document summary               |
 
 ## Project conventions
 

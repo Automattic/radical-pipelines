@@ -30,7 +30,7 @@ The phases are:
 - **Phase 3. Build.** The build plan, the code with unit and end-to-end tests, behavior verification, plus a summary of what the phase produced.
 - **Phase 4. Document.** The document plan, both internal and external documentation, plus a summary of what the phase produced.
 
-Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved — an inner gate inside the phase.
+Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
 The Spec and Design doc phases can run **multilane**: N independent lanes each take the phase's full machinery to an approved artifact, and a consolidator merges them into a single consolidated artifact that passes a final adversarial review. N=1 — the default — is the plain single flow.
 
@@ -62,7 +62,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 # Project Usage
 
-The repository ships a Claude Code plugin, a Pi package, and a standalone [agent skill](https://agentskills.io). All three capture the same methodology so a compatible agent can run a task through the pipeline.
+The repository ships a Claude Code plugin and a standalone [agent skill](https://agentskills.io). Both capture the same methodology so a compatible agent can run a task through the pipeline.
 
 ## Claude Code plugin install
 
@@ -95,71 +95,29 @@ This reads the plugin from the working tree on each start (no cache copy), so ed
 The plugin currently bundles:
 
 - the `radical-pipelines` skill, a real directory at `skills/radical-pipelines/`.
-- agent profiles in the root `agents/` directory, shared with the Pi package.
+- agent profiles in the root `agents/` directory.
 
 Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
-## Pi package install
-
-For Pi, install from the GitHub repository with Pi's `git:` source:
-
-```bash
-pi install git:github.com/Automattic/radical-pipelines
-```
-
-This routes through the single Pi manifest (`package.json` at the repo root), whose `pi` block resolves the skill from the root `skills/` directory.
-
-The package installs:
-
-- the `radical-pipelines` skill;
-- phase agent profiles for the shipped phases: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `design-doc-consolidator`, `build-plan-writer`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`, `document-plan-writer`, `document-plan-reviewer`, `document-writer`, and `document-reviewer` (phase 0 is the intent, an input rather than an agent-produced artifact, so it has no agent profile);
-- bundled `pi-teams`, `@zenobius/pi-worktrees`, and `@pi-agents/loop` Pi resources.
-
-During package development in this repository, install dependencies once from the repository root and then install the local path:
-
-```bash
-npm install
-pi install . -l
-```
-
-## Pi usage
-
-After installing the Pi package in a repository:
-
-1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-2. Ensure the phase agent profiles are discoverable by `pi-teams` — repository-local in `.pi/agents/`, or user-local/global in `~/.pi/agent/agents/`. The skill's setup flow installs them.
-
-The orchestrator creates one `pi-teams` team per run and spawns the phase agents at runtime, following the project conventions.
-
-Validation for the local package has verified `pi install . -l`, `pi list`, and `/skill:radical-pipelines`. The local validation used print mode rather than a full manual interactive UI.
-
-## Dependency bundling
-
-The repository ships a single Pi manifest: the root `package.json` (`pi-package` keyword). It declares Radical Pipelines-owned resources under its `pi` block — the skill resolves from the root `skills/` directory — and references bundled third-party Pi resources through `node_modules/...` paths. Its runtime `dependencies` are `pi-teams`, `@zenobius/pi-worktrees`, `@pi-agents/loop`, and `@sinclair/typebox`. Pi core packages are wildcard peer dependencies and are not declared as runtime dependencies.
-
-Dependency delivery is not a `bundledDependencies` mechanism. Both Pi install paths resolve this same root manifest — the `git:` install at the cloned repo root, `pi install . -l` at the local path — and Pi runs `npm install` against it after the clone, so the declared `dependencies` (and their `node_modules/...` resources referenced from the `pi` block) are present at runtime.
-
-The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root. There is no hidden source directory and no mirror-symlink scheme: the directories the Claude Code plugin and the Pi package read are the canonical sources themselves.
+The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
 ## Configuration
 
-The skill is generic — each project defines its own conventions for things like where issues are tracked, branch names, the artifact folder location, the worktree root, commit rules, and how teams of agents are spawned. A project's shared conventions live in a committed `.rp.md` file, populated by the interactive setup flow; an individual developer can optionally layer a restricted subset of local overrides on top of it (see below).
+The skill is generic — each project defines its own conventions for things like where issues are tracked, the branch name base, the pipeline family folder location, the worktree root, commit rules, and how teams of agents are spawned. A project's shared conventions live in a committed `.rp.md` file, populated by the interactive setup flow; an individual developer can optionally layer a restricted subset of local overrides on top of it (see below).
 
 If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup. Setup separates shared project guidance from guidance specific to the active agentic coding tool, and writes `.rp.md` only after the owner confirms the proposed content.
 
-Shared project conventions include issue tracking, branch names, the artifact folder, worktrees, commit rules, artifact storage, and an optional `Guardrails` convention declaring the deterministic verification gates (exact commands judged pass/fail by exit code); see the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author them. Worktrees are raw `git worktree` checkouts under a project-chosen root — the orchestrator creates and removes every branch and worktree, and agents only occupy the worktrees prepared for them. Claude Code conventions add subagent team spawning, the bundled `/loop` health monitor, and an optional `Agent models` convention pinning which model (and settings) each spawned agent runs on. Pi conventions add `pi-teams` spawning, provider/model recovery, the `@pi-agents/loop` health monitor, Pi agent discovery rules, and the same optional `Agent models` convention. The `Agent models` block is per-tool and optional; see the [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author it. A given project uses one set; the active CLI determines which.
+Shared project conventions include issue tracking, the branch name base, the pipeline family folder, the worktree root, commit rules, artifact storage, and an optional `Guardrails` convention declaring the deterministic verification gates (exact commands judged pass/fail by exit code); see the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author them. Worktrees are raw `git worktree` checkouts under a project-chosen root — the orchestrator creates and removes every branch and worktree, and agents only occupy the worktrees prepared for them. Claude Code conventions add teammate spawning, the bundled `/loop` health monitor, and an optional `Agent models` convention pinning which model (and settings) each spawned agent runs on. The `Agent models` block is optional; see the [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author it.
 
 A developer can override a restricted subset of conventions for their own working copy by placing a git-ignored `.rp.local.md` alongside the committed `.rp.md`: the local file wins per named unit, and the committed file is inherited wherever the local file is silent. Because `.rp.local.md` is git-ignored, it is never committed and never affects other contributors. See the [Local overrides](./skills/radical-pipelines/reference/conventions/load.md#local-overrides) section of the convention loader for details.
 
-For Pi, setup also verifies that the required phase agent definitions are discoverable before the pipeline starts. It checks repository-local agents first (`.pi/agents/<agent>.md` or `.pi/agents/<agent>/SKILL.md`), then user-local/global agents (`~/.pi/agent/agents/<agent>.md` or `~/.pi/agent/agents/<agent>/SKILL.md`). If none of the required agents are available, setup stops and asks which Radical Pipelines agents the user wants to copy/paste and install, and whether to install them repository-locally or user-locally/globally.
-
 Shared cross-agent project instructions should live in `AGENTS.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
 
-The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent, it passes a `## Conventions` block with the artifact folder, the run folder name, the agent's worktree path and branch, the commit format, and any guardrail gates naming that agent. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
+The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent, it passes a `## Conventions` block with the run's artifact folder, the agent's worktree path and branch name, the commit format, and any guardrail gates naming that agent. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
 
-Each phase commits inspectable artifacts into the family's single artifact folder, identical across forks. The phase folders do not sit directly under the artifact folder; they live under a **run** folder: artifacts live at `<artifact-folder>/<run>/<phase>`, where `<run>` is `base` (the original run) or `rev-<N>-<desc>` (a revision run layered on a complete previous run). A pipeline is a chain of **run branches** — each run's branch starts at the tip of the previous run's, and the latest run branch is what merges to main. Multilane phases add **lane branches** forked from the run branch, never merged and kept as the permanent record of the parallel work. A fork of a pipeline is a new version created by branching at the **cut commit** in the parent's history — the inherited history carries the inherited work itself, with no copying. In autonomous mode, reviewer agents write rejected iterations as `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) and a single `<artifact>-review-approved.md` on approval; in assisted mode, the orchestrator writes the `<artifact>-review-approved.md` file capturing the owner's explicit approval (assisted runs produce no rejection files because the owner iterates with the orchestrator before any commit). The build and document phases each gate on a committed plan first — `build-plan.md` / `document-plan.md` with their own review files, the phase's inner gate — and each leaves a human-readable summary of what the phase produced (`3-build/build-summary.md`, `4-document/document-summary.md`), written by the phase reviewer on approval and committed alongside the approval marker. `reference/pipeline-versioning.md` documents the run model and the per-phase completion predicates the orchestrator evaluates uniformly across both modes: a phase is complete only when all its required artifacts are committed in the run folder on the run branch, so build and document complete only once their summary is committed too, not on the approval marker alone.
+Each phase commits inspectable artifacts into the pipeline family folder, identical across forks. The phase folders do not sit directly under the pipeline family folder; they live under a **run** folder: artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` (the original run) or `rev-<N>-<desc>` (a revision run layered on a complete previous run). A pipeline is a chain of **run branches** — each run's branch starts at the tip of the previous run's, and the latest run branch is what merges to main. Multilane phases add **lane branches** forked from the run branch, never merged and kept as the permanent record of the parallel work. A fork of a pipeline is a new version created by branching at the **cut commit** in the parent's history — the inherited history carries the inherited work itself, with no copying. In autonomous mode, reviewer agents write rejected iterations as `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) and a single `<artifact>-review-approved.md` on approval; in assisted mode, the orchestrator writes the `<artifact>-review-approved.md` file capturing the owner's explicit approval (assisted runs produce no rejection files because the owner iterates with the orchestrator before any commit). The build and document phases each gate on a committed plan first — `build-plan.md` / `document-plan.md` with their own review files — and each leaves a human-readable summary of what the phase produced (`3-build/build-summary.md`, `4-document/document-summary.md`), written by the phase reviewer on approval and committed alongside the approval marker. `reference/pipeline-versioning.md` documents the run model and the per-phase completion predicates the orchestrator evaluates uniformly across both modes: a phase is complete only when all its required artifacts are committed in the run folder on the run branch, so build and document complete only once their summary is committed too, not on the approval marker alone.
 
-A project's committed [`.rp.md`](./.rp.md) is organized as a shared section (issues, branch names, artifact folder, artifact storage, commit format, worktrees, guardrails) followed by a per-tool section covering only what depends on the active tool (team spawning, agent models, health monitoring). This repository's own `.rp.md` carries the shared section plus the Claude Code section.
+A project's committed [`.rp.md`](./.rp.md) is organized as a shared section (issues, branch name base, pipeline family folder, artifact storage, commit format, worktree root, guardrails) followed by a per-tool section covering only what depends on the active tool (team spawning, agent models, health monitoring). This repository's own `.rp.md` carries the shared section plus the Claude Code section.
 
 ## Changelog and versioning
 

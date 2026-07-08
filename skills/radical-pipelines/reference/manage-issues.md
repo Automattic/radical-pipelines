@@ -4,7 +4,7 @@ This is for **creating or modifying an issue**. You drive a short Q&A directly w
 
 ## The issue format
 
-The issue body _is_ the phase-0 intent — when the pipeline is created, the orchestrator turns the issue into `base/0-intent/intent.md`. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`.
+The issue is the source of the phase-0 intent — when the pipeline is created, the orchestrator writes the intent in the intent format to `intent.md` as-is. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`, so it can travel as-is.
 
 ## Rules
 
@@ -40,7 +40,11 @@ Make a single open invitation for anything else worth telling the agents — a h
 
 When the owner offers a direction or belief, record it under Assumptions and say so plainly — for example: "I'll note that as something to explore, not a requirement; the agents may confirm or revise it." This keeps the issue as the owner's _best current understanding, not ground truth_: downstream phases must either satisfy the stated intent or surface evidence that a premise is false, never silently substitute a different goal.
 
-### 5. Draft, confirm, write
+### 5. Search for related issues
+
+When creating, search the tracker (through the **Issues** convention) for existing issues related to the draft's goal, and present any matches alongside the draft — distinguishing possible duplicates from issues worth linking. The owner decides: proceed, modify the existing issue instead, or link the related issue in the draft's Context.
+
+### 6. Draft, confirm, write
 
 Render the issue in the format above (omitting empty sections) and show it to the owner. On approval, create the new issue — or apply the modification — through the **Issues** convention.
 

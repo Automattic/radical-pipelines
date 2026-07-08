@@ -34,7 +34,7 @@ Run each phase from the next phase up to the target phase, in order.
 
 At run start:
 
-1. Ensure the run branch's worktree exists per the **Worktrees** convention.
+1. Ensure the run branch's worktree exists per the **Worktree root** convention.
 2. Start a recurring health monitor for the run per `health-monitoring.md`.
 
 You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. You never change your own working directory: address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch.
@@ -49,7 +49,7 @@ You own all branch and worktree topology: you create every branch and worktree (
 
 For each phase:
 
-1. Create the phase subfolder inside the run folder (`<artifact-folder>/<run>/<phase>` per `pipeline-versioning.md`).
+1. Create the phase subfolder inside the run folder (`<pipeline-family-folder>/<run>/<phase>` per `pipeline-versioning.md`).
 2. Read its phase reference.
 3. Run the phase per its reference, applying the per-phase decisions collected in step 3.
 4. Verify the phase's completion predicate per `pipeline-versioning.md` ("Per-phase completion").
@@ -69,7 +69,7 @@ Each time you spawn an agent:
 Agents are instructed to stop and report a blocker — instead of inventing a missing decision — when a required input is missing, contradictory, or would force them to make a choice that belongs to a prior phase. Every agent that reports a blocker is expected to include the same payload:
 
 - **What is missing or contradictory** — the specific gap or conflict.
-- **Which prior-phase artifact must change to unblock it** — for example, `<artifact-folder>/<run>/2-design-doc/design-doc.md`.
+- **Which prior-phase artifact must change to unblock it** — for example, `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`.
 - **(If identifiable) The smallest revision that would unblock** — a sentence or two the prior-phase agent could act on.
 
 When a blocker arrives:
@@ -85,5 +85,5 @@ A blocker stops the run: perform the close-out (step 7).
 Close-out fires whenever the run stops — target phase completed, a blocker, an owner cancellation, or a failure:
 
 1. Stop the health monitor (see `health-monitoring.md` for the cancellation command).
-2. Push the run branch and its lane branches, and apply the project's other run-end obligations from its conventions.
+2. Push the run branch and its lane branches.
 3. Tell the owner that the autonomous run is complete.

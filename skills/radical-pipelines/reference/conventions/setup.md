@@ -21,7 +21,6 @@ Radical Pipelines supports the following agentic coding tools:
 | Tool        | Read             |
 | ----------- | ---------------- |
 | Claude Code | `claude-code.md` |
-| Pi          | `pi.md`          |
 
 ## 2. Collect required conventions
 
@@ -29,7 +28,7 @@ Ask for the required information in a clear sequence, one convention at a time. 
 
 If a convention must be of a specific form due to the agentic coding tool's rules and does not require user input, simply inform the owner with a message explaining that convention and proceed to the next one.
 
-### Branch names (required)
+### Branch name base (required)
 
 The format of the `<branch-base>` — the stem every branch of an issue's pipeline family starts with. The skill's branch grammar appends every other segment.
 
@@ -41,13 +40,13 @@ The format must be:
 
 Suggested default: `<issue-id>-<short-description>`.
 
-### Artifact folder (required)
+### Pipeline family folder (required)
 
-The single folder holding all of an issue-pipeline family's artifacts, identical across forks. Like the branch base, it must be deterministic from the issue and robust against collisions.
+The single folder holding the artifacts of all of an issue's pipelines, identical across forks. Like the branch base, it must be deterministic from the issue and robust against collisions.
 
 Ask the owner for the location and naming pattern.
 
-Suggested default: `.pipelines/<issue-id>-<short-description>/`.
+Suggested default: `.pipelines/<branch-base>/`.
 
 ### Issues (required)
 
@@ -55,9 +54,9 @@ Where the project tracks issues. Each pipeline pulls its initial intent from an 
 
 Ask the owner where issues are tracked and how to access them (a CLI, an API, files in a repository folder, etc.).
 
-### Worktrees (required)
+### Worktree root (required)
 
-Where worktrees live: the root path under which the orchestrator creates one worktree per branch with raw `git worktree`, and from which it removes each worktree when its work is done.
+The root path under which the orchestrator creates one worktree per branch with raw `git worktree`, and from which it removes each worktree when its work is done.
 
 Suggested default: `.worktrees/`.
 
@@ -123,21 +122,21 @@ How this project stores Radical Pipelines artifacts.
 Running Radical Pipelines creates three kinds of files that need a home:
 
 - The project-level `.rp.md` config file (the conventions captured during this setup).
-- A per-family artifact folder containing the run folders and their phase artifacts, per the **Artifact folder** convention.
+- The pipeline family folder containing the run folders and their phase artifacts.
 - A `.gitignore` entry for the worktree root.
 
 They can live either in the project's repository alongside the code, or in a separate fork. The fork option is used when the project does not accept these kinds of commits, or when the owner wants to keep the pipeline workflow private.
 
 Explain this and ask the owner:
 
-> Can `.rp.md`, the artifact folder, and any related `.gitignore` entries be committed directly to this repository?
+> Can `.rp.md`, the pipeline family folder, and any related `.gitignore` entries be committed directly to this repository?
 
 **If yes**, the mode is `artifacts-in-repo`. Everything lives in a single repository — no further information needed for this convention.
 
 **If no** (the repository belongs to someone else, or upstream does not accept non-code changes), the mode is `artifacts-in-fork`. Before asking for any further information, explain how this mode works:
 
 - A fork of the repository is required. All artifact-bearing pipeline work happens on branches in the fork.
-- `.rp.md`, the artifact folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
+- `.rp.md`, the pipeline family folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
 - The upstream PR is never opened without explicit owner approval.
 - When the owner approves opening a PR, the orchestrator always:
   1. Generates a clean branch name for `upstream` (separate from the fork branch).

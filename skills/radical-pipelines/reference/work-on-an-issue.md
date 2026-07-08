@@ -16,6 +16,8 @@ If the owner has named or linked the issue, use that. Otherwise, ask which issue
 
 Use the **Issues** convention to verify the issue exists and capture its content.
 
+If the issue declares dependencies on other issues, check them through the **Issues** convention. Surface any that are not closed and let the owner explicitly choose to proceed or wait. An issue with no declared dependencies, or whose dependencies the tracker cannot report, proceeds without comment.
+
 ### 2. Check for existing pipelines
 
 List the issue's pipelines per `pipeline-versioning.md` ("Listing pipelines for an issue") and render the tree per `pipeline-versioning.md` ("Rendering the pipeline tree").

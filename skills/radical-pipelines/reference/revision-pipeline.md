@@ -22,11 +22,11 @@ Confirm the final revision count and boundaries with the owner BEFORE creating a
 
 ### 3. Create the revision run branch and worktree
 
-Determine the run name `rev-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the revision run branch at the previous run branch's tip, and its worktree per the **Worktrees** convention.
+Determine the run name `rev-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the revision run branch at the previous run branch's tip, and its worktree per the **Worktree root** convention.
 
 ### 4. Create the run folder and author the revision intent
 
-Create the run folder `<artifact-folder>/rev-<N>-<desc>/` with its `0-intent/` subfolder in the worktree. Author the revision intent at `rev-<N>-<desc>/0-intent/intent.md` the same way the base intent is orchestrator-authored (the `create-pipeline.md` intent step), following the schema and authoring discipline in `intent-format.md`. Beyond that shared schema, a revision intent carries these revision-only additions:
+Create the run folder `<pipeline-family-folder>/rev-<N>-<desc>/` with its `0-intent/` subfolder in the worktree. Author the revision intent at `rev-<N>-<desc>/0-intent/intent.md` the same way the base intent is orchestrator-authored (the `create-pipeline.md` intent step), following the schema and authoring discipline in `intent-format.md`. Beyond that shared schema, a revision intent carries these revision-only additions:
 
 - An **Origin** section, MANDATORY for revisions and unique to them — its provenance (per `intent-format.md`). It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of what prompted the revision) PLUS a convenience link, so a later phase reading only this revision intent understands what prompted it without following the link.
 - Any source assets are placed in this run's `0-intent/` folder and referenced by relative path, the same as base intents.
