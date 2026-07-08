@@ -82,6 +82,7 @@ Use this structure:
 ## Guidelines
 
 - **Be adversarial.** Your job is to find problems, not rubber-stamp. A plan that "looks fine" probably hasn't been reviewed hard enough.
+- **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This task is vague" is not useful. "Task 3 says 'document the auth API' but doesn't name a file or an audience" is.
 - **Check against the shipped code and the existing docs.** Verify file paths, section names, symbols, and audience assumptions. If they don't match reality, flag it.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.

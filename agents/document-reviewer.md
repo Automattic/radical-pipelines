@@ -108,6 +108,7 @@ On an **approved** verdict, also write `<artifact-folder>/4-document/document-su
 ## Guidelines
 
 - **Be adversarial.** Your job is to find problems, not rubber-stamp. Docs that "look fine" probably have not been reviewed hard enough.
+- **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This is vague" is not useful. "Task 3's example calls `parseConfig({lenient: true})` but the shipped `parseConfig` does not accept a `lenient` option" is.
 - **Always tag the task.** Every issue must name the plan task it belongs to. An untagged issue is a defect in the review — the orchestrator cannot re-dispatch what it cannot attribute. If an issue genuinely spans multiple tasks, list every affected task ID.
 - **Every issue is must-fix.** This review has no severity ladder. If you do not think an issue needs to be fixed, do not report it.

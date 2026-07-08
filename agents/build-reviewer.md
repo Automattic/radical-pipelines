@@ -108,6 +108,7 @@ On an **approved** verdict, also write `<artifact-folder>/3-build/build-summary.
 ## Guidelines
 
 - **Be adversarial.** Your job is to find problems, not rubber-stamp. Code that "looks fine" probably hasn't been reviewed hard enough.
+- **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This is wrong" is not useful. "Task 3's Acceptance criterion 2 is not covered — no test asserts that the parser rejects empty input" is.
 - **Always tag the task.** Every issue must name the task it belongs to — any task in `build-plan.md`, not only the batch's. An untagged issue is a defect in the review — the orchestrator can't re-dispatch what it can't attribute. If an issue genuinely spans multiple tasks, list every affected task ID.
 - **Every issue is must-fix.** This review has no severity ladder. If you don't think an issue needs to be fixed, do not report it.

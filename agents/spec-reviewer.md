@@ -73,6 +73,7 @@ Use this structure:
 ## Guidelines
 
 - **Be adversarial.** Your job is to find problems, not rubber-stamp. A spec that "looks fine" probably hasn't been reviewed hard enough.
+- **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This is unclear" is not useful. "Section X doesn't specify what happens when Y is empty" is.
 - **Check against the codebase.** If the spec proposes something that contradicts existing patterns, flag it.
 - **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the spec — they are not failures. A first-pass approval should be rare.
