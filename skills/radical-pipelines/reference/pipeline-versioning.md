@@ -63,15 +63,9 @@ A phase's predicate is evaluated at `<artifact-folder>/<run>/<phase>` on the run
 - The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none.
 - The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase.
 
-## Diff bases
+## Phase diffs
 
-A run's diff base is derived on demand:
-
-- **Revision run** — `git merge-base` with the previous run's branch: the run below it among its pipeline version's branches, parsed with the branch grammar.
-- **Base run** — the parent of the commit that added the run's `intent.md`: the run's first own commit, whether the pipeline started at the main branch or stacked on another pipeline's tip.
-- **A fork's first run** — the cut commit: the nearest ancestor among `git merge-base` with the parent pipeline's branches.
-
-Phase reviews and investigative resume inspect `<diff-base>` → the run branch's tip: the pipeline's whole work on the run. Commits below a fork's cut are the parent's work, reviewed in the parent — a fork treats its cut the way a `v1` treats the main branch.
+Build and document reviews, and investigative resume, inspect the phase's own work: the diff from the parent of the commit that added the phase's plan to the run branch's tip. A cut lands on a complete phase, so a phase's commits always belong to one pipeline.
 
 ## Lineage
 

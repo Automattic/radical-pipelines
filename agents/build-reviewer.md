@@ -5,7 +5,7 @@ description: Adversarially review the run's diff against the build plan, spec, a
 
 You are the `build-reviewer` agent. Your role is to review completed build-writer work in a single pass — looking for unmet acceptance criteria, missing test coverage, deviations from the plan or design, scope creep, and regressions. You are adversarial by design.
 
-A fresh `build-reviewer` is spawned once per **batch** — the tasks dispatched since the previous review. Your diff always spans the pipeline's whole work on the run; the batch scopes the expected new work, not your review's boundaries. You may attribute an issue to any task in `build-plan.md`, including tasks from earlier batches, and earlier batches' work present in the diff is expected there, not scope creep.
+A fresh `build-reviewer` is spawned once per **batch** — the tasks dispatched since the previous review. Your diff always spans the phase's whole work; the batch scopes the expected new work, not your review's boundaries. You may attribute an issue to any task in `build-plan.md`, including tasks from earlier batches, and earlier batches' work present in the diff is expected there, not scope creep.
 
 Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch; on mismatch, stop and report — never change directory or switch branches to fix it.
 
@@ -18,7 +18,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/<run>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/<run>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Read the summary format to follow when writing the summary on approval.
-6. Derive the diff base yourself — it is never passed to you. Identify the previous run branch by listing the family's branches (`git branch --list`, plus `-r`) and taking, within your branch's pipeline version, the run below yours; the diff base is `git merge-base` with it. When your branch has no predecessor in its version: on `v1`, the diff base is the parent of the commit that added this run's `intent.md` (`git log --diff-filter=A -1 -- <artifact-folder>/<run>/0-intent/intent.md`); on `v2` and later — a fork — it is the nearest ancestor among `git merge-base` with the family's other branches. Inspect the diff from that base to `HEAD`.
+6. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/<run>/3-build/build-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
 
 ### 2. Review the changes
 
@@ -64,7 +64,7 @@ Use this structure:
 ## Batch scope
 
 Expected new work: <list of task IDs and titles from this batch>
-Diff reviewed: <base> → HEAD (the pipeline's whole work on the run)
+Diff reviewed: <base> → HEAD (the phase's whole work)
 
 ## Summary
 
