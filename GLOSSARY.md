@@ -70,7 +70,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 ## Lineage
 
 - **Ancestry** — the primary lineage record: fork points derived with `git merge-base`; answers "what did this pipeline start from", permanently.
-- **Content annotation** — per-phase comparison of tree SHAs over the uniform artifact paths: `inherited-identical`, `inherited-modified`, `parent-diverged`; answers "what is still identical now".
+- **Content annotation** — per-phase comparison of a fork's tree SHAs against the cut commit: `identical` or `modified`; answers "what is still identical now".
 - **Merged** — a run tip that is an ancestor of main (`git merge-base --is-ancestor`).
 
 ## Verification

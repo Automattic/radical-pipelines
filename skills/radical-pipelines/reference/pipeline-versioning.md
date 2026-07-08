@@ -78,10 +78,9 @@ Phase reviews and investigative resume inspect `<diff-base>` → the run branch'
 Two layers answer two different questions:
 
 - **Ancestry** (primary) answers what a pipeline started from. Fork points — `git merge-base` between family branches — define the tree, permanently and exactly, even after either side rewrites an inherited artifact.
-- **Content** (annotation) answers what is identical right now. Tree SHAs over the canonical artifact paths (`git rev-parse <ref>:<artifact-folder>/<run>/<phase>`, `<run>` being the run containing the cut) compare a fork's phase against the cut commit and the parent's tip, yielding per-phase labels:
-  - `inherited-identical` — fork and parent both still match the cut commit.
-  - `inherited-modified` — the fork changed the inherited artifact.
-  - `parent-diverged` — the fork matches the cut commit but the parent has since changed it.
+- **Content** (annotation) answers what is identical right now. Tree SHAs over the canonical artifact paths (`git rev-parse <ref>:<artifact-folder>/<run>/<phase>`, `<run>` being the run containing the cut) compare a fork's phase against the cut commit, yielding per-phase labels:
+  - `identical` — the inherited artifact is unchanged since the cut.
+  - `modified` — the fork changed it.
 
 **Merged detection:** a pipeline is merged when `git merge-base --is-ancestor <latest-run-tip> <main>` succeeds.
 
@@ -103,7 +102,7 @@ Example:
 ```
 #123-fix-checkout
 ├── v1 — complete [merged] · base → rev-1-fix-copy
-│   ├── v2 — cut at 1-spec · 1-spec inherited-modified · 2-design-doc (in progress)
-│   └── v3 — cut at 2-design-doc · 2-design-doc parent-diverged · complete
+│   ├── v2 — cut at 1-spec · 1-spec modified · 2-design-doc (in progress)
+│   └── v3 — cut at 2-design-doc · 2-design-doc identical · complete
 └── v4 — 1-spec (in progress)
 ```
