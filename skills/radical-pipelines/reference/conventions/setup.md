@@ -43,7 +43,7 @@ Suggested default: `<issue-id>-<short-description>`.
 
 ### Artifact folder (required)
 
-The single folder holding all of an issue-pipeline family's artifacts, identical across forks. Like the branch base, it must be deterministic from the issue and robust against collisions.
+The single folder holding the artifacts of all of an issue's pipelines, identical across forks. Like the branch base, it must be deterministic from the issue and robust against collisions.
 
 Ask the owner for the location and naming pattern.
 

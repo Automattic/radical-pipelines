@@ -21,6 +21,11 @@ With multiple lanes, each lane branch carries its lane-approved versions of the 
 - **Lane count** — how many lanes design independently. Default: 1.
 - **Lane mode** — `isolated` or `divergent`; meaningful only with multiple lanes. Default: isolated.
 
+Both modes repeat the phase once per lane; they differ in what the repetition is for.
+
+- **Isolated** produces the same design several times to make it trustworthy. Lanes run in parallel, blind to one another, and independently converge: where they agree the design is confirmed, and what one lane caught the others missed completes it. Choose it when one good design likely exists and you want reliability and completeness. Blind repetition converges on the obvious design — it cannot produce alternatives.
+- **Divergent** produces several different designs to choose from. Lanes run in sequence, each reading the previous designs and required to differ materially; the consolidator judges the alternatives, keeps the strongest, and records the rejected ones. Choose it when several architectures could win, or when the obvious design may be a local optimum. It costs sequential time, and in a narrow design space it forces strained alternatives.
+
 ## Required agents
 
 | Agent                     | Role                                                                                                                                                     | Persistent? |

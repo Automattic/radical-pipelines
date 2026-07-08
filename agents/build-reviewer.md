@@ -18,7 +18,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/<run>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/<run>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Read the summary format to follow when writing the summary on approval.
-6. Derive the diff base yourself — it is never passed to you. Identify the previous run branch by listing the family's branches (`git branch --list`, plus `-r`) and taking, within your branch's pipeline version, the run below yours; the diff base is `git merge-base` with it. When your branch has no predecessor in its version — a base run or a fork's first run — the diff base is the start commit on the `start` line of `<artifact-folder>/pipeline.md`. Inspect the diff from that base to `HEAD`.
+6. Derive the diff base yourself — it is never passed to you. Identify the previous run branch by listing the family's branches (`git branch --list`, plus `-r`) and taking, within your branch's pipeline version, the run below yours; the diff base is `git merge-base` with it. When your branch has no predecessor in its version: on `v1`, the diff base is the parent of the commit that added this run's `intent.md` (`git log --diff-filter=A -1 -- <artifact-folder>/<run>/0-intent/intent.md`); on `v2` and later — a fork — it is the nearest ancestor among `git merge-base` with the family's other branches. Inspect the diff from that base to `HEAD`.
 
 ### 2. Review the changes
 

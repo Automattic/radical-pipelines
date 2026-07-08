@@ -1,6 +1,6 @@
 # Pipeline Versioning
 
-An issue's pipelines form a **family**: the first pipeline is `v1`; each fork — a new approach tried from a previous pipeline — adds `v2`, `v3`, … Within a pipeline, work happens in **runs**: one pass of the full phase flow. The **base** run comes first; revision runs are layered one at a time on top of a complete run.
+An issue's pipelines form a **pipeline family**: the first pipeline is `v1`; each fork — a new approach tried from a previous pipeline — adds `v2`, `v3`, … Within a pipeline, work happens in **runs**: one pass of the full phase flow. The **base** run comes first; revision runs are layered one at a time on top of a complete run.
 
 ## Branch grammar
 
@@ -21,11 +21,11 @@ Omitted segments are defaults: no version segment means `v1`, no run segment mea
 123-fix-checkout_v2_rev-1-fix-copy_1-spec-lane-2    v2 rev-1, spec lane 2
 ```
 
-Parsing is deterministic because the segment shapes are reserved: `v<digits>` is a version, `rev-<N>-<desc>` a run, `<phase>-lane-<K>` a lane. In `rev-<N>-<desc>`, `<desc>` is a kebab-case summary of the revision's goal and `N` is the next integer after the pipeline's existing revisions.
+Parsing is deterministic because the segment shapes are reserved: `v<digits>` is a version, `rev-<N>-<desc>` a run, `<phase>-lane-<K>` a lane. In `rev-<N>-<desc>`, `<desc>` is a kebab-case summary of the revision's goal and `N` is the next integer after the pipeline's existing revisions. In `<phase>-lane-<K>`, `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
 
 ## Branches
 
-Branches exist at exactly two levels; there is no pipeline-level branch.
+Branches exist at exactly two levels.
 
 **Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what merges into the project's main branch.
 
@@ -39,8 +39,6 @@ Artifacts live at `<artifact-folder>/<run>/<phase>`, where `<run>` is `base` or 
 git show <ref>:<artifact-folder>/base/1-spec/spec.md
 ```
 
-A `pipeline.md` identity file at the artifact-folder root records the pipeline version and the start ref's resolved commit (`version: v1` / `start: <commit>` — recorded because git does not preserve where a branch started). A fork's first commit updates it: the legible fork marker in history, and how a merged, branch-deleted pipeline's version is recovered from the main branch.
-
 ## Start refs
 
 The owner names the base run's start ref. The default is the project's main branch; two alternatives are first-class:
@@ -52,23 +50,29 @@ The owner names the base run's start ref. The default is the project's main bran
 
 A phase's predicate is evaluated at `<artifact-folder>/<run>/<phase>` on the run branch. A phase is **complete** when all of its required artifacts are committed there — the same predicate in both workflow modes:
 
-| Phase          | Required artifacts                                                                              |
-| -------------- | ----------------------------------------------------------------------------------------------- |
-| 0 – Intent     | `intent.md`                                                                                      |
-| 1 – Spec       | `spec-research.md`, `spec.md`, `spec-review-approved.md`                                         |
-| 2 – Design doc | `design-doc-research.md`, `design-doc.md`, `design-doc-review-approved.md`                       |
-| 3 – Build      | `build-plan.md`, `build-plan-review-approved.md`, `build-review-approved.md`, `build-summary.md` |
+| Phase          | Required artifacts                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| 0 – Intent     | `intent.md`                                                                                                  |
+| 1 – Spec       | `spec-research.md`, `spec.md`, `spec-review-approved.md`                                                     |
+| 2 – Design doc | `design-doc-research.md`, `design-doc.md`, `design-doc-review-approved.md`                                   |
+| 3 – Build      | `build-plan.md`, `build-plan-review-approved.md`, `build-review-approved.md`, `build-summary.md`             |
 | 4 – Document   | `document-plan.md`, `document-plan-review-approved.md`, `document-review-approved.md`, `document-summary.md` |
 
 A phase with artifacts present — in the worktree or committed — but its predicate unsatisfied is **in progress**.
 
 A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` revision, or `base`. The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none. The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase. A revision run with only its `0-intent/intent.md` committed has `1-spec` as the pipeline's next phase — the revision intent is its input.
 
-Plan approval is the build and document phases' inner gate: a phase with its plan approved and tasks pending is in progress. Resuming it is investigative: inspect the plan, the commits, and the diff to judge how far the tasks got, revert partial-task work, and re-dispatch from the last complete task — the commits and the diff are the only record of task progress.
+A build or document phase with its plan approved and tasks pending is in progress at a known point. Resuming it is investigative: inspect the plan, the commits, and the diff to judge how far the tasks got, revert partial-task work, and re-dispatch from the last complete task — the commits and the diff are the only record of task progress.
 
 ## Diff bases
 
-A run's diff base is derived on demand. The previous run branch is the run below it among its pipeline version's branches, parsed with the branch grammar; the diff base is `git merge-base` between the run branch and that previous run branch. A run with no predecessor branch in its version — the base run, or a fork's first run — uses the start commit recorded in `pipeline.md` directly. A run's commits are `git log <run-branch> ^<diff-base>`.
+A run's diff base is derived on demand:
+
+- **Revision run** — `git merge-base` with the previous run's branch: the run below it among its pipeline version's branches, parsed with the branch grammar.
+- **Base run** — the parent of the commit that added the run's `intent.md`: the run's first own commit, whether the pipeline started at the main branch or stacked on another pipeline's tip.
+- **A fork's first run** — the cut commit: the nearest ancestor among `git merge-base` with the parent pipeline's branches.
+
+A run's commits are `git log <run-branch> ^<diff-base>`. The fork derivation needs a parent branch — or the main branch, once the parent merges — to still exist: deleting an unmerged branch that live forks were cut from loses their derivation, like any comparison against a deleted branch.
 
 ## Lineage
 
@@ -85,7 +89,7 @@ Two layers answer two different questions:
 ## Listing pipelines for an issue
 
 1. **Branches** — enumerate the family's branch namespace, local and remote (`git branch --list '<branch-base>*'`, `git branch -r --list '*<branch-base>*'`), and parse each name with the branch grammar.
-2. **Artifact folder** — read the family's artifact folder on the main branch of the artifact-bearing repository (per the **Artifact storage** convention). A merged, branch-deleted pipeline is visible only here; its `pipeline.md` recovers that pipeline's version.
+2. **Artifact folder** — read the family's artifact folder on the main branch of the artifact-bearing repository (per the **Artifact storage** convention). A merged, branch-deleted pipeline is visible only here.
 
 ## Rendering the pipeline tree
 

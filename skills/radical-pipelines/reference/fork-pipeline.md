@@ -25,10 +25,6 @@ Find the highest existing `v<N>` in the family per `pipeline-versioning.md` ("Li
 
 Create the fork's first run branch at the cut commit, and its worktree per the **Worktrees** convention. The branch carries the cut run's segment: `<branch-base>_v<N+1>` for a cut in `base`, `<branch-base>_v<N+1>_rev-<K>-<desc>` for a cut in a revision run.
 
-### 5. Update `pipeline.md`
-
-As the fork's first commit, set `pipeline.md`'s version to `v<N+1>` and its start to the cut commit, and commit per the **Commit format** convention.
-
-### 6. Continue as a normal pipeline
+### 5. Continue as a normal pipeline
 
 The fork continues from the phase after the inherited phase, or re-runs the inherited phase to change it, in the run containing the cut. Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch.

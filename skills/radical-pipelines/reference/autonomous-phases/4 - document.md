@@ -1,6 +1,6 @@
 # Running the Document Phase (Phase 4)
 
-Advances the run from phase 3 (build) to phase 4, entirely on the run branch. A plan writer/reviewer pair first produces the approved `document-plan.md` — the phase's inner gate — planned against the code the build phase shipped. Each plan task then goes to a fresh `document-writer`, and a single `document-reviewer` reviews the full batch. On rejection, only the tasks the reviewer flagged are re-dispatched; the cycle repeats until the reviewer approves.
+Advances the run from phase 3 (build) to phase 4, entirely on the run branch. A plan writer/reviewer pair first produces the approved `document-plan.md`, planned against the code the build phase shipped. Each plan task then goes to a fresh `document-writer`, and a single `document-reviewer` reviews the full batch. On rejection, only the tasks the reviewer flagged are re-dispatched; the cycle repeats until the reviewer approves.
 
 Inputs:
 
@@ -37,7 +37,7 @@ This phase has no per-phase decisions.
 1. Launch a fresh `document-plan-writer` to write `document-plan.md`.
 2. Launch a fresh `document-plan-reviewer`. On rejection it writes `document-plan-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `document-plan-review-approved.md` (no number — the singleton terminator).
 3. On **rejected**, launch a fresh `document-plan-writer` with the rejection file's path. It revises `document-plan.md`. A fresh `document-plan-reviewer` re-reviews.
-4. On **approved**, the inner gate is passed; continue with task execution.
+4. On **approved**, continue with task execution.
 5. If your runtime exposes a task-list tool, use it: one entry per task from `document-plan.md`, tracking dispatch status (pending / in progress / done) throughout the phase, including re-dispatches. The list is display only — the commits and the diff are the only record of task progress.
 6. Determine the **initial batch**: every task in `document-plan.md` not yet complete (every task on a fresh phase start), in the order specified.
 7. For each task in the batch, in order:

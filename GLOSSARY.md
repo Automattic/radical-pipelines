@@ -5,7 +5,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 ## Core concepts
 
 - **Issue** — the tracked unit of work a pipeline realizes.
-- **Family** — all of an issue's pipelines (`v1`, `v2`, …); shares one artifact folder and one branch-base.
+- **Pipeline family** — all of an issue's pipelines (`v1`, `v2`, …); shares one artifact folder and one branch-base.
 - **Intent** — the phase-0 input: goal, constraints, context, open assumptions.
 - **Origin section** — the revision intent's mandatory, self-contained provenance section: the substance of the request plus a convenience link.
 - **Pipeline** — one attempt at an issue: a chain of runs sharing an artifact folder and a version.
@@ -13,15 +13,14 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Run** — one pass of the phase flow: `base` (always first, implicit in names) or `rev-<N>-<desc>` (a revision).
 - **Revision** — a run layered on a complete previous run, driven by a revision intent.
 - **Phase** — one stage of a run: `0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`.
-- **Artifact folder** — the single folder holding all of an issue-pipeline family's artifacts, produced by the Artifact folder convention; identical across forks (no version in its name). Artifacts live at `<artifact-folder>/<run>/<phase>`.
-- **`pipeline.md`** — identity file at the artifact-folder root recording the pipeline version and the base run's start commit (`version: v1` / `start: <commit>`); a fork's first commit updates it (fork marker; version recovery for merged, branch-deleted pipelines; the start commit is the one fact git does not record).
+- **Artifact folder** — the single folder holding all of a pipeline family's artifacts, produced by the Artifact folder convention; identical across forks (no version in its name). Artifacts live at `<artifact-folder>/<run>/<phase>`.
 - **Owner** — the human running the pipeline. Talks only to the orchestrator.
 - **Orchestrator** — the top-level agent executing the skill: loads conventions, creates topology, spawns agents, verifies predicates, reports to the owner.
 
 ## Branches and topology
 
 - **Branch-base** — the per-pipeline-family stem produced by the Branch names convention; must not contain `_`.
-- **Branch grammar** — `<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]`; underscore separates segments, `v1` and `base` are implicit, segments have reserved shapes so parsing is deterministic.
+- **Branch grammar** — `<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]`; underscore separates segments, `v1` and `base` are implicit, segments have reserved shapes so parsing is deterministic; `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
 - **Run branch** — the branch holding one run's commits. Run branches chain: each starts at the previous run's tip. There is no pipeline-level branch; the pipeline's tip is its latest run branch, which is what merges to main.
 - **Lane branch** — a branch forked from the run branch at phase start for one lane of a multilane phase. Never merged; pushed and kept once its phase completes (a rolled-back phase's lanes are deleted); writes the same canonical artifact paths as the run branch (lane identity lives only in the ref).
 - **Start ref** — where a base run's branch begins: the project's main branch (default), another pipeline's run-branch tip (stacking), or a cut commit (fork).
@@ -30,7 +29,6 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Cut commit** — the commit that completed the last inherited phase's completion predicate; the fork point.
 - **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and removes all branches and worktrees and never changes its own working directory; agents only occupy worktrees prepared for them.
 - **Worktree root** — the path from the Worktrees convention under which the orchestrator creates one worktree per branch (`<worktree-root>/<branch>`).
-- **Anchors** — the absolute Worktree path and Branch passed to every agent; verified before the first write and before every commit.
 
 ## Phase artifacts
 
@@ -39,7 +37,6 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **`3-build`** — `build-plan.md`, `build-plan-review-N-rejected.md`, `build-plan-review-approved.md`, code + tests on the run branch, `build-review-N-rejected.md`, `build-review-approved.md`, `build-summary.md`.
 - **`4-document`** — `document-plan.md`, `document-plan-review-N-rejected.md`, `document-plan-review-approved.md`, documentation on the run branch, `document-review-N-rejected.md`, `document-review-approved.md`, `document-summary.md`.
 - **Completion predicate** — the per-phase set of committed artifacts (primary artifact + approval markers) that marks a phase complete, evaluated in the run folder on the run branch.
-- **Inner gate** — the plan-approval checkpoint inside Build/Document: plan approved, tasks pending marks the phase in progress at a known point; on approval the phase proceeds directly to task execution.
 - **Shipped code** — the code, tests, and inline API documentation the build phase committed on the run branch.
 - **Summary** — the human-readable record of what Build or Document produced (`build-summary.md`, `document-summary.md`), written by the phase reviewer on approval.
 
@@ -58,10 +55,9 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 - **Autonomous workflow** — the orchestrator collects the run plan up-front (target phase, per-phase decisions) and runs phases end-to-end with teams of agents, without further questions.
 - **Assisted workflow** — the orchestrator drives one phase directly with the owner (spec and design-doc only); no agents spawned; the owner's explicit approval produces the approval file.
-- **Decisions** — per-phase choices collected at run start; lane count (spec, design-doc) and lane mode (design-doc).
+- **Decisions** — per-phase choices collected at run start.
 - **Target phase** — the highest phase an autonomous run executes before stopping.
 - **Blocker** — an agent's stop-and-report when required input is missing, contradictory, or would force a prior phase's decision; payload: what is missing/contradictory, which prior-phase artifact must change, the smallest unblocking revision.
-- **Self-sizing** — no phase is skipped and nobody sizes work up-front; artifact depth follows what research finds, and reviewers reject minimal conclusions not backed by a recorded, empty-handed investigation.
 
 ## Multilane
 

@@ -4,7 +4,7 @@ This is for **creating or modifying an issue**. You drive a short Q&A directly w
 
 ## The issue format
 
-The issue body _is_ the phase-0 intent — when the pipeline is created, the orchestrator turns the issue into `base/0-intent/intent.md`. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`.
+The issue is the source of the phase-0 intent — `create-pipeline.md` writes a body already in the intent format to `intent.md` as-is, and synthesizes the intent from anything else. Author the issue using the shared schema, rendering rules, and authoring discipline in `intent-format.md`, so it can travel as-is.
 
 ## Rules
 
