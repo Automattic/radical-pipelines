@@ -18,7 +18,7 @@ This runs the `node --test 'scripts/test/**/*.test.mjs'` suite (the `sync-versio
 
 ## Versioning policy
 
-The project has a single version. The source of truth is the root `package.json`'s `version`, which the release version step (`npm run release:version`) keeps in sync across the other version-bearing locations: `.claude-plugin/plugin.json` (via `scripts/sync-version.mjs`) and `package-lock.json`, in its two recorded-version fields — the top-level `version` and the root package's `packages[""].version`. The package is `private` and consumed direct-from-git (a Pi package and a Claude Code plugin served from the repo root), so there is no registry release — only a `v<version>` git tag and a matching GitHub Release.
+The project has a single version. The source of truth is the root `package.json`'s `version`, which the release version step (`npm run release:version`) keeps in sync across the other version-bearing locations: `.claude-plugin/plugin.json` (via `scripts/sync-version.mjs`) and `package-lock.json`, in its two recorded-version fields — the top-level `version` and the root package's `packages[""].version`. The package is `private` and consumed direct-from-git (a Claude Code plugin served from the repo root), so there is no registry release — only a `v<version>` git tag and a matching GitHub Release.
 
 ## Adding a changeset
 
@@ -48,7 +48,6 @@ Changes that touch **only** the following are **not** release-relevant and need 
 
 - `website/**`
 - `scripts/**`
-- `.pi/`
 - `.rp/`
 - `.changeset/`
 - `.github/`

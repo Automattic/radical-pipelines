@@ -62,7 +62,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 # Project Usage
 
-The repository ships a Claude Code plugin, a Pi package, and a standalone [agent skill](https://agentskills.io). All three capture the same methodology so a compatible agent can run a task through the pipeline.
+The repository ships a Claude Code plugin and a standalone [agent skill](https://agentskills.io). Both capture the same methodology so a compatible agent can run a task through the pipeline.
 
 ## Claude Code plugin install
 
@@ -95,51 +95,11 @@ This reads the plugin from the working tree on each start (no cache copy), so ed
 The plugin currently bundles:
 
 - the `radical-pipelines` skill, a real directory at `skills/radical-pipelines/`.
-- agent profiles in the root `agents/` directory, shared with the Pi package.
+- agent profiles in the root `agents/` directory.
 
 Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
-## Pi package install
-
-For Pi, install from the GitHub repository with Pi's `git:` source:
-
-```bash
-pi install git:github.com/Automattic/radical-pipelines
-```
-
-This routes through the single Pi manifest (`package.json` at the repo root), whose `pi` block resolves the skill from the root `skills/` directory.
-
-The package installs:
-
-- the `radical-pipelines` skill;
-- phase agent profiles for the shipped phases: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `design-doc-consolidator`, `build-plan-writer`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`, `document-plan-writer`, `document-plan-reviewer`, `document-writer`, and `document-reviewer` (phase 0 is the intent, an input rather than an agent-produced artifact, so it has no agent profile);
-- bundled `pi-teams` and `@pi-agents/loop` Pi resources.
-
-During package development in this repository, install dependencies once from the repository root and then install the local path:
-
-```bash
-npm install
-pi install . -l
-```
-
-## Pi usage
-
-After installing the Pi package in a repository:
-
-1. Start with `/skill:radical-pipelines` or by asking Pi to run Radical Pipelines.
-2. Ensure the phase agent profiles are discoverable by `pi-teams` — repository-local in `.pi/agents/`, or user-local/global in `~/.pi/agent/agents/`. The skill's setup flow installs them.
-
-The orchestrator creates one `pi-teams` team per run and spawns the phase agents at runtime, following the project conventions.
-
-Validation for the local package has verified `pi install . -l`, `pi list`, and `/skill:radical-pipelines`. The local validation used print mode rather than a full manual interactive UI.
-
-## Dependency bundling
-
-The repository ships a single Pi manifest: the root `package.json` (`pi-package` keyword). It declares Radical Pipelines-owned resources under its `pi` block — the skill resolves from the root `skills/` directory — and references bundled third-party Pi resources through `node_modules/...` paths. Its runtime `dependencies` are `pi-teams`, `@pi-agents/loop`, and `@sinclair/typebox`. Pi core packages are wildcard peer dependencies and are not declared as runtime dependencies.
-
-Dependency delivery is not a `bundledDependencies` mechanism. Both Pi install paths resolve this same root manifest — the `git:` install at the cloned repo root, `pi install . -l` at the local path — and Pi runs `npm install` against it after the clone, so the declared `dependencies` (and their `node_modules/...` resources referenced from the `pi` block) are present at runtime.
-
-The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root. There is no hidden source directory and no mirror-symlink scheme: the directories the Claude Code plugin and the Pi package read are the canonical sources themselves.
+The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
 ## Configuration
 
@@ -147,11 +107,9 @@ The skill is generic — each project defines its own conventions for things lik
 
 If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup. Setup separates shared project guidance from guidance specific to the active agentic coding tool, and writes `.rp.md` only after the owner confirms the proposed content.
 
-Shared project conventions include issue tracking, the branch name base, the pipeline family folder, the worktree root, commit rules, artifact storage, and an optional `Guardrails` convention declaring the deterministic verification gates (exact commands judged pass/fail by exit code); see the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author them. Worktrees are raw `git worktree` checkouts under a project-chosen root — the orchestrator creates and removes every branch and worktree, and agents only occupy the worktrees prepared for them. Claude Code conventions add subagent team spawning, the bundled `/loop` health monitor, and an optional `Agent models` convention pinning which model (and settings) each spawned agent runs on. Pi conventions add `pi-teams` spawning, provider/model recovery, the `@pi-agents/loop` health monitor, Pi agent discovery rules, and the same optional `Agent models` convention. The `Agent models` block is per-tool and optional; see the [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author it. A given project uses one set; the active CLI determines which.
+Shared project conventions include issue tracking, the branch name base, the pipeline family folder, the worktree root, commit rules, artifact storage, and an optional `Guardrails` convention declaring the deterministic verification gates (exact commands judged pass/fail by exit code); see the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author them. Worktrees are raw `git worktree` checkouts under a project-chosen root — the orchestrator creates and removes every branch and worktree, and agents only occupy the worktrees prepared for them. Claude Code conventions add subagent team spawning, the bundled `/loop` health monitor, and an optional `Agent models` convention pinning which model (and settings) each spawned agent runs on. The `Agent models` block is optional; see the [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author it.
 
 A developer can override a restricted subset of conventions for their own working copy by placing a git-ignored `.rp.local.md` alongside the committed `.rp.md`: the local file wins per named unit, and the committed file is inherited wherever the local file is silent. Because `.rp.local.md` is git-ignored, it is never committed and never affects other contributors. See the [Local overrides](./skills/radical-pipelines/reference/conventions/load.md#local-overrides) section of the convention loader for details.
-
-For Pi, setup also verifies that the required phase agent definitions are discoverable before the pipeline starts. It checks repository-local agents first (`.pi/agents/<agent>.md` or `.pi/agents/<agent>/SKILL.md`), then user-local/global agents (`~/.pi/agent/agents/<agent>.md` or `~/.pi/agent/agents/<agent>/SKILL.md`). If none of the required agents are available, setup stops and asks which Radical Pipelines agents the user wants to copy/paste and install, and whether to install them repository-locally or user-locally/globally.
 
 Shared cross-agent project instructions should live in `AGENTS.md`. `CLAUDE.md` may be a thin pointer to `AGENTS.md` (for example, `@AGENTS.md`); setup preserves that pattern and should not duplicate shared `AGENTS.md` content into `CLAUDE.md`.
 
