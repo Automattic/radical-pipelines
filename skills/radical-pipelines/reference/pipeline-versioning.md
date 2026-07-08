@@ -63,10 +63,6 @@ A phase's predicate is evaluated at `<artifact-folder>/<run>/<phase>` on the run
 - The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none.
 - The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase.
 
-## Phase diffs
-
-Build and document reviews, and investigative resume, inspect the phase's own work: the diff from the parent of the commit that added the phase's plan to the run branch's tip. A cut lands on a complete phase, so a phase's commits always belong to one pipeline.
-
 ## Lineage
 
 Two layers answer two different questions:
