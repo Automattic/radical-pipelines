@@ -5,11 +5,11 @@ When the active agentic coding tool is Claude Code, the conventions below take t
 The block below is the canonical content for `.rp.md`.
 
 ```markdown
-## Worktrees
+## Worktree root
 
 Worktrees live under `<worktree-root>`. The orchestrator creates and removes them with raw `git worktree` shell commands — one worktree per branch, at `<worktree-root>/<branch>`. Agents never run `git worktree`; each occupies the worktree named in its Conventions block.
 
-## Branch names
+## Branch name base
 
 `<branch-base>` is `<owner's chosen format>`. The skill's branch grammar appends every other segment.
 

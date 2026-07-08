@@ -6,7 +6,7 @@ Creates a new pipeline through phase 0 — the base run branch and worktree, the
 
 ### 1. Determine the family identifiers
 
-Derive the `<branch-base>` per the **Branch names** convention and the artifact folder per the **Artifact folder** convention. Both are deterministic from the issue.
+Derive the `<branch-base>` per the **Branch name base** convention and the artifact folder per the **Artifact folder** convention. Both are deterministic from the issue.
 
 ### 2. Determine the start ref
 
@@ -14,7 +14,7 @@ The start ref is the project's main branch. When the owner stacks on unmerged wo
 
 ### 3. Create the base run branch and worktree
 
-Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktrees** convention. Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
+Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktree root** convention. Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
 
 ### 4. Create the artifact folder
 

@@ -4,7 +4,7 @@ An issue's pipelines form a **pipeline family**: the first pipeline is `v1`; eac
 
 ## Branch grammar
 
-The **Branch names** convention produces the `<branch-base>` — it may contain slashes for namespacing and must not contain `_`. Everything after it is fixed skill grammar with `_` as the structural separator; every other segment is kebab-case:
+The **Branch name base** convention produces the `<branch-base>` — it may contain slashes for namespacing and must not contain `_`. Everything after it is fixed skill grammar with `_` as the structural separator; every other segment is kebab-case:
 
 ```
 <branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]

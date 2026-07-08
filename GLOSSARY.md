@@ -19,7 +19,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 ## Branches and topology
 
-- **Branch-base** — the per-pipeline-family stem produced by the Branch names convention; must not contain `_`.
+- **Branch-base** — the per-pipeline-family stem produced by the Branch name base convention; must not contain `_`.
 - **Branch grammar** — `<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]`; underscore separates segments, `v1` and `base` are implicit, segments have reserved shapes so parsing is deterministic; `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
 - **Run branch** — the branch holding one run's commits. Run branches chain: each starts at the previous run's tip. There is no pipeline-level branch; the pipeline's tip is its latest run branch, which is what merges to main.
 - **Lane branch** — a branch forked from the run branch at phase start for one lane of a multilane phase. Never merged; pushed and kept once its phase completes (a rolled-back phase's lanes are deleted); writes the same canonical artifact paths as the run branch (lane identity lives only in the ref).
@@ -28,7 +28,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Fork** — a new pipeline version created by branching at a cut commit in a parent pipeline's history; inherited history carries the inherited work itself. The fork's first branch carries the run segment of the run containing the cut, and work continues in that run's folder.
 - **Cut commit** — the commit that completed the last inherited phase's completion predicate; the fork point.
 - **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and removes all branches and worktrees and never changes its own working directory; agents only occupy worktrees prepared for them.
-- **Worktree root** — the path from the Worktrees convention under which the orchestrator creates one worktree per branch (`<worktree-root>/<branch>`).
+- **Worktree root** — the path from the convention of the same name under which the orchestrator creates one worktree per branch (`<worktree-root>/<branch>`).
 
 ## Phase artifacts
 

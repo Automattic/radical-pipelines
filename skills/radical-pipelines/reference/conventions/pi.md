@@ -5,7 +5,7 @@ When the active agentic coding tool is Pi, use Pi-specific team tools.
 ## Canonical `.rp.md` content for Pi
 
 ```markdown
-## Worktrees
+## Worktree root
 
 Worktrees live under `<worktree-root>` (suggested: `.pi/worktrees`). The orchestrator creates and removes them with raw `git worktree` shell commands — one worktree per branch, at `<worktree-root>/<branch>`. Agents never run `git worktree`; each occupies the worktree named in its Conventions block.
 

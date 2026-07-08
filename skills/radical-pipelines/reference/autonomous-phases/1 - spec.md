@@ -45,7 +45,7 @@ Each lane runs this flow independently, in its own worktree on its own branch:
 
 **Multiple lanes:**
 
-1. Create one lane branch and worktree per lane (branch segment `1-spec-lane-<K>`, forked from the run branch) per the **Worktrees** convention.
+1. Create one lane branch and worktree per lane (branch segment `1-spec-lane-<K>`, forked from the run branch) per the **Worktree root** convention.
 2. Run the lane flow in all lanes in parallel. Every lane writes the same canonical artifact paths on its own branch — lane identity lives only in the ref.
 3. When every lane is approved, launch `spec-consolidator` in the run branch's worktree with the list of lane branches. It reads each lane's `spec.md` and `spec-research.md` (`git show <lane-ref>:<path>`), writes the consolidated `spec.md` and `spec-research.md` at the canonical paths, and commits them on the run branch.
 4. Remove the lane worktrees; the lane branches remain.

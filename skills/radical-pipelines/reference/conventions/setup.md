@@ -29,7 +29,7 @@ Ask for the required information in a clear sequence, one convention at a time. 
 
 If a convention must be of a specific form due to the agentic coding tool's rules and does not require user input, simply inform the owner with a message explaining that convention and proceed to the next one.
 
-### Branch names (required)
+### Branch name base (required)
 
 The format of the `<branch-base>` — the stem every branch of an issue's pipeline family starts with. The skill's branch grammar appends every other segment.
 
@@ -47,7 +47,7 @@ The single folder holding the artifacts of all of an issue's pipelines, identica
 
 Ask the owner for the location and naming pattern.
 
-Suggested default: `.pipelines/<issue-id>-<short-description>/`.
+Suggested default: `.pipelines/<branch-base>/`.
 
 ### Issues (required)
 
@@ -55,9 +55,9 @@ Where the project tracks issues. Each pipeline pulls its initial intent from an 
 
 Ask the owner where issues are tracked and how to access them (a CLI, an API, files in a repository folder, etc.).
 
-### Worktrees (required)
+### Worktree root (required)
 
-Where worktrees live: the root path under which the orchestrator creates one worktree per branch with raw `git worktree`, and from which it removes each worktree when its work is done.
+The root path under which the orchestrator creates one worktree per branch with raw `git worktree`, and from which it removes each worktree when its work is done.
 
 Suggested default: `.worktrees/`.
 
