@@ -2,4 +2,4 @@
 "@automattic/radical-pipelines": patch
 ---
 
-Require reproducing the identical failure on the run's diff base before any gate failure is classified as pre-existing or environmental, and forbid the untouched-test heuristic: without that evidence writers fix the failure instead of committing around it, and reviewers reject instead of approving around it, with the blocker path reserved for genuinely broken inputs or environments.
+Gate failures are never classified as pre-existing or environmental without proof. Reviewers require reproducing the identical failure on the run's diff base before treating a failure as ambient; writers fix the failure or report a blocker instead of committing around it; the untouched-test heuristic is forbidden for both.
