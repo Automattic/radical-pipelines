@@ -81,18 +81,21 @@ Two layers answer two different questions:
 
 ## Rendering the pipeline tree
 
-Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue; pipelines started from the main branch hang under the root, and each fork hangs under its parent, labeled with the phase of its cut commit. Annotate each pipeline with:
+Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue. Nodes are phases: each run contributes a node per phase it has, in order, prefixed `v<N> <run>:` (`<run>` omitted for the base run, as in the branch grammar). A revision run hangs off the previous run's last phase; pipelines started from the main branch hang under the root; a fork hangs under the phase node of its cut commit. An inherited phase the fork modified reappears in the fork's own chain marked `(modified)`; inherited phases that don't reappear are identical.
 
-- Its state: completed phase or `complete`, active phase with `(in progress)`, `[merged]`.
-- Its run chain: `base → rev-1-<desc> → …`, when it has revisions.
-- On forks, the content labels of the inherited phases.
+- A stretch of phases with no fork in the middle may be compressed onto one line with `→`, and its middle elided to `…`; a `(modified)` phase stays visible.
+- `(in progress)` marks a phase that is in progress.
+- `[merged]` marks the latest run of a merged pipeline.
 
-Example:
+Example — v1 merged after one revision; v2 cut at v1's spec and rewrote it; v3 cut at v1's design doc and kept it; v4 started from the main branch:
 
 ```
 #123-fix-checkout
-├── v1 — complete [merged] · base → rev-1-fix-copy
-│   ├── v2 — cut at 1-spec · 1-spec modified · 2-design-doc (in progress)
-│   └── v3 — cut at 2-design-doc · 2-design-doc identical · complete
-└── v4 — 1-spec (in progress)
+├── v1: 0-intent → 1-spec
+│   ├── v1: 2-design-doc
+│   │   ├── v1: 3-build → 4-document
+│   │   │   └── v1 rev-1-fix-copy: 0-intent → … → 4-document [merged]
+│   │   └── v3: 3-build → 4-document
+│   └── v2: 1-spec (modified) → 2-design-doc (in progress)
+└── v4: 0-intent → 1-spec (in progress)
 ```
