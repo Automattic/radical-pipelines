@@ -12,13 +12,13 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 ### 1. Gather context
 
 1. Read `<artifact-folder>/1-spec/spec.md` — the requirements, acceptance criteria, and out-of-scope items the design must satisfy.
-2. Read `<artifact-folder>/2-design-doc/design-doc-research.md` — the research, design topics, options, decisions, open questions, and risks the design-doc-analyst and design-doc-researcher produced. This is where the design work was done; your job is to synthesize it into a standalone document, not to redo it.
+2. Read `<phase-folder>/design-doc-research.md` — the research, design topics, options, decisions, open questions, and risks the design-doc-analyst and design-doc-researcher produced. This is where the design work was done; your job is to synthesize it into a standalone document, not to redo it.
 3. Consult the codebase only as needed to ground specific details that `design-doc-research.md` leaves implicit. If you find yourself doing fresh design investigation, that is a signal the design is incomplete — raise a blocker rather than designing around the gap.
 4. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the design doc
 
-Write a **standalone document** in `<artifact-folder>/2-design-doc/design-doc.md`. It must be understandable without reading any other artifact.
+Write a **standalone document** in `<phase-folder>/design-doc.md`. It must be understandable without reading any other artifact.
 
 Use this structure, omitting sections with nothing to record:
 

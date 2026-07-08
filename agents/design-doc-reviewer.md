@@ -11,9 +11,9 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 ### 1. Gather context
 
-1. Read `<artifact-folder>/2-design-doc/design-doc.md` — the design to review.
+1. Read `<phase-folder>/design-doc.md` — the design to review.
 2. Read `<artifact-folder>/1-spec/spec.md` — the requirements the design must satisfy.
-3. Read `<artifact-folder>/2-design-doc/design-doc-research.md` — the research, options, and decisions behind the design doc. Use it to check that the design doc faithfully reflects the decisions made and that no considered alternative or open risk was silently dropped.
+3. Read `<phase-folder>/design-doc-research.md` — the research, options, and decisions behind the design doc. Use it to check that the design doc faithfully reflects the decisions made and that no considered alternative or open risk was silently dropped.
 4. Explore the codebase to verify the design is feasible against existing patterns, components, and conventions.
 
 ### 2. Review the design doc
@@ -36,8 +36,8 @@ A minimal artifact is legitimate only when the research record shows the investi
 
 Decide your verdict first, then pick the filename:
 
-- **Rejected** — write `<artifact-folder>/2-design-doc/design-doc-review-N-rejected.md`, where N is the next rejection iteration (count existing `design-doc-review-*-rejected.md` files and add 1; starts at 1 if none exist).
-- **Approved** — write `<artifact-folder>/2-design-doc/design-doc-review-approved.md` (no number; only one ever exists).
+- **Rejected** — write `<phase-folder>/design-doc-review-N-rejected.md`, where N is the next rejection iteration (count existing `design-doc-review-*-rejected.md` files and add 1; starts at 1 if none exist).
+- **Approved** — write `<phase-folder>/design-doc-review-approved.md` (no number; only one ever exists).
 
 Use this structure:
 

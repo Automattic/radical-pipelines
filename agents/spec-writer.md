@@ -14,13 +14,13 @@ When a required input is missing, contradictory, or would force a choice that be
 ### 1. Gather context
 
 1. Read `<artifact-folder>/0-intent/intent.md` — the original idea.
-2. Read `<artifact-folder>/1-spec/spec-research.md` — the full Q&A record, research notes, and consolidated requirements.
+2. Read `<phase-folder>/spec-research.md` — the full Q&A record, research notes, and consolidated requirements.
 3. Explore the codebase as needed to verify feasibility.
 4. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the spec
 
-Write a **standalone document** in `<artifact-folder>/1-spec/spec.md`. It must be understandable without reading any other artifact.
+Write a **standalone document** in `<phase-folder>/spec.md`. It must be understandable without reading any other artifact.
 
 Use this structure:
 

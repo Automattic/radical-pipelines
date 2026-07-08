@@ -29,11 +29,11 @@ Branches exist at exactly two levels.
 
 **Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what merges into the project's main branch. A run's commits start at its intent commit and end at its branch's tip.
 
-**Lane branches** carry the parallel work of the spec and design-doc phases: one branch per lane, forked from the run branch at phase start. Every lane writes the same canonical artifact paths as the run branch — lane identity lives only in the ref. The phase's consolidator reads the lane artifacts off their branches (`git show <lane-ref>:<path>`) and commits the consolidated artifact on the run branch. Lane worktrees are removed after consolidation; lane branches are never merged — they are pushed and kept as the record of a completed phase's parallel work. Rolling back an in-progress phase deletes its lane branches (see `resume-pipeline.md`).
+**Lane branches** carry the parallel work of isolated lanes in the spec and design-doc phases: one branch per lane, forked from the run branch at phase start, each lane writing only its `lane-<K>` subfolder of the phase folder. When every lane is approved, the lane branches are merged into the run branch and deleted, and their worktrees removed — the lane folders and commit history live on in the run branch. Divergent lanes run sequentially in the run branch's worktree and create no lane branches. Rolling back an in-progress phase deletes its lane branches (see `resume-pipeline.md`).
 
 ## Artifacts
 
-Artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` or `rev-<N>-<desc>` (matching the run's branch segment) and `<phase>` is the phase folder. The **Pipeline family folder** convention produces one folder per family, identical across all forks, so cross-fork comparison is a constant path under a varying ref:
+Artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` or `rev-<N>-<desc>` (matching the run's branch segment) and `<phase>` is the phase folder. A multi-lane phase's per-lane artifacts live in `lane-<K>` subfolders of the phase folder; the consolidated artifacts sit at the folder root. The **Pipeline family folder** convention produces one folder per family, identical across all forks, so cross-fork comparison is a constant path under a varying ref:
 
 ```
 git show <ref>:<pipeline-family-folder>/base/1-spec/spec.md

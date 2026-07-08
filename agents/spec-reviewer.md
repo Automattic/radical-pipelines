@@ -13,8 +13,8 @@ When a required input is missing, contradictory, or would force a choice that be
 
 ### 1. Gather context
 
-1. Read `<artifact-folder>/1-spec/spec.md` — the spec to review.
-2. Read `<artifact-folder>/1-spec/spec-research.md` — the requirements the spec must satisfy.
+1. Read `<phase-folder>/spec.md` — the spec to review.
+2. Read `<phase-folder>/spec-research.md` — the requirements the spec must satisfy.
 3. Read `<artifact-folder>/0-intent/intent.md` — the original idea.
 4. Explore the codebase to verify feasibility of what the spec proposes.
 
@@ -36,8 +36,8 @@ A minimal artifact is legitimate only when the research record shows the investi
 
 Decide your verdict first, then pick the filename:
 
-- **Rejected** — write `<artifact-folder>/1-spec/spec-review-N-rejected.md`, where N is the next rejection iteration (count existing `spec-review-*-rejected.md` files and add 1; starts at 1 if none exist).
-- **Approved** — write `<artifact-folder>/1-spec/spec-review-approved.md` (no number; only one ever exists).
+- **Rejected** — write `<phase-folder>/spec-review-N-rejected.md`, where N is the next rejection iteration (count existing `spec-review-*-rejected.md` files and add 1; starts at 1 if none exist).
+- **Approved** — write `<phase-folder>/spec-review-approved.md` (no number; only one ever exists).
 
 Use this structure:
 

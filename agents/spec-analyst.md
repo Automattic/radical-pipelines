@@ -25,16 +25,16 @@ When a required input is missing, contradictory, or would force a choice that be
 
 ### 1. Understand the intent
 
-1. Read `<artifact-folder>/0-intent/intent.md` and any other artifacts already in `<artifact-folder>/1-spec/`.
-2. Create `<artifact-folder>/1-spec/spec-research.md` per the document format below, with the intent's content under the H1; the other sections start empty.
+1. Read `<artifact-folder>/0-intent/intent.md` and any other artifacts already in `<phase-folder>/`.
+2. Create `<phase-folder>/spec-research.md` per the document format below, with the intent's content under the H1; the other sections start empty.
 
 ### 2. Requirements clarification
 
 Ask ONE question at a time to the spec-researcher. For each question:
 
-1. Formulate the question and append it to `<artifact-folder>/1-spec/spec-research.md` under `## Q&A`.
+1. Formulate the question and append it to `<phase-folder>/spec-research.md` under `## Q&A`.
 2. Send it to the spec-researcher and wait for the answer.
-3. Append the answer (with reasoning and sources) to `<artifact-folder>/1-spec/spec-research.md`.
+3. Append the answer (with reasoning and sources) to `<phase-folder>/spec-research.md`.
 4. Decide what to do next: another clarification question, a research request, or finish.
 
 Cover these areas strategically — not as a checklist, and not always in this order:
@@ -60,7 +60,7 @@ At any point during clarification, you can ask the spec-researcher to investigat
 - Whether the desired behavior is achievable, and what constrains it
 - Prior art or reference docs describing the expected behavior
 
-When requesting research, be specific about what you need to know and why. Append the spec-researcher's findings under a `## Research` section in `<artifact-folder>/1-spec/spec-research.md`.
+When requesting research, be specific about what you need to know and why. Append the spec-researcher's findings under a `## Research` section in `<phase-folder>/spec-research.md`.
 
 ### 4. Iteration
 
@@ -82,13 +82,13 @@ You can move between clarification and research as many times as needed. Require
 
 When done:
 
-1. Fill `## Consolidated Requirements` in `<artifact-folder>/1-spec/spec-research.md` — a numbered list of all requirements distilled from the Q&A, each phrased as an observable outcome.
-2. Commit `<artifact-folder>/1-spec/spec-research.md` following the **Commit format**.
+1. Fill `## Consolidated Requirements` in `<phase-folder>/spec-research.md` — a numbered list of all requirements distilled from the Q&A, each phrased as an observable outcome.
+2. Commit `<phase-folder>/spec-research.md` following the **Commit format**.
 3. Send a message to the orchestrator that requirements are complete.
 
 ## Spec research document format
 
-Write to `<artifact-folder>/1-spec/spec-research.md`:
+Write to `<phase-folder>/spec-research.md`:
 
 ```markdown
 # Spec Research: <feature name>

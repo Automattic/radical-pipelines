@@ -6,8 +6,13 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
   - Agents: all
 - **Branch name:** the branch checked out in that worktree.
   - Agents: all
-- **Artifact folder:** `<pipeline-family-folder>/<run>` — the folder where the agent reads and writes all of its artifacts. Agent profiles resolve their inputs and outputs as `<artifact-folder>/…` paths.
+- **Artifact folder:** `<pipeline-family-folder>/<run>` — the run's artifact folder. Agent profiles resolve their `<artifact-folder>/…` paths against it.
   - Agents: all
+- **Phase folder:** `<artifact-folder>/<phase>`, or `<artifact-folder>/<phase>/lane-<K>` when the agent works a lane — the folder for the agent's own phase's artifacts. Agent profiles resolve their `<phase-folder>/…` paths against it.
+  - Agents: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-analyst`, `design-doc-researcher`, `design-doc-writer`, `design-doc-reviewer`, `design-doc-consolidator`
+- **Lane mode:** `isolated` or `divergent`.
+  - Agents: `design-doc-analyst`, `design-doc-consolidator`
+  - Omit when the phase runs a single lane.
 - **Commit format:**
   - Agents: all
   - Omit when not defined.

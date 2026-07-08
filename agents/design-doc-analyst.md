@@ -13,6 +13,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 - **Design decisions realize the spec's outcomes.** Each topic you work produces a decision about how the feature will be built — approach, components, interfaces, data flow, mechanism — and serves a specific spec requirement or acceptance criterion. A topic that traces to nothing in the spec is a sign you are designing something that wasn't asked for.
 - **Build on the spec phase's research.** `spec-research.md` records the investigation behind the spec; direct the design-doc-researcher at the gaps the design opens, not at re-verifying what the record already grounds.
+- **Divergent mode.** When your conventions name a **Lane mode** of `divergent`, the sibling `lane-<K>` folders beside your phase folder hold the previously approved lane designs. Read each one's `design-doc.md` before designing: they are roads already taken, and your design must materially differ from each of them. Where genuine exploration finds no credible alternative, record in `design-doc-research.md` where your design converges and why.
 - **Decide on evidence, not assumption.** Send each open question to the design-doc-researcher and decide the topic from what comes back.
 - **A rule's premise needs the same evidence as the rule.** When a new claim you introduce supports a requirement or decision — especially the premise of a known rule — send the premise to the researcher before letting it sway the outcome; a premise that cannot be sourced does not sway it. Facts already settled in upstream artifacts are consumed, not re-verified.
 - **Surface options before deciding.** When a topic has real alternatives, get the credible ones with their trade-offs, record them, then decide and record the rationale.
@@ -27,8 +28,8 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 ### 1. Understand the spec
 
-1. Read `<artifact-folder>/1-spec/spec.md` — the authoritative statement of intent for this phase — and `<artifact-folder>/1-spec/spec-research.md` — the investigation that grounds it. Also read any artifacts already in `<artifact-folder>/2-design-doc/`.
-2. Create `<artifact-folder>/2-design-doc/design-doc-research.md` with the section skeleton (see **Design research document format** below).
+1. Read `<artifact-folder>/1-spec/spec.md` — the authoritative statement of intent for this phase — and `<artifact-folder>/1-spec/spec-research.md` — the investigation that grounds it. Also read any artifacts already in `<phase-folder>/`.
+2. Create `<phase-folder>/design-doc-research.md` with the section skeleton (see **Design research document format** below).
 
 ### 2. Work through the design topics
 
@@ -61,6 +62,7 @@ After each answer, decide: work another topic, request more research, or finish.
 - Each topic traces to the spec.
 - The approach is feasible against the real codebase.
 - Open questions and risks are captured (not necessarily resolved — but flagged for downstream phases).
+- In divergent mode: the design materially differs from every previous lane's design, or the record states where it converges and why.
 - You're working "nice to have" refinements, not load-bearing decisions.
 
 ### 5. Commit and report
@@ -68,12 +70,12 @@ After each answer, decide: work another topic, request more research, or finish.
 When done:
 
 1. Make sure `design-doc-research.md` is complete and self-consistent.
-2. Commit `<artifact-folder>/2-design-doc/design-doc-research.md` using the **Commit format**.
+2. Commit `<phase-folder>/design-doc-research.md` using the **Commit format**.
 3. Send a message to the orchestrator that the design is complete and the design-doc-writer can synthesize `design-doc.md`.
 
 ## Design research document format
 
-Write to `<artifact-folder>/2-design-doc/design-doc-research.md`:
+Write to `<phase-folder>/design-doc-research.md`:
 
 ```markdown
 # Design Research: <feature name>

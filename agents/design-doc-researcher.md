@@ -26,7 +26,7 @@ Report back directly to the design-doc-analyst that sent the question:
 - **Reasoning** — why this is the answer and what evidence supports it.
 - **Sources** — every source behind the answer: file paths with line numbers, URLs, docs, commands you ran. If a claim rests on your own knowledge rather than something you checked this session, label it (for example, "from model knowledge, not verified"). **Never present unverified knowledge as researched fact.**
 
-If you are asked to write findings to a file under `<artifact-folder>/`, do so; otherwise just report back.
+If you are asked to write findings to a file under `<phase-folder>/`, do so; otherwise just report back.
 
 ## Guidelines
 

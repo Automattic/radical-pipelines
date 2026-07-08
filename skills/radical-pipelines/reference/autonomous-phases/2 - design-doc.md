@@ -14,7 +14,7 @@ Outputs, committed on the run branch:
 - `<pipeline-family-folder>/<run>/2-design-doc/design-doc-review-N-rejected.md` (one per rejected iteration, N = 1, 2, 3, …)
 - `<pipeline-family-folder>/<run>/2-design-doc/design-doc-review-approved.md` (single, unnumbered file written on approval)
 
-With multiple lanes, each lane branch carries its lane-approved versions of the same paths.
+With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` subfolder of the phase folder, and the consolidated artifacts sit at the folder root.
 
 ## Decisions
 
@@ -51,13 +51,11 @@ Each lane runs the full flow in its assigned worktree:
 
 **Multiple lanes:**
 
-1. Create one lane branch and worktree per lane, forked from the run branch (branch segment `2-design-doc-lane-<K>`).
-2. Run the lane flow in every lane:
-   - **Isolated mode** — all lanes in parallel, mutually blind.
-   - **Divergent mode** — lanes run sequentially. Lane K's analyst launch prompt includes the lane branch refs of the previously approved lanes' `design-doc.md` files (readable with `git show <lane-ref>:<path>`) and the instruction that its design must materially differ from every previous lane's. Everything else is identical to isolated mode.
-3. When every lane's design is lane-approved, launch `design-doc-consolidator` in the run branch's worktree, its prompt naming the lane branch refs and the lane mode. It reads each lane's `design-doc.md` and `design-doc-research.md` off the lane branches and commits the consolidated `design-doc.md` and `design-doc-research.md` in the phase folder on the run branch.
-4. Remove the lane worktrees.
-5. Launch a fresh `design-doc-reviewer` to review the consolidated design. On **rejected**, relaunch the `design-doc-consolidator` with the rejection file's path — it plays the writer role in this loop — until approved.
+1. Run the lane flow in every lane; each lane writes its artifacts in its `lane-<K>` subfolder of the phase folder, so the lanes' paths are disjoint:
+   - **Isolated mode** — create one lane branch and worktree per lane, forked from the run branch (branch segment `2-design-doc-lane-<K>`), and run all lanes in parallel, mutually blind. When every lane is approved, merge each lane branch into the run branch, remove the lane worktrees, and delete the lane branches.
+   - **Divergent mode** — run the lanes sequentially in the run branch's worktree, committing on the run branch.
+2. Launch `design-doc-consolidator` in the run branch's worktree. It reads each lane's `design-doc.md` and `design-doc-research.md` from the `lane-<K>` subfolders and commits the consolidated `design-doc.md` and `design-doc-research.md` at the phase folder root on the run branch.
+3. Launch a fresh `design-doc-reviewer` to review the consolidated design. On **rejected**, relaunch the `design-doc-consolidator` with the rejection file's path — it plays the writer role in this loop — until approved.
 
 On **approved**, verify the phase 2 completion predicate per `pipeline-versioning.md` ("Per-phase completion").
 
