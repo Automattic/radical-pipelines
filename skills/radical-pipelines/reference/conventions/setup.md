@@ -192,7 +192,7 @@ Do not create or copy files without explicit confirmation from the owner.
 
 Before writing anything, summarize the proposed `.rp.md` content and ask for explicit confirmation.
 
-The file holds only the conventions this setup defines. Project-specific facts discovered along the way are written only when the owner explicitly asks for them to be captured — under-specifying is the safe default.
+The file holds only the conventions this setup defines. Anything beyond them — project-specific facts discovered along the way, extra instructions for the orchestrator — is written only when the owner explicitly asks for it to be captured; under-specifying is the safe default.
 
 - If `.rp.md` does not exist, ask before creating it.
 - If it exists, ask before overwriting it. Offer to merge or append only when the owner explicitly chooses that approach.
