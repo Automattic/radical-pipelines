@@ -71,7 +71,7 @@ A run's diff base is derived on demand:
 - **Base run** — the parent of the commit that added the run's `intent.md`: the run's first own commit, whether the pipeline started at the main branch or stacked on another pipeline's tip.
 - **A fork's first run** — the cut commit: the nearest ancestor among `git merge-base` with the parent pipeline's branches.
 
-Phase reviews and investigative resume inspect `<diff-base>` → the run branch's tip: the pipeline's whole work on the run. The fork derivation needs a parent branch — or the main branch, once the parent merges — to still exist: deleting an unmerged branch that live forks were cut from loses their derivation, like any comparison against a deleted branch.
+Phase reviews and investigative resume inspect `<diff-base>` → the run branch's tip: the pipeline's whole work on the run. Commits below a fork's cut are the parent's work, reviewed in the parent — a fork treats its cut the way a `v1` treats the main branch.
 
 ## Lineage
 
