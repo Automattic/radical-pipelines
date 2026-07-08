@@ -58,11 +58,10 @@ A phase's predicate is evaluated at `<artifact-folder>/<run>/<phase>` on the run
 | 3 – Build      | `build-plan.md`, `build-plan-review-approved.md`, `build-review-approved.md`, `build-summary.md`             |
 | 4 – Document   | `document-plan.md`, `document-plan-review-approved.md`, `document-review-approved.md`, `document-summary.md` |
 
-A phase with artifacts present — in the worktree or committed — but its predicate unsatisfied is **in progress**.
-
-A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` revision, or `base`. The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none. The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase. A revision run with only its `0-intent/intent.md` committed has `1-spec` as the pipeline's next phase — the revision intent is its input.
-
-A build or document phase with its plan approved and tasks pending is in progress at a known point. Resuming it is investigative: inspect the plan, the commits, and the diff to judge how far the tasks got, revert partial-task work, and re-dispatch from the last complete task — the commits and the diff are the only record of task progress.
+- A phase with artifacts present — in the worktree or committed — but its predicate unsatisfied is **in progress**.
+- A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` revision, or `base`.
+- The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none.
+- The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase.
 
 ## Diff bases
 
