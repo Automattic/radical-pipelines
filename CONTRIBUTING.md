@@ -6,7 +6,7 @@ The package `@automattic/radical-pipelines` is **private** and consumed directly
 
 ## Opening a pull request
 
-When you open a PR, GitHub pre-fills the repo's default template (`.github/PULL_REQUEST_TEMPLATE.md`) with **What? / Why? / How?** sections, a stub to link the issue it closes, and a reminder to add a changeset when your change is release-relevant.
+When you open a PR, GitHub pre-fills the repo's default template (`.github/PULL_REQUEST_TEMPLATE.md`) with **What? / Why? / How?** and **Review guide** sections, a stub to link the issue it closes, and a reminder to add a changeset when your change is release-relevant.
 
 ## Running tests and checks locally
 
