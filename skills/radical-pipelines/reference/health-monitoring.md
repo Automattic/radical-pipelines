@@ -21,20 +21,18 @@ The monitor checks every interval for the following signals:
 - **Login / API-key error** — a spawned agent or the orchestrator hit a provider authentication failure.
 - **Network failure** — a tool call failed with a transient network error.
 
-Context-window limits are not watched here. The tools auto-compact agent context near the limit, so the monitor would only react after the tool has already handled it.
-
 The monitor reads the run and lane worktrees (last commits, agent logs if available) and the agents' messaging state.
 
 ## Recovery
 
 Each issue gets a **2-retry budget** before escalation. Recovery actions are applied in order:
 
-| Issue                 | Retry 1                                                            | Retry 2                             | Escalate        |
-| --------------------- | ------------------------------------------------------------------ | ----------------------------------- | --------------- |
-| No-output stall       | Ping the agent with a status request                               | Restart the agent                   | Report to owner |
-| Message failure       | Re-send the message                                                | Restart the target agent            | Report to owner |
+| Issue                 | Retry 1                                                                           | Retry 2                             | Escalate        |
+| --------------------- | --------------------------------------------------------------------------------- | ----------------------------------- | --------------- |
+| No-output stall       | Ping the agent with a status request                                              | Restart the agent                   | Report to owner |
+| Message failure       | Re-send the message                                                               | Restart the target agent            | Report to owner |
 | Login / API-key error | Swap to an authenticated provider-qualified model (per the project's conventions) | Re-spawn the agent on the new model | Report to owner |
-| Network failure       | Retry the tool call once                                           | Wait one interval and retry         | Report to owner |
+| Network failure       | Retry the tool call once                                                          | Wait one interval and retry         | Report to owner |
 
 When a retry succeeds, reset that issue's budget. The 2-retry budget is per issue occurrence, not per session.
 

@@ -85,5 +85,5 @@ A blocker stops the run: perform the close-out (step 7).
 Close-out fires whenever the run stops — target phase completed, a blocker, an owner cancellation, or a failure:
 
 1. Stop the health monitor (see `health-monitoring.md` for the cancellation command).
-2. Push the run branch and its lane branches, and apply the project's other run-end obligations from its conventions.
+2. Push the run branch and its lane branches.
 3. Tell the owner that the autonomous run is complete.
