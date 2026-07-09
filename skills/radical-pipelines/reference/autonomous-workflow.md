@@ -74,14 +74,14 @@ Agents message you when their work completes.
 Agents are instructed to stop and report a blocker — instead of inventing a missing decision — when a required input is missing, contradictory, or would force them to make a choice that belongs to a prior phase. Every agent that reports a blocker is expected to include the same payload:
 
 - **What is missing or contradictory** — the specific gap or conflict.
-- **Which prior-phase artifact must change to unblock it** — for example, `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`.
+- **Which approved artifact must change to unblock it** — for example, `<pipeline-family-folder>/<run>/2-design-doc/design-doc.md`.
 - **(If identifiable) The smallest revision that would unblock** — a sentence or two the prior-phase agent could act on.
 
 When a blocker arrives:
 
 1. Stop the autonomous run immediately. Do not advance to the next phase, and do not relaunch the blocked agent without an input change.
 2. Surface the blocker to the owner verbatim, including the three fields above and the path to any partial artifact the agent committed.
-3. Name the prior phase whose artifact must change. The route to change it is a fork cut below that phase (`fork-pipeline.md`), re-running it with the blocker payload as input.
+3. Name the phase whose artifact must change. The route to change it is a fork cut below that phase (`fork-pipeline.md`), re-running it with the blocker payload as input.
 
 A blocker stops the run: perform the close-out (step 7).
 

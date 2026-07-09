@@ -85,4 +85,4 @@ Use the following structure:
 - **Do NOT plan documentation.** Documentation is planned and executed in the document phase. Do not include documentation tasks here.
 - **Do NOT write code.** Describe the change; do not produce the implementation.
 - **Address review feedback explicitly** when revising. Each issue raised in the cited review file must be resolved or explicitly answered.
-- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which prior-phase artifact must change to unblock you; and, if identifiable, the smallest revision that would do so. Do not produce a partial artifact.
+- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so. Do not produce a partial artifact.

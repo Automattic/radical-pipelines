@@ -16,6 +16,6 @@ Spawn each agent as a Claude Code teammate. A teammate starts in the orchestrato
 Use Claude Code's bundled `/loop` skill — no install is required.
 
 - **Start:** `/loop 5m <prompt>` where `<prompt>` is the template from `reference/health-monitoring.md`.
-- **List active loops:** `/loop-list`.
-- **Cancel:** `/loop-kill <id>` using the id returned at start.
+- **List active loops:** the `CronList` tool.
+- **Cancel:** the `CronDelete` tool with the loop's task id.
 ```

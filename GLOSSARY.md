@@ -22,7 +22,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Branch-base** — the per-pipeline-family stem produced by the Branch name base convention; must not contain `_`.
 - **Branch grammar** — `<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]`; underscore separates segments, `v1` and `base` are implicit, segments have reserved shapes so parsing is deterministic; `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
 - **Run branch** — the branch holding one run's commits. Run branches chain: each starts at the previous run's tip. There is no pipeline-level branch; the pipeline's tip is its latest run branch, which is what merges to main.
-- **Lane branch** — a branch forked from the run branch at phase start for one lane of a multilane phase. Never merged; pushed and kept once its phase completes (a rolled-back phase's lanes are deleted); writes the same canonical artifact paths as the run branch (lane identity lives only in the ref).
+- **Lane branch** — a branch forked from the run branch at phase start for one isolated lane, writing only its `lane-<K>` subfolder of the phase folder. Merged into the run branch and deleted when every lane is approved; a rolled-back phase's lane branches are deleted. Divergent lanes create none.
 - **Start ref** — where a base run's branch begins: the project's main branch (default), another pipeline's run-branch tip (stacking), or a cut commit (fork).
 - **Stacking** — starting a pipeline on top of an unmerged pipeline's run tip.
 - **Fork** — a new pipeline version created by branching at a cut commit in a parent pipeline's history; inherited history carries the inherited work itself. The fork's first branch carries the run segment of the run containing the cut, and work continues in that run's folder.
@@ -49,7 +49,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Document phase** — `document-plan-writer`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
 - **Writer / reviewer loop** — a fresh writer per iteration produces the artifact; an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file).
 - **Batch** — the set of build/document tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
-- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Artifact folder, Worktree path, Branch name, Commit format, Guardrails, Guardrail scopes to fill.
+- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Commit format, Guardrails, Guardrail scopes to fill.
 - **Consolidator** — merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch; plays the writer role against the final reviewer.
 
 ## Workflows
@@ -58,13 +58,13 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Assisted workflow** — the orchestrator drives one phase directly with the owner (spec and design-doc only); no agents spawned; the owner's explicit approval produces the approval file.
 - **Decisions** — per-phase choices collected at run start.
 - **Target phase** — the highest phase an autonomous run executes before stopping.
-- **Blocker** — an agent's stop-and-report when required input is missing, contradictory, or would force a prior phase's decision; payload: what is missing/contradictory, which prior-phase artifact must change, the smallest unblocking revision.
+- **Blocker** — an agent's stop-and-report when required input is missing, contradictory, or would force a prior phase's decision; payload: what is missing/contradictory, which approved artifact must change, the smallest unblocking revision.
 
 ## Multilane
 
-- **Lane** — one independent execution of a phase's full machinery on its own lane branch, producing a lane-approved artifact.
-- **Lane flow** — one execution of a phase's full machinery (research → artifact → adversarial review) to a lane-approved artifact; on the run branch with a single lane, on each lane branch with multiple.
-- **Lane count** — a per-phase decision. With a single lane the lane branch is the run branch and consolidation is skipped (the degenerate case).
+- **Lane** — one independent execution of a phase's full machinery, producing a lane-approved artifact in its `lane-<K>` subfolder of the phase folder.
+- **Lane flow** — one execution of a phase's full machinery (research → artifact → adversarial review) to a lane-approved artifact; on the run branch with a single lane, once per lane with multiple (in parallel on lane branches when isolated, sequentially on the run branch when divergent).
+- **Lane count** — a per-phase decision. With a single lane the flow runs on the run branch and consolidation is skipped (the degenerate case).
 - **Isolated mode** — lanes run in parallel, mutually blind (spec always; design-doc optionally).
 - **Divergent mode** — design-doc lanes run sequentially; each reads the previous lanes' approved designs and must produce a different one.
 

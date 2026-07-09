@@ -45,7 +45,7 @@ This phase has no per-phase decisions.
    2. Wait for it to commit before launching the next task. Document-writers share the run worktree, so this step is strictly sequential.
 8. After every document-writer in the batch has committed, launch a fresh `document-reviewer` with the list of task IDs in the batch and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). The reviewer derives its own diff base — the parent of the commit that added `document-plan.md` — so its diff spans the phase's whole work; the batch task list scopes the expected new work, not the review's boundaries — the reviewer may attribute an issue to any task in `document-plan.md`, and earlier batches' work in the diff is expected there. On rejection the reviewer writes `document-review-N-rejected.md`; on approval it writes `document-review-approved.md` (no number — the singleton terminator) and `document-summary.md`, committed together.
 9. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 7, with N incremented for the next rejection iteration.
-10. On **approved**, verify the phase 4 completion predicate per `pipeline-versioning.md` ("Per-phase completion").
+10. On **approved**, verify the phase 4 completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD

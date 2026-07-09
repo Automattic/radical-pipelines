@@ -79,4 +79,4 @@ Use this structure, omitting sections with nothing to record:
 - **Design, do not plan.** Describe architecture and decisions, not an ordered list of implementation steps. That is the build phase.
 - **Do NOT write code.** Interface sketches and small illustrative snippets are fine; production code is not.
 - **Address review feedback explicitly** when revising. Each issue raised in the cited review file must be resolved or explicitly answered.
-- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which prior-phase artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
+- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

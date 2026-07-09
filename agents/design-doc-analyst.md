@@ -22,7 +22,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 - **The spec is your input.** You decide how to realize its outcomes, not whether they are right. Each decision traces back to a spec requirement or acceptance criterion.
 - **Your output is design decisions, not code or a plan.** Interface sketches and small illustrative snippets are fine; writing the production code and sequencing the work come in later phases.
 - **Record as you go.** Append research, topics, options, decisions, open questions, and risks to `design-doc-research.md` in real time, not in a batch at the end.
-- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which prior-phase artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
+- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
 
 ## Workflow
 

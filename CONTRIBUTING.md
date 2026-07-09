@@ -48,10 +48,10 @@ Changes that touch **only** the following are **not** release-relevant and need 
 
 - `website/**`
 - `scripts/**`
-- `.rp/`
+- `.pipelines/`
 - `.changeset/`
 - `.github/`
-- meta files: `package-lock.json`, `AGENTS.md`, `LICENSE`, `.gitignore`
+- meta files: `package-lock.json`, `AGENTS.md`, `.rp.md`, `LICENSE`, `.gitignore`
 
 So a `package-lock.json`-only change (e.g. a dependency lockfile resync) or an internal-only change (tooling, CI, website) does not require a changeset.
 

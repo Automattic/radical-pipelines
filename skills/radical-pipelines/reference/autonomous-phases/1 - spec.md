@@ -51,7 +51,7 @@ Each lane runs this flow independently, in its own worktree on its own branch:
 4. Launch `spec-consolidator` in the run branch's worktree. It reads each lane's `spec.md` and `spec-research.md` from the `lane-<K>` subfolders, writes the consolidated `spec.md` and `spec-research.md` at the phase folder root, and commits them on the run branch.
 5. Launch a fresh `spec-reviewer` against the consolidated spec on the run branch. On rejection, relaunch the `spec-consolidator` with the rejection file's path — it plays the writer role in this loop. On approval it writes `spec-review-approved.md`.
 
-**Completion.** Verify the phase's completion predicate per `pipeline-versioning.md` ("Per-phase completion").
+**Completion.** Verify the phase's completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD

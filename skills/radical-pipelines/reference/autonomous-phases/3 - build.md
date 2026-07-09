@@ -26,7 +26,7 @@ This phase has no per-phase decisions.
 | Agent                 | Role                                                                                                                                        | Persistent? |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `build-plan-writer`   | Writes `build-plan.md`.                                                                                                                      | No          |
-| `build-plan-reviewer` | Reviews the build plan adversarially; writes `build-plan-review-N-rejected.md` on rejection or `build-plan-review-approved.md` on approval. | No          |
+| `build-plan-reviewer` | Reviews the build plan adversarially; validates the guardrail scopes.                                                                       | No          |
 | `build-writer-tdd`    | One fresh instance per task. Implements its assigned task with TDD, runs the gates, commits.                                                 | No          |
 | `build-writer-e2e`    | One fresh instance per task. Implements the planned e2e flows, runs the gates, commits.                                                      | No          |
 | `build-reviewer`      | One fresh instance per batch. Reviews the run's diff against the plan, spec, and design.                                                     | No          |
@@ -44,7 +44,7 @@ This phase has no per-phase decisions.
    2. Wait for the writer to commit before launching the next task. Writers share the run worktree, so this step is strictly sequential.
 8. After every writer in the batch has committed, launch a fresh `build-reviewer` with the list of task IDs in the batch and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). The reviewer derives its own diff base — the parent of the commit that added `build-plan.md` — so its diff spans the phase's whole work; the batch task list scopes the expected new work, not the review's boundaries — the reviewer may attribute an issue to any task in `build-plan.md`, and earlier batches' work in the diff is expected there. On rejection the reviewer writes `build-review-N-rejected.md`; on approval it writes `build-review-approved.md` (no number — the singleton terminator) and `build-summary.md`, committed together.
 9. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 7, with N incremented for the next rejection iteration.
-10. On **approved**, verify the phase 3 completion predicate per `pipeline-versioning.md` ("Per-phase completion").
+10. On **approved**, verify the phase 3 completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD

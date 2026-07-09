@@ -33,10 +33,6 @@ Create the run folder `<pipeline-family-folder>/rev-<N>-<desc>/` with its `0-int
 
 Show the owner the rendered revision intent and write it only on explicit approval — every revision intent is confirmed before the run starts, however directly the owner dictated it. Then commit it per the **Commit format** convention.
 
-### 5. Re-assert the version
+### 5. Return to mode dispatch
 
-Confirm the existing `v<N>` version: a revision leaves `pipeline.md` unchanged.
-
-### 6. Return to mode dispatch
-
-Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch the chosen workflow for phases 1–4, which run in this revision run's folder on its branch. A revision is a normal run: every per-run obligation the project's conventions define fires afresh for it.
+Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch the chosen workflow for phases 1–4, which run in this revision run's folder on its branch.

@@ -40,7 +40,7 @@ When asking the owner for the lane mode, explain the difference: both modes repe
 
 Each lane runs the full flow in its assigned worktree:
 
-1. Launch `design-doc-analyst` and `design-doc-researcher` as persistent agents (per the **Team spawning** convention). The analyst reads `spec.md` and `spec-research.md`, drives an iterative Q&A with the researcher, and writes the running record to `design-doc-research.md`. Wait until it signals that the design is complete.
+1. Launch `design-doc-analyst` and `design-doc-researcher` as persistent agents. The analyst reads `spec.md` and `spec-research.md`, drives an iterative Q&A with the researcher, and writes the running record to `design-doc-research.md`. Wait until it signals that the design is complete.
 2. Launch a fresh `design-doc-writer` to synthesize `design-doc.md` as a standalone document.
 3. Launch a fresh `design-doc-reviewer`. On rejection it writes `design-doc-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `design-doc-review-approved.md` (the singleton terminator).
 4. On **rejected**, launch a fresh `design-doc-writer` with the rejection file's path; it revises `design-doc.md` and the reviewer re-reviews — until approved.
@@ -57,7 +57,7 @@ Each lane runs the full flow in its assigned worktree:
 2. Launch `design-doc-consolidator` in the run branch's worktree. It reads each lane's `design-doc.md` and `design-doc-research.md` from the `lane-<K>` subfolders and commits the consolidated `design-doc.md` and `design-doc-research.md` at the phase folder root on the run branch.
 3. Launch a fresh `design-doc-reviewer` to review the consolidated design. On **rejected**, relaunch the `design-doc-consolidator` with the rejection file's path — it plays the writer role in this loop — until approved.
 
-On **approved**, verify the phase 2 completion predicate per `pipeline-versioning.md` ("Per-phase completion").
+On **approved**, verify the phase 2 completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD

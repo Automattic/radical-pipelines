@@ -64,7 +64,8 @@ Use this structure:
 
 ## Batch scope
 
-Tasks reviewed: <list of task IDs and titles from this batch>
+Expected new work: <list of task IDs and titles from this batch>
+Diff reviewed: <base> → HEAD (the phase's whole work)
 
 ## Summary
 
@@ -124,4 +125,4 @@ Screenshots or other assets live in the phase folder, referenced by relative pat
 - **Do NOT rewrite the docs.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan, spec, or design.** Those have been approved. Flag deviations, not the artifacts themselves.
 - **Run the guardrails.** Don't just read the docs. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, run every gate per step 4 and approve only if all pass. If you already reject on judgment, skip them and go to step 5.
-- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, a gate that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — `document-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; a declared gate cannot execute. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which prior-phase artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
+- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, a gate that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — `document-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; a declared gate cannot execute. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

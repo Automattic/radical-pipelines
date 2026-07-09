@@ -46,4 +46,4 @@ Write both files at the phase folder root (`<phase-folder>/`), using the structu
 - **Evidence breaks ties.** When lanes conflict, the option best supported by `spec.md` and the research records wins.
 - **Keep the result coherent.** The consolidated design must be one buildable design whose sections agree with each other, not a union of fragments.
 - **Do NOT review or critique the lanes.** The phase's final reviewer judges the consolidated design; you merge.
-- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which prior-phase artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
+- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
