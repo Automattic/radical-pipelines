@@ -17,8 +17,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 2. Read `<artifact-folder>/3-build/build-plan.md` — the full task list. Locate each task in the batch.
 3. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
-5. Read the summary format to follow when writing the summary on approval.
-6. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/3-build/build-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
+5. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/3-build/build-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
 
 ### 2. Review the changes
 
@@ -97,7 +96,15 @@ Diff reviewed: <base> → HEAD (the phase's whole work)
 **Expected:** ...
 ```
 
-On an **approved** verdict, also write `<artifact-folder>/3-build/build-summary.md` following the summary format from your launch prompt.
+On an **approved** verdict, also write `<artifact-folder>/3-build/build-summary.md` — a self-contained, human-friendly record of what this phase produced in the current run. Render these sections, omitting any that are empty (no `N/A` placeholders):
+
+- **What** — what the phase produced.
+- **Why** — the purpose it serves.
+- **How** — how it was realized.
+- **Key decisions** _(optional)_ — notable decisions, with rejected alternatives worth recording folded in here.
+- **Known limitations** _(optional)_ — gaps or caveats a reader should know.
+
+Screenshots or other assets live in the phase folder, referenced by relative path. Cover the whole phase: include every rejected iteration's surviving work, not only the final approved batch — the diff you derived already spans this scope. Record, don't re-argue — state what was produced and why; the spec, design, and plan are already settled. Write for a human reader of the artifact folder, and for a project building run-level outputs from the per-phase summaries. Be concrete and concise.
 
 ### 6. Commit and report
 
