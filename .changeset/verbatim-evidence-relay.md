@@ -2,4 +2,4 @@
 "@automattic/radical-pipelines": patch
 ---
 
-The orchestrator passes gate results and prior-phase evidence to agents verbatim, never interpreted or framed.
+When a launch prompt carries prior-phase evidence — such as a rejection's issues — the orchestrator passes it verbatim, never interpreted or framed.

@@ -63,7 +63,7 @@ Each time you spawn an agent:
 - Follow the **Team spawning** convention.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
-- Pass gate results and prior-phase evidence verbatim, never interpreted or framed: an agent whose value is independent judgment receives the raw results, not your theory about what they mean.
+- When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it verbatim, never interpreted or framed.
 
 ## 6. Handle blockers
 
