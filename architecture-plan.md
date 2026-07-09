@@ -76,7 +76,7 @@ The run branch *is* the grouping: all commits of revision N = `git log <rev-N-br
 - **The orchestrator owns all git topology; agents only occupy it.** The orchestrator creates every branch and worktree (including lane worktrees before lane agents spawn) and removes worktrees at the end (branches stay).
 - **The orchestrator never works from its own directory.** It addresses everything explicitly: `git -C <worktree> …`, absolute paths for reads/writes, `git show <ref>:<path>` for any branch. Its own writes (intent.md, run obligations) also go through absolute worktree paths — never its cwd. Inspectability needs addressing, not presence. Its one sanctioned cwd change is seating an agent at spawn.
 - **Agent placement: the orchestrator seats every agent** (placement is asserted from the prompt, never assumed from where the agent wakes up). The mechanism is per-tool, defined by the required **Team spawning** convention — for Claude Code, `cd` into the worktree, spawn, `cd` back, because a teammate starts in the orchestrator's shell cwd and its own directory changes never persist between commands. The earlier "agent moves itself as step 0" fallback is retired: empirically, a teammate's `cd` appears to succeed and silently reverts on the next command, and Claude Code's `EnterWorktree` is session-wide — a switch from any agent retargets every running agent's working directory.
-- **Anchors + verification:** every agent's Conventions block (`passing.md`) gains two required fields — **Worktree path** (absolute) and **Branch** — plus the standing rule: before the first write and before every commit, verify `pwd` is under the worktree and `HEAD` equals the branch; mismatch = stop-and-report, never cd-and-continue. (This is the concrete fix for #153.)
+- **Anchors + verification:** every agent's Conventions block (`passing.md`) gains two required fields — **Worktree path** (absolute) and **Branch** — plus the standing rule: all writes and commits land inside the worktree, on the branch; verify once before the first write that `pwd` is under the worktree and `HEAD` equals the branch; mismatch = stop-and-report, never cd-and-continue. (This is the concrete fix for #153.)
 - Optional per-tool hardening (e.g. hooks mechanically rejecting writes outside the assigned worktree) may be noted in per-tool convention files; the generic model does not depend on it.
 
 ### 1e. Start refs: stacking and forks are first-class
@@ -231,7 +231,7 @@ Execution notes: run today's pipelines on the OLD installed skill (2a: new-pipel
 
 ### Worktree/branch anchor rule (every agent profile)
 
-Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch**. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch; on mismatch, stop and report — never change directory or switch branches to fix it.
+Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**: all your writes and commits land inside that worktree, on that branch. Before your first write, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 ### Self-sizing review check (reviewer profiles)
 
