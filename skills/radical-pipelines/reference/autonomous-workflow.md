@@ -37,7 +37,7 @@ At run start:
 1. Ensure the run branch's worktree exists per the **Worktree root** convention.
 2. Start a recurring health monitor for the run per `health-monitoring.md`.
 
-You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. You never change your own working directory: address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch.
+You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. Address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch; your own working directory changes only to seat an agent at spawn.
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
@@ -60,10 +60,9 @@ If a phase fails, stop and report to the owner.
 
 Each time you spawn an agent:
 
-- Follow the **Team spawning** convention.
+- Follow the **Team spawning** convention to spawn the agent seated in its worktree — started inside it, its branch checked out.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
-- When the spawn mechanism supports a working-directory parameter, set it to the agent's worktree; otherwise the agent seats itself from the Worktree path in its Conventions block.
 
 Agents message you when their work completes.
 

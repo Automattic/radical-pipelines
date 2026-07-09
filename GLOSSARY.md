@@ -27,8 +27,9 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Stacking** — starting a pipeline on top of an unmerged pipeline's run tip.
 - **Fork** — a new pipeline version created by branching at a cut commit in a parent pipeline's history; inherited history carries the inherited work itself. The fork's first branch carries the run segment of the run containing the cut, and work continues in that run's folder.
 - **Cut commit** — the commit that completed the last inherited phase's completion predicate; the fork point.
-- **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and removes all branches and worktrees and never changes its own working directory; agents only occupy worktrees prepared for them.
+- **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and removes all branches and worktrees and seats each agent in its worktree at spawn; agents only occupy worktrees prepared for them.
 - **Worktree root** — the path from the convention of the same name under which the orchestrator creates one worktree per branch (`<worktree-root>/<branch>`).
+- **Seating** — starting a spawned agent inside its assigned worktree, its branch checked out; the mechanism comes from the **Team spawning** convention.
 
 ## Phase artifacts
 

@@ -74,10 +74,8 @@ The run branch *is* the grouping: all commits of revision N = `git log <rev-N-br
 
 - **Raw `git worktree` everywhere.** `EnterWorktree` / tool-specific enter-worktree mechanisms retired from the architecture.
 - **The orchestrator owns all git topology; agents only occupy it.** The orchestrator creates every branch and worktree (including lane worktrees before lane agents spawn) and removes worktrees at the end (branches stay).
-- **The orchestrator never changes directory.** It operates from wherever the session started, treats its cwd as read-only context, and addresses everything explicitly: `git -C <worktree> …`, absolute paths for reads/writes, `git show <ref>:<path>` for any branch. Its own writes (intent.md, run obligations) also go through absolute worktree paths — never its cwd. Inspectability needs addressing, not presence.
-- **Agent placement, two tiers** (placement is asserted from the prompt, never assumed from where the agent wakes up):
-  - *Tier 1:* spawn-time cwd where the tool supports it (per-tool **Team spawning** convention).
-  - *Tier 2 (universal fallback):* the agent's step 0 is to move to the assigned worktree — its one sanctioned directory change, to an absolute path it was given — then never move again.
+- **The orchestrator never works from its own directory.** It addresses everything explicitly: `git -C <worktree> …`, absolute paths for reads/writes, `git show <ref>:<path>` for any branch. Its own writes (intent.md, run obligations) also go through absolute worktree paths — never its cwd. Inspectability needs addressing, not presence. Its one sanctioned cwd change is seating an agent at spawn.
+- **Agent placement: the orchestrator seats every agent** (placement is asserted from the prompt, never assumed from where the agent wakes up). The mechanism is per-tool, defined by the required **Team spawning** convention — for Claude Code, `cd` into the worktree, spawn, `cd` back, because a teammate starts in the orchestrator's shell cwd and its own directory changes never persist between commands. The earlier "agent moves itself as step 0" fallback is retired: empirically, a teammate's `cd` appears to succeed and silently reverts on the next command, and Claude Code's `EnterWorktree` is session-wide — a switch from any agent retargets every running agent's working directory.
 - **Anchors + verification:** every agent's Conventions block (`passing.md`) gains two required fields — **Worktree path** (absolute) and **Branch** — plus the standing rule: before the first write and before every commit, verify `pwd` is under the worktree and `HEAD` equals the branch; mismatch = stop-and-report, never cd-and-continue. (This is the concrete fix for #153.)
 - Optional per-tool hardening (e.g. hooks mechanically rejecting writes outside the assigned worktree) may be noted in per-tool convention files; the generic model does not depend on it.
 
@@ -233,7 +231,7 @@ Execution notes: run today's pipelines on the OLD installed skill (2a: new-pipel
 
 ### Worktree/branch anchor rule (every agent profile)
 
-Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch; on mismatch, stop and report — never change directory or switch branches to fix it.
+Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch**. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 ### Self-sizing review check (reviewer profiles)
 

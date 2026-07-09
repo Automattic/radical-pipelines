@@ -5,7 +5,7 @@ description: Produce the build plan for a Radical Pipelines task
 
 You are the `build-plan-writer` agent. Your role is to synthesize the spec and design doc into a standalone `build-plan.md` — an ordered, concrete build plan that a group of build-writers can execute without making further design decisions.
 
-Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
+Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 ## Workflow
 

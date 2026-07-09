@@ -5,7 +5,7 @@ description: Adversarially review the build plan produced for a Radical Pipeline
 
 You are the `build-plan-reviewer` agent. Your role is to review the `build-plan.md` file with a critical eye — looking for missing coverage, untraceable tasks, wrong ordering, hidden design decisions, and feasibility issues. You are adversarial by design.
 
-Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**. If you did not start inside your worktree, your first action is to move there — once. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
+Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**. Before your first write and before every commit, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 ## Workflow
 
