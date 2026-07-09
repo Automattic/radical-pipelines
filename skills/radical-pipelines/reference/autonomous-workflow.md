@@ -58,6 +58,8 @@ For each phase:
 
 If a phase fails, stop and report to the owner.
 
+Every three consecutive rejections in a writer/reviewer loop, inspect the rejection records for their cause. If the same pattern is repeating and could perpetuate indefinitely, stop the run: surface the latest rejection to the owner and perform the close-out (step 7). Otherwise let the loop continue.
+
 Each time you spawn an agent:
 
 - Follow the **Team spawning** convention to spawn the agent seated in its worktree — started inside it, its branch checked out.
