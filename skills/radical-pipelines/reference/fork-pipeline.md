@@ -1,51 +1,30 @@
 # Forking a Pipeline
 
-Creates a new pipeline for an issue by forking from a parent pipeline at a chosen phase.
+Creates a new pipeline version by branching at a **cut commit** in a parent pipeline's history. Inherited history carries the inherited work itself — artifacts, code, and commits.
 
 ## Steps
 
 ### 1. Identify the parent pipeline and inherited phase
 
-Show the owner the pipeline tree for this issue, reconstructed per `pipeline-versioning.md` ("Reconstructing the pipeline tree"), so they can see existing pipelines and their parent/sibling relationships.
+Show the owner the pipeline tree for this issue, rendered per `pipeline-versioning.md` ("Rendering the pipeline tree"). Then ask:
 
-Then ask:
+- **Parent pipeline** — which existing pipeline to fork from.
+- **Inherited point** — the run to cut in (default: the parent's latest run) and the highest phase to inherit within it, by folder name (`0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`). Pick `base`'s `0-intent` to start the new pipeline over with only the intent. The inherited phase must be **complete** in that run (per **Per-phase completion** in `pipeline-versioning.md`).
 
-- **Parent pipeline**: which existing pipeline to inherit from.
-- **Inherited phase**: the highest-numbered phase to inherit, by folder name (`0-intent`, `1-spec`, `2-design-doc`, `3-plan`, `4-code`, `5-docs`). The new pipeline continues from the next phase or revises the inherited phase. Pick `0-intent` to start the new pipeline over from scratch — only the intent is inherited. The inherited phase must be **complete** in the parent (per the **Per-phase completion** rules in `pipeline-versioning.md`); an in-progress phase cannot be inherited.
+If the owner has already specified either, skip the question.
 
-If the owner has already specified any of them, skip the question.
+### 2. Locate the cut commit
 
-### 2. Compute the new version and pipeline versioned slug
+The cut commit is the commit that completed the inherited phase's completion predicate. On the branch of the run containing the cut, find the commit that added each of the phase's required artifacts in that run's phase folder (`git log --diff-filter=A -1 <parent-run-branch> -- <pipeline-family-folder>/<run>/<phase>/<file>`); the newest of those commits is the cut commit.
 
-List the existing pipelines for this issue per `pipeline-versioning.md` ("Listing pipelines for an issue"). Find the highest existing `v<N>` among them; treat the first pipeline as `v1`. The new pipeline version is `v<N+1>`.
+### 3. Compute the new version
 
-The **pipeline versioned slug** is the **pipeline base slug** (the first pipeline's slug) with `-v<N+1>` appended, per `pipeline-versioning.md` ("Model").
+Find the highest existing `v<N>` in the family per `pipeline-versioning.md` ("Listing pipelines for an issue"). The new pipeline version is `v<N+1>`.
 
-### 3. Create the worktree and branch from the main branch
+### 4. Create the branch and worktree
 
-Create and enter the worktree for the pipeline versioned slug per the **Worktrees** convention; the branch is derived from it per the **Branch names** convention. Create the branch from the project's main branch.
+Create the fork's first run branch at the cut commit, and its worktree per the **Worktree root** convention. The branch carries the cut run's segment: `<branch-base>_v<N+1>` for a cut in `base`, `<branch-base>_v<N+1>_rev-<K>-<desc>` for a cut in a revision run.
 
-Always branch from the main branch — never from the parent pipeline's tip. The new pipeline must start with a clean working tree.
+### 5. Continue as a normal pipeline
 
-All work happens inside the new worktree.
-
-### 4. Create the artifact folder
-
-Create the new pipeline's artifact folder per the **Artifact folder** convention applied to the pipeline versioned slug. The fork's phases live under its own fresh `base/` run, seeded only from the parent's `base/` run in the next step (see **Runs within a pipeline** in `pipeline-versioning.md`).
-
-### 5. Seed the inherited phase folders from the parent
-
-Copy only the phase folders being inherited, from the parent's `base/` run into the new pipeline's `base/` run — `base/0-intent` up to and including the inherited phase agreed in step 1.
-
-Determine the parent pipeline's worktree path per the **Worktrees** convention applied to the parent's versioned slug.
-
-- **If the worktree exists**, copy directly: for every phase folder `0-intent`, `1-spec`, … in the parent's `base/` run up to and including the inherited phase, `cp -r <parent-worktree>/<parent-artifact-folder>/base/<phase> <artifacts-folder>/base/<phase>`.
-- **If the worktree does not exist**, create a temporary worktree of the parent branch per the **Worktrees** convention, copy as above, then remove it.
-
-### 6. Commit
-
-Commit the seeded phase folders per the **Commit format** convention.
-
-### 7. Continue normal phase work
-
-The new pipeline is now a regular pipeline. Continue from the phase that follows the inherited phase, or revise the inherited phase, using the assisted or autonomous workflow as chosen by the owner. Work continues in the fork's `base/` run.
+The fork continues from the phase after the inherited phase, or re-runs the inherited phase to change it, in the run containing the cut. Return to `work-on-an-issue.md` step 3 to pick the mode and dispatch.

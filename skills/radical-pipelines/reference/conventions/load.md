@@ -1,25 +1,21 @@
 # Load Conventions
 
-This skill is generic, but each project has its own conventions that you must follow.
-
-Project-specific conventions are stored in the `.rp.md` file. Read it at the start of any workflow.
-
-This information is necessary to execute the pipelines correctly, so you must load and verify it before starting any workflow.
+Project-specific conventions are stored in the `.rp.md` file.
 
 ## Conventions
 
-| Convention         | What it covers                                                                      | Required? |
-| ------------------ | ----------------------------------------------------------------------------------- | --------- |
-| Pipeline base slug | How to uniquely identify pipelines                                                  | Yes       |
-| Artifact folder    | Where to store the pipeline artifacts                                               | Yes       |
-| Commit format      | How to write commits                                                                | No        |
-| Issues             | Where to find the project issues and how to create/modify them                      | Yes       |
-| Worktrees          | How to set up and manage worktrees for each pipeline                                | Yes       |
-| Branch names       | How to name branches for each pipeline                                              | Yes       |
-| Team spawning      | How to define and launch teams of agents                                            | No        |
-| Agent models       | Which model/settings each spawned agent runs on                                     | No        |
-| Health monitoring  | How to launch and cancel the recurring run-health loop                              | Yes       |
-| Guardrails         | The deterministic verification gates — exact commands judged pass/fail by exit code | No        |
+| Convention             | What it covers                                                                             | Required? |
+| ---------------------- | ------------------------------------------------------------------------------------------ | --------- |
+| Branch name base       | Produces the `<branch-base>`: deterministic from the issue, a valid git ref, no `_`        | Yes       |
+| Pipeline family folder | Produces the family's single folder: deterministic from the issue                          | Yes       |
+| Issues                 | Where the project tracks issues and how to read, comment on, and update them               | Yes       |
+| Worktree root          | Where worktrees live                                                                       | Yes       |
+| Commit format          | How to write commits                                                                       | No        |
+| Team spawning          | How to spawn and address agents, and how to seat each agent in its worktree                | Yes       |
+| Agent models           | Which model/settings each spawned agent runs on                                            | No        |
+| Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |
+| Guardrails             | The deterministic verification gates — exact commands judged pass/fail by exit code        | No        |
+| Artifact storage       | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes       |
 
 ## Missing conventions
 

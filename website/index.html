@@ -6,10 +6,10 @@
     <title>Radical Pipelines — Autonomous software engineering by Automattic</title>
     <meta
       name="description"
-      content="Radical Pipelines is an agent orchestrator from Automattic. Six phases, each producing an inspectable artifact, so teams of AI agents can ship work autonomously while humans review at checkpoints. Runs on Claude Code and Pi."
+      content="Radical Pipelines is an agent orchestrator from Automattic. Five phases, each producing an inspectable artifact, so teams of AI agents can ship work autonomously while humans review at checkpoints. Runs on Claude Code."
     />
     <meta name="author" content="Automattic" />
-    <meta name="keywords" content="Radical Pipelines, Automattic, AI agents, Claude Code, Pi, agent orchestration, autonomous software engineering, agent pipelines, prompt engineering" />
+    <meta name="keywords" content="Radical Pipelines, Automattic, AI agents, Claude Code, agent orchestration, autonomous software engineering, agent pipelines, prompt engineering" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://automattic.github.io/radical-pipelines/" />
 
@@ -17,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Radical Pipelines" />
     <meta property="og:title" content="Radical Pipelines — Autonomous software engineering by Automattic" />
-    <meta property="og:description" content="An agent orchestrator that runs teams of agents through six defined phases. Every phase produces an artifact your team can review." />
+    <meta property="og:description" content="An agent orchestrator that runs teams of agents through five defined phases. Every phase produces an artifact your team can review." />
     <meta property="og:url" content="https://automattic.github.io/radical-pipelines/" />
     <meta property="og:image" content="https://automattic.github.io/radical-pipelines/assets/radical-pipelines.png" />
     <meta property="og:image:alt" content="Radical Pipelines logo — three pipelines branching from a single node, in purple, blue, and teal" />
@@ -94,7 +94,7 @@
               <span class="grad">pipelines of them</span>.
             </h1>
             <p class="lede">
-              One task, six phases, a different team of agents in each. Every
+              One task, five phases, a different team of agents in each. Every
               phase writes a file you can read, fix, and re-run from.
             </p>
             <div class="hero-actions">
@@ -104,29 +104,30 @@
               <a class="btn ghost" href="#demo">See it run</a>
             </div>
             <ul class="hero-stats">
-              <li><strong>6</strong><span>phases</span></li>
-              <li><strong>18</strong><span>agents shipped</span></li>
-              <li><strong>2</strong><span>CLIs supported</span></li>
+              <li><strong>5</strong><span>phases</span></li>
+              <li><strong>19</strong><span>agents shipped</span></li>
+              <li><strong>1</strong><span>CLI supported</span></li>
             </ul>
           </div>
           <aside class="hero-visual" aria-hidden="true">
             <div class="term-card">
               <div class="card-header">
                 <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
-                <span class="card-title">~/repo · radical-pipelines</span>
+                <span class="card-title">~/repo/.pipelines/1234-fix-checkout/base</span>
               </div>
-              <pre class="term-body"><span class="cmd">$ ls .pipelines/issue-1234/base/</span>
-<span class="file done">intent.md</span>
-<span class="file done">requirements.md</span>
-<span class="file done">spec.md</span>
-<span class="file done">spec-review-approved.md</span>
-<span class="file done">design-doc.md</span>
-<span class="file done">design-doc-review-approved.md</span>
-<span class="file active">code-plan.md</span>
-<span class="cmd2">$ git log --oneline .pipelines/issue-1234/base/</span>
-<span class="log">a1b2c3d  Add code plan (code-plan-writer)</span>
-<span class="log">e4f5g6h  Add design doc review (design-reviewer)</span>
-<span class="log">i7j8k9l  Add design doc (design-writer)</span>
+              <pre class="term-body"><span class="cmd">$ find . -type f</span>
+<span class="file done">./0-intent/intent.md</span>
+<span class="file done">./1-spec/spec-research.md</span>
+<span class="file done">./1-spec/spec.md</span>
+<span class="file done">./1-spec/spec-review-approved.md</span>
+<span class="file done">./2-design-doc/design-doc-research.md</span>
+<span class="file done">./2-design-doc/design-doc.md</span>
+<span class="file done">./2-design-doc/design-doc-review-approved.md</span>
+<span class="file active">./3-build/build-plan.md</span>
+<span class="cmd2">$ git log --oneline .</span>
+<span class="log">a1b2c3d  Add build plan (build-plan-writer)</span>
+<span class="log">e4f5g6h  Add design doc review (design-doc-reviewer)</span>
+<span class="log">i7j8k9l  Add design doc (design-doc-writer)</span>
 <span class="log">m0n1o2p  Add spec (spec-writer)</span>
 <span class="log dim">…</span></pre>
             </div>
@@ -170,7 +171,7 @@
           <span class="kicker light">What we're building</span>
           <h2>An orchestrator that runs the work through phases.</h2>
           <p class="lede">
-            Six phases, an artifact at each, agreed up front. Runs on its own.
+            Five phases, an artifact at each, agreed up front. Runs on its own.
             Stop, fix any phase, re-run from there.
           </p>
 
@@ -201,7 +202,7 @@
           <span class="kicker">What it actually does</span>
           <h2>Files in your repo, one phase at a time.</h2>
           <p class="lede">
-            No new UI. The orchestrator runs in your CLI (Claude Code or Pi) and
+            No new UI. The orchestrator runs in your CLI (Claude Code) and
             writes artifacts into a pipeline folder in the repo. Your team reads
             them like any other file.
           </p>
@@ -218,7 +219,7 @@
             <div class="term-card big">
               <div class="card-header">
                 <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
-                <span class="card-title">.pipelines/issue-1234/base/</span>
+                <span class="card-title">.pipelines/1234-fix-checkout/base/</span>
               </div>
               <pre class="term-body" id="live-tree"></pre>
             </div>
@@ -276,7 +277,7 @@
             </div>
             <div>
               <h3>Tooling caught up.</h3>
-              <p>Claude Code and Pi already ship skills, teams, hooks, worktrees. We build on top.</p>
+              <p>Claude Code already ships skills, teams, hooks, worktrees. We build on top.</p>
             </div>
           </div>
         </div>
@@ -296,14 +297,8 @@
                 <span class="install-aside">well, this is actually two lines, sorry</span>
               </div>
             </div>
-            <div class="install-block">
-              <h3>Pi</h3>
-              <pre><code>pi install git:github.com/Automattic/radical-pipelines</code></pre>
-            </div>
           </div>
           <p class="install-note">
-            Pi also needs the phase agents available in <code>.pi/agents/</code> or
-            <code>~/.pi/agent/agents/</code>.
             <a href="https://github.com/Automattic/radical-pipelines#readme" target="_blank" rel="noopener">See README for full setup →</a>
           </p>
         </div>

@@ -1,117 +1,101 @@
 # Pipeline Versioning
 
-When the owner discards a pipeline or wants to try a different approach, the orchestrator forks a new pipeline from a previous one. Each pipeline is an independent branch and worktree branched from the project's main branch.
+An issue's pipelines form a **pipeline family**: the first pipeline is `v1`; each fork — a new approach tried from a previous pipeline — adds `v2`, `v3`, … Within a pipeline, work happens in **runs**: one pass of the full phase flow. The **base** run comes first; revision runs are layered one at a time on top of a complete run.
 
-## Model
+## Branch grammar
 
-- **Pipeline version** — `v1` is implicit for the first pipeline. Subsequent pipelines are `v2`, `v3`, …
-- **Pipeline base slug** — the version-less slug the **Pipeline base slug** convention produces; the shared stem of all of an issue's pipelines.
-- **Pipeline versioned slug** — one specific pipeline's identifier:
-  - First pipeline (`v1`): the pipeline base slug, unchanged — `v1` carries no suffix, because it is implicit.
-  - Subsequent pipelines (`v<N>`, N ≥ 2): the pipeline base slug with `-v<N>` appended.
+The **Branch name base** convention produces the `<branch-base>` — it may contain slashes for namespacing and must not contain `_`. Everything after it is fixed skill grammar with `_` as the structural separator; every other segment is kebab-case:
 
-### Runs within a pipeline
+```
+<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]
+```
 
-A **run** is one pass of the full phase flow recorded under a pipeline. Artifacts live at `<artifacts-folder>/<run>/<phase>`, where `<artifacts-folder>` is the pipeline's own artifact folder and `<run>` is `base`, `revision-1-<short-description>`, `revision-2-<short-description>`, …
+Omitted segments are defaults: no version segment means `v1`, no run segment means the base run.
 
-`base` is always the first run, always present, and never restructured or rewritten by a revision; a revision only ADDS a sibling run folder. `<short-description>` is a kebab-case summary of the revision's goal (lowercase, hyphens, no spaces), formatted like the pipeline-slug short description, and `N` in `revision-N-…` is a per-pipeline monotonic counter — the next integer after the existing `revision-*` folders.
+```
+123-fix-checkout                                    v1 base
+123-fix-checkout_rev-1-fix-something                v1 rev-1
+123-fix-checkout_1-spec-lane-2                      v1 base, spec lane 2
+123-fix-checkout_v2                                 v2 base
+123-fix-checkout_v2_rev-1-fix-copy                  v2 rev-1
+123-fix-checkout_v2_rev-1-fix-copy_1-spec-lane-2    v2 rev-1, spec lane 2
+```
 
-A run carries no `-v<N>` suffix, is not a slug/branch/worktree, and does not change the pipeline version; `base` and every revision of a pipeline share its one branch and worktree. Revisions are added one at a time, on top of a complete run.
+Parsing is deterministic because the segment shapes are reserved: `v<digits>` is a version, `rev-<N>-<desc>` a run, `<phase>-lane-<K>` a lane. In `rev-<N>-<desc>`, `<desc>` is a kebab-case summary of the revision's goal and `N` is the next integer after the pipeline's existing revisions. In `<phase>-lane-<K>`, `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
 
-### Revision base ref
+## Branches
 
-The diff base ref is keyed on the start of the current run, captured once at run start and held constant for the whole run:
+Branches exist at exactly two levels.
 
-- **Revision run** → the **tip of the previous run** (`base` or `revision-(N-1)`): the branch tip at the moment the revision run begins, before the revision's intent is committed — equivalently, the parent of the revision run's first commit, which is the intent commit.
-- **Base run** → the **merge-base of the pipeline branch and main** (robust against main advancing).
+**Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what merges into the project's main branch. A run's commits start at its intent commit and end at its branch's tip.
 
-The value is captured once while HEAD is still the prior-run tip, then passed unchanged to every code/docs reviewer invocation across all rejection/re-dispatch iterations; the diff is always `base-ref → current HEAD`.
+**Lane branches** carry the parallel work of isolated lanes in the spec and design-doc phases: one branch per lane, forked from the run branch at phase start, each lane writing only its `lane-<K>` subfolder of the phase folder. When every lane is approved, the lane branches are merged into the run branch and deleted, and their worktrees removed — the lane folders and commit history live on in the run branch. Divergent lanes run sequentially in the run branch's worktree and create no lane branches. Rolling back an in-progress phase deletes its lane branches (see `resume-pipeline.md`).
 
-### Key concepts
+## Artifacts
 
-- Every pipeline is created from the project's main branch — never from another pipeline's tip.
-- Inherited artifacts are copied as plain files into the new pipeline's artifact folder.
-- Lineage is **derived** by comparing artifact content across the pipelines of an issue.
+Artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` or `rev-<N>-<desc>` (matching the run's branch segment) and `<phase>` is the phase folder. A multi-lane phase's per-lane artifacts live in `lane-<K>` subfolders of the phase folder; the consolidated artifacts sit at the folder root. The **Pipeline family folder** convention produces one folder per family, identical across all forks, so cross-fork comparison is a constant path under a varying ref:
+
+```
+git show <ref>:<pipeline-family-folder>/base/1-spec/spec.md
+```
+
+## Start refs
+
+The owner names the base run's start ref. The default is the project's main branch; two alternatives are first-class:
+
+- **Stacking** — another pipeline's run-branch tip, to build on unmerged work.
+- **Forking** — the **cut commit** in the parent pipeline's history: the commit that completed the last inherited phase's completion predicate. A fork is a branch at the cut commit; the inherited history carries the inherited work itself — artifacts, code, and commits. The fork's first branch carries the run segment of the run containing the cut (`base` stays implicit), and work continues in that run's folder.
 
 ## Per-phase completion
 
-A phase has two visible states on disk: **in progress** (the folder or some artifacts exist but the predicate below is not yet satisfied) and **complete** (predicate satisfied). Phase folders are created at the start of a phase, so folder existence alone does not imply completion — only the predicate does.
+A phase's predicate is evaluated at `<pipeline-family-folder>/<run>/<phase>` on the run branch. A phase is **complete** when all of its required artifacts are committed there — the same predicate in both workflow modes:
 
-A phase is complete when all of these are committed to the pipeline branch (same predicate regardless of workflow mode):
+| Phase          | Required artifacts                                                                                           |
+| -------------- | ------------------------------------------------------------------------------------------------------------ |
+| 0 – Intent     | `intent.md`                                                                                                  |
+| 1 – Spec       | `spec-research.md`, `spec.md`, `spec-review-approved.md`                                                     |
+| 2 – Design doc | `design-doc-research.md`, `design-doc.md`, `design-doc-review-approved.md`                                   |
+| 3 – Build      | `build-plan.md`, `build-plan-review-approved.md`, `build-review-approved.md`, `build-summary.md`             |
+| 4 – Document   | `document-plan.md`, `document-plan-review-approved.md`, `document-review-approved.md`, `document-summary.md` |
 
-| Phase          | Required artifacts                                                             |
-| -------------- | ------------------------------------------------------------------------------ |
-| 0 – Intent     | `0-intent/intent.md`                                                           |
-| 1 – Spec       | `1-spec/spec-review-approved.md`                                               |
-| 2 – Design doc | `2-design-doc/design-doc-review-approved.md`                                   |
-| 3 – Plan       | `3-plan/code-plan-review-approved.md` and `3-plan/docs-plan-review-approved.md` |
-| 4 – Code       | `4-code/code-review-approved.md` and `4-code/code-summary.md`                  |
-| 5 – Docs       | `5-docs/docs-review-approved.md` and `5-docs/docs-summary.md`                  |
+- A phase with artifacts present — in the worktree or committed — but its predicate unsatisfied is **in progress**.
+- A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` revision, or `base`.
+- The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none.
+- The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase.
 
-The artifact paths above are relative to a run folder: a phase's predicate is evaluated at `<artifacts-folder>/<run>/<phase>` (for the base run, `<artifacts-folder>/base/<phase>`).
+## Lineage
 
-A pipeline's **completed phase** and **active phase** are those of its **latest run** — the highest-numbered `revision-N` run, or `base` if there are no revisions — with the completed/active predicate evaluated within that run's folder. The **completed phase** is the highest-numbered phase whose predicate is satisfied; the **active phase** is the phase after it if any of that phase's artifacts have started appearing (in progress), otherwise none.
+Two layers answer two different questions:
 
-Two notions follow: overall **pipeline state** (the latest run's phase; drives resume) versus **per-run completion** (a run complete through phase 5; gates whether a new revision run may start). They coincide except while a revision run is in flight. When a revision run has only its `0-intent/intent.md` committed, the pipeline's **next phase** is that revision run's phase 1 (spec) — its intent is the input to phase 1, just as the base intent is for `base`. By the started-artifacts active-phase predicate the run has no active phase yet, so resume starts phase 1 from the committed intent with no rollback.
+- **Ancestry** (primary) answers what a pipeline started from. Fork points — `git merge-base` between family branches — define the tree, permanently and exactly, even after either side rewrites an inherited artifact.
+- **Content** (annotation) answers what is identical right now. Tree SHAs over the canonical artifact paths (`git rev-parse <ref>:<pipeline-family-folder>/<run>/<phase>`, `<run>` being the run containing the cut) compare a fork's phase against the cut commit, yielding per-phase labels:
+  - `identical` — the inherited artifact is unchanged since the cut.
+  - `modified` — the fork changed it.
 
-## Deriving lineage from artifact content
-
-Whether two pipelines share a phase is read directly from the artifacts: a phase folder is the same in two pipelines **if its content is byte-identical**, and git answers that with the folder's tree object SHA.
-
-```
-git rev-parse <ref>:<artifacts-folder>/base/<phase>
-```
-
-`<ref>` is wherever that pipeline's committed artifacts live: its **branch** if it still exists, otherwise the artifact-bearing repo's **main branch** (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode) — where a merged, branch-deleted pipeline is found per "Listing pipelines for an issue" (step 3). `<artifacts-folder>` is that pipeline's own folder, derived from its versioned slug. Tree SHAs are pure content hashes, so SHAs read through a branch and through main are directly comparable. Tree SHAs are always computed over the pipeline's `base/` run; revisions are not part of the cross-pipeline tree, because lineage is a cross-fork comparison and forks inherit from `base/`, so only base phases are comparable.
+**Merged detection:** a pipeline is merged when `git merge-base --is-ancestor <latest-run-tip> <main>` succeeds.
 
 ## Listing pipelines for an issue
 
-For a given issue, find every existing pipeline:
+1. **Branches** — enumerate the family's branch namespace, local and remote (`git branch --list '<branch-base>*'`, `git branch -r --list '*<branch-base>*'`), and parse each name with the branch grammar.
+2. **Pipeline family folder** — read the family's folder on the main branch of the artifact-bearing repository (per the **Artifact storage** convention). A merged, branch-deleted pipeline is visible only here.
 
-1. **Derive a search pattern** for the issue from the **Pipeline base slug** convention's deterministic relationship to the issue (the default keys on the issue id). It must match the pipeline base slug and any `-v<N>` extension of it.
-2. **Search branches** — local and remote — that match the **Branch names** convention for that slug pattern. Subsequent pipelines are picked up because their slugs (and therefore branch names) are the pipeline base slug with `-v<N>` appended.
-3. **Search artifact folders** in the **Artifact folder** location on the main branch of the artifact-bearing repository (the fork's main in `artifacts-in-fork` mode, the project's main in `artifacts-in-repo` mode, per the **Artifact storage** convention). A pipeline that was merged and had its branch deleted is only visible here.
+## Rendering the pipeline tree
 
-Among the pipelines found, the pipeline base slug is the stem the others extend: that pipeline is `v1`, and each fork's slug is the base followed by `-v<N>`.
+Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue. Nodes are phases: each run contributes a node per phase it has, in order, prefixed `v<N> <run>:` (`<run>` omitted for the base run, as in the branch grammar). A revision run hangs off the previous run's last phase; pipelines started from the main branch hang under the root; a fork hangs under the phase node of its cut commit. An inherited phase the fork modified reappears in the fork's own chain marked `(modified)`; inherited phases that don't reappear are identical.
 
-## Reconstructing the pipeline tree
+- A stretch of phases with no fork in the middle may be compressed onto one line with `→`, and its middle elided to `…`; a `(modified)` phase stays visible.
+- `(in progress)` marks a phase that is in progress.
+- `[merged]` marks the latest run of a merged pipeline.
 
-The orchestrator rebuilds the tree on demand from artifact content:
-
-1. List pipelines as described in "Listing pipelines for an issue".
-2. For each pipeline, compute the tree SHA of each phase folder of its `base/` run, in phase order (`base/0-intent`, `base/1-spec`, …), stopping at the first phase folder it does not have:
-   ```
-   git rev-parse <ref>:<artifacts-folder>/base/<phase>
-   ```
-   `<ref>` is that pipeline's branch, or the artifact-bearing repo's main branch if its branch was deleted after merging (see "Deriving lineage from artifact content"). This yields, per pipeline, an ordered sequence of `(phase, SHA)` pairs.
-3. Build the tree as a trie over these sequences. A **node** is a `(phase, SHA)` pair: pipelines sharing the same SHA at a phase share that node. Pipelines stay on a common path while their SHAs match and branch apart at the first phase where they differ. The shared root of the trie is the **issue itself** — an abstract node above every pipeline's `base/0-intent`, described by its pipeline base slug, carrying no SHA.
-
-### Rendering
-
-Render the tree as plain ASCII using box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. Each node is a phase artifact, labeled version-first as `v<N>: <phase>`. A node shared by several pipelines is labeled with the **lowest** version among them — the earliest pipeline carrying that artifact.
-
-Example:
+Example — v1 merged after one revision; v2 cut at v1's spec and rewrote it; v3 cut at v1's design doc and kept it; v4 started from the main branch:
 
 ```
-#<pipeline-base-slug>
-├── v1: 0-intent
-│   ├── v1: 1-spec
-│   │   ├── v1: 2-design-doc
-│   │   │   └── v1: 3-plan → 4-code → 5-docs  [merged]
-│   │   └── v2: 2-design-doc
-│   │       ├── v2: 3-plan (in progress)
-│   │       └── v3: 3-plan → 4-code (in progress)
-│   └── v4: 1-spec
-│       └── v4: 2-design-doc → 3-plan (in progress)
-└── v5: 0-intent → 1-spec → 2-design-doc (in progress)
+#123-fix-checkout
+├── v1: 0-intent → 1-spec
+│   ├── v1: 2-design-doc
+│   │   ├── v1: 3-build → 4-document
+│   │   │   └── v1 rev-1-fix-copy: 0-intent → … → 4-document [merged]
+│   │   └── v3: 3-build → 4-document
+│   └── v2: 1-spec (modified) → 2-design-doc (in progress)
+└── v4: 0-intent → 1-spec (in progress)
 ```
-
-Reading conventions:
-
-- A pipeline's **completed phase** is the deepest labeled node whose **Per-phase completion** predicate is satisfied. v1 has completed all five phases (and is merged); v2's deepest node is `3-plan` but the predicate is not yet satisfied, so its completed phase is `2-design-doc` and `3-plan` is its active phase; v3's completed phase is `3-plan` and `4-code` is its active phase.
-- **Sibling nodes at the same phase have diverged** — their content differs. v1, v2, and v3 share one `1-spec` node, so all three carry the same spec. v4 has its own `1-spec` node branching straight off the shared `v1: 0-intent`: its spec differs from v1's (for instance, v4 forked from v1 and revised the spec). v5 diverges one level higher still — it revised the **intent**, so it branches at the issue root with its own `v5: 0-intent`.
-- What a pipeline **shares** is every ancestor node up to the root; those phases are byte-identical to the pipelines it shares them with. v2 shares `v1: 1-spec` and `v1: 0-intent`; v3 shares everything v2 shares plus `v2: 2-design-doc`; v4 shares only `v1: 0-intent`; v5 shares only the issue root — its intent differs from every other pipeline's.
-- A linear chain of phases held by one pipeline with no further divergence may be compressed onto one line with `→` separators (as `v1: 3-plan → 4-code → 5-docs` and `v5: 0-intent → 1-spec → 2-design-doc` above).
-- `(in progress)` annotates the trailing node when its **Per-phase completion** predicate isn't yet satisfied. It signals that work has started but not finished.
-- `[merged]` annotates a pipeline that has been merged into the project's main branch. Phase completion can be inferred from the predicate; "merged into main" cannot.
-- A pipeline's runs are reported as a linear chain annotated on the pipeline, not as tree nodes: `base → revision-1-<short-description> → revision-2-<short-description> …`, each annotated with its own state.

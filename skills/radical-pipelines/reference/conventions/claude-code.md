@@ -1,44 +1,21 @@
 # Claude Code Rules
 
-When the active agentic coding tool is Claude Code, three project conventions are forced by Claude Code's tool surface.
+When the active agentic coding tool is Claude Code, the conventions below take the canonical form shown; inform the owner instead of asking for alternatives.
 
-Do not ask the owner to choose alternatives for these, the tools constrain the answer.
+The **Worktree root** must be a path inside the repository; the suggested default `.worktrees/` qualifies.
 
 The block below is the canonical content for `.rp.md`.
 
 ```markdown
-## Worktrees
-
-All work for a pipeline happens inside a Claude Code worktree. Never modify files in the main working directory, never use raw `git worktree`, and never `cd`.
-
-- **Create and enter:** `EnterWorktree({ name: "<pipeline-slug>" })`. Creates the worktree at `.claude/worktrees/<pipeline-slug>` and enters it. All subsequent tool calls and spawned agents inherit the worktree as their working directory.
-- **Re-enter an existing worktree:** `EnterWorktree({ path: ".claude/worktrees/<pipeline-slug>" })`.
-- **Exit:** `ExitWorktree`.
-
-## Branch names
-
-Branch names are derived automatically by `EnterWorktree` from the worktree name. Do not choose branch names independently and do not rename branches after the fact.
-
-- **Format:** `worktree-<pipeline-slug>`.
-- **Source of truth:** the `name` passed to `EnterWorktree` (equal to the pipeline's versioned slug) determines the branch.
-
 ## Team spawning
 
-Every autonomous workflow that spawns agents must use exactly one Claude Code team, created with `TeamCreate({ name: "<pipeline-slug>-<random-suffix>" })` — a fresh random suffix per creation.
-
-Agents in the same team address each other directly via `SendMessage({ to: "<agent-name>", ... })`. When a phase reference says two agents exchange messages, the orchestrator does not relay between them by default. It only spawns, monitors, and waits for completion signals.
-
-If an agent-to-agent message fails (e.g. the target agent is unreachable, errors out, or stops responding), the orchestrator may step in to investigate and try to recover — for example, by re-delivering the message, restarting the affected agent, or relaying directly as a fallback. Intervention is for repair only; once the exchange is healthy again, the agents resume talking to each other directly.
-
-Be aware that teams include a shared task list and idle teammates are nudged to claim unassigned, unblocked tasks from it so track phase progress in the phase subfolders, never on the task list.
+Spawn each agent as a Claude Code teammate. A teammate starts in the orchestrator's shell working directory at spawn time, and a directory change inside a teammate does not persist to its next command — its start directory is fixed for its whole run. To seat an agent: `cd` into its worktree, spawn the agent, then `cd` back. Never use Claude Code's worktree tools (`EnterWorktree`/`ExitWorktree`) during a run — a worktree switch is session-wide and retargets the working directory of every running agent.
 
 ## Health monitoring
 
-Use Claude Code's bundled `/loop` skill — no install is required. Only the autonomous workflow launches the monitor; assisted runs do not.
+Use Claude Code's bundled `/loop` skill — no install is required.
 
 - **Start:** `/loop 5m <prompt>` where `<prompt>` is the template from `reference/health-monitoring.md`.
-- **List active loops:** `/loop-list`.
-- **Cancel:** `/loop-kill <id>` using the id returned at start.
-
-The orchestrator starts the loop itself; the owner is not asked to run the command. Cancel the loop on run close-out and after any owner-requested interruption.
+- **List active loops:** the `CronList` tool.
+- **Cancel:** the `CronDelete` tool with the loop's task id.
 ```
