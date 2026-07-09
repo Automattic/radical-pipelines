@@ -46,7 +46,7 @@ Run every gate in your `## Conventions` block's **Guardrails** field, exactly as
 - Sort each gate result:
   - **No Guardrails field** — the step-3 accuracy verification is your only validation; proceed. This is not a blocker, and it warrants no warning.
   - **A declared gate's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report it.
-  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue.
+  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
 - Confirm every per-task Acceptance criterion is satisfied before declaring the task done.
 
 ### 5. Commit and report
