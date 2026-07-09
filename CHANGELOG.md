@@ -1,5 +1,71 @@
 # @automattic/radical-pipelines
 
+## 0.7.0
+### Minor Changes
+
+
+
+- [#181](https://github.com/Automattic/radical-pipelines/pull/181) [`120697b`](https://github.com/Automattic/radical-pipelines/commit/120697bc28e1bbbfc4ec0134f0f514affa1b754b) Thanks [@luisherranz](https://github.com/luisherranz)! - Architecture v2. The pipeline is now five phases (Intent → Spec → Design doc → Build → Document): the standalone Plan phase is gone, folded into Build and Document as an inner plan-approval gate. Pipelines are chains of run branches with lane branches, and forks are new pipeline versions created by branching at cut commits — inherited history carries the inherited work itself, with no copying. The spec and design-doc phases run as N independent lanes consolidated into one artifact by new consolidator agents (N=1 is the default single flow), each lane writing its artifacts in a `lane-<K>` subfolder of the phase folder so the full lane record lands on the run branch. Design-doc lanes support isolated and divergent modes: isolated lanes run in parallel on lane branches merged back on approval; divergent lanes run sequentially on the run branch itself. Worktrees are raw `git worktree` checkouts, one per branch, with all branch and worktree topology owned by the orchestrator, which seats each agent in its worktree at spawn per the now-required per-tool Team spawning convention. Agents are renamed to the phase-prefixed set: `build-plan-writer`/`build-plan-reviewer`, `build-writer-tdd`/`build-writer-e2e`/`build-reviewer`, `document-plan-writer`/`document-plan-reviewer`, `document-writer`/`document-reviewer`, plus the new `design-doc-consolidator`.
+
+
+
+- [#181](https://github.com/Automattic/radical-pipelines/pull/181) [`e6d20b4`](https://github.com/Automattic/radical-pipelines/commit/e6d20b45f1dae71fb21d9c5612cc9c1fd3d2b9ac) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: Remove Pi as a supported agentic coding tool. The repository is now solely a Claude Code plugin and a standalone agent skill: the root `package.json` is no longer a Pi manifest (its `pi` block, the bundled `pi-teams` and `@pi-agents/loop` dependencies, the Pi peer dependencies, and the `pi-package` keyword are gone), the Pi convention file and the Pi-specific setup, README, and website sections are removed, and the setup convention table lists only Claude Code.
+
+
+### Patch Changes
+
+
+
+- [#191](https://github.com/Automattic/radical-pipelines/pull/191) [`70f6822`](https://github.com/Automattic/radical-pipelines/commit/70f6822397a787c675853493b0130143d66103e4) Thanks [@luisherranz](https://github.com/luisherranz)! - Gate failures are never classified as pre-existing or environmental without proof. Reviewers require reproducing the identical failure on the run's diff base before treating a failure as ambient; writers fix the failure or report a blocker instead of committing around it; the untouched-test heuristic is forbidden for both.
+
+
+
+- [#181](https://github.com/Automattic/radical-pipelines/pull/181) [`408555a`](https://github.com/Automattic/radical-pipelines/commit/408555a040e1dc422a2c50db35c938cb27f12770) Thanks [@luisherranz](https://github.com/luisherranz)! - Fix architecture-v2 consistency leftovers: drop the revision flow's dangling `pipeline.md` step, align the glossary's lane entries and Conventions-block fields with the lane-scoped folder model, replace the nonexistent `/loop-list`/`/loop-kill` commands with Claude Code's `CronList`/`CronDelete` tools, remove duplicated and undefined workflow instructions, generalize the blocker payload to name the approved artifact that must change, make cross-folder references and the reviewer/researcher profiles symmetric across phases, update the website to the five-phase architecture and current agent set, and remove the leftover Pi settings file and stale working documents.
+
+
+
+- [#181](https://github.com/Automattic/radical-pipelines/pull/181) [`4d914c4`](https://github.com/Automattic/radical-pipelines/commit/4d914c426c3840651aa48f79fe2afc34f2baf6fb) Thanks [@luisherranz](https://github.com/luisherranz)! - Spawn Claude Code agents as teammates, matching Claude Code's current agent-teams model where each session has one implicit team and named teammates message each other and the orchestrator directly.
+
+
+
+- [#184](https://github.com/Automattic/radical-pipelines/pull/184) [`b2c05cb`](https://github.com/Automattic/radical-pipelines/commit/b2c05cbfb0b7a87acc39ea759414666edafa87db) Thanks [@luisherranz](https://github.com/luisherranz)! - The revision intent is always rendered to the owner and explicitly approved before it is written and the revision run starts.
+
+
+
+- [#186](https://github.com/Automattic/radical-pipelines/pull/186) [`c2a57c9`](https://github.com/Automattic/radical-pipelines/commit/c2a57c967a41ccc77045d8d6cd1bbc6ca6a1be0e) Thanks [@luisherranz](https://github.com/luisherranz)! - Before starting work on an issue, open dependencies are surfaced and the owner explicitly chooses to proceed or wait; issues without declared dependencies proceed unchanged.
+
+
+
+- [#181](https://github.com/Automattic/radical-pipelines/pull/181) [`c0d88e5`](https://github.com/Automattic/radical-pipelines/commit/c0d88e52c5f20061248db666f54359c59a856597) Thanks [@luisherranz](https://github.com/luisherranz)! - Inline the per-phase summary format into the `build-reviewer` and `document-reviewer` profiles instead of holding it in a standalone `reference/summary-format.md` that the orchestrator resolved and passed in each reviewer's launch prompt. The reviewer is the only agent with the whole-phase view and already authors the summary, so the format now lives at its point of use in each profile and the orchestrator no longer couriers it.
+
+
+
+- [#190](https://github.com/Automattic/radical-pipelines/pull/190) [`0a2994e`](https://github.com/Automattic/radical-pipelines/commit/0a2994e9eea52aea8c1eabb0fc435c44134e3152) Thanks [@luisherranz](https://github.com/luisherranz)! - Reviewers reject artifacts whose correctness rests on an unverified hedge: each load-bearing hedged risk is verified, sent back, or recorded as an accepted residual with justification before approval.
+
+
+
+- [#192](https://github.com/Automattic/radical-pipelines/pull/192) [`1367096`](https://github.com/Automattic/radical-pipelines/commit/13670969517f8352b07de955e3f2d29bdce68dd2) Thanks [@luisherranz](https://github.com/luisherranz)! - Require analysts to send a new load-bearing claim — especially a known rule's premise — to the researcher before it sways a requirement or decision.
+
+
+
+- [#183](https://github.com/Automattic/radical-pipelines/pull/183) [`955166d`](https://github.com/Automattic/radical-pipelines/commit/955166d3ab04daa7757b8cf1055de3003e6449ae) Thanks [@luisherranz](https://github.com/luisherranz)! - Rejection loops are checkpointed: every three consecutive rejections the orchestrator inspects their cause and stops the run only when the same pattern repeats and could perpetuate indefinitely.
+
+
+
+- [#185](https://github.com/Automattic/radical-pipelines/pull/185) [`6be9e74`](https://github.com/Automattic/radical-pipelines/commit/6be9e7449e6144498e1fd84352762f250c8fbfe3) Thanks [@luisherranz](https://github.com/luisherranz)! - Before creating an issue, the orchestrator searches the tracker for related or duplicate issues and presents them with the draft so the owner can proceed, modify the existing issue, or link it.
+
+
+
+- [#187](https://github.com/Automattic/radical-pipelines/pull/187) [`5848919`](https://github.com/Automattic/radical-pipelines/commit/58489191250a1980ec64f757c23fd7d4fb7cdc77) Thanks [@luisherranz](https://github.com/luisherranz)! - Setup writes only the defined conventions into `.rp.md` — anything beyond them, like orchestrator instructions or setup-time discoveries, is captured only on explicit owner request. The Claude Code conventions keep only their tool-specific values; the orchestrator instructions they held move into the workflow and health-monitoring references or drop where those already state them.
+
+
+
+- [#189](https://github.com/Automattic/radical-pipelines/pull/189) [`860c78c`](https://github.com/Automattic/radical-pipelines/commit/860c78ca81d09c0da7aaca5d42cf33b88ce8966f) Thanks [@luisherranz](https://github.com/luisherranz)! - Stop bundling `@zenobius/pi-worktrees`: worktree handling is raw `git worktree` owned by the orchestrator, so the extension is no longer used.
+
+
+
+- [#182](https://github.com/Automattic/radical-pipelines/pull/182) [`a274928`](https://github.com/Automattic/radical-pipelines/commit/a274928cc4e34dfeb6ff6660332869fc38e2c4bd) Thanks [@luisherranz](https://github.com/luisherranz)! - When a launch prompt carries prior-phase evidence — such as a rejection's issues — the orchestrator passes it verbatim, never interpreted or framed.
+
 ## 0.6.0
 ### Minor Changes
 
