@@ -65,6 +65,7 @@ Each time you spawn an agent:
 - Follow the **Team spawning** convention to spawn the agent seated in its worktree — started inside it, its branch checked out.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
+- When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it verbatim, never interpreted or framed.
 
 Agents message you when their work completes.
 
