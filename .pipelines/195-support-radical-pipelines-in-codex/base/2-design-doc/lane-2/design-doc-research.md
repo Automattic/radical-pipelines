@@ -2,149 +2,136 @@
 
 ## Research
 
-### Existing architecture and Codex portability
+### Existing architecture and distribution
 
-- The canonical workflow is already tool-neutral: `skills/radical-pipelines/SKILL.md:17-29,41-54` selects autonomous or assisted mode only after loading project conventions. Branch grammar, run and lane layout, artifact paths, state reconstruction, and phase predicates are centralized in `skills/radical-pipelines/reference/pipeline-versioning.md:5-84`; create, resume, revise, and fork reuse those contracts in `reference/create-pipeline.md:7-42`, `resume-pipeline.md:11-33`, `revision-pipeline.md:23-38`, and `fork-pipeline.md:16-30`.
-- Tool-specific behavior already has a narrow convention seam. `skills/radical-pipelines/reference/conventions/load.md:5-18` classifies Team spawning and Health monitoring as required and Agent models as optional; `conventions/setup.md:71-95` treats model values as opaque, tool-native values. `README.md:104-118` and `.rp.md:75-113` place shared project conventions beside a tool-specific section.
-- The current loader checks convention names without explicitly scoping duplicate headings to the active tool (`skills/radical-pipelines/reference/conventions/load.md:20-34`). Codex support needs two ordered gates before any pipeline operation: committed Shared + Codex semantic completeness, then local Codex runtime readiness after merging the Codex `.rp.local.md` namespace. Local values may override machine paths but cannot satisfy committed semantic units.
-- The repository currently exposes the canonical skill and Markdown agent profiles directly through the Claude Code plugin (`README.md:63-102`). Codex skills use the same `SKILL.md` form on the desktop app, CLI, and IDE extension, and a Codex plugin manifest can point its `skills` field at the existing directory. Sources: [Codex skills](https://developers.openai.com/codex/skills/), [building Codex plugins](https://developers.openai.com/codex/plugins/build/), [using Codex plugins](https://developers.openai.com/codex/plugins/).
-- Codex native subagents are available on all three in-scope local surfaces and support persistent follow-ups plus project-scoped custom agents with tool-native model, reasoning, sandbox, and tool settings. Source: [Codex multi-agent documentation](https://developers.openai.com/codex/multi-agent/).
+- The canonical workflow is tool-neutral. `skills/radical-pipelines/SKILL.md:17-29,41-54` selects autonomous or assisted mode after loading project conventions. Branch grammar, run and lane layout, artifact paths, state reconstruction, and phase predicates are centralized in `skills/radical-pipelines/reference/pipeline-versioning.md:5-84`; create, resume, revise, and fork reuse them in `reference/create-pipeline.md:7-42`, `resume-pipeline.md:11-33`, `revision-pipeline.md:23-38`, and `fork-pipeline.md:16-30`.
+- Tool-specific behavior has a convention seam. `skills/radical-pipelines/reference/conventions/load.md:5-18` makes Team spawning and Health monitoring required and Agent models optional. `conventions/setup.md:71-95` treats model values as opaque tool-native values. `README.md:104-118` and `.rp.md:75-113` place shared and tool-specific conventions together.
+- The loader does not explicitly scope duplicate convention headings to the active tool (`skills/radical-pipelines/reference/conventions/load.md:20-34`). Codex therefore needs committed Shared + Codex semantic completeness before merging Codex-only local overrides and checking runtime readiness. Local values may replace machine-specific values but cannot supply missing committed semantic units.
+- The repository exposes the canonical skill and Markdown profiles through its current plugin (`README.md:63-102`). A Codex plugin can expose the existing skill tree on the desktop app, CLI, and IDE extension. Sources: [Codex skills](https://developers.openai.com/codex/skills/), [building Codex plugins](https://developers.openai.com/codex/plugins/build/), [using Codex plugins](https://developers.openai.com/codex/plugins/).
+- Codex native subagents support nested agents and persistent follow-ups through opaque spawn IDs. The owner selected this native hierarchy for every local surface. Source: [Codex multi-agent documentation](https://developers.openai.com/codex/multi-agent/).
 
-### Distribution, configuration, and release boundaries
+### Distribution and configuration boundaries
 
-- The smallest documented repository distribution spanning all local Codex surfaces is `.codex-plugin/plugin.json` plus `.agents/plugins/marketplace.json`. The manifest can reference `./skills/`; the marketplace entry can reference the repository root. Codex desktop, CLI, and IDE expose plugin installation, with a new task/session/chat required after enablement. Sources: [building Codex plugins](https://developers.openai.com/codex/plugins/build/), [using Codex plugins](https://developers.openai.com/codex/plugins/).
-- Plugin installation and project setup are separate lifecycle stages. Installation makes the skill available; only then can `skills/radical-pipelines/reference/conventions/setup.md:183-200` collect conventions and perform owner-confirmed tool setup actions. An absent plugin cannot use its own setup flow.
-- One sectioned `.rp.md` matches the current public contract (`README.md:104-118`) and setup's single-file confirmation, storage, fork, and commit semantics (`skills/radical-pipelines/reference/conventions/setup.md:118-139,191-224`). Splitting tool files would require permanent fallback and precedence rules because existing Claude projects already store tool conventions in `.rp.md`.
-- `.rp.local.md` is loaded from the common Git root only after committed conventions pass completeness (`skills/radical-pipelines/reference/conventions/load.md:20-34`; `.gitignore:4`). Active-tool namespacing must also apply to this overlay; legacy unscoped tool-specific units remain Claude Code values so they cannot satisfy Codex completeness.
-- A versioned Codex manifest expands the existing release boundary: `scripts/sync-version.mjs:29-100`, `scripts/check-version-sync.mjs:43-148`, their fixtures, `.changeset/config.json:12`, `CONTRIBUTING.md:19-45`, the package description, and README distribution/version prose must include the Codex manifest and marketplace paths. Every repository change also records a changeset (`AGENTS.md:19-22`).
+- Add `.codex-plugin/plugin.json` with the existing skill tree and `.agents/plugins/marketplace.json` with the plugin root. Plugin installation precedes project setup; setup cannot repair an absent plugin.
+- Keep one committed `.rp.md` with Shared, Claude Code, and Codex sections. Claude Code loads Shared + Claude Code; Codex loads Shared + Codex. Apply the same namespace selection to `.rp.local.md`; legacy unscoped local tool units retain their Claude Code meaning.
+- A versioned Codex manifest expands release synchronization, drift checks, package metadata, changeset paths, and public distribution documentation. Every implementation change records its changeset.
 
-### Codex agent-session interface
+### Native agent topology and messaging
 
-- The existing launch contract requires the orchestrator to apply model/settings as spawn parameters and start every agent in its assigned worktree (`skills/radical-pipelines/reference/autonomous-workflow.md:63-70`). The unchanged prompt contract already supplies absolute worktree, branch, artifact/phase paths, lane mode, commit format, and guardrails (`reference/conventions/passing.md:3-26`); every canonical profile verifies worktree and branch before its first write.
-- The current native `spawn_agent` schema exposes message/context-fork fields but no model, reasoning-effort, agent-type, or working-directory override. Official docs permit prompt steering or model/effort pins in custom-agent TOML, but the current callable interface does not expose deterministic named-agent selection. Prompt steering is not configuration enforcement. Source: [Codex model and custom-agent documentation](https://developers.openai.com/codex/multi-agent/#choosing-models-and-reasoning).
-- The installed and documented `codex exec` interface exposes `-C <DIR>`, `-m <MODEL>`, generic config overrides, strict config validation, JSONL events, and persisted session IDs. `codex exec resume` accepts the exact session ID plus model/config overrides but no new `-C`; the initial session working directory must therefore be captured and verified. Source: [Codex CLI reference](https://developers.openai.com/codex/cli/reference/#codex-exec).
-- A persistent role keeps its exact session ID and receives follow-ups through `codex exec resume`; fresh roles always start new sessions. The root orchestrator relays analyst/researcher messages verbatim, keeping every role at depth one and preserving the existing topology. `--last` is unsafe with concurrent lanes.
-- Isolated lanes receive independent prompts/sessions and absolute worktree roots. Before each launch, validate the worktree exists, is a Git root, has the expected checked-out branch, appears in `git worktree list`, and is disjoint from every sibling lane. The child repeats the profile's worktree/branch check.
-- For `L` isolated lanes, the persistent Q&A peak is `2L` sessions; writers and reviewers peak at `L`. Capacity must be checked against the configured Codex process concurrency before accepting the run plan. Silently serializing isolated lanes would change their documented behavior (`autonomous-phases/1 - spec.md:46-52`; `autonomous-phases/2 - design-doc.md:52-58`).
+- The Codex root orchestrator spawns every role through native subagents. It owns and monitors its direct children by the opaque IDs returned at spawn.
+- Each persistent analyst spawns its own researcher, retains that opaque ID in live task context, sends every research question to that same ID, and monitors the researcher. The researcher returns evidence directly to its analyst. The orchestrator communicates with the analyst and never relays analyst/researcher turns.
+- The hierarchy is root at depth 0, analysts and other root-owned roles at depth 1, and each analyst-owned researcher at depth 2. Codex setup requires `agents.max_depth=2` and capacity for the configured lane topology. Insufficient depth or capacity stops before run mutations; isolated lanes are not silently serialized.
+- Spawn prompts use the canonical `agents/<role>.md` profile, the existing conventions block, and the role assignment. Persistent follow-ups use the original opaque ID. Fresh roles and recovered roles receive new IDs. IDs remain live execution handles and never enter pipeline artifacts or committed state.
+- Agent model conventions remain the shared public configuration. The cross-surface qualification fixture pins `gpt-5.6-sol` and verifies that every spawned fixture role uses that model.
 
-### Health-monitor requirements and Codex telemetry
+### Execution authority and readiness
 
-- The monitor contract includes automatic recurring checks, no-output/message/auth/network detection, worktree and message-state inspection, two recoveries per occurrence, structured escalation, independent list/cancel, close-out cancellation, and stale-monitor cleanup on resume (`skills/radical-pipelines/reference/health-monitoring.md:3-78`; `autonomous-workflow.md:88-97`; `resume-pipeline.md:7-13`).
-- `codex exec --json` emits `thread.started`, `turn.started`, `turn.completed`, `turn.failed`, `item.*`, and `error` events. A supervisor can correlate each exact Codex thread ID with its process identity, last event/progress, errors, expected worktree/branch, and last commit. Source: [Codex non-interactive JSONL documentation](https://learn.chatgpt.com/docs/non-interactive-mode#make-output-machine-readable).
-- An inline root loop loses its timers and handles with the root task. A persisted monitor model has no timer or direct pipe/process view. Goal mode continues an objective rather than polling on a fixed interval. Hooks are event-driven and have no silence event. Scheduled is desktop-managed and does not own worker processes. Only a detached local supervisor that launches all workers can satisfy the full common contract; the other mechanisms can supply optional telemetry or presentation.
-- A running `codex exec` turn has no documented steer/ping channel. The bounded no-output recovery is therefore: verify the live process, gracefully interrupt it, resume the exact thread with a status request, then replace it with a new explicitly seeded session on the second recovery. Concurrent resume against an active thread is never assumed.
-- Transient monitor state stays outside `.pipelines/` and never affects completion predicates. A registry record uses a stable run key (canonical Git common directory + run branch + artifact folder), monitor UUID, PID plus process start time, heartbeat, worker/thread records, retry occurrences, status, and timestamps. PID/start-time/heartbeat validation distinguishes active and stale monitors.
-- The generic default is a 5-minute interval and 10-minute no-output threshold (`health-monitoring.md:7-13`); the canonical Claude setup also uses 5 minutes (`conventions/claude-code.md:14-20`). This repository's committed 15-minute command (`.rp.md:107-113`) is a valid owner-tuned value, not a blocker or a Codex reason to change Claude behavior.
+- The active local surface is the authority boundary. Native subagents inherit its configured permission mode, approval behavior, rules, hooks, repository access, and tool access. The design adds no child-specific authority layer.
+- Before creating phase-0 or other run mutations, readiness verifies that the configured permission mode covers every assigned worktree, required tool, and required network access. It also verifies plugin installation, the configured model, native nesting, depth, capacity, persistent messaging, and worktree seating.
+- Per-spawn readiness verifies the assigned worktree, branch, HEAD, Git membership, and lane isolation before the role may write. A surface that cannot inherit or prove the required permissions reports incomplete setup and stops. It does not weaken the workflow, request an unsupported child-side escalation, or fall back to another runtime.
 
-### Runtime packaging and platform dependencies
+### Monitoring, recovery, and continuation
 
-- Codex installs the plugin folder into its versioned cache, but the manifest declares only skills, MCP servers, apps, hooks, and presentation metadata; it has no executable or install-script field. `PLUGIN_ROOT` and `PLUGIN_DATA` are guaranteed only to plugin hook commands. Sources: [Codex plugin structure](https://developers.openai.com/codex/plugins/build/#plugin-structure), [plugin-bundled hooks](https://learn.chatgpt.com/docs/hooks#plugin-bundled-hooks).
-- The orchestrator receives the loaded skill's absolute locator and passes its directory as the required `skill_root` bootstrap input. The adapter resolves and verifies the enclosing `.codex-plugin/plugin.json` before locating root payloads. Official docs do not guarantee that undeclared root payloads survive every installation or expose a general `PLUGIN_ROOT`; setup and release tests must therefore prove the installed `agents/` and `runtime/` payload before any pipeline operation. Sources: [plugin structure](https://learn.chatgpt.com/docs/build-plugins#plugin-structure), [plugin hook environment](https://learn.chatgpt.com/docs/build-plugins#bundled-mcp-servers-and-lifecycle-hooks).
-- The repository already uses built-in-only Node ESM scripts and tests (`package.json:9-17`; `scripts/sync-version.mjs:1-24`) and CI pins Node 22 (`.github/workflows/changeset-gate.yml:17-31`). Node is not a Codex product prerequisite because Codex also installs without npm; Node 22 must be an explicit Radical Pipelines Codex prerequisite. Source: [Codex installation examples](https://developers.openai.com/cookbook/examples/codex/using_goals_in_codex#quickstart-using-goals).
-- A native binary avoids Node but requires committed/downloaded artifacts per OS/architecture, signing, checksums, a build/release matrix, and version synchronization; the plugin has no post-install download/build lifecycle. MCP adds a structured control plane but still needs a detached supervisor/runtime. App Server/SDK offers stronger thread control but broadens the selected exec adapter and adds protocol or package dependencies. Sources: [Codex App Server API](https://developers.openai.com/codex/app-server/#api-overview), [Codex SDK](https://developers.openai.com/codex/sdk/).
-- The supervisor must inherit the resolved Codex executable's `CODEX_HOME`, user profile, authentication, and proxy environment; it never owns credentials. Setup checks the Codex binary and Node independently, because a desktop-bundled Codex executable and an unrelated Node installation are both possible.
-- Registry-directory precedence is local and uncommitted: `RADICAL_PIPELINES_STATE_DIR`, then the OS user-local state directory. Registry state is permission-restricted, schema/version tagged, atomically written, and outside repositories, worktrees, `.pipelines`, and plugin caches. A small tool-neutral monitor lease lives under the canonical Git common directory so either adapter can supersede a foreign monitor. CLI/IDE sandboxes normally require approval or an exact permission grant for these paths. Sources: [Codex filesystem permissions](https://learn.chatgpt.com/docs/permissions#filesystem-permissions), [sandbox and approvals](https://learn.chatgpt.com/docs/agent-approvals-security#sandbox-and-approvals).
+- Monitoring follows native ownership. The orchestrator monitors analysts and other direct children; each analyst monitors its researcher. Parents use native status, messaging, steering, interruption, and cancellation controls while the task tree is active.
+- Recovery is bounded. The first recovery steers the same opaque ID with a status and continuation request. The second interrupts that child and starts a replacement from the latest committed Git state. Replacing an analyst creates a new analyst-owned researcher; replacing a researcher updates only the analyst's live researcher ID. Exhausted recovery produces the existing escalation outcome.
+- Close-out waits for or cancels the native descendants before the final push. A surface must pass the fixture for steering, cancellation, and bounded recovery before autonomous runs are enabled.
+- Git branches, commits, artifacts, and phase predicates are the only durable pipeline state. A new root task or another tool reconstructs the run from Git and spawns a new native hierarchy for the next incomplete work. Opaque IDs, parent monitoring state, and recovery counters are not resumed.
+- Cross-tool continuation makes no active-monitor or cross-clone exclusion claim. Concurrent clones remain independent Git writers and encounter the existing Git synchronization and conflict behavior. Continuation safety means resuming from committed Git state without artifact migration, not coordinating live tasks between clones.
 
 ### Component, flow, and dependency map
 
-- **New:** `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`, `skills/radical-pipelines/reference/conventions/codex.md`, `runtime/codex/supervisor.mjs`, focused supervisor/package/compatibility tests under `scripts/test/`, a Node 22 Ubuntu/macOS/Windows runtime workflow, and a feature changeset.
-- **Modified:** convention loading/setup; shared health monitoring and backward-compatible Claude Code lease mechanics; this repository's `.rp.md`; README, CONTRIBUTING, GLOSSARY, package metadata/test scripts, changeset paths, version sync/drift scripts, and their tests. The lease adds no required committed Claude field; Claude plugin discovery and workflow semantics stay unchanged.
-- **Unchanged:** `skills/radical-pipelines/SKILL.md`, `agents/*.md`, prompt passing, shared workflows and phase references, tracker and guardrail rules, branch/artifact grammar, phase predicates, `.gitignore`, and Claude plugin metadata except normal release-time version propagation. `package-lock.json` and `CHANGELOG.md` need no feature commit when no dependency is added.
-- **Install flow:** marketplace → installed plugin → manifest → shared skill. The loaded skill locator supplies `skill_root`; setup verifies the enclosing installed root and hashes/reads every canonical profile and the supervisor. Failure leaves Codex setup incomplete.
-- **Readiness flow:** detect tool → validate committed Shared + Codex units → merge only Codex local overrides → resolve paths → test Node, Codex authentication/models, payloads, state/lease atomicity, detach/list/cancel, platform process control, Git and the configured worktree root, and external-process capacity → permit issue/pipeline operations. Immediately before each launch, separately verify the created worktree, branch, HEAD, Git membership, and sibling disjointness.
-- **Assisted flow:** the root Codex task uses the unchanged assisted workflow and predicates, then performs the required tracker update and close-out. The full readiness gate still runs first so a project never claims complete Codex support while autonomous prerequisites are absent.
-- **Autonomous flow:** confirm plan/capacity → acquire a new run lease generation → start supervisor → launch/resume exact worker sessions → follow versioned events → execute unchanged phase topology → verify committed predicates → update tracker → cancel and wait before push. Persistent roles retain exact thread IDs; fresh roles receive new sessions.
-- **Continuation flow:** Git branches, artifacts, and predicates reconstruct state across tools. For tools sharing a Git common directory, a new adapter atomically requests cancellation of the prior lease generation and waits for acknowledgment or its deadline before acquiring the next generation. A mismatch makes the Codex supervisor stop owned workers and exit; a Claude loop identifies itself by the UUID embedded in its prompt, deletes its task, and acknowledges. Every lease has bounded expiry, so an abandoned monitor in another clone becomes unauthorized; on its next tick it self-cancels before any other action.
-- **Dependencies:** existing Git and shared Markdown contracts; new Node 22 runtime, exact authenticated Codex CLI, user-local filesystem permission, and OS process-tree control. No npm runtime package, MCP server, SDK, App Server, or native binary is selected.
+- **New:** `.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json`, `skills/radical-pipelines/reference/conventions/codex.md`, cross-surface fixture coverage, and a feature changeset.
+- **Modified:** convention loading and setup; this repository's `.rp.md`; README, CONTRIBUTING, GLOSSARY, package metadata, changeset paths, version synchronization and drift checks; and behavioral tests.
+- **Unchanged:** canonical agent profiles; shared workflows, prompt fields, health outcomes, tracker and guardrail rules, branch and artifact grammar, phase predicates, `.gitignore`, and Claude Code convention mechanics except normal release metadata.
+- **Tool ownership:** shared health guidance states tool-neutral outcomes. `conventions/codex.md` owns native spawning, parent-child monitoring, steering, cancellation, recovery, permission readiness, and prompt overlay mechanics. `conventions/claude-code.md` retains Claude Code mechanics. Generic skill files contain no Codex-specific behavior.
+- **Install flow:** marketplace → installed plugin → manifest → shared skill → Codex convention completeness → native readiness.
+- **Autonomous flow:** validate readiness and capacity → create the existing topology → root spawns and monitors analysts → each analyst spawns, addresses, and monitors its researcher → complete existing gates and predicates → stop descendants → update and push through the existing close-out.
+- **Continuation flow:** reconstruct committed state from Git → identify the next incomplete phase with existing predicates → create a fresh native task tree → continue without migration.
+- **Dependencies:** existing Git, Markdown profiles, and artifact contracts plus the local surface's native subagent controls. The design adds no external supervisor, detached scheduler, `codex exec` routing protocol, cross-clone lease, adapter-dispatch runtime, registry, or runtime package.
 
-### Coverage audit
+### Qualification and coverage
 
-- **R1 / AC1, AC7:** the installed plugin exposes one skill on desktop, CLI, and IDE; the exec/supervisor adapter supplies missing native controls, while host qualification and readiness gates prove each surface.
-- **R2 / AC2–4:** shared workflows retain issue and pipeline operations, phase roles, lanes, worktrees, guardrails, approvals, tracker updates, commits, and close-out; the session and health adapters supply Codex execution.
-- **R3 / AC5:** shared Git grammar, artifacts, formats, and predicates remain authoritative; acknowledged expiring leases make foreign local monitors safe during continuation.
-- **R4 / AC6:** one `.rp.md` selects Shared + active-tool units; committed completeness precedes namespaced local overrides, and legacy unscoped local values remain Claude Code values.
-- **R5 / AC8–9:** both readiness stages finish before phase-0 creation; legacy Claude and predicate-invariance behavior suites guard unchanged outcomes.
+- Run the same fixture on every in-scope local surface. It verifies plugin installation, `agents.max_depth=2`, peak capacity, analyst-owned researcher nesting, multiple follow-ups to the same opaque ID, worktree isolation, steering, bounded recovery, resume from Git, and model pinning to `gpt-5.6-sol`.
+- **R1 / AC1, AC7:** the installed plugin and qualification fixture gate identical native behavior on desktop, CLI, and IDE.
+- **R2 / AC2-4:** native roles retain the existing topology, profiles, lanes, worktrees, gates, artifacts, commits, tracker updates, and close-out.
+- **R3 / AC5:** Git and committed artifacts alone reconstruct state across tools. No local execution handle participates in continuation.
+- **R4 / AC6:** one `.rp.md` selects Shared + active-tool conventions; local overrides follow the same namespace.
+- **R5 / AC8-9:** completeness and native readiness finish before mutations; Claude Code compatibility and predicate-invariance fixtures guard existing behavior.
+- **Rejected review issue 1:** analyst-owned researchers and same-ID native messaging supply the executable persistent-role contract without root relay.
+- **Rejected review issue 2:** inherited local authority plus pre-mutation permission and tool checks define the execution-authority contract.
+- **Rejected review issue 3:** Git is the only durable continuation authority; the design removes the lease and its cross-clone exclusion claim.
+- **Rejected review issue 4:** Codex mechanics live only in `conventions/codex.md`; shared health guidance remains tool-neutral.
 
 ## Topics
 
 ### Topic: End-to-end approach
 
-- **Spec link:** Requirements 1–5 / Acceptance criteria 1–9
+- **Spec link:** Requirements 1-5 / Acceptance criteria 1-9
 - **Options:**
-  1. Add a thin Codex plugin that reuses the canonical skill and drives Codex-native subagents through a tool-specific convention adapter.
-  2. Add the thin plugin plus project-scoped Codex agent profiles as the primary orchestration representation.
-  3. Add a local supervisor around `codex exec`, the SDK, or App Server to own sessions, scheduling, retries, and state.
-- **Trade-offs:** Option 1 preserves the prose-driven architecture and native Codex UI with the least duplication, but role/model binding and timed health checks need explicit Codex mechanisms. Option 2 gives stronger native model enforcement but duplicates 19 role profiles, complicates difficulty-tier selection, and requires invasive project setup because the documented plugin manifest has no custom-agent component. Option 3 gives maximum runtime control but adds production orchestration code, durable state, authentication and approval handling, and a runtime dependency; it also complicates assisted owner interactions.
-- **Decision:** Use a thin Codex plugin and a Codex-specific session adapter around persisted/fresh `codex exec` sessions. Keep the skill, phase topology, agent roles, branches, artifacts, approval gates, completion predicates, and tracker/commit behavior shared. Add only Codex distribution metadata, active-tool convention loading/setup, and Codex adapters for session launch, role/model binding, worktree seating, messaging, capacity, and health monitoring. Keep runtime-specific state outside `.pipelines/`. Native subagent threads may replace a session only when the exposed surface proves equivalent model, reasoning, worktree, persistence, and isolation controls.
-- **Rationale:** The existing architecture already isolates tool-specific behavior behind conventions. `codex exec` is the verified interface that supplies exact model and initial working-directory parameters plus persistent sessions, so it preserves parity when a native surface omits those controls. Reusing the shared contracts guarantees cross-tool continuation and minimizes Claude Code regression risk.
+  1. Reuse the canonical skill and run every role through Codex-native hierarchical subagents.
+  2. Add an external session-routing and monitoring runtime.
+- **Trade-offs:** Option 1 preserves native task ownership and direct role messaging but requires every local surface to pass the same depth, capacity, permission, persistence, recovery, isolation, and model fixtures. Option 2 adds a second execution model and non-Git runtime state.
+- **Decision:** Choose option 1 on every local surface. Stop at readiness when a surface cannot satisfy it.
+- **Rationale:** It realizes the existing persistent topology directly and keeps Git and committed artifacts as the complete durable model.
 
-### Topic: Distribution and configuration coexistence
-
-- **Spec link:** Requirements 1, 4, and 5 / Acceptance criteria 1, 6, 8, and 9
-- **Options:**
-  1. Keep one `.rp.md` with Shared, Claude Code, and Codex sections.
-  2. Use `.rp.md` as shared/router content plus `.rp.claude.md` and `.rp.codex.md`.
-  3. Keep shared conventions in `.rp.md` and place Codex behavior in native `.codex/` configuration.
-- **Trade-offs:** Option 1 adds no project file and preserves existing artifact-storage, fork, setup, and local-override behavior, but requires section-aware selection. Option 2 physically isolates tools but must permanently support embedded legacy Claude sections, define precedence among formats, and expand committed/local artifact rules. Option 3 natively represents models, agents, sandbox, and concurrency, but Codex's schema does not represent Radical Pipelines team-spawning and health conventions; it also introduces trust-gated configuration, two precedence systems, project-wide Codex effects, and an unverified desktop parity premise.
-- **Decision:** Add `.codex-plugin/plugin.json` pointing at the existing skill tree and `.agents/plugins/marketplace.json` pointing at the plugin root. Keep a single committed `.rp.md`: setup appends a `Codex conventions` section after owner confirmation, Claude loads Shared + Claude Code, and Codex loads Shared + Codex. Evaluate required committed shared and active-tool units before merging the corresponding `.rp.local.md` namespaces. Preserve legacy unscoped local tool units as Claude Code values. Add `reference/conventions/codex.md` for canonical Codex behavior and extend setup, release synchronization, drift checks, changeset paths, and public documentation. Installation stays a documented prerequisite outside project setup.
-- **Rationale:** This is the smallest additive component set and the only layout that preserves existing projects without migration, dual-format fallback, extra artifact-storage rules, or native configuration assumptions not verified across every surface. Conditional tool files keep tool-specific instructions out of the generic skill while the single project file keeps shared and tool conventions visibly co-located.
-
-### Topic: Agent role, model, worktree, and concurrency interface
+### Topic: Persistent role ownership and messaging
 
 - **Spec link:** Requirement 2 / Acceptance criteria 1, 2, 4, and 7
 - **Options:**
-  1. Prompt-load the canonical Markdown profile into a native subagent.
-  2. Add project-scoped custom-agent TOML and select named native agents.
-  3. Launch every role through a fresh or persisted `codex exec` session.
-  4. Use native agents when their callable contract is sufficient and `codex exec` otherwise.
-- **Trade-offs:** Option 1 gives the strongest native UI but cannot currently enforce configured models/effort or spawn-time worktrees. Option 2 pins model/effort but requires trust-gated project files, has no working-directory field, complicates difficulty tiers, and lacks a verified selector in the callable schema. Option 3 supplies exact per-launch model, effort, worktree, persistence, and context isolation across surfaces, but requires the CLI on `PATH`, authentication, JSONL/session handling, process concurrency/cancellation, and root-relayed Q&A; child sessions are not native subagent panels. Option 4 risks surface-dependent behavior unless equivalence is tested before each launch.
-- **Decision:** Define the Codex Team spawning convention as a `codex exec` session adapter. It reads `agents/<role>.md`, prepends the unchanged `## Conventions` block, appends the assignment/verbatim evidence, and starts `codex exec --json -C <absolute-worktree> -m <model> -c model_reasoning_effort=<effort> -c features.multi_agent=false -`. Team spawning contains a portable default model, effort, authenticated fallback, and independent-process capacity; optional Agent models overrides the default per role/tier. Capture the emitted session ID. Resume persistent roles only by that ID with the same settings; use new sessions for fresh roles. The root relays persistent Q&A and owns all branch/worktree topology. Static readiness before any pipeline operation validates installed payload, CLI/auth/models, strict config, session persistence, Git/worktree-root capability, and capacity for `2L` lane sessions. Per-launch readiness validates the actual worktree, expected branch and HEAD, Git membership, and sibling disjointness.
-- **Rationale:** This is the only verified interface that meets the existing requirements to apply configured models as parameters and start agents inside distinct worktrees. It preserves canonical Markdown profiles, difficulty-tier tables, isolation, persistence, and the existing root-owned topology without adding project-scoped agent copies. Requiring the CLI is an explicit Codex prerequisite handled by the existing setup/completeness gate, which is preferable to silently weakening a run on surfaces with fewer native controls.
+  1. The root owns analysts; each analyst owns its researcher and uses its returned opaque ID for every follow-up.
+  2. The root owns both roles and relays typed messages.
+- **Trade-offs:** Option 1 matches direct analyst/researcher Q&A and uses native lifecycle ownership. Option 2 requires a new routing protocol and changes the role relationship.
+- **Decision:** Choose option 1. Keep IDs only in the owning parent's live context; new task trees receive new IDs.
+- **Rationale:** Direct same-ID messaging satisfies the existing profiles without a relay envelope, delivery registry, or profile rewrite.
 
-### Topic: Health monitoring, failures, and observability
+### Topic: Permissions and model enforcement
 
-- **Spec link:** Requirements 1, 2, and 5 / Acceptance criteria 1, 2, 7, 8, and 9
+- **Spec link:** Requirements 1, 2, and 5 / Acceptance criteria 1, 2, 7, and 8
 - **Options:**
-  1. Monitor worker JSONL and processes inline in the root Codex task.
-  2. Run a separate persisted Codex monitor session.
-  3. Run a detached local supervisor that owns worker processes and a transient registry.
-  4. Use Goal mode, hooks, or Scheduled work as the monitor.
-- **Trade-offs:** Option 1 gives immediate owner visibility and no daemon, but cannot survive root loss or implement list/cancel on resume. Option 2 retains reasoning context but needs an external timer/observer, shares worker auth/network failure modes, and spends model tokens on healthy ticks. Option 3 implements the entire recurring, recovery, stale-cleanup, and cancellation contract, but adds an executable, local IPC/state, process/locking portability work, and an attachment protocol. Goal mode and hooks lack timers/silence detection; Scheduled is not a shared CLI/IDE control and does not own worker pipes.
-- **Decision:** Add a Codex local supervisor as the executable behind both Team spawning and Health monitoring. All autonomous launches and resumes go through `start`, `list --json`, `cancel --wait`, `launch`, `resume`, and `follow`. Its versioned protocol carries the stable run key; `skill_root`; lease generation and monitor UUID; plugin/state/executable roots; timing, cancellation, expiry, and capacity limits; worker/role/profile hash; exact prompt assembly; worktree/branch/HEAD/lane/phase; model/effort/fallback/config; thread/delivery/idempotency IDs; PID/start time; event sequence and timestamps; progress/error/commit state; and platform adapter. The registry is user-local; the atomic cross-tool lease is under the Git common directory. Lease cancellation is acknowledged and deterministic: a mismatched supervisor stops workers and exits; a Claude loop deletes the task identified by its embedded UUID before acknowledging. Continuation waits for acknowledgment or bounded expiry. No lease field is added to committed Claude conventions. The supervisor emits structured progress/recovery/escalation events; unresolved events persist. Close-out cancels and waits before push. No monitor state enters predicates.
-- **Rationale:** The supervisor is the only examined mechanism that remains independently recurring and listable/cancellable while also owning the process and JSONL state needed to detect silence and exact failures. It supplies one consistent outcome from desktop, CLI, and IDE even when their native scheduling or thread controls differ.
+  1. Inherit the local surface's configured authority and reject insufficient modes before mutations.
+  2. Add a worker-specific sandbox and approval layer.
+- **Trade-offs:** Option 1 keeps native rules, hooks, approvals, tools, and repository grants coherent across the task tree. Option 2 creates another authority boundary and surface-specific runtime.
+- **Decision:** Choose option 1. Readiness must cover assigned worktrees and required tools, and qualification pins `gpt-5.6-sol` across the fixture hierarchy.
+- **Rationale:** The run either has one sufficient native authority boundary or remains incomplete; children never silently receive weaker or broader authority.
 
-### Topic: Supervisor packaging and dependencies
+### Topic: Health monitoring and bounded recovery
 
-- **Spec link:** Requirements 1, 2, 4, and 5 / Acceptance criteria 1, 2, 6, 8, and 9
+- **Spec link:** Requirements 1 and 2 / Acceptance criteria 1, 2, and 7
 - **Options:**
-  1. Ship a built-in-only Node `.mjs` supervisor as plugin source.
-  2. Ship signed native binaries for each supported OS/architecture.
-  3. Expose supervisor controls through a plugin-bundled MCP server.
-  4. Replace the exec transport with an App Server or SDK client.
-- **Trade-offs:** Option 1 is one source payload with no package install and fits existing tests, but makes Node and cross-platform process behavior explicit prerequisites. Option 2 gives native process control without Node but greatly expands build, signing, payload, release, and platform-test scope. Option 3 gives structured tools but remains tied to a host session and still needs the detached process. Option 4 supplies steer/interrupt/thread APIs but changes the selected transport and adds a larger protocol/dependency surface.
-- **Decision:** Add `runtime/codex/supervisor.mjs`, implemented with Node 22 built-ins only. The host passes the loaded skill locator as `skill_root`; the adapter resolves the enclosing verified plugin root and invokes `<absolute-node> <absolute-supervisor> <subcommand> ...` with argument arrays. Setup and release qualification must prove installed profile/runtime access on actual desktop, CLI, and IDE hosts; package fixtures or CLI CI alone do not prove other surfaces. Use file-backed commands/events and atomic writes. POSIX uses detached process groups and group signals. Windows first requests graceful child-tree interruption, then uses `taskkill.exe /PID <pid> /T /F` only after the cancellation deadline. Add behavioral unit/subprocess/package/compatibility/predicate tests and a Node 22 Ubuntu/macOS/Windows CI matrix; prose structure is never the assertion target. Keep machine paths local. Full parity requires the plugin enabled; standalone prose use remains instruction-only.
-- **Rationale:** This is the smallest distributable runtime that survives plugin caching, adds no registry/install dependency, preserves the source-only direct-from-Git release, and keeps Codex code out of generic prose. Explicit prerequisites and smoke tests turn platform/runtime gaps into existing setup failures instead of partial runs. Native binaries, MCP, and App Server remain future alternatives if Node/process tests prove insufficient.
+  1. Monitor through the native parent-child hierarchy.
+  2. Use a detached supervisor or scheduler.
+- **Trade-offs:** Option 1 ties observation and recovery to the parent that owns the child. Option 2 creates live state outside the native task tree.
+- **Decision:** Choose option 1. First steer the same ID; then interrupt and replace from committed Git; then escalate.
+- **Rationale:** Native ownership supplies direct status and control while preserving bounded recovery and Git-only durability.
 
-### Topic: Component map, data flow, and coverage
+### Topic: Continuation and clone scope
 
-- **Spec link:** Requirements 1–5 / Acceptance criteria 1–9
+- **Spec link:** Requirement 3 / Acceptance criteria 4 and 5
 - **Options:**
-  1. Treat installed-root access, preflight timing, monitor ownership, protocol fields, and platform behavior as implementation details.
-  2. Make each boundary an explicit contract with setup gates and behavioral verification.
-  3. Move all runtime/profile payloads into a manifest-declared component and redesign both tool distributions around it.
-- **Trade-offs:** Option 1 is smaller on paper but leaves AC1, AC5, AC7, AC8, and AC9 unverifiable. Option 2 preserves the canonical sources and shared workflow while adding explicit local contracts and test cost. Option 3 removes installed-root uncertainty but duplicates or relocates canonical agent sources, changes Claude discovery, and expands the runtime architecture.
-- **Decision:** Choose option 2. Use the component and flow map above. Gate semantic completeness and static local readiness before every Codex issue/pipeline operation, then validate created topology before each launch. Make `skill_root`, payload hashes, the supervisor protocol, default/fallback models, independent-process capacity, acknowledged expiring leases, and platform adapters explicit. Qualify installation on actual desktop, CLI, and IDE hosts; run Node 22 Ubuntu/macOS/Windows runtime tests; and behaviorally test legacy Claude, namespace precedence, cross-tool continuation, phase predicates, autonomous-through-Document, assisted, and operations/resume. Requirements 1–5 and AC1–9 are covered only when these gates and suites pass.
-- **Rationale:** The shared Git/artifact model already covers workflow and interoperability semantics. Explicit contracts close the remaining runtime boundaries without duplicating phase logic, changing artifact formats, or relying on undocumented plugin paths. The two-stage gate closes AC8 before phase-0 creation; the lease closes the only cross-tool state outside Git; the platform and legacy suites turn parity and no-regression claims into observable behavior.
+  1. Resume only from committed Git and make no cross-clone monitor-exclusion claim.
+  2. Coordinate active clones through a separate lease authority.
+- **Trade-offs:** Option 1 preserves the existing interoperable state model; simultaneous clones retain normal Git conflict behavior. Option 2 requires durable state outside Git visible to every clone.
+- **Decision:** Choose option 1. A resumed surface creates a fresh hierarchy from the next incomplete committed state.
+- **Rationale:** AC5 requires artifact-compatible continuation, not live-task transfer or cross-clone scheduling.
+
+### Topic: Tool-specific component ownership
+
+- **Spec link:** Requirements 4 and 5 / Acceptance criteria 6 and 9
+- **Options:**
+  1. Keep generic outcomes shared and put Codex mechanics in the conditionally loaded Codex convention.
+  2. Add native cancellation and recovery details to shared health guidance.
+- **Trade-offs:** Option 1 preserves generic shared prose and isolates compatibility risk. Option 2 makes shared guidance tool-aware.
+- **Decision:** Choose option 1. Leave Claude Code mechanics in its dedicated convention.
+- **Rationale:** Each tool owns its native implementation while sharing the same observable workflow contract.
 
 ## Open Questions
 
-None. Build may change the selected transport only through a new approved design if an installation or platform test disproves these assumptions.
+None. Failure of a required cross-surface fixture leaves Codex setup incomplete; it does not select an external fallback.
 
 ## Risks
 
-- **Installed payload variance:** a Codex surface may omit undeclared root files. Mitigation: hash/read every profile and runtime during setup and release smoke tests; fail before pipeline work.
-- **Nested CLI environment:** desktop or IDE may not expose a separate authenticated CLI, model, proxy, or filesystem grant. Mitigation: exact executable/auth/model/state preflight on every invocation.
-- **Stale workers:** a prior tool may retain a monitor or worker. Mitigation: acknowledged lease cancellation on a shared Git common directory, validation before every action, bounded expiry across clones, deterministic self-cancellation, idempotent delivery IDs, and worker-tree shutdown.
-- **Process portability:** detachment or process-tree termination may differ by OS. Mitigation: graceful-first platform adapters, forced termination only after deadline, and Node 22 CI on Ubuntu, macOS, and Windows using real subprocess trees.
-- **Protocol/state corruption:** crashes may leave partial records, reused PIDs, or duplicate delivery. Mitigation: schema versions, atomic writes/locks, PID start times, monotonic event sequences, idempotency IDs, generation checks, and stale archival.
-- **Claude regression:** namespace and lease changes touch shared loading/health paths. Mitigation: legacy `.rp.md` and `.rp.local.md` scenarios, unchanged Claude autonomous/assisted behavior tests, cross-tool continuation tests, and predicate-invariance tests rather than prose-structure assertions.
+- **Surface capability variance:** a surface may fail nesting, same-ID messaging, steering, recovery, worktree isolation, permission inheritance, capacity, or model pinning. Mitigation: qualify the complete fixture before run mutations.
+- **Ephemeral execution loss:** a root task loss discards native IDs and incomplete role context. Mitigation: resume from the latest committed phase state and create a fresh hierarchy.
+- **Concurrent clones:** independent clones may advance the same run concurrently. Mitigation: retain existing Git synchronization, conflict, and completion-predicate behavior; claim no live cross-clone exclusion.
+- **Capacity pressure:** isolated lane topology may exceed native capacity. Mitigation: reject the run plan before mutation rather than serialize lanes.
+- **Claude Code regression:** active-tool convention selection changes shared loading. Mitigation: test legacy `.rp.md` and `.rp.local.md`, unchanged Claude Code workflows, cross-tool continuation, and predicate invariance.
