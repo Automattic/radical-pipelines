@@ -2,109 +2,165 @@
 
 ## Research
 
-### Existing seams and Codex capabilities
+### Accepted inputs
 
-- The generic skill owns invocation, phase topology, branch grammar, artifact paths, and completion predicates; project conventions supply tool-dependent spawning, model, and health behavior. Sources: `skills/radical-pipelines/SKILL.md:41-45`, `skills/radical-pipelines/reference/conventions/load.md:7-18`, `skills/radical-pipelines/reference/autonomous-workflow.md:35-70`, `skills/radical-pipelines/reference/pipeline-versioning.md:5-64`.
-- Setup already selects a tool rules file and supports tool-specific setup actions, but only Claude Code is registered. Sources: `skills/radical-pipelines/reference/conventions/setup.md:15-24,183-200`, `skills/radical-pipelines/reference/conventions/claude-code.md:1-20`.
-- Codex skills, plugins, and subagents are available in the desktop app, CLI, and IDE extension. Project custom agents may set instructions, model, reasoning effort, sandbox, MCP, and skills. Sources: [Codex skills](https://developers.openai.com/codex/skills/), [Codex plugins](https://developers.openai.com/codex/plugins/), [Codex subagents](https://developers.openai.com/codex/subagents/).
-- Native subagents preserve the existing prose-driven orchestration but the current spawn interface has no explicit working-directory, model, or reasoning parameter. Fixed custom-agent variants could compensate, at the cost of generated project configuration and weak per-run tier selection.
-- `codex exec` accepts a working directory and model, emits JSONL lifecycle events, and supports persistent-session resume. It provides limited steering and approval handling. Source: [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive/); verified with `codex exec --help` on `codex-cli 0.144.0-alpha.4`.
-- Codex app-server exposes thread start/resume, per-thread developer instructions, working directory and model, per-turn model and reasoning overrides, streamed lifecycle events, steering, and interruption. Sources: [Codex app-server](https://developers.openai.com/codex/app-server/), [Codex SDK](https://developers.openai.com/codex/sdk/); verified with `codex app-server generate-json-schema` on `codex-cli 0.144.0-alpha.4`.
-- Scheduled tasks cannot implement shared monitoring because they are not managed from the CLI or IDE. Hooks provide lifecycle events but no timer. Sources: [Codex scheduled tasks](https://developers.openai.com/codex/app/automations/), [Codex hooks](https://developers.openai.com/codex/hooks/).
-- The current Codex CLI installed the repository's existing marketplace and plugin successfully in an isolated `CODEX_HOME`; official Codex packaging nevertheless defines `.codex-plugin/plugin.json`, so the legacy manifest path is compatibility evidence rather than a durable contract. Sources: `.claude-plugin/marketplace.json:1-15`, `.claude-plugin/plugin.json:1-10`, [Codex plugin structure](https://developers.openai.com/codex/plugins/build/); verified with `codex plugin marketplace add`, `codex plugin list`, and `codex plugin add` on `codex-cli 0.144.0-alpha.4`.
+- The shared skill owns pipeline topology, branches, worktrees, artifacts, completion predicates, approvals, tracker synchronization, and close-out. Project conventions provide tool-dependent spawning, models, and health behavior. Sources: `skills/radical-pipelines/SKILL.md`, `skills/radical-pipelines/reference/conventions/load.md`, `skills/radical-pipelines/reference/autonomous-workflow.md`, `skills/radical-pipelines/reference/pipeline-versioning.md`.
+- Setup already identifies the active tool from the current conversation and selects its dedicated convention file from an explicit table. No adapter key exists. Source: `skills/radical-pipelines/reference/conventions/setup.md`.
+- Spec and design phases pair a persistent analyst with a persistent researcher. Writers, reviewers, and consolidators are fresh agents. Sources: `skills/radical-pipelines/reference/autonomous-phases/1 - spec.md`, `skills/radical-pipelines/reference/autonomous-phases/2 - design-doc.md`.
+- The health contract watches stalls, message failures, authentication failures, and network failures, with two recovery attempts before escalation. Source: `skills/radical-pipelines/reference/health-monitoring.md`.
+- Create and revise require self-contained phase-0 folders: downloaded assets live beside `intent.md`, the intent uses relative references, and the owner approves the rendered intent before it is written. Sources: `skills/radical-pipelines/reference/create-pipeline.md`, `skills/radical-pipelines/reference/revision-pipeline.md`.
+- Resume derives progress from Git, committed artifacts, and completion predicates. Source: `skills/radical-pipelines/reference/resume-pipeline.md`.
+- Review 2 identified four gaps to resolve: an undefined adapter-key producer, impossible supervisor control of the active orchestrator, omitted tracker and phase-0 ordering, and a research record that described a superseded architecture. Source: `design-doc-review-2-rejected.md`.
 
-### Component and packaging evidence
+### Binding owner decision
 
-- Every Codex plugin requires `.codex-plugin/plugin.json`; the desktop app also officially recognizes `.claude-plugin/marketplace.json` as a legacy-compatible repository marketplace. One marketplace can therefore distribute a root containing both tool manifests and the shared skill. Sources: [Codex plugin structure](https://developers.openai.com/codex/plugins/build/#plugin-structure), [marketplace discovery](https://developers.openai.com/codex/plugins/build/#how-the-chatgpt-desktop-app-uses-marketplaces).
-- The app-server stdio transport is newline-delimited JSON and supports multiple persisted threads, thread naming/listing/reading/resume, per-thread and per-turn working-directory/model configuration, steering, interruption, and lifecycle events. Sources: [app-server protocol](https://developers.openai.com/codex/app-server/#protocol), [lifecycle](https://developers.openai.com/codex/app-server/#lifecycle-overview), [API overview](https://developers.openai.com/codex/app-server/#api-overview).
-- The TypeScript SDK requires Node 18 and installs a matching Codex runtime; the Python SDK requires Python 3.10, bundles a pinned runtime, and is beta. A repository plugin install is not documented to install either dependency. Sources: [Codex TypeScript SDK](https://developers.openai.com/codex/sdk/#typescript-library), [Codex Python SDK](https://developers.openai.com/codex/sdk/#python-library); verified package metadata for `@openai/codex-sdk@0.144.1`.
-- Agent profiles are canonical root-level files and, by repository rule, an agent receives its profile and initial prompt without references back to the skill. App-server `developerInstructions` can receive the profile content while the first turn receives the exact conventions and task. Sources: `AGENTS.md:14`, `agents/design-doc-researcher.md:6-10`, [thread start](https://developers.openai.com/codex/app-server/#start-or-resume-a-thread).
+This alignment uses the following owner decision as its design authority; it requires no further factual investigation:
 
-### Lifecycle feasibility
+- Every local Codex surface uses Codex-native hierarchical subagents.
+- The orchestrator owns and monitors its direct children. Each persistent analyst spawns, owns, addresses, and monitors its researcher through the opaque agent ID returned by the native spawn.
+- Git and committed artifacts are the only durable pipeline state.
+- Local surface permissions are inherited by native subagents. Readiness requires the configured permission mode to cover every assigned worktree and required tool before run mutation.
+- Cross-surface fixtures must prove plugin installation, `agents.max_depth=2`, capacity, nesting, persistent same-ID messaging, worktree isolation, steering, bounded recovery, Git-only resume, and model pinning to `gpt-5.6-sol`.
 
-- Stable app-server methods cover initialization, model discovery, thread start/name/list/read/resume/archive/unsubscribe, turn start/steer/interrupt, item and turn events, and approval requests. Experimental APIs are unnecessary. Source: [app-server initialization and API overview](https://developers.openai.com/codex/app-server/#api-overview); verified against generated stable schemas from `codex-cli 0.144.0-alpha.4`.
-- App-server responses and notifications interleave and concurrent responses can arrive out of order, so a supervisor must continuously read JSONL and correlate request, thread, and turn IDs. A true pipe client is the documented integration. Sources: [message schema](https://developers.openai.com/codex/app-server/#protocol), [events](https://developers.openai.com/codex/app-server/#events); verified with concurrent local requests.
-- Direct prose control through the current PTY required disabling terminal echo. Official docs do not guarantee a persistent agent-facing command session across desktop, CLI, and IDE, and app-server has no run ownership lease. Those gaps prevent the instruction-only adapter from satisfying strict cross-surface and concurrent-controller parity.
-- Setting `project_doc_max_bytes: 0` locally prevented spawned threads from loading repository `AGENTS.md`, leaving the canonical profile and initial prompt as their inputs. Official docs define the byte limit but do not explicitly promise zero as suppression, so setup must preflight this behavior. Sources: `AGENTS.md:14`, [Codex guidance discovery](https://developers.openai.com/codex/guides/agents-md/#how-codex-discovers-guidance); verified with ephemeral threads and `instructionSources`.
-- App-server has persisted named threads but does not resume an in-flight computation after its process dies. Git inspection and a fresh thread generation are required after process loss. Source: [thread resume](https://developers.openai.com/codex/app-server/#start-or-resume-a-thread).
-
-### Runtime and recovery feasibility
-
-- Plugin MCP configuration supports `command`, `args`, `cwd`, startup timeout, and tool timeout. A bundled OpenAI plugin launches a dependency-free standard-library Node server with `command: "node"`, a plugin-relative script, and `cwd: "."`; its observed process cwd was the installed plugin root. The relative-cwd base is not explicitly documented, so release tests must cover every supported surface and OS. Sources: [bundled MCP servers](https://developers.openai.com/codex/plugins/build/#bundled-mcp-servers-and-lifecycle-hooks), [Codex MCP configuration](https://developers.openai.com/codex/mcp/); verified against the installed Sites plugin `.mcp.json` and `mcp/server.mjs`.
-- Node is not documented as bundled with Codex. A standard-library server needs no package installation, but Node must be a setup prerequisite. Node 22 is the lowest currently supported LTS line suitable for a new release; native binaries, bundled runtimes, Python, or an npm launcher add larger portability, distribution, or installation costs. Source: [Node release status](https://nodejs.org/en/about/previous-releases).
-- App-server exposes no protocol version or supported-method negotiation. Compatibility therefore needs a tested minimum Codex version, behavioral preflight of required stable methods, tolerant parsing of unknown fields/events, and revalidation when Codex or `CODEX_HOME` changes. Source: [app-server initialization](https://developers.openai.com/codex/app-server/#initialization); verified against generated schemas from `codex-cli 0.144.0-alpha.4`.
-- `git rev-parse --path-format=absolute --git-common-dir` gives one untracked state location shared by a repository's worktrees. Exclusive file creation, owner/host/PID/boot identity, heartbeat expiry, atomic replacement, and owner-only permissions provide a practical single-controller lease; foreign-host or ambiguous liveness requires explicit recovery. Git branches and artifacts remain authoritative if runtime state is lost.
-- Stable turn errors distinguish authentication, quota, connection/stream, overload, server, policy, sandbox, and request failures. The supervisor can classify these before falling back to message text. Source: generated `TurnCompletedNotification` schema from `codex-cli 0.144.0-alpha.4`.
-- A child app-server must disable the lifecycle MCP server in its own configuration to prevent recursive supervisors. Plugin-scoped MCP enablement exists, but the exact per-thread override needs an integration test. Source: [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference#configtoml).
+The design has no external supervisor, detached scheduler, `codex exec` routing protocol, app-server control plane, cross-clone lease, repository UUID, runtime state store, adapter key, or adapter-dispatch runtime. The earlier supervisor operations and health handshake are superseded.
 
 ## Topics
 
-### Topic: End-to-end approach and configuration architecture
+### Topic: End-to-end approach and components
 
 - **Spec link:** Requirements 1–5; Acceptance criteria 1–9
-- **Evidence needed:** Current invocation, convention loading, setup, orchestration, monitoring, and distribution paths; Codex mechanisms available consistently across local surfaces; credible configuration and packaging approaches with interoperability and regression trade-offs.
 - **Options:**
-  1. Use native Codex subagents and in-band polling.
-  2. Bundle a `codex exec` process runner.
-  3. Bundle an adapter over Codex app-server/SDK while retaining the skill as orchestrator.
-- **Trade-offs:** Native subagents minimize code but cannot explicitly enforce each agent's working directory, model, or reasoning settings through the verified spawn interface, and monitoring dies with the active root turn. `codex exec` adds explicit worktree/model selection and process events but weak steering and approval handling. App-server adds a maintained runtime and state surface but exposes the controls needed for model, worktree, persistent Q&A, recovery, and observability parity.
-- **Decision:** Keep one tool-neutral skill, canonical agent profiles, pipeline model, and artifact contract. Add a Codex plugin adapter that the skill uses for agent lifecycle and health operations through Codex app-server. Keep project conventions shared with one selected tool-specific convention set.
-- **Rationale:** This isolates Codex mechanics behind the convention boundary already used for Claude Code while meeting the load-bearing parity requirements with verified controls. Pipeline state remains entirely in existing branches and committed artifacts; adapter thread/process state is runtime-only.
+  1. Use the native hierarchy on every local Codex surface.
+  2. Retain the rejected supervisor and adapter runtime.
+- **Trade-offs:** Native orchestration has one ownership model and no second controller, but native agent IDs and in-flight conversations end with the session. The supervisor design attempted detached continuity but could not control or replace its caller.
+- **Decision:** Keep the shared skill as the active orchestrator. Add Codex plugin packaging and `reference/conventions/codex.md`, which maps existing team-spawning, model, permission, worktree, messaging, and health conventions directly to native subagent actions. The orchestrator creates branches and worktrees, dispatches the existing phase topology, verifies Git and artifacts, performs tracker operations, and handles owner interaction. The Codex convention adds no executable lifecycle service.
+- **Rationale:** This is the owner-selected architecture and removes the control boundary rejected in Issue 2. Git contracts remain identical across tools, and the Claude Code convention and runtime path remain independent.
 
-### Topic: Components and adapter boundaries
+### Topic: Convention selection and configuration coexistence
 
-- **Spec link:** Requirements 1–5; Acceptance criteria 1, 2, 4, 6–9
-- **Evidence needed:** Minimal component split for the Codex manifest, convention routing/setup, adapter commands and state, canonical profile loading, and release/version integration; ownership boundaries that preserve the generic skill and Claude behavior.
+- **Spec link:** Requirements 3–5; Acceptance criteria 5, 6, 8, 9
 - **Options:**
-  1. Add native Codex manifest and marketplace metadata, split conventions into three files, and ship an SDK-backed MCP adapter with its own state file.
-  2. Add only the required Codex manifest, retain the compatible existing marketplace, keep embedded shared/tool sections in `.rp.md`, and ship a dependency-free MCP supervisor over app-server.
-  3. Generate `.codex/agents/*.toml` and use native subagents, duplicating canonical profiles into project configuration.
-- **Trade-offs:** A native second marketplace and split convention files improve visual separation but duplicate catalog data and require compatibility precedence. An SDK adapter offers typed bindings but adds dependency installation and a second bundled Codex runtime. Generated custom agents fit Codex conventions but duplicate profile instructions. A standard-library MCP supervisor adds a small executable and runtime state while preserving one convention file, canonical profiles, and the prose orchestrator.
-- **Decision:** Add `.codex-plugin/plugin.json` beside the existing Claude manifest and continue distributing both through `.claude-plugin/marketplace.json`. Keep one `.rp.md` with `Shared conventions`, `Claude Code conventions`, and `Codex conventions`; update the loader and setup to select and modify only the active tool section. Add `reference/conventions/codex.md` plus a bundled MCP supervisor declared by `.mcp.json`. The supervisor uses true stdio pipes to one app-server process, injects canonical profiles, owns request/event correlation and health retries, and persists only thread mappings, retry state, timestamps, and a single-controller lock under the repository's Git common directory. It never evaluates pipeline predicates. Add no generated custom agents or SDK dependency.
-- **Rationale:** Direct prose control cannot guarantee cross-surface process semantics or prevent concurrent controllers. A plugin-scoped MCP tool surface is shared across the required Codex surfaces and keeps executable lifecycle mechanics outside the prose skill. Machine-local lock/state restores health continuity and ownership without entering committed artifacts. Release integration adds the Codex manifest to version sync/drift checks and Codex/runtime paths to changeset relevance; README and package metadata describe both tools.
+  1. Obtain an adapter key from an unspecified host interface.
+  2. Use the existing prose selection contract: the active top-level agent identifies its native surface and follows one explicit tool-to-convention mapping.
+- **Trade-offs:** An adapter key would require a new producer and delivery contract. A single static mapping names supported tools but is already the repository's setup mechanism and needs no runtime dispatch.
+- **Decision:** Remove the adapter key. The producer is the active top-level agent, the value is its literal native tool name (`Codex` or `Claude Code`), and the delivery path is the setup/load instruction that selects the matching row in one static mapping. That mapping resolves `Codex` to `reference/conventions/codex.md` and `Claude Code` to `reference/conventions/claude-code.md`; setup and load share this one mapping rather than duplicate it.
 
-### Topic: Agent lifecycle interface and data flow
+  Keep the existing `.rp.md` valid for Claude Code. Codex setup adds `.rp.codex.md`, an overlay containing only tool-dependent spawning, model, permission, and health values. Codex loads `.rp.md` plus `.rp.codex.md`; Claude Code continues to load `.rp.md`. Setup changes only `.rp.codex.md` and plugin files.
+- **Rationale:** This defines the producer, exact values, and path requested by Issue 1 without a host interface, manifest bootstrap, adapter key, or adapter-dispatch runtime. Adding Codex leaves existing Claude configuration and behavior intact.
 
-- **Spec link:** Requirements 1–3; Acceptance criteria 1–5, 7
-- **Evidence needed:** Exact app-server request/event flow for starting, resuming, steering, waiting, model/worktree enforcement, analyst-researcher relay, multi-lane concurrency, sequential shared-worktree tasks, approval handling, and close-out; deterministic thread naming and recovery discovery.
+### Topic: Native hierarchy, identity, worktree, and model flow
+
+- **Spec link:** Requirements 1–3; Acceptance criteria 1, 2, 4, 5, 7
 - **Options:**
-  1. Let tool-specific prose manipulate app-server JSONL directly.
-  2. Expose typed lifecycle operations from a bundled MCP supervisor and keep phase decisions in prose.
-  3. Use Codex native subagent messaging and state.
-- **Trade-offs:** Direct JSONL has no durable cross-surface command-session or ownership contract. Native subagents do not expose the required explicit model/worktree controls and would load different instruction layers. MCP adds a small runtime and setup prerequisite but provides a managed process, true pipes, durable health state, and one controller per run.
-- **Decision:** `codex.md` calls six supervisor operations: `open_run`, `spawn_agent`, `send_agent_input`, `poll_run`, `stop_agent`, and `close_run`. `open_run` initializes app-server, validates models/efforts and instruction suppression, acquires the run lock, discovers prior named threads, and starts health timers. `spawn_agent` accepts a logical job identity, canonical role, worktree, branch, model/effort, sandbox, and exact initial prompt; it starts, names, then turns the thread. `send_agent_input` starts a follow-up turn after completion or explicitly steers the expected active turn. `poll_run` returns normalized events, terminal messages, health state, and escalations. `stop_agent` interrupts and waits for a terminal turn. `close_run` archives or retains threads according to outcome, releases the lock, and stops app-server.
-- **Rationale:** The parent remains responsible for issue/tracker operations, topology, analyst/researcher relay, lane isolation, sequential shared-worktree writers, Git verification, approvals, phase predicates, and close-out. The supervisor only translates agent-lifecycle decisions into runtime operations. Threads use deterministic names keyed by repository identity, run branch, phase, lane/root scope, role, job, and restart generation. Canonical profile content is `developerInstructions`; the exact `## Conventions` block and task are first-turn input. Autonomous children use `approvalPolicy: never` plus explicit least-privilege sandboxing; unexpected approval requests are declined and surfaced. Assisted mode spawns no child threads.
+  1. Have the orchestrator spawn and address every agent, including researchers.
+  2. Match conversation ownership to the native hierarchy: the orchestrator owns direct children and each analyst owns its researcher.
+- **Trade-offs:** Flat ownership avoids nesting but breaks the persistent analyst/researcher conversation boundary. Hierarchical ownership requires depth two and sufficient capacity, which become readiness and fixture gates.
+- **Decision:** The orchestrator prepares each assigned branch and worktree, then natively spawns analysts, writers, reviewers, consolidators, and build/document agents as its direct children. It supplies the canonical profile, exact conventions, absolute worktree, branch, task, and configured model in the initial prompt.
 
-### Topic: Dependencies, failure modes, and observability
+  A persistent analyst natively spawns one researcher after it starts. It records the returned opaque agent ID in its live context, sends every research question and follow-up to that same ID, monitors that ID, and receives the answers directly. The orchestrator communicates with the analyst and never derives a researcher address from a role, name, lane, or thread. A replacement spawn returns a new ID and starts a new ownership instance.
 
-- **Spec link:** Requirements 1, 2, 4, 5; Acceptance criteria 1, 2, 6–9
-- **Evidence needed:** Cross-surface launch path for the bundled MCP supervisor; minimum runtime and Codex versions; state/lock schema and cleanup; setup preflights; failure classification, health continuity, logs, and surfaced diagnostics; test strategy without structural prose tests.
+  Codex agent depth is exactly `agents.max_depth=2`: orchestrator children occupy depth one and analyst-owned researchers depth two. The requested lane and phase plan is admitted only when native capacity covers its peak hierarchy. Each spawn is seated in its assigned worktree using the Codex native convention; agents address Git and files through that absolute worktree and verify the expected branch before writing.
+
+  Every Codex role is pinned to `gpt-5.6-sol`. Readiness rejects a missing or different pin. The release fixtures verify the effective model in spawned agents rather than treating configuration text alone as proof.
+- **Rationale:** Opaque same-ID messaging preserves the persistent Q&A relationship without a routing protocol. Depth, capacity, worktree seating, and model behavior are explicit support gates rather than unverified assumptions.
+
+### Topic: Pre-mutation readiness and operation ordering
+
+- **Spec link:** Requirements 1, 2, 4, 5; Acceptance criteria 1–4, 6–9
 - **Options:**
-  1. Ship a dependency-free Node MCP supervisor and treat Node plus compatible Codex as setup prerequisites.
-  2. Use a Codex SDK and install its language/runtime dependencies separately.
-  3. Ship platform-specific native binaries or bundled runtimes.
-- **Trade-offs:** A standard-library Node server matches a first-party plugin and avoids package installation, but adds a Node prerequisite and requires cross-platform launch validation. An SDK supplies higher-level bindings but adds dependency installation and a second bundled Codex runtime. Native binaries avoid a user runtime but require per-platform builds, signing, selection, and security updates.
-- **Decision:** Declare the supervisor in the plugin's `.mcp.json` with `command: "node"`, `args: ["./codex/supervisor.mjs"]`, `cwd: "."`, bounded startup/tool timeouts, and parallel calls disabled. Support Node 22 or newer supported LTS releases. During release, establish and encode the oldest passing Codex version; setup also behaviorally preflights the stable methods, auth, requested models/efforts, profile-only instruction loading, and child lifecycle-MCP suppression.
+  1. Create or modify run state and then discover unsupported permissions or native capabilities.
+  2. Resolve the full run plan and pass Codex readiness before branch, worktree, artifact, tracker, or resume-cleanup mutation.
+- **Trade-offs:** Early readiness moves Codex mode and phase choices ahead of activation, but prevents incomplete setup from leaving pipeline or tracker state. Claude Code retains its current entry order.
+- **Decision:** Codex first performs read-only issue, Git, pipeline, and tracker inspection; resolves the operation, workflow mode, phase/lane choices, role/model plan, planned branches, and absolute worktrees; and computes peak native capacity. It then checks:
 
-  `open_run` executes the complete gate before pipeline branches, worktrees, or artifacts are created. It acquires `<git-common-dir>/radical-pipelines/codex/<run-key>/lock.json`, where `run-key` hashes the run branch and artifact folder; validates atomic state writes; initializes app-server; and reconciles prior threads. State records schema/runtime versions, `CODEX_HOME`, logical-agent/thread/turn mappings, generations, statuses, retry counters, and timestamps. It excludes prompts, replies, credentials, environment values, artifact contents, and completion claims. Writes use same-directory temporary files, sync, atomic rename, owner-only permissions, and fail closed for unknown schemas. A heartbeat lease rejects live owners and permits conservative stale recovery after host, boot, PID, and expiry checks.
+  - Codex plugin and conventions are complete;
+  - native hierarchical subagents and required tools are available;
+  - `agents.max_depth=2` and capacity cover the plan;
+  - every role is pinned to `gpt-5.6-sol`;
+  - the active local permission mode, inherited unchanged by subagents, covers every assigned worktree and required tool.
 
-  Retry only transient lifecycle failures within the existing health budget: restart app-server and reconcile after process/protocol loss; verify delivery before resending; steer once then interrupt and respawn a stalled agent; retry connection/stream/overload failures before the configured wait; and start a fresh generation after context loss. Setup, compatibility, model, policy, sandbox, approval, lock, state-integrity, and recursive-supervisor failures stop or escalate without broadening permissions. A `CODEX_HOME` change invalidates stored thread continuity, so recovery inspects Git and artifacts and starts new generations.
+  A failed or unsupported check stops before run branch, worktree, artifact, tracker, or resume-cleanup mutation and reports the exact missing capability, configuration, permission, path, or tool.
 
-  `poll_run` returns a bounded snapshot plus cursor-based events and a next-poll interval. Structured diagnostics under the same run directory record supervisor/app-server lifecycle, lock/state changes, request/thread/turn IDs, health progress, retries, versions, timestamps, sanitized bounded errors, and escalation fields. MCP stdout remains JSON-RPC; human logs use stderr. Diagnostics rotate and omit prompts, reasoning, environment values, and full agent output.
+  After readiness, operations use this order:
 
-  Tests cover JSONL correlation and malformed input, all six MCP operations, fake and real app-server preflights, thread persistence before turn start, error/retry transitions, locking and stale recovery, atomic state and schema migration, redaction/rotation, `CODEX_HOME` changes, child MCP suppression, multiple worktrees, path semantics, and the minimum/current Codex matrix. Surface/OS plugin-install tests prove relative launch behavior. Release work adds the Codex manifest and runtime paths to version sync, drift, and changeset relevance; updates README, package metadata, and CONTRIBUTING; and records a minor changeset. Tests target executable behavior rather than skill/profile wording.
-- **Rationale:** This uses the smallest observed cross-surface plugin runtime while making prerequisites and compatibility fail before visible pipeline work. Runtime state can recover conversations and health decisions but cannot manufacture phase completion, which remains a Git/artifact predicate.
+  | Operation | Exact order after readiness | Failure before dispatch |
+  | --- | --- | --- |
+  | Create | Stage source assets in a unique temporary directory that mirrors the future `0-intent/` names. Render `intent.md` with its final relative references resolved against that staging root and obtain owner approval. Create the run branch, worktree, and phase-0 folder; copy the staged assets, write the approved intent, and commit them. Apply tracker activation in order: running label, active pipeline version, assignee. Dispatch only after all three succeed. | Remove the staging directory on every exit. Before tracker activation, remove the newly created worktree and branch. On tracker failure, restore prior tracker values in reverse order, then remove the new worktree and branch. |
+  | Resume | Confirm the existing resume decision during read-only planning. Recreate the run worktree only if needed. Apply tracker activation in the same order. Perform the confirmed active-phase cleanup under the existing resume rules, then dispatch from the Git-derived resume point. | On tracker failure, restore prior values and remove only a worktree created by this attempt; leave the existing branch and artifacts untouched. On later cleanup failure, restore tracker values, stop, and report the Git state for the existing resume procedure. |
+  | Revise | Stage and approve the revision intent and assets exactly as for Create. Create the revision branch, worktree, and phase-0 folder; materialize and commit the approved phase-0 artifacts. Apply tracker activation in the same order, then dispatch. | Use the Create cleanup and tracker rollback behavior for the new revision branch and worktree. |
+  | Fork | Create the fork branch and worktree at the approved cut. Apply tracker activation in the same order, then dispatch from the selected phase. Inherited phase-0 assets remain in committed history. | On tracker failure, restore prior values, then remove the new fork worktree and branch. |
+
+  Tracker state is a synchronized projection, not a recovery source. Each activation snapshots the prior running-label, active-version, and assignee values. Successful mutations are reversed if a later tracker mutation fails. A failed rollback becomes an explicit tracker-reconciliation blocker; no agents dispatch.
+
+  Temporary phase-0 staging is outside the repository and contains only the draft assets needed for owner review. It is never pipeline state. Cancellation, failed Git activation, failed tracker activation, and success all delete it; a later session recreates it from the source if needed.
+- **Rationale:** This answers every ordering and cleanup question in Issue 3. Unsupported setup produces no partial run or tracker mutation, approved intents resolve real local assets before activation, and Claude Code's path does not change.
+
+### Topic: Health ownership, bounded recovery, and observability
+
+- **Spec link:** Requirements 1, 2, 5; Acceptance criteria 1, 2, 7–9
+- **Options:**
+  1. Use an external monitor to supervise the native orchestrator and children.
+  2. Keep monitoring in the live native ownership hierarchy and use Git-only resume when that hierarchy ends.
+- **Trade-offs:** In-band monitoring can steer and replace children it owns, but no child can replace a failed parent or deliver an escalation after the orchestrator stops. An external monitor would reintroduce the rejected controller problem and non-Git runtime state.
+- **Decision:** Every live parent monitors its direct children using native status, messaging, steering, and worktree progress. The orchestrator monitors analysts and its other direct children. Each analyst monitors only its researcher by returned opaque ID. Health occurrence counters remain in the live parent context and use the existing two-retry budget:
+
+  | Signal | Retry 1 | Retry 2 | Exhaustion |
+  | --- | --- | --- | --- |
+  | No-output stall | Send a status request or steer the same opaque ID. | Stop and replace that direct child; the replacement receives the same Git/artifact inputs and a new ID. | Parent escalates with the existing payload. |
+  | Message failure | Verify target status and resend to the same opaque ID. | Stop and replace the target child, then deliver the input to its new ID. | Parent escalates with the existing payload. |
+  | Authentication failure | Retry the native action with the required `gpt-5.6-sol` pin. | Replace the affected child with the same pin. | Parent escalates; model pinning is never weakened. |
+  | Network failure | Retry the failed tool action once. | Wait one health interval and retry once. | Parent escalates with the existing payload. |
+
+  Replacing an analyst also ends its researcher ownership; the new analyst spawns and owns a new researcher. Replacing a researcher is performed only by its analyst. Successful recovery resets that occurrence's budget.
+
+  If the orchestrator itself can no longer execute, no design component claims to switch, restart, reattach, or escalate for it. The live run ends at that boundary. After the local surface is usable, the owner resumes through the normal entry flow, which reconstructs state from branches, commits, artifacts, and completion predicates and creates a fresh native hierarchy.
+- **Rationale:** This directly resolves Issue 2 by limiting recovery to agents a live parent actually controls. It preserves bounded child recovery and steering while stating the honest orchestrator-failure boundary.
+
+### Topic: Durable state and Git-only resume
+
+- **Spec link:** Requirements 2, 3, 5; Acceptance criteria 2, 4, 5, 8, 9
+- **Options:**
+  1. Persist agent IDs, retry state, controller identity, or leases outside Git.
+  2. Treat all native lifecycle data as session-local and reconstruct only from committed pipeline state.
+- **Trade-offs:** External state can retain runtime hints but creates a second authority and cross-surface reconciliation. Git-only recovery loses in-flight messages and uncommitted work when a session ends.
+- **Decision:** Branches, commits, and committed artifacts are the only durable pipeline state. Opaque IDs, parent/child ownership, health counters, steering history, capacity reservations, and pending messages are live-session data and are never written as pipeline state. There is no controller lease, cross-clone coordination, repository UUID, thread registry, or runtime recovery file.
+
+  Resume uses the existing branch grammar, latest-run selection, artifact inspection, completion predicates, and active-phase cleanup. It never searches for or reattaches an old native agent. A new session creates fresh IDs and resumes from the last committed predicate-supported point. Cross-tool continuation uses the same Git evidence.
+- **Rationale:** This implements the owner's durable-state boundary and removes every superseded mechanism named by Issue 4.
+
+### Topic: Packaging, dependencies, and verification
+
+- **Spec link:** Requirements 1–5; Acceptance criteria 1, 2, 5–9
+- **Options:**
+  1. Accept configuration presence as sufficient support evidence.
+  2. Gate release and runtime admission on observable native behavior.
+- **Trade-offs:** Fixture runs cost release time but prevent unsupported surface assumptions from entering the design. Runtime readiness adds an early stop but avoids partial pipeline work.
+- **Decision:** Add the Codex plugin manifest, the Codex convention file, and the single shared tool-selection mapping. Add no lifecycle executable, SDK, MCP supervisor, detached process, or new runtime-state dependency. Keep Claude packaging and conventions independent.
+
+  Run the same fixture suite on the Codex desktop app, CLI, and IDE extension against disposable repositories and worktrees. Each surface must prove:
+
+  1. plugin installation and skill discovery;
+  2. `agents.max_depth=2`;
+  3. capacity for the representative peak hierarchy;
+  4. orchestrator → analyst → researcher nesting;
+  5. multiple analyst messages delivered to the same opaque researcher ID;
+  6. writes and commits isolated to each assigned worktree and branch;
+  7. steering of a live owned child;
+  8. the two-attempt recovery and escalation boundary for child stalls, message failures, authentication failures, and network failures;
+  9. termination of the native hierarchy followed by reconstruction from Git and committed artifacts only;
+  10. effective model `gpt-5.6-sol` for every spawned role.
+
+  A failed fixture blocks Codex support rather than adding a surface adapter or weakening behavior. Runtime readiness repeats the checks available from configuration and the active surface before mutation. Tests cover executable setup and workflow outcomes, not skill/profile wording.
+- **Rationale:** These fixtures are required proofs, not unverified capability claims. They cover every owner-directed cross-surface property and the acceptance criteria carried by the removed supervisor design.
 
 ## Open Questions
 
-- What is the oldest Codex release that passes the required lifecycle matrix? The implementation records that tested floor rather than inferring it from the current alpha build.
-- Do plugin-relative MCP cwd and child lifecycle-MCP suppression behave identically in desktop, CLI, IDE, macOS, Linux, and Windows? The release matrix must prove both.
+None. The owner decision closes the architecture. Fixture failures are release blockers, not prompts to select a fallback architecture.
 
 ## Risks
 
-- Plugin-relative MCP cwd, the minimum Codex version, and recursive supervisor suppression remain release gates until the integration matrix passes.
-- App-server schemas can drift without protocol negotiation; the tested floor, capability preflight, tolerant parsing, and actionable setup failures contain that risk.
-- `project_doc_max_bytes: 0` instruction suppression is verified locally but not explicitly documented; preflight failure must stop setup.
-- Codex thread history is scoped to one `CODEX_HOME`; losing it forces Git-level recovery and fresh agent conversations.
-- The file lease cannot prevent split brain on unreliable shared filesystems; ambiguous foreign-host ownership requires explicit recovery.
-- Node is an external prerequisite, managed policy may disable MCP tools or Git-directory writes, and supervisor restart behavior varies by host; the setup gate must surface each condition before pipeline work.
+- A local surface that cannot pass native nesting, capacity, worktree, permission, steering, recovery, or model fixtures blocks the feature because the design has no adapter fallback.
+- Orchestrator loss ends in-band monitoring. Resume recovers only committed Git/artifact progress; live messages, IDs, counters, and uncommitted work are intentionally non-durable.
+- Replacing a persistent agent loses its live conversation. The replacement receives the durable record and current task, then establishes new child IDs.
+- Tracker rollback can fail independently of Git cleanup. Such failure stops dispatch and surfaces the exact tracker divergence for reconciliation.
+- A process crash can leave an OS temporary staging directory. It contains no authoritative state; resume recreates assets from their source.
