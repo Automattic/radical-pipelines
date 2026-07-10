@@ -2,39 +2,43 @@
 
 ## Overview
 
-Radical Pipelines will support the Codex desktop app, CLI, and IDE extension when they operate on a local repository. Codex will use its native convention-based discovery, configuration, agent, messaging, model, shell, and worktree mechanisms while sharing the existing pipeline protocol with Claude Code. Parity means normal successful execution produces the same commits, artifacts, approvals, tracker state, phase outcomes, and close-out results; it does not require identical runtime controls.
+Radical Pipelines will support the Codex desktop app, CLI, and IDE extension when they operate on a local repository. Codex will share the existing pipeline protocol with Claude Code while using a Codex-specific distribution, configuration route, and autonomous-agent execution adapter. Parity means normal execution produces the same commits, artifacts, approvals, tracker state, phase outcomes, and close-out results; native controls may differ.
 
-The design adds a Codex distribution/runtime adapter and routes project configuration to the active tool. Shared orchestration, roles, branch grammar, run layout, artifact formats, phase boundaries, approval gates, and completion predicates remain canonical and unchanged. Existing inline Claude Code configuration remains valid. Health monitoring is conditional, and detached recovery is not part of the first release.
+The Codex autonomous adapter will run every phase agent as a long-lived local Codex CLI child process. This contract supplies the selected model with `--model`, roots the agent in its assigned worktree with `--cd`, and addresses it through a process-specific terminal handle. It does not use in-session collaboration threads, custom-agent registration, mailbox-wide waits, or a native close operation. The canonical skill, role profiles, branch grammar, run layout, artifact formats, phase boundaries, approval gates, and completion predicates remain shared and unchanged. Existing inline Claude Code configuration remains valid. Health monitoring is conditional, and detached recovery is out of scope.
 
 ## Approach
 
 The system has two layers:
 
-1. The shared protocol defines issue and pipeline operations, autonomous and assisted workflows, phase topology, agent roles, worktree isolation, guardrails, approvals, artifacts, commits, tracker synchronization, completion predicates, and close-out.
-2. An active-tool adapter defines convention discovery, native prerequisites, profile binding, spawning and addressing, model selection, and optional runtime capabilities.
+1. The shared protocol defines issue and pipeline operations, autonomous and assisted workflows, roles, worktree isolation, guardrails, approvals, artifacts, commits, tracker synchronization, completion predicates, and close-out.
+2. The active-tool adapter defines convention discovery, native prerequisites, profile delivery, agent execution, model selection, messaging, and optional runtime capabilities.
 
-At invocation, Radical Pipelines identifies the active adapter and resolves a committed configuration view before creating pipeline state. The shared project file supplies tool-neutral conventions and may route the active adapter to a separate committed file. The adapter may provide a durable inline fallback for existing configurations. Only the active tool participates in resolution. Committed completeness is validated before local overrides are applied; any failure enters the existing setup path before branches, worktrees, or artifacts are created. For Codex, this gate also validates an effective `agents.max_depth` of at least 2 and a native concurrent-thread cap of at least 3, enough for the root, analyst, and researcher.
+At invocation, Radical Pipelines identifies the active adapter and resolves a committed configuration view before creating pipeline state. The shared project file supplies tool-neutral conventions and may route the adapter to a separate committed file. An adapter may retain an inline fallback for existing configurations. Only the active tool participates in resolution. Committed completeness is validated before local overrides are applied; failure enters setup before branches, worktrees, tracker transitions, or pipeline artifacts are created.
 
-Codex exposes the canonical skill and `agents/<role>.md` profiles through native convention-based discovery. Its adapter translates shared orchestration requests into native spawns and keeps opaque runtime agent IDs in memory. Git remains the durable state boundary: the orchestrator verifies worktrees and branches before spawning, and verifies the expected commit, artifact, and completion predicate after an agent reports completion.
+Codex exposes the canonical skill to the invoking surface through native convention discovery. For autonomous work, the root orchestrator launches local Codex CLI processes rather than in-session collaboration agents. Each launch receives the absolute worktree, resolved model, and an initial prompt that directs the process to read one canonical `agents/<role>.md` profile completely, then supplies the task and conventions-passing block. `.codex/agents/*.toml` is not part of this phase-agent contract, so role instructions and model choices are not duplicated between native custom-agent files and `.rp.codex.md`.
 
-Autonomous Spec and Design-doc phases run one persistent analyst/researcher pair per lane, with the analyst owning Q&A for the pair. The shared protocol leaves launch ownership to the active adapter. Claude Code retains its current root-owned launch of both agents. Codex root spawns the analyst with a complete delegated-researcher descriptor; the analyst spawns exactly one researcher and addresses it by returned ID for the full Q&A. Writers, reviewers, consolidators, plan agents, and task agents are fresh instances. Agents that share a run worktree execute sequentially and commit before the next starts. Isolated lanes retain separate branches and worktrees and run independently in capacity-aware waves.
+Before autonomous pipeline mutation, the Codex adapter probes the actual child-process path from the current surface. It starts two concurrent, no-write CLI sessions, performs a process-specific request/reply round trip with each, verifies repository access and profile readability under `--cd`, verifies each configured model through `--model`, and shuts both sessions down. Additional distinct configured models receive a single no-write launch check. This observes effective authentication, project trust, model access, child-process concurrency, and terminal control after all native configuration layers have taken effect. The selected path does not use `features.multi_agent`, `agents.max_depth`, or `agents.max_threads`; their values, including an unset thread cap and its native default, do not participate in completeness.
 
-Assisted phases use no phase agents. The orchestrator produces the same research and final artifacts, records owner approval, commits the predicate-bearing artifact set, updates the tracker, pushes, and closes the run. Pipeline creation, listing, resumption, revision, and forking continue to derive state from the existing branch and artifact contracts, so either supported tool can continue the other's work without migration. Resume creates fresh runtime IDs and reconstructs progress from git evidence.
+Autonomous Spec and Design-doc phases retain one persistent analyst/researcher pair per lane, with the analyst deciding the Q&A. The Codex root owns both child processes and forwards the analyst's questions and researcher's answers verbatim between their process handles. Writers, reviewers, consolidators, plan agents, and task agents are fresh processes. Agents sharing a run worktree execute sequentially and commit before the next starts. Isolated lanes keep separate branches and worktrees and run in capacity-aware waves.
 
-Health-monitor operations run only when the active adapter declares and configures them. Claude Code retains its required monitor behavior; Codex may run without monitoring. Normal synchronous execution, durable git evidence, and the existing resume rules provide first-release failure visibility and recovery. No detached state or recovery mechanism is added.
+Assisted phases launch no phase agents. The orchestrator produces the same research and final artifacts, records owner approval, commits the predicate-bearing artifact set, updates the tracker, pushes, and closes the run. Pipeline listing, inspection, resumption, revision, and forking continue to derive state from existing branch and artifact contracts, so either tool can continue the other's work without migration. Resume creates fresh process handles and reconstructs progress from git evidence.
+
+Health-monitor operations run only when the active adapter configures them. Claude Code retains its required monitor behavior; Codex may run without monitoring. Synchronous process errors, durable git evidence, and existing resume rules provide first-release failure visibility and recovery.
 
 ## Components
 
-- **Canonical skill and role profiles:** Remain the single source for shared workflow behavior and role instructions. The Codex distribution/configuration component exposes these sources through native discovery without copying their bodies.
-- **Convention loader:** `skills/radical-pipelines/reference/conventions/load.md` selects the active adapter, resolves its route or fallback, merges shared and active-tool units, validates committed completeness, and then applies permitted local overrides.
-- **Convention setup:** `skills/radical-pipelines/reference/conventions/setup.md` uses the same resolution model. After owner confirmation, it writes the shared file, active routed file, and route entry as one coherent change. Adapter selection is based on a normalized identifier rather than a hard-coded tool table.
-- **Tool adapters:** `conventions/claude-code.md` owns Claude Code discovery, fallback, root-owned persistent-pair launch, spawn/model conventions, native prerequisites, and required monitoring. New `conventions/codex.md` owns Codex discovery, analyst-owned researcher launch, spawn/address/model conventions, native prerequisites, and optional monitoring. Its prerequisites include effective nesting depth of at least 2 and a native concurrent-thread cap of at least 3.
+- **Canonical skill and role profiles:** Remain the source of shared workflow behavior and role instructions. Codex phase processes read the assigned canonical profile from the repository.
+- **Convention loader:** `skills/radical-pipelines/reference/conventions/load.md` selects the active adapter, resolves its route or fallback, merges shared and active-tool units, validates committed completeness, then applies permitted local overrides.
+- **Convention setup:** `skills/radical-pipelines/reference/conventions/setup.md` uses the same resolution model. After owner confirmation, it writes the shared file, active routed file, and route entry as one coherent change. Adapter selection uses a normalized identifier rather than a tool table.
+- **Tool adapters:** `conventions/claude-code.md` owns Claude Code discovery, spawning, models, native prerequisites, fallback, and required monitoring. New `conventions/codex.md` owns Codex discovery, CLI child-process execution, models, process messaging, preflight, setup actions, and optional monitoring.
 - **Project configuration:** `.rp.md` contains shared conventions and the route map. `.rp.claude.md` and `.rp.codex.md` contain committed tool-owned values. `.rp.local.md` remains the single uncommitted override file.
-- **Codex distribution/configuration:** Native Codex metadata binds the canonical skill and profiles to each local Codex surface. Concrete filenames and schema follow the accepted Codex discovery convention selected during implementation. The effective native configuration exposes nesting depth and concurrent-thread capacity to completeness validation.
-- **Shared autonomous and resume references:** Define one persistent analyst/researcher pair per lane, analyst-owned Q&A, lane isolation, scheduling outcomes, and monitor lifecycle without assigning launch ownership. Each adapter assigns launch ownership, and each spawning owner receives every required spawn input.
-- **Health monitoring:** `health-monitoring.md` remains one shared policy whose operations are conditional on the active adapter's configured capability.
-- **Release and documentation surfaces:** README, package description, website documentation, contributor guidance, and a minor changeset describe the new supported tool. A version-bearing Codex manifest, if selected, joins version synchronization, drift checks, release coverage, and behavioral tests.
-- **Unchanged contracts:** Pipeline versioning, branch and worktree topology, artifacts, phase predicates, agent profiles, guardrails, Claude manifest behavior, dependencies, and release workflow retain their current semantics.
+- **Codex distribution:** Native Codex metadata exposes the canonical skill to each local surface. Phase-agent roles remain canonical repository files and require no generated custom-agent definitions.
+- **Codex process adapter:** Resolves role models, launches each child with `--model` and `--cd`, delivers the profile/task prompt, frames messages, tracks process handles, reads process-specific output, and ends terminal sessions.
+- **Codex capability preflight:** Exercises the selected child-process contract without repository writes before an autonomous workflow creates pipeline state.
+- **Shared autonomous and resume references:** Define role lifetimes, Q&A ownership, lane isolation, scheduling outcomes, git verification, and monitor lifecycle. Tool adapters own runtime mechanics.
+- **Health monitoring:** `health-monitoring.md` remains one shared policy whose operations depend on the active adapter's configured capability.
+- **Release and documentation surfaces:** README, package description, website documentation, contributor guidance, and a minor changeset describe Codex support. A version-bearing Codex manifest, if selected, joins version synchronization, drift checks, release coverage, and behavioral tests.
+- **Unchanged contracts:** Pipeline versioning, branch and worktree topology, artifacts, phase predicates, guardrails, Claude manifest behavior, dependencies, and release workflow retain their current semantics.
 
 ## Interfaces and Data Flow
 
@@ -49,7 +53,7 @@ The committed root `.rp.md` ends with a route map:
 `codex`: `.rp.codex.md`
 ```
 
-Adapter IDs are stable. Route values are committed, repository-root-relative Markdown paths. Each active adapter contributes its expected route, any supported inline fallback, native prerequisites, canonical spawn/model conventions, and monitoring requirement.
+Adapter IDs are stable. Route values are committed, repository-root-relative Markdown paths. Each adapter contributes its expected route, supported inline fallback, native prerequisites, canonical Team spawning and model conventions, and monitoring requirement.
 
 New local overrides use this shape:
 
@@ -73,48 +77,70 @@ Configuration resolution is:
 2. Use its single configured route, or its declared inline fallback when no route exists.
 3. Require a routed target to be readable and inside the repository.
 4. Merge shared and active-tool units, rejecting duplicate unit names.
-5. Validate the committed merged view and native prerequisites, including Codex nesting depth and concurrent-thread capacity.
+5. Validate the committed merged view and the adapter's static prerequisites.
 6. Apply flat whole-unit overrides, then more-specific active-adapter units, from the main-root `.rp.local.md`.
+7. Before autonomous mutation, run the active adapter's effective-capability preflight.
 
-Inactive routes and files do not participate. Missing routes, files, units, or prerequisites invoke setup before any pipeline mutation. Local overrides cannot repair committed incompleteness.
+Inactive routes and files do not participate. Local overrides cannot repair committed incompleteness.
 
-### Agent spawn and addressing contract
+### Codex agent execution contract
 
-Every spawn receives:
-
-- the canonical `agents/<role>.md` profile through native binding or an explicit read-and-follow directive;
-- the verbatim task payload and conventions-passing block;
-- the role model override, otherwise `Default`, otherwise the native default, passed opaquely to the runtime;
-- the assigned worktree and branch; and
-- all role-specific delegated-spawn inputs.
-
-The shared persistent-pair contract requires one analyst and one researcher per lane, kept available for the lane's Q&A, with the analyst owning that exchange. Launch ownership is adapter-specific. Claude Code keeps the current behavior in which root launches both agents. Codex uses root → analyst → researcher.
-
-Codex records each successful spawn in memory as:
+The Codex adapter starts one long-lived CLI process per role invocation with this launch contract:
 
 ```text
-{ role, lane, worktree, branch, opaqueAgentId, state }
+codex --model <resolved-model> --cd <absolute-worktree>
 ```
 
-Every message, follow-up, wait, and close targets `opaqueAgentId`. A missing ID is a failed spawn. IDs are never committed and never used for resume.
+Model resolution is the role override, then `Default`, then the CLI's native default. The adapter omits `--model` only for the native-default case. The initial prompt includes:
 
-For a Codex persistent pair, root supplies the analyst with a delegated-researcher descriptor containing the exact researcher role/profile, resolved model/settings, task, and conventions. The analyst spawns one researcher from that descriptor and retains the returned ID throughout Q&A; it does not resolve project configuration itself. All non-persistent role invocations receive fresh IDs.
+- a directive to read and follow the exact canonical `agents/<role>.md` file;
+- the verbatim task payload and conventions-passing block;
+- the expected absolute worktree and branch;
+- a unique run/lane/role nonce and message-framing rules; and
+- the required pre-write worktree, branch, HEAD, and status verification.
+
+`--cd` establishes the process working directory before the agent acts. The pre-write handshake confirms the repository root and branch. All file references in the task are absolute or worktree-relative. A mismatch stops the process before writes.
+
+Each live process has an in-memory record:
+
+```text
+{ role, lane, worktree, branch, model, processHandle, nextSequence, state }
+```
+
+The adapter writes framed messages to that process's stdin and reads only that process's stdout/stderr. Frames carry the nonce and a monotonic sequence so interleaved terminal output cannot be attributed to another role. Waiting means polling or reading the selected process handle; the mailbox-wide in-session wait is unused. On terminal role output, the orchestrator first verifies the expected commit, artifact, and predicate, then sends the process an exit/EOF request and waits for process exit. If it remains live, the adapter interrupts that process and reports cleanup. No native collaboration close operation is assumed. Process handles are never committed or used for resume.
+
+For a persistent Spec or Design-doc pair, root launches both processes. The analyst emits a framed research request; root forwards its payload unchanged to the researcher, then forwards the framed response unchanged to the analyst. Root transports messages but does not participate in Q&A. All other role invocations receive a fresh process and handle.
+
+### Effective-capability preflight
+
+The preflight runs after configuration resolution and before issue lookup changes tracker state or git creates pipeline branches, worktrees, or artifacts. It performs these bounded, read-only checks from the invoking desktop, CLI, or IDE surface:
+
+1. Resolve the Codex CLI executable and confirm that it can start an authenticated local session.
+2. Start two sessions concurrently with `--cd <repository-root>` and configured model flags. Keep both live while each receives a nonce-tagged follow-up and returns the matching response through its own process handle.
+3. Require each probe to report the expected repository root and branch and to read its assigned canonical profile without modifying the worktree.
+4. Launch a read-only probe for every remaining distinct configured model and require successful model acceptance.
+5. Request clean exit, confirm process termination, and confirm unchanged git status.
+
+Successful evidence is the invoked executable and flags, process handles, nonce/sequence round trips, reported root and branch, profile-read acknowledgements, exit statuses, and before/after git status. Because this probes the effective child sessions, an authentication or trust prompt, rejected model, unavailable persistent terminal, cross-wired output, concurrency failure, timeout, or dirty result fails completeness regardless of which native configuration layer caused it.
+
+The selected process adapter does not call native multi-agent spawning. `features.multi_agent`, `agents.max_depth`, and `agents.max_threads` therefore cannot accept or reject a run. An unset thread cap needs no special handling; lane concurrency is controlled by the number of child processes the adapter starts, and the two-session probe establishes the minimum root/analyst/researcher topology.
 
 ### Autonomous data flow
 
 ```text
 active adapter
   -> committed convention completeness
+  -> effective child-process preflight
   -> issue/run initialization and tracker reconciliation
-  -> isolated phase worktrees and capacity-aware agent execution
-  -> agent report
+  -> isolated worktrees and capacity-aware child processes
+  -> framed process report
   -> commit + artifact + predicate verification
   -> required owner/reviewer gate
   -> tracker phase transition
-  -> pushes, cleanup, summary, and run close-out
+  -> process cleanup, pushes, summary, and close-out
 ```
 
-Codex completeness requires an effective `agents.max_depth` of at least 2 and a configured concurrent-thread cap of at least 3 before issue or pipeline state is created. After that gate passes, the orchestrator reserves live capacity for root, analyst, and researcher before starting a Codex persistent pair. Transient saturation queues work. Additional isolated lanes run in waves when capacity is constrained. Lane isolation, branch ownership, and mutual blindness are preserved regardless of scheduling.
+The orchestrator reserves capacity for an analyst and researcher process before starting a persistent pair. Additional isolated lanes run in waves. Lane isolation, branch ownership, and mutual blindness are preserved regardless of scheduling.
 
 ### Assisted data flow
 
@@ -127,82 +153,77 @@ active adapter
   -> tracker update, push, and close-out
 ```
 
+Assisted mode does not require the child-process preflight because it launches no phase processes.
+
 ### Durable pipeline state
 
-Branches, pipeline-family/run/lane layout, artifact paths and formats, commits, approval markers, and completion predicates remain the only cross-session and cross-tool state. Runtime task lists, native controls, and opaque agent IDs are transient. Listing, inspection, resume, revision, and fork therefore operate on identical evidence in Codex and Claude Code.
+Branches, pipeline-family/run/lane layout, artifact paths and formats, commits, approval markers, and completion predicates remain the only cross-session and cross-tool state. Process handles, message sequences, terminal state, and native controls are transient. Listing, inspection, resume, revision, and fork therefore operate on identical evidence in Codex and Claude Code.
 
-Incomplete Spec or Design work and unapproved-plan work restart cleanly after confirmation. Approved-plan Build or Document work is investigated from plans, commits, and diffs. Resume first reconciles incomplete tracker, push, or configured-monitor cleanup, then assigns fresh runtime IDs.
+Incomplete Spec or Design work and unapproved-plan work restart cleanly after confirmation. Approved-plan Build or Document work is investigated from plans, commits, and diffs. Resume first reconciles incomplete tracker, push, process cleanup, or configured-monitor cleanup, then runs any required preflight and assigns fresh process handles.
 
 ## Key Decisions
 
 ### Decision: Keep one shared protocol behind runtime adapters
 
-- **Choice:** Add a Codex-native distribution/runtime adapter around the canonical skill and profiles. Keep tool-specific discovery, spawning, models, and optional capabilities in adapters.
-- **Alternatives:** Combine all conventions in `.rp.md`; copy the skill for Codex; introduce a new executable orchestration engine.
-- **Trade-offs:** Adapters add explicit routing and precedence, but avoid duplicated contracts, runtime dependencies, and tool-specific leakage into shared prose.
+- **Choice:** Add a Codex distribution/runtime adapter around the canonical skill and profiles. Keep tool-specific discovery, agent execution, models, and optional capabilities in adapters.
+- **Alternatives:** Combine all conventions in `.rp.md`; copy the skill for Codex; introduce a new shared orchestration engine.
+- **Trade-offs:** Adapters add routing and precedence while avoiding duplicated pipeline contracts and tool-specific leakage into shared prose.
 - **Traces to:** Requirements 1–5; acceptance criteria 1–10.
 
 ### Decision: Route committed tool configuration with a legacy fallback
 
-- **Choice:** Store shared conventions in `.rp.md`, route new tool-owned values to `.rp.claude.md` or `.rp.codex.md`, and preserve the Claude adapter's existing inline configuration as a fallback. Prefer the route when both exist.
-- **Alternatives:** Put both tools in `.rp.md`; require migration to routed files; add separate local override files per tool.
-- **Trade-offs:** A route map adds configuration structure. It lets Codex setup avoid rewriting working Claude values, keeps inactive configuration irrelevant, and retains one local override lookup.
+- **Choice:** Store shared conventions in `.rp.md`, route new tool-owned values to `.rp.claude.md` or `.rp.codex.md`, and preserve the Claude adapter's existing inline fallback. Prefer the route when both exist.
+- **Alternatives:** Put both tools in `.rp.md`; require migration; add separate local override files per tool.
+- **Trade-offs:** A route map adds configuration structure. It lets Codex setup preserve working Claude values, keeps inactive configuration irrelevant, and retains one override lookup.
 - **Traces to:** Requirements 4 and 5; acceptance criteria 6, 8, and 10.
 
-### Decision: Use Codex convention-based discovery for canonical sources
+### Decision: Run Codex agents as CLI child processes
 
-- **Choice:** Bind the existing skill and role profiles through Codex-native repository conventions, using a read-and-follow directive when direct file binding is unavailable.
-- **Alternatives:** Embed or copy prompt bodies into Codex metadata; maintain Codex-specific profiles.
-- **Trade-offs:** Native binding depends on the selected schema but preserves one source of truth and prevents profile drift.
-- **Traces to:** Requirements 1, 4, and 5; acceptance criteria 1, 6, 8, and 10.
+- **Choice:** Use a long-lived local Codex CLI process for every phase-agent invocation. Select its model with `--model`, root it with `--cd`, load its role by direct canonical-profile instruction, and communicate through its terminal handle.
+- **Alternatives:** Use in-session collaboration threads; register duplicated native custom agents; build a new executable service.
+- **Trade-offs:** Every surface needs authenticated CLI and persistent terminal control, and root must frame terminal messages. In return, the design uses exposed controls for per-role models, worktrees, targeted messaging, waiting, and cleanup without custom-agent drift.
+- **Traces to:** Requirements 1, 2, 4, and 5; acceptance criteria 1, 2, 4, 6–8, and 10.
 
-### Decision: Address agents by transient opaque ID
+### Decision: Keep Codex persistent-pair transport root-owned
 
-- **Choice:** Keep an in-memory record for each instance and target every operation by its returned ID. Use commits and artifacts, not reports or IDs, as completion evidence.
-- **Alternatives:** Route by reusable role name; persist runtime IDs as pipeline state.
-- **Trade-offs:** The spawning owner must retain more runtime state, but fresh iterations remain unambiguous and resume stays independent of transient sessions.
-- **Traces to:** Requirement 2; acceptance criteria 2, 4, 5, and 7.
-
-### Decision: Keep persistent-pair ownership adapter-specific
-
-- **Choice:** The shared protocol defines one persistent analyst/researcher pair and analyst-owned Q&A while each adapter owns launch topology. Claude Code keeps root-owned launch of both roles. Codex root supplies a fully resolved descriptor to the analyst, which launches and owns exactly one researcher for the lane's complete Q&A.
-- **Alternatives:** Require one launch topology for both tools; let the Codex analyst rediscover project configuration; replace the pair with one agent.
-- **Trade-offs:** Adapter-specific ownership adds two launch paths. It preserves the shared role/Q&A invariant, fits Codex opaque-ID addressing, and avoids changing Claude Code behavior.
+- **Choice:** Root launches the analyst and researcher processes and forwards their framed Q&A verbatim while the analyst owns the questions.
+- **Alternatives:** Require nested in-session spawning; let agents discover project configuration; replace the pair with one role.
+- **Trade-offs:** Root performs message transport, but role ownership, persistence, model selection, and worktree isolation remain explicit without native nesting.
 - **Traces to:** Requirements 2 and 5; acceptance criteria 2, 7, and 10.
 
-### Decision: Validate Codex nesting before capacity-aware scheduling
+### Decision: Probe the effective execution path before mutation
 
-- **Choice:** During completeness, require effective Codex nesting depth of at least 2 and a concurrent-thread cap of at least 3. After validation, reserve the root/analyst/researcher minimum, run additional isolated lanes independently as capacity permits, and keep shared-worktree agents sequential.
-- **Alternatives:** Discover insufficient nesting at the first researcher spawn; require every lane to run simultaneously; relax lane isolation.
-- **Trade-offs:** The preflight adds native configuration validation and waves may extend elapsed time. Known prerequisites fail before pipeline mutation while required roles, isolation, commits, and outcomes remain intact.
+- **Choice:** Use concurrent, read-only child sessions to verify authentication, trust, model access, worktree rooting, profile access, process messaging, capacity, and shutdown after native precedence has resolved.
+- **Alternatives:** Infer capability from committed files; reconstruct every native configuration layer; discover failure during the first phase.
+- **Trade-offs:** Preflight adds startup time and local sessions. It observes the selected path directly, accepts valid native defaults, and fails before partial pipeline work.
 - **Traces to:** Requirements 1, 2, and 5; acceptance criteria 1, 2, 4, 7, 8, and 10.
 
 ### Decision: Keep git and predicate-bearing artifacts authoritative
 
-- **Choice:** Preserve the existing branch grammar, run layout, artifact formats, commits, approvals, and completion predicates as durable state. Resume assigns fresh runtime IDs.
-- **Alternatives:** Persist native runtime state; introduce a migration layer between tools.
-- **Trade-offs:** Runtime progress before a commit is intentionally disposable, while cross-session and cross-tool operations remain deterministic and interoperable.
+- **Choice:** Preserve branch grammar, run layout, artifact formats, commits, approvals, and completion predicates as durable state. Resume assigns fresh process handles.
+- **Alternatives:** Persist terminal state; introduce cross-tool migration.
+- **Trade-offs:** Uncommitted runtime progress is disposable, while cross-session and cross-tool operations remain deterministic.
 - **Traces to:** Requirements 2 and 3; acceptance criteria 2–5.
 
 ### Decision: Preserve assisted semantics without phase agents
 
-- **Choice:** Have the orchestrator produce and commit the same predicate-bearing artifacts after owner approval, with no assisted phase-agent spawns.
-- **Alternatives:** Force assisted mode through autonomous topology; define Codex-only assisted outcomes.
-- **Trade-offs:** Native interaction differs from autonomous mode, but the durable phase result remains identical.
+- **Choice:** Have the orchestrator produce and commit the same predicate-bearing artifacts after owner approval, with no assisted phase-agent processes.
+- **Alternatives:** Force assisted mode through autonomous execution; define Codex-only outcomes.
+- **Trade-offs:** Native interaction differs from autonomous mode, but the durable phase result is identical.
 - **Traces to:** Requirement 2; acceptance criterion 3.
 
 ### Decision: Make monitoring conditional and omit detached recovery
 
-- **Choice:** Invoke shared monitor operations only when the active adapter configures Health monitoring. Preserve Claude Code's monitor and allow Codex to omit it.
-- **Alternatives:** Require a Codex monitor; remove monitoring globally; build detached recovery for Codex.
-- **Trade-offs:** Unmonitored stalls may require owner interruption and resume from git, but optional capabilities do not block normal first-release conformance or regress Claude Code.
+- **Choice:** Invoke monitor operations only when the active adapter configures Health monitoring. Preserve Claude Code's monitor and allow Codex to omit it.
+- **Alternatives:** Require a Codex monitor; remove monitoring globally; build detached recovery.
+- **Trade-offs:** Unmonitored stalls may require owner interruption and git-based resume, but optional capabilities do not block first-release conformance or regress Claude Code.
 - **Traces to:** Requirements 2 and 5; acceptance criteria 7, 9, and 10.
 
-### Decision: Keep the runtime dependency-free and verify outcomes on real surfaces
+### Decision: Keep repository runtime dependencies unchanged
 
-- **Choice:** Use prose/config adapters plus existing git and Markdown contracts. Automate executable metadata checks and verify orchestration through black-box surface runs.
+- **Choice:** Use the installed Codex CLI, terminal control, existing git, and Markdown contracts. Automate executable metadata checks and verify orchestration through black-box surface runs.
 - **Alternatives:** Add a daemon, database, hosted service, mandatory integration server, or prompt-structure tests.
-- **Trade-offs:** Manual surface evidence is expensive, but it tests the actual product boundary. Automated checks remain focused on executable manifests, releases, and version drift rather than duplicating prose in brittle tests.
+- **Trade-offs:** Surface evidence is expensive, but it tests the product boundary without adding repository runtime packages or brittle prose tests.
 - **Traces to:** Requirements 1–5; acceptance criteria 1–10.
 
 ## Dependencies
@@ -210,53 +231,59 @@ Incomplete Spec or Design work and unapproved-plan work restart cleanly after co
 The design depends on:
 
 - the canonical Radical Pipelines skill and role profiles;
-- Codex convention-based repository discovery and native local agent, messaging, model, shell, worktree, depth-2 nested-spawn, and three-thread capabilities;
+- native Codex repository discovery for the invoking surface;
+- an authenticated local Codex CLI supporting `--model` and `--cd`;
+- surface terminal control that can keep two child processes live, address their stdin/stdout separately, poll them, and interrupt them;
 - raw git branches, commits, and worktrees;
 - Markdown configuration and pipeline artifacts;
 - existing project-selected Issues, Guardrails, tracker, remote, and approval conventions; and
 - Claude Code only for bidirectional interoperability and regression verification.
 
-It adds no package, lockfile dependency, daemon, database, hosted service, mandatory integration server, health monitor, or detached recovery service. A selected Codex manifest participates in version synchronization only if its schema stores the project version.
+The repository adds no package or lockfile dependency, daemon, database, hosted service, mandatory integration server, custom-agent profile copy, health monitor, or detached recovery service. A selected Codex distribution manifest participates in version synchronization only if its schema stores the project version.
 
 ## Failure Modes and Observability
 
-- **Configuration failure:** A missing/duplicate route, unreadable or out-of-repository file, conflicting unit, incomplete committed convention, missing native prerequisite, Codex `agents.max_depth` below 2, or Codex concurrent-thread cap below 3 stops before pipeline mutation. The error identifies the adapter ID, path or native setting, effective value, required value, exact missing items, and setup action. Local overrides cannot mask it.
-- **Setup interruption:** Setup confirms the complete write set and treats the shared file, route, and active tool file as one change. Existing inline Claude values remain available until the routed configuration validates.
-- **Capacity shortage:** A configured cap below the Codex three-thread minimum fails completeness. With valid configuration, transient saturation waits until root plus an analyst/researcher pair can run. A required surface that cannot honor valid depth and capacity settings fails its release smoke rather than narrowing roles or surface coverage.
-- **Spawn/address failure:** A spawn error, missing opaque ID, failed ID-targeted operation, lost ID, cancellation, or agent failure stops the active run. Diagnostics include role, ID, lane, expected and actual worktree/branch/HEAD/status, last successful message, commit, artifact, native error, predicate result, and next safe action.
-- **Worktree/ref mismatch:** Every agent verifies its worktree and branch before writing. A mismatch stops the agent. Commits on an unintended ref are preserved for owner-directed cleanup.
-- **False completion:** An agent report is followed by verification of the expected commit, artifact, and predicate. Missing evidence stops progression.
-- **Tracker failure:** Run-start failure stops before phase agents. Phase-status failure stops before the next phase while preserving the completed predicate. Resume reconciles tracker state before dispatch.
-- **Push or close-out failure:** Monitor cancellation when configured, tracker cleanup, pushes, and reporting are attempted independently. Each result is surfaced, and local commits remain intact.
-- **Agent blocker or rejection cycle:** Existing verbatim blocker/fork behavior remains. Every third rejection triggers the existing repetition inspection.
-- **Unmonitored Codex stall:** The owner may interrupt and resume from git. Its absence does not change completion evidence or require detached recovery.
+- **Committed configuration failure:** A missing or duplicate route, unreadable or out-of-repository file, conflicting unit, or incomplete committed convention stops before mutation. The error identifies the adapter, path, missing item, and setup action. Local overrides cannot mask it.
+- **Executable or authentication failure:** A missing CLI or failed authenticated launch reports the executable resolution and native error, then directs setup to install or sign in to Codex.
+- **Trust or repository-access failure:** A trust prompt, wrong root, unreadable profile, or rejected repository access reports the expected and observed root/branch and directs setup to trust the project or correct its Codex repository access.
+- **Model failure:** Rejection of a configured role or default model identifies the convention unit, role, requested model, command result, and setup action to choose an accessible model.
+- **Terminal-contract failure:** Missing persistent-process control, crossed nonce/sequence replies, failed stdin/stdout routing, timeout, or failed clean exit reports both process records and native output. Setup identifies the missing surface capability. A reproducible failure on a required surface blocks release conformance.
+- **Probe mutation:** Changed git status after preflight fails completeness, preserves the diff, and requires owner-directed cleanup before retry.
+- **Runtime capacity shortage:** The preflight establishes two concurrent child sessions. Later transient saturation queues work. Failure to reserve a persistent pair stops before launching either role.
+- **Process failure:** Unexpected exit, failed write/read, lost handle, cancellation, or interrupt failure stops the active run. Diagnostics include role, handle, lane, model, expected and actual worktree/branch/HEAD/status, last sequence, native output, commit, artifact, predicate result, and next safe action.
+- **Worktree/ref mismatch:** Each process verifies its worktree and branch before writing. A mismatch stops it. Commits on an unintended ref are preserved for owner-directed cleanup.
+- **False completion:** A terminal report is followed by verification of the expected commit, artifact, and predicate. Missing evidence stops progression.
+- **Tracker failure:** Run-start failure stops before phase processes. Phase-status failure stops before the next phase while preserving the completed predicate. Resume reconciles tracker state before dispatch.
+- **Push or close-out failure:** Process cleanup, configured-monitor cancellation, tracker cleanup, pushes, and reporting are attempted independently. Every result is surfaced, and local commits remain intact.
+- **Agent blocker or rejection cycle:** Existing blocker/fork behavior remains. Every third rejection triggers the existing repetition inspection.
+- **Unmonitored Codex stall:** The owner may interrupt and resume from git. Monitoring absence does not change completion evidence.
 
-Observable evidence consists of native errors and logs, branch/worktree state, commits and SHAs, committed artifacts, guardrail output, rejection records, approval markers, summaries, tracker state, pushes, cleanup results, and completion-predicate evaluations. No runtime agent identity is needed after the session.
+Observable evidence consists of preflight commands and process handles, nonce/sequence frames, native output and exit statuses, branch/worktree state, commits and SHAs, artifacts, guardrail output, rejection records, approval markers, summaries, tracker state, pushes, cleanup results, and predicate evaluations. No process identity is needed after the session.
 
 ## Acceptance Verification
 
 | Criterion | Verification evidence |
 | --- | --- |
-| 1. Surface coverage | Complete autonomous runs through Document on desktop, CLI, and IDE, with committed artifacts and identical phase outcomes. |
-| 2. Autonomous workflow | A run from an issue through Document records required roles, persistent pairs, reviews, approvals, guardrails, commits, tracker transitions, predicates, pushes, summaries, and close-out. |
-| 3. Assisted workflow | Assisted Spec and Design-doc on every surface use no phase agents and commit research, final artifact, approval marker, tracker result, and close-out evidence. |
-| 4. Pipeline operations | Create/list/resume/revise/fork scenarios verify existing versioning, branch, worktree, lane, artifact, restart, investigation, and cleanup behavior. |
+| 1. Surface coverage | Desktop, CLI, and IDE each pass the child-process preflight and complete an autonomous run through Document with committed artifacts and matching phase outcomes. |
+| 2. Autonomous workflow | A run through Document records the analyst/researcher processes and Q&A frames, fresh role processes, model flags, worktrees, reviews, approvals, guardrails, commits, tracker transitions, predicates, pushes, summaries, and close-out. |
+| 3. Assisted workflow | Assisted Spec and Design-doc on every surface launch no phase processes and commit research, final artifact, approval marker, tracker result, and close-out evidence. |
+| 4. Pipeline operations | Create/list/resume/revise/fork scenarios verify existing versioning, branch, worktree, lane, artifact, restart, investigation, and cleanup behavior; resumed agents receive fresh process handles. |
 | 5. Cross-tool continuation | Each tool lists, resumes, revises, and forks pipelines created by the other with matching state and no migration commit or artifact rewrite. |
-| 6. Configuration coexistence | Add routed Codex configuration to a working Claude project, preserve Claude values verbatim, exercise active-only routing and overrides, and run both tools successfully. |
-| 7. Surface capability differences | Distribute divergent topology, multilane isolation, and capacity-wave cases across the three surfaces while comparing durable outcomes rather than controls. |
-| 8. Incomplete setup | Missing route, file, Team spawning, native profile, Codex depth-2 nesting, or Codex three-thread capacity each stops before new pipeline state and surfaces the setup path. |
+| 6. Configuration coexistence | Add routed Codex configuration to a working Claude project, preserve Claude values verbatim, exercise active-only routing and overrides, then run both tools successfully. |
+| 7. Surface capability differences | Distribute divergent topology, multilane isolation, model override, and capacity-wave cases across the surfaces while comparing durable outcomes rather than controls. |
+| 8. Incomplete setup | Missing route/file, CLI/authentication, trust/repository access, model access, profile access, persistent terminal control, two-process capacity, message round trip, or clean shutdown each fails before new pipeline state and reports its setup action. Native multi-agent/depth/thread settings do not affect the selected path. |
 | 9. Optional monitoring | Run Codex without Health monitoring on every surface and complete normally. |
-| 10. No Claude Code regression | Verify unchanged install/invocation, root-owned persistent-pair launch, autonomous and assisted outcomes, artifacts, predicates, and configured monitor behavior. |
+| 10. No Claude Code regression | Verify unchanged install/invocation, autonomous and assisted outcomes, artifacts, predicates, and configured monitor behavior. |
 
-Automated verification runs the existing test suite, changeset validation, version drift checks, and the selected native manifest validator. If the Codex manifest stores the project version, version synchronization and drift tests cover it. Manual records include surface/runtime version, effective nesting/thread settings, transcripts, role/ID/model records, worktree and branch listings, logs, SHAs, artifacts read from commits, guardrail output, tracker state, pushes, and close-out results. Each Codex surface verifies that depth or thread settings below the minimum fail before pipeline mutation, then completes the nested-pair smoke with valid settings.
+Automated verification runs the existing test suite, changeset validation, version drift checks, and the selected native manifest validator. If the Codex manifest stores the project version, version synchronization and drift tests cover it. Manual records include surface/runtime and child CLI versions, executable and flags, process handles, message frames, model choices, worktrees and branches, native output, exit statuses, SHAs, committed artifacts, guardrail output, tracker state, pushes, and close-out results. Every surface runs failure probes for trust, authentication, model selection, and process messaging, confirms unchanged git state, then completes the two-process probe and an autonomous nested-role-equivalent analyst/researcher flow.
 
 ## Risks and Open Questions
 
-- **Native binding selection:** The concrete Codex repository paths, manifest/profile schema, and install/discovery commands are an implementation choice under the accepted convention-based discovery premise. Validate the chosen binding on all three local surfaces and determine whether its manifest stores the project version.
-- **Nested capacity:** Every Codex invocation checks effective `agents.max_depth` of at least 2 and a concurrent-thread cap of at least 3 before pipeline mutation. Desktop, CLI, and IDE smoke tests then confirm each surface honors valid settings. A configuration mismatch enters setup; a surface that cannot honor them blocks release rather than changing role ownership or scope.
-- **Legacy configuration regression:** A route-only loader would break existing projects. Preserve the adapter fallback and flat local overrides, and verify an unchanged legacy project before and after Codex installation.
-- **Canonical profile binding:** If native metadata cannot reference source files, use explicit read-and-follow instructions. If neither mechanism preserves canonical sources, return to design instead of copying prompt bodies.
+- **CLI availability across surfaces:** Each surface must expose an authenticated CLI and process-specific terminal control. The three-surface release matrix validates this. A surface that cannot run the contract returns the design for revision rather than reducing surface scope or role parity.
+- **Terminal protocol robustness:** Native output may include unframed logs or prompts. Nonce/sequence framing and process-specific streams separate messages; any ambiguity stops the run and preserves git evidence.
+- **Legacy configuration regression:** A route-only loader would break existing projects. Preserve the adapter fallback and flat local overrides, then verify an unchanged legacy project before and after Codex installation.
+- **Canonical profile access:** Child processes load repository profiles directly. A profile-read failure is a setup failure; prompt bodies are not copied into custom-agent configuration.
 - **Partially applied setup:** An interrupted route/file update could leave mixed configuration. Confirm and apply the complete set together, then validate both active tools before setup succeeds.
-- **Silent stalls without monitoring:** Codex may require owner interruption followed by git-based resume. This is accepted for the first release; monitoring and detached recovery remain optional.
-- **Cross-tool drift:** Any duplicated branch, artifact, or predicate contract risks divergence. Keep these contracts single-sourced and require bidirectional continuation evidence without migrations.
-- **Manual evidence cost:** Surface behavior changes with runtime versions. Record versions, transcripts, IDs/models, refs, SHAs, artifacts, tracker state, and close-out results so the matrix is reproducible.
+- **Silent stalls without monitoring:** Codex may require owner interruption followed by git-based resume. This is accepted for the first release.
+- **Cross-tool drift:** Keep branch, artifact, and predicate contracts single-sourced and require bidirectional continuation evidence without migrations.
+- **Manual evidence cost:** Record surface/runtime versions, process transcripts, refs, SHAs, artifacts, tracker state, and close-out results so the matrix remains reproducible.
