@@ -53,6 +53,7 @@ On resume or cross-tool continuation, the new runtime parses the existing branch
 - `skills/radical-pipelines/reference/conventions/setup.md` dispatches Codex setup, merges only Shared and the selected tool section, preserves other sections, confirms native actions, and re-runs canonical loading.
 - `skills/radical-pipelines/reference/autonomous-workflow.md` starts and cancels monitoring only when the selected adapter provides it. Artifact-based orchestration stays unchanged.
 - `skills/radical-pipelines/reference/resume-pipeline.md` performs monitor discovery or cancellation only when that capability exists. Git-based state reconstruction stays unchanged.
+- `skills/radical-pipelines/reference/health-monitoring.md` scopes its launch, retry, escalation, leftover-monitor discovery, and cancellation procedure to adapters that provide monitoring. The procedure remains unchanged for those adapters.
 - Root `.rp.md` retains its Shared and Claude Code sections and adds the repository's Codex team-spawning and model conventions.
 - `README.md` describes installation, configuration coexistence, supported local Codex surfaces, and outcome-based parity.
 - `package.json`, `.changeset/config.json`, and `CONTRIBUTING.md` include the Codex-native metadata in packaging and release-relevant path rules.
