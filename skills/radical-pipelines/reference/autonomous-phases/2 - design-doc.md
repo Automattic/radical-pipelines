@@ -1,6 +1,6 @@
 # Running the Design Doc Phase (Phase 2)
 
-Advances the pipeline from phase 1 (spec) to phase 2 by running lanes, each a team of agents that drives iterative design Q&A, synthesizes a standalone design doc, and reviews it adversarially. With multiple lanes, a consolidator merges the lane designs on the run branch.
+Advances the pipeline from phase 1 (spec) to phase 2 by running lanes, each a team of agents in which a designer researches, decides, records, and synthesizes the design, and a reviewer adjudicates the decision record against the spec and the codebase. With multiple lanes, a consolidator merges the lane designs on the run branch.
 
 Inputs:
 
@@ -28,22 +28,20 @@ When asking the owner for the lane mode, explain the difference: both modes repe
 
 ## Required agents
 
-| Agent                     | Role                                                                                                                                                     | Persistent? |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `design-doc-analyst`      | Drives the design Q&A one topic at a time, deciding the design on the design-doc-researcher's evidence. Writes `design-doc-research.md`.                 | Yes         |
-| `design-doc-researcher`   | Investigates the codebase, web, and runs experiments to answer questions.                                                                                 | Yes         |
-| `design-doc-writer`       | Writes a standalone `design-doc.md` from `spec.md` and `design-doc-research.md`.                                                                          | No          |
-| `design-doc-reviewer`     | Reviews a design adversarially; writes `design-doc-review-N-rejected.md` on rejection or `design-doc-review-approved.md` on approval.                     | No          |
-| `design-doc-consolidator` | Merges the lane-approved designs and research records into the consolidated `design-doc.md` and `design-doc-research.md` on the run branch (multiple lanes only). | No          |
+| Agent                     | Role                                                                                                                                                                                          | Persistent? |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `design-doc-designer`     | Drives the design Q&A one topic at a time, deciding on the design-doc-researcher's evidence. Writes `design-doc-research.md` — every load-bearing claim carrying its check — and synthesizes `design-doc.md`. Adjudicates review findings. | Yes         |
+| `design-doc-researcher`   | Investigates the codebase, web, and runs experiments to answer questions.                                                                                                                       | Yes         |
+| `design-doc-reviewer`     | Adjudicates the decision record against the spec and the codebase (`design-doc.md` for fidelity), logging each check it performs; writes `design-doc-review-N-rejected.md` on rejection or `design-doc-review-approved.md` on approval. | No          |
+| `design-doc-consolidator` | Merges the lane-approved designs and research records into the consolidated `design-doc.md` and `design-doc-research.md` on the run branch (multiple lanes only).                               | No          |
 
 ## The lane flow
 
 Each lane runs the full flow in its assigned worktree:
 
-1. Launch `design-doc-analyst` and `design-doc-researcher` as persistent agents. The analyst reads `spec.md` and `spec-research.md`, drives an iterative Q&A with the researcher, and writes the running record to `design-doc-research.md`. Wait until it signals that the design is complete.
-2. Launch a fresh `design-doc-writer` to synthesize `design-doc.md` as a standalone document.
-3. Launch a fresh `design-doc-reviewer`. On rejection it writes `design-doc-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `design-doc-review-approved.md` (the singleton terminator).
-4. On **rejected**, launch a fresh `design-doc-writer` with the rejection file's path; it revises `design-doc.md` and the reviewer re-reviews — until approved.
+1. Launch `design-doc-designer` and `design-doc-researcher` as persistent agents. The designer reads `spec.md` and `spec-research.md`, drives an iterative Q&A with the researcher, writes the running record to `design-doc-research.md`, and synthesizes `design-doc.md`. Wait until it signals the design is ready for review. The designer stays alive until the lane is approved.
+2. Launch a fresh `design-doc-reviewer`. On rejection it writes `design-doc-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `design-doc-review-approved.md` (the singleton terminator).
+3. On **rejected**, relay the rejection file's path to the designer; it adjudicates every finding — adopting it, refuting it with evidence, or recording an accepted residual — updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
 
 ## Steps
 
@@ -55,19 +53,18 @@ Each lane runs the full flow in its assigned worktree:
    - **Isolated mode** — create one lane branch and worktree per lane, forked from the run branch (branch segment `2-design-doc-lane-<K>`), and run all lanes in parallel, mutually blind. When every lane is approved, merge each lane branch into the run branch, remove the lane worktrees, and delete the lane branches.
    - **Divergent mode** — run the lanes sequentially in the run branch's worktree, committing on the run branch.
 2. Launch `design-doc-consolidator` in the run branch's worktree. It reads each lane's `design-doc.md` and `design-doc-research.md` from the `lane-<K>` subfolders and commits the consolidated `design-doc.md` and `design-doc-research.md` at the phase folder root on the run branch.
-3. Launch a fresh `design-doc-reviewer` to review the consolidated design. On **rejected**, relaunch the `design-doc-consolidator` with the rejection file's path — it plays the writer role in this loop — until approved.
+3. Launch a fresh `design-doc-reviewer` to review the consolidated design. On **rejected**, relaunch the `design-doc-consolidator` with the rejection file's path — it revises the consolidated documents — until approved.
 
 On **approved**, verify the phase 2 completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD
     subgraph lane [Each lane]
-        B[Design Doc Analyst] -->|asks question| C[Design Doc Researcher]
+        B[Design Doc Designer] -->|asks question| C[Design Doc Researcher]
         C -->|answers| B
-        B -->|design complete| D[Design Doc Writer]
-        D -->|writes design-doc.md| E[Design Doc Reviewer]
+        B -->|record + design doc| E[Design Doc Reviewer]
         E --> F{Approved?}
-        F -->|no| D
+        F -->|no — findings| B
     end
     F -->|"yes — single lane"| K[Phase complete]
     F -->|"yes — multiple lanes, all approved"| H[Design Doc Consolidator]

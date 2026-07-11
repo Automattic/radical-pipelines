@@ -44,7 +44,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 ## Agents
 
 - **Spec phase** — `spec-analyst`, `spec-researcher` (persistent pair), `spec-writer`, `spec-reviewer`, `spec-consolidator`.
-- **Design doc phase** — `design-doc-analyst`, `design-doc-researcher` (persistent pair), `design-doc-writer`, `design-doc-reviewer`, `design-doc-consolidator`.
+- **Design doc phase** — `design-doc-designer`, `design-doc-researcher` (persistent pair), `design-doc-reviewer`, `design-doc-consolidator`.
 - **Build phase** — `build-plan-writer`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`.
 - **Document phase** — `document-plan-writer`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
 - **Writer / reviewer loop** — a fresh writer per iteration produces the artifact; an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file).
