@@ -39,7 +39,7 @@
     },
     {
       phase: 'phase 2',
-      task: 'design-doc-analyst',
+      task: 'design-doc-designer',
       reads: ['spec.md', 'spec-research.md'],
       writes: ['design-doc-research.md'],
       runMs: 1500,
@@ -49,7 +49,7 @@
     },
     {
       phase: 'phase 2',
-      task: 'design-doc-writer',
+      task: 'design-doc-designer',
       reads: ['spec.md', 'design-doc-research.md'],
       writes: ['design-doc.md'],
       runMs: 1400,

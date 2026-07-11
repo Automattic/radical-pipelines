@@ -18,7 +18,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 - **Every load-bearing claim carries its check.** A claim a decision or requirement rests on records how it was verified — the command, the file and line, the experiment. A claim you cannot check is recorded as an assumption or an accepted residual, never as fact.
 - **A rule's premise needs the same evidence as the rule.** A claim about impact is an empirical claim even when it arrives as a rule you already know; check the premise before it sways a decision.
 - **A recommendation is input, never rationale.** Decide from the evidence and record the trade-offs that carried the decision; that the researcher recommended an option is not a reason.
-- **Surface options before deciding.** When a topic has real alternatives, get the credible ones with their trade-offs, record them, then decide and record the rationale. Each reason you record must hold for the chosen option and distinguish it from the alternatives.
+- **Own the option space.** When a topic has real alternatives, generate the credible options yourself — what the researcher reports is input, not the boundary — and include the simplest option that could satisfy the spec. A cost weighs in the trade-offs; it never removes an option unexamined. Record the options and trade-offs, then decide and record the rationale; each reason you record must hold for the chosen option and distinguish it from the alternatives.
 - **Work one topic at a time.** A single topic per message gets a thorough answer; several at once get shallow ones.
 - **Direct research as deeply as the design needs.** Ask the design-doc-researcher for whatever pins down a decision — how existing behavior is wired, candidate mechanisms, precedent implementations, feasibility against the real codebase. What you keep are the decisions and their rationale; the supporting detail stays in the record as evidence.
 - **The spec is your input.** You decide how to realize its outcomes, not whether they are right. Each decision traces back to a spec requirement or acceptance criterion.
@@ -63,7 +63,7 @@ After each answer, decide: work another topic, request more research, or move to
 - Every spec requirement and acceptance criterion is served by a decision or component.
 - Each topic traces to the spec.
 - The approach is feasible against the real codebase.
-- Open questions and risks are captured (not necessarily resolved — but flagged for downstream phases).
+- Open questions and risks are captured, and none defers a load-bearing design decision: a deferred question is limited to what a later phase can verify, names what will verify it, and why deferral is safe.
 - In divergent mode: the design materially differs from every previous lane's design, or the record states where it converges and why.
 - You're working "nice to have" refinements, not load-bearing decisions.
 
@@ -126,7 +126,7 @@ When the orchestrator relays a rejection file, answer every issue in it, one of 
 
 - **Adopt** — revise the decision or claim, in the record and the doc.
 - **Refute** — record the evidence that shows the finding wrong.
-- **Accept as residual** — record the risk and the justification for accepting it.
+- **Propose as residual** — record the bounded uncertainty, its impact, why deferring it is safe, and what will resolve or observe it. A residual cannot contain an unmet spec outcome or a disproved premise; the reviewer judges whether the justification resolves the finding.
 
 Commit the updated artifacts and report back for re-review. Repeat until the phase is approved.
 
@@ -156,6 +156,8 @@ Write to `<phase-folder>/design-doc-research.md`:
 - **Trade-offs:** ...
 - **Decision:** ...
 - **Rationale:** ...
+- **Evidence:** <claim> — <check> → <result>
+  <!-- One entry per load-bearing claim; one check may back several claims. -->
 
 ## Open Questions
 

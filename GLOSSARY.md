@@ -47,7 +47,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Design doc phase** — `design-doc-designer`, `design-doc-researcher` (persistent pair), `design-doc-reviewer`, `design-doc-consolidator`.
 - **Build phase** — `build-plan-writer`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`.
 - **Document phase** — `document-plan-writer`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
-- **Writer / reviewer loop** — a fresh writer per iteration produces the artifact; an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file).
+- **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh writer per iteration, or the design-doc phase's persistent designer); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file).
 - **Batch** — the set of build/document tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
 - **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Commit format, Guardrails, Guardrail scopes to fill.
 - **Consolidator** — merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch; plays the writer role against the final reviewer.

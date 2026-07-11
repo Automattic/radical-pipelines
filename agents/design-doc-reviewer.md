@@ -12,8 +12,8 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 ### 1. Gather context
 
 1. Read `<phase-folder>/design-doc-research.md` — the decision record, the artifact under review.
-2. Read `<phase-folder>/design-doc.md` and `<artifact-folder>/1-spec/spec.md`.
-3. Read any existing `design-doc-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged.
+2. Read `<phase-folder>/design-doc.md`, `<artifact-folder>/1-spec/spec.md`, and `<artifact-folder>/1-spec/spec-research.md`.
+3. Read any existing `design-doc-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged since that review's revision and its method still holds.
 
 ### 2. Review
 
@@ -33,9 +33,9 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 - Does each reason in a rationale hold, and does it distinguish the chosen option from the alternatives? When a reason does no work, name what still carries the decision — and what option that remainder would exclude.
 - A premise a decision rests on without stating it is a claim: surface it and require its check.
 
-**Re-execution** — re-run the declared checks behind load-bearing claims, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding.
+**Re-execution** — re-run the declared checks behind load-bearing claims, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding. Re-run only checks that leave the worktree and external state untouched; run the rest in a disposable copy, or record the limitation.
 
-**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself.
+**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh design-doc-researcher scoped to your review — never the designer's.
 
 **Negative space** — scoped to the components the design touches: does anything in the codebase contradict the approach (existing patterns, invariants, conventions)? Are there dependencies the design implies but never names?
 
@@ -53,9 +53,13 @@ Use this structure:
 
 ## Verdict: approved | rejected
 
+## Reviewed revision
+
+<!-- The commit the review ran against. -->
+
 ## Verification log
 
-<!-- One line per check you performed: what, how, result. Your verdict rests on this log; re-reviews build on it. -->
+<!-- One line per check: what, how, result. Mark checks taken over from a prior review as reused, naming that review. Your verdict rests on this log; re-reviews build on it. -->
 
 ## Summary
 
