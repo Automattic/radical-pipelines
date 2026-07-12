@@ -50,7 +50,7 @@ Cover these topics — order is flexible, and not every topic needs a multi-opti
 - **Key decisions** — anywhere multiple credible options exist and the choice has consequences.
 - **Dependencies** — internal modules, external libraries, services, or systems the design depends on. Call out new dependencies explicitly.
 - **Failure modes and observability** — how the design fails, how failures are detected, and what is logged or surfaced.
-- **Risks and open questions** — anything the build phase must resolve.
+- **Risks and open questions** — deferred questions a later phase can verify, and risks worth flagging.
 
 ### 3. Research requests
 
