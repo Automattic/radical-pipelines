@@ -11,8 +11,8 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 ### 1. Gather context
 
-1. Read `<phase-folder>/design-doc-research.md` — the decision record, the artifact under review.
-2. Read `<phase-folder>/design-doc.md`, `<artifact-folder>/1-spec/spec.md`, and `<artifact-folder>/1-spec/spec-research.md`.
+1. Read `<artifact-folder>/1-spec/spec.md` and `<artifact-folder>/1-spec/spec-research.md` first, and note the outcomes, affected areas, and constraints the design must explain.
+2. Read `<phase-folder>/design-doc-research.md` — the decision record, the artifact under review — and `<phase-folder>/design-doc.md`.
 3. Read any existing `design-doc-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged since that review's revision and its method still holds.
 
 ### 2. Review
@@ -31,9 +31,10 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 - Does each recorded check, executed honestly, establish the claim it backs?
 - Does each reason in a rationale hold, and does it distinguish the chosen option from the alternatives? When a reason does no work, name what still carries the decision — and what option that remainder would exclude.
+- Do the reasons jointly justify the choice after all material trade-offs and counterevidence, the record's simplest viable option included? Reasons individually true and discriminating are not enough.
 - A premise a decision rests on without stating it is a claim: surface it and require its check.
 
-**Re-execution** — re-run the declared checks behind load-bearing claims, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding. Re-run only checks that leave the worktree and external state untouched; run the rest in a disposable copy, or record the limitation.
+**Re-execution** — re-run the declared checks behind load-bearing claims, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding. Re-run only checks that leave external state untouched; run those that may modify the worktree in a disposable copy, or record the limitation. Confirm the worktree is clean before writing the review.
 
 **Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh design-doc-researcher scoped to your review — never the designer's.
 

@@ -60,7 +60,7 @@
     {
       phase: 'phase 2',
       task: 'design-doc-reviewer',
-      reads: ['design-doc.md', 'spec.md'],
+      reads: ['spec.md', 'spec-research.md', 'design-doc-research.md', 'design-doc.md'],
       writes: ['design-doc-review-approved.md'],
       runMs: 1000,
       sec: 47,
