@@ -1,6 +1,6 @@
 # Running the Spec Phase (Phase 1)
 
-Turns the run's intent into an approved spec by running lanes, each a team of agents in which an analyst researches, decides and records the requirements, and synthesizes the spec, and a reviewer adjudicates the requirements record against the intent and the codebase. The phase runs as isolated lanes — independent derivations of the requirements from the same intent — consolidated into one spec on the run branch. A single lane is the degenerate case: it runs on the run branch itself and consolidation is skipped.
+Turns the run's intent into an approved spec by running lanes, each a team of agents in which a lead researches, decides and records the requirements, and synthesizes the spec, and a reviewer adjudicates the requirements record against the intent and the codebase. The phase runs as isolated lanes — independent derivations of the requirements from the same intent — consolidated into one spec on the run branch. A single lane is the degenerate case: it runs on the run branch itself and consolidation is skipped.
 
 Inputs:
 
@@ -23,7 +23,7 @@ With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` 
 
 | Agent               | Role                                                                                                                                                                                            | Persistent? |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| `spec-analyst`      | Drives the Q&A one question at a time, deciding on the spec-researcher's evidence. Writes `spec-research.md` and synthesizes `spec.md`. Adjudicates review findings.                              | Yes         |
+| `spec-lead`      | Drives the Q&A one question at a time, deciding on the spec-researcher's evidence. Writes `spec-research.md` and synthesizes `spec.md`. Adjudicates review findings.                              | Yes         |
 | `spec-researcher`   | Investigates the codebase, web, and runs experiments to answer questions.                                                                                                                          | Yes         |
 | `spec-reviewer`     | Adjudicates the requirements record against the intent and the codebase (`spec.md` for fidelity), logging each check it performs; writes `spec-review-N-rejected.md` on rejection or `spec-review-approved.md` on approval. | No          |
 | `spec-consolidator` | Merges the lane-approved specs and research records into the consolidated `spec.md` and `spec-research.md` on the run branch (multiple lanes only).                                                | No          |
@@ -32,9 +32,9 @@ With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` 
 
 Each lane runs this flow independently, in its own worktree on its own branch:
 
-1. Launch `spec-analyst` and `spec-researcher` as persistent agents. The analyst reads `intent.md`, drives an iterative Q&A with the researcher, writes the running record to `spec-research.md`, and synthesizes `spec.md`. Wait until it signals the spec is ready for review. The analyst stays alive until the lane is approved.
-2. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `spec-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `spec-researcher` scoped to its review — never the analyst's.
-3. On **rejected**, relay the rejection file's path to the analyst; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
+1. Launch `spec-lead` and `spec-researcher` as persistent agents. The lead reads `intent.md`, drives an iterative Q&A with the researcher, writes the running record to `spec-research.md`, and synthesizes `spec.md`. Wait until it signals the spec is ready for review. The lead stays alive until the lane is approved.
+2. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `spec-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `spec-researcher` scoped to its review — never the lead's.
+3. On **rejected**, relay the rejection file's path to the lead; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
 
 ## Steps
 
@@ -53,7 +53,7 @@ Each lane runs this flow independently, in its own worktree on its own branch:
 ```mermaid
 flowchart TD
     subgraph lane ["Lane flow — on the run branch with a single lane, on each lane branch with multiple lanes"]
-        B[spec-analyst] <-->|Q&A| C[spec-researcher]
+        B[spec-lead] <-->|Q&A| C[spec-researcher]
         B -->|record + spec| E[spec-reviewer]
         E --> F{Approved?}
         F -->|no — findings| B

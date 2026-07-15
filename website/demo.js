@@ -8,7 +8,7 @@
   const phases = [
     {
       phase: 'phase 1',
-      task: 'spec-analyst',
+      task: 'spec-lead',
       reads: ['intent.md'],
       writes: ['spec-research.md', 'spec.md'],
       runMs: 2000,
@@ -29,7 +29,7 @@
     },
     {
       phase: 'phase 2',
-      task: 'design-doc-designer',
+      task: 'design-doc-lead',
       reads: ['spec.md', 'spec-research.md'],
       writes: ['design-doc-research.md', 'design-doc.md'],
       runMs: 2000,

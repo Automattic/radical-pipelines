@@ -16,7 +16,7 @@ A vague idea yields just a Title and a Goal. That is a complete, valid intent.
 
 ## Authoring discipline
 
-- **Capture, don't converge.** This is a short, owner-led capture pass — not the spec phase. Do NOT probe toward a complete or testable requirements set; that is the `spec-analyst`'s job in phase 1. Record what the owner already holds and stop when they have nothing more.
+- **Capture, don't converge.** This is a short, owner-led capture pass — not the spec phase. Do NOT probe toward a complete or testable requirements set; that is the `spec-lead`'s job in phase 1. Record what the owner already holds and stop when they have nothing more.
 - **Lead with the goal, then invite — don't run a checklist.** Marching through "constraints? assumptions? context?" pressures the owner into manufacturing answers and re-introduces over-specification.
 - **No requirements, design, or implementation.** Acceptance criteria belong to phase 1, architecture to phase 2, task breakdown to phase 3. Putting them in **the intent** pre-empts the phase that exists to produce them.
 - **Reflect hypotheses back as open.** Anything the owner proposes about _how_ or about the current state is recorded under Assumptions, not as a requirement.
