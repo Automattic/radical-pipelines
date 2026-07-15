@@ -30,6 +30,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 **Adequacy** — judge each declared chain:
 
 - Does each recorded check, executed honestly, establish the claim it backs?
+- Does each planned test fail under the defect it exists to catch? A test that also passes with the defect present establishes nothing.
 - Does each reason in a rationale hold, and does it distinguish the chosen option from the alternatives? When a reason does no work, name what still carries the decision — and what option that remainder would exclude.
 - Do the reasons jointly justify the choice after all material trade-offs and counterevidence, the record's simplest viable option included? Reasons individually true and discriminating are not enough.
 - A premise a decision rests on without stating it is a claim: surface it and require its check.
