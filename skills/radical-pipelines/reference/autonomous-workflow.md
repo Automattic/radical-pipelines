@@ -63,7 +63,7 @@ Every three consecutive rejections in a producer/reviewer loop, inspect the reje
 Each time you spawn an agent:
 
 - Follow the **Team spawning** convention to spawn the agent seated in its worktree — started inside it, its branch checked out.
-- Give the agent a name unique within the run and keep the identifier its spawn returns; address every message to an agent by its identifier.
+- Give the agent a name unique within the run and hold its identifier — the handle that directs a message to that agent alone, assigned at spawn or returned by it per the **Team spawning** convention. Address every message to an agent by its identifier.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
 - When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it verbatim, never interpreted or framed.

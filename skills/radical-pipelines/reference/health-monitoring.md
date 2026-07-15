@@ -62,7 +62,7 @@ Signals to look for:
 - Network failures on tool calls
 
 For each detected issue, apply up to 2 auto-recovery actions per this recovery table: <recovery-table>
-A restarted or re-spawned agent gets a new identifier: send the new identifier to the agents that message it.
+When a restart or re-spawn changes an agent's identifier, send the new one to the agents that message it.
 
 If unresolved after 2 attempts, stop and report to the owner with: agent name, error verbatim, last-known progress, suggested next step.
 ```
