@@ -79,7 +79,7 @@ This is highly dependent on the agentic coding tool but you can document the exi
 Which model — and optional settings such as reasoning `effort` — each spawned agent runs on.
 
 - A reserved `**Default:**` bullet expresses the project-wide default.
-- Each configured agent is a `**<agent-name>:**` bullet keyed by the exact agent name (e.g. `spec-writer`, `build-reviewer`).
+- Each configured agent is a `**<agent-name>:**` bullet keyed by the exact agent name (e.g. `spec-reviewer`, `build-reviewer`).
 
 Values are tool-native and opaque — the orchestrator passes them to the spawn mechanism verbatim, so the same logical choice may need a different string per tool:
 
