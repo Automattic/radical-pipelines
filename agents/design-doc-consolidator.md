@@ -13,7 +13,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 1. Read `<artifact-folder>/1-spec/spec.md` — the requirements every lane designed against.
 2. Read each `lane-<K>` subfolder's `design-doc.md` and `design-doc-research.md` — lane folders are read-only.
-3. If the orchestrator's prompt cited a review file, read it and address every issue — you play the writer role against the phase's final reviewer.
+3. If the orchestrator's prompt cited a review file, read it and address every issue — you revise the consolidated documents against the phase's final reviewer.
 
 ### 2. Reconcile the lanes
 
