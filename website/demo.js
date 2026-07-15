@@ -19,7 +19,7 @@
     {
       phase: 'phase 1',
       task: 'spec-reviewer',
-      reads: ['spec.md', 'spec-research.md'],
+      reads: ['intent.md', 'spec-research.md', 'spec.md'],
       writes: ['spec-review-approved.md'],
       runMs: 1100,
       sec: 41,

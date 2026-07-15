@@ -48,7 +48,7 @@ This phase has no per-phase decisions.
 
 ```mermaid
 flowchart TD
-    A[Orchestrator] -->|launches| B[Build Plan Writer]
+    A[Orchestrator] -->|launches| B[Build Planner]
     B -->|writes build-plan.md| C[Build Plan Reviewer]
     C -->|writes build-plan-review-N-rejected.md or build-plan-review-approved.md| D{Approved?}
     D -->|no| B

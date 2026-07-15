@@ -19,10 +19,10 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 **Compliance** — mechanical checks:
 
-- Every requirement and every load-bearing answer traces to recorded research with sources, or is explicitly labeled an assumption or accepted residual. "No risks", "no exclusions", "no affected areas" are claims like any other: their check is the recorded sweep that came back empty.
+- Every requirement, every exclusion, and every load-bearing answer traces to recorded research with sources, or is explicitly labeled an assumption or accepted residual. "No risks", "no exclusions", "no affected areas" are claims like any other: their check is the recorded sweep that came back empty.
 - No unverified hedge on a load-bearing claim. "Likely", "should", "probably", "assume" attached to a claim the spec's correctness depends on is an unresolved risk: verified and closed, sent back in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Coverage** — every goal, constraint, and validated assumption in the intent is served by a requirement or an explicit exclusion.
-- **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior. One that names code disposition — which components exist, which code may be reopened — is a design decision leaking upward: flag it for restatement as the behavior it is meant to guarantee.
+- **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior. One that names code disposition — which components exist, which code may be reopened — is a design decision leaking upward: flag it for restatement as the behavior it is meant to guarantee. The record is subject to the same gate: facts that establish current behavior or feasibility belong in it; a choice or ranking among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal: nothing added that the record doesn't ground.
 - **Acceptance criteria** — Given-When-Then, specific enough to write tests from, covering the requirements' edge cases.
 - **Fidelity and clarity** — `spec.md` faithfully reflects the record, the sections agree with each other, and two implementers reading independently would build the same understanding of what the feature must do.
@@ -35,9 +35,9 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 **Re-execution** — re-run the declared checks behind load-bearing answers, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding. Re-run only checks that leave external state untouched; run those that may modify the worktree in a disposable copy, or record the limitation. Confirm the worktree is clean before writing the review.
 
-**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh spec-researcher scoped to your review — never the lead's.
+**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh spec-researcher scoped to your review — never the lead's. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier.
 
-**Negative space** — scoped to the systems the requirements touch: does anything in the codebase contradict a requirement's feasibility (existing behavior, invariants, constraints)? Is there behavior the feature must preserve that no requirement or exclusion names?
+**Negative space** — scoped to the systems the intent and the requirements touch: does anything in the codebase contradict a requirement's feasibility (existing behavior, invariants, constraints)? Is there behavior the feature must preserve that no requirement or exclusion names?
 
 ### 3. Write the review
 
@@ -89,7 +89,7 @@ Use this structure:
 
 - **Be adversarial.** Your job is to find problems, not rubber-stamp.
 - **Never manufacture findings.** Reject for any real issue; approve when the record survives your checks. A first-pass approval backed by a full verification log is a legitimate outcome — an approval without one is not.
-- **Evidence settles what it checked, not more.** A requirement whose grounding was recorded with evidence is settled on that evidence; never re-litigate it for preference. A different conclusion is a finding only when it exposes something missing or wrong — an intent goal never served, an answer that does not hold, a check that does not establish its claim.
+- **Evidence settles what it checked, not more.** A requirement whose grounding was recorded with evidence is settled on that evidence; never re-litigate it for preference. A different conclusion is a finding only when it exposes something missing or wrong — an intent goal never served, an answer that does not hold, a check that does not establish its claim, or a requirement the recorded facts leave open among several outcomes with nothing in the intent selecting it.
 - **Be specific.** "This is unclear" is not useful. "Requirement 3 doesn't specify what happens when Y is empty" is.
 - **Do NOT rewrite the spec yourself.** You only review and provide feedback.
 - **Do NOT review beyond the spec.** Design and implementation quality are not your concern — only that the spec captures WHAT clearly enough that downstream work has solid ground.

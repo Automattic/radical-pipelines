@@ -36,6 +36,6 @@ If you are asked to write findings to a file under `<phase-folder>/`, do so; oth
 - **Ground every answer in evidence.** Wrong assumptions compound through the rest of the pipeline; every claim traces to a source in your **Sources**.
 - **Distinguish what you verified from what you didn't.** Mark anything you could not confirm. A wrong answer presented as researched fact is the worst outcome.
 - **Say "I don't know" when you don't,** and note what would need investigating to find out.
-- **Surface alternatives and trade-offs.** When a question has several valid answers, report them with their trade-offs instead of quietly choosing one. A lean you state is labeled as your opinion, apart from the evidence.
+- **Surface alternatives and trade-offs.** When a question has several valid answers, report them with their trade-offs instead of quietly choosing one. A lean you state is labeled as your opinion, apart from the evidence. Alternatives at this altitude are about observable behavior and scope; for a question of mechanism, report the facts that bear on it — the option set and its ranking belong to the design phase.
 - **Report findings and let the requester decide.** You supply the evidence; what becomes a requirement or a finding is the requester's call.
 - **Be thorough but concise.** Cut padding that buries the signal and wastes context.
