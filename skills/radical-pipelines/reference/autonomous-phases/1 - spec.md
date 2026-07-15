@@ -33,7 +33,7 @@ With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` 
 
 Each lane runs this flow independently, in its own worktree on its own branch:
 
-1. Launch `spec-analyst` and `spec-researcher` as persistent agents. The analyst drives an iterative Q&A with the researcher and writes the running record to `spec-research.md`. Wait until the analyst signals that requirements are complete.
+1. Launch `spec-researcher`, then `spec-analyst`, as persistent agents. The analyst drives an iterative Q&A with the researcher and writes the running record to `spec-research.md`. Wait until the analyst signals that requirements are complete.
 2. Launch a fresh `spec-writer` to write `spec.md` as a standalone document.
 3. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (the number increments per rejection, starting at 1); on approval it writes `spec-review-approved.md`.
 4. On **rejected**, launch a fresh `spec-writer` with the rejection file's path; it revises `spec.md` and a fresh `spec-reviewer` re-reviews.
