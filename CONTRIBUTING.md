@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for contributing to Radical Pipelines. This guide is the authoritative home for the release mechanics: when a changeset is required, how to author one, how the CI gate and the release flow work, and the maintainer procedures (including the manual escape hatch and recovery steps).
+Thanks for contributing to Radical Pipelines. This guide is the authoritative home for the release mechanics: when a changeset is required, how to author one, how the CI gate and the release flow work, and the maintainer procedures (including the manual escape hatch and recovery steps). It also documents the capability requirements for [integrating a new agentic coding tool](#integrating-an-agentic-coding-tool).
 
 The package `@automattic/radical-pipelines` is **private** and consumed directly from git — it is **not** published to npm. There is no `npm publish` anywhere in this project; releases produce a git tag and a GitHub Release only.
 
@@ -226,3 +226,22 @@ Because this is a **private** repository, the token needs read access to private
 - **Fine-grained PAT** (scoped to this repo): Contents: Read, Pull requests: Read, Metadata: Read.
 
 **CI cost is zero:** the Release workflow injects `secrets.GITHUB_TOKEN` automatically, so none of this local setup is needed for CI runs.
+
+## Integrating an agentic coding tool
+
+Radical Pipelines is generic; each supported tool gets a rules file in `skills/radical-pipelines/reference/conventions/` (e.g. `claude-code.md`) documenting how the conventions take their canonical form in that tool, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
+
+A tool must provide:
+
+1. **Custom agent definitions** — the repo's agent profiles (`agents/*.md`) can be registered as spawnable agent types.
+2. **Concurrent background agents** — several agents alive and working at once while the orchestrator continues.
+3. **Persistent agents** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
+4. **Seating** — each agent starts with its working directory fixed inside an orchestrator-chosen git worktree.
+5. **Directed messaging with unique identity** — every spawned agent has an identifier that directs a message to it alone, known to the orchestrator: assigned at spawn (e.g. a name the orchestrator passes in) or returned by it (e.g. an id in the spawn result).
+6. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
+
+Optional, needed only when the project configures the matching convention:
+
+7. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
+
+The rules file documents the tool's mechanics for the conventions — Team spawning, Health monitoring, worktrees — and surfaces any prerequisite the owner must meet before the tool is declared ready.
