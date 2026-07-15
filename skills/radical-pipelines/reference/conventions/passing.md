@@ -23,6 +23,6 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
   - Omit when not defined or when the agent has no gates.
 - **Guardrail scopes to fill:** the scoped gates whose `{scope}` the plan must supply, each as its full per-gate block (command template and fill-guidance). See `../guardrails.md`.
   - Agents:
-    - `build-plan-writer` and `build-plan-reviewer` for the scoped gates of build agents
-    - `document-plan-writer` and `document-plan-reviewer` for the scoped gates of document agents
+    - `build-planner` and `build-plan-reviewer` for the scoped gates of build agents
+    - `document-planner` and `document-plan-reviewer` for the scoped gates of document agents
   - Omit when not defined or when the agents have no scoped gates to fill.

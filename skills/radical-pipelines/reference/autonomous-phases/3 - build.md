@@ -1,6 +1,6 @@
 # Running the Build Phase (Phase 3)
 
-Advances the run from phase 2 (design doc) to phase 3, entirely on the run branch and its worktree. A build-plan writer/reviewer pair iterates until the plan is approved, then each task is dispatched to a fresh writer chosen by its `Type`, and a single `build-reviewer` reviews the result after each batch. On rejection, only the flagged tasks are re-dispatched; the cycle repeats until the reviewer approves.
+Advances the run from phase 2 (design doc) to phase 3, entirely on the run branch and its worktree. A planner/reviewer pair iterates until the plan is approved, then each task is dispatched to a fresh writer chosen by its `Type`, and a single `build-reviewer` reviews the result after each batch. On rejection, only the flagged tasks are re-dispatched; the cycle repeats until the reviewer approves.
 
 Inputs:
 
@@ -25,7 +25,7 @@ This phase has no per-phase decisions.
 
 | Agent                 | Role                                                                                                                                        | Persistent? |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `build-plan-writer`   | Writes `build-plan.md`.                                                                                                                      | No          |
+| `build-planner`   | Writes `build-plan.md`.                                                                                                                      | No          |
 | `build-plan-reviewer` | Reviews the build plan adversarially; validates the guardrail scopes.                                                                       | No          |
 | `build-writer-tdd`    | One fresh instance per task. Implements its assigned task with TDD, runs the gates, commits.                                                 | No          |
 | `build-writer-e2e`    | One fresh instance per task. Implements the planned e2e flows, runs the gates, commits.                                                      | No          |
@@ -33,9 +33,9 @@ This phase has no per-phase decisions.
 
 ## Steps
 
-1. Launch a fresh `build-plan-writer` to write `build-plan.md`.
+1. Launch a fresh `build-planner` to write `build-plan.md`.
 2. Launch a fresh `build-plan-reviewer`. On rejection it writes `build-plan-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `build-plan-review-approved.md` (no number — the singleton terminator).
-3. On **rejected**, launch a fresh `build-plan-writer` with the rejection file's path. It revises `build-plan.md`. A fresh `build-plan-reviewer` re-reviews.
+3. On **rejected**, launch a fresh `build-planner` with the rejection file's path. It revises `build-plan.md`. A fresh `build-plan-reviewer` re-reviews.
 4. On **approved**, continue with task execution.
 5. If your runtime exposes a task-list tool, use it: one entry per task from `build-plan.md`, tracking dispatch status (pending / in progress / done) throughout the phase, including re-dispatches. The list is display only — the commits and the diff are the only record of task progress.
 6. Determine the **initial batch**: every task in `build-plan.md` not yet complete (every task on a fresh phase start), in the order specified.

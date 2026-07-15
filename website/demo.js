@@ -50,7 +50,7 @@
     },
     {
       phase: 'phase 3',
-      task: 'build-plan-writer',
+      task: 'build-planner',
       reads: ['spec.md', 'design-doc.md'],
       writes: ['build-plan.md'],
       runMs: 1300,
@@ -93,7 +93,7 @@
     },
     {
       phase: 'phase 4',
-      task: 'document-plan-writer',
+      task: 'document-planner',
       reads: ['build-summary.md', 'spec.md'],
       writes: ['document-plan.md'],
       runMs: 1100,
