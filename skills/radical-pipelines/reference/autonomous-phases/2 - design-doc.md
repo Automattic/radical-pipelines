@@ -39,8 +39,8 @@ When asking the owner for the lane mode, explain the difference: both modes repe
 
 Each lane runs the full flow in its assigned worktree:
 
-1. Launch `design-doc-lead` and `design-doc-researcher` as persistent agents. The lead reads `spec.md` and `spec-research.md`, drives an iterative Q&A with the researcher, writes the running record to `design-doc-research.md`, and synthesizes `design-doc.md`. Wait until it signals the design is ready for review. The lead stays alive until the lane is approved.
-2. Launch a fresh `design-doc-reviewer`. On rejection it writes `design-doc-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `design-doc-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `design-doc-researcher` scoped to its review — never the lead's.
+1. Launch `design-doc-researcher`, then `design-doc-lead`, as persistent agents. The lead reads `spec.md` and `spec-research.md`, drives an iterative Q&A with the researcher, writes the running record to `design-doc-research.md`, and synthesizes `design-doc.md`. Wait until it signals the design is ready for review. The lead stays alive until the lane is approved.
+2. Launch a fresh `design-doc-reviewer`. On rejection it writes `design-doc-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `design-doc-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `design-doc-researcher` scoped to its review — never the lead's — and reply with the researcher's identifier.
 3. On **rejected**, relay the rejection file's path to the lead; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
 
 ## Steps

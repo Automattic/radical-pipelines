@@ -32,8 +32,8 @@ With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` 
 
 Each lane runs this flow independently, in its own worktree on its own branch:
 
-1. Launch `spec-lead` and `spec-researcher` as persistent agents. The lead reads `intent.md`, drives an iterative Q&A with the researcher, writes the running record to `spec-research.md`, and synthesizes `spec.md`. Wait until it signals the spec is ready for review. The lead stays alive until the lane is approved.
-2. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `spec-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `spec-researcher` scoped to its review — never the lead's.
+1. Launch `spec-researcher`, then `spec-lead`, as persistent agents. The lead reads `intent.md`, drives an iterative Q&A with the researcher, writes the running record to `spec-research.md`, and synthesizes `spec.md`. Wait until it signals the spec is ready for review. The lead stays alive until the lane is approved.
+2. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `spec-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `spec-researcher` scoped to its review — never the lead's — and reply with the researcher's identifier.
 3. On **rejected**, relay the rejection file's path to the lead; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
 
 ## Steps
