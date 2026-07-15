@@ -61,7 +61,7 @@ Use this structure:
 
 ## Verification log
 
-<!-- One line per check: what, how, result. Mark checks taken over from a prior review as reused, naming that review. Your verdict rests on this log; re-reviews build on it. -->
+<!-- One line per check: what, how, result. Planned tests are declared checks: one line per planned test — the defect it exists to catch, and why it fails under it. Mark checks taken over from a prior review as reused, naming that review. Your verdict rests on this log; re-reviews build on it. -->
 
 ## Summary
 
