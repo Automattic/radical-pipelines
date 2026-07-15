@@ -237,13 +237,11 @@ A tool must provide:
 2. **Concurrent background agents** — several agents alive and working at once while the orchestrator continues.
 3. **Persistent agents** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
 4. **Seating** — each agent starts with its working directory fixed inside an orchestrator-chosen git worktree.
-5. **Directed messaging with unique identity** — every spawned agent has an identifier that directs a message to it alone, known to the orchestrator: assigned at spawn (e.g. a name the orchestrator passes in) or returned by it (e.g. an id in the spawn result). Agents can message each other and the orchestrator by identifier.
-6. **Agent tooling** — spawned agents can read and write files, run shell commands (guardrail gates, experiments), commit with git, and reach the web (researchers).
-7. **Recurring health monitoring** — a way to detect stalls, message failures, and auth/network errors on an interval: a schedulable loop or built-in supervision.
-8. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
+5. **Directed messaging with unique identity** — every spawned agent has an identifier that directs a message to it alone, known to the orchestrator: assigned at spawn (e.g. a name the orchestrator passes in) or returned by it (e.g. an id in the spawn result).
+6. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
 
 Optional, needed only when the project configures the matching convention:
 
-9. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
+7. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
 
-The rules file documents how the tool satisfies each relevant capability — its Team spawning, Health monitoring, and worktree mechanics — and surfaces any prerequisite the owner must meet before the tool is declared ready.
+The rules file documents the tool's mechanics for the conventions — Team spawning, Health monitoring, worktrees — and surfaces any prerequisite the owner must meet before the tool is declared ready.
