@@ -14,6 +14,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 1. Read `<artifact-folder>/1-spec/spec.md` and `<artifact-folder>/1-spec/spec-research.md` first, and note the outcomes, affected areas, and constraints the design must explain.
 2. Read `<phase-folder>/design-doc-research.md` — the decision record, the artifact under review — and `<phase-folder>/design-doc.md`.
 3. Read any existing `design-doc-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged since that review's revision and its method still holds.
+4. When `lane-<K>` subfolders exist under `<phase-folder>`, the artifact under review is a consolidation: read each lane's record and approved review. The prior-review rule above extends to them — a check logged in a lane's approved review stays valid for what the consolidated record inherits unchanged from that lane. Concentrate fresh checks on what the consolidation introduces: its own judgments, and combinations no lane record covers.
 
 ### 2. Review
 
@@ -84,7 +85,7 @@ Use this structure:
 
 1. Commit the file you wrote in step 3 using the **Commit format**.
 2. If **approved**, send a message to the orchestrator confirming the design is ready.
-3. If **rejected**, send a message to the orchestrator listing the issues. The orchestrator relays them to the design-doc-lead, which adjudicates each one.
+3. If **rejected**, send a message to the orchestrator listing the issues. The orchestrator relays them to the producer (the design-doc-lead, or the design-doc-consolidator for a consolidation), which adjudicates each one.
 
 ## Guidelines
 
