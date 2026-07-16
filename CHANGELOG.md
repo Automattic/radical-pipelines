@@ -1,5 +1,27 @@
 # @automattic/radical-pipelines
 
+## 0.8.0
+### Minor Changes
+
+
+
+- [#198](https://github.com/Automattic/radical-pipelines/pull/198) [`c29a626`](https://github.com/Automattic/radical-pipelines/commit/c29a626b44a368cccfd0786f7fb7ea66e6099680) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: Redesign the autonomous design-doc phase. A persistent `design-doc-lead` replaces the `design-doc-analyst` + `design-doc-writer` pair: it owns `design-doc-research.md` and `design-doc.md`, records how every load-bearing claim was checked, and adjudicates review findings itself (adopt, refute with evidence, or propose as residual). The review now gates the decision record — `design-doc.md` is checked for fidelity to it — and the `design-doc-reviewer` adjudicates the record's declared chains: a compliance audit, a check-adequacy audit, re-execution of declared checks, and a negative-space sweep, logging every check it performs in the review file so re-reviews confirm resolutions instead of re-verifying everything.
+
+
+
+- [#206](https://github.com/Automattic/radical-pipelines/pull/206) [`9711137`](https://github.com/Automattic/radical-pipelines/commit/9711137dc76d0b88f14b79182228634bb932cf3c) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: Rename the plan producers — `build-plan-writer` → `build-planner` and `document-plan-writer` → `document-planner`. "Writer" now names one role across the pipeline: the task-scoped agents that write the shipped product (`build-writer-tdd`, `build-writer-e2e`, `document-writer`), while a planner plans the phase's work. Project conventions that name agents (such as agent-model tables) must rename these two entries.
+
+
+
+- [#206](https://github.com/Automattic/radical-pipelines/pull/206) [`9456eea`](https://github.com/Automattic/radical-pipelines/commit/9456eea0a5de8216d61263ae44c5bba36b245f4a) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: Redesign the autonomous spec phase. A persistent `spec-lead` replaces the `spec-analyst` + `spec-writer` pair: it owns `spec-research.md` and `spec.md`, grounds every consolidated requirement in the recorded Q&A and research, synthesizes the spec itself, and adjudicates review findings (adopt, refute with evidence, or propose as residual). The review now gates the requirements record — `spec.md` is checked for fidelity to it — and the `spec-reviewer` adjudicates the record's declared chains: a compliance audit with an altitude check (requirements, exclusions, and acceptance criteria state observable behavior, never code disposition), an adequacy audit, re-execution of declared checks, and a negative-space sweep, logging every check it performs in the review file so re-reviews confirm resolutions instead of re-verifying everything.
+
+
+### Patch Changes
+
+
+
+- [#200](https://github.com/Automattic/radical-pipelines/pull/200) [`ca7c001`](https://github.com/Automattic/radical-pipelines/commit/ca7c00147500e58748ac5f3849715ebb95ef1d6b) Thanks [@luisherranz](https://github.com/luisherranz)! - Address inter-agent messages by spawn identifier: every spawned agent gets a run-unique name, a researcher spawns before its requester and its identifier is passed as the requester's **Researcher identifier** convention, so messages reach the intended agent when several agents of the same type are alive (parallel lanes, review-scoped researchers).
+
 ## 0.7.0
 ### Minor Changes
 
