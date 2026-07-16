@@ -9,12 +9,12 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 - **Artifact folder:** `<pipeline-family-folder>/<run>` — the run's artifact folder, relative to the worktree root. Agent profiles resolve their `<artifact-folder>/…` paths against it.
   - Agents: all
 - **Phase folder:** `<artifact-folder>/<phase>`, or `<artifact-folder>/<phase>/lane-<K>` when the agent works a lane — the folder for the agent's own phase's artifacts. Agent profiles resolve their `<phase-folder>/…` paths against it.
-  - Agents: `spec-analyst`, `spec-researcher`, `spec-writer`, `spec-reviewer`, `spec-consolidator`, `design-doc-designer`, `design-doc-researcher`, `design-doc-reviewer`, `design-doc-consolidator`
+  - Agents: `spec-lead`, `spec-researcher`, `spec-reviewer`, `spec-consolidator`, `design-doc-lead`, `design-doc-researcher`, `design-doc-reviewer`, `design-doc-consolidator`
 - **Lane mode:** `isolated` or `divergent`.
-  - Agents: `design-doc-designer`, `design-doc-consolidator`
+  - Agents: `design-doc-lead`, `design-doc-consolidator`
   - Omit when the phase runs a single lane.
 - **Researcher identifier:** the identifier of the researcher spawned to serve this agent.
-  - Agents: `spec-analyst`, `design-doc-designer`
+  - Agents: `spec-lead`, `design-doc-lead`
 - **Commit format:**
   - Agents: all
   - Omit when not defined.
@@ -23,6 +23,6 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
   - Omit when not defined or when the agent has no gates.
 - **Guardrail scopes to fill:** the scoped gates whose `{scope}` the plan must supply, each as its full per-gate block (command template and fill-guidance). See `../guardrails.md`.
   - Agents:
-    - `build-plan-writer` and `build-plan-reviewer` for the scoped gates of build agents
-    - `document-plan-writer` and `document-plan-reviewer` for the scoped gates of document agents
+    - `build-planner` and `build-plan-reviewer` for the scoped gates of build agents
+    - `document-planner` and `document-plan-reviewer` for the scoped gates of document agents
   - Omit when not defined or when the agents have no scoped gates to fill.
