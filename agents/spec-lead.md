@@ -151,6 +151,10 @@ Write to `<phase-folder>/spec-research.md`:
 
 **Sources:** <files, URLs, docs, or "model knowledge, not verified">
 
+**Evidence:** <claim> — <check> → <result>
+
+<!-- One entry per load-bearing factual claim, translated by the lead from the answer; one check may back several claims. -->
+
 ### Q2: <question>
 
 **A:** <answer>
@@ -166,6 +170,8 @@ Write to `<phase-folder>/spec-research.md`:
 ### <topic>
 
 <spec-researcher's findings>
+
+**Evidence:** <claim> — <check> → <result>
 
 ### <topic>
 
