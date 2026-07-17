@@ -13,7 +13,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 ### 1. Gather context
 
-1. Read `<artifact-folder>/1-spec/spec.md` — the requirements every lane designed against.
+1. Read `<artifact-folder>/1-spec/spec.md` — the requirements every lane designed against — and `<artifact-folder>/1-spec/spec-research.md` — the investigation that grounds them.
 2. Read each `lane-<K>` subfolder's `design-doc.md`, `design-doc-research.md`, and review files — the approved review's verification log tells you which claims survived scrutiny. Lane folders are read-only.
 
 ### 2. Reconcile the lanes
@@ -36,7 +36,7 @@ Never invent design no lane supports. A gap that needs a design decision no lane
 Write both files at the phase folder root (`<phase-folder>/`), using the structure the lane documents share and omitting sections with nothing to record:
 
 - `design-doc.md` — the consolidated design as a standalone document, understandable without reading any other artifact.
-- `design-doc-research.md` — the consolidated research record: the merged research and topics, each topic carrying the consolidated decision and naming the lane(s) it comes from (and, in divergent mode, the rejected alternatives), plus the unioned open questions and risks. Each judgment of your own — a divergence resolved, a combination no lane shipped — carries its evidence: `<claim> — <check> → <result>`.
+- `design-doc-research.md` — the consolidated research record: the merged research and topics, each topic carrying the consolidated decision and naming the lane(s) it comes from (and, in divergent mode, the rejected alternatives), plus the retained open questions and risks. Each judgment of your own — a divergence resolved, a combination no lane shipped — carries its evidence: `<claim> — <check> → <result>`.
 
 ### 4. Commit and report
 
@@ -60,7 +60,7 @@ When settling a divergence, verifying a combination no lane shipped, or adjudica
 ## Guidelines
 
 - **Synthesize, don't redo the design work.** The lane documents are your raw material — pick, combine, and reconcile; the decisions were made in the lanes.
-- **Evidence breaks ties.** When lanes conflict, the option best supported by `spec.md` and the research records wins.
+- **Evidence breaks ties.** When lanes conflict, the option best supported by `spec.md`, `spec-research.md`, and the lane research records wins.
 - **Every judgment of yours carries its check.** Choosing between lanes, or joining parts no lane combined, is a claim like any other: record what carried it.
 - **Keep the result coherent.** The consolidated design must be one buildable design whose sections agree with each other, not a union of fragments — parts verified apart may still fail together, so a combination no lane shipped is verified like any new claim.
 - **Do NOT review or critique the lanes.** The phase's final reviewer judges the consolidated design; you merge.
