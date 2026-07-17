@@ -7,9 +7,17 @@
  * without a running opencode daemon.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Parse an Agent-models convention string into the `Model.Ref` object
@@ -279,6 +287,114 @@ function deleteLoopEntry(registryPath, id) {
   writeLoopRegistry(registryPath, entries);
 }
 
+/**
+ * Absolute path to RP's own agent profile sources, resolved relative to this
+ * module's location so it resolves correctly regardless of the process's
+ * working directory.
+ *
+ * Serves as `materializeAgents`'s default `sourceDir`; tests inject their own
+ * directory instead of relying on this constant.
+ */
+const DEFAULT_AGENTS_SOURCE_DIR = fileURLToPath(
+  new URL("../agents", import.meta.url),
+);
+
+/**
+ * Filename of the ownership manifest `materializeAgents` writes into the
+ * target agents directory.
+ *
+ * Records which filenames in the target were materialized by RP, as opposed
+ * to pre-existing, foreign agents of the same name, so a later materialize
+ * knows which target files it may safely overwrite.
+ */
+const OWNERSHIP_MANIFEST_NAME = ".rp-owned.json";
+
+/**
+ * Read the set of filenames recorded as RP-owned in a target agents
+ * directory.
+ *
+ * @param {string} targetDir Absolute path to the target agents directory.
+ * @returns {Set<string>} The recorded RP-owned filenames, or an empty set
+ *   when the directory has no manifest yet (e.g. it was never materialized
+ *   into before).
+ */
+function readOwnershipManifest(targetDir) {
+  const manifestPath = join(targetDir, OWNERSHIP_MANIFEST_NAME);
+  if (!existsSync(manifestPath)) {
+    return new Set();
+  }
+  return new Set(JSON.parse(readFileSync(manifestPath, "utf8")));
+}
+
+/**
+ * Persist the set of RP-owned filenames to a target agents directory's
+ * ownership manifest, replacing whatever was recorded before.
+ *
+ * @param {string} targetDir Absolute path to the target agents directory.
+ * @param {Set<string>} owned The complete set of RP-owned filenames.
+ * @returns {void}
+ */
+function writeOwnershipManifest(targetDir, owned) {
+  writeFileSync(
+    join(targetDir, OWNERSHIP_MANIFEST_NAME),
+    JSON.stringify([...owned].sort(), null, 2),
+  );
+}
+
+/**
+ * Materialize RP's agent profiles into opencode's global agents directory.
+ *
+ * Copies every `*.md` profile from `sourceDir` into `targetDir` byte for
+ * byte — including the extra `name:` frontmatter key the profiles carry,
+ * which opencode ignores since the filename governs the agent id. The copy
+ * is idempotent and ownership-aware, tracked via a manifest written into
+ * `targetDir`:
+ *  - a target filename recorded as RP-owned (from a previous materialize) is
+ *    always overwritten with the current source bytes;
+ *  - a target filename that already exists but is *not* recorded as
+ *    RP-owned — a foreign file of the same name — is left untouched and
+ *    reported as a collision instead of being clobbered;
+ *  - every filename written is (re)recorded as RP-owned.
+ *
+ * @param {string} [sourceDir] Absolute path to the directory of source agent
+ *   profiles. Defaults to `../agents` resolved relative to this module (the
+ *   repository's `agents/` directory at runtime).
+ * @param {string} [targetDir] Absolute path to the target agents directory.
+ *   Defaults to opencode's global agents directory, `~/.config/opencode/agents/`.
+ * @returns {{ written: string[], collisions: string[] }} `written` lists the
+ *   source filenames copied into `targetDir` this run; `collisions` lists
+ *   filenames that already existed under `targetDir` as foreign (non-RP-owned)
+ *   files, and so were left unmodified.
+ */
+function materializeAgents(
+  sourceDir = DEFAULT_AGENTS_SOURCE_DIR,
+  targetDir = join(homedir(), ".config", "opencode", "agents"),
+) {
+  mkdirSync(targetDir, { recursive: true });
+
+  const owned = readOwnershipManifest(targetDir);
+  const written = [];
+  const collisions = [];
+
+  const profiles = readdirSync(sourceDir).filter((name) =>
+    name.endsWith(".md"),
+  );
+  for (const name of profiles) {
+    const targetPath = join(targetDir, name);
+    if (existsSync(targetPath) && !owned.has(name)) {
+      collisions.push(name);
+      continue;
+    }
+    copyFileSync(join(sourceDir, name), targetPath);
+    owned.add(name);
+    written.push(name);
+  }
+
+  writeOwnershipManifest(targetDir, owned);
+
+  return { written, collisions };
+}
+
 export {
   addLoopEntry,
   deleteLoopEntry,
@@ -286,6 +402,7 @@ export {
   formatTitle,
   listLoopEntries,
   lookupSpawn,
+  materializeAgents,
   parseModelString,
   parseTitle,
   recordSpawn,
