@@ -40,7 +40,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 **Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh design-doc-researcher scoped to your review — never the producer's. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier.
 
-**Negative space** — scoped to the components the design touches: does anything in the codebase contradict the approach (existing patterns, invariants, conventions)? Are there dependencies the design implies but never names?
+**Negative space** — scoped to the components the design touches: does anything in the codebase contradict the approach (existing patterns, invariants, conventions)? Are there dependencies the design implies but never names? Does the design strand anything — code, generality, names, docs, or tests whose reason-to-exist it removes? A survivor kept without a recorded keep-or-remove decision is a finding.
 
 ### 3. Write the review
 
