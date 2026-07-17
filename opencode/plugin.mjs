@@ -7,6 +7,10 @@
  * without a running opencode daemon.
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
+
 /**
  * Parse an Agent-models convention string into the `Model.Ref` object
  * opencode's `session.create` requires.
@@ -184,12 +188,107 @@ function parseTitle(title) {
   };
 }
 
+/**
+ * Resolve the absolute path to the durable loop registry file.
+ *
+ * The registry backs `rp_loop_start`/`rp_loop_list`/`rp_loop_cancel` and the
+ * re-arm-on-setup behavior: it lives outside opencode's own data directory so
+ * it survives independently of opencode's state, under RP's own XDG-style
+ * location.
+ *
+ * @param {Record<string, string | undefined>} [env] Environment to read
+ *   `XDG_DATA_HOME` from. Defaults to the real process environment; injectable
+ *   so callers can resolve the path without depending on ambient process state.
+ * @returns {string} Absolute path to `loops.json`, under
+ *   `$XDG_DATA_HOME/radical-pipelines/` when `XDG_DATA_HOME` is set, else under
+ *   `~/.local/share/radical-pipelines/`.
+ */
+function resolveLoopRegistryPath(env = process.env) {
+  const dataHome = env.XDG_DATA_HOME || join(homedir(), ".local", "share");
+  return join(dataHome, "radical-pipelines", "loops.json");
+}
+
+/**
+ * List every entry currently stored in the loop registry.
+ *
+ * Reads fresh from disk on every call (no in-memory cache), so a call made
+ * from a newly constructed registry instance — including one in a different
+ * process, after a restart — observes whatever the last writer persisted.
+ *
+ * @param {string} registryPath Absolute path to the registry JSON file, as
+ *   returned by `resolveLoopRegistryPath` (or a test-injected path).
+ * @returns {Array<{ id: string, interval: number, prompt: string, targetSession: string }>}
+ *   Every entry in the registry, in insertion order, or `[]` when the file
+ *   does not exist yet.
+ */
+function listLoopEntries(registryPath) {
+  if (!existsSync(registryPath)) {
+    return [];
+  }
+  return JSON.parse(readFileSync(registryPath, "utf8"));
+}
+
+/**
+ * Persist a full list of entries to the loop registry, creating the parent
+ * directory first if it does not already exist.
+ *
+ * @param {string} registryPath Absolute path to the registry JSON file.
+ * @param {Array<{ id: string, interval: number, prompt: string, targetSession: string }>} entries
+ *   The complete list of entries to persist, replacing whatever was there.
+ * @returns {void}
+ */
+function writeLoopRegistry(registryPath, entries) {
+  mkdirSync(dirname(registryPath), { recursive: true });
+  writeFileSync(registryPath, JSON.stringify(entries, null, 2));
+}
+
+/**
+ * Add an entry to the loop registry.
+ *
+ * Each entry carries enough to re-arm a `setInterval` after a restart: the
+ * loop id, its tick interval, the prompt to inject, and the session it
+ * targets.
+ *
+ * @param {string} registryPath Absolute path to the registry JSON file.
+ * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry
+ *   The loop entry to add. `id` uniquely identifies the loop; `interval` is
+ *   the tick period in milliseconds; `prompt` is the text injected on an idle
+ *   tick; `targetSession` is the session ID the loop watches and prompts.
+ * @returns {void}
+ */
+function addLoopEntry(registryPath, entry) {
+  const entries = listLoopEntries(registryPath);
+  entries.push(entry);
+  writeLoopRegistry(registryPath, entries);
+}
+
+/**
+ * Delete a loop registry entry by loop id.
+ *
+ * Deleting an id that is not present is a no-op: the registry is left
+ * unchanged rather than raising an error.
+ *
+ * @param {string} registryPath Absolute path to the registry JSON file.
+ * @param {string} id The loop id to remove.
+ * @returns {void}
+ */
+function deleteLoopEntry(registryPath, id) {
+  const entries = listLoopEntries(registryPath).filter(
+    (entry) => entry.id !== id,
+  );
+  writeLoopRegistry(registryPath, entries);
+}
+
 export {
+  addLoopEntry,
+  deleteLoopEntry,
   formatAttribution,
   formatTitle,
+  listLoopEntries,
   lookupSpawn,
   parseModelString,
   parseTitle,
   recordSpawn,
   resolveCurrentSpawn,
+  resolveLoopRegistryPath,
 };
