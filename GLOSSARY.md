@@ -66,7 +66,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Lane flow** — one execution of a phase's full machinery (research → artifact → adversarial review) to a lane-approved artifact; on the run branch with a single lane, once per lane with multiple (in parallel on lane branches when isolated, sequentially on the run branch when divergent).
 - **Lane count** — a per-phase decision. With a single lane the flow runs on the run branch and consolidation is skipped (the degenerate case).
 - **Isolated mode** — lanes run in parallel, mutually blind (spec always; design-doc optionally).
-- **Divergent mode** — design-doc lanes run sequentially; each lane after the first reads the previous lanes' approved designs, records, and reviews, and works a **Lane mandate** — differ in a load-bearing decision, challenge a shared assumption (the last lane), or an owner-named angle — declaring its divergence in its record.
+- **Divergent mode** — design-doc lanes run sequentially; each lane after the first reads the previous lanes' approved designs, records, and reviews, and works a **Lane mandate** — differ in a load-bearing decision, challenge a shared load-bearing premise (the last lane), or an owner-named angle — declaring its divergence or justified convergence in its record.
 
 ## Lineage
 

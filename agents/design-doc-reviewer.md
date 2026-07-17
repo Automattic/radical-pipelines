@@ -25,7 +25,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 - **Coverage** — every spec requirement and acceptance criterion has a corresponding decision or component.
 - **Traceability** — each decision points to a specific spec requirement or acceptance criterion.
 - **Scope** — the design stays within the spec: no features beyond it, no out-of-scope items crept back in.
-- **Mandate** — when your conventions name a **Lane mandate** and previous lane designs exist, the record declares the divergence serving it — judged against the previous lanes' designs, records, and approved reviews — or records the challenge and why the designs legitimately converge.
+- **Mandate** — when your conventions name a **Lane mandate**, the record states it exactly — a mismatch with your copy is a finding — and the design serves it. With previous lane designs, the record declares the divergence — judged against the previous lanes' designs, records, and approved reviews — or how the mandate was pursued and why the convergence is legitimate.
 - **Altitude** — the design describes architecture and decisions without becoming a step-by-step build plan or production code.
 - **Fidelity and clarity** — `design-doc.md` faithfully reflects the record, the sections agree with each other, and two implementers reading independently would build the same thing.
 
