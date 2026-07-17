@@ -253,6 +253,24 @@ All items below marked VERIFIED were run live against a sandboxed non-global ins
   - Block contents trace to decided topics: rp_spawn contract (Topic 3), rp_send (Topic 4), rp_loop_* (Topic 5), model string form (Topic 3: Model.Ref parse), immovable seat (Topic 3), caller-default loop target (Topic 4: toolCtx.sessionID) → confirmed above.
   - Worktree-inside-repo is the verified same-project configuration — Topic 3 experiment → confirmed; outside-repo untested (constraint keeps us on verified ground).
 
+### Topic 9: Pin declaration and integration tests
+
+- **Spec link:** Requirements 2 (declared pinned build, auto-update disabled, other builds outside the verified surface), 3 (integration tests against exactly the pin, passing); Requirement 4's pin-comparison surface.
+- **Framing:** The pin must be declared once and consumed by the documented install, the tests, and the status surface. The test harness's remaining unknowns — full XDG isolation, headless server shape, hermetic model option, exact-version npm pinning, version readability — are dispatched as the final research round.
+- **Status:** research dispatched (design-doc-researcher, 2026-07-17).
+
+### Topic 10: End-to-end run and resume — assembly
+
+- **Spec link:** Requirements 15 (all five phases' artifacts committed on the run branch + close-out) and 16 (git-based resume: leftover loop cancellable, worktree recreatable, run continues from committed state); Acceptance criteria 14–15.
+- **Framing:** No new mechanism — these requirements are satisfied by the generic skill running on the decided primitives. This topic records the trace and the two opencode-specific nuances.
+- **Decision (trace):**
+  1. *Phases and artifacts:* the generic skill's workflow is unchanged — worktree/branch topology is raw git (orchestrator-owned), artifacts commit per phase, guardrail gates run via the shell tool inside seated sessions (relative resolution under the seat verified in Topic 3). The orchestrator is the owner's opencode session with the RP skill loaded (skill loading verified in Topic 2); phase agents are spawned/addressed/monitored via `rp_spawn`/`rp_send`/`rp_loop_*` per the `.rp.md` opencode section (Topic 8). The `## Conventions` block, issue access via CLI, and commit flows are tool-agnostic and port unchanged (spec-research Q1).
+  2. *Close-out:* stop the monitor via `rp_loop_cancel` (Topic 5), push branches via git, inform the owner — the generic close-out with the opencode cancel command.
+  3. *Resume:* in a fresh orchestrator session, opening the repo is the project-scoped touch that re-arms leftover loops from the registry (Topic 5); `rp_loop_list` then shows the leftover and `rp_loop_cancel` stops it — the skill's resume step 1 works as written. Worktree recreation from the branch is raw git, unchanged. In-flight executions die with the serving process (Topic 1) and their sessions persist as inert records; the run continues from committed state per the skill's git-based resume — no session reattachment (spec Out of Scope 6). Stale ledger entries from a previous session are inert: they carry the old run's title key, and re-spawns create fresh sessions with fresh IDs.
+  4. *Orchestrator-interruption edge:* if the daemon itself restarts mid-run, children's in-flight turns die too; staleness becomes visible through `time.updated` and the monitor's stall signal once a monitor runs again — consistent with the resume model (incomplete work re-runs from committed state).
+- **Rationale:** the spec's e2e and resume outcomes were deliberately written over the parity primitives; with Topics 1–8 decided and verified, the remaining content is this trace. The one genuinely opencode-specific behavior (dormant-until-touch loop re-arm) lands exactly on the resume flow's first action.
+- **Evidence:** each traced element cites its topic's live verification (Topics 1–5, 8) or the spec-phase record (Q1, Q3, Q4 — tool-agnostic elements). No new claims.
+
 ## Open Questions
 
 <!-- Deferred questions: each limited to what a later phase can verify, naming what will verify it and why deferral is safe. -->
