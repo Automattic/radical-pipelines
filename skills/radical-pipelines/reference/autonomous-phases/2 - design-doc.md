@@ -24,7 +24,9 @@ With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` 
 When asking the owner for the lane mode, explain the difference: both modes repeat the phase once per lane, and differ in what the repetition is for.
 
 - **Isolated** produces the same design several times to make it trustworthy. Lanes run in parallel, blind to one another, and independently converge: where they agree the design is confirmed, and what one lane caught the others missed completes it. Choose it when one good design likely exists and you want reliability and completeness. Blind repetition converges on the obvious design — it cannot produce alternatives.
-- **Divergent** produces several different designs to choose from. Lanes run in sequence, each reading the previous designs and required to differ materially; the consolidator judges the alternatives, keeps the strongest, and records the rejected ones. Choose it when several architectures could win, or when the obvious design may be a local optimum. It costs sequential time, and in a narrow design space it forces strained alternatives.
+- **Divergent** produces several different designs to choose from. Lanes run in sequence, each reading the previous designs and working a mandate that directs where it diverges; the consolidator judges the alternatives, keeps the strongest, and records the rejected ones. Choose it when several architectures could win, or when the obvious design may be a local optimum. It costs sequential time, and in a narrow design space lanes may converge — a declared convergence is a legitimate outcome.
+
+- **Lane angles** — divergent mode only, optional: an owner-named angle per lane (e.g. the minimal design that satisfies the spec). A named angle replaces that lane's default mandate.
 
 ## Required agents
 
@@ -51,7 +53,7 @@ Each lane runs the full flow in its assigned worktree:
 
 1. Run the lane flow in every lane; each lane writes its artifacts in its `lane-<K>` subfolder of the phase folder, so the lanes' paths are disjoint:
    - **Isolated mode** — create one lane branch and worktree per lane, forked from the run branch (branch segment `2-design-doc-lane-<K>`), and run all lanes in parallel, mutually blind. When every lane is approved, merge each lane branch into the run branch, remove the lane worktrees, and delete the lane branches.
-   - **Divergent mode** — run the lanes sequentially in the run branch's worktree, committing on the run branch.
+   - **Divergent mode** — run the lanes sequentially in the run branch's worktree, committing on the run branch. Assign each lane its **Lane mandate**: the first lane designs from the spec alone; each subsequent lane but the last differs from the previous designs in at least one load-bearing decision; the last lane instead challenges a load-bearing premise all previous designs share. An owner-named **Lane angle** replaces that lane's default mandate.
 2. Launch `design-doc-consolidator` in the run branch's worktree as a persistent agent. It reads each lane's artifacts from the `lane-<K>` subfolders and commits the consolidated `design-doc.md` and `design-doc-research.md` at the phase folder root on the run branch. It stays alive until the consolidated design is approved. If it asks for research support, launch a fresh `design-doc-researcher` scoped to its consolidation and reply with the researcher's identifier.
 3. Launch a fresh `design-doc-reviewer` to review the consolidated design, as in the lane flow. On **rejected**, relay the rejection file's path to the consolidator; it adjudicates every finding, updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
 
