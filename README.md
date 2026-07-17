@@ -32,7 +32,7 @@ The phases are:
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
-The Spec and Design doc phases can run **multilane**: N independent lanes each take the phase's full machinery to an approved artifact, and a consolidator merges them into a single consolidated artifact that passes a final adversarial review. N=1 — the default — is the plain single flow.
+The Spec and Design doc phases can run **multilane**: N lanes each take the phase's full machinery to an approved artifact, and a consolidator merges them into a single consolidated artifact that passes a final adversarial review. N=1 — the default — is the plain single flow.
 
 The pipeline is **autonomous by default, assisted when needed.** It runs on its own, but humans can intervene at any checkpoint. For particularly complex tasks, specific phases can be run in assisted mode instead.
 
