@@ -1,5 +1,16 @@
 # @automattic/radical-pipelines
 
+## 0.9.0
+### Minor Changes
+
+
+
+- [#209](https://github.com/Automattic/radical-pipelines/pull/209) [`4d84e7b`](https://github.com/Automattic/radical-pipelines/commit/4d84e7b4759437c3110e55492628d056917e8b65) Thanks [@luisherranz](https://github.com/luisherranz)! - Give the multilane consolidator the lead pattern. The `spec-consolidator` and `design-doc-consolidator` are now persistent through the consolidation review loop: they answer for the consolidated artifacts, back every judgment of their own — selections, transformations, omissions, combinations — with recorded evidence, adjudicate the final review's findings (adopt, refute with evidence, or propose as residual), and can request a researcher (the researcher supplies evidence; the consolidator adjudicates) — a decision no lane made stays a blocker. Factual divergences resolve on the strongest evidence, never lane count, and a normative divergence nothing in the intent selects is a blocker. Consolidators read the lanes' review files as merge signal and record per-decision lane provenance. The final reviewer audits completeness — every material lane contribution inherited or explicitly dispositioned — and reuses lane verification for what the consolidated record inherits unchanged.
+
+
+
+- [#210](https://github.com/Automattic/radical-pipelines/pull/210) [`6905573`](https://github.com/Automattic/radical-pipelines/commit/6905573d2744cc3d1d7b6762169b8dc9c02c7b5a) Thanks [@luisherranz](https://github.com/luisherranz)! - Direct the divergence in the design-doc phase's divergent mode. Each lane works a positional **Lane mandate** — the first designs from the spec alone, each subsequent lane but the last differs from the previous designs in at least one load-bearing decision, and the last instead challenges a load-bearing premise they all share, designing without it where a credible alternative survives — with optional owner-named lane angles replacing the defaults. Every lane records its mandate verbatim, so it survives into what the consolidator reads; lanes after the first also read the previous lanes' designs, records, and approved reviews, and declare the divergence as a decision in their record — what the previous designs chose, what theirs chooses, and why that serves the mandate — or how the mandate was pursued and why the convergence is legitimate. The orchestrator resolves each mandate once and passes it identically to the lane's lead and reviewers, so the reviewer adjudicates the recorded mandate and the declaration against an independent copy.
+
 ## 0.8.0
 ### Minor Changes
 

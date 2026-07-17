@@ -1,5 +1,0 @@
----
-"@automattic/radical-pipelines": minor
----
-
-Give the multilane consolidator the lead pattern. The `spec-consolidator` and `design-doc-consolidator` are now persistent through the consolidation review loop: they answer for the consolidated artifacts, back every judgment of their own — selections, transformations, omissions, combinations — with recorded evidence, adjudicate the final review's findings (adopt, refute with evidence, or propose as residual), and can request a researcher (the researcher supplies evidence; the consolidator adjudicates) — a decision no lane made stays a blocker. Factual divergences resolve on the strongest evidence, never lane count, and a normative divergence nothing in the intent selects is a blocker. Consolidators read the lanes' review files as merge signal and record per-decision lane provenance. The final reviewer audits completeness — every material lane contribution inherited or explicitly dispositioned — and reuses lane verification for what the consolidated record inherits unchanged.
