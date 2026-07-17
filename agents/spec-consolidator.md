@@ -52,7 +52,7 @@ Write both files at the phase folder root:
 
   ## Out of Scope
 
-  <!-- The union of the lanes' explicit exclusions. -->
+  <!-- Explicit exclusions justified by the intent and the lane records. -->
 
   ## Acceptance Criteria
 
