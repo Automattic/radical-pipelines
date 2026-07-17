@@ -88,6 +88,15 @@ All items below marked VERIFIED were run live against a sandboxed non-global ins
 - **Interrupt (VERIFIED):** `POST /api/session/{id}/interrupt` (no body) on a mid-execution session → 204; `session.execution.interrupted` fired; `/active` cleared; the session stayed usable — a follow-up prompt ran a normal execution to completion. Interrupt is non-destructive.
 - **Harness input (for Topic 9):** the `opencode` provider exposes ~20 free models (hy3-free, minimax-m3-free, deepseek-v4-flash-free, glm-5-free, kimi-k2.5-free, …) usable with no credentials at cost 0 — real turns, model-swap between two free models, completion/interrupt flows all free. Deterministic failure injectors: bogus `*_API_KEY` env → `provider.auth`; bogus model id → `provider.no-route`. Free models still call opencode's hosted endpoint (full hermeticity is the harness round's open question).
 
+### Topic 9 findings: pin + integration-test harness (design-doc-researcher, live experiments on `0.0.0-next-15757` and smoke on `0.0.0-next-15772`, 2026-07-17)
+
+- **XDG isolation (VERIFIED complete):** `XDG_CONFIG_HOME` (config, service password record, global `agents/` + `skills/` dirs, provider config), `XDG_DATA_HOME` (`opencode-next.db`, logs, repos/shell/snapshot), `XDG_CACHE_HOME` (plugin `packages/` cache, models.json, bin), `XDG_STATE_HOME` (service record, locks) together redirect ALL v2 state; a fully-redirected instance leaked nothing to the real dirs. **Harness rule:** set the XDG vars on EVERY invocation including `--version` — an unset invocation writes a log line to the real `~/.local/share/opencode/log`. Two instances coexist without collision (4096 daemon + standalone on another port; a second-profile `service start` auto-picked 4097); `opencode2 api` discovers per-profile via the XDG_STATE record.
+- **Headless shape (VERIFIED):** `serve --port N` (standalone) and `service start` behave identically for plugin loading, per-directory scope caching, sessions, and events (both were used across Topics 1–7). `serve`: deterministic port, no service record (connect via `api --server http://127.0.0.1:N` — verified — or curl + `OPENCODE_PASSWORD`), teardown = kill. `service`: auto-picked port, auto-discovery, detached lifetime (state can leak between tests). Recommendation adopted: `serve --port <fixed>` under isolated XDG for the harness.
+- **Hermetic model (VERIFIED — fully offline turns):** a custom OpenAI-compatible provider in `opencode.json` (`providers.stub` with `package: "@opencode-ai/ai/providers/openai-compatible"`, `settings.baseURL` → localhost stub, mandatory dummy `settings.apiKey` — without it turns fail `provider.auth: Missing auth credential`), models entry `stub-model`, referenced as `{providerID:"stub", id:"stub-model"}`. The stub must serve `GET /v1/models` and `POST /v1/chat/completions` as streaming SSE OpenAI chunks (~40-line node server sufficed; auto-title makes a second call). A session on the stub ran a turn with the stub's text verbatim, cost 0, no network.
+- **Exact-version pinning (VERIFIED):** `npm install @opencode-ai/cli@0.0.0-next-15757` resolves an immutable tarball (dist.shasum recorded) — reproducible in CI; pin by exact `0.0.0-next-XXXXX` string, never the moving `next` tag (15757 → 15772 within days).
+- **Smoke on newest 15772 (VERIFIED):** fresh isolated install passed every RP-load-bearing mechanic — zero-dep plugin loads + tool registered, global-dir agent governs the turn, `session.create` seats `location.directory`, Basic auth enforced. Nothing regressed; the pin can advance to the newest build at Build kickoff after re-running this smoke.
+- **Version surface (VERIFIED):** `opencode2 --version` → exact build string (universal); service record `version` field exists only while the daemon runs (created on start, removed on stop) — `serve` writes no record, so the harness asserts via `--version`.
+
 ## Topics
 
 <!-- One section per design topic, appended as worked. -->
@@ -256,8 +265,17 @@ All items below marked VERIFIED were run live against a sandboxed non-global ins
 ### Topic 9: Pin declaration and integration tests
 
 - **Spec link:** Requirements 2 (declared pinned build, auto-update disabled, other builds outside the verified surface), 3 (integration tests against exactly the pin, passing); Requirement 4's pin-comparison surface.
-- **Framing:** The pin must be declared once and consumed by the documented install, the tests, and the status surface. The test harness's remaining unknowns — full XDG isolation, headless server shape, hermetic model option, exact-version npm pinning, version readability — are dispatched as the final research round.
-- **Status:** research dispatched (design-doc-researcher, 2026-07-17).
+- **Framing:** The pin must be declared once and consumed by the documented install, the tests, and the status surface. The test harness's remaining unknowns — full XDG isolation, headless server shape, hermetic model option, exact-version npm pinning, version readability — were dispatched as the final research round and are all resolved (Topic 9 findings).
+- **Options:**
+  - *Pin declaration:* (1) a single pin manifest file inside the opencode packaging artifact, consumed by the plugin (`rp_status`), the integration tests, and the README install docs (chosen); (2) pin values duplicated in docs and tests independently (drift risk); (3) pin only in docs (tests then don't provably exercise the declared pin).
+  - *Test model:* (1) hermetic local stub provider for the core suite + free `opencode/*` models for a network smoke (chosen); (2) free models only (network-dependent core suite); (3) mocked HTTP without opencode (wouldn't exercise the real build — fails req 3).
+  - *Server shape:* (1) `serve --port <fixed>` under fully isolated XDG (chosen); (2) `service start` per test profile (non-deterministic port, detached lifetime, inter-test leakage).
+- **Decision:**
+  1. **Pin manifest:** one file in the opencode packaging artifact declaring the exact `@opencode-ai/cli` build (`0.0.0-next-XXXXX` string, never a tag) and the `@opencode-ai/plugin` package version whose API surface the layer was verified against (documentation of the verified surface — the plugin itself is zero-dependency at runtime). Consumers: the README install procedure (owner installs exactly these versions, `"autoupdate": false`), the integration harness (installs exactly the pinned CLI), and `rp_status` (compares the running build — `opencode2 --version`, or the service record's `version` when a daemon runs — against the pin and warns on mismatch, making "outside the verified surface" observable, req 2).
+  2. **The pinned number is fixed at Build kickoff** by re-running the researcher's 5-minute smoke on the then-latest `next` build and pinning whatever passes (both `15757` — full verification — and `15772` — smoke — pass today). The design fixes the mechanism and the process; freezing a number today would be stale by Build.
+  3. **Integration suite** (req 3): a dedicated script (e.g. `npm run test:opencode`), not part of the default offline `npm test`. Harness: temp sandbox with all four XDG vars set on every invocation (including `--version` — the log-leak rule), non-global npm install of the pinned CLI, `serve --port <fixed free port>` + `OPENCODE_PASSWORD`, `api --server`/HTTP against it; hermetic stub provider (verified config: openai-compatible `package`, localhost `baseURL`, mandatory dummy `apiKey`, SSE-streaming stub server) for all core flows; deterministic failure injectors (bogus `*_API_KEY` → `provider.auth`; bogus model → `provider.no-route`). Coverage: plugin load + version id, skill registration, agent materialization, spawn/seat/ledger title, send/attribution + failure chain, loop start/skip-busy/cancel/restart-re-arm, interrupt, same-session model switch, pin assertion. A network smoke path (free models; github-specifier channel install) runs at release cadence rather than per-CI-run.
+- **Rationale:** the single-manifest choice makes the declared pin and the tested pin provably the same value (req 3's "exactly that build"); the hermetic stub makes the core suite deterministic and offline while still exercising the real pinned binary end-to-end (unlike an opencode-free mock); `serve` under isolated XDG was demonstrated collision-free next to a live system daemon, deterministic, and behaviorally identical to the daemon for every mechanic RP uses. Deferring the exact build number to Build kickoff is evidence-driven: the `next` tag moved twice during this phase, and the verified-mechanics smoke is the gate that keeps the pin honest.
+- **Evidence:** all six findings bullets above (XDG isolation + leak rule, serve/service equivalence, hermetic stub turn, immutable exact-version tarball, 15772 smoke pass, version readability) — researcher live experiments → confirmed.
 
 ### Topic 10: End-to-end run and resume — assembly
 
@@ -271,6 +289,31 @@ All items below marked VERIFIED were run live against a sandboxed non-global ins
 - **Rationale:** the spec's e2e and resume outcomes were deliberately written over the parity primitives; with Topics 1–8 decided and verified, the remaining content is this trace. The one genuinely opencode-specific behavior (dormant-until-touch loop re-arm) lands exactly on the resume flow's first action.
 - **Evidence:** each traced element cites its topic's live verification (Topics 1–5, 8) or the spec-phase record (Q1, Q3, Q4 — tool-agnostic elements). No new claims.
 
+## Requirements Coverage
+
+Every spec requirement is served by a decided topic; no acceptance criterion lacks a mechanism.
+
+| Spec requirement | Served by |
+| --- | --- |
+| 1 Install | Topic 2 (pinned github specifier in global config + plugin self-registers skill + materializes agents, one restart), Topic 1 (zero extra infrastructure) |
+| 2 Pinned target | Topic 9 (pin manifest, exact-version strings, `autoupdate: false` in the documented install, `rp_status` mismatch warning) |
+| 3 Pinned verification | Topic 9 (hermetic integration suite against exactly the pinned CLI) |
+| 4 Version discoverability | Topic 2 (version-embedding plugin id via `/api/plugin`; in-session status tool), Topic 9 (`rp_status` pin comparison) |
+| 5 Update | Topic 2 (bump pinned tag + restart; plugin refreshes materialized agents) |
+| 6 Skill loads unchanged | Topic 2 (skill dir registered by reference; progressive disclosure native; no file modified) |
+| 7 Agents available | Topic 2 (byte-for-byte materialization, filename-derived names = RP names, one restart, ordering guarantee) |
+| 8 Per-tool pattern | Topic 8 (opencode.md + Tool→Read row; packaging artifact from Topic 2; generic skill untouched except the tool-agnostic Topic 6 rule) |
+| 9 Setup | Topic 8 (canonical opencode blocks — Team spawning + Health monitoring required, Agent models optional — inform-not-ask; Setup actions plugin check; worktree root inside repo; gitignore step is existing generic setup) |
+| 10 Tool-mismatch guard | Topic 6 (presence-is-per-tool rule in load.md) |
+| 11 Team spawning | Topic 3 (`rp_spawn`: validate, parse model, seated session, session-ID identifier, ledger) + Topic 4/3 (completion notification via singleton listener) |
+| 12 Messaging | Topic 4 (`rp_send`: queue delivery, derived attribution, both directions, all pairs) |
+| 13 Health loop | Topic 5 (`rp_loop_start/list/cancel`, /active idle check, skip-busy ticks, durable registry, restart re-arm, leftover list+cancel from new session) |
+| 14 Liveness recovery | Topic 7 (observables: /session, /active, /pending, structured errors, `rp_status`; actions: ping, interrupt+re-spawn, re-send, switchModel + re-spawn, identifier propagation) |
+| 15 End-to-end run | Topic 10 (trace over Topics 1–8; close-out via `rp_loop_cancel` + push + inform) |
+| 16 Resume | Topic 10 + Topic 5 (touch-triggered re-arm → list → cancel leftover; git-recreated worktrees; committed-state continuation) |
+
+Spec Out of Scope respected: v1 untouched (all work targets `opencode2`/v2); no third-party team layer (plugin + native API only); no multi-tool coexistence (Topic 6 guards, not merges); no session reattachment (Topic 10); Claude Code behavior unchanged (only generic-skill change is the tool-agnostic loader rule of Topic 6, which preserves current behavior when the section matches — plus one new table row read only under opencode).
+
 ## Open Questions
 
 <!-- Deferred questions: each limited to what a later phase can verify, naming what will verify it and why deferral is safe. -->
@@ -281,6 +324,7 @@ All items below marked VERIFIED were run live against a sandboxed non-global ins
 - ~~Agent-materialization discovery order (Topic 2)~~ — RESOLVED: one restart; `setup()` awaited before agent scanning (Topic 2 tail findings).
 - ~~Verbatim agent copy (Topic 2)~~ — RESOLVED: extra `name:` frontmatter ignored, filename governs; byte-for-byte copy works (Topic 2 tail findings).
 - ~~Listener singleton across directory-scopes (Topic 3)~~ — RESOLVED: the plugin module is imported once per daemon and shares state across per-scope setups; a module-level guard gave exactly-once event delivery across scopes and projects (Topic 4 findings).
+- **Exact pinned build number (Topic 9).** The design fixes the pin's declaration mechanism and consumers; the number itself is chosen at Build kickoff by re-running the verified-mechanics smoke on the then-latest `next` build. Verified by: that smoke plus the full integration suite against the chosen build. Safe to defer because two builds already pass (15757 fully, 15772 by smoke), the smoke is specified, and a number frozen today would be stale before Build starts.
 - **Network-error type string (Topic 7).** The exact structured-error `type` for a transient network failure was not reproduced live (auth → `provider.auth` and bad model → `provider.no-route` were). Verified by: the Build phase's integration tests (or first occurrence in the wild). Safe to defer because the surfacing channel (structured error on `session.execution.failed`) is live-verified with two sibling types, and the monitor's transient-class treatment (retry once, then wait an interval) does not depend on the exact string.
 - **Auto-title timing vs the re-assert (Topics 3/4).** Whether the first turn's auto-title generation can land AFTER the listener's re-assert on first `execution.succeeded` (an async race that would clobber the re-asserted `rp:` title once). Verified by: the Build phase's pinned integration tests (spawn → first turn → check title). Safe to defer because the in-memory map is the authoritative live ledger and the health monitor lazily re-asserts missing `rp:` titles — the durable title self-heals within one monitor interval either way.
 
