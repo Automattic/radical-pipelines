@@ -110,6 +110,7 @@ Write `<pipeline-family-folder>/<run>/1-spec/spec.md` as a standalone document �
 - **Specific** — name exact types, functions, files where possible.
 - **Sized by the evidence** — the spec's depth follows what the Q&A and research found; omit sections with nothing to record.
 - **No implementation details** — describe WHAT, not HOW to code it.
+- **Existing tests are evidence, never requirements** — a requirement may demand behavior stays observably unchanged; which tests change to keep asserting it is a design-phase consequence.
 - **Acceptance criteria** in Given-When-Then format. They drive the tests.
 - Architectural and structural details (components, data models, error handling, etc.) belong to phase 2 (the design doc), not here.
 

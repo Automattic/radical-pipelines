@@ -82,6 +82,7 @@ Cover these topics — order is flexible, and not every topic needs a multi-opti
 - **Components** — new components, modified components, untouched-but-relevant components.
 - **Interfaces and data flow** — public interfaces (APIs, function signatures, message shapes, file formats), and how data moves between components.
 - **Key decisions** — anything where multiple credible options exist and the choice has consequences.
+- **Post-change coherence** — what the design makes false. A choice that narrows what reaches surviving code re-opens that code: re-derive its body, name, contract, docs, and tests from the narrowed contract, and record keeping any stranded generality as a decision with alternatives, not a default.
 - **Dependencies** — internal modules, external libraries, services, or systems the design depends on. Call out new dependencies explicitly.
 - **Failure modes and observability** — how the design fails, how failures are detected, what is logged or surfaced.
 - **Risks and open questions** — anything the build phase must resolve.
