@@ -23,9 +23,12 @@ When a required input is missing, contradictory, or would force a choice that be
 For each section of the spec:
 
 - **Agreements** — content the lanes agree on carries over directly.
-- **Divergences** — where lanes differ, prefer the claim supported by more lanes' research records; when the records leave a divergence unsettled, settle it with a check (see **Research support**).
-- **Edge cases and exclusions** — take the union: an edge case or out-of-scope item any lane found belongs in the consolidated spec.
+- **Factual divergences** — where the lanes' records disagree on a fact, the strongest evidence wins — never the lane count; when the records leave it unsettled, settle it with a check (see **Research support**).
+- **Normative divergences** — where lanes state a requirement or exclusion differently, carry the outcome the intent and the records justify. When several materially different outcomes stay valid and nothing in the intent selects one, that is a missing product decision — report it as a blocker.
+- **Edge cases** — take the union: an edge case any lane discovered belongs in the consolidated spec. An exclusion is normative — it carries over when the intent and the records justify it.
 - **Design material** — drop anything describing how the feature is built (architecture, components, data models, error handling); the spec states WHAT, not HOW.
+
+Every material lane contribution ends up inherited or explicitly dispositioned; a selection, transformation, omission, or combination is a judgment like any other — record what carried it.
 
 ### 3. Write the consolidated artifacts
 
@@ -78,11 +81,11 @@ Commit the updated artifacts and report back for re-review. Repeat until the con
 
 ## Research support
 
-When settling a divergence or adjudicating a finding needs investigation beyond the lane material, ask the orchestrator for a fresh spec-researcher scoped to your consolidation. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier. Research verifies and adjudicates; a requirement no lane recorded remains a blocker.
+When settling a divergence or adjudicating a finding needs investigation beyond the lane material, ask the orchestrator for a fresh spec-researcher scoped to your consolidation. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier. The researcher supplies evidence; you adjudicate — and a requirement no lane recorded remains a blocker.
 
 ## Guidelines
 
-- **Every statement traces to a lane.** Pick, combine, and reconcile what the lanes produced; specificity no lane supports stays out.
+- **Normative content traces to a lane.** Pick, combine, and reconcile the requirements and exclusions the lanes produced; your own evidence settles conflicts between lane content, never grounds content no lane supports.
 - **Every judgment of yours carries its check.** Resolving a divergence, or preferring one lane's claim, is a claim like any other: record what carried it.
 - **The lanes arrived approved.** You reconcile their content; judging it is the run-branch reviewer's job, applied to your output.
 - **WHAT only.** HOW belongs to the design phase.

@@ -23,9 +23,11 @@ For each section of the design doc:
 - **Agreements** — merge what the lanes agree on; agreement is strong signal.
 - **Divergences** — where lanes decide differently, prefer the option best supported by `spec.md` and the lanes' research records; when those leave a divergence unsettled, settle it with a check (see **Research support**).
 - **Missing pieces** — a decision or component only one lane covers is included when it serves the spec.
-- **Open questions and risks** — union them across lanes.
+- **Open questions and risks** — union those that bear on the consolidated design; a risk belonging only to a rejected alternative stays recorded with that alternative.
 
 In **divergent mode**, the lanes are alternative designs by construction: synthesize the strongest coherent design rather than averaging them, and record the rejected alternatives — and why they lost — in the consolidated `design-doc-research.md`.
+
+Every material lane contribution ends up inherited or explicitly dispositioned; a selection, transformation, omission, or combination is a judgment like any other — record what carried it.
 
 Never invent design no lane supports. A gap that needs a design decision no lane made is a blocker, not something to fill yourself.
 
@@ -53,7 +55,7 @@ Commit the updated artifacts and report back for re-review. Repeat until the con
 
 ## Research support
 
-When settling a divergence, verifying a combination no lane shipped, or adjudicating a finding needs investigation beyond the lane material, ask the orchestrator for a fresh design-doc-researcher scoped to your consolidation. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier. Research verifies and adjudicates; a design decision no lane made remains a blocker.
+When settling a divergence, verifying a combination no lane shipped, or adjudicating a finding needs investigation beyond the lane material, ask the orchestrator for a fresh design-doc-researcher scoped to your consolidation. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier. The researcher supplies evidence; you adjudicate — and a design decision no lane made remains a blocker.
 
 ## Guidelines
 
