@@ -395,8 +395,142 @@ function materializeAgents(
   return { written, collisions };
 }
 
+/**
+ * Absolute path to the pin manifest, resolved relative to this module's
+ * location so it resolves correctly regardless of the process's working
+ * directory.
+ *
+ * Serves as `readPinManifest`'s default `manifestPath`; tests inject their
+ * own path instead of relying on this constant.
+ */
+const DEFAULT_PIN_MANIFEST_PATH = fileURLToPath(
+  new URL("./pin.json", import.meta.url),
+);
+
+/**
+ * Read and parse the pin manifest declaring the exact `@opencode-ai/cli`
+ * build (and `@opencode-ai/plugin` version) this layer targets.
+ *
+ * @param {string} [manifestPath] Absolute path to the manifest JSON file.
+ *   Defaults to `opencode/pin.json` alongside this module.
+ * @returns {{ cli: string, plugin: string }} The parsed manifest.
+ */
+function readPinManifest(manifestPath = DEFAULT_PIN_MANIFEST_PATH) {
+  return JSON.parse(readFileSync(manifestPath, "utf8"));
+}
+
+/**
+ * Compare a running opencode build against the pinned build.
+ *
+ * @param {string | null | undefined} runningBuild The build string reported
+ *   by the running installation (e.g. from `opencode2 --version` or the
+ *   service record), or a nullish value or the literal `"unknown"` when it
+ *   could not be read (e.g. a `serve` process exposes no service record).
+ * @param {string} pinnedCli The pinned `@opencode-ai/cli` build string (the
+ *   pin manifest's `cli` field, see `readPinManifest`).
+ * @returns {"match" | "outside the verified surface" | "not determinable"}
+ *   `"match"` when `runningBuild` equals `pinnedCli`; `"not determinable"`
+ *   when `runningBuild` is nullish or `"unknown"` rather than a real build
+ *   string; otherwise `"outside the verified surface"`.
+ */
+function comparePinnedBuild(runningBuild, pinnedCli) {
+  if (runningBuild == null || runningBuild === "unknown") {
+    return "not determinable";
+  }
+  return runningBuild === pinnedCli ? "match" : "outside the verified surface";
+}
+
+/**
+ * Default cap for the in-memory recent-errors ring `appendToErrorLog`
+ * maintains.
+ */
+const DEFAULT_ERROR_LOG_CAP = 20;
+
+/**
+ * Append an entry to a bounded, in-memory error log ring.
+ *
+ * Pure: returns a new array rather than mutating `log`, leaving the caller
+ * in control of where the resulting log is stored (e.g. a module-singleton
+ * held by the event listener).
+ *
+ * @param {Array<*>} log Existing log entries, oldest first.
+ * @param {*} entry The entry to append (e.g. a captured structured error).
+ * @param {number} [cap] Maximum number of entries the ring retains. Defaults
+ *   to `DEFAULT_ERROR_LOG_CAP`.
+ * @returns {Array<*>} `log` with `entry` appended; once the result would
+ *   exceed `cap` entries, the oldest are dropped so at most `cap` remain,
+ *   newest last.
+ */
+function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
+  const next = [...log, entry];
+  return next.length > cap ? next.slice(next.length - cap) : next;
+}
+
+/**
+ * Shape the `rp_status` tool result from its component inputs.
+ *
+ * Pure: every input is supplied by the caller — the plugin's `rp_status`
+ * handler gathers the plugin version, the pin comparison (see
+ * `comparePinnedBuild`), the ledger snapshot, and the error log (see
+ * `appendToErrorLog`) from their respective sources — so this function
+ * performs no I/O of its own.
+ *
+ * @param {{
+ *   pluginVersion: string,
+ *   pinComparison: "match" | "outside the verified surface" | "not determinable",
+ *   ledgerEntries: Array<{
+ *     name: string,
+ *     sessionID: string,
+ *     agent: string,
+ *     model: string,
+ *     directory: string,
+ *     updated: string | number,
+ *     running: boolean,
+ *     pending: number,
+ *   }>,
+ *   errorLog: Array<*>,
+ * }} input The status payload's components. `pluginVersion` identifies the
+ *   running plugin build; `pinComparison` is the result of comparing the
+ *   running opencode build against the pin; `ledgerEntries` is one row per
+ *   live spawn; `errorLog` is the bounded recent-errors ring.
+ * @returns {{
+ *   pluginVersion: string,
+ *   pin: "match" | "outside the verified surface" | "not determinable",
+ *   ledger: Array<{
+ *     name: string,
+ *     sessionID: string,
+ *     agent: string,
+ *     model: string,
+ *     directory: string,
+ *     updated: string | number,
+ *     running: boolean,
+ *     pending: number,
+ *   }>,
+ *   recentErrors: Array<*>,
+ * }} The shaped `rp_status` result.
+ */
+function shapeStatus({ pluginVersion, pinComparison, ledgerEntries, errorLog }) {
+  return {
+    pluginVersion,
+    pin: pinComparison,
+    ledger: ledgerEntries.map((entry) => ({
+      name: entry.name,
+      sessionID: entry.sessionID,
+      agent: entry.agent,
+      model: entry.model,
+      directory: entry.directory,
+      updated: entry.updated,
+      running: entry.running,
+      pending: entry.pending,
+    })),
+    recentErrors: errorLog,
+  };
+}
+
 export {
   addLoopEntry,
+  appendToErrorLog,
+  comparePinnedBuild,
   deleteLoopEntry,
   formatAttribution,
   formatTitle,
@@ -405,7 +539,9 @@ export {
   materializeAgents,
   parseModelString,
   parseTitle,
+  readPinManifest,
   recordSpawn,
   resolveCurrentSpawn,
   resolveLoopRegistryPath,
+  shapeStatus,
 };
