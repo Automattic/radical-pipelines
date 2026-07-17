@@ -162,6 +162,29 @@ All items below marked VERIFIED were run live against a sandboxed non-global ins
   - Queue admitted+promoted without interrupting; idle behavior identical to steer; `agents` param does not switch the session agent; injected message is user-role and runs the receiver's persisted agent+model — live → confirmed.
   - Failure chain: 404 on deleted session (delete 204 → prompt 404); `/pending` shows admitted-unpromoted entries; `execution.failed` carries sessionID + structured error; `session.error` carries ProviderAuthError/APIError — live (Topic 1 for session.error union) → confirmed.
 
+### Topic 5: Health-loop scheduler — start/list/cancel, idle-only firing, cross-session persistence
+
+- **Spec link:** Requirement 13 (recurring loop: start with interval+prompt, list, cancel by identifier, fire only when the orchestrator is idle, persist across orchestrator sessions); feeds 14 (the monitor runs inside the loop's turns), 16 (leftover loop cancellable from a fresh session).
+- **Framing:** opencode has no loop primitive; the plugin must supply one. Candidate shape: `rp_loop_start {interval, prompt, target?}` / `rp_loop_list` / `rp_loop_cancel {id}` tools; a module-singleton timer in the daemon; a durable loop registry file re-armed at plugin setup; at each tick, fire only if the target session is idle (skip the tick otherwise), injecting the prompt via queue delivery. Open: timer reliability in the daemon, the cheap per-tick idle signal, where the registry lives, and setup's lazy-init implication for re-arming after a service restart.
+- **Status:** research dispatched (design-doc-researcher, 2026-07-17).
+
+### Topic 6: Tool-mismatch guard
+
+- **Spec link:** Requirement 10 (running RP under a tool that does not match `.rp.md`'s per-tool section must not proceed under the other tool's conventions; the owner is informed and offered setup for the active tool). Constraint: the generic skill stays tool-agnostic (req 8; repo rules).
+- **Framing:** Today `load.md` checks required-convention presence only; with all conventions present, setup is skipped (`setup.md:222`) and an opencode orchestrator would follow "Spawn each agent as a Claude Code teammate" / `CronList` instructions. The gap becomes reachable exactly when a second tool exists. The guard must live in the generic run-time read path (`load.md` — the only file read at run time) and be worded tool-agnostically.
+- **Options:**
+  1. **Presence-is-per-tool rule (chosen):** `load.md` gains one rule — a convention under a per-tool section counts as present only when that section's tool matches the active tool (the same active-tool identification setup step 1 already uses). A mismatch thereby reduces to the existing missing-conventions flow — stop, explain, offer setup — with one added requirement: when conventions are unavailable because the per-tool section targets a different tool, say so explicitly.
+  2. A separate explicit "Tool mismatch" step in `load.md` with its own stop-and-offer messaging.
+  3. Guard in `setup.md` — unreachable: setup is skipped when required conventions are present, which is precisely the mismatch case.
+  4. Detection logic in the per-tool convention files — architecturally wrong: those files are read only during setup; run time reads `.rp.md` only.
+- **Trade-offs:** Option 1 adds a single definition and reuses the existing stop/inform/offer-setup flow — no new flow, no duplicated messaging, consistent with the repo's minimalism rules (a general rule stated once at the general level). Option 2 duplicates the missing-conventions behavior under a second name and adds a step to the read path for the same observable outcome. Options 3 and 4 fail structurally.
+- **Decision:** Option 1. `.rp.md`'s per-tool section already names its tool in the heading (e.g. "## Claude Code conventions"); the loader treats per-tool conventions under a non-matching heading as not present for this run, and the explanation to the owner names the mismatch ("the committed per-tool section targets <tool>; running under <active tool> requires setup for it"). What setup then does with the existing file is setup's existing overwrite/merge behavior — coexistence stays out of scope (spec Out of Scope 5). The opencode convention file (Topic 8) defines its own canonical section heading, giving the guard its second matchable value.
+- **Rationale:** the guard must fire at run time under either tool, so it can only live in `load.md`; folding it into the presence check yields the spec's exact observable outcome (does not proceed + informed + offered setup) through a flow that already exists, with the smallest possible change to the generic skill and zero tool-specific content. Options were checked against the actual read-path: `load.md` is read every run; the per-tool files are not.
+- **Evidence:**
+  - Presence-only check and setup-skip — `load.md` "Missing conventions" (presence only); `setup.md:222` (skip when complete) — file reads → confirmed (RP-side integration points, above).
+  - Per-tool section carries the tool name — `.rp.md:75` "## Claude Code conventions"; README.md:118 (shared section + per-tool section for the active tool) → confirmed.
+  - Run time reads only `.rp.md`; per-tool files read only at setup — `load.md` full read; `setup.md:15-24, 183-189` → confirmed.
+
 ## Open Questions
 
 <!-- Deferred questions: each limited to what a later phase can verify, naming what will verify it and why deferral is safe. -->
