@@ -210,3 +210,10 @@ _Findings (verified 2026-07-17; canonical repo is now `anomalyco/opencode`, defa
 14. The health monitor's observations and recovery actions are executable against RP agents under opencode: per-agent recent-output/idle state, message-delivery state, and auth/network error surfacing are observable; status ping, agent restart, message re-send, model-swap + re-spawn, and propagation of a changed identifier all work. (Q4)
 15. On a pinned opencode v2 install, an owner can take an issue end-to-end: all five phases' required artifacts committed on the run branch, followed by close-out — health monitor stopped, run branch pushed, owner informed. (Intent Goal; Q3)
 16. After an orchestrator interruption, the owner can resume the run per the skill's git-based resume: the leftover health loop is cancellable, the run worktree is recreatable from the branch, and the run continues from committed state to completion. (Q4)
+
+## Review Adjudications
+
+### Round 1 (spec-review-1-rejected.md, reviewed revision cbee2b9)
+
+- **Issue 1 — ADOPTED.** Acceptance criteria omitted requirement 5 (update) entirely and covered only two of requirement 14's four recovery paths. Fix: three criteria added to spec.md — the documented update procedure (version surface reports the newer release, updated skill and agents in effect); message-failure recovery (delivery failure observable → re-send → restart target on second failure); network-failure recovery (failure observable → retry once → wait one interval and retry before escalating). Requirements and record unchanged — the gap was coverage in spec.md only.
+- Reviewer's verification-log observations noted without action: npm `@next` moved 15718 → 15756 within a day (strengthens the pin rationale recorded in Q2); the skills-scanning code cited in Research item 4 has moved on today's `v2` tree while the documented behavior holds (illustrates the same moving-beta premise).
