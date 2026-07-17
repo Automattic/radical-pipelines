@@ -49,7 +49,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Document phase** — `document-planner`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
 - **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh planner or writer per iteration in the build and document phases; the persistent lead or consolidator in the spec and design-doc phases); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file).
 - **Batch** — the set of build/document tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
-- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Commit format, Guardrails, Guardrail scopes to fill.
+- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Lane mandate, Commit format, Guardrails, Guardrail scopes to fill.
 - **Consolidator** — a persistent agent that merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch, backs its own judgments with checks (researcher on request), and adjudicates the final reviewer's findings; a decision no lane made stays a blocker.
 
 ## Workflows
@@ -66,7 +66,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Lane flow** — one execution of a phase's full machinery (research → artifact → adversarial review) to a lane-approved artifact; on the run branch with a single lane, once per lane with multiple (in parallel on lane branches when isolated, sequentially on the run branch when divergent).
 - **Lane count** — a per-phase decision. With a single lane the flow runs on the run branch and consolidation is skipped (the degenerate case).
 - **Isolated mode** — lanes run in parallel, mutually blind (spec always; design-doc optionally).
-- **Divergent mode** — design-doc lanes run sequentially; each reads the previous lanes' approved designs and works a mandate — differ in a load-bearing decision, break a shared assumption (the last lane), or an owner-named angle — declaring its divergence in its record.
+- **Divergent mode** — design-doc lanes run sequentially; each lane after the first reads the previous lanes' approved designs, records, and reviews, and works a **Lane mandate** — differ in a load-bearing decision, challenge a shared assumption (the last lane), or an owner-named angle — declaring its divergence in its record.
 
 ## Lineage
 
