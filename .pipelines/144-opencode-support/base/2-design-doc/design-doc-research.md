@@ -208,6 +208,32 @@ All items below marked VERIFIED were run live against a sandboxed non-global ins
   - Per-tool section carries the tool name — `.rp.md:75` "## Claude Code conventions"; README.md:118 (shared section + per-tool section for the active tool) → confirmed.
   - Run time reads only `.rp.md`; per-tool files read only at setup — `load.md` full read; `setup.md:15-24, 183-189` → confirmed.
 
+### Topic 7: Liveness observability and recovery actions
+
+- **Spec link:** Requirement 14 (per-agent recent-output/idle state, message-delivery state, auth/network error surfacing observable; status ping, restart, re-send, model-swap + re-spawn, identifier propagation all work); Acceptance criteria 10–13.
+- **Framing:** Mostly assembly of verified primitives from Topics 1–5. Three recovery actions still lack a live check — mid-life model switch (`POST /model`), a live ProviderAuthError chain, and interrupt-then-reuse — dispatched as tails; the mapping is assembled after they land.
+- **Status:** tails dispatched (design-doc-researcher, 2026-07-17).
+
+### Topic 8: Per-tool pattern artifacts — opencode convention file, setup row, canonical `.rp.md` blocks
+
+- **Spec link:** Requirements 8 (conditionally-loaded opencode tool-convention file + packaging artifact; no opencode content in the generic skill), 9 (setup yields `.rp.md` with an opencode per-tool section — Team spawning and Health monitoring required, Agent models optional — canonical conventions inform rather than ask; worktree root git-ignored).
+- **Framing:** The Claude Code precedent fixes the shape: a per-tool file in `reference/conventions/` holding canonical `.rp.md` blocks, one Tool→Read row in setup step 1, an optional "Setup actions" section consulted in setup step 3. All content is now determined by Topics 2–5's decided primitives.
+- **Options:** the file's existence and location have no real alternatives (the per-tool pattern is a spec requirement); the decided choices below are the canonical block contents, the section heading, the worktree-root constraint, the setup action, and the docs split.
+- **Decision:**
+  1. **New row** in setup.md's Tool→Read table: opencode → `opencode.md`, the second per-tool file in `skills/radical-pipelines/reference/conventions/`. No other generic-skill file mentions opencode (the Topic 6 guard is tool-agnostic).
+  2. **Canonical section heading:** `## opencode conventions` — the second matchable value for the Topic 6 guard, parallel to `## Claude Code conventions`.
+  3. **Canonical Team spawning block** (inform, don't ask): spawn each agent with the `rp_spawn` tool — `{name, agent, model, directory, prompt, run}` — where `agent` is the RP agent name, `model` is a `provider/model[#variant]` string applied at spawn, `directory` is the absolute worktree path (the session's working directory is fixed for its lifetime — no seat-by-cd, no worktree-tool hazard), and the result's session ID is the identifier for addressing messages. Directed messages go through `rp_send {to, message}`; completion notifications arrive automatically as messages from the RP layer.
+  4. **Canonical Health monitoring block** (inform, don't ask): start with `rp_loop_start {interval, prompt}` (the target defaults to the calling session — the orchestrator needs no self-ID discovery); list with `rp_loop_list`; cancel with `rp_loop_cancel` with the loop id.
+  5. **Agent models** (optional convention): values are opencode-native `provider/model[#variant]` strings, passed verbatim to `rp_spawn`.
+  6. **Worktree root** constraint: must be a path inside the repository — same sentence as claude-code.md, and for opencode it is also the empirically verified configuration for worktree sessions sharing the repo's project scope (outside-repo worktrees were not tested).
+  7. **Setup actions** section: verify the RP opencode plugin is installed and loaded (the version surface: `/api/plugin` shows `radical-pipelines@<version>`, or the in-session status tool); if absent, stop setup and point the owner at the documented install procedure. A check, not a write — consistent with setup.md's no-files-without-confirmation rule.
+  8. **Docs split** (mirrors Claude Code): install/pin/update procedures live in README's opencode section (the packaging artifact's documentation); `opencode.md` carries only conventions and setup actions. The README change follows the repo's README-update rule.
+- **Rationale:** every block documents a primitive decided and verified in Topics 2–5, in the exact per-tool pattern the spec mandates; the divergences from claude-code.md's text (no cd-dance, no worktree-tool warning, loop target defaulting) are consequences of verified opencode behavior — the seat is immovable (Topic 3) and `toolCtx.sessionID` identifies the caller (Topic 4). Keeping install docs out of the convention file matches the existing Claude Code split (README installs; claude-code.md informs conventions) and keeps setup's read path unchanged.
+- **Evidence:**
+  - Per-tool pattern surfaces — setup.md:15-24 (Tool→Read table), :183-189 (Setup actions), claude-code.md structure — file reads → confirmed (RP-side integration points).
+  - Block contents trace to decided topics: rp_spawn contract (Topic 3), rp_send (Topic 4), rp_loop_* (Topic 5), model string form (Topic 3: Model.Ref parse), immovable seat (Topic 3), caller-default loop target (Topic 4: toolCtx.sessionID) → confirmed above.
+  - Worktree-inside-repo is the verified same-project configuration — Topic 3 experiment → confirmed; outside-repo untested (constraint keeps us on verified ground).
+
 ## Open Questions
 
 <!-- Deferred questions: each limited to what a later phase can verify, naming what will verify it and why deferral is safe. -->
