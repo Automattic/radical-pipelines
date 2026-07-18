@@ -29,13 +29,6 @@ Use the following structure:
 
 <!-- One paragraph: what is being implemented and the order at a high level, plus the investigation behind the plan's scope — including searches that came back empty. -->
 
-## Guardrail scopes
-
-<!-- One row per scoped gate the build phase runs. Records the chosen `{scope}` value per gate, not the command. "None" when none were passed. -->
-
-| Gate | Scope |
-| ---- | ----- |
-
 ## E2E test plan
 
 <!-- The spec's acceptance criteria and edge cases as explicit end-to-end flows. Concrete enough for the build-writer-e2e to automate and the reviewer to manually re-drive. -->
@@ -80,7 +73,7 @@ Use the following structure:
 - **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and testable, but they describe **what**, not **which test** — the build-writer-tdd turns them into unit tests in the RED phase. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
 - **Name exact files.** Use real paths from the codebase wherever possible. "Update the auth module" is not enough; "update `src/auth/session.ts`" is.
 - **Stay within spec and design.** Do not invent functionality, alternative designs, or extra scope.
-- **Fill the guardrail scopes.** For each gate passed in `Guardrail scopes to fill:`, choose a `{scope}` value — from the gate's `fill-guidance` when present, otherwise derived from the spec and design — and record it in `## Guardrail scopes` (gate → value) — exactly those gates, `None` when none were passed; you own each scope value but not the set.
+- **Satisfy the guardrails.** Rules in your `## Conventions` block's **Guardrails** field are mandatory; satisfy every one in the work you produce.
 - **Plan the e2e flows.** Transform the spec's acceptance criteria and edge cases into the `## E2E test plan` section. Per-task unit-test selection stays the build-writer's: a task's Acceptance describes _what must be true_, and the build-writer-tdd turns it into unit tests in the RED phase. Do not prescribe which unit tests a task writes.
 - **Do NOT plan documentation.** Documentation is planned and executed in the document phase. Do not include documentation tasks here.
 - **Do NOT write code.** Describe the change; do not produce the implementation.

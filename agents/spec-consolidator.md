@@ -89,3 +89,4 @@ When settling a divergence or adjudicating a finding needs investigation beyond 
 - **Every judgment of yours carries its check.** Resolving a divergence, or preferring one lane's claim, is a claim like any other: record what carried it.
 - **The lanes arrived approved.** You reconcile their content; judging it is the run-branch reviewer's job, applied to your output.
 - **WHAT only.** HOW belongs to the design phase.
+- **Satisfy the guardrails.** Rules in your `## Conventions` block's **Guardrails** field are mandatory; satisfy every one in the work you produce.

@@ -34,13 +34,6 @@ Use the following structure:
 <!-- One paragraph: what documentation surfaces are being added or updated and why,
      and the sweep behind them — including searches that came back empty. -->
 
-## Guardrail scopes
-
-<!-- One row per scoped gate the document phase runs. Records the chosen `{scope}` value per gate, not the command. "None" when none were passed. -->
-
-| Gate | Scope |
-| ---- | ----- |
-
 ## Tasks
 
 <!-- Ordered, numbered. Each task must be small enough that one document-writer can execute it by reading the shipped code. -->
@@ -69,7 +62,7 @@ Use the following structure:
 ## Guidelines
 
 - **Standalone.** A reader should understand the plan from your output alone.
-- **Fill the guardrail scopes.** For each gate passed in `Guardrail scopes to fill:`, choose a `{scope}` value — from the gate's `fill-guidance` when present, otherwise derived from the spec and design — and record it in `## Guardrail scopes` (gate → value) — exactly those gates, `None` when none were passed; you own each scope value but not the set.
+- **Satisfy the guardrails.** Rules in your `## Conventions` block's **Guardrails** field are mandatory; satisfy every one in the work you produce.
 - **What, where, and for whom — not what the docs say.** Name the shipped surfaces — files, modules, commands, configuration keys — as they exist in the code. Leave the sentences to the document-writer: acceptance criteria describe coverage and outcomes, not wording.
 - **Sweep every surface of the shipped behavior.** Documentation lives wherever someone has written it — across the entire codebase, not only in the most obvious places. Sweep the repository end-to-end for any text that references the behavior the build phase changed; every reference you find is a surface a task must address, or it stays out of sync with what landed. Record the sweep in the Overview, including searches that came back empty. Common surfaces include READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, and internal conventions — a starting point, not a checklist.
 - **Trace every task.** Each task must point to a spec requirement, an acceptance criterion, or a shipped change it documents.

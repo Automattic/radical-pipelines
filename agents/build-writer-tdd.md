@@ -33,21 +33,21 @@ Document every public symbol you add or modify:
 - Include description, parameters, return values, and examples as appropriate.
 - Document object properties individually, not just the container.
 
-### 3. Run the guardrails
+### 3. Satisfy the guardrails
 
-Run every gate in your `## Conventions` block's **Guardrails** field, exactly as its command is written. Each is mandatory.
+Satisfy every rule in your `## Conventions` block's **Guardrails** field, running any command a rule embeds as the rule directs. Each is mandatory.
 
-- Every gate must pass before you commit.
-- Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
-- Sort each gate result:
+- Every rule must be satisfied before you commit.
+- Do not bypass a rule's check (no `--no-verify`, no `skip`, no commented-out checks).
+- Sort each rule:
   - **No Guardrails field** — proceed. This is not a blocker, and it warrants no warning.
-  - **A declared gate's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
-  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
+  - **A rule's embedded command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
+  - **A rule is not satisfied** — its command runs and fails, or the check it states does not hold. That is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
 - Confirm every per-task Acceptance criterion is covered by a passing test before declaring the task done.
 
 ### 4. Commit and report
 
-1. Commit the code, tests, and inline documentation using the **Commit format**. Group changes logically. Only commit when every gate passes.
+1. Commit the code, tests, and inline documentation using the **Commit format**. Group changes logically. Only commit when every rule is satisfied.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines

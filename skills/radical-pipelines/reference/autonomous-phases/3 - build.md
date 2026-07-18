@@ -26,9 +26,9 @@ This phase has no per-phase decisions.
 | Agent                 | Role                                                                                                                                        | Persistent? |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | `build-planner`   | Writes `build-plan.md`.                                                                                                                      | No          |
-| `build-plan-reviewer` | Reviews the build plan adversarially; validates the guardrail scopes.                                                                       | No          |
-| `build-writer-tdd`    | One fresh instance per task. Implements its assigned task with TDD, runs the gates, commits.                                                 | No          |
-| `build-writer-e2e`    | One fresh instance per task. Implements the planned e2e flows, runs the gates, commits.                                                      | No          |
+| `build-plan-reviewer` | Reviews the build plan adversarially.                                                                                                        | No          |
+| `build-writer-tdd`    | One fresh instance per task. Implements its assigned task with TDD, satisfies the guardrails, commits.                                       | No          |
+| `build-writer-e2e`    | One fresh instance per task. Implements the planned e2e flows, satisfies the guardrails, commits.                                            | No          |
 | `build-reviewer`      | One fresh instance per batch. Reviews the run's diff against the plan, spec, and design.                                                     | No          |
 
 ## Steps

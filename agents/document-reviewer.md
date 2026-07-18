@@ -38,15 +38,15 @@ Check:
 
 For at least one concrete claim per task in the batch — a signature, an example, a configuration key, a path, a cross-link — verify the claim against the shipped code. An example that looks right but does not actually run is an issue. A signature that names a parameter the code does not have is an issue. A spot-check claim without evidence is not a spot-check — either produce the evidence or reject the batch.
 
-### 4. Run the guardrails
+### 4. Evaluate the guardrails
 
 By the time you reach this step you have a provisional verdict from steps 2–3.
 
-**If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the gates would tell you nothing. Record each gate as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
+**If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the rules would tell you nothing. Record each rule as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
 
-**If that verdict is approve, run every gate** in your `## Conventions` block's **Guardrails** field, exactly as each command is written, recording each result in the Checks table. To approve, every gate must run and pass in this iteration. A gate that exits non-zero is itself a rejection finding: your verdict becomes reject, and you may leave any remaining gates unrun (recorded as **skipped**). Never approve around a non-zero gate as "environmental" or "pre-existing": the only evidence that makes a failure ambient is reproducing the identical failure on the diff base you derived in step 1, and without it the gate counts as failed. A failing test the batch never touched is not thereby ambient — a regression is by definition a previously-passing test that now fails. Even with that reproduction — or when reproduction is impractical — the safe route for a genuinely suspect failure is a blocker, never an approval. Never bypass a gate to force a pass (no `--no-verify`, no `skip`, no commented-out checks).
+**If that verdict is approve, evaluate every rule** in your `## Conventions` block's **Guardrails** field — running any command a rule embeds as the rule directs — recording each result in the Checks table. To approve, every rule must be evaluated and satisfied in this iteration. An unsatisfied rule is itself a rejection finding: your verdict becomes reject, and you may leave any remaining rules unevaluated (recorded as **skipped**). Never approve around a failing embedded command as "environmental" or "pre-existing": the only evidence that makes a failure ambient is reproducing the identical failure on the diff base you derived in step 1, and without it the rule counts as unsatisfied. A failing test the batch never touched is not thereby ambient — a regression is by definition a previously-passing test that now fails. Even with that reproduction — or when reproduction is impractical — the safe route for a genuinely suspect failure is a blocker, never an approval. Never bypass a rule's check to force satisfaction (no `--no-verify`, no `skip`, no commented-out checks).
 
-If there is no Guardrails field, there are no gates to run and the step-3 accuracy spot-check is your only evidence.
+If there is no Guardrails field, there are no rules to evaluate and the step-3 accuracy spot-check is your only evidence.
 
 ### 5. Write the review
 
@@ -73,13 +73,13 @@ Diff reviewed: <base> → HEAD (the phase's whole work)
 
 ## Checks
 
-<!-- One row per gate in the Guardrails field. Result: pass | fail | skipped.
-     A skipped row shows the gate's literal command but the command was not run.
-     A forgotten gate is an absent row; a deliberately skipped gate is a present skipped row;
-     a run gate is a present pass/fail row. -->
-| Check | Command | Result |
-| ----- | ------- | ------ |
-| ...   | ...     | ...    |
+<!-- One row per rule in the Guardrails field. Result: satisfied | unsatisfied | skipped.
+     A skipped row names the rule but the rule was not evaluated.
+     A forgotten rule is an absent row; a deliberately skipped rule is a present skipped row;
+     an evaluated rule is a present satisfied/unsatisfied row. -->
+| Guardrail | Result |
+| --------- | ------ |
+| ...       | ...    |
 
 ## Accuracy spot-check
 
@@ -124,5 +124,5 @@ Screenshots or other assets live in the phase folder, referenced by relative pat
 - **Reject liberally.** Any real inaccuracy or coverage gap is worth rejecting for. Rejections improve the docs — they are not failures.
 - **Do NOT rewrite the docs.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan, spec, or design.** Those have been approved. Flag deviations, not the artifacts themselves.
-- **Run the guardrails.** Don't just read the docs. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, run every gate per step 4 and approve only if all pass. If you already reject on judgment, skip them and go to step 5.
-- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, a gate that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — `document-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; a declared gate cannot execute. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
+- **Evaluate the guardrails.** Don't just read the docs. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, evaluate every rule per step 4 and approve only if all are satisfied. If you already reject on judgment, skip them and go to step 5.
+- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, inaccuracies, scope creep, an unsatisfied rule, etc.) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — `document-plan.md`, `spec.md`, `design-doc.md`, or the shipped code is missing or unreadable; batch metadata is missing; a rule whose embedded command cannot execute. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

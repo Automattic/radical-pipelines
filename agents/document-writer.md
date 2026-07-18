@@ -34,24 +34,24 @@ Verify each concrete claim against the shipped code:
 
 - Symbol references (functions, types, modules) name things that actually exist with the actual signatures.
 - File paths, command names, and configuration keys resolve.
-- Runnable examples actually run. If a gate covers docs tests, exercise them; otherwise trace by hand.
+- Runnable examples actually run. If a guardrail covers docs tests, exercise them; otherwise trace by hand.
 - Cross-links resolve.
 
-### 4. Run the guardrails
+### 4. Satisfy the guardrails
 
-Run every gate in your `## Conventions` block's **Guardrails** field, exactly as its command is written. Each is mandatory.
+Satisfy every rule in your `## Conventions` block's **Guardrails** field, running any command a rule embeds as the rule directs. Each is mandatory.
 
-- Every gate must pass before you commit.
-- Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
-- Sort each gate result:
+- Every rule must be satisfied before you commit.
+- Do not bypass a rule's check (no `--no-verify`, no `skip`, no commented-out checks).
+- Sort each rule:
   - **No Guardrails field** — the step-3 accuracy verification is your only validation; proceed. This is not a blocker, and it warrants no warning.
-  - **A declared gate's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report it.
-  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
+  - **A rule's embedded command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report it.
+  - **A rule is not satisfied** — its command runs and fails, or the check it states does not hold. That is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
 - Confirm every per-task Acceptance criterion is satisfied before declaring the task done.
 
 ### 5. Commit and report
 
-1. Commit the documentation changes using the **Commit format** convention. Group changes logically. Only commit when every gate passes.
+1. Commit the documentation changes using the **Commit format** convention. Group changes logically. Only commit when every rule is satisfied.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
@@ -67,4 +67,4 @@ Run every gate in your `## Conventions` block's **Guardrails** field, exactly as
 - **Design↔code drift is a blocker.** Where the design doc and the shipped code disagree on a point your task must cover, stop and report a blocker — do not invent a rationale for behavior that does not match what shipped, and do not document behavior that does not match the rationale. Wording-level mismatches (the plan said document the "login flow"; the code names it `signIn`) are NOT drift — adapt naturally from reading the code.
 - **Follow project conventions.** Existing patterns, voice, structure, formatting.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file attached to your task must be resolved or explicitly answered.
-- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so. For example: the task's Files to change reference paths that do not exist, the plan named a surface no shipped code populates, the design doc and the shipped code disagree on a point your task must cover, or a gate cannot execute. Do not produce partial documentation. Failing docs gates are not blockers — they are work to do.
+- **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so. For example: the task's Files to change reference paths that do not exist, the plan named a surface no shipped code populates, the design doc and the shipped code disagree on a point your task must cover, or a rule's embedded command cannot execute. Do not produce partial documentation. Unsatisfied docs guardrails are not blockers — they are work to do.

@@ -28,8 +28,8 @@ This phase has no per-phase decisions.
 | Agent                    | Role                                                                                                           | Persistent? |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------- | ----------- |
 | `document-planner`   | Writes `document-plan.md` against the shipped code, focused on what/where/for whom.                              | No          |
-| `document-plan-reviewer` | Reviews the plan adversarially; validates the guardrail scopes.                                                  | No          |
-| `document-writer`        | One fresh instance per task. Writes or updates the documentation; verifies accuracy; runs the gates; commits.   | No          |
+| `document-plan-reviewer` | Reviews the plan adversarially.                                                                                  | No          |
+| `document-writer`        | One fresh instance per task. Writes or updates the documentation; verifies accuracy; satisfies the guardrails; commits. | No          |
 | `document-reviewer`      | One fresh instance per batch. Reviews the full batch; writes the summary on approval.                            | No          |
 
 ## Steps

@@ -23,6 +23,7 @@ When a required input is missing, contradictory, or would force a choice that be
 - **Direct research as deeply as the requirements need.** Ask the spec-researcher for whatever pins down an outcome or constraint — how the system behaves today, what users expect, what is achievable, what existing behavior must be preserved.
 - **Treat the intent as a hypothesis.** Its goal, constraints, and any "assumptions / directions to explore" are the owner's best current understanding — validate them through research. A confirmed assumption becomes a requirement only when it asserts a desired observable outcome; one about the current system grounds requirements as fact, and one about how to build stays input to the design phase.
 - **Record as you go.** Append questions, answers, and findings to `spec-research.md` in real time, not in a batch at the end.
+- **Satisfy the guardrails.** Rules in your `## Conventions` block's **Guardrails** field are mandatory; satisfy every one in the work you produce.
 
 ## Workflow
 
