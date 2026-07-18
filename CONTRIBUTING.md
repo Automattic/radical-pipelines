@@ -16,9 +16,23 @@ npm test
 
 This runs the `node --test 'scripts/test/**/*.test.mjs'` suite (the `sync-version`, changeset-validator, and version-drift-guard tests, including the end-to-end coverage of the version-sync flow). There is no `lint` or `typecheck` step — this repo has none.
 
+### The opencode integration suite
+
+```bash
+npm run test:opencode
+```
+
+This runs the hermetic, pinned opencode integration suite (`scripts/opencode-integration/run.mjs`), which exercises RP's opencode layer against exactly the pinned `@opencode-ai/cli` build recorded in `opencode/pin.json`. It lives outside `scripts/test/`, so the fixed `npm test` gate above never runs it — run it explicitly. On first use it installs the pinned CLI (cached by exact version under the OS temp directory, so a repeat run with the same pin never touches the network again), then drives it inside an XDG-isolated sandbox whose core checks run entirely offline against a local OpenAI-compatible stub provider.
+
+The core suite needs no network beyond that one-time install. Add `--network-smoke` to also run the release-cadence network smoke path, which additionally requires network access to GitHub and to opencode's hosted free-model endpoint:
+
+```bash
+npm run test:opencode -- --network-smoke
+```
+
 ## Versioning policy
 
-The project has a single version. The source of truth is the root `package.json`'s `version`, which the release version step (`npm run release:version`) keeps in sync across the other version-bearing locations: `.claude-plugin/plugin.json` (via `scripts/sync-version.mjs`) and `package-lock.json`, in its two recorded-version fields — the top-level `version` and the root package's `packages[""].version`. The package is `private` and consumed direct-from-git (a Claude Code plugin served from the repo root), so there is no registry release — only a `v<version>` git tag and a matching GitHub Release.
+The project has a single version. The source of truth is the root `package.json`'s `version`, which the release version step (`npm run release:version`) keeps in sync across the other version-bearing locations: `.claude-plugin/plugin.json` (via `scripts/sync-version.mjs`) and `package-lock.json`, in its two recorded-version fields — the top-level `version` and the root package's `packages[""].version`. The package is `private` and consumed direct-from-git (a Claude Code plugin served from the repo root, plus an opencode plugin whose entry point is `opencode/plugin.mjs`), so there is no registry release — only a `v<version>` git tag and a matching GitHub Release.
 
 ## Adding a changeset
 
@@ -41,6 +55,7 @@ A changeset is required when a PR changes any **release-relevant** path. These a
 - `skills/**`
 - `agents/**`
 - `.claude-plugin/**`
+- `opencode/**`
 - the **root** `package.json` (the pattern is anchored — nested `package.json` files do not match)
 - `README.md`
 
@@ -229,7 +244,7 @@ Because this is a **private** repository, the token needs read access to private
 
 ## Integrating an agentic coding tool
 
-Radical Pipelines is generic; each supported tool gets a rules file in `skills/radical-pipelines/reference/conventions/` (e.g. `claude-code.md`) documenting how the conventions take their canonical form in that tool, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
+Radical Pipelines is generic; each supported tool gets a rules file in `skills/radical-pipelines/reference/conventions/` (e.g. `claude-code.md`, `opencode.md`) documenting how the conventions take their canonical form in that tool, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
 
 A tool must provide:
 
@@ -245,3 +260,5 @@ Optional, needed only when the project configures the matching convention:
 7. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
 
 The rules file documents the tool's mechanics for the conventions — Team spawning, Health monitoring, worktrees — and surfaces any prerequisite the owner must meet before the tool is declared ready.
+
+**opencode** is the second realized tool. Its rules file is `skills/radical-pipelines/reference/conventions/opencode.md`. Because a rules file alone cannot supply capabilities the tool lacks natively, opencode also ships a packaging artifact — the zero-dependency plugin at `opencode/plugin.mjs` — that provides the coordination `rp_*` tools opencode has no native primitive for (team spawning, directed messaging, health monitoring, status).
