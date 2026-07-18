@@ -101,6 +101,50 @@ Plugin skills are namespaced by the plugin name in Claude Code (not by the marke
 
 The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
+## opencode plugin install
+
+opencode installs plugins from its global config rather than from a marketplace. Radical Pipelines is distributed as a pinned Git specifier that opencode resolves through its own npm resolver, so installing it is a config edit followed by one restart. The target is opencode v2 (the public beta, the `opencode2` binary), verified against one exact pinned build recorded in [`opencode/pin.json`](./opencode/pin.json).
+
+Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, pinned to a release tag, and disable opencode's auto-update:
+
+```jsonc
+{
+  "plugins": ["github:Automattic/radical-pipelines#v<X.Y.Z>"],
+  "autoupdate": false
+}
+```
+
+Replace `v<X.Y.Z>` with the RP release tag to install; RP tags every release `v<version>`. Then restart the opencode service once:
+
+```bash
+opencode2 service restart
+```
+
+A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. After the restart:
+
+- The `radical-pipelines` skill is invokable — the plugin registers the packaged skill tree as a skill source by reference, unmodified.
+- Every RP agent is available by its RP name — the plugin materializes the agent profiles into opencode's global agents directory (`~/.config/opencode/agents/`), where each agent's id matches its RP name.
+- opencode's auto-update is disabled, holding the installation on the verified build.
+
+`autoupdate: false` matters because RP verifies against one exact opencode build, not the moving `next` tag. That build lives in [`opencode/pin.json`](./opencode/pin.json), which pins both the `@opencode-ai/cli` build the `opencode2` binary comes from and the `@opencode-ai/plugin` package version the plugin is written against. Any opencode build other than the pin is outside RP's verified surface.
+
+### Updating
+
+To move to a newer RP release, change the pinned tag in the same `plugins` entry to the newer `v<version>` release tag — keeping `autoupdate: false` — and restart:
+
+```bash
+opencode2 service restart
+```
+
+opencode resolves the new tag into its own cache entry and the plugin refreshes the materialized agents during setup, so the newer skill and agents take effect after the restart. Only a pinned tag refreshes this way: a moving ref (a branch name in place of a `v<version>` tag) resolves once and never refreshes, which is why the procedure always pins a tag.
+
+### Checking the installed version
+
+opencode reports plugin ids, not versions, so RP surfaces its own version:
+
+- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version, and its `pin` field compares the running opencode build against `opencode/pin.json` — `match` when they are equal, `outside the verified surface` when the running build differs from the pin, and `not determinable` when the running build cannot be read.
+- opencode's HTTP API reports the same id: `opencode2 api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
+
 ## Configuration
 
 The skill is generic — each project defines its own conventions for things like where issues are tracked, the branch name base, the pipeline family folder location, the worktree root, commit rules, and how teams of agents are spawned. A project's shared conventions live in a committed `.rp.md` file, populated by the interactive setup flow; an individual developer can optionally layer a restricted subset of local overrides on top of it (see below).
