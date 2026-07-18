@@ -33,6 +33,7 @@ import plugin, {
 const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
 const NOTIFIED_CHILDREN_KEY = Symbol.for("radical-pipelines.opencode.notifiedChildren");
 const LOOP_TIMERS_KEY = Symbol.for("radical-pipelines.opencode.loopTimers");
+const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
 
 /** Create a fresh, empty temp directory (used for materializeAgents overrides). */
 function freshDir() {
@@ -201,6 +202,25 @@ describe("setup: tool and skill registration", () => {
     setup(second.ctx, isolatedDeps({ env: {} }));
 
     assert.equal(first.subscribeCalls + second.subscribeCalls, 1);
+  });
+
+  test("a materialization collision with a pre-existing foreign agent file is surfaced via rp_status's recentErrors", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
+    const sourceDir = freshDir();
+    const targetDir = freshDir();
+    writeFileSync(join(sourceDir, "spec-lead.md"), "# RP spec-lead\n");
+    writeFileSync(join(targetDir, "spec-lead.md"), "# foreign spec-lead, not RP-owned\n");
+
+    const { ctx, tools } = createFakeCtx();
+    setup(ctx, { env: {}, agentsSourceDir: sourceDir, agentsTargetDir: targetDir });
+
+    const result = (await tools.get("rp_status").execute({}, {})).structured;
+    assert.ok(
+      result.recentErrors.some(
+        (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
+      ),
+      `expected a materialize-collision entry for spec-lead.md, got: ${JSON.stringify(result.recentErrors)}`,
+    );
   });
 });
 
@@ -636,6 +656,51 @@ describe("completion listener (first-terminal-event-only notification)", () => {
     );
   });
 
+  test("the notification text conveys the terminal outcome, distinguishing succeeded from failed", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_outcome", { id: "ses_spawner_outcome" });
+    sessions.set("ses_child_ok", { id: "ses_child_ok" });
+    sessions.set("ses_child_bad", { id: "ses_child_bad" });
+    recordSpawn("ses_child_ok", {
+      name: "worker-ok",
+      run: "144-opencode-support",
+      spawner: "ses_spawner_outcome",
+    });
+    recordSpawn("ses_child_bad", {
+      name: "worker-bad",
+      run: "144-opencode-support",
+      spawner: "ses_spawner_outcome",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+
+    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+
+    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_ok" } });
+    await delay(10);
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_bad" } });
+    await delay(10);
+
+    assert.equal(promptCalls.length, 2);
+    assert.match(
+      promptCalls[0].text,
+      /succeeded/i,
+      `expected the succeeded outcome in the text, got: ${promptCalls[0].text}`,
+    );
+    assert.doesNotMatch(promptCalls[0].text, /failed/i);
+    assert.match(
+      promptCalls[1].text,
+      /failed/i,
+      `expected the failed outcome in the text, got: ${promptCalls[1].text}`,
+    );
+    assert.doesNotMatch(promptCalls[1].text, /succeeded/i);
+  });
+
   test("ignores non-terminal events and terminal events on sessions RP never spawned", () => {
     assert.equal(isTerminalEvent({ type: "session.created" }), false);
     assert.equal(isTerminalEvent({ type: "session.execution.succeeded" }), true);
@@ -805,6 +870,7 @@ describe("readCliVersion", () => {
 
 describe("buildStatusPayload", () => {
   test("returns an empty ledger and a pin comparison without touching the network when the server cannot be resolved", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
     const result = await buildStatusPayload({
       env: {},
       readServiceRecord: () => null,
@@ -814,7 +880,7 @@ describe("buildStatusPayload", () => {
     assert.equal(result.ledger.length, 0);
     assert.equal(result.pin, "outside the verified surface");
     assert.equal(typeof result.pluginVersion, "string");
-    assert.deepEqual(result.recentErrors, result.recentErrors);
+    assert.deepEqual(result.recentErrors, []);
   });
 
   test("reads the session list, active set, and per-session pending counts through the reach helper and the injected HTTP client", async () => {

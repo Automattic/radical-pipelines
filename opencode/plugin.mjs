@@ -844,7 +844,9 @@ function terminalEventSessionID(event) {
  * spawn. For a recognized child's terminal event: always records it in the
  * bounded error log; on the child's *first* terminal event only, notifies
  * the spawner (queue delivery) and re-asserts the child's durable `rp:`
- * title over the reach helper.
+ * title over the reach helper. The notification text names the terminal
+ * outcome — "succeeded" or "failed" — so a first-turn spawn failure reads as
+ * a failure rather than as a false success.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
  * @param {{
@@ -874,9 +876,10 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
   }
   notified.add(sessionID);
 
+  const outcome = event.type === "session.execution.succeeded" ? "succeeded" : "failed";
   await ctx.session.prompt({
     sessionID: entry.spawner,
-    text: `[rp] ${entry.name} (${sessionID}) completed its first turn.`,
+    text: `[rp] ${entry.name} (${sessionID}) ${outcome} on its first turn.`,
     delivery: "queue",
   });
 
@@ -1431,6 +1434,9 @@ async function consumeEvents(ctx, onEvent) {
  * every call (opencode re-runs `setup` once per directory scope); guards the
  * completion listener's event subscription and the loop registry's re-arm
  * behind `SETUP_ONCE_KEY` so they run exactly once per daemon process.
+ * Materializes the agent profiles on every call, recording any collision
+ * with a pre-existing, non-RP-owned agent file to the bounded error log
+ * (observable via `rp_status`'s `recentErrors`) rather than dropping it.
  *
  * @param {object} ctx The plugin context opencode supplies: `ctx.tool`,
  *   `ctx.skill`, `ctx.agent`, `ctx.session`, `ctx.event`.
@@ -1483,7 +1489,10 @@ function setup(ctx, deps = {}) {
 
   ctx.skill.transform((sources) => sources.source({ type: "directory", path: SKILLS_SOURCE_DIR }));
 
-  materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
+  const { collisions } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
+  for (const name of collisions) {
+    recordError({ type: "agent.materialize.collision", name });
+  }
 
   if (!globalThis[SETUP_ONCE_KEY]) {
     globalThis[SETUP_ONCE_KEY] = true;
