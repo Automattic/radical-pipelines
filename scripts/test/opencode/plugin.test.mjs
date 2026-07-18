@@ -212,7 +212,13 @@ describe("setup: tool and skill registration", () => {
     writeFileSync(join(targetDir, "spec-lead.md"), "# foreign spec-lead, not RP-owned\n");
 
     const { ctx, tools } = createFakeCtx();
-    setup(ctx, { env: {}, agentsSourceDir: sourceDir, agentsTargetDir: targetDir });
+    setup(ctx, {
+      env: {},
+      agentsSourceDir: sourceDir,
+      agentsTargetDir: targetDir,
+      readServiceRecord: () => null,
+      readCliVersion: () => null,
+    });
 
     const result = (await tools.get("rp_status").execute({}, {})).structured;
     assert.ok(
