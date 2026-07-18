@@ -1,7 +1,8 @@
 /**
- * Flow 2 (plugin load + version id) and the plugin's skill-registration and
- * agent-materialization mechanics (including foreign-file collision
- * safety), driven against the sandbox's running `serve` process.
+ * Plugin load and version-id reporting, skill registration, and
+ * agent-materialization mechanics — including foreign-file collision safety
+ * and collision reporting — driven against the sandbox's running `serve`
+ * process.
  */
 
 import assert from "node:assert/strict";
@@ -9,7 +10,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCheck } from "../lib/check-runner.mjs";
-import { createSession, listAgents, listPlugins, listSkills, pollUntil } from "../lib/api-client.mjs";
+import { createSession, driveToolCall, listAgents, listPlugins, listSkills, pollUntil } from "../lib/api-client.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const AGENTS_SOURCE_DIR = join(REPO_ROOT, "agents");
@@ -116,4 +117,24 @@ export async function run(ctx) {
     const currentContent = readFileSync(ctx.foreignAgentPath, "utf8");
     assert.equal(currentContent, ctx.foreignAgentContent, "the foreign file must not have been overwritten");
   });
+
+  await runCheck(
+    results,
+    "collision reporting: the seeded spec-lead.md collision is observable via rp_status's recentErrors",
+    async () => {
+      const session = await createSession(server, {
+        agent: "build",
+        directory: projectDir,
+        model: { providerID: "stub", id: "stub-model" },
+      });
+      const result = await driveToolCall(server, session.id, `return await tools.rp_status({});`);
+      const status = JSON.parse(result.text);
+      assert.ok(
+        status.recentErrors.some(
+          (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
+        ),
+        `expected rp_status's recentErrors to report the spec-lead.md collision, got: ${JSON.stringify(status.recentErrors)}`,
+      );
+    },
+  );
 }

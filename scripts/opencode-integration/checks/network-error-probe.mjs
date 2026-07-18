@@ -1,12 +1,12 @@
 /**
- * Flow 13 (tool-call network-error surfacing): forces a transient network
- * failure inside a tool call (a `webfetch` to an address that cannot
- * resolve) and records what surfaces — the tool's own result and the
- * turn's terminal state — rather than asserting a single predetermined
- * channel. Per the design record, a tool-call failure ordinarily returns an
- * error result to the model and the turn continues; nothing verified shows
- * it reaching `session.execution.failed`. This probe's job is to confirm
- * that observation still holds and that the turn is not left hanging.
+ * Tool-call network-error surfacing: forces a transient network failure
+ * inside a tool call (a `webfetch` to an address that cannot resolve) and
+ * records what surfaces — the tool's own result and the turn's terminal
+ * state — rather than asserting a single predetermined channel. A tool-call
+ * failure ordinarily returns an error result to the model and the turn
+ * continues, rather than reaching `session.execution.failed`; this probe
+ * confirms that observation still holds and that the turn is not left
+ * hanging.
  */
 
 import assert from "node:assert/strict";

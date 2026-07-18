@@ -1,19 +1,25 @@
 /**
- * Flow 6 (spawn, seat, identifier, completion notification) and Flow 7
- * (directed messaging in both directions), driven against the sandbox's
- * running `serve` process via the plugin's real `rp_spawn`/`rp_send` tools.
+ * Spawn, seat, identifier, and completion-notification mechanics, and
+ * directed messaging in both directions (including the message-failure
+ * chain's send-time and lingering-delivery stages), driven against the
+ * sandbox's running `serve` process via the plugin's real `rp_spawn`/`rp_send`
+ * tools.
  */
 
 import assert from "node:assert/strict";
+import { setTimeout as delay } from "node:timers/promises";
 import { runCheck } from "../lib/check-runner.mjs";
 import {
   createSession,
   driveToolCall,
   getMessages,
+  getPending,
   getSession,
   pollUntil,
+  prompt,
   waitForAssistantFinish,
 } from "../lib/api-client.mjs";
+import { slowPrompt } from "../lib/stub-provider.mjs";
 
 const STUB_MODEL = { providerID: "stub", id: "stub-model" };
 
@@ -81,7 +87,7 @@ export async function run(ctx) {
       await waitForAssistantFinish(server, childID, "stop");
 
       await pollUntil(
-        () => getSessionMessagesContaining(server, orchestrator.id, `${childID}) completed its first turn.`),
+        () => getSessionMessagesContaining(server, orchestrator.id, `${childID}) succeeded on its first turn.`),
         { timeoutMs: 20_000, label: "the spawner to receive a completion notification naming the child" },
       );
 
@@ -155,6 +161,64 @@ export async function run(ctx) {
     );
     assert.deepEqual(result.structuredJSON, { status: 404, error: "SessionNotFoundError" });
   });
+
+  await runCheck(
+    results,
+    "an admitted-but-unpromoted message lingers observably in /pending while the target is busy, then drains once it goes idle",
+    async () => {
+      // Keep the child genuinely "running" for a known window (the stub
+      // delays its reply) so the message rp_send admits next is queued but
+      // not yet promoted into a turn — the lingering-delivery stage of the
+      // message-failure chain, distinct from the send-time 404 above and the
+      // post-promotion execution failure covered elsewhere.
+      const nonce = `pending-linger-check-${Date.now()}`;
+      const busyTurn = prompt(server, childID, slowPrompt(6_000, nonce), { delivery: "steer" });
+      await delay(500); // give the turn a moment to actually start running
+
+      const lingerMarker = `linger-payload-${nonce}`;
+      const sendResult = await driveToolCall(
+        server,
+        orchestrator.id,
+        `return await tools.rp_send({to:${JSON.stringify(childID)}, message:${JSON.stringify(lingerMarker)}});`,
+      );
+      assert.deepEqual(sendResult.structuredJSON, { delivered: true });
+
+      const lingering = await pollUntil(
+        async () => {
+          const pending = await getPending(server, childID);
+          return pending.some((p) => p.data?.text?.includes(lingerMarker)) ? pending : undefined;
+        },
+        { timeoutMs: 4_000, label: "the admitted message to appear in GET /pending before promotion" },
+      );
+      assert.ok(
+        lingering.some((p) => p.data?.text?.includes(lingerMarker)),
+        `expected the admitted-but-unpromoted message to be observable via GET /pending, got: ${JSON.stringify(lingering)}`,
+      );
+
+      const statusResult = await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`);
+      const status = JSON.parse(statusResult.text);
+      const row = status.ledger.find((r) => r.sessionID === childID);
+      assert.ok(row, `expected rp_status's ledger to include the busy child ${childID}`);
+      assert.ok(
+        row.pending > 0,
+        `expected rp_status's ledger row for the busy child to report a nonzero pending count, got: ${row.pending}`,
+      );
+
+      await busyTurn;
+
+      await pollUntil(
+        async () => {
+          const pending = await getPending(server, childID);
+          return pending.length === 0 ? true : undefined;
+        },
+        { timeoutMs: 10_000, label: "the pending message to drain once the target goes idle" },
+      );
+      await pollUntil(() => getSessionMessagesContaining(server, childID, lingerMarker), {
+        timeoutMs: 10_000,
+        label: "the once-pending message to be promoted and delivered to the child",
+      });
+    },
+  );
 }
 
 /**

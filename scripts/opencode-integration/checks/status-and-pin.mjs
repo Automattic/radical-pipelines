@@ -1,9 +1,8 @@
 /**
- * Flow 2 (rp_status's version and pin surface) and Flow 16 (the pinned
- * integration suite's own pin assertion): the suite reads the running
- * build directly via `opencode2 --version` (the same XDG-isolated
- * invocation the harness uses everywhere) and asserts it equals
- * `opencode/pin.json`'s `cli`.
+ * rp_status's version and pin-comparison surface, and the suite's own pin
+ * assertion: the suite reads the running build directly via
+ * `opencode2 --version` (the same XDG-isolated invocation the harness uses
+ * everywhere) and asserts it equals `opencode/pin.json`'s `cli`.
  */
 
 import assert from "node:assert/strict";

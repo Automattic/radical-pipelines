@@ -1,6 +1,6 @@
 /**
- * Flow 12 (auth-error recovery — model swap + re-spawn), driven against a
- * session on a deliberately unauthenticated provider config.
+ * Auth-error recovery — model swap and re-spawn — driven against a session
+ * on a deliberately unauthenticated provider config.
  *
  * The stub's "stubnoauth" provider (same models, no `apiKey` configured at
  * all) is a deterministic, offline injector for `provider.auth`: verified

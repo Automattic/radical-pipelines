@@ -1,6 +1,6 @@
 /**
  * Interrupt and same-session model switch — the non-destructive first
- * recovery action the auth-recovery path (Flow 12) relies on, verified here
+ * recovery action the auth-recovery path relies on, verified here
  * independent of any failure injector.
  */
 

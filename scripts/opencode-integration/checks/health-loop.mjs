@@ -1,7 +1,7 @@
 /**
- * Flow 8 (health loop start / list / idle-only firing / cancel) and Flow 9
- * (a leftover loop survives a restart and is cancellable from a fresh
- * session), driven against the sandbox's running `serve` process via the
+ * Health-loop start/list/idle-only-firing/cancel mechanics, and a leftover
+ * loop surviving a `serve` restart and remaining cancellable from a fresh
+ * session, driven against the sandbox's running `serve` process via the
  * plugin's real `rp_loop_start`/`rp_loop_list`/`rp_loop_cancel` tools.
  */
 
