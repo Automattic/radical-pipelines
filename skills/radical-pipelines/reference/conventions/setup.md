@@ -21,6 +21,7 @@ Radical Pipelines supports the following agentic coding tools:
 | Tool        | Read             |
 | ----------- | ---------------- |
 | Claude Code | `claude-code.md` |
+| opencode    | `opencode.md`    |
 
 ## 2. Collect required conventions
 
