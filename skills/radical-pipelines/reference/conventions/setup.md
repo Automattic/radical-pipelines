@@ -115,6 +115,12 @@ Also:
 - **Match the agents' environment as closely as you can reach.** Setup runs in the main checkout, since no worktree exists yet, so validate in at least the project's standard shell and working directory. Perfect parity is impossible but the floor still catches the realistic failures — command-not-found, tool-not-installed, bad invocation or wrong-shell quoting.
 - **Validation has side effects.** Running a gate that writes, deploys, or destroys takes effect on the owner's checkout — including a scoped gate whose realistic scope runs real work. Confirm before running such a command, or accept the owner's word and use the escape hatch. Setup's interactive, one-time nature accommodates a bounded real run.
 
+### Lifecycle hooks
+
+Prose instructions the orchestrator runs at defined pipeline moments — syncing a tracker, posting notifications, cleanup. The hook points, execution rules, and the per-hook block live in `../lifecycle-hooks.md`.
+
+Show the owner the hook points and ask which need instructions. Capture each as its per-hook block.
+
 ### Artifact storage (required)
 
 How this project stores Radical Pipelines artifacts.

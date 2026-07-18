@@ -15,7 +15,10 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Agent models           | Which model/settings each spawned agent runs on                                            | No        |
 | Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |
 | Guardrails             | The deterministic verification gates — exact commands judged pass/fail by exit code        | No        |
+| Lifecycle hooks        | Prose instructions the orchestrator runs at defined pipeline moments                       | No        |
 | Artifact storage       | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes       |
+
+When the project defines **Lifecycle hooks**, read `../lifecycle-hooks.md` for the hook points and execution rules.
 
 ## Missing conventions
 
