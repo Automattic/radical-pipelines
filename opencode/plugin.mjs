@@ -7,6 +7,8 @@
  * without a running opencode daemon.
  */
 
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -15,6 +17,7 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
+import http from "node:http";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,6 +57,23 @@ function parseModelString(modelString) {
   }
 
   return { providerID, id, variant };
+}
+
+/**
+ * Format a parsed `Model.Ref` back into the Agent-models convention string.
+ *
+ * The inverse of `parseModelString`, used to render an opencode session's
+ * persisted `model` field (an object) back into the owner-facing
+ * `provider/model[#variant]` string for `rp_status`'s ledger rows.
+ *
+ * @param {{ providerID: string, id: string, variant?: string }} model The
+ *   parsed `Model.Ref`, as persisted on an opencode session record.
+ * @returns {string} `"<providerID>/<id>"`, or `"<providerID>/<id>#<variant>"`
+ *   when `variant` is set to anything other than `"default"`.
+ */
+function formatModelString({ providerID, id, variant }) {
+  const base = `${providerID}/${id}`;
+  return variant && variant !== "default" ? `${base}#${variant}` : base;
 }
 
 /**
@@ -139,6 +159,40 @@ function resolveCurrentSpawn(name) {
     return undefined;
   }
   return { sessionID, ...ledger.bySessionID.get(sessionID) };
+}
+
+/**
+ * Check whether an agent name is one opencode currently recognizes.
+ *
+ * `rp_spawn` calls this against `ctx.agent.list()` before creating a session,
+ * since `session.create` itself does not validate the agent name — an unknown
+ * agent would otherwise create a dead session that can never execute a turn.
+ *
+ * @param {Array<string | { name: string }>} agentList The list opencode
+ *   returns from `ctx.agent.list()` — entries may be plain agent-id strings
+ *   or objects carrying a `name` field, so both shapes are accepted.
+ * @param {string} agentName The agent name to check for.
+ * @returns {boolean} `true` when `agentName` appears in `agentList`.
+ */
+function agentExists(agentList, agentName) {
+  return agentList.some((entry) =>
+    typeof entry === "string" ? entry === agentName : entry?.name === agentName,
+  );
+}
+
+/**
+ * Check whether an error thrown by `ctx.session.prompt` reports a dead
+ * (nonexistent) target session.
+ *
+ * `rp_send` uses this to turn a dead-target failure into a returned tool
+ * result instead of letting it propagate as a thrown error.
+ *
+ * @param {*} error The error caught from `ctx.session.prompt`.
+ * @returns {boolean} `true` when `error` represents opencode's synchronous
+ *   404 `SessionNotFoundError`.
+ */
+function isSessionNotFoundError(error) {
+  return error?.status === 404 || error?.name === "SessionNotFoundError";
 }
 
 /**
@@ -285,6 +339,536 @@ function deleteLoopEntry(registryPath, id) {
     (entry) => entry.id !== id,
   );
   writeLoopRegistry(registryPath, entries);
+}
+
+/**
+ * `globalThis` key backing the process-wide map of armed loop timers.
+ *
+ * Shares the same re-import rationale as `LEDGER_KEY`: storing the map on
+ * `globalThis` means every per-directory `setup(ctx)` re-run arms into the
+ * same map, so a loop started from one scope is visible (and cancellable)
+ * from any other.
+ */
+const LOOP_TIMERS_KEY = Symbol.for("radical-pipelines.opencode.loopTimers");
+
+/**
+ * Fetch the process-wide map of armed loop timers, creating it on first use.
+ *
+ * @returns {Map<string, NodeJS.Timeout>} The singleton map from loop id to
+ *   its live `setInterval` handle.
+ */
+function getLoopTimers() {
+  if (!globalThis[LOOP_TIMERS_KEY]) {
+    globalThis[LOOP_TIMERS_KEY] = new Map();
+  }
+  return globalThis[LOOP_TIMERS_KEY];
+}
+
+/**
+ * Arm a loop entry's recurring tick, replacing any timer already armed under
+ * the same loop id.
+ *
+ * @param {{ id: string, interval: number }} entry The loop entry to arm; only
+ *   `id` and `interval` are read here (`tick` receives the full entry).
+ * @param {(entry: object) => void} tick Called with `entry` on every tick.
+ * @returns {void}
+ */
+function armLoopTimer(entry, tick) {
+  disarmLoopTimer(entry.id);
+  getLoopTimers().set(
+    entry.id,
+    setInterval(() => tick(entry), entry.interval),
+  );
+}
+
+/**
+ * Disarm a loop's timer by loop id.
+ *
+ * Disarming an id with no armed timer (never armed, or already disarmed) is
+ * a no-op.
+ *
+ * @param {string} id The loop id to disarm.
+ * @returns {void}
+ */
+function disarmLoopTimer(id) {
+  const timers = getLoopTimers();
+  const timer = timers.get(id);
+  if (timer) {
+    clearInterval(timer);
+    timers.delete(id);
+  }
+}
+
+/**
+ * Execute one health-loop tick.
+ *
+ * Pure aside from its injected effects, so a tick can be exercised
+ * synchronously in tests without a live server, a real timer, or a real
+ * opencode session.
+ *
+ * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry
+ *   The loop entry being ticked.
+ * @param {{
+ *   server: {baseURL: string, password: string} | null,
+ *   isSessionActive: (server: object, sessionID: string) => Promise<boolean>,
+ *   injectPrompt: (sessionID: string, text: string) => Promise<*>,
+ *   onSkippedNoServer: (entry: object) => void,
+ * }} deps The tick's effects: the resolved server (or `null` when
+ *   unreachable, see `resolveServer`), the idle check, the prompt injector,
+ *   and a logger invoked when the tick is skipped for lack of a reachable
+ *   server.
+ * @returns {Promise<"no-server" | "busy" | "injected">} What the tick did.
+ */
+async function runLoopTick(entry, { server, isSessionActive, injectPrompt, onSkippedNoServer }) {
+  if (!server) {
+    onSkippedNoServer(entry);
+    return "no-server";
+  }
+  const active = await isSessionActive(server, entry.targetSession);
+  if (active) {
+    return "busy";
+  }
+  await injectPrompt(entry.targetSession, entry.prompt);
+  return "injected";
+}
+
+/**
+ * Resolve the directory opencode's service record lives under.
+ *
+ * @param {Record<string, string | undefined>} env Environment to read
+ *   `XDG_STATE_HOME` from.
+ * @returns {string} `$XDG_STATE_HOME/opencode` when `XDG_STATE_HOME` is set,
+ *   else `~/.local/state/opencode`.
+ */
+function resolveServiceRecordDir(env) {
+  return env.XDG_STATE_HOME
+    ? join(env.XDG_STATE_HOME, "opencode")
+    : join(homedir(), ".local", "state", "opencode");
+}
+
+/**
+ * Read and parse opencode's service record from disk, when one exists.
+ *
+ * The service record is written only while a daemon (`opencode2 service
+ * start`) runs — a `serve` process writes none — so a missing record is the
+ * normal `serve`/harness case, not an error.
+ *
+ * @param {Record<string, string | undefined>} env Environment used to
+ *   resolve the service record's directory (see `resolveServiceRecordDir`).
+ * @returns {{ id: string, version: string, url: string, pid: number, password: string } | null}
+ *   The parsed record, or `null` when its directory or a `service-*.json`
+ *   file inside it does not exist.
+ */
+function readServiceRecordFile(env) {
+  const dir = resolveServiceRecordDir(env);
+  if (!existsSync(dir)) {
+    return null;
+  }
+  const fileName = readdirSync(dir).find(
+    (entryName) => entryName.startsWith("service-") && entryName.endsWith(".json"),
+  );
+  if (!fileName) {
+    return null;
+  }
+  return JSON.parse(readFileSync(join(dir, fileName), "utf8"));
+}
+
+/**
+ * Resolve how to reach the running opencode server, offline-testably.
+ *
+ * Tries the daemon case first (a service record on disk), then the
+ * `serve`/harness case (env overrides), then gives up. Both dependencies are
+ * injectable so this never touches the real filesystem or environment in a
+ * test.
+ *
+ * @param {{
+ *   env?: Record<string, string | undefined>,
+ *   readServiceRecord?: (env: object) => object | null,
+ * }} [options] `env` defaults to `process.env`; `readServiceRecord` defaults
+ *   to `readServiceRecordFile`.
+ * @returns {{ baseURL: string, password: string } | null} The service
+ *   record's `{url, password}` renamed to `{baseURL, password}` when a
+ *   record is present; else `{baseURL: env.RP_OPENCODE_SERVER_URL, password:
+ *   env.OPENCODE_PASSWORD}` when both are set; else `null`.
+ */
+function resolveServer({ env = process.env, readServiceRecord = readServiceRecordFile } = {}) {
+  const record = readServiceRecord(env);
+  if (record && record.url && record.password) {
+    return { baseURL: record.url, password: record.password };
+  }
+  if (env.RP_OPENCODE_SERVER_URL && env.OPENCODE_PASSWORD) {
+    return { baseURL: env.RP_OPENCODE_SERVER_URL, password: env.OPENCODE_PASSWORD };
+  }
+  return null;
+}
+
+/**
+ * Build the HTTP Basic-auth header value opencode's HTTP API requires.
+ *
+ * @param {string} password The resolved server password (see `resolveServer`).
+ * @returns {string} `"Basic " + base64("opencode:" + password)`.
+ */
+function buildBasicAuthHeader(password) {
+  return `Basic ${Buffer.from(`opencode:${password}`).toString("base64")}`;
+}
+
+/**
+ * The default `requestServer` request function: a promise wrapper over
+ * node's built-in `node:http`, performing no work until called.
+ *
+ * @param {URL} url The fully-resolved request URL.
+ * @param {{ method: string, headers: Record<string,string>, body?: string }} init
+ *   The request method, headers (including the Basic-auth header), and an
+ *   optional JSON-string body.
+ * @returns {Promise<{ status: number, body: * }>} The response status and,
+ *   when the response has a body, its parsed JSON.
+ */
+function nodeHttpRequest(url, { method, headers, body }) {
+  return new Promise((resolve, reject) => {
+    const req = http.request(url, { method, headers }, (res) => {
+      let data = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        resolve({ status: res.statusCode, body: data ? JSON.parse(data) : undefined });
+      });
+    });
+    req.on("error", reject);
+    if (body !== undefined) {
+      req.write(body);
+    }
+    req.end();
+  });
+}
+
+/**
+ * Issue an authenticated request against a resolved opencode server.
+ *
+ * @param {{ baseURL: string, password: string }} server A server resolved by
+ *   `resolveServer`.
+ * @param {"GET" | "POST"} method The HTTP method.
+ * @param {string} path The request path, resolved against `server.baseURL`.
+ * @param {*} [body] A JSON-serializable request body (POST only).
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function; defaults to `nodeHttpRequest` (node
+ *   builtins only), so tests can stub the HTTP boundary without a real
+ *   server.
+ * @returns {Promise<{ status: number, body: * }>} The resolved response.
+ */
+function requestServer(server, method, path, body, requestFn = nodeHttpRequest) {
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+  const headers = { Authorization: buildBasicAuthHeader(server.password) };
+  if (payload !== undefined) {
+    headers["Content-Type"] = "application/json";
+    headers["Content-Length"] = Buffer.byteLength(payload);
+  }
+  return requestFn(new URL(path, server.baseURL), { method, headers, body: payload });
+}
+
+/**
+ * Check whether opencode currently reports a session as running.
+ *
+ * Backs the loop tick's idle check and would back any other liveness read;
+ * reads `GET /api/session/active`, whose body is an object keyed by the
+ * session IDs currently running.
+ *
+ * @param {{ baseURL: string, password: string }} server A server resolved by
+ *   `resolveServer`.
+ * @param {string} sessionID The session ID to check.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<boolean>} `true` when `sessionID` is a key of the
+ *   `/api/session/active` response body.
+ */
+async function isSessionActive(server, sessionID, requestFn) {
+  const response = await requestServer(server, "GET", "/api/session/active", undefined, requestFn);
+  return Boolean(response.body && Object.prototype.hasOwnProperty.call(response.body, sessionID));
+}
+
+/**
+ * Read the running opencode build's best-effort version string via
+ * `opencode2 --version`.
+ *
+ * Used as `rp_status`'s fallback when no service record (and so no `version`
+ * field) is available — the `serve` harness case, which writes no record.
+ *
+ * @param {(command: string, args: string[], options: object) => string} [exec]
+ *   Injectable process-execution function; defaults to
+ *   `child_process.execFileSync`. Injected in tests so a missing/failing
+ *   `opencode2` binary is never actually invoked.
+ * @returns {string | null} The trimmed version string, or `null` when the
+ *   command could not be run (e.g. the binary is not installed).
+ */
+function readCliVersion(exec = execFileSync) {
+  try {
+    return exec("opencode2", ["--version"], { encoding: "utf8" }).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the running opencode build string for the pin comparison.
+ *
+ * @param {{ version?: string } | null} serviceRecord The service record read
+ *   by `readServiceRecordFile` (present only while a daemon runs), or `null`.
+ * @param {() => string | null} readCliVersionFn Best-effort fallback reading
+ *   `opencode2 --version` (see `readCliVersion`); called only when
+ *   `serviceRecord` carries no `version`.
+ * @returns {string} `serviceRecord.version` when present; else whatever
+ *   `readCliVersionFn` returns; else `"unknown"`.
+ */
+function resolveRunningBuild(serviceRecord, readCliVersionFn) {
+  if (serviceRecord && serviceRecord.version) {
+    return serviceRecord.version;
+  }
+  return readCliVersionFn() ?? "unknown";
+}
+
+/**
+ * Build the `rp_status` ledger rows from opencode's live session records and
+ * the plugin's own in-memory spawn ledger.
+ *
+ * @param {Array<{ id: string, agent: string, model: object, location?: {directory: string}, time?: {updated: *}, title?: string }>} sessionRecords
+ *   Every session opencode currently knows about (`GET /api/session`).
+ * @param {(sessionID: string) => { name: string, run: string, spawner: string } | undefined} lookup
+ *   Resolves a session ID to its recorded ledger entry (see `lookupSpawn`).
+ *   A record whose ID isn't found this way falls back to `parseTitle` on its
+ *   `title`, so restart-surviving sessions are still recognized.
+ * @param {Set<string>} activeSessionIDs Session IDs opencode reports running
+ *   now (see `isSessionActive`).
+ * @param {(sessionID: string) => number} pendingCountFor Resolves a
+ *   session's pending-input count.
+ * @returns {Array<{name: string, sessionID: string, agent: string, model: string, directory: string, updated: *, running: boolean, pending: number}>}
+ *   One row per session record RP recognizes as its own, in `sessionRecords`
+ *   order; records RP does not recognize (neither ledger nor `rp:` title)
+ *   are omitted.
+ */
+function buildLedgerRows(sessionRecords, lookup, activeSessionIDs, pendingCountFor) {
+  const rows = [];
+  for (const record of sessionRecords) {
+    const entry = lookup(record.id) ?? parseTitle(record.title ?? "");
+    if (!entry) {
+      continue;
+    }
+    rows.push({
+      name: entry.name,
+      sessionID: record.id,
+      agent: record.agent,
+      model: record.model ? formatModelString(record.model) : record.model,
+      directory: record.location?.directory,
+      updated: record.time?.updated,
+      running: activeSessionIDs.has(record.id),
+      pending: pendingCountFor(record.id),
+    });
+  }
+  return rows;
+}
+
+/**
+ * Gather and shape the full `rp_status` payload.
+ *
+ * Reads the ledger snapshot and per-session pending counts over the reach
+ * helper and the HTTP client (never an `opencode2 api` shell-out); when the
+ * server cannot be resolved, the ledger comes back empty rather than firing
+ * requests blind.
+ *
+ * @param {{
+ *   env?: Record<string, string | undefined>,
+ *   readServiceRecord?: (env: object) => object | null,
+ *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ *   readCliVersion?: () => string | null,
+ * }} [options] `env` defaults to `process.env`; `readServiceRecord` defaults
+ *   to `readServiceRecordFile`; `requestFn` defaults to the real HTTP client;
+ *   `readCliVersion` defaults to the real `opencode2 --version` reader.
+ * @returns {Promise<object>} The shaped status payload (see `shapeStatus`).
+ */
+async function buildStatusPayload({
+  env = process.env,
+  readServiceRecord: readServiceRecordOverride,
+  requestFn,
+  readCliVersion: readCliVersionOverride,
+} = {}) {
+  const readRecord = readServiceRecordOverride ?? readServiceRecordFile;
+  const readVersion = readCliVersionOverride ?? readCliVersion;
+
+  const server = resolveServer({ env, readServiceRecord: readRecord });
+  const pin = readPinManifest();
+  const serviceRecord = readRecord(env);
+  const runningBuild = resolveRunningBuild(serviceRecord, readVersion);
+  const pinComparison = comparePinnedBuild(runningBuild, pin.cli);
+
+  let sessionRecords = [];
+  let activeIDs = new Set();
+  const pendingCounts = new Map();
+
+  if (server) {
+    const sessionsResponse = await requestServer(server, "GET", "/api/session", undefined, requestFn);
+    sessionRecords = sessionsResponse.body ?? [];
+    const activeResponse = await requestServer(server, "GET", "/api/session/active", undefined, requestFn);
+    activeIDs = new Set(Object.keys(activeResponse.body ?? {}));
+    for (const record of sessionRecords) {
+      const pendingResponse = await requestServer(
+        server,
+        "GET",
+        `/api/session/${record.id}/pending`,
+        undefined,
+        requestFn,
+      );
+      pendingCounts.set(record.id, (pendingResponse.body ?? []).length);
+    }
+  }
+
+  const ledgerEntries = buildLedgerRows(
+    sessionRecords,
+    lookupSpawn,
+    activeIDs,
+    (id) => pendingCounts.get(id) ?? 0,
+  );
+
+  return shapeStatus({
+    pluginVersion: PLUGIN_ID,
+    pinComparison,
+    ledgerEntries,
+    errorLog: getErrorLog(),
+  });
+}
+
+/**
+ * `globalThis` key backing the process-wide set of child session IDs already
+ * notified to their spawner.
+ *
+ * Enforces "notify on the first terminal event only" across every
+ * per-directory `setup(ctx)` re-run, the same way `LEDGER_KEY` shares the
+ * spawn ledger.
+ */
+const NOTIFIED_CHILDREN_KEY = Symbol.for("radical-pipelines.opencode.notifiedChildren");
+
+/**
+ * Fetch the process-wide set of already-notified child session IDs,
+ * creating it on first use.
+ *
+ * @returns {Set<string>} The singleton set.
+ */
+function getNotifiedChildren() {
+  if (!globalThis[NOTIFIED_CHILDREN_KEY]) {
+    globalThis[NOTIFIED_CHILDREN_KEY] = new Set();
+  }
+  return globalThis[NOTIFIED_CHILDREN_KEY];
+}
+
+/**
+ * `globalThis` key backing the bounded, in-memory recent-errors ring the
+ * completion listener and loop scheduler append to.
+ */
+const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
+
+/**
+ * Fetch the process-wide recent-errors ring, creating it on first use.
+ *
+ * @returns {Array<*>} The singleton log (see `appendToErrorLog`).
+ */
+function getErrorLog() {
+  if (!globalThis[ERROR_LOG_KEY]) {
+    globalThis[ERROR_LOG_KEY] = [];
+  }
+  return globalThis[ERROR_LOG_KEY];
+}
+
+/**
+ * Append an entry to the process-wide recent-errors ring.
+ *
+ * @param {*} entry The entry to append (see `appendToErrorLog`).
+ * @returns {void}
+ */
+function recordError(entry) {
+  globalThis[ERROR_LOG_KEY] = appendToErrorLog(getErrorLog(), entry);
+}
+
+/** Event types the completion listener treats as terminal for a session. */
+const TERMINAL_EVENT_TYPES = new Set([
+  "session.execution.succeeded",
+  "session.execution.failed",
+]);
+
+/**
+ * Check whether an opencode event is a session-terminal event.
+ *
+ * @param {{ type?: string }} event The event received from `ctx.event.subscribe`.
+ * @returns {boolean} `true` when `event.type` is a terminal execution event.
+ */
+function isTerminalEvent(event) {
+  return TERMINAL_EVENT_TYPES.has(event?.type);
+}
+
+/**
+ * Extract the session ID a terminal event pertains to.
+ *
+ * @param {object} event The terminal event (see `isTerminalEvent`).
+ * @returns {string | undefined} The event's session ID, read from whichever
+ *   of the event's known shapes carries it.
+ */
+function terminalEventSessionID(event) {
+  return (
+    event?.properties?.sessionID ?? event?.data?.sessionID ?? event?.durable?.aggregateID
+  );
+}
+
+/**
+ * Handle one event delivered to the completion listener.
+ *
+ * Ignores non-terminal events and terminal events on sessions RP did not
+ * spawn. For a recognized child's terminal event: always records it in the
+ * bounded error log; on the child's *first* terminal event only, notifies
+ * the spawner (queue delivery) and re-asserts the child's durable `rp:`
+ * title over the reach helper.
+ *
+ * @param {object} event The event received from `ctx.event.subscribe`.
+ * @param {{
+ *   ctx: object,
+ *   env: Record<string, string | undefined>,
+ *   readServiceRecord?: (env: object) => object | null,
+ *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ * }} deps `ctx` supplies `ctx.session.prompt` for the notification; the rest
+ *   resolve the server for the title re-assert.
+ * @returns {Promise<void>}
+ */
+async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }) {
+  if (!isTerminalEvent(event)) {
+    return;
+  }
+  const sessionID = terminalEventSessionID(event);
+  const entry = sessionID ? lookupSpawn(sessionID) : undefined;
+  if (!entry) {
+    return;
+  }
+
+  recordError({ type: event.type, sessionID, at: Date.now() });
+
+  const notified = getNotifiedChildren();
+  if (notified.has(sessionID)) {
+    return;
+  }
+  notified.add(sessionID);
+
+  await ctx.session.prompt({
+    sessionID: entry.spawner,
+    text: `[rp] ${entry.name} (${sessionID}) completed its first turn.`,
+    delivery: "queue",
+  });
+
+  const server = resolveServer({ env, readServiceRecord });
+  if (server) {
+    await requestServer(
+      server,
+      "POST",
+      `/api/session/${sessionID}/rename`,
+      { title: formatTitle({ run: entry.run, name: entry.name }) },
+      requestFn,
+    );
+  }
 }
 
 /**
@@ -527,21 +1111,349 @@ function shapeStatus({ pluginVersion, pinComparison, ledgerEntries, errorLog }) 
   };
 }
 
+/**
+ * Absolute path to this package's `package.json`, resolved relative to this
+ * module's location.
+ *
+ * Serves as `readPackageVersion`'s default `packageJsonPath`.
+ */
+const DEFAULT_PACKAGE_JSON_PATH = fileURLToPath(new URL("../package.json", import.meta.url));
+
+/**
+ * Read this package's version, as declared in `package.json`.
+ *
+ * @param {string} [packageJsonPath] Absolute path to the manifest. Defaults
+ *   to this repository's own `package.json`.
+ * @returns {string} The manifest's `version` field.
+ */
+function readPackageVersion(packageJsonPath = DEFAULT_PACKAGE_JSON_PATH) {
+  return JSON.parse(readFileSync(packageJsonPath, "utf8")).version;
+}
+
+/**
+ * The plugin's free-form id, surfaced verbatim by `GET /api/plugin` and by
+ * `rp_status`. Read once at module load from `package.json` — never from a
+ * network call — so it never goes stale relative to the installed package.
+ */
+const PLUGIN_ID = `radical-pipelines@${readPackageVersion()}`;
+
+/**
+ * Absolute path to the packaged `skills/` directory, resolved relative to
+ * this module's location so it resolves correctly regardless of the
+ * process's working directory. Registered as a skill source by reference —
+ * never copied — in `setup`.
+ */
+const SKILLS_SOURCE_DIR = fileURLToPath(new URL("../skills", import.meta.url));
+
+/**
+ * Build the `rp_spawn` tool descriptor.
+ *
+ * @param {object} ctx The plugin's opencode context, as passed to `setup`.
+ * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildSpawnTool(ctx) {
+  return {
+    name: "rp_spawn",
+    description:
+      "Spawn a new named RP agent instance as an opencode session seated in a directory.",
+    jsonSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Run-unique instance name." },
+        agent: { type: "string", description: "RP agent profile name." },
+        model: { type: "string", description: "provider/model[#variant] convention string." },
+        directory: { type: "string", description: "Absolute directory the session is seated in." },
+        prompt: { type: "string", description: "Initial prompt posted to the spawned session." },
+        run: { type: "string", description: "Run branch name." },
+      },
+      required: ["name", "agent", "model", "directory", "prompt", "run"],
+    },
+    async execute({ name, agent, model, directory, prompt, run }, toolCtx) {
+      if (!agentExists(ctx.agent.list(), agent)) {
+        throw new Error(`Unknown agent "${agent}"`);
+      }
+      const session = await ctx.session.create({
+        agent,
+        model: parseModelString(model),
+        location: { directory },
+      });
+      recordSpawn(session.id, { name, run, spawner: toolCtx.sessionID });
+      await ctx.session.prompt({ sessionID: session.id, text: prompt, delivery: "queue" });
+      return session.id;
+    },
+  };
+}
+
+/**
+ * Build the `rp_send` tool descriptor.
+ *
+ * @param {object} ctx The plugin's opencode context, as passed to `setup`.
+ * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildSendTool(ctx) {
+  return {
+    name: "rp_send",
+    description: "Send a directed, queue-delivered message to another RP session by session ID.",
+    jsonSchema: {
+      type: "object",
+      properties: {
+        to: { type: "string", description: "Target session ID." },
+        message: { type: "string", description: "Message text." },
+      },
+      required: ["to", "message"],
+    },
+    async execute({ to, message }, toolCtx) {
+      const sender = lookupSpawn(toolCtx.sessionID);
+      const text = `${formatAttribution({
+        name: sender?.name ?? toolCtx.sessionID,
+        sessionID: toolCtx.sessionID,
+      })} ${message}`;
+      try {
+        await ctx.session.prompt({ sessionID: to, text, delivery: "queue" });
+        return { delivered: true };
+      } catch (error) {
+        if (isSessionNotFoundError(error)) {
+          return { status: 404, error: "SessionNotFoundError" };
+        }
+        throw error;
+      }
+    },
+  };
+}
+
+/**
+ * Build the `rp_loop_start` tool descriptor.
+ *
+ * @param {{ registryPath: string, tick: (entry: object) => Promise<*> }} deps
+ *   `registryPath` is where the new entry is persisted; `tick` is the
+ *   per-interval callback armed for it.
+ * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildLoopStartTool({ registryPath, tick }) {
+  return {
+    name: "rp_loop_start",
+    description:
+      "Start a recurring health-loop prompt against a session, firing only while it is idle.",
+    jsonSchema: {
+      type: "object",
+      properties: {
+        interval: { type: "number", description: "Tick period in milliseconds." },
+        prompt: { type: "string", description: "Prompt injected on an idle tick." },
+        target_session: {
+          type: "string",
+          description: "Session watched and prompted; defaults to the calling session.",
+        },
+      },
+      required: ["interval", "prompt"],
+    },
+    async execute({ interval, prompt, target_session }, toolCtx) {
+      const entry = {
+        id: `loop_${randomUUID()}`,
+        interval,
+        prompt,
+        targetSession: target_session ?? toolCtx.sessionID,
+      };
+      addLoopEntry(registryPath, entry);
+      armLoopTimer(entry, tick);
+      return { id: entry.id };
+    },
+  };
+}
+
+/**
+ * Build the `rp_loop_list` tool descriptor.
+ *
+ * @param {string} registryPath Absolute path to the loop registry file.
+ * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildLoopListTool(registryPath) {
+  return {
+    name: "rp_loop_list",
+    description: "List every currently registered health loop.",
+    jsonSchema: { type: "object", properties: {} },
+    async execute() {
+      return listLoopEntries(registryPath);
+    },
+  };
+}
+
+/**
+ * Build the `rp_loop_cancel` tool descriptor.
+ *
+ * @param {string} registryPath Absolute path to the loop registry file.
+ * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildLoopCancelTool(registryPath) {
+  return {
+    name: "rp_loop_cancel",
+    description: "Cancel a health loop, stopping further ticks.",
+    jsonSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "Loop id returned by rp_loop_start." } },
+      required: ["id"],
+    },
+    async execute({ id }) {
+      disarmLoopTimer(id);
+      deleteLoopEntry(registryPath, id);
+      return { cancelled: true };
+    },
+  };
+}
+
+/**
+ * Build the `rp_status` tool descriptor.
+ *
+ * @param {{
+ *   env: Record<string, string | undefined>,
+ *   readServiceRecordOverride?: (env: object) => object | null,
+ *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ *   readCliVersionOverride?: () => string | null,
+ * }} deps Passed through to `buildStatusPayload`.
+ * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }) {
+  return {
+    name: "rp_status",
+    description: "Report plugin version, pin comparison, ledger snapshot, and recent errors.",
+    jsonSchema: { type: "object", properties: {} },
+    async execute() {
+      return buildStatusPayload({
+        env,
+        readServiceRecord: readServiceRecordOverride,
+        requestFn,
+        readCliVersion: readCliVersionOverride,
+      });
+    },
+  };
+}
+
+/**
+ * `globalThis` key guarding the plugin's global, process-wide concerns —
+ * the completion listener's `ctx.event.subscribe` and the loop registry's
+ * re-arm-at-setup — so they run exactly once across every per-directory
+ * `setup(ctx)` re-run within one daemon process.
+ */
+const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
+
+/**
+ * The RP opencode plugin's `setup` function.
+ *
+ * Registers the six coordination tools and the packaged skill source on
+ * every call (opencode re-runs `setup` once per directory scope); guards the
+ * completion listener's event subscription and the loop registry's re-arm
+ * behind `SETUP_ONCE_KEY` so they run exactly once per daemon process.
+ *
+ * @param {object} ctx The plugin context opencode supplies: `ctx.tool`,
+ *   `ctx.skill`, `ctx.agent`, `ctx.session`, `ctx.event`.
+ * @param {{
+ *   env?: Record<string, string | undefined>,
+ *   readServiceRecord?: (env: object) => object | null,
+ *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ *   readCliVersion?: () => string | null,
+ *   agentsSourceDir?: string,
+ *   agentsTargetDir?: string,
+ * }} [deps] Injectable dependencies, absent in opencode's real invocation
+ *   (`setup(ctx)`) and supplied only by offline tests: `env` and
+ *   `readServiceRecord` reach `resolveServer`; `requestFn` reaches the HTTP
+ *   client; `readCliVersion` reaches the pin-comparison fallback;
+ *   `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`.
+ * @returns {void}
+ */
+function setup(ctx, deps = {}) {
+  const {
+    env = process.env,
+    readServiceRecord: readServiceRecordOverride,
+    requestFn,
+    readCliVersion: readCliVersionOverride,
+    agentsSourceDir,
+    agentsTargetDir,
+  } = deps;
+
+  const registryPath = resolveLoopRegistryPath(env);
+
+  const tick = (entry) =>
+    runLoopTick(entry, {
+      server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
+      isSessionActive: (server, sessionID) => isSessionActive(server, sessionID, requestFn),
+      injectPrompt: (sessionID, text) => ctx.session.prompt({ sessionID, text, delivery: "queue" }),
+      onSkippedNoServer: (loopEntry) =>
+        recordError({ type: "loop.tick.skipped", loopID: loopEntry.id, reason: "server unreachable" }),
+    }).catch((error) =>
+      recordError({ type: "loop.tick.failed", loopID: entry.id, error: String(error) }),
+    );
+
+  ctx.tool.transform((tools) => {
+    tools.add(buildSpawnTool(ctx));
+    tools.add(buildSendTool(ctx));
+    tools.add(buildLoopStartTool({ registryPath, tick }));
+    tools.add(buildLoopListTool(registryPath));
+    tools.add(buildLoopCancelTool(registryPath));
+    tools.add(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }));
+    return tools;
+  });
+
+  ctx.skill.transform((sources) => sources.source({ type: "directory", path: SKILLS_SOURCE_DIR }));
+
+  materializeAgents(agentsSourceDir, agentsTargetDir);
+
+  if (!globalThis[SETUP_ONCE_KEY]) {
+    globalThis[SETUP_ONCE_KEY] = true;
+    ctx.event.subscribe((event) =>
+      onTerminalEvent(event, {
+        ctx,
+        env,
+        readServiceRecord: readServiceRecordOverride,
+        requestFn,
+      }).catch((error) => recordError({ type: "listener.failed", error: String(error) })),
+    );
+    for (const entry of listLoopEntries(registryPath)) {
+      armLoopTimer(entry, tick);
+    }
+  }
+}
+
+export default { id: PLUGIN_ID, setup };
+
 export {
   addLoopEntry,
+  agentExists,
   appendToErrorLog,
+  armLoopTimer,
+  buildBasicAuthHeader,
+  buildLedgerRows,
+  buildStatusPayload,
   comparePinnedBuild,
   deleteLoopEntry,
+  disarmLoopTimer,
   formatAttribution,
+  formatModelString,
   formatTitle,
+  isSessionActive,
+  isSessionNotFoundError,
+  isTerminalEvent,
   listLoopEntries,
   lookupSpawn,
   materializeAgents,
   parseModelString,
   parseTitle,
+  readCliVersion,
+  readPackageVersion,
   readPinManifest,
+  readServiceRecordFile,
   recordSpawn,
+  requestServer,
   resolveCurrentSpawn,
   resolveLoopRegistryPath,
+  resolveRunningBuild,
+  resolveServer,
+  runLoopTick,
+  setup,
   shapeStatus,
+  terminalEventSessionID,
 };
