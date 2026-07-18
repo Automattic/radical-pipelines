@@ -181,6 +181,15 @@ function agentExists(agentList, agentName) {
 }
 
 /**
+ * Tags observed on a dead-target session error, across the two shapes it
+ * appears in: the in-process `ctx.session.prompt` rejection (`name`/`_tag`
+ * `"Session.NotFoundError"`, no HTTP status — verified live against the
+ * pinned build) and the raw HTTP response body (`_tag: "SessionNotFoundError"`,
+ * no dot, alongside a 404 status).
+ */
+const SESSION_NOT_FOUND_TAGS = new Set(["Session.NotFoundError", "SessionNotFoundError"]);
+
+/**
  * Check whether an error thrown by `ctx.session.prompt` reports a dead
  * (nonexistent) target session.
  *
@@ -188,11 +197,15 @@ function agentExists(agentList, agentName) {
  * result instead of letting it propagate as a thrown error.
  *
  * @param {*} error The error caught from `ctx.session.prompt`.
- * @returns {boolean} `true` when `error` represents opencode's synchronous
- *   404 `SessionNotFoundError`.
+ * @returns {boolean} `true` when `error` represents a dead-target session
+ *   error (see `SESSION_NOT_FOUND_TAGS`) or carries an HTTP 404 status.
  */
 function isSessionNotFoundError(error) {
-  return error?.status === 404 || error?.name === "SessionNotFoundError";
+  return (
+    error?.status === 404 ||
+    SESSION_NOT_FOUND_TAGS.has(error?.name) ||
+    SESSION_NOT_FOUND_TAGS.has(error?._tag)
+  );
 }
 
 /**
@@ -571,8 +584,10 @@ function requestServer(server, method, path, body, requestFn = nodeHttpRequest) 
  * Check whether opencode currently reports a session as running.
  *
  * Backs the loop tick's idle check and would back any other liveness read;
- * reads `GET /api/session/active`, whose body is an object keyed by the
- * session IDs currently running.
+ * reads `GET /api/session/active`, whose body envelopes the object keyed by
+ * the session IDs currently running as `{ data: {...} }` — every opencode
+ * HTTP GET response is wrapped in this `data` envelope, verified live against
+ * the pinned build.
  *
  * @param {{ baseURL: string, password: string }} server A server resolved by
  *   `resolveServer`.
@@ -580,11 +595,12 @@ function requestServer(server, method, path, body, requestFn = nodeHttpRequest) 
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
  *   Injectable request function, forwarded to `requestServer`.
  * @returns {Promise<boolean>} `true` when `sessionID` is a key of the
- *   `/api/session/active` response body.
+ *   `/api/session/active` response's `data` object.
  */
 async function isSessionActive(server, sessionID, requestFn) {
   const response = await requestServer(server, "GET", "/api/session/active", undefined, requestFn);
-  return Boolean(response.body && Object.prototype.hasOwnProperty.call(response.body, sessionID));
+  const active = response.body?.data;
+  return Boolean(active && Object.prototype.hasOwnProperty.call(active, sessionID));
 }
 
 /**
@@ -598,12 +614,15 @@ async function isSessionActive(server, sessionID, requestFn) {
  *   Injectable process-execution function; defaults to
  *   `child_process.execFileSync`. Injected in tests so a missing/failing
  *   `opencode2` binary is never actually invoked.
- * @returns {string | null} The trimmed version string, or `null` when the
- *   command could not be run (e.g. the binary is not installed).
+ * @returns {string | null} The bare build string (e.g. `"0.0.0-next-<N>"`),
+ *   or `null` when the command could not be run (e.g. the binary is not
+ *   installed). The real CLI prints `"opencode2 v<build>"` — verified
+ *   live — so that leading `"opencode2 v"` is stripped; without it, this
+ *   would never equal the pin manifest's bare build string.
  */
 function readCliVersion(exec = execFileSync) {
   try {
-    return exec("opencode2", ["--version"], { encoding: "utf8" }).trim();
+    return exec("opencode2", ["--version"], { encoding: "utf8" }).trim().replace(/^opencode2\s+v/, "");
   } catch {
     return null;
   }
@@ -705,10 +724,12 @@ async function buildStatusPayload({
   const pendingCounts = new Map();
 
   if (server) {
+    // Every opencode HTTP GET response envelopes its payload as
+    // `{ data: ... }` — verified live against the pinned build.
     const sessionsResponse = await requestServer(server, "GET", "/api/session", undefined, requestFn);
-    sessionRecords = sessionsResponse.body ?? [];
+    sessionRecords = sessionsResponse.body?.data ?? [];
     const activeResponse = await requestServer(server, "GET", "/api/session/active", undefined, requestFn);
-    activeIDs = new Set(Object.keys(activeResponse.body ?? {}));
+    activeIDs = new Set(Object.keys(activeResponse.body?.data ?? {}));
     for (const record of sessionRecords) {
       const pendingResponse = await requestServer(
         server,
@@ -717,7 +738,7 @@ async function buildStatusPayload({
         undefined,
         requestFn,
       );
-      pendingCounts.set(record.id, (pendingResponse.body ?? []).length);
+      pendingCounts.set(record.id, (pendingResponse.body?.data ?? []).length);
     }
   }
 
@@ -926,6 +947,25 @@ function writeOwnershipManifest(targetDir, owned) {
 }
 
 /**
+ * Resolve the directory opencode's global agents live under.
+ *
+ * Mirrors `resolveLoopRegistryPath`/`resolveServiceRecordDir`: opencode
+ * itself resolves its global config directory from `XDG_CONFIG_HOME` when
+ * set, so the materialization target must honor the same variable — writing
+ * to the unqualified `~/.config` under an XDG-isolated environment would
+ * materialize agents into a directory opencode never scans.
+ *
+ * @param {Record<string, string | undefined>} [env] Environment to read
+ *   `XDG_CONFIG_HOME` from. Defaults to the real process environment.
+ * @returns {string} `$XDG_CONFIG_HOME/opencode/agents` when `XDG_CONFIG_HOME`
+ *   is set, else `~/.config/opencode/agents`.
+ */
+function resolveAgentsTargetDir(env = process.env) {
+  const configHome = env.XDG_CONFIG_HOME || join(homedir(), ".config");
+  return join(configHome, "opencode", "agents");
+}
+
+/**
  * Materialize RP's agent profiles into opencode's global agents directory.
  *
  * Copies every `*.md` profile from `sourceDir` into `targetDir` byte for
@@ -944,7 +984,7 @@ function writeOwnershipManifest(targetDir, owned) {
  *   profiles. Defaults to `../agents` resolved relative to this module (the
  *   repository's `agents/` directory at runtime).
  * @param {string} [targetDir] Absolute path to the target agents directory.
- *   Defaults to opencode's global agents directory, `~/.config/opencode/agents/`.
+ *   Defaults to opencode's global agents directory (see `resolveAgentsTargetDir`).
  * @returns {{ written: string[], collisions: string[] }} `written` lists the
  *   source filenames copied into `targetDir` this run; `collisions` lists
  *   filenames that already existed under `targetDir` as foreign (non-RP-owned)
@@ -952,7 +992,7 @@ function writeOwnershipManifest(targetDir, owned) {
  */
 function materializeAgents(
   sourceDir = DEFAULT_AGENTS_SOURCE_DIR,
-  targetDir = join(homedir(), ".config", "opencode", "agents"),
+  targetDir = resolveAgentsTargetDir(),
 ) {
   mkdirSync(targetDir, { recursive: true });
 
@@ -1146,6 +1186,26 @@ const PLUGIN_ID = `radical-pipelines@${readPackageVersion()}`;
 const SKILLS_SOURCE_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 
 /**
+ * Wrap a tool's computed result into the shape opencode's dynamic
+ * (`jsonSchema`-based) tool contract requires: `{ structured, content }`.
+ * Any other return shape from `execute` — a bare string, a plain object
+ * missing either key — surfaces to the calling agent as a generic "Tool
+ * execution failed", regardless of the value actually computed.
+ *
+ * @param {*} value The tool's computed result.
+ * @returns {{ structured: *, content: Array<{ type: "text", text: string }> }}
+ *   `structured` is the value calling code receives back; `content` is its
+ *   human-readable rendering (the string itself when `value` already is one,
+ *   else its JSON form).
+ */
+function toToolResult(value) {
+  return {
+    structured: value,
+    content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
+  };
+}
+
+/**
  * Build the `rp_spawn` tool descriptor.
  *
  * @param {object} ctx The plugin's opencode context, as passed to `setup`.
@@ -1170,7 +1230,8 @@ function buildSpawnTool(ctx) {
       required: ["name", "agent", "model", "directory", "prompt", "run"],
     },
     async execute({ name, agent, model, directory, prompt, run }, toolCtx) {
-      if (!agentExists(ctx.agent.list(), agent)) {
+      const agentList = await ctx.agent.list();
+      if (!agentExists(agentList.data, agent)) {
         throw new Error(`Unknown agent "${agent}"`);
       }
       const session = await ctx.session.create({
@@ -1180,7 +1241,7 @@ function buildSpawnTool(ctx) {
       });
       recordSpawn(session.id, { name, run, spawner: toolCtx.sessionID });
       await ctx.session.prompt({ sessionID: session.id, text: prompt, delivery: "queue" });
-      return session.id;
+      return toToolResult(session.id);
     },
   };
 }
@@ -1212,10 +1273,10 @@ function buildSendTool(ctx) {
       })} ${message}`;
       try {
         await ctx.session.prompt({ sessionID: to, text, delivery: "queue" });
-        return { delivered: true };
+        return toToolResult({ delivered: true });
       } catch (error) {
         if (isSessionNotFoundError(error)) {
-          return { status: 404, error: "SessionNotFoundError" };
+          return toToolResult({ status: 404, error: "SessionNotFoundError" });
         }
         throw error;
       }
@@ -1258,7 +1319,7 @@ function buildLoopStartTool({ registryPath, tick }) {
       };
       addLoopEntry(registryPath, entry);
       armLoopTimer(entry, tick);
-      return { id: entry.id };
+      return toToolResult({ id: entry.id });
     },
   };
 }
@@ -1276,7 +1337,7 @@ function buildLoopListTool(registryPath) {
     description: "List every currently registered health loop.",
     jsonSchema: { type: "object", properties: {} },
     async execute() {
-      return listLoopEntries(registryPath);
+      return toToolResult(listLoopEntries(registryPath));
     },
   };
 }
@@ -1300,7 +1361,7 @@ function buildLoopCancelTool(registryPath) {
     async execute({ id }) {
       disarmLoopTimer(id);
       deleteLoopEntry(registryPath, id);
-      return { cancelled: true };
+      return toToolResult({ cancelled: true });
     },
   };
 }
@@ -1323,12 +1384,14 @@ function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVer
     description: "Report plugin version, pin comparison, ledger snapshot, and recent errors.",
     jsonSchema: { type: "object", properties: {} },
     async execute() {
-      return buildStatusPayload({
-        env,
-        readServiceRecord: readServiceRecordOverride,
-        requestFn,
-        readCliVersion: readCliVersionOverride,
-      });
+      return toToolResult(
+        await buildStatusPayload({
+          env,
+          readServiceRecord: readServiceRecordOverride,
+          requestFn,
+          readCliVersion: readCliVersionOverride,
+        }),
+      );
     },
   };
 }
@@ -1340,6 +1403,26 @@ function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVer
  * `setup(ctx)` re-run within one daemon process.
  */
 const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
+
+/**
+ * Drive the completion listener from opencode's event stream.
+ *
+ * `ctx.event.subscribe()` takes no handler argument — it returns an
+ * `AsyncIterable` that must itself be consumed with `for await`; it is not a
+ * callback-registration API. Runs for the lifetime of the daemon process
+ * (never resolves under real use), so callers invoke this without awaiting it.
+ *
+ * @param {object} ctx The plugin's opencode context (supplies `ctx.event`).
+ * @param {(event: object) => Promise<void>} onEvent Called with each event
+ *   the stream yields; a rejection is caught per event so one failing event
+ *   never stops the loop from consuming the next.
+ * @returns {Promise<void>} Resolves only if the stream itself ends.
+ */
+async function consumeEvents(ctx, onEvent) {
+  for await (const event of ctx.event.subscribe()) {
+    await onEvent(event).catch((error) => recordError({ type: "listener.failed", error: String(error) }));
+  }
+}
 
 /**
  * The RP opencode plugin's `setup` function.
@@ -1400,17 +1483,17 @@ function setup(ctx, deps = {}) {
 
   ctx.skill.transform((sources) => sources.source({ type: "directory", path: SKILLS_SOURCE_DIR }));
 
-  materializeAgents(agentsSourceDir, agentsTargetDir);
+  materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
 
   if (!globalThis[SETUP_ONCE_KEY]) {
     globalThis[SETUP_ONCE_KEY] = true;
-    ctx.event.subscribe((event) =>
+    consumeEvents(ctx, (event) =>
       onTerminalEvent(event, {
         ctx,
         env,
         readServiceRecord: readServiceRecordOverride,
         requestFn,
-      }).catch((error) => recordError({ type: "listener.failed", error: String(error) })),
+      }),
     );
     for (const entry of listLoopEntries(registryPath)) {
       armLoopTimer(entry, tick);
@@ -1448,6 +1531,7 @@ export {
   readServiceRecordFile,
   recordSpawn,
   requestServer,
+  resolveAgentsTargetDir,
   resolveCurrentSpawn,
   resolveLoopRegistryPath,
   resolveRunningBuild,
@@ -1456,4 +1540,5 @@ export {
   setup,
   shapeStatus,
   terminalEventSessionID,
+  toToolResult,
 };

@@ -7,11 +7,28 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 
-import { materializeAgents } from "../../../opencode/plugin.mjs";
+import { materializeAgents, resolveAgentsTargetDir } from "../../../opencode/plugin.mjs";
+
+describe("resolveAgentsTargetDir", () => {
+  test("honors XDG_CONFIG_HOME when set", () => {
+    const path = resolveAgentsTargetDir({ XDG_CONFIG_HOME: "/custom/config-home" });
+    assert.equal(path, join("/custom/config-home", "opencode", "agents"));
+  });
+
+  test("falls back to ~/.config/opencode/agents when XDG_CONFIG_HOME is unset", () => {
+    const path = resolveAgentsTargetDir({});
+    assert.equal(path, join(homedir(), ".config", "opencode", "agents"));
+  });
+
+  test("defaults to the real process environment when none is given", () => {
+    const path = resolveAgentsTargetDir();
+    assert.ok(path.endsWith(join("opencode", "agents")));
+  });
+});
 
 describe("materializeAgents", () => {
   let root;

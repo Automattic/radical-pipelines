@@ -26,6 +26,7 @@ import plugin, {
   runLoopTick,
   setup,
   terminalEventSessionID,
+  toToolResult,
 } from "../../../opencode/plugin.mjs";
 
 /** Well-known globalThis symbols the module keys its singletons under. */
@@ -57,9 +58,24 @@ function clearAllLoopTimers() {
 function createFakeCtx({ agents = ["spec-lead", "spec-reviewer", "build-writer-tdd"] } = {}) {
   const tools = new Map();
   const skillSources = [];
-  const eventHandlers = [];
   const sessions = new Map();
   let nextID = 1;
+
+  // Matches the real ctx.event.subscribe() contract: a zero-argument call
+  // returning an AsyncIterable, consumed via `for await` — not a
+  // callback-registration API. Verified live against the pinned build (a
+  // callback-style stub masked the listener never actually running).
+  let subscribeCalls = 0;
+  const eventQueue = [];
+  const eventWaiters = [];
+
+  function pushEvent(event) {
+    if (eventWaiters.length > 0) {
+      eventWaiters.shift()({ value: event, done: false });
+    } else {
+      eventQueue.push(event);
+    }
+  }
 
   const ctx = {
     tool: {
@@ -85,7 +101,12 @@ function createFakeCtx({ agents = ["spec-lead", "spec-reviewer", "build-writer-t
       },
     },
     agent: {
-      list: () => agents,
+      // Matches the real ctx.agent.list() contract: async, envelope-wrapped
+      // ({ location, data: Array<AgentInfo> }), verified live against the
+      // pinned build (a synchronous plain-array stub masked a real TypeError).
+      async list() {
+        return { data: agents };
+      },
     },
     session: {
       async create({ agent, model, location }) {
@@ -95,21 +116,46 @@ function createFakeCtx({ agents = ["spec-lead", "spec-reviewer", "build-writer-t
       },
       async prompt({ sessionID, text, delivery }) {
         if (!sessions.has(sessionID)) {
-          const error = new Error("SessionNotFoundError");
-          error.status = 404;
+          // Matches the real ctx.session.prompt rejection for a dead target:
+          // name/_tag "Session.NotFoundError" (with a dot), no HTTP status —
+          // verified live against the pinned build.
+          const error = new Error("Session.NotFoundError");
+          error.name = "Session.NotFoundError";
+          error._tag = "Session.NotFoundError";
           throw error;
         }
         return { sessionID, text, delivery };
       },
     },
     event: {
-      subscribe(handler) {
-        eventHandlers.push(handler);
+      subscribe() {
+        subscribeCalls++;
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next() {
+                if (eventQueue.length > 0) {
+                  return Promise.resolve({ value: eventQueue.shift(), done: false });
+                }
+                return new Promise((resolve) => eventWaiters.push(resolve));
+              },
+            };
+          },
+        };
       },
     },
   };
 
-  return { ctx, tools, skillSources, eventHandlers, sessions };
+  return {
+    ctx,
+    tools,
+    skillSources,
+    sessions,
+    pushEvent,
+    get subscribeCalls() {
+      return subscribeCalls;
+    },
+  };
 }
 
 /** Options that keep every `setup()` call in this file off the real home dir. */
@@ -154,7 +200,7 @@ describe("setup: tool and skill registration", () => {
     setup(first.ctx, isolatedDeps({ env: {} }));
     setup(second.ctx, isolatedDeps({ env: {} }));
 
-    assert.equal(first.eventHandlers.length + second.eventHandlers.length, 1);
+    assert.equal(first.subscribeCalls + second.subscribeCalls, 1);
   });
 });
 
@@ -185,7 +231,7 @@ describe("rp_spawn", () => {
     const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-reviewer"] });
     setup(ctx, isolatedDeps({ env: {} }));
 
-    const sessionID = await tools.get("rp_spawn").execute(
+    const result = await tools.get("rp_spawn").execute(
       {
         name: "spec-reviewer-1",
         agent: "spec-reviewer",
@@ -197,6 +243,8 @@ describe("rp_spawn", () => {
       { sessionID: "ses_orchestrator" },
     );
 
+    assert.deepEqual(result, toToolResult(result.structured));
+    const sessionID = result.structured;
     assert.equal(typeof sessionID, "string");
     const created = sessions.get(sessionID);
     assert.ok(created);
@@ -242,7 +290,7 @@ describe("rp_send", () => {
       { sessionID: "ses_sender" },
     );
 
-    assert.deepEqual(result, { delivered: true });
+    assert.deepEqual(result, toToolResult({ delivered: true }));
     assert.equal(captured.sessionID, "ses_receiver");
     assert.equal(captured.delivery, "queue");
     assert.ok(
@@ -267,7 +315,7 @@ describe("rp_send", () => {
       { sessionID: "ses_sender2" },
     );
 
-    assert.deepEqual(result, { status: 404, error: "SessionNotFoundError" });
+    assert.deepEqual(result, toToolResult({ status: 404, error: "SessionNotFoundError" }));
   });
 });
 
@@ -387,13 +435,13 @@ describe("HTTP client over node:http", () => {
 describe("isSessionActive", () => {
   const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
 
-  test("returns true when the session ID is a key of /api/session/active's body", async () => {
-    const requestFn = async () => ({ status: 200, body: { ses_1: { type: "running" } } });
+  test("returns true when the session ID is a key of /api/session/active's data envelope", async () => {
+    const requestFn = async () => ({ status: 200, body: { data: { ses_1: { type: "running" } } } });
     assert.equal(await isSessionActive(server, "ses_1", requestFn), true);
   });
 
-  test("returns false when the session ID is absent from the body", async () => {
-    const requestFn = async () => ({ status: 200, body: {} });
+  test("returns false when the session ID is absent from the data envelope", async () => {
+    const requestFn = async () => ({ status: 200, body: { data: {} } });
     assert.equal(await isSessionActive(server, "ses_1", requestFn), false);
   });
 });
@@ -485,7 +533,7 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     let active = true;
     const requestFn = async (url) => {
       if (url.pathname === "/api/session/active") {
-        return { status: 200, body: active ? { ses_caller: { type: "running" } } : {} };
+        return { status: 200, body: { data: active ? { ses_caller: { type: "running" } } : {} } };
       }
       throw new Error(`unexpected request: ${url.pathname}`);
     };
@@ -514,11 +562,12 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
       { interval: 25, prompt: "check status" },
       { sessionID: "ses_caller" },
     );
-    assert.ok(startResult.id);
+    const loopID = startResult.structured.id;
+    assert.ok(loopID);
 
-    const entries = await tools.get("rp_loop_list").execute({}, {});
+    const entries = (await tools.get("rp_loop_list").execute({}, {})).structured;
     assert.equal(entries.length, 1);
-    assert.equal(entries[0].id, startResult.id);
+    assert.equal(entries[0].id, loopID);
     assert.equal(entries[0].targetSession, "ses_caller");
     assert.equal(entries[0].prompt, "check status");
 
@@ -532,8 +581,8 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     assert.equal(promptCalls[0].text, "check status");
     assert.equal(promptCalls[0].delivery, "queue");
 
-    await tools.get("rp_loop_cancel").execute({ id: startResult.id }, {});
-    assert.deepEqual(await tools.get("rp_loop_list").execute({}, {}), []);
+    await tools.get("rp_loop_cancel").execute({ id: loopID }, {});
+    assert.deepEqual((await tools.get("rp_loop_list").execute({}, {})).structured, []);
 
     const countAfterCancel = promptCalls.length;
     await delay(60);
@@ -549,7 +598,8 @@ describe("completion listener (first-terminal-event-only notification)", () => {
   afterEach(clearAllLoopTimers);
 
   test("notifies the spawner on the child's first terminal event only; a second terminal event on the same child produces no additional notification", async () => {
-    const { ctx, eventHandlers, sessions } = createFakeCtx();
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent, sessions } = fakeCtx;
     sessions.set("ses_spawner_evt", { id: "ses_spawner_evt" });
     sessions.set("ses_child_evt", { id: "ses_child_evt" });
     recordSpawn("ses_child_evt", {
@@ -569,15 +619,16 @@ describe("completion listener (first-terminal-event-only notification)", () => {
       isolatedDeps({ env: {}, readServiceRecord: () => null }),
     );
 
-    assert.equal(eventHandlers.length, 1);
-    const handler = eventHandlers[0];
+    assert.equal(fakeCtx.subscribeCalls, 1);
 
-    await handler({ type: "session.execution.succeeded", properties: { sessionID: "ses_child_evt" } });
+    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_evt" } });
+    await delay(10);
     assert.equal(promptCalls.length, 1);
     assert.equal(promptCalls[0].sessionID, "ses_spawner_evt");
     assert.equal(promptCalls[0].delivery, "queue");
 
-    await handler({ type: "session.execution.failed", properties: { sessionID: "ses_child_evt" } });
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_evt" } });
+    await delay(10);
     assert.equal(
       promptCalls.length,
       1,
@@ -591,11 +642,38 @@ describe("completion listener (first-terminal-event-only notification)", () => {
     assert.equal(isTerminalEvent({ type: "session.execution.failed" }), true);
   });
 
-  test("terminalEventSessionID reads the session ID from the event's properties", () => {
+  test("terminalEventSessionID reads the session ID from the event's data (the shape opencode's terminal events actually carry)", () => {
+    assert.equal(
+      terminalEventSessionID({ type: "session.execution.succeeded", data: { sessionID: "ses_x" } }),
+      "ses_x",
+    );
+  });
+
+  test("terminalEventSessionID also accepts a properties-carried or durable-aggregate-carried session ID", () => {
     assert.equal(
       terminalEventSessionID({ type: "session.execution.succeeded", properties: { sessionID: "ses_x" } }),
       "ses_x",
     );
+    assert.equal(
+      terminalEventSessionID({ type: "session.execution.succeeded", durable: { aggregateID: "ses_x" } }),
+      "ses_x",
+    );
+  });
+});
+
+describe("toToolResult", () => {
+  test("wraps a bare string as structured, rendering it verbatim as text content", () => {
+    assert.deepEqual(toToolResult("ses_abc123"), {
+      structured: "ses_abc123",
+      content: [{ type: "text", text: "ses_abc123" }],
+    });
+  });
+
+  test("wraps a plain object as structured, rendering its JSON form as text content", () => {
+    assert.deepEqual(toToolResult({ delivered: true }), {
+      structured: { delivered: true },
+      content: [{ type: "text", text: JSON.stringify({ delivered: true }) }],
+    });
   });
 });
 
@@ -606,9 +684,14 @@ describe("agentExists / isSessionNotFoundError", () => {
     assert.equal(agentExists([{ name: "spec-lead" }], "spec-lead"), true);
   });
 
-  test("recognizes a 404 SessionNotFoundError by status or name", () => {
+  test("recognizes a dead-target session error by HTTP status or by tag, in either observed shape", () => {
     assert.equal(isSessionNotFoundError({ status: 404 }), true);
+    // The in-process ctx.session.prompt rejection: dotted tag, no status.
+    assert.equal(isSessionNotFoundError({ name: "Session.NotFoundError" }), true);
+    assert.equal(isSessionNotFoundError({ _tag: "Session.NotFoundError" }), true);
+    // The raw HTTP response body: undotted tag, alongside a 404 status.
     assert.equal(isSessionNotFoundError({ name: "SessionNotFoundError" }), true);
+    assert.equal(isSessionNotFoundError({ _tag: "SessionNotFoundError" }), true);
     assert.equal(isSessionNotFoundError({ status: 500 }), false);
     assert.equal(isSessionNotFoundError(new Error("boom")), false);
   });
@@ -700,7 +783,13 @@ describe("resolveRunningBuild", () => {
 });
 
 describe("readCliVersion", () => {
-  test("trims the output of a successful exec call", () => {
+  test("strips the real CLI's leading 'opencode2 v' and trims the output", () => {
+    // The real `opencode2 --version` prints "opencode2 v<build>\n" — verified
+    // live against the pinned build — not the bare build string alone.
+    assert.equal(readCliVersion(() => "opencode2 v0.0.0-next-15772\n"), "0.0.0-next-15772");
+  });
+
+  test("returns the output unchanged when it carries no 'opencode2 v' prefix", () => {
     assert.equal(readCliVersion(() => "0.0.0-next-15772\n"), "0.0.0-next-15772");
   });
 
@@ -735,27 +824,31 @@ describe("buildStatusPayload", () => {
       spawner: "ses_orchestrator",
     });
 
+    // Every opencode HTTP GET response envelopes its payload as
+    // `{ data: ... }` — verified live against the pinned build.
     const requestFn = async (url) => {
       if (url.pathname === "/api/session") {
         return {
           status: 200,
-          body: [
-            {
-              id: "ses_status_1",
-              agent: "spec-lead",
-              model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
-              location: { directory: "/repo" },
-              time: { updated: 42 },
-              title: "rp:144-opencode-support:spec-lead",
-            },
-          ],
+          body: {
+            data: [
+              {
+                id: "ses_status_1",
+                agent: "spec-lead",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/repo" },
+                time: { updated: 42 },
+                title: "rp:144-opencode-support:spec-lead",
+              },
+            ],
+          },
         };
       }
       if (url.pathname === "/api/session/active") {
-        return { status: 200, body: { ses_status_1: { type: "running" } } };
+        return { status: 200, body: { data: { ses_status_1: { type: "running" } } } };
       }
       if (url.pathname === "/api/session/ses_status_1/pending") {
-        return { status: 200, body: [{ admittedSeq: 1, delivery: "queue", text: "x" }] };
+        return { status: 200, body: { data: [{ admittedSeq: 1, delivery: "queue", text: "x" }] } };
       }
       throw new Error(`unexpected request: ${url.pathname}`);
     };
