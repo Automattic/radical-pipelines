@@ -7,6 +7,8 @@
     "radical-pipelines"
   ],
   "type": "module",
+  "main": "opencode/plugin.mjs",
+  "exports": "./opencode/plugin.mjs",
   "scripts": {
     "release:version": "changeset version && node scripts/sync-version.mjs && npm install --package-lock-only --no-audit --no-fund",
     "test": "node --test 'scripts/test/**/*.test.mjs'"
