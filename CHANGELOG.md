@@ -1,5 +1,16 @@
 # @automattic/radical-pipelines
 
+## 0.10.1
+### Patch Changes
+
+
+
+- [#215](https://github.com/Automattic/radical-pipelines/pull/215) [`a37932b`](https://github.com/Automattic/radical-pipelines/commit/a37932b34bf93a4aa6db26d0a927b601796a5086) Thanks [@luisherranz](https://github.com/luisherranz)! - Align multilane terminology, convention fields, and design consolidation context.
+
+
+
+- [#227](https://github.com/Automattic/radical-pipelines/pull/227) [`6646efb`](https://github.com/Automattic/radical-pipelines/commit/6646efba1fb2f252de3346e76d10a23ce0bb298d) Thanks [@luisherranz](https://github.com/luisherranz)! - Seat agents at every send on Claude Code: a message restarts its target in the sender's shell working directory, so the orchestrator and the health monitor `cd` into an agent's worktree before every spawn or message, and generic files no longer assert when an agent's working directory is fixed.
+
 ## 0.10.0
 ### Minor Changes
 
