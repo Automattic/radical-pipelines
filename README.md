@@ -16,6 +16,8 @@ Beyond that:
 
 - **Assisted mode has no structure.** There's no systematic process that guarantees the right assets get produced. Whether tests, documentation, or other artifacts get generated depends entirely on the human remembering to ask for them.
 
+- **Assisted mode interrogates the work unevenly.** Most quality failures are not capability failures — they are questions nobody asked. The questions that challenge the work ("does this break anything?", "isn't this dead code now?") are whichever ones the human happens to think of that session, so coverage varies with attention and energy, and the output quality tracks the interrogation, not the model.
+
 - **Assisted mode is inherently local.** The context built up along the way, the decisions made, and the intermediate output only exist on the machine of the person doing the work. The final PR is the only thing the team gets to see, which makes it hard to coordinate or have multiple people work on the same task.
 
 ## The proposal
@@ -40,10 +42,14 @@ It is **inspectable and relaunchable.** Every phase produces artifacts your team
 
 It can add **determinism through redundancy.** For complex tasks, you should be able to spend more tokens on the same surface with multiple runs, validation checks, adversarial agents, and different models from different providers to converge on a more reliable output.
 
+It asks **the right questions systematically.** The methodology encodes the questions that interrogate the work: each agent carries a battery of self-checks that fire on every run, instead of depending on a human remembering to ask them. When a run misses something, the postmortem — which question was never asked? — turns the miss into a new self-check, so every future run of every pipeline asks it. Model upgrades raise the ceiling of what is extractable; the accumulated question bank raises the floor of what actually gets extracted.
+
+The trade it makes is **explicit.** The pipeline maximizes the quality and determinism extracted from one model — or several — while minimizing the human time invested, at the cost of more tokens and more wall-clock time per issue. That time is autonomous — nobody attends it — so the cost that matters is measured in human-minutes per task, not in tokens or hours.
+
 ## What this unlocks
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
-- **Compounding quality.** When a pipeline produces a bad result, the fix lives in a specific phase (a wrong assumption in the spec, a missing constraint in the design doc). That fix improves every future run that goes through the same pipeline, not just the one that failed.
+- **Compounding quality.** When a pipeline produces a bad result, the fix lives in a specific phase (a wrong assumption in the spec, a missing constraint in the design doc). That fix improves every future run that goes through the same pipeline, not just the one that failed. And when the miss traces to a question no agent asked, the fix lives in the methodology itself, improving every future run of every pipeline.
 - **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a guaranteed part of every run.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
