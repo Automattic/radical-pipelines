@@ -1,6 +1,6 @@
 {
   "name": "@automattic/radical-pipelines",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "description": "Radical Pipelines — an agent orchestrator distributed as a Claude Code plugin and a standalone agent skill, served from this repository.",
   "keywords": [
