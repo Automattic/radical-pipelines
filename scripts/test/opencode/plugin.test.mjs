@@ -549,7 +549,12 @@ describe("armLoopTimer / disarmLoopTimer", () => {
       calls++;
     });
 
-    await delay(70);
+    // Wait for ticks rather than a fixed duration: a loaded runner can
+    // starve the interval long enough that a fixed wait sees a single tick.
+    const deadline = Date.now() + 2000;
+    while (calls < 2 && Date.now() < deadline) {
+      await delay(10);
+    }
     disarmLoopTimer(entry.id);
     const callsAtDisarm = calls;
 
