@@ -838,15 +838,45 @@ function terminalEventSessionID(event) {
 }
 
 /**
+ * Extract the structured error a failed terminal event carries.
+ *
+ * @param {object} event The terminal event (see `isTerminalEvent`).
+ * @returns {{ type?: string, message?: string } | undefined} The event's
+ *   `Session.StructuredError`, read from whichever of the event's known
+ *   shapes carries it, or `undefined` when the event carries none.
+ */
+function terminalEventError(event) {
+  return event?.properties?.error ?? event?.data?.error;
+}
+
+/**
+ * Render a structured error as one line for a notification.
+ *
+ * @param {*} error The value `terminalEventError` extracted.
+ * @returns {string} `"<type>: <message>"` when both fields are present, the
+ *   one present field otherwise, or a JSON rendering as the fallback for an
+ *   unrecognized shape.
+ */
+function formatStructuredError(error) {
+  if (typeof error === "string") {
+    return error;
+  }
+  const parts = [error?.type, error?.message].filter(Boolean);
+  return parts.length > 0 ? parts.join(": ") : JSON.stringify(error);
+}
+
+/**
  * Handle one event delivered to the completion listener.
  *
  * Ignores non-terminal events and terminal events on sessions RP did not
  * spawn. For a recognized child's terminal event: always records it in the
- * bounded error log; on the child's *first* terminal event only, notifies
- * the spawner (queue delivery) and re-asserts the child's durable `rp:`
- * title over the reach helper. The notification text names the terminal
- * outcome — "succeeded" or "failed" — so a first-turn spawn failure reads as
- * a failure rather than as a false success.
+ * bounded error log — including, for a failed event, the structured error it
+ * carries, so `rp_status`'s `recentErrors` reports the cause; on the child's
+ * *first* terminal event only, notifies the spawner (queue delivery) and
+ * re-asserts the child's durable `rp:` title over the reach helper. The
+ * notification text names the terminal outcome — "succeeded" or "failed" —
+ * so a first-turn spawn failure reads as a failure rather than as a false
+ * success, and a failure notification carries the structured error's cause.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
  * @param {{
@@ -868,7 +898,12 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
     return;
   }
 
-  recordError({ type: event.type, sessionID, at: Date.now() });
+  const error = terminalEventError(event);
+  const logEntry = { type: event.type, sessionID, at: Date.now() };
+  if (error !== undefined) {
+    logEntry.error = error;
+  }
+  recordError(logEntry);
 
   const notified = getNotifiedChildren();
   if (notified.has(sessionID)) {
@@ -877,9 +912,13 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
   notified.add(sessionID);
 
   const outcome = event.type === "session.execution.succeeded" ? "succeeded" : "failed";
+  const cause =
+    outcome === "failed" && error !== undefined
+      ? ` Cause: ${formatStructuredError(error)}`
+      : "";
   await ctx.session.prompt({
     sessionID: entry.spawner,
-    text: `[rp] ${entry.name} (${sessionID}) ${outcome} on its first turn.`,
+    text: `[rp] ${entry.name} (${sessionID}) ${outcome} on its first turn.${cause}`,
     delivery: "queue",
   });
 
@@ -1525,6 +1564,7 @@ export {
   disarmLoopTimer,
   formatAttribution,
   formatModelString,
+  formatStructuredError,
   formatTitle,
   isSessionActive,
   isSessionNotFoundError,
@@ -1548,6 +1588,7 @@ export {
   runLoopTick,
   setup,
   shapeStatus,
+  terminalEventError,
   terminalEventSessionID,
   toToolResult,
 };

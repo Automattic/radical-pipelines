@@ -12,6 +12,7 @@ import plugin, {
   buildLedgerRows,
   buildStatusPayload,
   disarmLoopTimer,
+  formatStructuredError,
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
@@ -25,6 +26,7 @@ import plugin, {
   resolveServer,
   runLoopTick,
   setup,
+  terminalEventError,
   terminalEventSessionID,
   toToolResult,
 } from "../../../opencode/plugin.mjs";
@@ -707,6 +709,55 @@ describe("completion listener (first-terminal-event-only notification)", () => {
     assert.doesNotMatch(promptCalls[1].text, /succeeded/i);
   });
 
+  test("a failed event's structured error reaches both the spawner notification and the error log", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_cause", { id: "ses_spawner_cause" });
+    sessions.set("ses_child_cause", { id: "ses_child_cause" });
+    recordSpawn("ses_child_cause", {
+      name: "worker-cause",
+      run: "144-opencode-support",
+      spawner: "ses_spawner_cause",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+
+    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+
+    const structuredError = {
+      type: "provider.auth",
+      message: "Provider request failed with HTTP 401: subscription API limit reached",
+    };
+    pushEvent({
+      type: "session.execution.failed",
+      data: { sessionID: "ses_child_cause", error: structuredError },
+    });
+    await delay(10);
+
+    assert.equal(promptCalls.length, 1);
+    assert.match(
+      promptCalls[0].text,
+      /provider\.auth/,
+      `expected the error type in the text, got: ${promptCalls[0].text}`,
+    );
+    assert.match(
+      promptCalls[0].text,
+      /subscription API limit reached/,
+      `expected the error message in the text, got: ${promptCalls[0].text}`,
+    );
+
+    const logged = globalThis[ERROR_LOG_KEY].find(
+      (entry) => entry.sessionID === "ses_child_cause",
+    );
+    assert.ok(logged, "expected an error-log entry for the failed child");
+    assert.deepEqual(logged.error, structuredError);
+  });
+
   test("ignores non-terminal events and terminal events on sessions RP never spawned", () => {
     assert.equal(isTerminalEvent({ type: "session.created" }), false);
     assert.equal(isTerminalEvent({ type: "session.execution.succeeded" }), true);
@@ -729,6 +780,32 @@ describe("completion listener (first-terminal-event-only notification)", () => {
       terminalEventSessionID({ type: "session.execution.succeeded", durable: { aggregateID: "ses_x" } }),
       "ses_x",
     );
+  });
+
+  test("terminalEventError reads the structured error from the event's data or properties, and tolerates its absence", () => {
+    const error = { type: "provider.auth", message: "HTTP 401" };
+    assert.deepEqual(
+      terminalEventError({ type: "session.execution.failed", data: { sessionID: "ses_x", error } }),
+      error,
+    );
+    assert.deepEqual(
+      terminalEventError({ type: "session.execution.failed", properties: { sessionID: "ses_x", error } }),
+      error,
+    );
+    assert.equal(
+      terminalEventError({ type: "session.execution.failed", data: { sessionID: "ses_x" } }),
+      undefined,
+    );
+  });
+
+  test("formatStructuredError renders type and message, a lone field, a bare string, and an unrecognized shape", () => {
+    assert.equal(
+      formatStructuredError({ type: "provider.auth", message: "HTTP 401" }),
+      "provider.auth: HTTP 401",
+    );
+    assert.equal(formatStructuredError({ message: "HTTP 401" }), "HTTP 401");
+    assert.equal(formatStructuredError("boom"), "boom");
+    assert.equal(formatStructuredError({ code: 7 }), '{"code":7}');
   });
 });
 
