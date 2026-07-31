@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
@@ -409,12 +409,59 @@ describe("readServiceRecordFile", () => {
     });
   });
 
+  test("reads and parses the bare service.json file under XDG_STATE_HOME/opencode", () => {
+    const stateDir = join(root, "opencode");
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(
+      join(stateDir, "service.json"),
+      JSON.stringify({ url: "http://127.0.0.1:49374", password: "pw", version: "0.0.0-next-2" }),
+    );
+
+    assert.deepEqual(readServiceRecordFile({ XDG_STATE_HOME: root }), {
+      url: "http://127.0.0.1:49374",
+      password: "pw",
+      version: "0.0.0-next-2",
+    });
+  });
+
+  test("prefers the most recently written record when both names are present", () => {
+    const stateDir = join(root, "opencode");
+    mkdirSync(stateDir, { recursive: true });
+    const stale = join(stateDir, "service-abc123.json");
+    writeFileSync(
+      stale,
+      JSON.stringify({ url: "http://127.0.0.1:4096", password: "old", version: "0.0.0-next-1" }),
+    );
+    writeFileSync(
+      join(stateDir, "service.json"),
+      JSON.stringify({ url: "http://127.0.0.1:49374", password: "new", version: "0.0.0-next-2" }),
+    );
+    // Age the hash-suffixed record so the assertion turns on mtime rather
+    // than on readdir order, which is filesystem-dependent.
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(stale, past, past);
+
+    assert.deepEqual(readServiceRecordFile({ XDG_STATE_HOME: root }), {
+      url: "http://127.0.0.1:49374",
+      password: "new",
+      version: "0.0.0-next-2",
+    });
+  });
+
   test("returns null when the service record directory does not exist", () => {
     assert.equal(readServiceRecordFile({ XDG_STATE_HOME: join(root, "missing") }), null);
   });
 
-  test("returns null when the directory exists but has no service-*.json file", () => {
+  test("returns null when the directory exists but holds no service record", () => {
     mkdirSync(join(root, "opencode"), { recursive: true });
+    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }), null);
+  });
+
+  test("ignores a service record lock file left alongside the record", () => {
+    const stateDir = join(root, "opencode");
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(join(stateDir, "service-abc123.json.lock"), "");
+
     assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }), null);
   });
 });
