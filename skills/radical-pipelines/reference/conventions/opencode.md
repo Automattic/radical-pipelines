@@ -27,11 +27,9 @@ Sessions run commands in a non-interactive `$SHELL -c` that sources no profile o
 - **List active loops:** `rp_loop_list`.
 - **Cancel:** `rp_loop_cancel` with the loop id.
 - **Status:** `rp_status` reports each spawned session's running state, current tool, and pending permission requests; consult it before classifying a no-output stall.
-
-### Agent models (optional)
-
-Values are opencode-native `provider/model[#variant]` strings, passed verbatim to `rp_spawn`.
 ```
+
+**Agent models** values are opencode-native `provider/model[#variant]` strings.
 
 ## Setup actions
 
