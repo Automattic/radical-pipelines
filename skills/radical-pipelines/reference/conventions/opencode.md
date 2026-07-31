@@ -13,9 +13,9 @@ The block below is the canonical content for `.rp.md`.
 
 Spawn each agent with `rp_spawn`, passing the run-unique instance name, the RP profile name, a `provider/model[#variant]` string, the absolute worktree path to seat the session in, the initial prompt, and the run branch. The session's working directory is fixed for its lifetime. The result's session ID is the identifier for addressing messages to it. Message an agent with `rp_send`. The spawner is notified automatically when a spawned agent's first turn completes; agents report completion of any later work themselves.
 
-Sessions run commands in a non-interactive `$SHELL -c` that sources no profile or rc files, so shell functions defined there — version managers like `nvm` — exist only when the command initializes them itself (e.g. `. "$NVM_DIR/nvm.sh" && nvm use`).
+Sessions run commands in a non-interactive `$SHELL -c` that sources no profile or rc files; shell functions defined there exist only when the command initializes them itself.
 
-A read outside a session's worktree raises a permission request that blocks the session until answered. When the same content exists inside that session's worktree, the plugin rejects the request automatically, redirecting the agent to the worktree copy. Every other request is announced to the spawner and stays pending until answered with `rp_permission_reply` — `once` to allow, `reject` to refuse, with an optional message delivered to the agent as feedback.
+A read outside a session's worktree raises a permission request that blocks the session until answered. Requests are announced to the spawner and answered with `rp_permission_reply` — `once` to allow, `reject` to refuse, with an optional message delivered to the agent as feedback.
 
 ### Health monitoring
 
