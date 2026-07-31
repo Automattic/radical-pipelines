@@ -180,14 +180,22 @@ describe("default export", () => {
 describe("setup: tool and skill registration", () => {
   afterEach(clearAllLoopTimers);
 
-  test("registers exactly the six named tools and the skills/ directory as a skill source", () => {
+  test("registers exactly the seven named tools and the skills/ directory as a skill source", () => {
     const { ctx, tools, skillSources } = createFakeCtx();
 
     setup(ctx, isolatedDeps({ env: {} }));
 
     assert.deepEqual(
       [...tools.keys()].sort(),
-      ["rp_loop_cancel", "rp_loop_list", "rp_loop_start", "rp_send", "rp_spawn", "rp_status"],
+      [
+        "rp_loop_cancel",
+        "rp_loop_list",
+        "rp_loop_start",
+        "rp_permission_reply",
+        "rp_send",
+        "rp_spawn",
+        "rp_status",
+      ],
     );
     assert.equal(skillSources.length, 1);
     assert.equal(skillSources[0].type, "directory");
@@ -255,9 +263,9 @@ describe("rp_spawn", () => {
     assert.equal(sessions.size, 0);
   });
 
-  test("on a valid agent, creates the session seated at directory, records the ledger entry with spawner = toolCtx.sessionID, and returns the created session ID", async () => {
+  test("on a valid agent, creates the session seated at directory, records the ledger entry with spawner = toolCtx.sessionID plus the seat and its repo root, and returns the created session ID", async () => {
     const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-reviewer"] });
-    setup(ctx, isolatedDeps({ env: {} }));
+    setup(ctx, isolatedDeps({ env: {}, resolveRepoRootFn: (directory) => `${directory}-repo-root` }));
 
     const result = await tools.get("rp_spawn").execute(
       {
@@ -288,6 +296,8 @@ describe("rp_spawn", () => {
       name: "spec-reviewer-1",
       run: "144-opencode-support",
       spawner: "ses_orchestrator",
+      directory: "/repo/worktree",
+      repoRoot: "/repo/worktree-repo-root",
     });
   });
 });
@@ -887,6 +897,8 @@ describe("buildLedgerRows", () => {
         updated: 123,
         running: true,
         pending: 2,
+        permissions: [],
+        currentTool: undefined,
       },
     ]);
   });
@@ -999,6 +1011,22 @@ describe("buildStatusPayload", () => {
       if (url.pathname === "/api/session/ses_status_1/pending") {
         return { status: 200, body: { data: [{ admittedSeq: 1, delivery: "queue", text: "x" }] } };
       }
+      if (url.pathname === "/api/session/ses_status_1/permission") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "per_1",
+                sessionID: "ses_status_1",
+                action: "external_directory",
+                resources: ["/repo-main/.agents/skills/testing/*"],
+                save: ["/repo-main/*"],
+              },
+            ],
+          },
+        };
+      }
       throw new Error(`unexpected request: ${url.pathname}`);
     };
 
@@ -1019,6 +1047,14 @@ describe("buildStatusPayload", () => {
       updated: 42,
       running: true,
       pending: 1,
+      permissions: [
+        {
+          id: "per_1",
+          action: "external_directory",
+          resources: ["/repo-main/.agents/skills/testing/*"],
+        },
+      ],
+      currentTool: undefined,
     });
   });
 });
