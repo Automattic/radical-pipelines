@@ -1,0 +1,35 @@
+# Build Review
+
+## Verdict: rejected
+
+## Batch scope
+
+Expected new work: Task 7 (Plugin module — tools, listener, scheduler, and server reach) and Task 12 (opencode integration suite), re-dispatched to resolve the five findings of `build-review-1-rejected.md` (commits `06fff9b` and `666a791`).
+Diff reviewed: `f9740b9^` (= `c351f0e`) → HEAD (the phase's whole work)
+
+## Summary
+
+All five findings from iteration 1 are resolved, and I verified each independently: (1) no shipped file cites the run's planning artifacts any longer — a full-diff sweep for flow/task/requirement/criterion/artifact references over `opencode/`, `scripts/`, the skill prose, and the changeset comes back empty, and the seven suite headers now describe their mechanics in repo-standalone terms; (2) the completion notification derives its text from the terminal event type (`opencode/plugin.mjs:879-884`) and reads "succeeded/failed on its first turn", with a unit test asserting both texts and the matching suite assertion updated; (3) `setup()` now records each materialization collision to the bounded error log (`opencode/plugin.mjs:1492-1495`), observable via `rp_status`'s `recentErrors`, with a unit test and a suite check that reads the seeded `spec-lead.md` collision through a real driven `rp_status` call; (4) the message-failure chain's `/pending` stage is covered end-to-end — a queued message to a busy target is observed lingering in `GET /pending` and as a nonzero `rp_status` pending count, then draining; (5) the vacuous self-comparison is replaced by `assert.deepEqual(result.recentErrors, [])` against a reset log, with the pin comparison made deterministic via an injected `readCliVersion`. I re-ran the pinned integration suite myself — 28/28 green against CLI `0.0.0-next-15772` — and the opencode unit subset (99/99). The rejection rests on one new defect introduced by the iteration-2 rework: the new collision unit test executes the real `rp_status` tool with the server-reach boundary unstubbed, making the fixed offline `npm test` gate nondeterministic and network-touching on exactly the machines this feature targets (owners running an opencode daemon).
+
+## Checks
+
+| Check | Command | Result |
+| ----- | ------- | ------ |
+| tests | `npm test` (from the worktree root) | skipped (verdict is rejected; gates are skipped by protocol and run at the approval iteration) |
+
+## Behavior verification
+
+- **Prior-finding resolution sweeps:** `grep -rniE 'flow [0-9]|build[- ]plan|acceptance criter|spec\.md|design[- ]doc|\.pipelines|task [0-9]|requirement [0-9]'` over `opencode/`, `scripts/opencode-integration/`, `scripts/test/opencode/`, `opencode.md`, the changeset, and `package.json`: no matches. `grep -rn 'completed its first turn'` over `opencode/`, `scripts/`, `skills/`: no matches (the outcome-blind text is gone everywhere, including the suite assertion, now `succeeded on its first turn`).
+- **Automated flows (core stub-provider path), independent re-run:** `npm run test:opencode` from the worktree root — **28/28 checks passed** against the pinned CLI (`Pinned opencode build: 0.0.0-next-15772`, sandbox `serve` at `127.0.0.1:46177`, offline SSE stub). The transcript includes both iteration-2 additions passing: "collision reporting: the seeded spec-lead.md collision is observable via rp_status's recentErrors" (940ms) and "an admitted-but-unpromoted message lingers observably in /pending while the target is busy, then drains once it goes idle" (6255ms — the queued message was observed in `GET /pending` during the 6s busy window, reported as `pending > 0` in the `rp_status` ledger row, then observed drained and delivered after the target went idle). All 26 previously-green checks remain green (spawn/seat/ledger/title, attribution and 404 chain, loop lifecycle incl. restart re-arm, pin assertion, interrupt, model switch, auth recovery, network probe).
+- **Offline unit evidence:** `node --test scripts/test/opencode/*.test.mjs` — 99/99 pass, including the new outcome-text test (asserts "succeeded" for a succeeded child and "failed" for a failed one, each excluding the other word) and the new collision-surfacing test. The full `npm test` gate run is deferred to the approval iteration per protocol.
+- **Skill-surface flows (prose surface of setup/mismatch/regression):** re-verified statically — `setup.md`'s Tool→Read table gains exactly the opencode row; `load.md`'s added rule stays tool-agnostic and folds a mismatch into the existing missing-conventions stop/explain/offer-setup flow; `opencode.md`'s canonical blocks name exactly the shipped `rp_*` tools and arguments, state the fixed seat, the session-ID identifier, and the plugin-installed Setup-actions check.
+- **Manual smoke flows (live pinned install with real models):** not re-driven in this rejecting iteration; they remain open for the approval iteration, as recorded in iteration 1.
+
+## Issues
+
+### Issue 1: New collision unit test leaves the server-reach boundary unstubbed inside the fixed offline gate
+
+**Task:** Task 7: Plugin module — tools, listener, scheduler, and server reach
+**What's wrong:** The iteration-2 test "a materialization collision with a pre-existing foreign agent file is surfaced via rp_status's recentErrors" calls `setup(ctx, { env: {}, agentsSourceDir, agentsTargetDir })` and then executes the real `rp_status` tool. `env: {}` does not stub the reach boundary: `buildStatusPayload` defaults `readServiceRecord` to `readServiceRecordFile`, which with no `XDG_STATE_HOME` falls back to the real `~/.local/state/opencode/service-*.json` (`opencode/plugin.mjs:456-459`, `475-487`), and defaults `readCliVersion` to a real `opencode2 --version` exec (`opencode/plugin.mjs:623-629`). On an owner machine with a running opencode daemon — the environment this feature exists for, and after install every owner's — `npm test` therefore issues real authenticated HTTP GETs against the live daemon (`/api/session`, `/api/session/active`, per-session `/pending`), enumerating the owner's real sessions inside the offline unit gate; with a stale service record left by a crashed daemon, `nodeHttpRequest` rejects (connection refused), `buildStatusPayload` throws, and the gate fails spuriously; with `opencode2` on `PATH`, the gate spawns a real subprocess. This deviates from the planned test approach for this module — offline tests "stub the HTTP reach boundary (inject a fake `readServiceRecord`/`env` into `resolveServer` and stub the `node:http` client) plus the `opencode2 --version` call" — and from this very file's established pattern: every other reach-touching test injects `readServiceRecord: () => null` (`plugin.test.mjs:576, 639, 682, 876, 924`). It passes on this machine today only because `~/.local/state/opencode/` happens to contain no `service-*.json` and `opencode2` is not on `PATH`.
+**Where:** `scripts/test/opencode/plugin.test.mjs:215` (the `setup` deps; the tool execution at line 217)
+**Expected:** The test's `setup` deps include `readServiceRecord: () => null` and `readCliVersion: () => null` (its assertion needs neither), keeping the test hermetic and the fixed gate deterministic on any machine.

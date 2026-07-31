@@ -6,10 +6,10 @@
     <title>Radical Pipelines — Autonomous software engineering by Automattic</title>
     <meta
       name="description"
-      content="Radical Pipelines is an agent orchestrator from Automattic. Five phases, each producing an inspectable artifact, so teams of AI agents can ship work autonomously while humans review at checkpoints. Runs on Claude Code."
+      content="Radical Pipelines is an agent orchestrator from Automattic. Five phases, each producing an inspectable artifact, so teams of AI agents can ship work autonomously while humans review at checkpoints. Runs on Claude Code and opencode."
     />
     <meta name="author" content="Automattic" />
-    <meta name="keywords" content="Radical Pipelines, Automattic, AI agents, Claude Code, agent orchestration, autonomous software engineering, agent pipelines, prompt engineering" />
+    <meta name="keywords" content="Radical Pipelines, Automattic, AI agents, Claude Code, opencode, agent orchestration, autonomous software engineering, agent pipelines, prompt engineering" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://automattic.github.io/radical-pipelines/" />
 
@@ -106,7 +106,7 @@
             <ul class="hero-stats">
               <li><strong>5</strong><span>phases</span></li>
               <li><strong>17</strong><span>agents shipped</span></li>
-              <li><strong>1</strong><span>CLI supported</span></li>
+              <li><strong>2</strong><span>CLIs supported</span></li>
             </ul>
           </div>
           <aside class="hero-visual" aria-hidden="true">
@@ -202,9 +202,9 @@
           <span class="kicker">What it actually does</span>
           <h2>Files in your repo, one phase at a time.</h2>
           <p class="lede">
-            No new UI. The orchestrator runs in your CLI (Claude Code) and
-            writes artifacts into a pipeline folder in the repo. Your team reads
-            them like any other file.
+            No new UI. The orchestrator runs in your CLI (Claude Code or
+            opencode) and writes artifacts into a pipeline folder in the repo.
+            Your team reads them like any other file.
           </p>
 
           <div class="run-grid">
@@ -277,7 +277,7 @@
             </div>
             <div>
               <h3>Tooling caught up.</h3>
-              <p>Claude Code already ships skills, teams, hooks, worktrees. We build on top.</p>
+              <p>Claude Code and opencode already ship skills, agents, worktrees. We build on top.</p>
             </div>
           </div>
         </div>
@@ -297,9 +297,22 @@
                 <span class="install-aside">well, this is actually two lines, sorry</span>
               </div>
             </div>
+            <div class="install-block">
+              <h3>opencode</h3>
+              <div class="install-cmd">
+                <pre><code>// ~/.config/opencode/opencode.json
+{ "plugins": ["github:Automattic/radical-pipelines#v&lt;X.Y.Z&gt;"], "autoupdate": false }
+
+opencode2 service restart</code></pre>
+                <span class="install-aside">a config edit, then one restart</span>
+              </div>
+            </div>
           </div>
           <p class="install-note">
-            <a href="https://github.com/Automattic/radical-pipelines#readme" target="_blank" rel="noopener">See README for full setup →</a>
+            Full setup:
+            <a href="https://github.com/Automattic/radical-pipelines#claude-code-plugin-install" target="_blank" rel="noopener">Claude Code</a>
+            ·
+            <a href="https://github.com/Automattic/radical-pipelines#opencode-plugin-install" target="_blank" rel="noopener">opencode</a>
           </p>
         </div>
       </section>

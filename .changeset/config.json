@@ -9,7 +9,7 @@
   "updateInternalDependencies": "patch",
   "ignore": [],
   "prettier": false,
-  "changedFilePatterns": ["skills/**", "agents/**", ".claude-plugin/**", "package.json", "README.md"],
+  "changedFilePatterns": ["skills/**", "agents/**", ".claude-plugin/**", "opencode/**", "package.json", "README.md"],
   "privatePackages": {
     "version": true,
     "tag": true
