@@ -1640,24 +1640,44 @@ const PLUGIN_ID = `radical-pipelines@${readPackageVersion()}`;
 const SKILLS_SOURCE_DIR = fileURLToPath(new URL("../skills", import.meta.url));
 
 /**
- * Wrap a tool's computed result into the shape opencode's dynamic
- * (`jsonSchema`-based) tool contract requires: `{ structured, content }`.
- * Any other return shape from `execute` — a bare string, a plain object
- * missing either key — surfaces to the calling agent as a generic "Tool
- * execution failed", regardless of the value actually computed.
+ * Wrap a tool's computed result into the shape opencode's tool contract
+ * requires: `{ output, content }`. Any other return shape from `execute` —
+ * a bare string, a plain object missing both keys — leaves the calling agent
+ * with a null result, regardless of the value actually computed.
+ *
+ * `output` is round-tripped through JSON so it is always a JSON value:
+ * opencode validates a tool's output against its declared schema and rejects
+ * the whole call with "Tool returned a non-JSON value for its output schema"
+ * if it is not. Ledger rows carry `undefined` whenever opencode's session
+ * record omits a field — no current tool, no model, no recorded update time —
+ * and the round-trip drops those keys exactly as the rendering already did.
  *
  * @param {*} value The tool's computed result.
- * @returns {{ structured: *, content: Array<{ type: "text", text: string }> }}
- *   `structured` is the value calling code receives back; `content` is its
- *   human-readable rendering (the string itself when `value` already is one,
- *   else its JSON form).
+ * @returns {{ output: *, content: Array<{ type: "text", text: string }> }}
+ *   `output` is the JSON form of the value calling code receives back;
+ *   `content` is its human-readable rendering (the string itself when `value`
+ *   already is one, else its JSON form).
  */
 function toToolResult(value) {
-  return {
-    structured: value,
-    content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
-  };
+  if (typeof value === "string") {
+    return { output: value, content: [{ type: "text", text: value }] };
+  }
+  const text = JSON.stringify(value) ?? "null";
+  return { output: JSON.parse(text), content: [{ type: "text", text }] };
 }
+
+/**
+ * The output schema every RP tool declares.
+ *
+ * opencode only carries a tool's `output` back to its caller when the tool
+ * declares an output schema — Code Mode, which is how an agent reaches these
+ * tools, returns that `output` and nothing else, so a tool without one
+ * resolves to `null` however much it computed. RP's tools return whatever
+ * shape their operation produced (a bare session ID, a status payload, a
+ * loop registry listing), so the declared schema is the permissive one that
+ * accepts any JSON value rather than a per-tool shape.
+ */
+const ANY_OUTPUT_SCHEMA = {};
 
 /**
  * Build the `rp_spawn` tool descriptor.
@@ -1666,7 +1686,7 @@ function toToolResult(value) {
  * @param {{ resolveRepoRootFn?: (directory: string) => string | null }} [deps]
  *   `resolveRepoRootFn` defaults to `resolveRepoRoot`; injected in tests so
  *   no real `git` runs.
- * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
 function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
@@ -1674,7 +1694,8 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
     name: "rp_spawn",
     description:
       "Spawn a new named RP agent instance as an opencode session seated in a directory.",
-    jsonSchema: {
+    output: ANY_OUTPUT_SCHEMA,
+    input: {
       type: "object",
       properties: {
         name: { type: "string", description: "Run-unique instance name." },
@@ -1718,7 +1739,7 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
  * }} deps `env`/`readServiceRecordOverride` reach `resolveServer`;
  *   `requestFn` reaches the HTTP client.
- * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
 function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn }) {
@@ -1726,7 +1747,8 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
     name: "rp_permission_reply",
     description:
       "Reply to a pending permission request on an RP session: allow it once, or reject it (a message on a reject reaches the agent as corrective feedback).",
-    jsonSchema: {
+    output: ANY_OUTPUT_SCHEMA,
+    input: {
       type: "object",
       properties: {
         session: { type: "string", description: "Session ID the request belongs to." },
@@ -1758,14 +1780,15 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
  * Build the `rp_send` tool descriptor.
  *
  * @param {object} ctx The plugin's opencode context, as passed to `setup`.
- * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
 function buildSendTool(ctx) {
   return {
     name: "rp_send",
     description: "Send a directed, queue-delivered message to another RP session by session ID.",
-    jsonSchema: {
+    output: ANY_OUTPUT_SCHEMA,
+    input: {
       type: "object",
       properties: {
         to: { type: "string", description: "Target session ID." },
@@ -1798,7 +1821,7 @@ function buildSendTool(ctx) {
  * @param {{ registryPath: string, tick: (entry: object) => Promise<*> }} deps
  *   `registryPath` is where the new entry is persisted; `tick` is the
  *   per-interval callback armed for it.
- * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
 function buildLoopStartTool({ registryPath, tick }) {
@@ -1806,7 +1829,8 @@ function buildLoopStartTool({ registryPath, tick }) {
     name: "rp_loop_start",
     description:
       "Start a recurring health-loop prompt against a session, firing only while it is idle.",
-    jsonSchema: {
+    output: ANY_OUTPUT_SCHEMA,
+    input: {
       type: "object",
       properties: {
         interval: { type: "number", description: "Tick period in milliseconds." },
@@ -1836,14 +1860,15 @@ function buildLoopStartTool({ registryPath, tick }) {
  * Build the `rp_loop_list` tool descriptor.
  *
  * @param {string} registryPath Absolute path to the loop registry file.
- * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
 function buildLoopListTool(registryPath) {
   return {
     name: "rp_loop_list",
     description: "List every currently registered health loop.",
-    jsonSchema: { type: "object", properties: {} },
+    output: ANY_OUTPUT_SCHEMA,
+    input: { type: "object", properties: {} },
     async execute() {
       return toToolResult(listLoopEntries(registryPath));
     },
@@ -1854,14 +1879,15 @@ function buildLoopListTool(registryPath) {
  * Build the `rp_loop_cancel` tool descriptor.
  *
  * @param {string} registryPath Absolute path to the loop registry file.
- * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
 function buildLoopCancelTool(registryPath) {
   return {
     name: "rp_loop_cancel",
     description: "Cancel a health loop, stopping further ticks.",
-    jsonSchema: {
+    output: ANY_OUTPUT_SCHEMA,
+    input: {
       type: "object",
       properties: { id: { type: "string", description: "Loop id returned by rp_loop_start." } },
       required: ["id"],
@@ -1883,14 +1909,15 @@ function buildLoopCancelTool(registryPath) {
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
  *   readCliVersionOverride?: () => string | null,
  * }} deps Passed through to `buildStatusPayload`.
- * @returns {{name: string, description: string, jsonSchema: object, execute: Function}}
+ * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
 function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }) {
   return {
     name: "rp_status",
     description: "Report plugin version, pin comparison, ledger snapshot, and recent errors.",
-    jsonSchema: { type: "object", properties: {} },
+    output: ANY_OUTPUT_SCHEMA,
+    input: { type: "object", properties: {} },
     async execute() {
       return toToolResult(
         await buildStatusPayload({
