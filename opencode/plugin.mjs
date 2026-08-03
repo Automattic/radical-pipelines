@@ -15,6 +15,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import http from "node:http";
@@ -468,24 +469,37 @@ function resolveServiceRecordDir(env) {
  * start`) runs — a `serve` process writes none — so a missing record is the
  * normal `serve`/harness case, not an error.
  *
+ * opencode has written the record under two names across builds — the
+ * hash-suffixed `service-<hash>.json` and the bare `service.json` — so both
+ * are accepted. When records under both names are present, the most recently
+ * written one wins: switching between builds leaves the other name behind as
+ * a stale record naming a server that is no longer listening.
+ *
  * @param {Record<string, string | undefined>} env Environment used to
  *   resolve the service record's directory (see `resolveServiceRecordDir`).
  * @returns {{ id: string, version: string, url: string, pid: number, password: string } | null}
- *   The parsed record, or `null` when its directory or a `service-*.json`
- *   file inside it does not exist.
+ *   The parsed record, or `null` when its directory or any service record
+ *   inside it does not exist.
  */
 function readServiceRecordFile(env) {
   const dir = resolveServiceRecordDir(env);
   if (!existsSync(dir)) {
     return null;
   }
-  const fileName = readdirSync(dir).find(
-    (entryName) => entryName.startsWith("service-") && entryName.endsWith(".json"),
-  );
-  if (!fileName) {
+  const paths = readdirSync(dir)
+    .filter(
+      (entryName) =>
+        entryName === "service.json" ||
+        (entryName.startsWith("service-") && entryName.endsWith(".json")),
+    )
+    .map((entryName) => join(dir, entryName));
+  if (paths.length === 0) {
     return null;
   }
-  return JSON.parse(readFileSync(join(dir, fileName), "utf8"));
+  const newest = paths.reduce((left, right) =>
+    statSync(left).mtimeMs >= statSync(right).mtimeMs ? left : right,
+  );
+  return JSON.parse(readFileSync(newest, "utf8"));
 }
 
 /**
