@@ -230,7 +230,7 @@ describe("setup: tool and skill registration", () => {
       readCliVersion: () => null,
     });
 
-    const result = (await tools.get("rp_status").execute({}, {})).structured;
+    const result = (await tools.get("rp_status").execute({}, {})).output;
     assert.ok(
       result.recentErrors.some(
         (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
@@ -279,8 +279,8 @@ describe("rp_spawn", () => {
       { sessionID: "ses_orchestrator" },
     );
 
-    assert.deepEqual(result, toToolResult(result.structured));
-    const sessionID = result.structured;
+    assert.deepEqual(result, toToolResult(result.output));
+    const sessionID = result.output;
     assert.equal(typeof sessionID, "string");
     const created = sessions.get(sessionID);
     assert.ok(created);
@@ -652,10 +652,10 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
       { interval: 25, prompt: "check status" },
       { sessionID: "ses_caller" },
     );
-    const loopID = startResult.structured.id;
+    const loopID = startResult.output.id;
     assert.ok(loopID);
 
-    const entries = (await tools.get("rp_loop_list").execute({}, {})).structured;
+    const entries = (await tools.get("rp_loop_list").execute({}, {})).output;
     assert.equal(entries.length, 1);
     assert.equal(entries[0].id, loopID);
     assert.equal(entries[0].targetSession, "ses_caller");
@@ -672,7 +672,7 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     assert.equal(promptCalls[0].delivery, "queue");
 
     await tools.get("rp_loop_cancel").execute({ id: loopID }, {});
-    assert.deepEqual((await tools.get("rp_loop_list").execute({}, {})).structured, []);
+    assert.deepEqual((await tools.get("rp_loop_list").execute({}, {})).output, []);
 
     const countAfterCancel = promptCalls.length;
     await delay(60);
@@ -872,18 +872,36 @@ describe("completion listener (first-terminal-event-only notification)", () => {
 });
 
 describe("toToolResult", () => {
-  test("wraps a bare string as structured, rendering it verbatim as text content", () => {
+  test("wraps a bare string as output, rendering it verbatim as text content", () => {
     assert.deepEqual(toToolResult("ses_abc123"), {
-      structured: "ses_abc123",
+      output: "ses_abc123",
       content: [{ type: "text", text: "ses_abc123" }],
     });
   });
 
-  test("wraps a plain object as structured, rendering its JSON form as text content", () => {
+  test("wraps a plain object as output, rendering its JSON form as text content", () => {
     assert.deepEqual(toToolResult({ delivered: true }), {
-      structured: { delivered: true },
+      output: { delivered: true },
       content: [{ type: "text", text: JSON.stringify({ delivered: true }) }],
     });
+  });
+
+  test("drops undefined-valued keys so output is always a JSON value", () => {
+    // opencode validates a tool's output against its declared schema and
+    // fails the whole call on a non-JSON value; ledger rows carry `undefined`
+    // whenever a session record omits a field.
+    const result = toToolResult({ name: "spec-lead", currentTool: undefined, pending: 0 });
+
+    assert.deepEqual(result.output, { name: "spec-lead", pending: 0 });
+    assert.ok(!("currentTool" in result.output));
+    assert.deepEqual(JSON.parse(result.content[0].text), result.output);
+  });
+
+  test("renders a nested undefined the same way in output and content", () => {
+    const result = toToolResult({ ledger: [{ sessionID: "ses_1", model: undefined }] });
+
+    assert.deepEqual(result.output, { ledger: [{ sessionID: "ses_1" }] });
+    assert.deepEqual(JSON.parse(result.content[0].text), result.output);
   });
 });
 

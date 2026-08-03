@@ -1,8 +1,12 @@
 name: Changeset Gate
 
+# Every pull request, whatever its base. A stacked PR targets the branch
+# below it rather than trunk, and a base filter of `trunk` left those PRs
+# with no checks at all — the gate ran only once the stack collapsed. The
+# changeset presence check already compares against the PR's own base, so
+# each PR in a stack is judged on its own changes.
 on:
   pull_request:
-    branches: [trunk]
 
 permissions:
   contents: read
