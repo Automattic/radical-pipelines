@@ -1,5 +1,23 @@
 # @automattic/radical-pipelines
 
+## 0.11.0
+### Minor Changes
+
+
+
+- [#220](https://github.com/Automattic/radical-pipelines/pull/220) [`6a8802e`](https://github.com/Automattic/radical-pipelines/commit/6a8802e5a79cd9dabc2a5e208a26c02bf665192b) Thanks [@luisherranz](https://github.com/luisherranz)! - Add opencode v2 support: a plugin exposing the `rp_*` tools — including permission mediation that redirects an agent's external read to its worktree copy or forwards the request to the spawner for adjudication via `rp_permission_reply`, and an `rp_status` ledger reporting each session's current tool and pending permission requests — a per-tool convention file with the opencode Team spawning and Health monitoring blocks, and a pinned, hermetic integration suite that exercises the plugin against the pinned opencode build.
+
+
+
+- [#232](https://github.com/Automattic/radical-pipelines/pull/232) [`81aaccf`](https://github.com/Automattic/radical-pipelines/commit/81aaccf78af4f2768b215a85d9e239a6ba981e0c) Thanks [@luisherranz](https://github.com/luisherranz)! - Migrate the opencode plugin to the current plugin API tool contract and advance the pinned build to `0.0.0-next-16573`. Tool descriptors now declare `input` rather than `jsonSchema` and an output schema, and results are returned as `{output, content}` with `output` round-tripped through JSON so a session record's absent fields cannot fail opencode's output validation. Owners must move to the newly pinned opencode build: the previous pin's contract and this one are mutually incompatible, so the plugin's tools return no result on builds older than the new pin.
+
+
+### Patch Changes
+
+
+
+- [#230](https://github.com/Automattic/radical-pipelines/pull/230) [`7cc8638`](https://github.com/Automattic/radical-pipelines/commit/7cc8638bc79e725f1bd5353f6dcfcbabea901df6) Thanks [@luisherranz](https://github.com/luisherranz)! - Accept both of opencode's service-record filenames (`service-<hash>.json` and `service.json`), preferring the most recently written when a stale record from the other name lingers. opencode renamed the record after the pinned build, and matching only the old name left the plugin unable to resolve the running server — silently disabling `rp_send`, the health monitor's idle check, and `rp_status`, including the very pin-mismatch warning meant to flag that the running build is outside the verified surface.
+
 ## 0.10.1
 ### Patch Changes
 
