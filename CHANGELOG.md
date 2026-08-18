@@ -1,5 +1,20 @@
 # @automattic/radical-pipelines
 
+## 0.12.0
+### Minor Changes
+
+
+
+- [#237](https://github.com/Automattic/radical-pipelines/pull/237) [`5a97403`](https://github.com/Automattic/radical-pipelines/commit/5a97403b6f4582df6a0bc5ce41dbf9ca928e445b) Thanks [@luisherranz](https://github.com/luisherranz)! - End agent persistence across waits. Researchers are launched per question — the orchestrator passes each research request verbatim to a fresh `spec-researcher`/`design-doc-researcher`, whose **Requester identifier** convention (replacing **Researcher identifier**) names the agent it answers — and the spec and design-doc leads end when they report their artifact ready for review; each rejection is adjudicated by a fresh lead instance launched on the rejection file, and the consolidators follow the same shape, ending at the consolidated commit with a fresh instance per rejection. Re-reviews are launched with the revision's commit range (plus, in the spec and design-doc phases, the producer's adjudication report) so prior logged checks are reused; a relaunched planner revises where the issues require and keeps the other tasks unchanged; committed evidence is relayed by path; the build and document task-list step is removed (the commits and the diff are the record of task progress); and the health monitor's defaults move to a 15-minute interval and a 30-minute no-activity threshold, with the Claude Code convention block taking the interval from the reference instead of embedding it.
+
+
+
+- [#240](https://github.com/Automattic/radical-pipelines/pull/240) [`ad25a13`](https://github.com/Automattic/radical-pipelines/commit/ad25a13edcf1416470b3840b73ccce00aa842a38) Thanks [@luisherranz](https://github.com/luisherranz)! - Converge review loops: a first review still rejects for any real issue, and a re-review rejects only for a prior finding whose resolution fails or for a must-fix issue — one that leaves the artifact unable to do its job, defined per reviewer. A new re-review finding that is not must-fix joins the rejection's issues when the review rejects anyway and is recorded under a new `## Non-blocking findings` approval section otherwise, findings that are instances of one defect are reported once as the defect covering every instance, and the reviewers drop the "Reject liberally", "A first-pass approval should be rare", and "no severity ladder" bars in favor of the shared "Never manufacture findings" one.
+
+
+
+- [#236](https://github.com/Automattic/radical-pipelines/pull/236) [`5b1dec5`](https://github.com/Automattic/radical-pipelines/commit/5b1dec51182c95048a83f7698b3e35750993c6c3) Thanks [@luisherranz](https://github.com/luisherranz)! - Resuming a pipeline now rolls the active phase back only to the latest committed state whose next action follows from the record alone, instead of restarting the whole phase whenever its plan was not yet approved. A full phase restart remains only as the fallback when no such state exists, and lane branches are deleted only for lanes rolled back to their start.
+
 ## 0.11.0
 ### Minor Changes
 
