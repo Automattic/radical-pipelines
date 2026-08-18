@@ -84,7 +84,7 @@ Use this structure:
 
 1. Commit the file you wrote in step 3 using the **Commit format**.
 2. If **approved**, send a message to the orchestrator confirming the spec is ready.
-3. If **rejected**, send a message to the orchestrator listing the issues. The orchestrator relays them to the producer, which adjudicates each one.
+3. If **rejected**, send a message to the orchestrator listing the issues. A fresh producer instance adjudicates each one from your rejection file.
 
 ## Guidelines
 

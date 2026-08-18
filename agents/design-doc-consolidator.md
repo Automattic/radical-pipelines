@@ -51,7 +51,7 @@ Launched with a rejection file's path: gather the context of step 1, read the co
 - **Refute** — record the evidence that shows the finding wrong.
 - **Propose as residual** — record the bounded uncertainty, its impact, why deferring it is safe, and what will resolve or observe it; the reviewer judges whether the justification resolves the finding.
 
-Commit the updated artifacts and report back how each finding was adjudicated — the re-review verifies the resolutions.
+Commit the updated artifacts and report back how each finding was adjudicated. This ends your work.
 
 ## Research support
 

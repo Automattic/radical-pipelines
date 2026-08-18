@@ -252,7 +252,7 @@ A tool must provide:
 
 1. **Custom agent definitions** — the repo's agent profiles (`agents/*.md`) can be registered as spawnable agent types.
 2. **Concurrent background agents** — several agents alive and working at once while the orchestrator continues.
-3. **Persistent agents** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
+3. **Mid-run messaging** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
 4. **Seating** — each agent starts with its working directory fixed inside an orchestrator-chosen git worktree.
 5. **Directed messaging with unique identity** — every spawned agent has an identifier that directs a message to it alone, known to the orchestrator: assigned at spawn (e.g. a name the orchestrator passes in) or returned by it (e.g. an id in the spawn result).
 6. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.

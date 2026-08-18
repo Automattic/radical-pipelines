@@ -20,7 +20,6 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/3-build/build-summary.md` — what the build phase shipped.
 4. Read the **shipped code** — the public surfaces, configuration, examples, and behavior your tasks will document. This is what actually landed; plan against it.
 5. Explore the host project's existing documentation to identify the right files, sections, conventions, and audiences.
-6. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the plan
 

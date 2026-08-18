@@ -36,7 +36,7 @@ This phase has no per-phase decisions.
 
 1. Launch a fresh `document-planner` to write `document-plan.md`.
 2. Launch a fresh `document-plan-reviewer`. On rejection it writes `document-plan-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `document-plan-review-approved.md` (no number — the singleton terminator).
-3. On **rejected**, launch a fresh `document-planner` with the rejection file's path. It revises `document-plan.md` where the issues require and keeps the other tasks unchanged. A fresh `document-plan-reviewer` re-reviews with the revision's commit range, concentrating its checks on the changed tasks and the issues' resolutions.
+3. On **rejected**, launch a fresh `document-planner` with the rejection file's path. It revises `document-plan.md`. A fresh `document-plan-reviewer` re-reviews with the revision's commit range.
 4. On **approved**, continue with task execution.
 5. Determine the **initial batch**: every task in `document-plan.md` not yet complete (every task on a fresh phase start), in the order specified.
 6. For each task in the batch, in order:

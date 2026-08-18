@@ -66,9 +66,9 @@ Each time you spawn an agent:
 - Give the agent a name unique within the run and hold its identifier — the handle that directs a message to that agent alone, assigned at spawn or returned by it per the **Team spawning** convention. Address every message to an agent by its identifier.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
-- When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it verbatim, as the committed file's path when one holds it, never interpreted or framed.
+- When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it whole: as the committed file's path when one holds it, verbatim otherwise, never interpreted or framed.
 
-Agents message you when their work completes; a researcher answers its requester. Every message you send an agent carries work it must act on.
+Agents message you when their work completes, when they need research, and when they hit a blocker; a researcher answers its requester. Every message you send an agent carries work it must act on.
 
 ## 6. Handle blockers
 

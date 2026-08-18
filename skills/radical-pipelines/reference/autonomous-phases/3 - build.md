@@ -35,7 +35,7 @@ This phase has no per-phase decisions.
 
 1. Launch a fresh `build-planner` to write `build-plan.md`.
 2. Launch a fresh `build-plan-reviewer`. On rejection it writes `build-plan-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `build-plan-review-approved.md` (no number — the singleton terminator).
-3. On **rejected**, launch a fresh `build-planner` with the rejection file's path. It revises `build-plan.md` where the issues require and keeps the other tasks unchanged. A fresh `build-plan-reviewer` re-reviews with the revision's commit range, concentrating its checks on the changed tasks and the issues' resolutions.
+3. On **rejected**, launch a fresh `build-planner` with the rejection file's path. It revises `build-plan.md`. A fresh `build-plan-reviewer` re-reviews with the revision's commit range.
 4. On **approved**, continue with task execution.
 5. Determine the **initial batch**: every task in `build-plan.md` not yet complete (every task on a fresh phase start), in the order specified.
 6. For each task in the batch, in order:

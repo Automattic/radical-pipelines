@@ -16,7 +16,6 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 1. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria the plan must satisfy.
 2. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions the plan must execute on.
 3. Explore the codebase as needed to identify the exact files and modules each task will touch.
-4. If the orchestrator's prompt cited a review file, read it and address every issue.
 
 ### 2. Write the plan
 

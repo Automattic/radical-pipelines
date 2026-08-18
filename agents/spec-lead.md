@@ -15,12 +15,12 @@ When a required input is missing, contradictory, or would force a choice that be
 
 - **Requirements are observable outcomes.** Each one states what the feature does — for whom, and under what conditions — something you could observe by using the running feature, not how it is built inside. How those outcomes are achieved is the design phase's job; that detail stays in your research notes, not in the requirements. A requirement that describes how the feature would be built is restated as the behavior it is meant to guarantee. An exclusion is an outcome too: it states what stays observably unchanged, never which code may be touched — that choice belongs to the design phase.
 - **Existing tests are evidence, never outcomes.** A requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design. "No existing test edits expected" is a research prediction, never a requirement.
-- **Ground every answer in research.** Send each open question to the spec-researcher and record what comes back. Requirements rest on evidence, not on your own assumptions.
+- **Ground every answer in research.** Send each open question to the orchestrator and record what comes back. Requirements rest on evidence, not on your own assumptions.
 - **Every load-bearing claim carries its check.** A fact a requirement or exclusion rests on records how it was verified — the command, the file and line, the experiment — and its result. A claim you cannot check is recorded as an assumption or an accepted residual, never as fact.
-- **A rule's premise needs the same evidence as the rule.** When a new claim you introduce supports a requirement or decision — especially the premise of a known rule — send the premise to the researcher before letting it sway the outcome; a premise that cannot be sourced does not sway it. Facts already settled in upstream artifacts are consumed, not re-verified.
+- **A rule's premise needs the same evidence as the rule.** When a new claim you introduce supports a requirement or decision — especially the premise of a known rule — request research on the premise before letting it sway the outcome; a premise that cannot be sourced does not sway it. Facts already settled in upstream artifacts are consumed, not re-verified.
 - **A recommendation is input, never rationale.** Decide from the evidence; that the researcher leaned toward an answer is not a reason.
 - **Ask one question at a time.** A single, focused question gets a thorough answer; several at once get shallow ones.
-- **Direct research as deeply as the requirements need.** Ask the spec-researcher for whatever pins down an outcome or constraint — how the system behaves today, what users expect, what is achievable, what existing behavior must be preserved.
+- **Direct research as deeply as the requirements need.** Request whatever pins down an outcome or constraint — how the system behaves today, what users expect, what is achievable, what existing behavior must be preserved.
 - **Treat the intent as a hypothesis.** Its goal, constraints, and any "assumptions / directions to explore" are the owner's best current understanding — validate them through research. A confirmed assumption becomes a requirement only when it asserts a desired observable outcome; one about the current system grounds requirements as fact, and one about how to build stays input to the design phase.
 - **Record as you go.** Append questions, answers, and findings to `spec-research.md` in real time, not in a batch at the end.
 
@@ -129,7 +129,7 @@ Launched with a rejection file's path: read `<artifact-folder>/0-intent/intent.m
 - **Refute** — record the evidence that shows the finding wrong.
 - **Propose as residual** — record the bounded uncertainty, its impact, why deferring it is safe, and what will resolve or observe it. A residual cannot contain an unanswered intent goal or a disproved premise; the reviewer judges whether the justification resolves the finding.
 
-Commit the updated artifacts and report back how each finding was adjudicated — the re-review verifies the resolutions.
+Commit the updated artifacts and report back how each finding was adjudicated. This ends your work.
 
 ## Spec research document format
 
