@@ -17,7 +17,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 4. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
 5. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria.
 6. Explore the host project's existing documentation to verify the plan's file paths, section names, and audience assumptions are real.
-7. Read any existing `document-plan-review-*-rejected.md`. On a re-review, your prompt names the revision's commit range: verify each prior issue's resolution and concentrate on the tasks the revision changed.
+7. Read any existing `document-plan-review-*-rejected.md`. On a re-review, your prompt names the revision's commit range: verify each prior issue's resolution and concentrate on the tasks the revision changed. Tasks unchanged since a prior review reject only for a must-fix issue; anything else you newly notice there is a non-blocking finding.
 
 ### 2. Validate the `## Guardrail scopes`
 
@@ -60,6 +60,10 @@ Use this structure:
 
 <!-- One paragraph: overall assessment of the plan quality. -->
 
+## Non-blocking findings
+
+<!-- Real findings that are not must-fix, under either verdict. Omit when empty. -->
+
 ## Issues
 
 <!-- Only if rejected. One section per issue. -->
@@ -85,9 +89,10 @@ Use this structure:
 - **Be adversarial.** Your job is to find problems, not rubber-stamp. A plan that "looks fine" probably hasn't been reviewed hard enough.
 - **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the planner in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This task is vague" is not useful. "Task 3 says 'document the auth API' but doesn't name a file or an audience" is.
+- **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
 - **Check against the shipped code and the existing docs.** Verify file paths, section names, symbols, and audience assumptions. If they don't match reality, flag it.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.
-- **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the plan — they are not failures. A first-pass approval should be rare.
+- **Reject only for must-fix issues.** An issue is must-fix when a document-writer executing the plan as written would produce documentation false to the shipped code, miss a surface the plan must cover, or hit a failing gate. Record every other real finding under `## Non-blocking findings`; approve when no must-fix issue remains.
 - **Do NOT rewrite the plan yourself.** You only review and provide feedback.
 - **Do NOT review beyond the plan.** The shipped code's quality and the final documentation wording are not your concern — only that the plan is complete, accurate, traceable, and feasible.
 - **Stop and report blockers.** Normal review findings (missed surfaces, weak acceptance, wording prescriptions) go in a rejection verdict, not a blocker. Reserve blockers for broken inputs — the plan, the build summary, the spec, or the shipped code is missing or unreadable, or a required convention is undefined. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

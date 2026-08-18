@@ -18,6 +18,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/3-build/build-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
+6. Read any existing `build-review-*-rejected.md`. Work unchanged since a prior iteration's review rejects only for a must-fix issue; anything else you newly notice there is a non-blocking finding.
 
 ### 2. Review the changes
 
@@ -85,6 +86,10 @@ Diff reviewed: <base> → HEAD (the phase's whole work)
 
 <!-- Only if applicable. The evidence you captured exercising the changed behavior end-to-end. -->
 
+## Non-blocking findings
+
+<!-- Real findings that are not must-fix, under either verdict. Omit when empty. -->
+
 ## Issues
 
 <!-- Only if rejected. One section per issue. Every issue MUST name the task it belongs to. -->
@@ -119,8 +124,8 @@ Screenshots or other assets live in the phase folder, referenced by relative pat
 - **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This is wrong" is not useful. "Task 3's Acceptance criterion 2 is not covered — no test asserts that the parser rejects empty input" is.
 - **Always tag the task.** Every issue must name the task it belongs to — any task in `build-plan.md`, not only the batch's. An untagged issue is a defect in the review — the orchestrator can't re-dispatch what it can't attribute. If an issue genuinely spans multiple tasks, list every affected task ID.
-- **Every issue is must-fix.** This review has no severity ladder. If you don't think an issue needs to be fixed, do not report it.
-- **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the code — they are not failures.
+- **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
+- **Issues are must-fix; the rest are non-blocking findings.** An issue is must-fix when the work, as committed, ships wrong or unplanned behavior, leaves an acceptance criterion unmet or unverified, or fails a gate. Record every other real finding under `## Non-blocking findings`; reject only when an issue exists.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.
 - **Do NOT rewrite code or tests.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan or the design.** Those phases have been approved. Flag deviations from them, not the plan or design themselves.
