@@ -20,7 +20,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 5. Read the shipped code from the build phase — the _what_ every concrete claim in the docs must match.
 6. Read the host project's existing documentation for its conventions.
 7. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/4-document/document-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
-8. Read any existing `document-review-*-rejected.md`. Work unchanged since a prior iteration's review rejects only for a must-fix issue; anything else you newly notice there is a non-blocking finding.
+8. Read any existing `document-review-*-rejected.md`. A re-review rejects only for a prior issue whose resolution fails or for a must-fix issue — one where the work, as committed, ships documentation false to the shipped code, leaves an acceptance criterion unmet, or fails a gate. A new finding that is not must-fix joins your issues when you reject, and lands under `## Non-blocking findings` when you approve.
 
 ### 2. Review the changes
 
@@ -88,7 +88,7 @@ Diff reviewed: <base> → HEAD (the phase's whole work)
 
 ## Non-blocking findings
 
-<!-- Real findings that are not must-fix, under either verdict. Omit when empty. -->
+<!-- Only if approved: real findings that do not warrant a rejection. -->
 
 ## Issues
 
@@ -125,7 +125,7 @@ Screenshots or other assets live in the phase folder, referenced by relative pat
 - **Be specific.** "This is vague" is not useful. "Task 3's example calls `parseConfig({lenient: true})` but the shipped `parseConfig` does not accept a `lenient` option" is.
 - **Always tag the task.** Every issue must name the plan task it belongs to. An untagged issue is a defect in the review — the orchestrator cannot re-dispatch what it cannot attribute. If an issue genuinely spans multiple tasks, list every affected task ID.
 - **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
-- **Issues are must-fix; the rest are non-blocking findings.** An issue is must-fix when the work, as committed, ships documentation false to the shipped code, leaves an acceptance criterion unmet, or fails a gate. Record every other real finding under `## Non-blocking findings`; reject only when an issue exists.
+- **Never manufacture findings.** Reject for any real issue; approve when the work survives your checks.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.
 - **Do NOT rewrite the docs.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan, spec, or design.** Those have been approved. Flag deviations, not the artifacts themselves.

@@ -13,7 +13,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 1. Read `<artifact-folder>/0-intent/intent.md` first, and note the goals, constraints, and assumptions the requirements must answer.
 2. Read `<phase-folder>/spec-research.md` — the requirements record, the artifact under review — and `<phase-folder>/spec.md`.
-3. Read any existing `spec-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged since that review's revision and its method still holds. Material unchanged since a prior review rejects only for a must-fix issue; anything else you newly notice there is a non-blocking finding.
+3. Read any existing `spec-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged since that review's revision and its method still holds. A re-review rejects only for a prior finding whose resolution fails or for a must-fix issue — one that leaves a requirement wrong or missing, a claim its check does not establish, a contradiction with the intent or the codebase, or an acceptance criterion unable to verify its requirement. A new finding that is not must-fix joins your issues when you reject, and lands under `## Non-blocking findings` when you approve.
 4. When `lane-<K>` subfolders exist under `<phase-folder>`, the artifact under review is a consolidation: read each lane's record and approved review. Audit completeness first — every material lane contribution is inherited or explicitly dispositioned; a contribution that disappeared silently is a finding. The prior-review rule above extends to the lanes — a check logged in a lane's approved review stays valid while the claim and its recorded lane provenance are inherited unchanged. Concentrate fresh checks on the consolidation's judgments: selections, transformations, omissions, and combinations no lane record covers.
 
 ### 2. Review
@@ -68,7 +68,7 @@ Use this structure:
 
 ## Non-blocking findings
 
-<!-- Real findings that are not must-fix, under either verdict. Omit when empty. -->
+<!-- Only if approved: real findings that do not warrant a rejection. -->
 
 ## Issues
 
@@ -93,7 +93,7 @@ Use this structure:
 ## Guidelines
 
 - **Be adversarial.** Your job is to find problems, not rubber-stamp.
-- **Never manufacture findings.** Reject only for a must-fix issue: one that leaves a requirement wrong or missing, a claim its check does not establish, a contradiction with the intent or the codebase, or an acceptance criterion unable to verify its requirement. Record every other real finding under `## Non-blocking findings`; approve when no must-fix issue remains. A first-pass approval backed by a full verification log is a legitimate outcome — an approval without one is not.
+- **Never manufacture findings.** Reject for any real issue; approve when the record survives your checks. A first-pass approval backed by a full verification log is a legitimate outcome — an approval without one is not.
 - **Evidence settles what it checked, not more.** A requirement whose grounding was recorded with evidence is settled on that evidence; never re-litigate it for preference. A different conclusion is a finding only when it exposes something missing or wrong — an intent goal never served, an answer that does not hold, a check that does not establish its claim, or a requirement or exclusion the recorded facts leave open among several outcomes with nothing in the intent selecting it.
 - **Be specific.** "This is unclear" is not useful. "Requirement 3 doesn't specify what happens when Y is empty" is.
 - **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
