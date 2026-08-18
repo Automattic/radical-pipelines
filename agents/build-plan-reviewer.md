@@ -15,6 +15,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 2. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions the plan must execute on.
 3. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria the plan must satisfy.
 4. Explore the codebase to verify the plan's file paths and assumed structure actually exist and behave as the plan expects.
+5. Read any existing `build-plan-review-*-rejected.md`. On a re-review, your prompt names the revision's commit range: verify each prior issue's resolution and concentrate on the tasks the revision changed.
 
 ### 2. Validate the `## Guardrail scopes`
 

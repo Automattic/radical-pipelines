@@ -21,20 +21,22 @@ With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` 
 
 ## Required agents
 
-| Agent               | Role                                                                                                                                                                                            | Persistent? |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- |
-| `spec-lead`      | Drives the Q&A one question at a time, deciding on the spec-researcher's evidence. Writes `spec-research.md` and synthesizes `spec.md`. Adjudicates review findings.                              | Yes         |
-| `spec-researcher`   | Investigates the codebase, web, and runs experiments to answer questions.                                                                                                                          | Yes         |
-| `spec-reviewer`     | Adjudicates the requirements record against the intent and the codebase (`spec.md` for fidelity), logging each check it performs; writes `spec-review-N-rejected.md` on rejection or `spec-review-approved.md` on approval. | No          |
-| `spec-consolidator` | Merges the lane-approved specs and research records into the consolidated `spec.md` and `spec-research.md` on the run branch, and adjudicates the final review's findings (multiple lanes only).    | Yes         |
+| Agent               | Role                                                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `spec-lead`      | Drives the Q&A one question at a time, deciding on the spec-researcher's evidence. Writes `spec-research.md` and synthesizes `spec.md`. A fresh instance adjudicates each rejection.                              |
+| `spec-researcher`   | One fresh instance per question. Investigates the codebase, web, and runs experiments to answer it.                                                                                                                          |
+| `spec-reviewer`     | Adjudicates the requirements record against the intent and the codebase (`spec.md` for fidelity), logging each check it performs; writes `spec-review-N-rejected.md` on rejection or `spec-review-approved.md` on approval. |
+| `spec-consolidator` | Merges the lane-approved specs and research records into the consolidated `spec.md` and `spec-research.md` on the run branch; a fresh instance adjudicates each final-review rejection (multiple lanes only).    |
+
+Serve any agent's research request: launch a fresh `spec-researcher` with the question verbatim and the asking agent's identifier as its **Requester identifier**; it answers the requester directly.
 
 ## The lane flow
 
 Each lane runs this flow independently, in its own worktree on its own branch:
 
-1. Launch `spec-researcher`, then `spec-lead`, as persistent agents. The lead reads `intent.md`, drives an iterative Q&A with the researcher, writes the running record to `spec-research.md`, and synthesizes `spec.md`. Wait until it signals the spec is ready for review. The lead stays alive until the lane is approved.
-2. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `spec-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `spec-researcher` scoped to its review — never the lead's — and reply with the researcher's identifier.
-3. On **rejected**, relay the rejection file's path to the lead; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
+1. Launch `spec-lead`. The lead reads `intent.md`, drives an iterative Q&A through per-question researchers, writes the running record to `spec-research.md`, and synthesizes `spec.md`. Wait until it signals the spec is ready for review.
+2. Launch a fresh `spec-reviewer`. On rejection it writes `spec-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `spec-review-approved.md` (the singleton terminator).
+3. On **rejected**, launch a fresh `spec-lead` with the rejection file's path; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports how each was adjudicated. Launch a fresh reviewer to re-review, passing that report verbatim and the revision's commit range — until approved.
 
 ## Steps
 
@@ -45,15 +47,16 @@ Each lane runs this flow independently, in its own worktree on its own branch:
 1. Create one lane branch and worktree per lane (branch segment `1-spec-lane-<K>`, forked from the run branch) per the **Worktree root** convention.
 2. Run the lane flow in all lanes in parallel. Each lane writes its artifacts in its `lane-<K>` subfolder of the phase folder, so the lanes' paths are disjoint.
 3. When every lane is approved, merge each lane branch into the run branch, remove the lane worktrees, and delete the lane branches.
-4. Launch `spec-consolidator` in the run branch's worktree as a persistent agent. It reads each lane's artifacts from the `lane-<K>` subfolders, writes the consolidated `spec.md` and `spec-research.md` at the phase folder root, and commits them on the run branch. It stays alive until the consolidated spec is approved. If it asks for research support, launch a fresh `spec-researcher` scoped to its consolidation and reply with the researcher's identifier.
-5. Launch a fresh `spec-reviewer` against the consolidated spec on the run branch, as in the lane flow. On rejection, relay the rejection file's path to the consolidator; it adjudicates every finding, updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
+4. Launch `spec-consolidator` in the run branch's worktree. It reads each lane's artifacts from the `lane-<K>` subfolders, writes the consolidated `spec.md` and `spec-research.md` at the phase folder root, and commits them on the run branch.
+5. Launch a fresh `spec-reviewer` against the consolidated spec on the run branch, as in the lane flow. On rejection, launch a fresh `spec-consolidator` with the rejection file's path; it adjudicates every finding, updates both artifacts, and reports how each was adjudicated. Launch a fresh reviewer to re-review, passing that report verbatim and the revision's commit range — until approved.
 
 **Completion.** Verify the phase's completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD
     subgraph lane ["Lane flow — on the run branch with a single lane, on each lane branch with multiple lanes"]
-        B[spec-lead] <-->|Q&A| C[spec-researcher]
+        B[spec-lead] -->|question via orchestrator| C[spec-researcher per question]
+        C -->|answer| B
         B -->|record + spec| E[spec-reviewer]
         E --> F{Approved?}
         F -->|no — findings| B
