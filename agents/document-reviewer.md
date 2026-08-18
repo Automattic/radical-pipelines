@@ -20,6 +20,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 5. Read the shipped code from the build phase — the _what_ every concrete claim in the docs must match.
 6. Read the host project's existing documentation for its conventions.
 7. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/4-document/document-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
+8. Read any existing `document-review-*-rejected.md`. A re-review rejects only for a prior issue whose resolution fails or for a must-fix issue — one where the work, as committed, ships documentation false to the shipped code, leaves an acceptance criterion unmet, or fails a gate. A new finding that is not must-fix joins your issues when you reject, and lands under `## Non-blocking findings` when you approve.
 
 ### 2. Review the changes
 
@@ -85,6 +86,10 @@ Diff reviewed: <base> → HEAD (the phase's whole work)
 
 <!-- Evidence per task that at least one concrete claim was verified against the shipped code. -->
 
+## Non-blocking findings
+
+<!-- Only if approved: real findings that do not warrant a rejection. -->
+
 ## Issues
 
 <!-- Only if rejected. One section per issue. Every issue MUST name the plan task it belongs to. -->
@@ -119,9 +124,9 @@ Screenshots or other assets live in the phase folder, referenced by relative pat
 - **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This is vague" is not useful. "Task 3's example calls `parseConfig({lenient: true})` but the shipped `parseConfig` does not accept a `lenient` option" is.
 - **Always tag the task.** Every issue must name the plan task it belongs to. An untagged issue is a defect in the review — the orchestrator cannot re-dispatch what it cannot attribute. If an issue genuinely spans multiple tasks, list every affected task ID.
-- **Every issue is must-fix.** This review has no severity ladder. If you do not think an issue needs to be fixed, do not report it.
+- **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
+- **Never manufacture findings.** Reject for any real issue; approve when the work survives your checks.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.
-- **Reject liberally.** Any real inaccuracy or coverage gap is worth rejecting for. Rejections improve the docs — they are not failures.
 - **Do NOT rewrite the docs.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan, spec, or design.** Those have been approved. Flag deviations, not the artifacts themselves.
 - **Run the guardrails.** Don't just read the docs. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, run every gate per step 4 and approve only if all pass. If you already reject on judgment, skip them and go to step 5.
