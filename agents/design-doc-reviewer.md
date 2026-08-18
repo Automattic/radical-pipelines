@@ -38,7 +38,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 **Re-execution** — re-run the declared checks behind load-bearing claims, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding. Re-run only checks that leave external state untouched; run those that may modify the worktree in a disposable copy, or record the limitation. Confirm the worktree is clean before writing the review.
 
-**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh design-doc-researcher scoped to your review — never the producer's. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier.
+**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, send the orchestrator the question; a fresh design-doc-researcher scoped to your review investigates and answers you directly.
 
 **Negative space** — scoped to the components the design touches: does anything in the codebase contradict the approach (existing patterns, invariants, conventions)? Are there dependencies the design implies but never names? Does the design strand anything — code, generality, names, docs, or tests whose reason-to-exist it removes? A survivor kept without a recorded keep-or-remove decision is a finding.
 

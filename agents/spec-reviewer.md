@@ -36,7 +36,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 **Re-execution** — re-run the declared checks behind load-bearing answers, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding. Re-run only checks that leave external state untouched; run those that may modify the worktree in a disposable copy, or record the limitation. Confirm the worktree is clean before writing the review.
 
-**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh spec-researcher scoped to your review — never the producer's. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier.
+**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, send the orchestrator the question; a fresh spec-researcher scoped to your review investigates and answers you directly.
 
 **Negative space** — scoped to the systems the intent and the requirements touch: does anything in the codebase contradict a requirement's feasibility (existing behavior, invariants, constraints)? Is there behavior the feature must preserve that no requirement or exclusion names?
 

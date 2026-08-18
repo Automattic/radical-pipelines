@@ -16,8 +16,8 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 - **Lane mandate:** the mandate assigned to the agent's divergent lane, resolved once by the orchestrator and passed identically to the lane's lead and each of its reviewers.
   - Agents: `design-doc-lead`, `design-doc-reviewer`
   - Omit outside a divergent lane, including consolidation review.
-- **Researcher identifier:** the identifier of the researcher spawned to serve this agent.
-  - Agents: `spec-lead`, `design-doc-lead`
+- **Requester identifier:** the identifier of the agent this researcher answers to.
+  - Agents: `spec-researcher`, `design-doc-researcher`
 - **Commit format:**
   - Agents: all
   - Omit when not defined.

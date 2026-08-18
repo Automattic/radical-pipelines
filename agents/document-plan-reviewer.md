@@ -17,6 +17,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 4. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions that shape what needs documenting.
 5. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria.
 6. Explore the host project's existing documentation to verify the plan's file paths, section names, and audience assumptions are real.
+7. Read any existing `document-plan-review-*-rejected.md`. On a re-review, verify each prior issue's resolution and concentrate on the tasks the revision changed.
 
 ### 2. Validate the `## Guardrail scopes`
 

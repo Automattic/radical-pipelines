@@ -15,7 +15,7 @@ Spawn each agent as a Claude Code teammate. A teammate runs in the shell working
 
 Use Claude Code's bundled `/loop` skill — no install is required.
 
-- **Start:** `/loop 5m <prompt>` where `<prompt>` is the template from `reference/health-monitoring.md`, appending each agent's worktree path and the seating rule: a message restarts its target in the sender's shell working directory, so `cd` into an agent's worktree before messaging or restarting it, then `cd` back.
+- **Start:** `/loop <interval> <prompt>` with the interval and the `<prompt>` template from `reference/health-monitoring.md`, appending each agent's worktree path and the seating rule: a message restarts its target in the sender's shell working directory, so `cd` into an agent's worktree before messaging or restarting it, then `cd` back.
 - **List active loops:** the `CronList` tool.
 - **Cancel:** the `CronDelete` tool with the loop's task id.
 ```
