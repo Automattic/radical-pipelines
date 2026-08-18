@@ -2,16 +2,14 @@
  * Auth-error recovery — model swap, re-spawn, and failure-cause surfacing —
  * driven against a session on a deliberately unauthenticated provider config.
  *
- * The stub's "stubnoauth" provider (same models, no `apiKey` configured at
- * all) is a deterministic, offline injector for `provider.auth`: verified
- * live that a turn on it fails immediately with the structured error
- * `{ type: "provider.auth", message: "Missing auth credential: apiKey" }`,
- * with no network call ever made.
+ * The stub's "stubnoauth" provider uses a known-invalid key that the local
+ * provider rejects with HTTP 401, giving the suite a deterministic offline
+ * `provider.auth` failure.
  */
 
 import assert from "node:assert/strict";
 import { runCheck } from "../lib/check-runner.mjs";
-import { createSession, driveToolCall, pollMessages, prompt, switchModel, waitForAssistantFinish } from "../lib/api-client.mjs";
+import { createSession, driveToolCall, pollMessages, prompt, switchModel } from "../lib/api-client.mjs";
 
 /**
  * Run every check in this group.
@@ -23,7 +21,7 @@ export async function run(ctx) {
   const { server, projectDir, results } = ctx;
 
   let session;
-  await runCheck(results, "a turn on an unauthenticated provider surfaces a structured provider.auth error", async () => {
+  await runCheck(results, "a turn on an unauthenticated provider surfaces its structured auth error", async () => {
     session = await createSession(server, {
       agent: "build",
       directory: projectDir,
@@ -31,9 +29,14 @@ export async function run(ctx) {
     });
     await prompt(server, session.id, "hello");
 
-    const failed = await waitForAssistantFinish(server, session.id, "error");
+    const failed = await pollMessages(
+      server,
+      session.id,
+      (messages) => messages.find((message) => message.type === "assistant" && message.error),
+      { label: "an assistant message carrying the auth error" },
+    );
     assert.equal(failed.error?.type, "provider.auth");
-    assert.match(failed.error?.message ?? "", /apiKey/i);
+    assert.match(failed.error?.message ?? "", /api key/i);
   });
 
   await runCheck(
@@ -66,7 +69,7 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "a spawned child's provider.auth failure carries its cause to the spawner notification and rp_status's recentErrors",
+    "a spawned child's auth failure carries its cause to the spawner notification and rp_status's recentErrors",
     async () => {
       const spawn = await driveToolCall(
         server,
@@ -88,7 +91,7 @@ export async function run(ctx) {
         /Cause: provider\.auth/,
         `expected the failure cause in the notification, got: ${notification.text}`,
       );
-      assert.match(notification.text, /apiKey/i, `expected the provider's message in the notification, got: ${notification.text}`);
+      assert.match(notification.text, /api key/i, `expected the provider's message in the notification, got: ${notification.text}`);
 
       const status = await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`);
       const logged = (status.structuredJSON?.recentErrors ?? []).find((entry) => entry.sessionID === childID);
@@ -97,7 +100,7 @@ export async function run(ctx) {
         `expected a recentErrors entry for ${childID}, got: ${JSON.stringify(status.structuredJSON?.recentErrors)}`,
       );
       assert.equal(logged.error?.type, "provider.auth");
-      assert.match(logged.error?.message ?? "", /apiKey/i);
+      assert.match(logged.error?.message ?? "", /api key/i);
     },
   );
 }

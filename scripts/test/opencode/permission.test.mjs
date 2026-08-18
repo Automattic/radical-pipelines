@@ -58,7 +58,7 @@ function uniqueID(prefix) {
 }
 
 /** Build the deps for a direct onPermissionAsked call, recording effects. */
-function permissionDeps({ env = SERVER_ENV, exists = () => true } = {}) {
+function permissionDeps({ env = SERVER_ENV, exists = () => true, replyStatus = 204, replyError } = {}) {
   const prompts = [];
   const requests = [];
   return {
@@ -77,7 +77,8 @@ function permissionDeps({ env = SERVER_ENV, exists = () => true } = {}) {
       readServiceRecord: () => null,
       requestFn: async (url, init) => {
         requests.push({ url, init });
-        return { status: 204, body: undefined };
+        if (replyError) throw replyError;
+        return { status: replyStatus, body: undefined };
       },
       exists,
     },
@@ -299,6 +300,73 @@ describe("onPermissionAsked", () => {
 
     assert.equal(requests.length, 0);
     assert.equal(prompts.length, 1);
+  });
+
+  test("falls back to forwarding when the redirect reject comes back non-2xx, recording the failed reply", async () => {
+    // A reply that did not land (e.g. sent to a server that does not hold
+    // the ask) leaves the session blocked; treating it as handled would
+    // leave it blocked with nobody told.
+    const sessionID = uniqueID("ses_child");
+    const requestID = uniqueID("per");
+    recordSpawn(sessionID, {
+      name: "build-writer-replyfail",
+      run: "run-a",
+      spawner: "ses_orch_replyfail",
+      directory: "/main/.worktrees/wt",
+      repoRoot: "/main",
+    });
+    const { prompts, requests, deps } = permissionDeps({ replyStatus: 404 });
+
+    await onPermissionAsked(
+      askedEvent({ requestID, sessionID, resources: ["/main/.agents/skills/testing/*"] }),
+      deps,
+    );
+
+    assert.equal(requests.length, 1, "the reject is still attempted first");
+    assert.equal(prompts.length, 1, "the failed reject falls through to the spawner forward");
+    assert.equal(prompts[0].sessionID, "ses_orch_replyfail");
+    assert.ok(
+      globalThis[ERROR_LOG_KEY].some(
+        (entry) =>
+          entry.type === "permission.redirect.failed" &&
+          entry.requestID === requestID &&
+          entry.status === 404,
+      ),
+    );
+    assert.ok(
+      globalThis[ERROR_LOG_KEY].some(
+        (entry) => entry.type === "permission.forwarded" && entry.requestID === requestID,
+      ),
+    );
+  });
+
+  test("falls back to forwarding when the redirect reject request throws", async () => {
+    const sessionID = uniqueID("ses_child");
+    const requestID = uniqueID("per");
+    recordSpawn(sessionID, {
+      name: "build-writer-transport",
+      run: "run-a",
+      spawner: "ses_orch_transport",
+      directory: "/main/.worktrees/wt",
+      repoRoot: "/main",
+    });
+    const { prompts, deps } = permissionDeps({ replyError: new Error("connection refused") });
+
+    await onPermissionAsked(
+      askedEvent({ requestID, sessionID, resources: ["/main/.agents/skills/testing/*"] }),
+      deps,
+    );
+
+    assert.equal(prompts.length, 1);
+    assert.equal(prompts[0].sessionID, "ses_orch_transport");
+    assert.ok(
+      globalThis[ERROR_LOG_KEY].some(
+        (entry) =>
+          entry.type === "permission.redirect.failed" &&
+          entry.requestID === requestID &&
+          entry.status === "transport",
+      ),
+    );
   });
 
   test("falls back to forwarding a redirect-eligible ask when no server is reachable to deliver the reject", async () => {
@@ -589,6 +657,10 @@ describe("wired through setup", () => {
     status = 404;
     const missing = await tool.execute({ session: "ses_1", request: "per_gone", reply: "reject" });
     assert.deepEqual(missing, toToolResult({ status: 404, error: "PermissionNotFoundError" }));
+
+    status = 500;
+    const failed = await tool.execute({ session: "ses_1", request: "per_1", reply: "once" });
+    assert.deepEqual(failed, toToolResult({ status: 500, error: "PermissionReplyFailed" }));
 
     delete globalThis[SETUP_ONCE_KEY];
     const unreachable = createUnreachableReplyTool();

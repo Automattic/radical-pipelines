@@ -29,6 +29,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { INVALID_AUTH_KEY } from "./stub-provider.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const PLUGIN_ENTRY = join(REPO_ROOT, "opencode", "plugin.mjs");
@@ -167,22 +168,20 @@ function writeSandboxConfig({ xdgConfigHome, stubPort }) {
         providers: {
           // The core suite's provider: a mandatory (if dummy) apiKey, so
           // turns run offline against the local stub — verified live that
-          // omitting apiKey is itself the deterministic provider.auth
-          // injector (see the "stubnoauth" provider below).
+          // the invalid-key provider below is the deterministic auth-failure
+          // injector.
           stub: {
             name: "RP integration stub",
             package: "@opencode-ai/ai/providers/openai-compatible",
             settings: { baseURL: `http://127.0.0.1:${stubPort}/v1`, apiKey: "hermetic-dummy-key" },
             models: { "stub-model": { name: "Stub Model" } },
           },
-          // Deterministic provider.auth injector: identical to "stub" but
-          // with no apiKey configured at all. Verified live: a turn on this
-          // provider fails immediately with the structured error
-          // `{ type: "provider.auth", message: "Missing auth credential: apiKey" }`.
+          // Deterministic auth-failure injector: the local provider returns
+          // HTTP 401 for this known-invalid bearer token.
           stubnoauth: {
             name: "RP integration stub (no auth)",
             package: "@opencode-ai/ai/providers/openai-compatible",
-            settings: { baseURL: `http://127.0.0.1:${stubPort}/v1` },
+            settings: { baseURL: `http://127.0.0.1:${stubPort}/v1`, apiKey: INVALID_AUTH_KEY },
             models: { "stub-model": { name: "Stub Model" } },
           },
         },

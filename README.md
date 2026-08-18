@@ -124,6 +124,7 @@ A single restart is enough — the plugin finishes its setup before opencode sca
 
 - The `radical-pipelines` skill is invokable — the plugin registers the packaged skill tree as a skill source by reference, unmodified.
 - Every RP agent is available by its RP name — the plugin materializes the agent profiles into opencode's global agents directory (`~/.config/opencode/agents/`), where each agent's id matches its RP name.
+- Every agent spawned with `rp_spawn` receives the opencode messaging protocol and its spawner's session ID automatically, so its required reports and messages are routed with `rp_send` rather than left in its transcript.
 - opencode's auto-update is disabled, holding the installation on the verified build.
 
 `autoupdate: false` matters because RP verifies against one exact opencode build, not the moving `next` tag. That build lives in [`opencode/pin.json`](./opencode/pin.json), which pins both the `@opencode-ai/cli` build the `opencode2` binary comes from and the `@opencode-ai/plugin` package version the plugin is written against. Any opencode build other than the pin is outside RP's verified surface.
