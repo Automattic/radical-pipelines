@@ -1,5 +1,23 @@
 # @automattic/radical-pipelines
 
+## 0.13.0
+### Minor Changes
+
+
+
+- [#245](https://github.com/Automattic/radical-pipelines/pull/245) [`85c09dd`](https://github.com/Automattic/radical-pipelines/commit/85c09ddce97bdc3f1ccb97ecfe5c8387c214fb12) Thanks [@luisherranz](https://github.com/luisherranz)! - Route no-behavior changes to a dedicated `edit` writer instead of forcing tests on them. The build plan's `Type` field gains `edit` for changes with no behavior to test (a docblock correction, a dead-code deletion, a behavior-preserving mechanical refactor), executed by the new `build-writer-edit`: it applies the change, verifies acceptance by inspection, runs the guardrail gates, and introduces no new tests. The task-type taxonomy is now stated explicitly: `tdd` and `edit` are the two routes for changing the product; an `e2e` task realizes planned flows as tests over behavior prior tasks built and does not implement the behavior under test. The `Type` is a reviewed claim: the `build-plan-reviewer` rejects a `tdd` task whose acceptance asserts no observable behavior change, an `e2e` task whose changes implement or alter the behavior under test, and an `edit` task whose changes imply a behavior change; the `build-reviewer` flags an `edit` task whose diff introduces new tests or changes observable behavior. E2E planning now covers the criteria and edge cases with behavior to test, so an all-`edit` plan legitimately records `None`. Upgrade note: guardrail gates in an existing `.rp.md` name agents explicitly — add `build-writer-edit` to each gate that should also run for `edit` tasks (typically every gate naming `build-writer-tdd`); until then, `edit` tasks run without writer-level gates.
+
+
+
+- [#243](https://github.com/Automattic/radical-pipelines/pull/243) [`4590e34`](https://github.com/Automattic/radical-pipelines/commit/4590e34318cf0b40db2028df05747e0efd23045d) Thanks [@luisherranz](https://github.com/luisherranz)! - Route decisions no lane made to a scoped lead instead of blocking the run. When consolidation — initial, or while adjudicating a final-review rejection — needs a requirement or design decision no lane settled (a gap every lane missed or, in the spec phase, a normative divergence nothing in the intent selects), the consolidator now sends the orchestrator a **decision request**: a fresh lead scoped to the question researches it, decides, records the decision first-hand in the consolidated research record — Q&A entries in the spec phase, a topic in the design-doc phase — and answers the consolidator directly; the consolidator carries the decision into the consolidated artifacts, with the record naming the request's entries as provenance, and the consolidated re-review verifies it as fresh content. Blockers keep their original meaning — a choice that belongs to a prior phase — and a scoped lead that finds the choice belongs to the intent still reports one.
+
+
+### Patch Changes
+
+
+
+- [#241](https://github.com/Automattic/radical-pipelines/pull/241) [`8ff5d23`](https://github.com/Automattic/radical-pipelines/commit/8ff5d233c2b48ecc46184078f15a6b156ee3387a) Thanks [@luisherranz](https://github.com/luisherranz)! - Fix opencode coordination and update the verified pin to `0.0.0-beta-17595`. The plugin now addresses only its own server process, surfaces failed state reads, handles the build's `/inbox` queue contract, forwards permission asks when an automatic reject fails, and reports `rp_send` queue admission plus observed target state instead of claiming receipt. `rp_spawn` also appends an opencode messaging protocol with the authoritative spawner ID to every child prompt, directing required reports through `rp_send` to the requester when present or the spawner otherwise.
+
 ## 0.12.0
 ### Minor Changes
 
