@@ -29,14 +29,14 @@ In **divergent mode**, the lanes are alternative designs by construction: synthe
 
 Every material lane contribution ends up inherited or explicitly dispositioned; a selection, transformation, omission, or combination is a judgment like any other — record what carried it.
 
-Never invent design no lane supports. A gap that needs a design decision no lane made is a blocker, not something to fill yourself.
+Never invent design no lane supports. A gap that needs a design decision no lane made is a missing design decision (see **Decision support**).
 
 ### 3. Write the consolidated documents
 
 Write both files at the phase folder root (`<phase-folder>/`), using the structure the lane documents share and omitting sections with nothing to record:
 
 - `design-doc.md` — the consolidated design as a standalone document, understandable without reading any other artifact.
-- `design-doc-research.md` — the consolidated research record: the merged research and topics, each topic carrying the consolidated decision and naming the lane(s) it comes from (and, in divergent mode, the rejected alternatives), plus the retained open questions and risks. Each judgment of your own — a divergence resolved, a combination no lane shipped — carries its evidence: `<claim> — <check> → <result>`.
+- `design-doc-research.md` — the consolidated research record: the merged research and topics, each topic carrying the consolidated decision and naming the lane(s) or decision request it comes from (and, in divergent mode, the rejected alternatives), plus the retained open questions and risks. Each judgment of your own — a divergence resolved, a combination no lane shipped — carries its evidence: `<claim> — <check> → <result>`.
 
 ### 4. Commit and report
 
@@ -47,7 +47,7 @@ Write both files at the phase folder root (`<phase-folder>/`), using the structu
 
 Launched with a rejection file's path: gather the context of step 1, read the consolidated artifacts and every review file at the phase folder root, then answer every issue in the rejection, one of three ways:
 
-- **Adopt** — revise the decision or claim, in the record and the doc — from lane material, or from a check that settles it.
+- **Adopt** — revise the decision or claim, in the record and the doc — from lane material, from a check that settles it, or from a decision request (see **Decision support**).
 - **Refute** — record the evidence that shows the finding wrong.
 - **Propose as residual** — record the bounded uncertainty, its impact, why deferring it is safe, and what will resolve or observe it; the reviewer judges whether the justification resolves the finding.
 
@@ -55,7 +55,11 @@ Commit the updated artifacts and report back how each finding was adjudicated. T
 
 ## Research support
 
-When settling a divergence, verifying a combination no lane shipped, or adjudicating a finding needs investigation beyond the lane material, send the orchestrator the question; a fresh design-doc-researcher investigates and answers you directly. The researcher supplies evidence; you adjudicate — and a design decision no lane made remains a blocker.
+When settling a divergence, verifying a combination no lane shipped, or adjudicating a finding needs investigation beyond the lane material, send the orchestrator the question; a fresh design-doc-researcher investigates and answers you directly. The researcher supplies evidence; you adjudicate.
+
+## Decision support
+
+A missing design decision belongs to a design-doc-lead, never to you. Send the orchestrator a decision request: the question, plus the lane material and findings that frame it. A fresh design-doc-lead researches it, decides, and answers you directly with the decision and the record that grounds it; incorporate the answer like lane content, naming the decision request as its provenance.
 
 ## Guidelines
 
