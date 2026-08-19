@@ -42,6 +42,9 @@ const SLOW_RE = /__RP_SLOW__:(\d+):__END__/;
  */
 const NATIVE_TOOL_RE = /__RP_NATIVE_TOOL__:([\s\S]*?):__END__/;
 
+/** API key the sandbox uses to trigger a deterministic HTTP 401. */
+export const INVALID_AUTH_KEY = "rp-invalid-auth-key";
+
 /** Text returned for any turn that carries no (or an already-answered) directive. */
 export const PLAIN_REPLY_TEXT = "RP_STUB_TURN_COMPLETE";
 
@@ -113,6 +116,20 @@ export function startStubProvider({ port }) {
         return;
       }
 
+      if (req.headers.authorization === `Bearer ${INVALID_AUTH_KEY}`) {
+        res.writeHead(401, { "content-type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: {
+              message: "Invalid API key",
+              type: "invalid_request_error",
+              code: "invalid_api_key",
+            },
+          }),
+        );
+        return;
+      }
+
       let parsed;
       try {
         parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
@@ -121,12 +138,29 @@ export function startStubProvider({ port }) {
       }
 
       const text = lastUserText(parsed.messages ?? []);
-      const match = text.match(DIRECTIVE_RE);
+
+      // A driven turn reaches this provider more than once: opencode also
+      // generates the session title from the same user text, on a request
+      // that offers no tools and discards whatever comes back. The two
+      // arrive in either order depending on the build, so a directive is
+      // answered only on a request that actually offers the tool it needs —
+      // otherwise the title request would consume the one-shot dedup below
+      // and leave the real turn with a plain reply.
+      const offered = new Set(
+        (parsed.tools ?? []).map((tool) => tool.function?.name ?? tool.name),
+      );
+
+      const match = offered.has("execute") ? text.match(DIRECTIVE_RE) : null;
       const alreadyAnswered = match && firedDirectives.has(match[0]);
-      const nativeMatch = text.match(NATIVE_TOOL_RE);
+      const nativeCandidate = text.match(NATIVE_TOOL_RE);
+      const nativeMatch =
+        nativeCandidate && offered.has(JSON.parse(nativeCandidate[1]).name) ? nativeCandidate : null;
       const nativeAlreadyAnswered = nativeMatch && firedDirectives.has(nativeMatch[0]);
 
-      const slowMatch = text.match(SLOW_RE);
+      // Held open only for the agent turn, for the same reason: stalling the
+      // title request instead would leave the session idle over the window a
+      // caller asked to keep it busy.
+      const slowMatch = offered.size > 0 ? text.match(SLOW_RE) : null;
       if (slowMatch) {
         await delay(Number(slowMatch[1]));
       }

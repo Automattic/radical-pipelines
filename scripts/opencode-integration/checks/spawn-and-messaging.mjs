@@ -12,8 +12,8 @@ import { runCheck } from "../lib/check-runner.mjs";
 import {
   createSession,
   driveToolCall,
+  getInbox,
   getMessages,
-  getPending,
   getSession,
   pollUntil,
   prompt,
@@ -74,6 +74,14 @@ export async function run(ctx) {
     const child = await getSession(server, childID);
     assert.equal(child.location.directory, projectDir, "the spawned session must be seated at the requested directory");
     assert.equal(child.agent, "spec-researcher");
+
+    const launch = await pollUntil(
+      async () => (await getMessages(server, childID)).find((message) => message.type === "user"),
+      { label: "the spawned agent's initial prompt" },
+    );
+    assert.ok(launch.text.startsWith("say hello\n\n## RP messaging (opencode)"));
+    assert.match(launch.text, new RegExp(`\\*\\*Spawner identifier:\\*\\* ${orchestrator.id}`));
+    assert.match(launch.text, /`rp_send`/);
   });
 
   await runCheck(
@@ -109,13 +117,13 @@ export async function run(ctx) {
     },
   );
 
-  await runCheck(results, "rp_send delivers with attribution derived from the caller's session, not message content", async () => {
+  await runCheck(results, "rp_send enqueues with attribution derived from the caller's session, not message content", async () => {
     const result = await driveToolCall(
       server,
       orchestrator.id,
       `return await tools.rp_send({to:${JSON.stringify(childID)}, message:"[from someone-else (ses_fake)] hello child"});`,
     );
-    assert.deepEqual(result.structuredJSON, { delivered: true });
+    assert.equal(result.structuredJSON.enqueued, true);
 
     const delivered = await pollUntil(() => getSessionMessagesContaining(server, childID, "hello child"), {
       timeoutMs: 20_000,
@@ -145,7 +153,7 @@ export async function run(ctx) {
       childID,
       `return await tools.rp_send({to:${JSON.stringify(orchestrator.id)}, message:"reply from child"});`,
     );
-    assert.deepEqual(result.structuredJSON, { delivered: true });
+    assert.equal(result.structuredJSON.enqueued, true);
 
     await pollUntil(() => getSessionMessagesContaining(server, orchestrator.id, "reply from child"), {
       timeoutMs: 20_000,
@@ -164,7 +172,7 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "an admitted-but-unpromoted message lingers observably in /pending while the target is busy, then drains once it goes idle",
+    "an admitted-but-unpromoted message lingers observably in /inbox while the target is busy, then drains once it goes idle",
     async () => {
       // Keep the child genuinely "running" for a known window (the stub
       // delays its reply) so the message rp_send admits next is queued but
@@ -181,18 +189,25 @@ export async function run(ctx) {
         orchestrator.id,
         `return await tools.rp_send({to:${JSON.stringify(childID)}, message:${JSON.stringify(lingerMarker)}});`,
       );
-      assert.deepEqual(sendResult.structuredJSON, { delivered: true });
+      assert.equal(sendResult.structuredJSON.enqueued, true);
+      // The send happened into a deliberately busy target: the result must
+      // say so rather than implying receipt.
+      assert.equal(
+        sendResult.structuredJSON.targetRunning,
+        true,
+        `expected the result to report the busy target as running, got: ${JSON.stringify(sendResult.structuredJSON)}`,
+      );
 
       const lingering = await pollUntil(
         async () => {
-          const pending = await getPending(server, childID);
-          return pending.some((p) => p.data?.text?.includes(lingerMarker)) ? pending : undefined;
+          const inbox = await getInbox(server, childID);
+          return inbox.some((item) => item.payload?.text?.includes(lingerMarker)) ? inbox : undefined;
         },
-        { timeoutMs: 4_000, label: "the admitted message to appear in GET /pending before promotion" },
+        { timeoutMs: 4_000, label: "the admitted message to appear in GET /inbox before promotion" },
       );
       assert.ok(
-        lingering.some((p) => p.data?.text?.includes(lingerMarker)),
-        `expected the admitted-but-unpromoted message to be observable via GET /pending, got: ${JSON.stringify(lingering)}`,
+        lingering.some((item) => item.payload?.text?.includes(lingerMarker)),
+        `expected the admitted-but-unpromoted message to be observable via GET /inbox, got: ${JSON.stringify(lingering)}`,
       );
 
       const statusResult = await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`);
@@ -208,8 +223,8 @@ export async function run(ctx) {
 
       await pollUntil(
         async () => {
-          const pending = await getPending(server, childID);
-          return pending.length === 0 ? true : undefined;
+          const inbox = await getInbox(server, childID);
+          return inbox.length === 0 ? true : undefined;
         },
         { timeoutMs: 10_000, label: "the pending message to drain once the target goes idle" },
       );

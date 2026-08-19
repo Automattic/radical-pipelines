@@ -137,14 +137,14 @@ export async function getActiveSessionIDs(server) {
 }
 
 /**
- * Read a session's admitted-but-unpromoted pending inputs.
+ * Read a session's admitted-but-unpromoted inbox items.
  *
  * @param {{baseURL:string,password:string}} server
  * @param {string} sessionID
  * @returns {Promise<Array<object>>}
  */
-export async function getPending(server, sessionID) {
-  const response = await request(server, "GET", `/api/session/${sessionID}/pending`);
+export async function getInbox(server, sessionID) {
+  const response = await request(server, "GET", `/api/session/${sessionID}/inbox`);
   return data(response) ?? [];
 }
 
