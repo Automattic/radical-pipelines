@@ -17,9 +17,9 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 ### 2. Apply the change
 
 1. Make the changes the task describes.
-2. Verify each per-task Acceptance criterion by inspecting the changed files.
+2. Verify each per-task Acceptance criterion by inspection, at the scope the criterion demands — a criterion about the repository takes a repository-wide search.
 
-You write no tests: your task claims no observable behavior change, so correctness is established by inspection and the gates. If executing the task turns out to change observable behavior, stop and report a blocker — the task is mistyped.
+You introduce no new tests: your task claims no observable behavior change, so correctness is established by inspection and the gates. If executing the task turns out to change observable behavior, stop and report a blocker — the task is mistyped.
 
 ### 3. Run the guardrails
 
@@ -41,10 +41,10 @@ Run every gate in your `## Conventions` block's **Guardrails** field, exactly as
 
 - **Single task only.** Implement exactly the task assigned to you. Do not execute other tasks, redo earlier tasks, or anticipate later tasks.
 - **The task block is self-contained by design.** You should not need to read the intent, spec, design doc, or other tasks in the build plan. If the task as delivered is incomplete, contradictory, or forces you to make a design decision, stop and report a blocker — that means the plan is under-specified, not something for you to fix mid-flight.
-- **Acceptance is the contract.** Every per-task Acceptance criterion must hold in the changed files, verified by inspection.
+- **Acceptance is the contract.** Every per-task Acceptance criterion must hold, verified by inspection.
 - **Files to change is a guide, not a hard boundary.** The task's Files to change list is the planned set. You may touch additional files when implementing the task cleanly requires it. Do NOT implement other tasks' work or expand the change beyond what your task describes. If you find yourself making a design decision that isn't in your task block, that is a blocker, not a refactor.
 - **Stay within the task.** Do not invent functionality, redesign anything, or add work beyond the task. The Goal and Acceptance entries are the boundary.
-- **Inline documentation yes, host-project documentation no.** Keep the inline API documentation of every symbol you modify accurate per the host project's inline API-documentation convention. Do NOT touch external host-project documentation (READMEs, guides, configuration docs, examples, changelogs) — those updates belong to the document phase.
+- **Inline documentation yes, host-project documentation no.** Keep the inline API documentation of every symbol you add or modify accurate per the host project's inline API-documentation convention. Do NOT touch external host-project documentation (READMEs, guides, configuration docs, examples, changelogs) — those updates belong to the document phase.
 - **Write about the software itself.** On everything you produce, never reference a specific task, requirement, acceptance criterion, etc, and never cite a specific artifact.
 - **Follow project conventions.** Existing patterns, naming, code style.
 - **Address review feedback explicitly when relaunched.** Each issue in the cited review file that names your task must be resolved or explicitly answered.

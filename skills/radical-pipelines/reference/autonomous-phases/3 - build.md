@@ -53,7 +53,7 @@ flowchart TD
     C -->|writes build-plan-review-N-rejected.md or build-plan-review-approved.md| D{Approved?}
     D -->|no| B
     D -->|yes — one writer per task| E[Build Writer]
-    E -->|commits code + tests| F{All batch tasks done?}
+    E -->|commits the task's work| F{All batch tasks done?}
     F -->|no| E
     F -->|yes| G[Build Reviewer]
     G -->|writes build-review-N-rejected.md or build-review-approved.md| H{Approved?}

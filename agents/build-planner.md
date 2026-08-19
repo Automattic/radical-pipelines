@@ -39,7 +39,7 @@ Use the following structure:
 
 ## E2E test plan
 
-<!-- The spec's acceptance criteria and edge cases as explicit end-to-end flows. Concrete enough for the build-writer-e2e to automate and the reviewer to manually re-drive. -->
+<!-- The spec's acceptance criteria and edge cases with behavior to test, as explicit end-to-end flows. Concrete enough for the build-writer-e2e to automate and the reviewer to manually re-drive. "None" when no criterion has behavior to test. -->
 
 ### Flow N: <title>
 
@@ -60,8 +60,8 @@ Use the following structure:
 - **Depends on:** none / Task N
 - **Traces to:** Spec requirement N / Acceptance criterion N / Design decision X
 - **Acceptance:**
-  - <observable behavior 1>
-  - <observable behavior 2>
+  - <observable outcome 1>
+  - <observable outcome 2>
   - ...
 
 ### Task 2: ...
@@ -78,12 +78,12 @@ Use the following structure:
 - **Ordered and granular.** Tasks must be sequenced correctly and small enough that the build-writer never has to make a design decision mid-task.
 - **Trace every task.** Each task must point to a spec acceptance criterion or a design decision it implements.
 - **Cover every acceptance criterion.** Every spec acceptance criterion must be addressed by at least one task.
-- **Type routes each task to its writer.** `tdd` — a behavior change proven by new unit tests. `e2e` — planned e2e flows realized as automated tests. `edit` — a change with no behavior to test (prose-in-code, deletions, type-only, config, mechanical refactors); correct when the gates pass and its Acceptance holds by inspection of the changed files.
+- **Type routes each task to its writer.** `tdd` — a behavior change proven by new unit tests. `e2e` — planned e2e flows realized as automated tests. `edit` — a change with no behavior to test (a docblock correction, a dead-code deletion, a behavior-preserving mechanical refactor); correct when the gates pass and its Acceptance holds by inspection.
 - **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and verifiable, but they describe **what**, not **which test** — the build-writer-tdd turns them into unit tests in the RED phase. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
 - **Name exact files.** Use real paths from the codebase wherever possible. "Update the auth module" is not enough; "update `src/auth/session.ts`" is.
 - **Stay within spec and design.** Do not invent functionality, alternative designs, or extra scope.
 - **Fill the guardrail scopes.** For each gate passed in `Guardrail scopes to fill:`, choose a `{scope}` value — from the gate's `fill-guidance` when present, otherwise derived from the spec and design — and record it in `## Guardrail scopes` (gate → value) — exactly those gates, `None` when none were passed; you own each scope value but not the set.
-- **Plan the e2e flows.** Transform the spec's acceptance criteria and edge cases into the `## E2E test plan` section. Per-task unit-test selection stays the build-writer's: a task's Acceptance describes _what must be true_, and the build-writer-tdd turns it into unit tests in the RED phase. Do not prescribe which unit tests a task writes.
+- **Plan the e2e flows.** Transform the spec's acceptance criteria and edge cases with behavior to test into the `## E2E test plan` section. Per-task unit-test selection stays the build-writer's: a task's Acceptance describes _what must be true_, and the build-writer-tdd turns it into unit tests in the RED phase. Do not prescribe which unit tests a task writes.
 - **Do NOT plan documentation.** Documentation is planned and executed in the document phase. Do not include documentation tasks here.
 - **Do NOT write code.** Describe the change; do not produce the implementation.
 - **Address review feedback explicitly** when revising. Each issue raised in the cited review file must be resolved or explicitly answered.
