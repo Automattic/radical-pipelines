@@ -67,6 +67,14 @@ Use the following structure:
 ### Task 2: ...
 ```
 
+#### Task types
+
+`Type` routes each task to its writer. `tdd` and `edit` are the two routes for changing the product; an `e2e` task only authors tests.
+
+- `tdd` — a change with behavior to test, proven by new unit tests derived from its Acceptance.
+- `e2e` — realizes flows from the `## E2E test plan` as automated tests, over behavior prior tasks built; its changes are tests and test infrastructure.
+- `edit` — a change with no behavior to test (a docblock correction, a dead-code deletion, a behavior-preserving mechanical refactor); verified by inspection and the guardrail gates.
+
 ### 3. Commit and report
 
 1. Commit your output using the **Commit format**.
@@ -78,7 +86,6 @@ Use the following structure:
 - **Ordered and granular.** Tasks must be sequenced correctly and small enough that the build-writer never has to make a design decision mid-task.
 - **Trace every task.** Each task must point to a spec acceptance criterion or a design decision it implements.
 - **Cover every acceptance criterion.** Every spec acceptance criterion must be addressed by at least one task.
-- **Type routes each task to its writer.** `tdd` — a behavior change proven by new unit tests. `e2e` — planned e2e flows realized as automated tests. `edit` — a change with no behavior to test (a docblock correction, a dead-code deletion, a behavior-preserving mechanical refactor); correct when the gates pass and its Acceptance holds by inspection.
 - **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and verifiable, but they describe **what**, not **which test** — the build-writer-tdd turns them into unit tests in the RED phase. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
 - **Name exact files.** Use real paths from the codebase wherever possible. "Update the auth module" is not enough; "update `src/auth/session.ts`" is.
 - **Stay within spec and design.** Do not invent functionality, alternative designs, or extra scope.
