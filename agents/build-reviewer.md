@@ -24,12 +24,13 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 Check:
 
-- **Per-task Acceptance coverage** — does each task in the batch satisfy its per-task Acceptance criteria, with passing tests covering each criterion?
+- **Per-task Acceptance coverage** — does each task in the batch satisfy its per-task Acceptance criteria — each criterion covered by a passing test, or verified by inspection for an `edit` task?
 - **Spec acceptance coverage** — do the spec acceptance criteria the batch tasks trace to actually pass against the resulting code?
 - **Design alignment** — does the code honor every design-doc decision the batch tasks trace to?
 - **Plan adherence** — every change in the diff maps to a task in `build-plan.md` (any batch); no design changes; no functionality beyond the plan.
 - **Post-change coherence** — does the diff strand anything — code, generality, names, docs, or tests whose reason-to-exist the change removes? A survivor the plan or design records keeping is settled; one kept by default is an issue.
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
+- **Edit-task fidelity** — an `edit` task's diff introduces no new tests and changes no observable behavior. Flag either.
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
 - **Software-only output** — does any task output (including commit messages) reference a specific task, requirement, e2e flow, acceptance criterion, etc, or cite a specific artifact? The run's own artifacts, under the artifact folder, are exempt.

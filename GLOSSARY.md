@@ -45,12 +45,13 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 - **Spec phase** — `spec-lead`, `spec-researcher` (fresh per question), `spec-reviewer`, `spec-consolidator`.
 - **Design doc phase** — `design-doc-lead`, `design-doc-researcher` (fresh per question), `design-doc-reviewer`, `design-doc-consolidator`.
-- **Build phase** — `build-planner`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`.
+- **Build phase** — `build-planner`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-writer-edit`, `build-reviewer`.
 - **Document phase** — `document-planner`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
 - **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh instance per iteration: planner or writer in the build and document phases, lead or consolidator in the spec and design-doc phases); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file). A re-review rejects only for a failed resolution or a must-fix issue.
 - **Must-fix issue** — an issue that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a re-review rejects.
 - **Non-blocking finding** — a real finding a re-review notices that is not must-fix; joins the rejection's issues when the re-review rejects, recorded in the approval otherwise.
 - **Batch** — the set of build/document tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
+- **Task type (`Type`)** — routes each build task to its writer. `tdd` and `edit` are the two routes for changing the product — with and without behavior to test; an `e2e` task realizes the plan's e2e flows over behavior prior tasks built and does not implement the behavior under test.
 - **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Lane mandate, Requester identifier, Commit format, Guardrails, Guardrail scopes to fill.
 - **Consolidator** — merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch, backs its own judgments with checks (researcher on request), and — a fresh instance per rejection — adjudicates the final reviewer's findings; a decision no lane settled goes through a decision request.
 - **Decision request** — the consolidator's route for a decision no lane settled: a fresh lead scoped to the question researches, decides, and records the decision in the consolidated record, answering the consolidator directly; the consolidated record names the request's entries as provenance.

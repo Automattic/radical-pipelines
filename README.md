@@ -27,7 +27,7 @@ The phases are:
 - **Phase 0. Intent.** The initial idea or request.
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
-- **Phase 3. Build.** The build plan, the code with unit and end-to-end tests, behavior verification, plus a summary of what the phase produced.
+- **Phase 3. Build.** The build plan, the code with the unit and end-to-end tests its tasks call for, behavior verification, plus a summary of what the phase produced.
 - **Phase 4. Document.** The document plan, both internal and external documentation, plus a summary of what the phase produced.
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
@@ -44,7 +44,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
 - **Compounding quality.** When a pipeline produces a bad result, the fix lives in a specific phase (a wrong assumption in the spec, a missing constraint in the design doc). That fix improves every future run that goes through the same pipeline, not just the one that failed.
-- **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a guaranteed part of every run.
+- **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
 ## Why now

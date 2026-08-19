@@ -17,7 +17,7 @@ Each gate is captured at setup as a block in `.rp.md`:
 ### <name>
 
 - command: `<command, with {scope} if scoped>`
-- agents: <one or more of build-writer-tdd, build-writer-e2e, build-reviewer, document-writer, document-reviewer>
+- agents: <one or more of build-writer-tdd, build-writer-e2e, build-writer-edit, build-reviewer, document-writer, document-reviewer>
 - fill-guidance: <optional; scoped gates only>
 ```
 
