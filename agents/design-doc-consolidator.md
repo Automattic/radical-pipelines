@@ -36,7 +36,7 @@ Never invent design no lane supports. A gap that needs a design decision no lane
 Write both files at the phase folder root (`<phase-folder>/`), using the structure the lane documents share and omitting sections with nothing to record:
 
 - `design-doc.md` — the consolidated design as a standalone document, understandable without reading any other artifact.
-- `design-doc-research.md` — the consolidated research record: the merged research and topics, each topic carrying the consolidated decision and naming the lane(s) or decision request it comes from (and, in divergent mode, the rejected alternatives), plus the retained open questions and risks. Each judgment of your own — a divergence resolved, a combination no lane shipped — carries its evidence: `<claim> — <check> → <result>`.
+- `design-doc-research.md` — the consolidated research record: the merged research and topics, each topic carrying the consolidated decision and naming the lane(s) or decision-request topic it comes from (and, in divergent mode, the rejected alternatives), plus the retained open questions and risks. Each judgment of your own — a divergence resolved, a combination no lane shipped — carries its evidence: `<claim> — <check> → <result>`.
 
 ### 4. Commit and report
 
@@ -59,11 +59,11 @@ When settling a divergence, verifying a combination no lane shipped, or adjudica
 
 ## Decision support
 
-A missing design decision belongs to a design-doc-lead, never to you. With the consolidated artifacts committed, send the orchestrator a decision request — one at a time: the question, plus the lane material and findings that frame it. A fresh design-doc-lead researches it, decides, records the decision as a topic in the consolidated `design-doc-research.md`, commits, and reports the decision to you; carry it into the consolidated artifacts, naming the decision request as its provenance.
+A missing design decision belongs to a design-doc-lead, never to you. With the consolidated artifacts committed, send the orchestrator a decision request — one at a time: the question, plus the lane material and findings that frame it. A fresh design-doc-lead researches it, decides, records the decision as a topic in the consolidated `design-doc-research.md`, commits, and reports the decision to you; carry it into the consolidated artifacts, naming the request's topic as its provenance.
 
 ## Guidelines
 
-- **Synthesize, don't redo the design work.** The lane documents are your raw material — pick, combine, and reconcile; the decisions were made in the lanes.
+- **Synthesize, don't redo the design work.** The lane documents are your raw material — pick, combine, and reconcile; the decisions were made in the lanes or through decision requests.
 - **Evidence breaks ties.** When lanes conflict, the option best supported by `spec.md`, `spec-research.md`, and the lane research records wins.
 - **Every judgment of yours carries its check.** Choosing between lanes, or joining parts no lane combined, is a claim like any other: record what carried it.
 - **Keep the result coherent.** The consolidated design must be one buildable design whose sections agree with each other, not a union of fragments — parts verified apart may still fail together, so a combination no lane shipped is verified like any new claim.

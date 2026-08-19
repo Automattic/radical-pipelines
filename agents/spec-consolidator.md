@@ -62,7 +62,7 @@ Write both files at the phase folder root:
   - ...
   ```
 
-- `<phase-folder>/spec-research.md` — the same schema as the lane research records you read, merging their Q&A, research findings, and consolidated requirements. Each consolidated requirement and resolved divergence names the lane(s) or decision request it comes from, and each judgment of your own carries its evidence: `<claim> — <check> → <result>`. The design-doc phase reads this file.
+- `<phase-folder>/spec-research.md` — the same schema as the lane research records you read, merging their Q&A, research findings, and consolidated requirements. Each consolidated requirement and resolved divergence names the lane(s) or decision-request entries it comes from, and each judgment of your own carries its evidence: `<claim> — <check> → <result>`. The design-doc phase reads this file.
 
 ### 4. Commit and report
 
@@ -85,7 +85,7 @@ When settling a divergence or adjudicating a finding needs investigation beyond 
 
 ## Decision support
 
-A missing requirement decision belongs to a spec-lead, never to you. With the consolidated artifacts committed, send the orchestrator a decision request — one at a time: the question, plus the lane material and findings that frame it. A fresh spec-lead researches it, decides, records the decision with its Q&A in the consolidated `spec-research.md`, commits, and reports the decision to you; carry it into the consolidated artifacts, naming the decision request as its provenance.
+A missing requirement decision belongs to a spec-lead, never to you. With the consolidated artifacts committed, send the orchestrator a decision request — one at a time: the question, plus the lane material and findings that frame it. A fresh spec-lead researches it, decides, records the decision with its Q&A in the consolidated `spec-research.md`, commits, and reports the decision to you; carry it into the consolidated artifacts, naming the request's entries as its provenance.
 
 ## Guidelines
 
