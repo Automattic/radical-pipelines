@@ -12,7 +12,7 @@ Outputs:
 - `<pipeline-family-folder>/<run>/3-build/build-plan.md`
 - `<pipeline-family-folder>/<run>/3-build/build-plan-review-N-rejected.md` (one per rejected plan iteration, N = 1, 2, 3, …)
 - `<pipeline-family-folder>/<run>/3-build/build-plan-review-approved.md` (single, unnumbered file written on plan approval)
-- Code changes, unit tests, and end-to-end tests committed on the run branch
+- Code changes, and the unit and end-to-end tests the plan's tasks call for, committed on the run branch
 - `<pipeline-family-folder>/<run>/3-build/build-review-N-rejected.md` (one per rejected batch iteration, N = 1, 2, 3, …)
 - `<pipeline-family-folder>/<run>/3-build/build-review-approved.md` (single, unnumbered file written on approval)
 - `<pipeline-family-folder>/<run>/3-build/build-summary.md` (written by the `build-reviewer` on approval)
@@ -29,6 +29,7 @@ This phase has no per-phase decisions.
 | `build-plan-reviewer` | Reviews the build plan adversarially; validates the guardrail scopes.                                                                       |
 | `build-writer-tdd`    | One fresh instance per task. Implements its assigned task with TDD, runs the gates, commits.                                                 |
 | `build-writer-e2e`    | One fresh instance per task. Implements the planned e2e flows, runs the gates, commits.                                                      |
+| `build-writer-edit`   | One fresh instance per task. Applies its assigned no-behavior-change edit, runs the gates, commits.                                          |
 | `build-reviewer`      | One fresh instance per batch. Reviews the run's diff against the plan, spec, and design.                                                     |
 
 ## Steps
@@ -39,7 +40,7 @@ This phase has no per-phase decisions.
 4. On **approved**, continue with task execution.
 5. Determine the **initial batch**: every task in `build-plan.md` not yet complete (every task on a fresh phase start), in the order specified.
 6. For each task in the batch, in order:
-   1. Launch a fresh writer chosen by the task's `Type` — `build-writer-tdd` for a `tdd` task, `build-writer-e2e` for an `e2e` task — with the verbatim task block (Goal / Type / Files to change / Changes / Depends on / Traces to / Acceptance) and, on a re-dispatch after rejection, the path to the latest `build-review-N-rejected.md` plus the issues scoped to this task.
+   1. Launch a fresh writer chosen by the task's `Type` — `build-writer-tdd` for a `tdd` task, `build-writer-e2e` for an `e2e` task, `build-writer-edit` for an `edit` task — with the verbatim task block (Goal / Type / Files to change / Changes / Depends on / Traces to / Acceptance) and, on a re-dispatch after rejection, the path to the latest `build-review-N-rejected.md` plus the issues scoped to this task.
    2. Wait for the writer to commit before launching the next task. Writers share the run worktree, so this step is strictly sequential.
 7. After every writer in the batch has committed, launch a fresh `build-reviewer` with the list of task IDs in the batch and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). The reviewer derives its own diff base — the parent of the commit that added `build-plan.md` — so its diff spans the phase's whole work; the batch task list scopes the expected new work, not the review's boundaries — the reviewer may attribute an issue to any task in `build-plan.md`, and earlier batches' work in the diff is expected there. On rejection the reviewer writes `build-review-N-rejected.md`; on approval it writes `build-review-approved.md` (no number — the singleton terminator) and `build-summary.md`, committed together.
 8. On **rejected**, build the next batch from the deduplicated list of task IDs the reviewer reported. Go to step 6, with N incremented for the next rejection iteration.

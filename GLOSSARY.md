@@ -45,7 +45,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 - **Spec phase** — `spec-lead`, `spec-researcher` (fresh per question), `spec-reviewer`, `spec-consolidator`.
 - **Design doc phase** — `design-doc-lead`, `design-doc-researcher` (fresh per question), `design-doc-reviewer`, `design-doc-consolidator`.
-- **Build phase** — `build-planner`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`.
+- **Build phase** — `build-planner`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-writer-edit`, `build-reviewer`.
 - **Document phase** — `document-planner`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
 - **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh instance per iteration: planner or writer in the build and document phases, lead or consolidator in the spec and design-doc phases); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file). A re-review rejects only for a failed resolution or a must-fix issue.
 - **Must-fix issue** — an issue that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a re-review rejects.

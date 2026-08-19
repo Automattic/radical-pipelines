@@ -54,7 +54,7 @@ Use the following structure:
 ### Task 1: <title>
 
 - **Goal:** ...
-- **Type:** tdd | e2e
+- **Type:** tdd | e2e | edit
 - **Files to change:** ...
 - **Changes:** ...
 - **Depends on:** none / Task N
@@ -78,7 +78,8 @@ Use the following structure:
 - **Ordered and granular.** Tasks must be sequenced correctly and small enough that the build-writer never has to make a design decision mid-task.
 - **Trace every task.** Each task must point to a spec acceptance criterion or a design decision it implements.
 - **Cover every acceptance criterion.** Every spec acceptance criterion must be addressed by at least one task.
-- **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and testable, but they describe **what**, not **which test** — the build-writer-tdd turns them into unit tests in the RED phase. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
+- **Type routes each task to its writer.** `tdd` — a behavior change proven by new unit tests. `e2e` — planned e2e flows realized as automated tests. `edit` — a change with no behavior to test (prose-in-code, deletions, type-only, config, mechanical refactors); correct when the gates pass and its Acceptance holds by inspection of the changed files.
+- **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and verifiable, but they describe **what**, not **which test** — the build-writer-tdd turns them into unit tests in the RED phase. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
 - **Name exact files.** Use real paths from the codebase wherever possible. "Update the auth module" is not enough; "update `src/auth/session.ts`" is.
 - **Stay within spec and design.** Do not invent functionality, alternative designs, or extra scope.
 - **Fill the guardrail scopes.** For each gate passed in `Guardrail scopes to fill:`, choose a `{scope}` value — from the gate's `fill-guidance` when present, otherwise derived from the spec and design — and record it in `## Guardrail scopes` (gate → value) — exactly those gates, `None` when none were passed; you own each scope value but not the set.
