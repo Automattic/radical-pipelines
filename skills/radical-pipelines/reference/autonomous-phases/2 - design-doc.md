@@ -37,7 +37,7 @@ When asking the owner for the lane mode, explain the difference: both modes repe
 | `design-doc-reviewer`     | Adjudicates the decision record against the spec and the codebase (`design-doc.md` for fidelity), logging each check it performs; writes `design-doc-review-N-rejected.md` on rejection or `design-doc-review-approved.md` on approval. |
 | `design-doc-consolidator` | Merges the lane-approved designs and research records into the consolidated `design-doc.md` and `design-doc-research.md` on the run branch; a fresh instance adjudicates each final-review rejection (multiple lanes only). |
 
-Serve any agent's research request: launch a fresh `design-doc-researcher` with the question verbatim and the asking agent's identifier as its **Requester identifier**; it answers the requester directly. Serve the consolidator's decision request the same way with a fresh `design-doc-lead`; it researches, decides, and answers the requester directly.
+Serve any agent's research request: launch a fresh `design-doc-researcher` with the question verbatim and the asking agent's identifier as its **Requester identifier**; it answers the requester directly. Serve the consolidator's decision request the same way with a fresh `design-doc-lead`; it researches the question, records its decision in the consolidated record, and answers the requester directly.
 
 ## The lane flow
 

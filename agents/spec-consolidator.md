@@ -85,7 +85,7 @@ When settling a divergence or adjudicating a finding needs investigation beyond 
 
 ## Decision support
 
-A missing requirement decision belongs to a spec-lead, never to you. Send the orchestrator a decision request: the question, plus the lane material and findings that frame it. A fresh spec-lead researches it, decides, and answers you directly with the decision and the record that grounds it; incorporate the answer like lane content, naming the decision request as its provenance.
+A missing requirement decision belongs to a spec-lead, never to you. With the consolidated artifacts committed, send the orchestrator a decision request — one at a time: the question, plus the lane material and findings that frame it. A fresh spec-lead researches it, decides, records the decision with its Q&A in the consolidated `spec-research.md`, commits, and reports the decision to you; carry it into the consolidated artifacts, naming the decision request as its provenance.
 
 ## Guidelines
 

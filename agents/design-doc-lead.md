@@ -133,7 +133,7 @@ Commit the updated artifacts and report back how each finding was adjudicated. T
 
 ### 8. Answer a decision request
 
-Launched with a decision request — a design decision a consolidated design needs that no lane made — and your **Requester identifier**: read `<artifact-folder>/1-spec/spec.md` and `<artifact-folder>/1-spec/spec-research.md`, the lane records in the `lane-<K>` subfolders of `<phase-folder>`, and any consolidated artifacts already at its root. Research the question per your usual loop, decide it, and answer the requester directly with the decision — options, trade-offs, rationale — and the evidence that grounds it, in the record's format. You write no artifacts; the requester records your answer. This ends your work.
+Launched with a decision request — a design decision a consolidated design needs that no lane made — and your **Requester identifier**: read `<artifact-folder>/1-spec/spec.md` and `<artifact-folder>/1-spec/spec-research.md`, the consolidated `design-doc-research.md` and `design-doc.md` in `<phase-folder>/`, and the lane records in its `lane-<K>` subfolders. Research the question per your usual loop and decide it. Append the topic — options, trade-offs, decision, rationale, evidence — to the consolidated `design-doc-research.md` under `## Topics`, naming the decision request; the record's other sections and `design-doc.md` stay the requester's. Commit, and report the decision to the requester. This ends your work.
 
 ## Design research document format
 

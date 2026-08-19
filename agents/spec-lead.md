@@ -133,7 +133,7 @@ Commit the updated artifacts and report back how each finding was adjudicated. T
 
 ### 9. Answer a decision request
 
-Launched with a decision request — a requirement decision a consolidated spec needs that no lane settled — and your **Requester identifier**: read `<artifact-folder>/0-intent/intent.md`, the lane records in the `lane-<K>` subfolders of `<phase-folder>`, and any consolidated artifacts already at its root. Research the question per your usual loop, decide it, and answer the requester directly with the decision — phrased as observable outcomes — and the Q&A and evidence that ground it, in the record's format. You write no artifacts; the requester records your answer. This ends your work.
+Launched with a decision request — a requirement decision a consolidated spec needs that no lane settled — and your **Requester identifier**: read `<artifact-folder>/0-intent/intent.md`, the consolidated `spec-research.md` and `spec.md` in `<phase-folder>/`, and the lane records in its `lane-<K>` subfolders. Research the question per your usual loop and decide it. Append the question, the Q&A and evidence that ground it, and your decided answer — phrased as observable outcomes — to the consolidated `spec-research.md` under `## Q&A`, each entry naming the decision request; the record's other sections and `spec.md` stay the requester's. Commit, and report the decision to the requester. This ends your work.
 
 ## Spec research document format
 

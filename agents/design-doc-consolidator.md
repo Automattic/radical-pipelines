@@ -59,7 +59,7 @@ When settling a divergence, verifying a combination no lane shipped, or adjudica
 
 ## Decision support
 
-A missing design decision belongs to a design-doc-lead, never to you. Send the orchestrator a decision request: the question, plus the lane material and findings that frame it. A fresh design-doc-lead researches it, decides, and answers you directly with the decision and the record that grounds it; incorporate the answer like lane content, naming the decision request as its provenance.
+A missing design decision belongs to a design-doc-lead, never to you. With the consolidated artifacts committed, send the orchestrator a decision request — one at a time: the question, plus the lane material and findings that frame it. A fresh design-doc-lead researches it, decides, records the decision as a topic in the consolidated `design-doc-research.md`, commits, and reports the decision to you; carry it into the consolidated artifacts, naming the decision request as its provenance.
 
 ## Guidelines
 
