@@ -227,6 +227,17 @@ function formatAttribution(sender) {
   return `[from ${sender.name} (${sender.sessionID})]`;
 }
 
+/**
+ * Append the opencode transport protocol to a spawned agent's initial prompt.
+ *
+ * @param {string} prompt The caller-authored initial prompt.
+ * @param {string} spawnerID The calling session's authoritative ID.
+ * @returns {string} The original prompt followed by the runtime protocol.
+ */
+function appendSpawnProtocol(prompt, spawnerID) {
+  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** when your prompt provides one; otherwise use the **Spawner identifier** above.`;
+}
+
 /** Prefix marking a session title as an RP-managed, reconstructible one. */
 const TITLE_PREFIX = "rp:";
 
@@ -471,44 +482,58 @@ function resolveServiceRecordDir(env) {
  *
  * opencode has written the record under two names across builds — the
  * hash-suffixed `service-<hash>.json` and the bare `service.json` — so both
- * are accepted. When records under both names are present, the most recently
- * written one wins: switching between builds leaves the other name behind as
- * a stale record naming a server that is no longer listening.
+ * are accepted. The state directory is shared by every opencode instance
+ * running under the same environment (other daemons, dev builds), so records
+ * naming live *sibling* servers routinely sit alongside — and because those
+ * siblings share on-disk session storage, a request sent to one answers
+ * plausibly while its in-memory state (active set, pending permissions)
+ * belongs to the wrong process. The plugin runs inside the server process it
+ * must address, so the only trustworthy record is the one whose `pid` names
+ * this very process; anything else is ignored.
  *
  * @param {Record<string, string | undefined>} env Environment used to
  *   resolve the service record's directory (see `resolveServiceRecordDir`).
+ * @param {number} [pid] The process ID a record must name to be trusted.
+ *   Defaults to the current process; injectable for tests.
  * @returns {{ id: string, version: string, url: string, pid: number, password: string } | null}
- *   The parsed record, or `null` when its directory or any service record
- *   inside it does not exist.
+ *   The record naming `pid`, or `null` when its directory does not exist or
+ *   no record inside it names `pid`.
  */
-function readServiceRecordFile(env) {
+function readServiceRecordFile(env, pid = process.pid) {
   const dir = resolveServiceRecordDir(env);
   if (!existsSync(dir)) {
     return null;
   }
-  const paths = readdirSync(dir)
+  const records = readdirSync(dir)
     .filter(
       (entryName) =>
         entryName === "service.json" ||
         (entryName.startsWith("service-") && entryName.endsWith(".json")),
     )
-    .map((entryName) => join(dir, entryName));
-  if (paths.length === 0) {
+    .map((entryName) => join(dir, entryName))
+    .flatMap((path) => {
+      try {
+        return [{ path, record: JSON.parse(readFileSync(path, "utf8")) }];
+      } catch {
+        return [];
+      }
+    })
+    .filter(({ record }) => record?.pid === pid);
+  if (records.length === 0) {
     return null;
   }
-  const newest = paths.reduce((left, right) =>
-    statSync(left).mtimeMs >= statSync(right).mtimeMs ? left : right,
-  );
-  return JSON.parse(readFileSync(newest, "utf8"));
+  return records.reduce((left, right) =>
+    statSync(left.path).mtimeMs >= statSync(right.path).mtimeMs ? left : right,
+  ).record;
 }
 
 /**
  * Resolve how to reach the running opencode server, offline-testably.
  *
- * Tries the daemon case first (a service record on disk), then the
- * `serve`/harness case (env overrides), then gives up. Both dependencies are
- * injectable so this never touches the real filesystem or environment in a
- * test.
+ * Tries the daemon case first (a service record on disk naming the current
+ * process, see `readServiceRecordFile`), then the `serve`/harness case (env
+ * overrides), then gives up. Both dependencies are injectable so this never
+ * touches the real filesystem or environment in a test.
  *
  * @param {{
  *   env?: Record<string, string | undefined>,
@@ -565,6 +590,7 @@ function nodeHttpRequest(url, { method, headers, body }) {
       });
     });
     req.on("error", reject);
+    req.setTimeout(10_000, () => req.destroy(new Error("opencode server request timed out")));
     if (body !== undefined) {
       req.write(body);
     }
@@ -612,9 +638,15 @@ function requestServer(server, method, path, body, requestFn = nodeHttpRequest) 
  *   Injectable request function, forwarded to `requestServer`.
  * @returns {Promise<boolean>} `true` when `sessionID` is a key of the
  *   `/api/session/active` response's `data` object.
+ * @throws {Error} On a non-2xx response. A failed read means the session's
+ *   state is unknown, not that it is idle; treating it as idle would let a
+ *   health-loop tick inject into a busy session.
  */
 async function isSessionActive(server, sessionID, requestFn) {
   const response = await requestServer(server, "GET", "/api/session/active", undefined, requestFn);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`GET /api/session/active returned ${response.status}`);
+  }
   const active = response.body?.data;
   return Boolean(active && Object.prototype.hasOwnProperty.call(active, sessionID));
 }
@@ -672,8 +704,8 @@ function resolveRunningBuild(serviceRecord, readCliVersionFn) {
  *   Resolves a session ID to its recorded ledger entry (see `lookupSpawn`).
  *   A record whose ID isn't found this way falls back to `parseTitle` on its
  *   `title`, so restart-surviving sessions are still recognized.
- * @param {Set<string>} activeSessionIDs Session IDs opencode reports running
- *   now (see `isSessionActive`).
+ * @param {Set<string> | null} activeSessionIDs Session IDs opencode reports
+ *   running now (see `isSessionActive`), or `null` when the read failed.
  * @param {(sessionID: string) => number} pendingCountFor Resolves a
  *   session's pending-input count.
  * @param {(sessionID: string) => Array<{id: string, action: string, resources: string[]}>} [permissionsFor]
@@ -681,7 +713,7 @@ function resolveRunningBuild(serviceRecord, readCliVersionFn) {
  * @param {(sessionID: string) => object | undefined} [currentToolForFn]
  *   Resolves a session's currently executing tool call (see
  *   `currentToolFor`); defaults to none.
- * @returns {Array<{name: string, sessionID: string, agent: string, model: string, directory: string, updated: *, running: boolean, pending: number, permissions: Array<object>, currentTool: object | undefined}>}
+ * @returns {Array<{name: string, sessionID: string, agent: string, model: string, directory: string, updated: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined}>}
  *   One row per session record RP recognizes as its own, in `sessionRecords`
  *   order; records RP does not recognize (neither ledger nor `rp:` title)
  *   are omitted.
@@ -707,7 +739,7 @@ function buildLedgerRows(
       model: record.model ? formatModelString(record.model) : record.model,
       directory: record.location?.directory,
       updated: record.time?.updated,
-      running: activeSessionIDs.has(record.id),
+      running: activeSessionIDs?.has(record.id),
       pending: pendingCountFor(record.id),
       permissions: permissionsFor(record.id),
       currentTool: currentToolForFn(record.id),
@@ -750,41 +782,69 @@ async function buildStatusPayload({
   const pinComparison = comparePinnedBuild(runningBuild, pin.cli);
 
   let sessionRecords = [];
-  let activeIDs = new Set();
+  let activeIDs = null;
   const pendingCounts = new Map();
   const pendingPermissions = new Map();
+
+  // A failed read must be reported, not rendered as "idle and healthy":
+  // defaulting a failed active-set or permission read to empty is exactly how
+  // a blocked session becomes invisible. Failures are aggregated per
+  // endpoint+status so a per-session endpoint failure surfaces as one row,
+  // not one per session.
+  const failures = new Map();
+  const noteFailure = (endpoint, status) => {
+    const key = `${endpoint}:${status}`;
+    const existing = failures.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      failures.set(key, { endpoint, status, count: 1 });
+    }
+  };
+  const ok = (response) => response.status >= 200 && response.status < 300;
+  const readEndpoint = async (endpoint, path) => {
+    try {
+      const response = await requestServer(server, "GET", path, undefined, requestFn);
+      if (ok(response)) {
+        return response;
+      }
+      noteFailure(endpoint, response.status);
+    } catch {
+      noteFailure(endpoint, "transport");
+    }
+    return null;
+  };
 
   if (server) {
     // Every opencode HTTP GET response envelopes its payload as
     // `{ data: ... }` — verified live against the pinned build.
-    const sessionsResponse = await requestServer(server, "GET", "/api/session", undefined, requestFn);
-    sessionRecords = sessionsResponse.body?.data ?? [];
-    const activeResponse = await requestServer(server, "GET", "/api/session/active", undefined, requestFn);
-    activeIDs = new Set(Object.keys(activeResponse.body?.data ?? {}));
+    const sessionsResponse = await readEndpoint("session", "/api/session");
+    if (sessionsResponse) {
+      sessionRecords = sessionsResponse.body?.data ?? [];
+    }
+    const activeResponse = await readEndpoint("active", "/api/session/active");
+    if (activeResponse) {
+      activeIDs = new Set(Object.keys(activeResponse.body?.data ?? {}));
+    }
     for (const record of sessionRecords) {
-      const pendingResponse = await requestServer(
-        server,
-        "GET",
-        `/api/session/${record.id}/pending`,
-        undefined,
-        requestFn,
-      );
-      pendingCounts.set(record.id, (pendingResponse.body?.data ?? []).length);
-      const permissionsResponse = await requestServer(
-        server,
-        "GET",
+      const inboxResponse = await readEndpoint("inbox", `/api/session/${record.id}/inbox`);
+      if (inboxResponse) {
+        pendingCounts.set(record.id, (inboxResponse.body?.data ?? []).length);
+      }
+      const permissionsResponse = await readEndpoint(
+        "permission",
         `/api/session/${record.id}/permission`,
-        undefined,
-        requestFn,
       );
-      pendingPermissions.set(
-        record.id,
-        (permissionsResponse.body?.data ?? []).map((item) => ({
-          id: item.id,
-          action: item.action,
-          resources: item.resources,
-        })),
-      );
+      if (permissionsResponse) {
+        pendingPermissions.set(
+          record.id,
+          (permissionsResponse.body?.data ?? []).map((item) => ({
+            id: item.id,
+            action: item.action,
+            resources: item.resources,
+          })),
+        );
+      }
     }
   }
 
@@ -792,8 +852,8 @@ async function buildStatusPayload({
     sessionRecords,
     lookupSpawn,
     activeIDs,
-    (id) => pendingCounts.get(id) ?? 0,
-    (id) => pendingPermissions.get(id) ?? [],
+    (id) => pendingCounts.get(id),
+    (id) => pendingPermissions.get(id),
     currentToolFor,
   );
 
@@ -802,6 +862,7 @@ async function buildStatusPayload({
     pinComparison,
     ledgerEntries,
     errorLog: getErrorLog(),
+    readFailures: [...failures.values()],
   });
 }
 
@@ -1154,8 +1215,11 @@ function getHandledPermissions() {
  * independent and the agent proceeds immediately. Every other ask stays
  * pending and is forwarded to the spawner (queue delivery) to adjudicate via
  * `rp_permission_reply`; a redirect-eligible ask also falls back to
- * forwarding when the server cannot be reached to deliver the reject. Both
- * outcomes are recorded in the bounded log surfaced by `rp_status`.
+ * forwarding when the server cannot be reached to deliver the reject, or when
+ * the reject reply comes back non-2xx — a reply that did not land leaves the
+ * session blocked, and treating it as handled would leave it blocked with
+ * nobody told. Both outcomes are recorded in the bounded log surfaced by
+ * `rp_status`.
  *
  * Asks on sessions RP did not spawn are ignored.
  *
@@ -1195,24 +1259,38 @@ async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn
       exists,
     });
     if (targets) {
-      await replyToPermission(
-        server,
-        {
+      let response;
+      try {
+        response = await replyToPermission(
+          server,
+          {
+            sessionID: request.sessionID,
+            requestID: request.requestID,
+            reply: "reject",
+            message: formatRedirectMessage(targets),
+          },
+          requestFn,
+        );
+      } catch {
+        response = { status: "transport" };
+      }
+      if (response.status >= 200 && response.status < 300) {
+        recordError({
+          type: "permission.redirected",
           sessionID: request.sessionID,
           requestID: request.requestID,
-          reply: "reject",
-          message: formatRedirectMessage(targets),
-        },
-        requestFn,
-      );
+          resources: request.resources,
+          at: Date.now(),
+        });
+        return;
+      }
       recordError({
-        type: "permission.redirected",
+        type: "permission.redirect.failed",
         sessionID: request.sessionID,
         requestID: request.requestID,
-        resources: request.resources,
+        status: response.status,
         at: Date.now(),
       });
-      return;
     }
   }
 
@@ -1224,11 +1302,16 @@ async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn
     resources: request.resources,
     at: Date.now(),
   });
-  await ctx.session.prompt({
-    sessionID: entry.spawner,
-    text: formatPermissionForward(entry, request),
-    delivery: "queue",
-  });
+  try {
+    await ctx.session.prompt({
+      sessionID: entry.spawner,
+      text: formatPermissionForward(entry, request),
+      delivery: "queue",
+    });
+  } catch (error) {
+    handled.delete(request.requestID);
+    throw error;
+  }
 }
 
 /**
@@ -1557,16 +1640,20 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     model: string,
  *     directory: string,
  *     updated: string | number,
- *     running: boolean,
- *     pending: number,
- *     permissions: Array<{id: string, action: string, resources: string[]}>,
+ *     running?: boolean,
+ *     pending?: number,
+ *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
  *   }>,
  *   errorLog: Array<*>,
+ *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
  * }} input The status payload's components. `pluginVersion` identifies the
  *   running plugin build; `pinComparison` is the result of comparing the
  *   running opencode build against the pin; `ledgerEntries` is one row per
- *   live spawn; `errorLog` is the bounded recent-errors ring.
+ *   live spawn; `errorLog` is the bounded recent-errors ring; `readFailures`
+ *   lists the server reads that failed while gathering the ledger — a
+ *   non-empty list means the ledger's `running`/`pending`/`permissions`
+ *   fields are incomplete, not that the sessions are idle.
  * @returns {{
  *   pluginVersion: string,
  *   pin: "match" | "outside the verified surface" | "not determinable",
@@ -1577,15 +1664,16 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     model: string,
  *     directory: string,
  *     updated: string | number,
- *     running: boolean,
- *     pending: number,
- *     permissions: Array<{id: string, action: string, resources: string[]}>,
+ *     running?: boolean,
+ *     pending?: number,
+ *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
  *   }>,
  *   recentErrors: Array<*>,
+ *   readFailures: Array<{endpoint: string, status: number | "transport", count: number}>,
  * }} The shaped `rp_status` result.
  */
-function shapeStatus({ pluginVersion, pinComparison, ledgerEntries, errorLog }) {
+function shapeStatus({ pluginVersion, pinComparison, ledgerEntries, errorLog, readFailures = [] }) {
   return {
     pluginVersion,
     pin: pinComparison,
@@ -1602,6 +1690,7 @@ function shapeStatus({ pluginVersion, pinComparison, ledgerEntries, errorLog }) 
       currentTool: entry.currentTool,
     })),
     recentErrors: errorLog,
+    readFailures,
   };
 }
 
@@ -1634,10 +1723,98 @@ const PLUGIN_ID = `radical-pipelines@${readPackageVersion()}`;
 /**
  * Absolute path to the packaged `skills/` directory, resolved relative to
  * this module's location so it resolves correctly regardless of the
- * process's working directory. Registered as a skill source by reference —
- * never copied — in `setup`.
+ * process's working directory. Read by reference — never copied — in
+ * `setup`.
  */
 const SKILLS_SOURCE_DIR = fileURLToPath(new URL("../skills", import.meta.url));
+
+/**
+ * Split a skill file into its YAML frontmatter fields and its markdown body.
+ *
+ * Only the scalar fields opencode reads off a skill are recognized (`name`,
+ * `description`, `slash`); anything else in the block is ignored. A file
+ * without a leading `---` fence has no frontmatter and is all body.
+ *
+ * @param {string} source Raw file contents.
+ * @returns {{ frontmatter: Record<string, string>, content: string }}
+ */
+function parseSkillFrontmatter(source) {
+  const normalized = source.replace(/^﻿/, "");
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(normalized);
+  if (!match) return { frontmatter: {}, content: normalized.trim() };
+
+  const frontmatter = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const field = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (!field) continue;
+    frontmatter[field[1]] = field[2].trim().replace(/^["']|["']$/g, "");
+  }
+
+  return {
+    frontmatter,
+    content: normalized.slice(match[0].length).trim(),
+  };
+}
+
+/**
+ * Read a directory of skills into the `Skill.Info` records opencode's
+ * `ctx.skill.transform` draft accepts.
+ *
+ * opencode v2 dropped the directory *source* registration a plugin used to
+ * hand over (`sources.source({ type: "directory", ... })` — removed, so
+ * calling it dies with "sources.source is not a function"); the draft now
+ * takes fully-formed skills. Both packaging layouts core supports are read
+ * here: `<dir>/<id>/SKILL.md` (RP's own) and a flat `<dir>/<id>.md`, with the
+ * id taken from the containing directory or the file's basename to match how
+ * core derives it.
+ *
+ * @param {string} directory Absolute path to the skills directory.
+ * @param {{ exists?: (path: string) => boolean, read?: (path: string) => string, list?: (path: string) => string[] }} [io]
+ *   Injection seam for tests; defaults to the real filesystem.
+ * @returns {Array<{ id: string, name: string, description?: string, slash?: boolean, location: string, content: string }>}
+ *   Skills sorted by id. An absent or unreadable directory yields `[]`.
+ */
+function readSkillDirectory(
+  directory,
+  {
+    exists = existsSync,
+    read = (path) => readFileSync(path, "utf8"),
+    list = (path) => readdirSync(path),
+  } = {},
+) {
+  if (!exists(directory)) return [];
+
+  const files = [];
+  for (const entry of list(directory)) {
+    const nested = join(directory, entry, "SKILL.md");
+    if (exists(nested)) {
+      files.push({ id: entry, path: nested });
+      continue;
+    }
+    if (entry.endsWith(".md") && entry !== "SKILL.md") {
+      files.push({ id: basename(entry, ".md"), path: join(directory, entry) });
+    }
+  }
+
+  const skills = [];
+  for (const file of files) {
+    const { frontmatter, content } = parseSkillFrontmatter(read(file.path));
+    skills.push({
+      id: file.id,
+      name: frontmatter.name ?? file.id,
+      ...(frontmatter.description === undefined
+        ? {}
+        : { description: frontmatter.description }),
+      ...(frontmatter.slash === undefined
+        ? {}
+        : { slash: frontmatter.slash === "true" }),
+      location: file.path,
+      content,
+    });
+  }
+
+  return skills.sort((left, right) => (left.id < right.id ? -1 : 1));
+}
 
 /**
  * Wrap a tool's computed result into the shape opencode's tool contract
@@ -1724,7 +1901,11 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
         directory,
         repoRoot: resolveRepoRootFn(directory),
       });
-      await ctx.session.prompt({ sessionID: session.id, text: prompt, delivery: "queue" });
+      await ctx.session.prompt({
+        sessionID: session.id,
+        text: appendSpawnProtocol(prompt, toolCtx.sessionID),
+        delivery: "queue",
+      });
       return toToolResult(session.id);
     },
   };
@@ -1771,6 +1952,9 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
       if (response.status === 404) {
         return toToolResult({ status: 404, error: "PermissionNotFoundError" });
       }
+      if (response.status < 200 || response.status >= 300) {
+        return toToolResult({ status: response.status, error: "PermissionReplyFailed" });
+      }
       return toToolResult({ replied: true });
     },
   };
@@ -1779,14 +1963,29 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
 /**
  * Build the `rp_send` tool descriptor.
  *
+ * The prompt call resolves once the message is *admitted to the target's
+ * queue* — a queued message is delivered only when the target next idles, and
+ * a target wedged mid-turn never drains its queue. The result therefore
+ * reports `enqueued`, never "delivered", and adds the target's observed state
+ * (running, queued inputs, pending permission asks) when the server is
+ * reachable, so a sender can tell an about-to-deliver message from one queued
+ * behind a blocked session.
+ *
  * @param {object} ctx The plugin's opencode context, as passed to `setup`.
+ * @param {{
+ *   env?: Record<string, string | undefined>,
+ *   readServiceRecordOverride?: (env: object) => object | null,
+ *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ * }} [deps] `env`/`readServiceRecordOverride` reach `resolveServer`;
+ *   `requestFn` reaches the HTTP client.
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildSendTool(ctx) {
+function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requestFn } = {}) {
   return {
     name: "rp_send",
-    description: "Send a directed, queue-delivered message to another RP session by session ID.",
+    description:
+      "Send a directed message to another RP session by session ID. The message is queued and delivered when the target next idles; the result reports admission and the target's observed state, not receipt.",
     output: ANY_OUTPUT_SCHEMA,
     input: {
       type: "object",
@@ -1804,13 +2003,65 @@ function buildSendTool(ctx) {
       })} ${message}`;
       try {
         await ctx.session.prompt({ sessionID: to, text, delivery: "queue" });
-        return toToolResult({ delivered: true });
       } catch (error) {
         if (isSessionNotFoundError(error)) {
           return toToolResult({ status: 404, error: "SessionNotFoundError" });
         }
         throw error;
       }
+
+      // Best-effort target-state reads: each field is included only when its
+      // read succeeds, so a failed read is absent rather than a fabricated
+      // healthy value.
+      const result = { enqueued: true };
+      let server;
+      try {
+        server = resolveServer({ env, readServiceRecord: readServiceRecordOverride });
+      } catch {
+        return toToolResult(result);
+      }
+      if (server) {
+        try {
+          result.targetRunning = await isSessionActive(server, to, requestFn);
+        } catch {
+          // Left absent: the target's running state could not be read.
+        }
+        let inboxResponse;
+        try {
+          inboxResponse = await requestServer(
+            server,
+            "GET",
+            `/api/session/${to}/inbox`,
+            undefined,
+            requestFn,
+          );
+        } catch {
+          inboxResponse = null;
+        }
+        if (inboxResponse && inboxResponse.status >= 200 && inboxResponse.status < 300) {
+          result.queueDepth = (inboxResponse.body?.data ?? []).length;
+        }
+        let permissionsResponse;
+        try {
+          permissionsResponse = await requestServer(
+            server,
+            "GET",
+            `/api/session/${to}/permission`,
+            undefined,
+            requestFn,
+          );
+        } catch {
+          permissionsResponse = null;
+        }
+        if (
+          permissionsResponse &&
+          permissionsResponse.status >= 200 &&
+          permissionsResponse.status < 300
+        ) {
+          result.targetBlockedOnPermission = (permissionsResponse.body?.data ?? []).length > 0;
+        }
+      }
+      return toToolResult(result);
     },
   };
 }
@@ -2017,7 +2268,7 @@ function setup(ctx, deps = {}) {
 
   ctx.tool.transform((tools) => {
     tools.add(buildSpawnTool(ctx, { resolveRepoRootFn }));
-    tools.add(buildSendTool(ctx));
+    tools.add(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn }));
     tools.add(buildLoopStartTool({ registryPath, tick }));
     tools.add(buildLoopListTool(registryPath));
     tools.add(buildLoopCancelTool(registryPath));
@@ -2026,7 +2277,21 @@ function setup(ctx, deps = {}) {
     return tools;
   });
 
-  ctx.skill.transform((sources) => sources.source({ type: "directory", path: SKILLS_SOURCE_DIR }));
+  // Builds up to the previously pinned one took a directory source; newer ones
+  // dropped `source` from the draft and take fully-formed skills through
+  // `add`. Probing the draft keeps one plugin working on both, rather than
+  // dying with "sources.source is not a function" on whichever build the
+  // owner happens to run.
+  ctx.skill.transform((skills) => {
+    if (typeof skills.source === "function") {
+      skills.source({ type: "directory", path: SKILLS_SOURCE_DIR });
+      return skills;
+    }
+    for (const skill of readSkillDirectory(SKILLS_SOURCE_DIR)) {
+      skills.add(skill);
+    }
+    return skills;
+  });
 
   const { collisions } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
   for (const name of collisions) {
@@ -2062,6 +2327,7 @@ export default { id: PLUGIN_ID, setup };
 export {
   addLoopEntry,
   agentExists,
+  appendSpawnProtocol,
   appendToErrorLog,
   armLoopTimer,
   buildBasicAuthHeader,
@@ -2087,11 +2353,13 @@ export {
   onToolEvent,
   parseModelString,
   parsePermissionAsked,
+  parseSkillFrontmatter,
   parseTitle,
   readCliVersion,
   readPackageVersion,
   readPinManifest,
   readServiceRecordFile,
+  readSkillDirectory,
   recordSpawn,
   redirectTargets,
   replyToPermission,

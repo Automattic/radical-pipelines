@@ -161,7 +161,20 @@ describe("shapeStatus", () => {
         },
       ],
       recentErrors: ["boom"],
+      readFailures: [],
     });
+  });
+
+  test("carries provided read failures through to the shaped result", () => {
+    const result = shapeStatus({
+      pluginVersion: "v",
+      pinComparison: "match",
+      ledgerEntries: [],
+      errorLog: [],
+      readFailures: [{ endpoint: "active", status: 500, count: 1 }],
+    });
+
+    assert.deepEqual(result.readFailures, [{ endpoint: "active", status: 500, count: 1 }]);
   });
 
   test("maps one ledger row per provided ledger entry, preserving order", () => {

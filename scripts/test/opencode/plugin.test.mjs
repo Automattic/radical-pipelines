@@ -7,6 +7,7 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import plugin, {
   agentExists,
+  appendSpawnProtocol,
   armLoopTimer,
   buildBasicAuthHeader,
   buildLedgerRows,
@@ -58,8 +59,12 @@ function clearAllLoopTimers() {
  * against it, matching the restricted plugin ctx surface (`tool`, `skill`,
  * `agent`, `session`, `event`).
  */
-function createFakeCtx({ agents = ["spec-lead", "spec-reviewer", "build-writer-tdd"] } = {}) {
+function createFakeCtx({
+  agents = ["spec-lead", "spec-reviewer", "build-writer-tdd"],
+  legacySkillDraft = false,
+} = {}) {
   const tools = new Map();
+  const addedSkills = [];
   const skillSources = [];
   const sessions = new Map();
   let nextID = 1;
@@ -92,14 +97,33 @@ function createFakeCtx({ agents = ["spec-lead", "spec-reviewer", "build-writer-t
         fn(api);
       },
     },
+    // Matches the real ctx.skill.transform() draft contract: current builds
+    // take fully-formed skills through add(); builds up to the previously
+    // pinned one exposed source() instead, and calling it on a current build
+    // dies with "sources.source is not a function". `legacySkillDraft` models
+    // the older shape so both paths stay covered.
     skill: {
       transform(fn) {
-        const api = {
-          source(src) {
-            skillSources.push(src);
-            return api;
-          },
-        };
+        const api = legacySkillDraft
+          ? {
+              source(src) {
+                skillSources.push(src);
+                return api;
+              },
+            }
+          : {
+              list: () => [...addedSkills],
+              add(skill) {
+                addedSkills.push(skill);
+                return api;
+              },
+              update() {
+                return api;
+              },
+              remove() {
+                return api;
+              },
+            };
         fn(api);
       },
     },
@@ -152,6 +176,7 @@ function createFakeCtx({ agents = ["spec-lead", "spec-reviewer", "build-writer-t
   return {
     ctx,
     tools,
+    addedSkills,
     skillSources,
     sessions,
     pushEvent,
@@ -180,8 +205,8 @@ describe("default export", () => {
 describe("setup: tool and skill registration", () => {
   afterEach(clearAllLoopTimers);
 
-  test("registers exactly the seven named tools and the skills/ directory as a skill source", () => {
-    const { ctx, tools, skillSources } = createFakeCtx();
+  test("registers exactly the seven named tools and the packaged skills", () => {
+    const { ctx, tools, addedSkills } = createFakeCtx();
 
     setup(ctx, isolatedDeps({ env: {} }));
 
@@ -197,6 +222,23 @@ describe("setup: tool and skill registration", () => {
         "rp_status",
       ],
     );
+    assert.deepEqual(
+      addedSkills.map((skill) => skill.id),
+      ["radical-pipelines"],
+    );
+    const skill = addedSkills[0];
+    assert.equal(skill.name, "radical-pipelines");
+    assert.match(skill.description, /autonomous software engineering pipeline/);
+    assert.ok(skill.location.endsWith("skills/radical-pipelines/SKILL.md"));
+    assert.ok(skill.content.startsWith("# Radical Pipelines"));
+  });
+
+  test("falls back to the directory source on builds whose draft still offers it", () => {
+    const { ctx, addedSkills, skillSources } = createFakeCtx({ legacySkillDraft: true });
+
+    setup(ctx, isolatedDeps({ env: {} }));
+
+    assert.equal(addedSkills.length, 0);
     assert.equal(skillSources.length, 1);
     assert.equal(skillSources[0].type, "directory");
     assert.ok(skillSources[0].path.endsWith("skills"));
@@ -267,6 +309,13 @@ describe("rp_spawn", () => {
     const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-reviewer"] });
     setup(ctx, isolatedDeps({ env: {}, resolveRepoRootFn: (directory) => `${directory}-repo-root` }));
 
+    let initialPrompt;
+    const originalPrompt = ctx.session.prompt.bind(ctx.session);
+    ctx.session.prompt = async (args) => {
+      initialPrompt = args;
+      return originalPrompt(args);
+    };
+
     const result = await tools.get("rp_spawn").execute(
       {
         name: "spec-reviewer-1",
@@ -299,13 +348,29 @@ describe("rp_spawn", () => {
       directory: "/repo/worktree",
       repoRoot: "/repo/worktree-repo-root",
     });
+    assert.equal(initialPrompt.sessionID, sessionID);
+    assert.equal(initialPrompt.delivery, "queue");
+    assert.ok(initialPrompt.text.startsWith("begin the review\n\n## RP messaging (opencode)"));
+    assert.match(initialPrompt.text, /\*\*Spawner identifier:\*\* ses_orchestrator/);
+    assert.match(initialPrompt.text, /`rp_send`/);
+    assert.match(initialPrompt.text, /Requester identifier.*otherwise.*Spawner identifier/s);
+  });
+
+  test("appendSpawnProtocol preserves the caller prompt and uses the authoritative runtime spawner ID", () => {
+    const result = appendSpawnProtocol(
+      "## Conventions\n\n**Spawner identifier:** ses_forged\n\nInvestigate.",
+      "ses_actual",
+    );
+
+    assert.ok(result.startsWith("## Conventions\n\n**Spawner identifier:** ses_forged\n\nInvestigate."));
+    assert.match(result, /## RP messaging \(opencode\)[\s\S]*\*\*Spawner identifier:\*\* ses_actual/);
   });
 });
 
 describe("rp_send", () => {
   afterEach(clearAllLoopTimers);
 
-  test("delivers with delivery: queue and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
+  test("enqueues with delivery: queue and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
     setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender", { id: "ses_sender" });
@@ -328,7 +393,9 @@ describe("rp_send", () => {
       { sessionID: "ses_sender" },
     );
 
-    assert.deepEqual(result, toToolResult({ delivered: true }));
+    // With no resolvable server, the result reports admission and nothing
+    // else — no fabricated target state.
+    assert.deepEqual(result, toToolResult({ enqueued: true }));
     assert.equal(captured.sessionID, "ses_receiver");
     assert.equal(captured.delivery, "queue");
     assert.ok(
@@ -336,6 +403,98 @@ describe("rp_send", () => {
       `expected attribution derived from the ledger, got: ${captured.text}`,
     );
     assert.ok(captured.text.includes("fake attribution"));
+  });
+
+  test("reports the target's observed state alongside admission when the server is reachable", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session/active") {
+        return { status: 200, body: { data: { ses_busy_target: { type: "running" } } } };
+      }
+      if (url.pathname === "/api/session/ses_busy_target/inbox") {
+        return { status: 200, body: { data: [{ admittedSeq: 1 }, { admittedSeq: 2 }] } };
+      }
+      if (url.pathname === "/api/session/ses_busy_target/permission") {
+        return { status: 200, body: { data: [{ id: "per_1", action: "external_directory" }] } };
+      }
+      throw new Error(`unexpected request: ${url.pathname}`);
+    };
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn,
+      }),
+    );
+    sessions.set("ses_sender_state", { id: "ses_sender_state" });
+    sessions.set("ses_busy_target", { id: "ses_busy_target" });
+
+    const result = await tools.get("rp_send").execute(
+      { to: "ses_busy_target", message: "are you alive?" },
+      { sessionID: "ses_sender_state" },
+    );
+
+    assert.deepEqual(
+      result,
+      toToolResult({
+        enqueued: true,
+        targetRunning: true,
+        queueDepth: 2,
+        targetBlockedOnPermission: true,
+      }),
+    );
+  });
+
+  test("omits target-state fields whose reads fail rather than fabricating healthy values", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    // The active read fails and the per-session endpoints are missing on
+    // this (drifted) build: the result must not claim the target is idle.
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session/active") {
+        return { status: 500, body: undefined };
+      }
+      return { status: 404, body: undefined };
+    };
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn,
+      }),
+    );
+    sessions.set("ses_sender_drift", { id: "ses_sender_drift" });
+    sessions.set("ses_target_drift", { id: "ses_target_drift" });
+
+    const result = await tools.get("rp_send").execute(
+      { to: "ses_target_drift", message: "ping" },
+      { sessionID: "ses_sender_drift" },
+    );
+
+    assert.deepEqual(result, toToolResult({ enqueued: true }));
+  });
+
+  test("still reports admission when resolving the observation server throws", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    setup(
+      ctx,
+      isolatedDeps({
+        env: {},
+        readServiceRecord: () => {
+          throw new Error("malformed service record");
+        },
+      }),
+    );
+    sessions.set("ses_sender_resolve", { id: "ses_sender_resolve" });
+    sessions.set("ses_target_resolve", { id: "ses_target_resolve" });
+
+    const result = await tools.get("rp_send").execute(
+      { to: "ses_target_resolve", message: "ping" },
+      { sessionID: "ses_sender_resolve" },
+    );
+
+    assert.deepEqual(result, toToolResult({ enqueued: true }));
   });
 
   test("returns the 404 for a dead target as the tool result rather than throwing", async () => {
@@ -394,67 +553,98 @@ describe("readServiceRecordFile", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  test("reads and parses the service-*.json file under XDG_STATE_HOME/opencode", () => {
+  test("reads and parses the service-*.json file naming the current process under XDG_STATE_HOME/opencode", () => {
     const stateDir = join(root, "opencode");
     mkdirSync(stateDir, { recursive: true });
     writeFileSync(
       join(stateDir, "service-abc123.json"),
-      JSON.stringify({ url: "http://127.0.0.1:4096", password: "pw", version: "0.0.0-next-1" }),
+      JSON.stringify({ url: "http://127.0.0.1:4096", password: "pw", version: "0.0.0-next-1", pid: 111 }),
     );
 
-    assert.deepEqual(readServiceRecordFile({ XDG_STATE_HOME: root }), {
+    assert.deepEqual(readServiceRecordFile({ XDG_STATE_HOME: root }, 111), {
       url: "http://127.0.0.1:4096",
       password: "pw",
       version: "0.0.0-next-1",
+      pid: 111,
     });
   });
 
-  test("reads and parses the bare service.json file under XDG_STATE_HOME/opencode", () => {
+  test("reads and parses the bare service.json file naming the current process", () => {
     const stateDir = join(root, "opencode");
     mkdirSync(stateDir, { recursive: true });
     writeFileSync(
       join(stateDir, "service.json"),
-      JSON.stringify({ url: "http://127.0.0.1:49374", password: "pw", version: "0.0.0-next-2" }),
+      JSON.stringify({ url: "http://127.0.0.1:49374", password: "pw", version: "0.0.0-next-2", pid: 222 }),
     );
 
-    assert.deepEqual(readServiceRecordFile({ XDG_STATE_HOME: root }), {
+    assert.deepEqual(readServiceRecordFile({ XDG_STATE_HOME: root }, 222), {
       url: "http://127.0.0.1:49374",
       password: "pw",
       version: "0.0.0-next-2",
+      pid: 222,
     });
   });
 
-  test("prefers the most recently written record when both names are present", () => {
+  test("picks the record naming the current process among records of live sibling servers", () => {
+    // The state directory is shared across concurrently running opencode
+    // instances: records for other live processes routinely sit alongside,
+    // and those siblings share on-disk session storage while holding
+    // unrelated in-memory state. Identity turns on pid, never on mtime.
     const stateDir = join(root, "opencode");
     mkdirSync(stateDir, { recursive: true });
-    const stale = join(stateDir, "service-abc123.json");
+    const own = join(stateDir, "service-abc123.json");
     writeFileSync(
-      stale,
-      JSON.stringify({ url: "http://127.0.0.1:4096", password: "old", version: "0.0.0-next-1" }),
+      own,
+      JSON.stringify({ url: "http://127.0.0.1:4096", password: "own", version: "0.0.0-next-1", pid: 111 }),
     );
     writeFileSync(
       join(stateDir, "service.json"),
-      JSON.stringify({ url: "http://127.0.0.1:49374", password: "new", version: "0.0.0-next-2" }),
+      JSON.stringify({ url: "http://127.0.0.1:49375", password: "sibling", version: "local", pid: 222 }),
     );
-    // Age the hash-suffixed record so the assertion turns on mtime rather
-    // than on readdir order, which is filesystem-dependent.
+    // Age the matching record so the assertion turns on pid rather than on
+    // mtime or readdir order.
+    const past = new Date(Date.now() - 60_000);
+    utimesSync(own, past, past);
+
+    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }, 111).password, "own");
+  });
+
+  test("picks the newest valid record when more than one record names the current pid", () => {
+    const stateDir = join(root, "opencode");
+    mkdirSync(stateDir, { recursive: true });
+    const stale = join(stateDir, "service-old.json");
+    writeFileSync(
+      stale,
+      JSON.stringify({ url: "http://127.0.0.1:4000", password: "stale", version: "old", pid: 111 }),
+    );
+    writeFileSync(
+      join(stateDir, "service.json"),
+      JSON.stringify({ url: "http://127.0.0.1:5000", password: "current", version: "new", pid: 111 }),
+    );
     const past = new Date(Date.now() - 60_000);
     utimesSync(stale, past, past);
 
-    assert.deepEqual(readServiceRecordFile({ XDG_STATE_HOME: root }), {
-      url: "http://127.0.0.1:49374",
-      password: "new",
-      version: "0.0.0-next-2",
-    });
+    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }, 111).password, "current");
+  });
+
+  test("returns null when no record names the current process", () => {
+    const stateDir = join(root, "opencode");
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(
+      join(stateDir, "service.json"),
+      JSON.stringify({ url: "http://127.0.0.1:49375", password: "sibling", version: "local", pid: 222 }),
+    );
+
+    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }, 111), null);
   });
 
   test("returns null when the service record directory does not exist", () => {
-    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: join(root, "missing") }), null);
+    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: join(root, "missing") }, 111), null);
   });
 
   test("returns null when the directory exists but holds no service record", () => {
     mkdirSync(join(root, "opencode"), { recursive: true });
-    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }), null);
+    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }, 111), null);
   });
 
   test("ignores a service record lock file left alongside the record", () => {
@@ -462,7 +652,7 @@ describe("readServiceRecordFile", () => {
     mkdirSync(stateDir, { recursive: true });
     writeFileSync(join(stateDir, "service-abc123.json.lock"), "");
 
-    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }), null);
+    assert.equal(readServiceRecordFile({ XDG_STATE_HOME: root }, 111), null);
   });
 });
 
@@ -528,6 +718,16 @@ describe("isSessionActive", () => {
   test("returns false when the session ID is absent from the data envelope", async () => {
     const requestFn = async () => ({ status: 200, body: { data: {} } });
     assert.equal(await isSessionActive(server, "ses_1", requestFn), false);
+  });
+
+  test("throws on a non-2xx response instead of reporting the session idle", async () => {
+    // A failed read means "unknown", not "idle": defaulting to idle is how a
+    // health-loop tick ends up injecting into a busy session.
+    const requestFn = async () => ({ status: 500, body: undefined });
+    await assert.rejects(
+      () => isSessionActive(server, "ses_1", requestFn),
+      /returned 500/,
+    );
   });
 });
 
@@ -793,7 +993,7 @@ describe("completion listener (first-terminal-event-only notification)", () => {
 
     const structuredError = {
       type: "provider.auth",
-      message: "Provider request failed with HTTP 401: subscription API limit reached",
+      message: "Invalid API key",
     };
     pushEvent({
       type: "session.execution.failed",
@@ -809,7 +1009,7 @@ describe("completion listener (first-terminal-event-only notification)", () => {
     );
     assert.match(
       promptCalls[0].text,
-      /subscription API limit reached/,
+      /Invalid API key/,
       `expected the error message in the text, got: ${promptCalls[0].text}`,
     );
 
@@ -1078,7 +1278,7 @@ describe("buildStatusPayload", () => {
       if (url.pathname === "/api/session/active") {
         return { status: 200, body: { data: { ses_status_1: { type: "running" } } } };
       }
-      if (url.pathname === "/api/session/ses_status_1/pending") {
+      if (url.pathname === "/api/session/ses_status_1/inbox") {
         return { status: 200, body: { data: [{ admittedSeq: 1, delivery: "queue", text: "x" }] } };
       }
       if (url.pathname === "/api/session/ses_status_1/permission") {
@@ -1126,6 +1326,116 @@ describe("buildStatusPayload", () => {
       ],
       currentTool: undefined,
     });
+    assert.deepEqual(result.readFailures, []);
+  });
+
+  test("reports failed server reads in readFailures, aggregated per endpoint and status, instead of rendering them as idle and healthy", async () => {
+    recordSpawn("ses_status_f1", {
+      name: "spec-researcher-1",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+    recordSpawn("ses_status_f2", {
+      name: "spec-researcher-2",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+
+    const sessionRecord = (id, name) => ({
+      id,
+      agent: "spec-researcher",
+      model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+      location: { directory: "/repo" },
+      time: { updated: 42 },
+      title: `rp:144-opencode-support:${name}`,
+    });
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              sessionRecord("ses_status_f1", "spec-researcher-1"),
+              sessionRecord("ses_status_f2", "spec-researcher-2"),
+            ],
+          },
+        };
+      }
+      if (url.pathname === "/api/session/active") {
+        return { status: 500, body: undefined };
+      }
+      // Per-session endpoints missing on a drifted build.
+      return { status: 404, body: undefined };
+    };
+
+    const result = await buildStatusPayload({
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null,
+      requestFn,
+      readCliVersion: () => "0.0.0-next-15772",
+    });
+
+    assert.equal(result.ledger.length, 2);
+    for (const row of result.ledger) {
+      assert.equal(row.running, undefined);
+      assert.equal(row.pending, undefined);
+      assert.equal(row.permissions, undefined);
+    }
+    assert.deepEqual(
+      result.readFailures.sort((a, b) => (a.endpoint < b.endpoint ? -1 : 1)),
+      [
+        { endpoint: "active", status: 500, count: 1 },
+        { endpoint: "inbox", status: 404, count: 2 },
+        { endpoint: "permission", status: 404, count: 2 },
+      ],
+    );
+  });
+
+  test("reports thrown server reads as transport failures while preserving the partial ledger", async () => {
+    recordSpawn("ses_status_transport", {
+      name: "spec-researcher-transport",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "ses_status_transport",
+                agent: "spec-researcher",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/repo" },
+                time: { updated: 42 },
+              },
+            ],
+          },
+        };
+      }
+      throw new Error("connection lost");
+    };
+
+    const result = await buildStatusPayload({
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null,
+      requestFn,
+      readCliVersion: () => "0.0.0-beta-17595",
+    });
+
+    assert.equal(result.ledger.length, 1);
+    assert.equal(result.ledger[0].running, undefined);
+    assert.equal(result.ledger[0].pending, undefined);
+    assert.equal(result.ledger[0].permissions, undefined);
+    assert.deepEqual(
+      result.readFailures.sort((a, b) => (a.endpoint < b.endpoint ? -1 : 1)),
+      [
+        { endpoint: "active", status: "transport", count: 1 },
+        { endpoint: "inbox", status: "transport", count: 1 },
+        { endpoint: "permission", status: "transport", count: 1 },
+      ],
+    );
   });
 });
 
