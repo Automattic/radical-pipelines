@@ -39,7 +39,7 @@ Use the following structure:
 
 ## E2E test plan
 
-<!-- The spec's acceptance criteria and edge cases with behavior to test, as explicit end-to-end flows. Concrete enough for the build-writer-e2e to automate and the reviewer to manually re-drive. "None" when no criterion has behavior to test. -->
+<!-- The spec's acceptance criteria and edge cases with behavior to test, as explicit end-to-end flows. Concrete enough for the build-writer-e2e to automate and the reviewer to manually re-drive. "None" when no criterion or edge case has behavior to test. -->
 
 ### Flow N: <title>
 
@@ -69,10 +69,10 @@ Use the following structure:
 
 #### Task types
 
-`Type` routes each task to its writer. `tdd` and `edit` are the two routes for changing the product; an `e2e` task only authors tests.
+`Type` routes each task to its writer. `tdd` and `edit` are the two routes for changing the product; an `e2e` task realizes planned flows as automated tests.
 
 - `tdd` — a change with behavior to test, proven by new unit tests derived from its Acceptance.
-- `e2e` — realizes flows from the `## E2E test plan` as automated tests, over behavior prior tasks built; its changes are tests and test infrastructure.
+- `e2e` — realizes flows from the `## E2E test plan` over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, but does not implement the behavior under test.
 - `edit` — a change with no behavior to test (a docblock correction, a dead-code deletion, a behavior-preserving mechanical refactor); verified by inspection and the guardrail gates.
 
 ### 3. Commit and report
