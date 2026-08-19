@@ -28,7 +28,7 @@ With multiple lanes, each lane's lane-approved artifacts live in its `lane-<K>` 
 | `spec-reviewer`     | Adjudicates the requirements record against the intent and the codebase (`spec.md` for fidelity), logging each check it performs; writes `spec-review-N-rejected.md` on rejection or `spec-review-approved.md` on approval. |
 | `spec-consolidator` | Merges the lane-approved specs and research records into the consolidated `spec.md` and `spec-research.md` on the run branch; a fresh instance adjudicates each final-review rejection (multiple lanes only).    |
 
-Serve any agent's research request: launch a fresh `spec-researcher` with the question verbatim and the asking agent's identifier as its **Requester identifier**; it answers the requester directly.
+Serve any agent's research request: launch a fresh `spec-researcher` with the question verbatim and the asking agent's identifier as its **Requester identifier**; it answers the requester directly. Serve the consolidator's decision request the same way with a fresh `spec-lead`; it researches the question, records its decision in the consolidated record, and answers the requester directly.
 
 ## The lane flow
 
