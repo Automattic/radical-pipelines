@@ -1,9 +1,9 @@
 /**
  * Spawn, seat, identifier, and completion-notification mechanics, and
  * directed messaging in both directions (including the message-failure
- * chain's send-time and lingering-delivery stages), driven against the
- * sandbox's running `serve` process via the plugin's real `rp_spawn`/`rp_send`
- * tools.
+ * chain's send-time and lingering-delivery stages), and session termination,
+ * driven against the sandbox's running `serve` process via the plugin's real
+ * `rp_spawn`/`rp_send`/`rp_terminate` tools.
  */
 
 import assert from "node:assert/strict";
@@ -17,6 +17,7 @@ import {
   getSession,
   pollUntil,
   prompt,
+  request,
   waitForAssistantFinish,
 } from "../lib/api-client.mjs";
 import { slowPrompt } from "../lib/stub-provider.mjs";
@@ -234,6 +235,25 @@ export async function run(ctx) {
       });
     },
   );
+
+  await runCheck(results, "rp_terminate deletes a finished agent session and reports a repeated deletion", async () => {
+    const result = await driveToolCall(
+      server,
+      orchestrator.id,
+      `return await tools.rp_terminate({session:${JSON.stringify(childID)}});`,
+    );
+    assert.deepEqual(result.structuredJSON, { terminated: true });
+
+    const removed = await request(server, "GET", `/api/session/${childID}`);
+    assert.equal(removed.status, 404, "the terminated session must no longer exist");
+
+    const repeated = await driveToolCall(
+      server,
+      orchestrator.id,
+      `return await tools.rp_terminate({session:${JSON.stringify(childID)}});`,
+    );
+    assert.deepEqual(repeated.structuredJSON, { status: 404, error: "SessionNotFoundError" });
+  });
 }
 
 /**

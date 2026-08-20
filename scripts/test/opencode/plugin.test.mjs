@@ -205,7 +205,7 @@ describe("default export", () => {
 describe("setup: tool and skill registration", () => {
   afterEach(clearAllLoopTimers);
 
-  test("registers exactly the seven named tools and the packaged skills", () => {
+  test("registers exactly the eight named tools and the packaged skills", () => {
     const { ctx, tools, addedSkills } = createFakeCtx();
 
     setup(ctx, isolatedDeps({ env: {} }));
@@ -220,6 +220,7 @@ describe("setup: tool and skill registration", () => {
         "rp_send",
         "rp_spawn",
         "rp_status",
+        "rp_terminate",
       ],
     );
     assert.deepEqual(
@@ -364,6 +365,55 @@ describe("rp_spawn", () => {
 
     assert.ok(result.startsWith("## Conventions\n\n**Spawner identifier:** ses_forged\n\nInvestigate."));
     assert.match(result, /## RP messaging \(opencode\)[\s\S]*\*\*Spawner identifier:\*\* ses_actual/);
+  });
+});
+
+describe("rp_terminate", () => {
+  afterEach(clearAllLoopTimers);
+
+  test("deletes the target session and surfaces missing and failed deletions", async () => {
+    const { ctx, tools } = createFakeCtx();
+    const requests = [];
+    let status = 204;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          requests.push({ url, init });
+          return { status, body: undefined };
+        },
+      }),
+    );
+
+    const tool = tools.get("rp_terminate");
+    assert.deepEqual(await tool.execute({ session: "ses_finished" }), toToolResult({ terminated: true }));
+    assert.equal(requests[0].url.pathname, "/api/session/ses_finished");
+    assert.equal(requests[0].init.method, "DELETE");
+    assert.equal(requests[0].init.body, undefined);
+
+    status = 404;
+    assert.deepEqual(
+      await tool.execute({ session: "ses_missing" }),
+      toToolResult({ status: 404, error: "SessionNotFoundError" }),
+    );
+
+    status = 500;
+    assert.deepEqual(
+      await tool.execute({ session: "ses_finished" }),
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+  });
+
+  test("reports an unreachable server without issuing a request", async () => {
+    const { ctx, tools } = createFakeCtx();
+    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+
+    assert.deepEqual(
+      await tools.get("rp_terminate").execute({ session: "ses_finished" }),
+      toToolResult({ error: "server unreachable" }),
+    );
   });
 });
 

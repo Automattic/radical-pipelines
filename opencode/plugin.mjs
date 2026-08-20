@@ -2,9 +2,10 @@
  * RP's opencode v2 plugin.
  *
  * Zero-dependency ESM module supplying the coordination layer opencode lacks
- * natively (team spawning, directed messaging, health monitoring, permission
- * mediation, status). Every pure helper is named-exported so it can be
- * unit-tested offline, without a running opencode daemon.
+ * natively (team spawning, directed messaging, session termination, health
+ * monitoring, permission mediation, status). Every pure helper is
+ * named-exported so it can be unit-tested offline, without a running opencode
+ * daemon.
  */
 
 import { execFileSync } from "node:child_process";
@@ -603,7 +604,7 @@ function nodeHttpRequest(url, { method, headers, body }) {
  *
  * @param {{ baseURL: string, password: string }} server A server resolved by
  *   `resolveServer`.
- * @param {"GET" | "POST"} method The HTTP method.
+ * @param {"GET" | "POST" | "DELETE"} method The HTTP method.
  * @param {string} path The request path, resolved against `server.baseURL`.
  * @param {*} [body] A JSON-serializable request body (POST only).
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
@@ -1912,6 +1913,53 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
 }
 
 /**
+ * Build the `rp_terminate` tool descriptor.
+ *
+ * @param {{
+ *   env: Record<string, string | undefined>,
+ *   readServiceRecordOverride?: (env: object) => object | null,
+ *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ * }} deps `env`/`readServiceRecordOverride` reach `resolveServer`;
+ *   `requestFn` reaches the HTTP client.
+ * @returns {{name: string, description: string, input: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
+  return {
+    name: "rp_terminate",
+    description: "Terminate a finished RP agent by deleting its opencode session.",
+    output: ANY_OUTPUT_SCHEMA,
+    input: {
+      type: "object",
+      properties: {
+        session: { type: "string", description: "Session ID of the finished agent." },
+      },
+      required: ["session"],
+    },
+    async execute({ session }) {
+      const server = resolveServer({ env, readServiceRecord: readServiceRecordOverride });
+      if (!server) {
+        return toToolResult({ error: "server unreachable" });
+      }
+      const response = await requestServer(
+        server,
+        "DELETE",
+        `/api/session/${session}`,
+        undefined,
+        requestFn,
+      );
+      if (response.status === 404) {
+        return toToolResult({ status: 404, error: "SessionNotFoundError" });
+      }
+      if (response.status < 200 || response.status >= 300) {
+        return toToolResult({ status: response.status, error: "SessionTerminationFailed" });
+      }
+      return toToolResult({ terminated: true });
+    },
+  };
+}
+
+/**
  * Build the `rp_permission_reply` tool descriptor.
  *
  * @param {{
@@ -2213,7 +2261,7 @@ async function consumeEvents(ctx, onEvent) {
 /**
  * The RP opencode plugin's `setup` function.
  *
- * Registers the seven coordination tools and the packaged skill source on
+ * Registers the eight coordination tools and the packaged skill source on
  * every call (opencode re-runs `setup` once per directory scope); guards the
  * completion listener's event subscription and the loop registry's re-arm
  * behind `SETUP_ONCE_KEY` so they run exactly once per daemon process.
@@ -2269,6 +2317,7 @@ function setup(ctx, deps = {}) {
   ctx.tool.transform((tools) => {
     tools.add(buildSpawnTool(ctx, { resolveRepoRootFn }));
     tools.add(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn }));
+    tools.add(buildTerminateTool({ env, readServiceRecordOverride, requestFn }));
     tools.add(buildLoopStartTool({ registryPath, tick }));
     tools.add(buildLoopListTool(registryPath));
     tools.add(buildLoopCancelTool(registryPath));
