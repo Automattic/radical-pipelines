@@ -22,10 +22,11 @@ Consult the **Artifact storage** convention for the remotes and the upstream bra
 
 ## Merge the PR
 
-The merge itself happens outside the skill.
+1. Fire `before-merging-pr`.
+2. Merge the PR with your own tools.
+3. Fire `after-merging-pr` and report the outcome.
 
-- When the owner announces the merge is about to happen, fire `before-merging-pr`.
-- When the owner reports the PR merged, fire `after-merging-pr` and report the outcome.
+When the owner merged the PR themselves and reports it, fire `after-merging-pr` and report the outcome.
 
 ## Close without merging
 

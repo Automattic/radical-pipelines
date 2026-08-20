@@ -24,8 +24,8 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 | `run-ended`                     | The run stops — target phase completed, blocker, owner cancellation, or failure                            |
 | `before-opening-pr`             | The owner asks to open the pipeline's PR, before any work                                                  |
 | `after-opening-pr`              | The pipeline's PR exists                                                                                   |
-| `before-merging-pr`             | The owner announces the pipeline's PR is about to merge                                                    |
-| `after-merging-pr`              | The owner reports the pipeline's PR merged                                                                 |
+| `before-merging-pr`             | The owner asks to merge the pipeline's PR, before any work                                                 |
+| `after-merging-pr`              | The pipeline's PR is merged                                                                                |
 | `before-closing-without-merge`  | The owner asks to close the pipeline without merging                                                       |
 | `after-closing-without-merge`   | The pipeline is closed without merging                                                                     |
 
