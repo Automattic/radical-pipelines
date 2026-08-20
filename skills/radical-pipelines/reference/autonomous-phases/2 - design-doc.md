@@ -30,20 +30,22 @@ When asking the owner for the lane mode, explain the difference: both modes repe
 
 ## Required agents
 
-| Agent                     | Role                                                                                                                                                                                          | Persistent? |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `design-doc-lead`     | Drives the design Q&A one topic at a time, deciding on the design-doc-researcher's evidence. Writes `design-doc-research.md` — every load-bearing claim carrying its check — and synthesizes `design-doc.md`. Adjudicates review findings. | Yes         |
-| `design-doc-researcher`   | Investigates the codebase, web, and runs experiments to answer questions.                                                                                                                       | Yes         |
-| `design-doc-reviewer`     | Adjudicates the decision record against the spec and the codebase (`design-doc.md` for fidelity), logging each check it performs; writes `design-doc-review-N-rejected.md` on rejection or `design-doc-review-approved.md` on approval. | No          |
-| `design-doc-consolidator` | Merges the lane-approved designs and research records into the consolidated `design-doc.md` and `design-doc-research.md` on the run branch, and adjudicates the final review's findings (multiple lanes only). | Yes         |
+| Agent                     | Role                                                                                                                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `design-doc-lead`     | Drives the design Q&A one topic at a time, deciding on the design-doc-researcher's evidence. Writes `design-doc-research.md` — every load-bearing claim carrying its check — and synthesizes `design-doc.md`. A fresh instance adjudicates each rejection. |
+| `design-doc-researcher`   | One fresh instance per question. Investigates the codebase, web, and runs experiments to answer it.                                                                                                                       |
+| `design-doc-reviewer`     | Adjudicates the decision record against the spec and the codebase (`design-doc.md` for fidelity), logging each check it performs; writes `design-doc-review-N-rejected.md` on rejection or `design-doc-review-approved.md` on approval. |
+| `design-doc-consolidator` | Merges the lane-approved designs and research records into the consolidated `design-doc.md` and `design-doc-research.md` on the run branch; a fresh instance adjudicates each final-review rejection (multiple lanes only). |
+
+Serve any agent's research request: launch a fresh `design-doc-researcher` with the question verbatim and the asking agent's identifier as its **Requester identifier**; it answers the requester directly. Serve the consolidator's decision request the same way with a fresh `design-doc-lead`; it researches the question, records its decision in the consolidated record, and answers the requester directly.
 
 ## The lane flow
 
 Each lane runs the full flow in its assigned worktree:
 
-1. Launch `design-doc-researcher`, then `design-doc-lead`, as persistent agents. The lead reads `spec.md` and `spec-research.md`, drives an iterative Q&A with the researcher, writes the running record to `design-doc-research.md`, and synthesizes `design-doc.md`. Wait until it signals the design is ready for review. The lead stays alive until the lane is approved.
-2. Launch a fresh `design-doc-reviewer`. On rejection it writes `design-doc-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `design-doc-review-approved.md` (the singleton terminator). If it asks for research support, launch a fresh `design-doc-researcher` scoped to its review — never the lead's — and reply with the researcher's identifier.
-3. On **rejected**, relay the rejection file's path to the lead; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
+1. Launch `design-doc-lead`. The lead reads `spec.md` and `spec-research.md`, drives an iterative Q&A through per-question researchers, writes the running record to `design-doc-research.md`, and synthesizes `design-doc.md`. Wait until it signals the design is ready for review.
+2. Launch a fresh `design-doc-reviewer`. On rejection it writes `design-doc-review-N-rejected.md` (N increments per rejection, starting at 1); on approval it writes `design-doc-review-approved.md` (the singleton terminator).
+3. On **rejected**, launch a fresh `design-doc-lead` with the rejection file's path; it adjudicates every finding — adopting it, refuting it with evidence, or proposing a residual — updates both artifacts, and reports how each was adjudicated. Launch a fresh reviewer to re-review, passing that report verbatim and the revision's commit range — until approved.
 
 ## Steps
 
@@ -54,15 +56,15 @@ Each lane runs the full flow in its assigned worktree:
 1. Run the lane flow in every lane; each lane writes its artifacts in its `lane-<K>` subfolder of the phase folder, so the lanes' paths are disjoint:
    - **Isolated mode** — create one lane branch and worktree per lane, forked from the run branch (branch segment `2-design-doc-lane-<K>`), and run all lanes in parallel, mutually blind. When every lane is approved, merge each lane branch into the run branch, remove the lane worktrees, and delete the lane branches.
    - **Divergent mode** — run the lanes sequentially in the run branch's worktree, committing on the run branch. Assign each lane its **Lane mandate**: the first lane designs from the spec alone; each subsequent lane but the last differs from the previous designs in at least one load-bearing decision; the last lane instead challenges a load-bearing premise all previous designs share. An owner-named **Lane angle** replaces that lane's default mandate.
-2. Launch `design-doc-consolidator` in the run branch's worktree as a persistent agent. It reads each lane's artifacts from the `lane-<K>` subfolders and commits the consolidated `design-doc.md` and `design-doc-research.md` at the phase folder root on the run branch. It stays alive until the consolidated design is approved. If it asks for research support, launch a fresh `design-doc-researcher` scoped to its consolidation and reply with the researcher's identifier.
-3. Launch a fresh `design-doc-reviewer` to review the consolidated design, as in the lane flow. On **rejected**, relay the rejection file's path to the consolidator; it adjudicates every finding, updates both artifacts, and reports back. Launch a fresh reviewer to re-review — until approved.
+2. Launch `design-doc-consolidator` in the run branch's worktree. It reads each lane's artifacts from the `lane-<K>` subfolders and commits the consolidated `design-doc.md` and `design-doc-research.md` at the phase folder root on the run branch.
+3. Launch a fresh `design-doc-reviewer` to review the consolidated design, as in the lane flow. On **rejected**, launch a fresh `design-doc-consolidator` with the rejection file's path; it adjudicates every finding, updates both artifacts, and reports how each was adjudicated. Launch a fresh reviewer to re-review, passing that report verbatim and the revision's commit range — until approved.
 
 On **approved**, verify the phase 2 completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 ```mermaid
 flowchart TD
     subgraph lane [Each lane]
-        B[Design Doc Lead] -->|asks question| C[Design Doc Researcher]
+        B[Design Doc Lead] -->|question via orchestrator| C[Design Doc Researcher per question]
         C -->|answers| B
         B -->|record + design doc| E[Design Doc Reviewer]
         E --> F{Approved?}

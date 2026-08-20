@@ -13,7 +13,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 1. Read `<artifact-folder>/1-spec/spec.md` and `<artifact-folder>/1-spec/spec-research.md` first, and note the outcomes, affected areas, and constraints the design must explain.
 2. Read `<phase-folder>/design-doc-research.md` — the decision record, the artifact under review — and `<phase-folder>/design-doc.md`.
-3. Read any existing `design-doc-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged since that review's revision and its method still holds.
+3. Read any existing `design-doc-review-*-rejected.md`. On a re-review, confirm how each prior finding was adjudicated and verify what changed; a logged check from a prior review stays valid while what it checked is unchanged since that review's revision and its method still holds. A re-review rejects only for a prior finding whose resolution fails or for a must-fix issue — one that leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a check that does not establish its claim. A new finding that is not must-fix joins your issues when you reject, and lands under `## Non-blocking findings` when you approve.
 4. When `lane-<K>` subfolders exist under `<phase-folder>`, the artifact under review is a consolidation: read each lane's record and approved review. Audit completeness first — every material lane contribution is inherited or explicitly dispositioned; a contribution that disappeared silently is a finding. The prior-review rule above extends to the lanes — a check logged in a lane's approved review stays valid while the claim and its recorded lane provenance are inherited unchanged. Concentrate fresh checks on the consolidation's judgments: selections, transformations, omissions, and combinations no lane record covers.
 
 ### 2. Review
@@ -38,7 +38,7 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 
 **Re-execution** — re-run the declared checks behind load-bearing claims, as declared. Cheap checks always; expensive ones when the adequacy audit doubts them. A divergent result is a finding. Re-run only checks that leave external state untouched; run those that may modify the worktree in a disposable copy, or record the limitation. Confirm the worktree is clean before writing the review.
 
-**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, ask the orchestrator for a fresh design-doc-researcher scoped to your review — never the producer's. The orchestrator replies with the researcher's identifier; address your messages to it by that identifier.
+**Alternative route** — when a declared method is doubtful or a result surprising, settle the claim with a check you design yourself. For investigation heavier than you can carry, send the orchestrator the question; a fresh design-doc-researcher scoped to your review investigates and answers you directly.
 
 **Negative space** — scoped to the components the design touches: does anything in the codebase contradict the approach (existing patterns, invariants, conventions)? Are there dependencies the design implies but never names? Does the design strand anything — code, generality, names, docs, or tests whose reason-to-exist it removes? A survivor kept without a recorded keep-or-remove decision is a finding.
 
@@ -68,6 +68,10 @@ Use this structure:
 
 <!-- One paragraph: overall assessment of the design quality. -->
 
+## Non-blocking findings
+
+<!-- Only if approved: real findings that do not warrant a rejection. -->
+
 ## Issues
 
 <!-- Only if rejected. One section per issue. -->
@@ -86,7 +90,7 @@ Use this structure:
 
 1. Commit the file you wrote in step 3 using the **Commit format**.
 2. If **approved**, send a message to the orchestrator confirming the design is ready.
-3. If **rejected**, send a message to the orchestrator listing the issues. The orchestrator relays them to the producer, which adjudicates each one.
+3. If **rejected**, send a message to the orchestrator listing the issues. A fresh producer instance adjudicates each one from your rejection file.
 
 ## Guidelines
 
@@ -94,6 +98,8 @@ Use this structure:
 - **Never manufacture findings.** Reject for any real issue; approve when the record survives your checks. A first-pass approval backed by a full verification log is a legitimate outcome — an approval without one is not.
 - **Evidence settles what it checked, not more.** A decision whose alternative was weighed with evidence is settled on that evidence; never re-litigate it for preference. A different conclusion is a finding only when it exposes something missing or wrong — an option never evaluated, a reason that does not hold, a check that does not establish its claim.
 - **Be specific.** "This is unclear" is not useful. "Section X doesn't explain how component Y handles concurrent writes" is.
+- **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
+- **Evaluate the guardrails.** Evaluate every rule in your `## Conventions` block's **Guardrails** field, log each outcome in your verification log, and treat an unsatisfied rule as a finding.
 - **Do NOT rewrite the design yourself.** You only review and provide feedback.
 - **Do NOT review beyond the design.** The build plan and code quality are not your concern — only that the design is sound, complete, and traceable to the spec.
 - **Blockers are for broken inputs, not review findings — findings go in a rejection verdict.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

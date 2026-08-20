@@ -21,6 +21,7 @@ Radical Pipelines supports the following agentic coding tools:
 | Tool        | Read             |
 | ----------- | ---------------- |
 | Claude Code | `claude-code.md` |
+| opencode    | `opencode.md`    |
 
 ## 2. Collect required conventions
 
@@ -70,7 +71,7 @@ Suggested default: `<commit-description> (<agent-name>)`.
 
 ### Team spawning (required)
 
-How agents are spawned and addressed across orchestrator sessions, and how each spawned agent is seated — started inside its assigned worktree with its branch checked out.
+How agents are spawned, addressed, seated in their assigned worktree, and terminated when their work ends.
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run.
 
@@ -96,24 +97,13 @@ This is highly dependent on the agentic coding tool but you can document the exi
 
 ### Guardrails
 
-**Why they matter.** Guardrails are backpressure. They are objective gates that reject incomplete work, so the agent has to produce concrete evidence — `tests: pass, lint: pass` — instead of "I think it works," and keeps iterating until every deterministic gate passes. Without them, "done" is a claim; with them, it is a verified state.
+**Why they matter.** Guardrails are backpressure: rules that reject incomplete work, so an agent has to produce concrete evidence instead of "I think it works," and keeps iterating until every rule it is named by is satisfied. Without them, "done" is a claim; with them, it is a verified state.
 
-**What kinds to consider.** Unit tests, lint, typecheck, build, format, audit, e2e, and any project-specific validators. Ask the owner which of these the project runs and which ones a change must pass before it is considered complete. Offer to investigate.
+**What to consider.** Rules that run a check — unit tests, lint, typecheck, build, format, audit, e2e — and judgment rules the project wants enforced on any agent's work. Ask the owner which rules the project's work must satisfy. Offer to investigate.
 
-**Capture per gate** as the per-gate block defined in `../guardrails.md`, asking the owner for each field.
+**Capture per guardrail** as the per-guardrail block defined in `../guardrails.md`, asking the owner for each field.
 
-**Validate each command as you capture it.** Validating immediately lets an unrunnable one be corrected or dropped before the confirm-before-write. Validate a **fixed** gate by running its literal command; validate a **scoped** gate by substituting a realistic, made-up `{scope}` into its command and running that. Either way the only question is **did the command execute?** — whether it _passes_ is the agents' concern at run time, not yours; for a scoped gate this confirms the runner resolves.
-
-Sort each command into one of two outcomes:
-
-- **It executed ⇒ write it.** Any exit code counts, including non-zero — a failing gate is just today's code state (red tests, mid-development work). The bar is **"it executed," not "exit 0."**
-- **It did not execute ⇒ do NOT write it.** Command-not-found, not-executable, or a command that never returns on its own (it hangs or waits for interactive input). Stop it, surface the failure to the owner (the error and exit code), and offer to (a) fix or replace it, (b) drop the gate, or (c) — only if the owner insists the command is correct and the validation environment is the discrepancy — keep it as an escape hatch.
-
-Also:
-
-- **Per-command and independent.** One unrunnable command does not block writing the others or abort the wider capture — drop or correct it and finish the rest.
-- **Match the agents' environment as closely as you can reach.** Setup runs in the main checkout, since no worktree exists yet, so validate in at least the project's standard shell and working directory. Perfect parity is impossible but the floor still catches the realistic failures — command-not-found, tool-not-installed, bad invocation or wrong-shell quoting.
-- **Validation has side effects.** Running a gate that writes, deploys, or destroys takes effect on the owner's checkout — including a scoped gate whose realistic scope runs real work. Confirm before running such a command, or accept the owner's word and use the escape hatch. Setup's interactive, one-time nature accommodates a bounded real run.
+**Offer to help test each guardrail** and ensure it is well written.
 
 ### Lifecycle hooks
 

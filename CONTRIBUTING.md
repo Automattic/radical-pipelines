@@ -16,9 +16,23 @@ npm test
 
 This runs the `node --test 'scripts/test/**/*.test.mjs'` suite (the `sync-version`, changeset-validator, and version-drift-guard tests, including the end-to-end coverage of the version-sync flow). There is no `lint` or `typecheck` step — this repo has none.
 
+### The opencode integration suite
+
+```bash
+npm run test:opencode
+```
+
+This runs the hermetic, pinned opencode integration suite (`scripts/opencode-integration/run.mjs`), which exercises RP's opencode layer against exactly the pinned `@opencode-ai/cli` build recorded in `opencode/pin.json`. It lives outside `scripts/test/`, so the fixed `npm test` gate above never runs it — run it explicitly. On first use it installs the pinned CLI (cached by exact version under the OS temp directory, so a repeat run with the same pin never touches the network again), then drives it inside an XDG-isolated sandbox whose core checks run entirely offline against a local OpenAI-compatible stub provider.
+
+The core suite needs no network beyond that one-time install. Add `--network-smoke` to also run the release-cadence network smoke path, which additionally requires network access to GitHub and to opencode's hosted free-model endpoint:
+
+```bash
+npm run test:opencode -- --network-smoke
+```
+
 ## Versioning policy
 
-The project has a single version. The source of truth is the root `package.json`'s `version`, which the release version step (`npm run release:version`) keeps in sync across the other version-bearing locations: `.claude-plugin/plugin.json` (via `scripts/sync-version.mjs`) and `package-lock.json`, in its two recorded-version fields — the top-level `version` and the root package's `packages[""].version`. The package is `private` and consumed direct-from-git (a Claude Code plugin served from the repo root), so there is no registry release — only a `v<version>` git tag and a matching GitHub Release.
+The project has a single version. The source of truth is the root `package.json`'s `version`, which the release version step (`npm run release:version`) keeps in sync across the other version-bearing locations: `.claude-plugin/plugin.json` (via `scripts/sync-version.mjs`) and `package-lock.json`, in its two recorded-version fields — the top-level `version` and the root package's `packages[""].version`. The package is `private` and consumed direct-from-git (a Claude Code plugin served from the repo root, plus an opencode plugin whose entry point is `opencode/plugin.mjs`), so there is no registry release — only a `v<version>` git tag and a matching GitHub Release.
 
 ## Adding a changeset
 
@@ -26,13 +40,15 @@ We use [changesets](https://github.com/changesets/changesets) to manage version 
 
 ### The changeset gate (CI)
 
-The **Changeset Gate** workflow (`.github/workflows/changeset-gate.yml`) runs on every pull request to `trunk` and runs **three independent checks**. The PR **fails if any check fails**:
+The **Changeset Gate** workflow (`.github/workflows/changeset-gate.yml`) runs on every pull request, whatever its base branch, and runs **three independent checks**. The PR **fails if any check fails**:
 
 1. **Shape** — `node scripts/validate-changesets.mjs` validates every staged `.changeset/*.md` file (rejecting malformed front matter, unknown bump types, and — while pre-1.0 — `major` bumps; see [Pre-1.0 policy](#pre-10-policy)).
 2. **Version drift** — a version-sync guard that asserts the project's version is consistent across all four version-bearing locations: `package.json`, `.claude-plugin/plugin.json`, and `package-lock.json`'s two recorded-version fields (its top-level `version` and the root package's `packages[""].version`). It fails the PR if any of those disagree — for example a hand-edited `package.json`, or a lockfile left frozen at an older version. On failure it reports an actionable message naming the offending file(s) (and, for the lockfile, which field) alongside the conflicting version(s), so you can see exactly what to reconcile. It passes silently when all four agree. The release flow keeps these in sync automatically (see [Versioning policy](#versioning-policy)); this check is the safety net for drift introduced outside that flow.
 3. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is the PR's base branch) fails when a release-relevant change has no changeset.
 
 The auto-generated `changeset-release/trunk` Version Packages PR is **exempt** (the job-level `if:` condition skips it), so it does not need a changeset of its own. Every other PR — including [Dependabot](#dependency-bump-prs) — is gated normally.
+
+A stacked pull request — one based on another branch rather than on `trunk` — is gated like any other. Because the presence check compares against the PR's own base, each PR in a stack needs a changeset only for the changes it introduces, not for those already on the branch below it.
 
 ### When a changeset is required
 
@@ -41,6 +57,7 @@ A changeset is required when a PR changes any **release-relevant** path. These a
 - `skills/**`
 - `agents/**`
 - `.claude-plugin/**`
+- `opencode/**`
 - the **root** `package.json` (the pattern is anchored — nested `package.json` files do not match)
 - `README.md`
 
@@ -229,19 +246,22 @@ Because this is a **private** repository, the token needs read access to private
 
 ## Integrating an agentic coding tool
 
-Radical Pipelines is generic; each supported tool gets a rules file in `skills/radical-pipelines/reference/conventions/` (e.g. `claude-code.md`) documenting how the conventions take their canonical form in that tool, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
+Radical Pipelines is generic; each supported tool gets a rules file in `skills/radical-pipelines/reference/conventions/` (e.g. `claude-code.md`, `opencode.md`) documenting how the conventions take their canonical form in that tool, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
 
 A tool must provide:
 
 1. **Custom agent definitions** — the repo's agent profiles (`agents/*.md`) can be registered as spawnable agent types.
 2. **Concurrent background agents** — several agents alive and working at once while the orchestrator continues.
-3. **Persistent agents** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
+3. **Mid-run messaging** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
 4. **Seating** — each agent starts with its working directory fixed inside an orchestrator-chosen git worktree.
 5. **Directed messaging with unique identity** — every spawned agent has an identifier that directs a message to it alone, known to the orchestrator: assigned at spawn (e.g. a name the orchestrator passes in) or returned by it (e.g. an id in the spawn result).
-6. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
+6. **Session termination** — the orchestrator can end a spawned agent's session when its work ends.
+7. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
 
 Optional, needed only when the project configures the matching convention:
 
-7. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
+8. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
 
 The rules file documents the tool's mechanics for the conventions — Team spawning, Health monitoring, worktrees — and surfaces any prerequisite the owner must meet before the tool is declared ready.
+
+**opencode** is the second realized tool. Its rules file is `skills/radical-pipelines/reference/conventions/opencode.md`. Because a rules file alone cannot supply capabilities the tool lacks natively, opencode also ships a packaging artifact — the zero-dependency plugin at `opencode/plugin.mjs` — that provides the coordination `rp_*` tools opencode has no native primitive for (team spawning, directed messaging, session termination, health monitoring, status).

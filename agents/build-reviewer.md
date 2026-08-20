@@ -18,34 +18,36 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/3-build/build-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
+6. Read any existing `build-review-*-rejected.md`. A re-review rejects only for a prior issue whose resolution fails or for a must-fix issue — one where the work, as committed, ships wrong or unplanned behavior, leaves an acceptance criterion unmet or unverified, or leaves a guardrail unsatisfied. A new finding that is not must-fix joins your issues when you reject, and lands under `## Non-blocking findings` when you approve.
 
 ### 2. Review the changes
 
 Check:
 
-- **Per-task Acceptance coverage** — does each task in the batch satisfy its per-task Acceptance criteria, with passing tests covering each criterion?
+- **Per-task Acceptance coverage** — does each task in the batch satisfy its per-task Acceptance criteria — each criterion covered by a passing test, or verified by inspection for an `edit` task?
 - **Spec acceptance coverage** — do the spec acceptance criteria the batch tasks trace to actually pass against the resulting code?
 - **Design alignment** — does the code honor every design-doc decision the batch tasks trace to?
 - **Plan adherence** — every change in the diff maps to a task in `build-plan.md` (any batch); no design changes; no functionality beyond the plan.
 - **Post-change coherence** — does the diff strand anything — code, generality, names, docs, or tests whose reason-to-exist the change removes? A survivor the plan or design records keeping is settled; one kept by default is an issue.
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
+- **Edit-task fidelity** — an `edit` task's diff introduces no new tests and changes no observable behavior. Flag either.
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
 - **Software-only output** — does any task output (including commit messages) reference a specific task, requirement, e2e flow, acceptance criterion, etc, or cite a specific artifact? The run's own artifacts, under the artifact folder, are exempt.
 
 ### 3. Behavior verification
 
-If any task in the batch changes user-observable behavior — UI, CLI output, generated files, API responses, log output, anything a user or downstream consumer can see — exercise it end-to-end yourself: drive the changed path the way a user or downstream consumer would reach it, and confirm the new behavior actually happens. Decide the evidence appropriate to what changed and capture it (screenshots, transcripts, output samples, response diffs). This is behavior verification, not a guardrail — it is a step you perform here, separate from running the guardrails in step 4. Additionally, manually re-drive each flow in the E2E test plan section of `build-plan.md`: perform the flow's Steps and confirm its Expected outcome, capturing evidence as above. A verification claim without evidence is not a verification — either produce the evidence or reject the batch.
+If any task in the batch changes user-observable behavior — UI, CLI output, generated files, API responses, log output, anything a user or downstream consumer can see — exercise it end-to-end yourself: drive the changed path the way a user or downstream consumer would reach it, and confirm the new behavior actually happens. Decide the evidence appropriate to what changed and capture it (screenshots, transcripts, output samples, response diffs). This is behavior verification, not a guardrail — it is a step you perform here, separate from evaluating the guardrails in step 4. Additionally, manually re-drive each flow in the E2E test plan section of `build-plan.md`: perform the flow's Steps and confirm its Expected outcome, capturing evidence as above. A verification claim without evidence is not a verification — either produce the evidence or reject the batch.
 
-### 4. Run the guardrails
+### 4. Evaluate the guardrails
 
 By the time you reach this step you have a provisional verdict from steps 2–3.
 
-**If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the gates would tell you nothing. Record each gate as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
+**If that verdict is reject, skip this step entirely** and go to step 5 — the batch returns to the writers regardless, so the rules would tell you nothing. Record each rule as **skipped** in the Checks table, so the skip reads as deliberate rather than forgotten.
 
-**If that verdict is approve, run every gate** in your `## Conventions` block's **Guardrails** field, exactly as each command is written, recording each result in the Checks table. To finally approve, every gate must run and pass in this iteration. A gate that exits non-zero is itself a rejection finding: your verdict becomes reject, and you may leave any remaining gates unrun (recorded as **skipped**). Never approve around a non-zero gate as "environmental" or "pre-existing": the only evidence that makes a failure ambient is reproducing the identical failure on the diff base you derived in step 1, and without it the gate counts as failed. A failing test the batch never touched is not thereby ambient — a regression is by definition a previously-passing test that now fails. Even with that reproduction — or when reproduction is impractical — the safe route for a genuinely suspect failure is a blocker, never an approval. Never bypass a gate to force a pass (no `--no-verify`, no `skip`, no commented-out checks).
+**If that verdict is approve, evaluate every rule** in your `## Conventions` block's **Guardrails** field, recording each result in the Checks table. To finally approve, every rule must be evaluated and satisfied in this iteration. An unsatisfied rule is itself a rejection finding: your verdict becomes reject, and you may leave any remaining rules unevaluated (recorded as **skipped**). Never approve around a failure as "environmental" or "pre-existing": the only evidence that makes a failure ambient is reproducing the identical failure on the diff base you derived in step 1, and without it the rule counts as unsatisfied. A failing test the batch never touched is not thereby ambient — a regression is by definition a previously-passing test that now fails. Even with that reproduction — or when reproduction is impractical — the safe route for a genuinely suspect failure is a blocker, never an approval. Never bypass a rule's check to force satisfaction (no `--no-verify`, no `skip`, no commented-out checks).
 
-If there is no Guardrails field, there are no gates to run and your step-2/3 judgment stands.
+If there is no Guardrails field, there are no rules to evaluate and your step-2/3 judgment stands.
 
 ### 5. Write the review
 
@@ -72,18 +74,22 @@ Diff reviewed: <base> → HEAD (the phase's whole work)
 
 ## Checks
 
-<!-- One row per gate in the Guardrails field. Result: pass | fail | skipped.
-     A skipped row shows the gate's literal command but the command was not run.
-     A forgotten gate is an absent row; a deliberately skipped gate is a present skipped row;
-     a run gate is a present pass/fail row. -->
+<!-- One row per rule in the Guardrails field. Result: satisfied | unsatisfied | skipped.
+     A skipped row names the rule but the rule was not evaluated.
+     A forgotten rule is an absent row; a deliberately skipped rule is a present skipped row;
+     an evaluated rule is a present satisfied/unsatisfied row. -->
 
-| Check | Command | Result |
-| ----- | ------- | ------ |
-| ...   | ...     | ...    |
+| Guardrail | Result |
+| --------- | ------ |
+| ...       | ...    |
 
 ## Behavior verification
 
 <!-- Only if applicable. The evidence you captured exercising the changed behavior end-to-end. -->
+
+## Non-blocking findings
+
+<!-- Only if approved: real findings that do not warrant a rejection. -->
 
 ## Issues
 
@@ -119,10 +125,10 @@ Screenshots or other assets live in the phase folder, referenced by relative pat
 - **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This is wrong" is not useful. "Task 3's Acceptance criterion 2 is not covered — no test asserts that the parser rejects empty input" is.
 - **Always tag the task.** Every issue must name the task it belongs to — any task in `build-plan.md`, not only the batch's. An untagged issue is a defect in the review — the orchestrator can't re-dispatch what it can't attribute. If an issue genuinely spans multiple tasks, list every affected task ID.
-- **Every issue is must-fix.** This review has no severity ladder. If you don't think an issue needs to be fixed, do not report it.
-- **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the code — they are not failures.
+- **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
+- **Never manufacture findings.** Reject for any real issue; approve when the work survives your checks.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.
 - **Do NOT rewrite code or tests.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan or the design.** Those phases have been approved. Flag deviations from them, not the plan or design themselves.
-- **Run the guardrails.** Don't just read the code. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, run every gate per step 4 and approve only if all pass. If you already reject on judgment, skip them and go to step 5.
-- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, scope creep, a gate that runs and exits non-zero, etc.) go in a rejection verdict, not a blocker; reserve blockers for broken inputs — `build-plan.md`, `spec.md`, or `design-doc.md` missing or unreadable, batch metadata missing, a declared gate that cannot execute. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.
+- **Evaluate the guardrails.** Don't just read the code. A review without verification evidence is not a review. When your step-2/3 judgment leaves no rejection finding, evaluate every rule per step 4 and approve only if all are satisfied. If you already reject on judgment, skip them and go to step 5.
+- **Stop and report blockers.** Normal review findings (gaps, missed Acceptance criteria, scope creep, an unsatisfied rule, etc.) go in a rejection verdict, not a blocker; reserve blockers for broken inputs — `build-plan.md`, `spec.md`, or `design-doc.md` missing or unreadable, batch metadata missing. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

@@ -12,20 +12,16 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
   - Agents: `spec-lead`, `spec-researcher`, `spec-reviewer`, `spec-consolidator`, `design-doc-lead`, `design-doc-researcher`, `design-doc-reviewer`, `design-doc-consolidator`
 - **Lane mode:** `isolated` or `divergent`.
   - Agents: `design-doc-lead`, `design-doc-consolidator`
-  - Omit when the phase runs a single lane.
+  - Omit when the phase runs a single lane, and for a lead launched with a decision request.
 - **Lane mandate:** the mandate assigned to the agent's divergent lane, resolved once by the orchestrator and passed identically to the lane's lead and each of its reviewers.
   - Agents: `design-doc-lead`, `design-doc-reviewer`
   - Omit outside a divergent lane, including consolidation review.
-- **Researcher identifier:** the identifier of the researcher spawned to serve this agent.
-  - Agents: `spec-lead`, `design-doc-lead`
+- **Requester identifier:** the identifier of the requesting agent this agent answers to.
+  - Agents: `spec-researcher`, `design-doc-researcher`, `spec-lead`, `design-doc-lead`
+  - For leads, only when launched with a decision request; omit otherwise.
 - **Commit format:**
   - Agents: all
   - Omit when not defined.
-- **Guardrails:** place the gates naming this agent. For a scoped gate, read its chosen scope value from the phase plan's `## Guardrail scopes` section, substitute it into the gate's `{scope}` command, and place the resolved command; a fixed gate's command passes literally. See `../guardrails.md` for the model.
-  - Agents: `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`, `document-writer`, `document-reviewer`
-  - Omit when not defined or when the agent has no gates.
-- **Guardrail scopes to fill:** the scoped gates whose `{scope}` the plan must supply, each as its full per-gate block (command template and fill-guidance). See `../guardrails.md`.
-  - Agents:
-    - `build-planner` and `build-plan-reviewer` for the scoped gates of build agents
-    - `document-planner` and `document-plan-reviewer` for the scoped gates of document agents
-  - Omit when not defined or when the agents have no scoped gates to fill.
+- **Guardrails:** the rules naming this agent, each as its name and rule. See `../guardrails.md` for the model.
+  - Agents: all
+  - Omit when not defined or when no rule names the agent.

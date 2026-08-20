@@ -1,5 +1,67 @@
 # @automattic/radical-pipelines
 
+## 0.13.0
+### Minor Changes
+
+
+
+- [#245](https://github.com/Automattic/radical-pipelines/pull/245) [`85c09dd`](https://github.com/Automattic/radical-pipelines/commit/85c09ddce97bdc3f1ccb97ecfe5c8387c214fb12) Thanks [@luisherranz](https://github.com/luisherranz)! - Route no-behavior changes to a dedicated `edit` writer instead of forcing tests on them. The build plan's `Type` field gains `edit` for changes with no behavior to test (a docblock correction, a dead-code deletion, a behavior-preserving mechanical refactor), executed by the new `build-writer-edit`: it applies the change, verifies acceptance by inspection, runs the guardrail gates, and introduces no new tests. The task-type taxonomy is now stated explicitly: `tdd` and `edit` are the two routes for changing the product; an `e2e` task realizes planned flows as tests over behavior prior tasks built and does not implement the behavior under test. The `Type` is a reviewed claim: the `build-plan-reviewer` rejects a `tdd` task whose acceptance asserts no observable behavior change, an `e2e` task whose changes implement or alter the behavior under test, and an `edit` task whose changes imply a behavior change; the `build-reviewer` flags an `edit` task whose diff introduces new tests or changes observable behavior. E2E planning now covers the criteria and edge cases with behavior to test, so an all-`edit` plan legitimately records `None`. Upgrade note: guardrail gates in an existing `.rp.md` name agents explicitly — add `build-writer-edit` to each gate that should also run for `edit` tasks (typically every gate naming `build-writer-tdd`); until then, `edit` tasks run without writer-level gates.
+
+
+
+- [#243](https://github.com/Automattic/radical-pipelines/pull/243) [`4590e34`](https://github.com/Automattic/radical-pipelines/commit/4590e34318cf0b40db2028df05747e0efd23045d) Thanks [@luisherranz](https://github.com/luisherranz)! - Route decisions no lane made to a scoped lead instead of blocking the run. When consolidation — initial, or while adjudicating a final-review rejection — needs a requirement or design decision no lane settled (a gap every lane missed or, in the spec phase, a normative divergence nothing in the intent selects), the consolidator now sends the orchestrator a **decision request**: a fresh lead scoped to the question researches it, decides, records the decision first-hand in the consolidated research record — Q&A entries in the spec phase, a topic in the design-doc phase — and answers the consolidator directly; the consolidator carries the decision into the consolidated artifacts, with the record naming the request's entries as provenance, and the consolidated re-review verifies it as fresh content. Blockers keep their original meaning — a choice that belongs to a prior phase — and a scoped lead that finds the choice belongs to the intent still reports one.
+
+
+### Patch Changes
+
+
+
+- [#241](https://github.com/Automattic/radical-pipelines/pull/241) [`8ff5d23`](https://github.com/Automattic/radical-pipelines/commit/8ff5d233c2b48ecc46184078f15a6b156ee3387a) Thanks [@luisherranz](https://github.com/luisherranz)! - Fix opencode coordination and update the verified pin to `0.0.0-beta-17595`. The plugin now addresses only its own server process, surfaces failed state reads, handles the build's `/inbox` queue contract, forwards permission asks when an automatic reject fails, and reports `rp_send` queue admission plus observed target state instead of claiming receipt. `rp_spawn` also appends an opencode messaging protocol with the authoritative spawner ID to every child prompt, directing required reports through `rp_send` to the requester when present or the spawner otherwise.
+
+## 0.12.0
+### Minor Changes
+
+
+
+- [#237](https://github.com/Automattic/radical-pipelines/pull/237) [`5a97403`](https://github.com/Automattic/radical-pipelines/commit/5a97403b6f4582df6a0bc5ce41dbf9ca928e445b) Thanks [@luisherranz](https://github.com/luisherranz)! - End agent persistence across waits. Researchers are launched per question — the orchestrator passes each research request verbatim to a fresh `spec-researcher`/`design-doc-researcher`, whose **Requester identifier** convention (replacing **Researcher identifier**) names the agent it answers — and the spec and design-doc leads end when they report their artifact ready for review; each rejection is adjudicated by a fresh lead instance launched on the rejection file, and the consolidators follow the same shape, ending at the consolidated commit with a fresh instance per rejection. Re-reviews are launched with the revision's commit range (plus, in the spec and design-doc phases, the producer's adjudication report) so prior logged checks are reused; a relaunched planner revises where the issues require and keeps the other tasks unchanged; committed evidence is relayed by path; the build and document task-list step is removed (the commits and the diff are the record of task progress); and the health monitor's defaults move to a 15-minute interval and a 30-minute no-activity threshold, with the Claude Code convention block taking the interval from the reference instead of embedding it.
+
+
+
+- [#240](https://github.com/Automattic/radical-pipelines/pull/240) [`ad25a13`](https://github.com/Automattic/radical-pipelines/commit/ad25a13edcf1416470b3840b73ccce00aa842a38) Thanks [@luisherranz](https://github.com/luisherranz)! - Converge review loops: a first review still rejects for any real issue, and a re-review rejects only for a prior finding whose resolution fails or for a must-fix issue — one that leaves the artifact unable to do its job, defined per reviewer. A new re-review finding that is not must-fix joins the rejection's issues when the review rejects anyway and is recorded under a new `## Non-blocking findings` approval section otherwise, findings that are instances of one defect are reported once as the defect covering every instance, and the reviewers drop the "Reject liberally", "A first-pass approval should be rare", and "no severity ladder" bars in favor of the shared "Never manufacture findings" one.
+
+
+
+- [#236](https://github.com/Automattic/radical-pipelines/pull/236) [`5b1dec5`](https://github.com/Automattic/radical-pipelines/commit/5b1dec51182c95048a83f7698b3e35750993c6c3) Thanks [@luisherranz](https://github.com/luisherranz)! - Resuming a pipeline now rolls the active phase back only to the latest committed state whose next action follows from the record alone, instead of restarting the whole phase whenever its plan was not yet approved. A full phase restart remains only as the fallback when no such state exists, and lane branches are deleted only for lanes rolled back to their start.
+
+## 0.11.0
+### Minor Changes
+
+
+
+- [#220](https://github.com/Automattic/radical-pipelines/pull/220) [`6a8802e`](https://github.com/Automattic/radical-pipelines/commit/6a8802e5a79cd9dabc2a5e208a26c02bf665192b) Thanks [@luisherranz](https://github.com/luisherranz)! - Add opencode v2 support: a plugin exposing the `rp_*` tools — including permission mediation that redirects an agent's external read to its worktree copy or forwards the request to the spawner for adjudication via `rp_permission_reply`, and an `rp_status` ledger reporting each session's current tool and pending permission requests — a per-tool convention file with the opencode Team spawning and Health monitoring blocks, and a pinned, hermetic integration suite that exercises the plugin against the pinned opencode build.
+
+
+
+- [#232](https://github.com/Automattic/radical-pipelines/pull/232) [`81aaccf`](https://github.com/Automattic/radical-pipelines/commit/81aaccf78af4f2768b215a85d9e239a6ba981e0c) Thanks [@luisherranz](https://github.com/luisherranz)! - Migrate the opencode plugin to the current plugin API tool contract and advance the pinned build to `0.0.0-next-16573`. Tool descriptors now declare `input` rather than `jsonSchema` and an output schema, and results are returned as `{output, content}` with `output` round-tripped through JSON so a session record's absent fields cannot fail opencode's output validation. Owners must move to the newly pinned opencode build: the previous pin's contract and this one are mutually incompatible, so the plugin's tools return no result on builds older than the new pin.
+
+
+### Patch Changes
+
+
+
+- [#230](https://github.com/Automattic/radical-pipelines/pull/230) [`7cc8638`](https://github.com/Automattic/radical-pipelines/commit/7cc8638bc79e725f1bd5353f6dcfcbabea901df6) Thanks [@luisherranz](https://github.com/luisherranz)! - Accept both of opencode's service-record filenames (`service-<hash>.json` and `service.json`), preferring the most recently written when a stale record from the other name lingers. opencode renamed the record after the pinned build, and matching only the old name left the plugin unable to resolve the running server — silently disabling `rp_send`, the health monitor's idle check, and `rp_status`, including the very pin-mismatch warning meant to flag that the running build is outside the verified surface.
+
+## 0.10.1
+### Patch Changes
+
+
+
+- [#215](https://github.com/Automattic/radical-pipelines/pull/215) [`a37932b`](https://github.com/Automattic/radical-pipelines/commit/a37932b34bf93a4aa6db26d0a927b601796a5086) Thanks [@luisherranz](https://github.com/luisherranz)! - Align multilane terminology, convention fields, and design consolidation context.
+
+
+
+- [#227](https://github.com/Automattic/radical-pipelines/pull/227) [`6646efb`](https://github.com/Automattic/radical-pipelines/commit/6646efba1fb2f252de3346e76d10a23ce0bb298d) Thanks [@luisherranz](https://github.com/luisherranz)! - Seat agents at every send on Claude Code: a message restarts its target in the sender's shell working directory, so the orchestrator and the health monitor `cd` into an agent's worktree before every spawn or message, and generic files no longer assert when an agent's working directory is fixed.
+
 ## 0.10.0
 ### Minor Changes
 
