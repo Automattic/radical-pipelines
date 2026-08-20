@@ -1,6 +1,6 @@
 # Guardrails
 
-Guardrails are the prose rules a project's agents must satisfy. A rule that rests on a command embeds it in the prose — e.g. "run `npm test`." Unless the rule says otherwise, a rule is unsatisfied when a command it embeds exits non-zero.
+Guardrails are the prose rules a project's agents must satisfy. A rule that rests on a command embeds it in the prose — e.g. "run `npm test` and confirm it passes."
 
 ## The `.rp.md` per-guardrail block
 
