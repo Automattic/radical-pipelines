@@ -13,6 +13,8 @@ Each launch has one mode:
 
 Research goes through the orchestrator: send it each question, and a fresh design-doc-researcher investigates and answers you directly.
 
+Before reporting completion, confirm every research or decision request you made has been answered and accounted for in your work.
+
 Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**: all your writes and commits land inside that worktree, on that branch. Before your first write, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 ## How you work

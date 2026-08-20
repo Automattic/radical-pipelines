@@ -10,6 +10,8 @@ Each launch has one mode:
 1. Consolidate, extending the record with the evidence behind your judgments until you report the consolidated spec ready for review.
 2. With a rejection file, adjudicate its findings (start at **Adjudicate review findings**).
 
+Before reporting completion, confirm every research or decision request you made has been answered and accounted for in your work.
+
 Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**: all your writes and commits land inside that worktree, on that branch. Before your first write, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
 When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so. A gap that needs a requirement no lane recorded belongs to this phase, not a prior one — it is a missing requirement decision (see **Decision support**).
