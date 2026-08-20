@@ -14,6 +14,7 @@ import plugin, {
   buildStatusPayload,
   disarmLoopTimer,
   formatStructuredError,
+  getSessionUpdatedAt,
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
@@ -23,6 +24,7 @@ import plugin, {
   readServiceRecordFile,
   recordSpawn,
   requestServer,
+  resolveLoopRegistryPath,
   resolveRunningBuild,
   resolveServer,
   runLoopTick,
@@ -37,6 +39,7 @@ const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
 const NOTIFIED_CHILDREN_KEY = Symbol.for("radical-pipelines.opencode.notifiedChildren");
 const LOOP_TIMERS_KEY = Symbol.for("radical-pipelines.opencode.loopTimers");
 const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
+const LOOP_TICK_LOG_KEY = Symbol.for("radical-pipelines.opencode.loopTickLog");
 
 /** Create a fresh, empty temp directory (used for materializeAgents overrides). */
 function freshDir() {
@@ -44,13 +47,10 @@ function freshDir() {
 }
 
 /** Clear every armed real timer, guarding against a test leaking one. */
-function clearAllLoopTimers() {
+async function clearAllLoopTimers() {
   const timers = globalThis[LOOP_TIMERS_KEY];
   if (timers) {
-    for (const timer of timers.values()) {
-      clearInterval(timer);
-    }
-    timers.clear();
+    await Promise.all([...timers.keys()].map((id) => disarmLoopTimer(id)));
   }
 }
 
@@ -781,68 +781,168 @@ describe("isSessionActive", () => {
   });
 });
 
+describe("getSessionUpdatedAt", () => {
+  const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
+
+  test("returns the session's time.updated timestamp", async () => {
+    const requestFn = async (url) => {
+      assert.equal(url.pathname, "/api/session/ses_1");
+      return { status: 200, body: { data: { time: { updated: 123456 } } } };
+    };
+
+    assert.equal(await getSessionUpdatedAt(server, "ses_1", requestFn), 123456);
+  });
+
+  test("throws when the session read fails or omits time.updated", async () => {
+    await assert.rejects(
+      () => getSessionUpdatedAt(server, "ses_1", async () => ({ status: 500 })),
+      /returned 500/,
+    );
+    await assert.rejects(
+      () => getSessionUpdatedAt(server, "ses_1", async () => ({ status: 200, body: { data: {} } })),
+      /missing time.updated/,
+    );
+  });
+});
+
 describe("runLoopTick", () => {
   const entry = { id: "loop_1", interval: 1000, prompt: "check", targetSession: "ses_target" };
 
-  test("a null server resolution skips the tick and logs it, without checking activity or injecting", async () => {
-    let logged;
+  test("a null server resolution records a no-server outcome without checking activity or injecting", async () => {
+    const outcomes = [];
     const result = await runLoopTick(entry, {
       server: null,
       isSessionActive: () => {
         throw new Error("must not be called when server is null");
       },
+      getSessionUpdatedAt: () => {
+        throw new Error("must not be called when server is null");
+      },
       injectPrompt: () => {
         throw new Error("must not be called when server is null");
       },
-      onSkippedNoServer: (e) => {
-        logged = e;
-      },
+      onOutcome: (outcome) => outcomes.push(outcome),
     });
 
-    assert.equal(result, "no-server");
-    assert.equal(logged, entry);
+    assert.deepEqual(result, { outcome: "no-server" });
+    assert.deepEqual(outcomes, [result]);
   });
 
-  test("a busy target skips the tick without injecting", async () => {
+  test("a target updated no more than two intervals ago records busy with its last activity", async () => {
     let injected = 0;
+    const outcomes = [];
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 8_000,
       injectPrompt: async () => {
         injected++;
       },
-      onSkippedNoServer: () => {},
+      onOutcome: (outcome) => outcomes.push(outcome),
+      now: () => 10_000,
     });
 
-    assert.equal(result, "busy");
+    assert.deepEqual(result, { outcome: "busy", lastActivity: 8_000 });
+    assert.deepEqual(outcomes, [result]);
     assert.equal(injected, 0);
   });
 
-  test("an idle target injects the prompt once", async () => {
+  test("a target still active more than two intervals after its last activity receives a steer prompt", async () => {
     const calls = [];
+    const outcomes = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 7_999,
+      injectPrompt: async (sessionID, text, delivery) => {
+        calls.push({ sessionID, text, delivery });
+      },
+      onOutcome: (outcome) => outcomes.push(outcome),
+      now: () => 10_000,
+    });
+
+    assert.deepEqual(result, {
+      outcome: "injected",
+      reason: "stale-running",
+      lastActivity: 7_999,
+    });
+    assert.deepEqual(outcomes, [result]);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0], { sessionID: "ses_target", text: "check", delivery: "steer" });
+  });
+
+  test("an idle target receives one queued prompt without a session-record read", async () => {
+    const calls = [];
+    const outcomes = [];
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
-      injectPrompt: async (sessionID, text) => {
-        calls.push({ sessionID, text });
+      getSessionUpdatedAt: () => {
+        throw new Error("must not read activity for an idle target");
       },
-      onSkippedNoServer: () => {},
+      injectPrompt: async (sessionID, text, delivery) => {
+        calls.push({ sessionID, text, delivery });
+      },
+      onOutcome: (outcome) => outcomes.push(outcome),
     });
 
-    assert.equal(result, "injected");
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0], { sessionID: "ses_target", text: "check" });
+    assert.deepEqual(result, { outcome: "injected", reason: "idle" });
+    assert.deepEqual(outcomes, [result]);
+    assert.deepEqual(calls, [{ sessionID: "ses_target", text: "check", delivery: "queue" }]);
+  });
+
+  test("a failed tick records the failure before rejecting", async () => {
+    const outcomes = [];
+
+    await assert.rejects(
+      () =>
+        runLoopTick(entry, {
+          server: { baseURL: "http://x", password: "y" },
+          isSessionActive: async () => {
+            throw new Error("active read failed");
+          },
+          getSessionUpdatedAt: async () => 0,
+          injectPrompt: async () => {},
+          onOutcome: (outcome) => outcomes.push(outcome),
+        }),
+      /active read failed/,
+    );
+
+    assert.deepEqual(outcomes, [{ outcome: "failed", error: "Error: active read failed" }]);
+  });
+
+  test("cancellation during a state read records cancellation without injecting", async () => {
+    const outcomes = [];
+    let cancelled = false;
+    let injected = false;
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => {
+        cancelled = true;
+        return false;
+      },
+      getSessionUpdatedAt: async () => 0,
+      injectPrompt: async () => {
+        injected = true;
+      },
+      onOutcome: (outcome) => outcomes.push(outcome),
+      isCancelled: () => cancelled,
+    });
+
+    assert.deepEqual(result, { outcome: "cancelled" });
+    assert.deepEqual(outcomes, [result]);
+    assert.equal(injected, false);
   });
 });
 
 describe("armLoopTimer / disarmLoopTimer", () => {
   afterEach(clearAllLoopTimers);
 
-  test("arms a real interval invoking tick repeatedly until disarmed", async () => {
+  test("arms a recurring timer invoking tick repeatedly until disarmed", async () => {
     let calls = 0;
     const entry = { id: "loop_timer_test_1", interval: 15 };
 
-    armLoopTimer(entry, () => {
+    await armLoopTimer(entry, () => {
       calls++;
     });
 
@@ -852,7 +952,7 @@ describe("armLoopTimer / disarmLoopTimer", () => {
     while (calls < 2 && Date.now() < deadline) {
       await delay(10);
     }
-    disarmLoopTimer(entry.id);
+    await disarmLoopTimer(entry.id);
     const callsAtDisarm = calls;
 
     assert.ok(callsAtDisarm >= 2, `expected multiple ticks before disarm, got ${callsAtDisarm}`);
@@ -860,12 +960,117 @@ describe("armLoopTimer / disarmLoopTimer", () => {
     await delay(70);
     assert.equal(calls, callsAtDisarm, "no further ticks after disarm");
   });
+
+  test("serializes slow ticks instead of overlapping them", async () => {
+    let calls = 0;
+    let running = 0;
+    let maxRunning = 0;
+    const entry = { id: "loop_timer_test_serial", interval: 5 };
+
+    await armLoopTimer(entry, async () => {
+      calls++;
+      running++;
+      maxRunning = Math.max(maxRunning, running);
+      await delay(30);
+      running--;
+    });
+
+    const deadline = Date.now() + 2_000;
+    while (calls < 2 && Date.now() < deadline) {
+      await delay(10);
+    }
+    await disarmLoopTimer(entry.id);
+
+    assert.ok(calls >= 2, `expected multiple ticks, got ${calls}`);
+    assert.equal(maxRunning, 1);
+  });
+
+  test("disarm waits for an in-flight tick and exposes cancellation to it", async () => {
+    let started;
+    let release;
+    let effect = false;
+    const startedPromise = new Promise((resolve) => {
+      started = resolve;
+    });
+    const releasePromise = new Promise((resolve) => {
+      release = resolve;
+    });
+    const entry = { id: "loop_timer_test_cancel", interval: 5 };
+
+    await armLoopTimer(entry, async (_entry, isCancelled) => {
+      started();
+      await releasePromise;
+      if (!isCancelled()) effect = true;
+    });
+    await startedPromise;
+
+    let firstStopped = false;
+    let secondStopped = false;
+    const firstStopping = disarmLoopTimer(entry.id).then(() => {
+      firstStopped = true;
+    });
+    const secondStopping = disarmLoopTimer(entry.id).then(() => {
+      secondStopped = true;
+    });
+    await delay(10);
+    assert.equal(firstStopped, false, "disarm must wait for the in-flight tick");
+    assert.equal(secondStopped, false, "concurrent disarm must wait for the same tick");
+    release();
+    await Promise.all([firstStopping, secondStopping]);
+
+    assert.equal(effect, false);
+  });
+
+  test("replacing a loop ID waits for its prior tick before arming the replacement", async () => {
+    let active = 0;
+    let maxActive = 0;
+    let replacementCalls = 0;
+    let firstStarted;
+    let releaseFirst;
+    const firstStartedPromise = new Promise((resolve) => {
+      firstStarted = resolve;
+    });
+    const releaseFirstPromise = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+    const entry = { id: "loop_timer_test_replace", interval: 5 };
+
+    await armLoopTimer(entry, async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      firstStarted();
+      await releaseFirstPromise;
+      active--;
+    });
+    await firstStartedPromise;
+
+    const replacementArmed = armLoopTimer(entry, async () => {
+      active++;
+      maxActive = Math.max(maxActive, active);
+      replacementCalls++;
+      active--;
+    });
+    await delay(15);
+    assert.equal(replacementCalls, 0, "replacement must wait for the prior tick");
+    releaseFirst();
+    await replacementArmed;
+
+    const deadline = Date.now() + 2_000;
+    while (replacementCalls === 0 && Date.now() < deadline) {
+      await delay(10);
+    }
+    await disarmLoopTimer(entry.id);
+
+    assert.ok(replacementCalls > 0, "expected the replacement loop to tick");
+    assert.equal(maxActive, 1);
+  });
 });
 
 describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", () => {
   afterEach(clearAllLoopTimers);
 
   test("records a registry entry defaulting target_session to the caller; a busy target skips the tick and an idle target injects the prompt once; rp_loop_cancel stops further ticks and removes the entry", async () => {
+    globalThis[LOOP_TICK_LOG_KEY] = [];
     const dataHome = freshDir();
     const { ctx, tools, sessions } = createFakeCtx();
     sessions.set("ses_caller", { id: "ses_caller" });
@@ -874,6 +1079,9 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     const requestFn = async (url) => {
       if (url.pathname === "/api/session/active") {
         return { status: 200, body: { data: active ? { ses_caller: { type: "running" } } : {} } };
+      }
+      if (url.pathname === "/api/session/ses_caller") {
+        return { status: 200, body: { data: { time: { updated: Date.now() } } } };
       }
       throw new Error(`unexpected request: ${url.pathname}`);
     };
@@ -913,6 +1121,12 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
 
     await delay(60);
     assert.equal(promptCalls.length, 0, "a busy target must not receive an injected prompt");
+    assert.ok(
+      globalThis[LOOP_TICK_LOG_KEY].some(
+        (tick) => tick.loopID === loopID && tick.outcome === "busy" && typeof tick.lastActivity === "number",
+      ),
+      `expected an observable busy tick, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
+    );
 
     active = false;
     await delay(60);
@@ -920,6 +1134,12 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     assert.equal(promptCalls[0].sessionID, "ses_caller");
     assert.equal(promptCalls[0].text, "check status");
     assert.equal(promptCalls[0].delivery, "queue");
+    assert.ok(
+      globalThis[LOOP_TICK_LOG_KEY].some(
+        (tick) => tick.loopID === loopID && tick.outcome === "injected" && tick.reason === "idle",
+      ),
+      `expected an observable injected tick, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
+    );
 
     await tools.get("rp_loop_cancel").execute({ id: loopID }, {});
     assert.deepEqual((await tools.get("rp_loop_list").execute({}, {})).output, []);
@@ -927,6 +1147,107 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     const countAfterCancel = promptCalls.length;
     await delay(60);
     assert.equal(promptCalls.length, countAfterCancel, "a cancelled loop must not tick again");
+  });
+
+  test("records a failed outcome when server resolution throws before the tick starts", async () => {
+    globalThis[LOOP_TICK_LOG_KEY] = [];
+    globalThis[ERROR_LOG_KEY] = [];
+    const dataHome = freshDir();
+    const { ctx, tools } = createFakeCtx();
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { XDG_DATA_HOME: dataHome },
+        readServiceRecord: () => {
+          throw new Error("server resolution failed");
+        },
+      }),
+    );
+
+    const startResult = await tools.get("rp_loop_start").execute(
+      { interval: 15, prompt: "check status" },
+      { sessionID: "ses_caller" },
+    );
+    const loopID = startResult.output.id;
+    const deadline = Date.now() + 2_000;
+    while (globalThis[LOOP_TICK_LOG_KEY].length === 0 && Date.now() < deadline) {
+      await delay(10);
+    }
+
+    assert.ok(
+      globalThis[LOOP_TICK_LOG_KEY].some(
+        (tick) =>
+          tick.loopID === loopID &&
+          tick.outcome === "failed" &&
+          tick.error === "Error: server resolution failed",
+      ),
+      `expected an observable failed tick, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
+    );
+    assert.ok(
+      globalThis[ERROR_LOG_KEY].some(
+        (entry) => entry.type === "loop.tick.failed" && entry.loopID === loopID,
+      ),
+      `expected the failure in recentErrors, got: ${JSON.stringify(globalThis[ERROR_LOG_KEY])}`,
+    );
+
+    await tools.get("rp_loop_cancel").execute({ id: loopID }, {});
+  });
+
+  test("waits for an in-flight tick even when deleting the registry entry fails", async () => {
+    const dataHome = freshDir();
+    const { ctx, tools, sessions } = createFakeCtx();
+    sessions.set("ses_caller", { id: "ses_caller" });
+    let readStarted;
+    let releaseRead;
+    const readStartedPromise = new Promise((resolve) => {
+      readStarted = resolve;
+    });
+    const readResponse = new Promise((resolve) => {
+      releaseRead = resolve;
+    });
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: {
+          XDG_DATA_HOME: dataHome,
+          RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999",
+          OPENCODE_PASSWORD: "pw",
+        },
+        readServiceRecord: () => null,
+        requestFn: async (url) => {
+          assert.equal(url.pathname, "/api/session/active");
+          readStarted();
+          return readResponse;
+        },
+      }),
+    );
+
+    const startResult = await tools.get("rp_loop_start").execute(
+      { interval: 5, prompt: "check status" },
+      { sessionID: "ses_caller" },
+    );
+    const loopID = startResult.output.id;
+    await readStartedPromise;
+    writeFileSync(resolveLoopRegistryPath({ XDG_DATA_HOME: dataHome }), "{");
+
+    let settled = false;
+    const cancellation = tools.get("rp_loop_cancel").execute({ id: loopID }, {});
+    cancellation.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+    const rejected = assert.rejects(cancellation, SyntaxError);
+    await delay(10);
+    assert.equal(settled, false, "cancellation must await the in-flight tick before rejecting");
+
+    releaseRead({ status: 200, body: { data: {} } });
+    await rejected;
   });
 });
 
@@ -1019,6 +1340,25 @@ describe("completion listener (first-terminal-event-only notification)", () => {
       `expected the failed outcome in the text, got: ${promptCalls[1].text}`,
     );
     assert.doesNotMatch(promptCalls[1].text, /succeeded/i);
+  });
+
+  test("a successful terminal event does not enter the recent-errors log", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_success_log", { id: "ses_spawner_success_log" });
+    sessions.set("ses_child_success_log", { id: "ses_child_success_log" });
+    recordSpawn("ses_child_success_log", {
+      name: "worker-success-log",
+      run: "247-observable-health-loops",
+      spawner: "ses_spawner_success_log",
+    });
+
+    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_success_log" } });
+    await delay(10);
+
+    assert.deepEqual(globalThis[ERROR_LOG_KEY], []);
   });
 
   test("a failed event's structured error reaches both the spawner notification and the error log", async () => {

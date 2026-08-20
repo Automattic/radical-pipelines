@@ -126,6 +126,7 @@ A single restart is enough — the plugin finishes its setup before opencode sca
 - Every RP agent is available by its RP name — the plugin materializes the agent profiles into opencode's global agents directory (`~/.config/opencode/agents/`), where each agent's id matches its RP name.
 - Every agent spawned with `rp_spawn` receives the opencode messaging protocol and its spawner's session ID automatically, so its required reports and messages are routed with `rp_send` rather than left in its transcript.
 - `rp_terminate` deletes a finished agent's session so it cannot linger or receive more work.
+- Health-loop ticks skip recently active sessions, steer into sessions with no activity for two intervals, and remain observable through `rp_status`.
 - opencode's auto-update is disabled, holding the installation on the verified build.
 
 `autoupdate: false` matters because RP verifies against one exact opencode build, not the moving `next` tag. That build lives in [`opencode/pin.json`](./opencode/pin.json), which pins both the `@opencode-ai/cli` build the `opencode2` binary comes from and the `@opencode-ai/plugin` package version the plugin is written against. Any opencode build other than the pin is outside RP's verified surface.
@@ -144,7 +145,7 @@ opencode resolves the new tag into its own cache entry and the plugin refreshes 
 
 opencode reports plugin ids, not versions, so RP surfaces its own version:
 
-- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version, and its `pin` field compares the running opencode build against `opencode/pin.json` — `match` when they are equal, `outside the verified surface` when the running build differs from the pin, and `not determinable` when the running build cannot be read.
+- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version; its `pin` field compares the running opencode build against `opencode/pin.json` — `match` when they are equal, `outside the verified surface` when the running build differs from the pin, and `not determinable` when the running build cannot be read; and `recentLoopTicks` retains recent health-loop outcomes separately from `recentErrors`.
 - opencode's HTTP API reports the same id: `opencode2 api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
 
 ## Configuration

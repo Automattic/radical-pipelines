@@ -6,6 +6,7 @@ import { beforeEach, describe, test } from "node:test";
 
 import {
   currentToolFor,
+  disarmLoopTimer,
   formatPermissionForward,
   formatRedirectMessage,
   onPermissionAsked,
@@ -40,13 +41,10 @@ function isolatedEnv(overrides = {}) {
 const SERVER_ENV = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
 
 /** Clear every armed real timer, guarding against a test leaking one. */
-function clearAllLoopTimers() {
+async function clearAllLoopTimers() {
   const timers = globalThis[LOOP_TIMERS_KEY];
   if (timers) {
-    for (const timer of timers.values()) {
-      clearInterval(timer);
-    }
-    timers.clear();
+    await Promise.all([...timers.keys()].map((id) => disarmLoopTimer(id)));
   }
 }
 
@@ -93,11 +91,11 @@ function askedEvent({ requestID, sessionID, action = "external_directory", resou
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   globalThis[ERROR_LOG_KEY] = [];
   delete globalThis[HANDLED_PERMISSIONS_KEY];
   delete globalThis[TOOL_STATE_KEY];
-  clearAllLoopTimers();
+  await clearAllLoopTimers();
 });
 
 describe("parsePermissionAsked", () => {
