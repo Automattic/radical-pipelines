@@ -18,8 +18,6 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Lifecycle hooks        | Prose instructions the orchestrator runs at defined pipeline moments                       | No        |
 | Artifact storage       | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes       |
 
-When the project defines **Lifecycle hooks**, read `../lifecycle-hooks.md` for the hook points and execution rules.
-
 ## Missing conventions
 
 A convention that lives in a per-tool section counts as present only when that section's tool matches the active tool, determined as in `setup.md` step 1.
@@ -37,3 +35,5 @@ A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.
 When you are inside a worktree, resolve the main root with `dirname(git rev-parse --git-common-dir)` and read it from there, since the git-ignored file is never copied into the worktree.
 
 After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.
+
+When the conventions define **Lifecycle hooks**, read `../lifecycle-hooks.md`.

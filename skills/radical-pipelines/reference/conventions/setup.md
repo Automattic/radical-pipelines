@@ -107,9 +107,7 @@ This is highly dependent on the agentic coding tool but you can document the exi
 
 ### Lifecycle hooks
 
-Prose instructions the orchestrator runs at defined pipeline moments — syncing a tracker, posting notifications, cleanup. The hook points, execution rules, and the per-hook block live in `../lifecycle-hooks.md`.
-
-Show the owner the hook points and ask which need instructions. Capture each as its per-hook block.
+The hook points, execution rules, and the per-hook block live in `../lifecycle-hooks.md`. Show the owner the hook points and ask which need instructions; capture each as its per-hook block.
 
 ### Artifact storage (required)
 

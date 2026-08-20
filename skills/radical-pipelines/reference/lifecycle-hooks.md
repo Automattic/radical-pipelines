@@ -33,7 +33,7 @@ Each hook the project defines is captured as a block under a `Lifecycle hooks` s
 ```markdown
 ### <hook>
 
-<the instructions to run, as prose — an instruction may be marked **blocking**>
+<the instructions to run — an instruction may be marked **blocking**>
 ```
 
 ## Closure actions

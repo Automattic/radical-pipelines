@@ -63,8 +63,8 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Decisions** — per-phase choices collected at run start.
 - **Target phase** — the highest phase an autonomous run executes before stopping.
 - **Blocker** — an agent's stop-and-report when required input is missing, contradictory, or would force a prior phase's decision; payload: what is missing/contradictory, which approved artifact must change, the smallest unblocking revision.
-- **Lifecycle hooks** — the convention attaching prose instructions the orchestrator runs at defined pipeline moments (hook points); a failing instruction reports and continues unless marked **blocking**, which stops the run through the normal close-out.
-- **Closure action** — an owner-invoked closure moment on a pipeline — opening its PR, recording its merge, closing it without merging — each a pure hook firing point.
+- **Lifecycle hooks** — the convention attaching prose instructions the orchestrator runs at defined pipeline moments (hook points); a failing instruction reports and continues unless marked **blocking**, which stops the run.
+- **Closure action** — a closure moment the owner invokes on a pipeline — opening its PR, recording its merge, closing it without merging; the request fires the hook, the work lives in the hooks or with the owner.
 
 ## Multilane
 
