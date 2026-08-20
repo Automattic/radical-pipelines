@@ -80,5 +80,5 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 ## Verification
 
-- **Guardrails** — the project's prose rules, each naming the agents that must satisfy it.
+- **Guardrails** — the project's rules, each naming the agents that must satisfy it.
 - **Behavior verification** — the phase reviewer exercising changed behavior end-to-end and capturing evidence before approval.
