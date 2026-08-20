@@ -40,7 +40,7 @@ describe("opencode/pin.json", () => {
   });
 
   // Upstream publishes two package layouts under the same prerelease
-  // channels. Builds numbered with a short sequence (`0.0.0-<channel>-17595`)
+  // channels. Builds numbered with a short sequence (`0.0.0-<channel>-17711`)
   // root their export at the v2 API; builds stamped with a 12-digit date
   // (`0.0.0-dev-202608180449`) root it at v1 and expose v2 only under a
   // `./v2/*` subpath. The channel name discriminates neither, so the pin is
@@ -58,12 +58,12 @@ describe("opencode/pin.json", () => {
 
   test("pins cli to the exact confirmed build", () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.equal(pin.cli, "0.0.0-beta-17595");
+    assert.equal(pin.cli, "0.0.0-dev-17711");
   });
 
   test("pins plugin to the exact confirmed version", () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.equal(pin.plugin, "0.0.0-beta-17595");
+    assert.equal(pin.plugin, "0.0.0-dev-17711");
   });
 
   test("declares cli and plugin as independent fields (no shared or derived field)", () => {
