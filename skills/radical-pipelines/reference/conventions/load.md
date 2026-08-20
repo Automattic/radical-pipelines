@@ -36,4 +36,6 @@ When you are inside a worktree, resolve the main root with `dirname(git rev-pars
 
 After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.
 
+## Lifecycle hooks
+
 When the conventions define **Lifecycle hooks**, read `../lifecycle-hooks.md`.
