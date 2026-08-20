@@ -138,7 +138,7 @@ Explain this and ask the owner:
 - A fork of the repository is required. All artifact-bearing pipeline work happens on branches in the fork.
 - `.rp.md`, the pipeline family folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
 - The upstream PR is never opened without explicit owner approval.
-- When the owner approves opening a PR, the orchestrator performs the upstream PR transformation in `../closure-actions.md`: only code commits reach `upstream`, on a clean branch — viewers of the PR never see the fork, and if the fork is private, its existence is hidden entirely.
+- When the owner approves opening a PR, the orchestrator performs the upstream PR transformation in `../closure-actions.md`: artifact commits never reach `upstream`, and the PR ships from a clean branch — viewers of the PR never see the fork, and if the fork is private, its existence is hidden entirely.
 
 Then collect the information needed to operate in fork mode:
 
