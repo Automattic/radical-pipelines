@@ -37,7 +37,7 @@ At run start:
 1. Ensure the run branch's worktree exists per the **Worktree root** convention.
 2. Start a recurring health monitor for the run per `health-monitoring.md`.
 
-You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. Address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch; your own working directory changes only to seat an agent at spawn.
+You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. Address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch; your own working directory changes only to seat an agent.
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
@@ -66,9 +66,9 @@ Each time you spawn an agent:
 - Give the agent a name unique within the run and hold its identifier — the handle that directs a message to that agent alone, assigned at spawn or returned by it per the **Team spawning** convention. Address every message to an agent by its identifier.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
-- When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it verbatim, never interpreted or framed.
+- When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it whole: as the committed file's path when one holds it, verbatim otherwise, never interpreted or framed.
 
-Agents message you when their work completes.
+Agents message you when their work completes, when they need research or a decision, and when they hit a blocker; an agent serving a request answers its requester. Every message you send an agent carries work it must act on.
 
 ## 6. Handle blockers
 

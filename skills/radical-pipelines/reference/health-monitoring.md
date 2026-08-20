@@ -8,7 +8,7 @@ The autonomous workflow launches a recurring **health monitor** that watches the
 
 At run start in the autonomous workflow, right after the run branch and its worktree are created.
 
-Defaults: **5-minute interval**, **10-minute no-output threshold**. Both are owner-tunable. Shorter intervals catch stalls sooner but spend more tokens on each check; the defaults balance the two.
+Defaults: **15-minute interval**, **30-minute no-activity threshold**. Both are owner-tunable. Shorter values catch stalls sooner but spend more tokens on checks; the defaults balance the two.
 
 The orchestrator launches the monitor itself. The owner is not asked to run a separate command. The project's **Health monitoring** convention provides the exact command to start the loop.
 
@@ -16,7 +16,7 @@ The orchestrator launches the monitor itself. The owner is not asked to run a se
 
 The monitor checks every interval for the following signals:
 
-- **No-output stall** — an agent working in the run or a lane worktree has not produced output for longer than the no-output threshold.
+- **No-activity stall** — an agent with work outstanding (launched, its completion not yet reported) has shown no activity — no commit, no artifact write, no tool output — for longer than the no-activity threshold.
 - **Message failure** — an inter-agent message failed, errored out, or was never delivered.
 - **Login / API-key error** — a spawned agent or the orchestrator hit a provider authentication failure.
 - **Network failure** — a tool call failed with a transient network error.
@@ -29,7 +29,7 @@ Each issue gets a **2-retry budget** before escalation. Recovery actions are app
 
 | Issue                 | Retry 1                                                                           | Retry 2                             | Escalate        |
 | --------------------- | --------------------------------------------------------------------------------- | ----------------------------------- | --------------- |
-| No-output stall       | Ping the agent with a status request                                              | Restart the agent                   | Report to owner |
+| No-activity stall     | Ping the agent with a status request                                              | Restart the agent                   | Report to owner |
 | Message failure       | Re-send the message                                                               | Restart the target agent            | Report to owner |
 | Login / API-key error | Swap to an authenticated provider-qualified model (per the project's conventions) | Re-spawn the agent on the new model | Report to owner |
 | Network failure       | Retry the tool call once                                                          | Wait one interval and retry         | Report to owner |
@@ -56,7 +56,7 @@ Check the run on branch <run-branch>, artifacts at <pipeline-family-folder>/<run
 Agents work in the run and lane worktrees under <worktree-root>.
 
 Signals to look for:
-- Any agent with no output for <no-output-threshold>
+- Any agent with outstanding work and no activity (commit, artifact write, tool output) for <no-activity-threshold>
 - A failed inter-agent message
 - Login / API-key errors
 - Network failures on tool calls

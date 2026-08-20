@@ -18,17 +18,19 @@ Your prompt's `## Conventions` block includes your **Worktree path** (absolute) 
 3. Read `<artifact-folder>/2-design-doc/design-doc.md` — the architecture and decisions the code must execute on.
 4. Read `<artifact-folder>/1-spec/spec.md` — the requirements and acceptance criteria the code must satisfy.
 5. Derive the diff base yourself — it is never passed to you: it is the parent of the commit that added this phase's plan (`git log --diff-filter=A -1 -- <artifact-folder>/3-build/build-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
+6. Read any existing `build-review-*-rejected.md`. A re-review rejects only for a prior issue whose resolution fails or for a must-fix issue — one where the work, as committed, ships wrong or unplanned behavior, leaves an acceptance criterion unmet or unverified, or leaves a guardrail unsatisfied. A new finding that is not must-fix joins your issues when you reject, and lands under `## Non-blocking findings` when you approve.
 
 ### 2. Review the changes
 
 Check:
 
-- **Per-task Acceptance coverage** — does each task in the batch satisfy its per-task Acceptance criteria, with passing tests covering each criterion?
+- **Per-task Acceptance coverage** — does each task in the batch satisfy its per-task Acceptance criteria — each criterion covered by a passing test, or verified by inspection for an `edit` task?
 - **Spec acceptance coverage** — do the spec acceptance criteria the batch tasks trace to actually pass against the resulting code?
 - **Design alignment** — does the code honor every design-doc decision the batch tasks trace to?
 - **Plan adherence** — every change in the diff maps to a task in `build-plan.md` (any batch); no design changes; no functionality beyond the plan.
 - **Post-change coherence** — does the diff strand anything — code, generality, names, docs, or tests whose reason-to-exist the change removes? A survivor the plan or design records keeping is settled; one kept by default is an issue.
 - **Test quality** — unit tests trace to per-task Acceptance; end-to-end tests are present for the e2e flows the batch's e2e tasks implement (per the plan's E2E test plan).
+- **Edit-task fidelity** — an `edit` task's diff introduces no new tests and changes no observable behavior. Flag either.
 - **Inline documentation** — every public symbol added or modified is documented per the host project's inline API-documentation convention.
 - **Convention compliance** — host project's coding, testing, build, and commit conventions.
 - **Software-only output** — does any task output (including commit messages) reference a specific task, requirement, e2e flow, acceptance criterion, etc, or cite a specific artifact? The run's own artifacts, under the artifact folder, are exempt.
@@ -85,6 +87,10 @@ Diff reviewed: <base> → HEAD (the phase's whole work)
 
 <!-- Only if applicable. The evidence you captured exercising the changed behavior end-to-end. -->
 
+## Non-blocking findings
+
+<!-- Only if approved: real findings that do not warrant a rejection. -->
+
 ## Issues
 
 <!-- Only if rejected. One section per issue. Every issue MUST name the task it belongs to. -->
@@ -119,8 +125,8 @@ Screenshots or other assets live in the phase folder, referenced by relative pat
 - **No unverified hedges on load-bearing claims.** A hedge — "likely", "should", "probably", "assume" — attached to a claim the artifact's correctness depends on is an unresolved risk. Before approval each such risk is verified and closed, sent back to the writer in a rejection, or recorded as an accepted residual with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
 - **Be specific.** "This is wrong" is not useful. "Task 3's Acceptance criterion 2 is not covered — no test asserts that the parser rejects empty input" is.
 - **Always tag the task.** Every issue must name the task it belongs to — any task in `build-plan.md`, not only the batch's. An untagged issue is a defect in the review — the orchestrator can't re-dispatch what it can't attribute. If an issue genuinely spans multiple tasks, list every affected task ID.
-- **Every issue is must-fix.** This review has no severity ladder. If you don't think an issue needs to be fixed, do not report it.
-- **Reject liberally.** Any real issue is worth rejecting for. Rejections improve the code — they are not failures.
+- **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
+- **Never manufacture findings.** Reject for any real issue; approve when the work survives your checks.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.
 - **Do NOT rewrite code or tests.** You only review and provide feedback.
 - **Do NOT re-evaluate the plan or the design.** Those phases have been approved. Flag deviations from them, not the plan or design themselves.

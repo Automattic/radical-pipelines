@@ -12,12 +12,13 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
   - Agents: `spec-lead`, `spec-researcher`, `spec-reviewer`, `spec-consolidator`, `design-doc-lead`, `design-doc-researcher`, `design-doc-reviewer`, `design-doc-consolidator`
 - **Lane mode:** `isolated` or `divergent`.
   - Agents: `design-doc-lead`, `design-doc-consolidator`
-  - Omit when the phase runs a single lane.
+  - Omit when the phase runs a single lane, and for a lead launched with a decision request.
 - **Lane mandate:** the mandate assigned to the agent's divergent lane, resolved once by the orchestrator and passed identically to the lane's lead and each of its reviewers.
   - Agents: `design-doc-lead`, `design-doc-reviewer`
-  - Omit outside divergent mode.
-- **Researcher identifier:** the identifier of the researcher spawned to serve this agent.
-  - Agents: `spec-lead`, `design-doc-lead`
+  - Omit outside a divergent lane, including consolidation review.
+- **Requester identifier:** the identifier of the requesting agent this agent answers to.
+  - Agents: `spec-researcher`, `design-doc-researcher`, `spec-lead`, `design-doc-lead`
+  - For leads, only when launched with a decision request; omit otherwise.
 - **Commit format:**
   - Agents: all
   - Omit when not defined.

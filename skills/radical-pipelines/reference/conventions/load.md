@@ -19,9 +19,11 @@ Project-specific conventions are stored in the `.rp.md` file.
 
 ## Missing conventions
 
+A convention that lives in a per-tool section counts as present only when that section's tool matches the active tool, determined as in `setup.md` step 1.
+
 If all required conventions are available, continue to the `## Local overrides` step below.
 
-If one or more required conventions are missing, do not proceed with the pipeline. Read `setup.md`, explain what is missing, and offer to run the setup flow.
+If one or more required conventions are missing, do not proceed with the pipeline. Read `setup.md`, explain what is missing — naming any tool mismatch (the committed per-tool section targets `<tool>`; running under `<active tool>` requires setup for it) — and offer to run the setup flow.
 
 If the owner declines setup, cancels, or leaves required answers unresolved, stop and clearly explain what is still missing.
 

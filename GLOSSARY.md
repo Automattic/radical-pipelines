@@ -27,7 +27,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Stacking** — starting a pipeline on top of an unmerged pipeline's run tip.
 - **Fork** — a new pipeline version created by branching at a cut commit in a parent pipeline's history; inherited history carries the inherited work itself. The fork's first branch carries the run segment of the run containing the cut, and work continues in that run's folder.
 - **Cut commit** — the commit that completed the last inherited phase's completion predicate; the fork point.
-- **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and removes all branches and worktrees and seats each agent in its worktree at spawn; agents only occupy worktrees prepared for them.
+- **Worktree** — a `git worktree` checkout of one branch. The orchestrator creates and removes all branches and worktrees and seats each agent in its worktree; agents only occupy worktrees prepared for them.
 - **Worktree root** — the path from the convention of the same name under which the orchestrator creates one worktree per branch (`<worktree-root>/<branch>`).
 - **Seating** — starting a spawned agent inside its assigned worktree, its branch checked out; the mechanism comes from the **Team spawning** convention.
 
@@ -43,14 +43,18 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 ## Agents
 
-- **Spec phase** — `spec-lead`, `spec-researcher` (persistent pair), `spec-reviewer`, `spec-consolidator`.
-- **Design doc phase** — `design-doc-lead`, `design-doc-researcher` (persistent pair), `design-doc-reviewer`, `design-doc-consolidator`.
-- **Build phase** — `build-planner`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-reviewer`.
+- **Spec phase** — `spec-lead`, `spec-researcher` (fresh per question), `spec-reviewer`, `spec-consolidator`.
+- **Design doc phase** — `design-doc-lead`, `design-doc-researcher` (fresh per question), `design-doc-reviewer`, `design-doc-consolidator`.
+- **Build phase** — `build-planner`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-writer-edit`, `build-reviewer`.
 - **Document phase** — `document-planner`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
-- **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh planner or writer per iteration in the build and document phases; the persistent lead or consolidator in the spec and design-doc phases); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file).
+- **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh instance per iteration: planner or writer in the build and document phases, lead or consolidator in the spec and design-doc phases); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file). A re-review rejects only for a failed resolution or a must-fix issue.
+- **Must-fix issue** — an issue that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a re-review rejects.
+- **Non-blocking finding** — a real finding a re-review notices that is not must-fix; joins the rejection's issues when the re-review rejects, recorded in the approval otherwise.
 - **Batch** — the set of build/document tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
-- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Lane mandate, Commit format, Guardrails.
-- **Consolidator** — a persistent agent that merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch, backs its own judgments with checks (researcher on request), and adjudicates the final reviewer's findings; a decision no lane made stays a blocker.
+- **Task type (`Type`)** — routes each build task to its writer. `tdd` and `edit` are the two routes for changing the product — with and without behavior to test; an `e2e` task realizes the plan's e2e flows over behavior prior tasks built and does not implement the behavior under test.
+- **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Lane mandate, Requester identifier, Commit format, Guardrails.
+- **Consolidator** — merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch, backs its own judgments with checks (researcher on request), and — a fresh instance per rejection — adjudicates the final reviewer's findings; a decision no lane settled goes through a decision request.
+- **Decision request** — the consolidator's route for a decision no lane settled: a fresh lead scoped to the question researches, decides, and records the decision in the consolidated record, answering the consolidator directly; the consolidated record names the request's entries as provenance.
 
 ## Workflows
 
@@ -62,7 +66,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 ## Multilane
 
-- **Lane** — one independent execution of a phase's full machinery, producing a lane-approved artifact in its `lane-<K>` subfolder of the phase folder.
+- **Lane** — one execution of a phase's full machinery, producing a lane-approved artifact in its `lane-<K>` subfolder of the phase folder.
 - **Lane flow** — one execution of a phase's full machinery (research → artifact → adversarial review) to a lane-approved artifact; on the run branch with a single lane, once per lane with multiple (in parallel on lane branches when isolated, sequentially on the run branch when divergent).
 - **Lane count** — a per-phase decision. With a single lane the flow runs on the run branch and consolidation is skipped (the degenerate case).
 - **Isolated mode** — lanes run in parallel, mutually blind (spec always; design-doc optionally).
