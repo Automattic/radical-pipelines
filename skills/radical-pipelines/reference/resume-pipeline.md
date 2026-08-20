@@ -10,7 +10,7 @@ Cancel any health monitor still registered for this pipeline per the **Health mo
 
 ### 2. Locate the latest run branch and its worktree
 
-Enumerate the family's branches and parse them with the branch grammar (`pipeline-versioning.md`); the latest run is the highest-`N` revision, or `base`. Reuse the run branch's worktree if it exists; otherwise recreate it from the branch per the **Worktree root** convention.
+Enumerate the family's branches and parse them with the branch grammar (`pipeline-versioning.md`); the latest run is the highest-`N` revision, or `base`. Reuse the run branch's worktree if it exists; otherwise recreate it from the branch per the **Worktree root** convention and fire `worktree-created`.
 
 ### 3. Verify state against the completion predicates
 
@@ -27,6 +27,7 @@ When there is partial work, roll it back:
 1. Tell the owner plainly what resuming keeps and what it rolls back: the partial work's commits reverted and any uncommitted changes discarded, leaving everything up to the resume point untouched. Ask the owner to confirm; if they decline, stop and offer alternatives — for example a fork per `fork-pipeline.md`, which leaves the partial state intact.
 2. On confirmation, revert the partial work's commits — reverting adds inverse commits, so a pushed branch needs no force-update — and discard uncommitted changes. The run returns to the resume-point state.
 3. Delete the branches and worktrees of lanes rolled back to their start, including pushed copies; the re-run needs their names free.
+4. Fire `phase-rolled-back`.
 
 ---
 

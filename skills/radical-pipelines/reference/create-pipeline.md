@@ -14,7 +14,7 @@ The start ref is the project's main branch. When the owner stacks on unmerged wo
 
 ### 3. Create the base run branch and worktree
 
-Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktree root** convention. Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
+Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktree root** convention. Fire `branch-created` and `worktree-created`. Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
 
 ### 4. Create the pipeline family folder
 
@@ -39,4 +39,4 @@ The phase-0 folder must be self-contained — once committed, agents must not ne
 
 ### 6. Commit
 
-Commit the newly created artifacts following the **Commit format** convention.
+Commit the newly created artifacts following the **Commit format** convention. Fire `pipeline-created` and `phase-completed`.

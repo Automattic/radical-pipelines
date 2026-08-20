@@ -22,7 +22,7 @@ Confirm the final revision count and boundaries with the owner BEFORE creating a
 
 ### 3. Create the revision run branch and worktree
 
-Determine the run name `rev-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the revision run branch at the previous run branch's tip, and its worktree per the **Worktree root** convention.
+Determine the run name `rev-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the revision run branch at the previous run branch's tip, and its worktree per the **Worktree root** convention. Fire `branch-created` and `worktree-created`.
 
 ### 4. Create the run folder and author the revision intent
 
@@ -31,7 +31,7 @@ Create the run folder `<pipeline-family-folder>/rev-<N>-<desc>/` with its `0-int
 - An **Origin** section, MANDATORY for revisions and unique to them — its provenance (per `intent-format.md`). It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of what prompted the revision) PLUS a convenience link, so a later phase reading only this revision intent understands what prompted it without following the link.
 - Any source assets are placed in this run's `0-intent/` folder and referenced by relative path, the same as base intents.
 
-Show the owner the rendered revision intent and write it only on explicit approval — every revision intent is confirmed before the run starts, however directly the owner dictated it. Then commit it per the **Commit format** convention.
+Show the owner the rendered revision intent and write it only on explicit approval — every revision intent is confirmed before the run starts, however directly the owner dictated it. Then commit it per the **Commit format** convention and fire `phase-completed`.
 
 ### 5. Return to mode dispatch
 

@@ -38,4 +38,4 @@ After the committed conventions pass the required-completeness check, merge the 
 
 ## Lifecycle hooks
 
-When the conventions define **Lifecycle hooks**, read `../lifecycle-hooks.md`.
+Read `../lifecycle-hooks.md` — the workflows fire its hooks at defined moments.

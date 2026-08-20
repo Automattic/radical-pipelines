@@ -44,9 +44,9 @@ Each lane runs this flow independently, in its own worktree on its own branch:
 
 **Multiple lanes:**
 
-1. Create one lane branch and worktree per lane (branch segment `1-spec-lane-<K>`, forked from the run branch) per the **Worktree root** convention.
+1. Create one lane branch and worktree per lane (branch segment `1-spec-lane-<K>`, forked from the run branch) per the **Worktree root** convention, firing `branch-created` and `worktree-created` for each.
 2. Run the lane flow in all lanes in parallel. Each lane writes its artifacts in its `lane-<K>` subfolder of the phase folder, so the lanes' paths are disjoint.
-3. When every lane is approved, merge each lane branch into the run branch, remove the lane worktrees, and delete the lane branches.
+3. When every lane is approved, merge each lane branch into the run branch, remove the lane worktrees, and delete the lane branches. Fire `lanes-merged`.
 4. Launch `spec-consolidator` in the run branch's worktree. It reads each lane's artifacts from the `lane-<K>` subfolders, writes the consolidated `spec.md` and `spec-research.md` at the phase folder root, and commits them on the run branch.
 5. Launch a fresh `spec-reviewer` against the consolidated spec on the run branch, as in the lane flow. On rejection, launch a fresh `spec-consolidator` with the rejection file's path; it adjudicates every finding, updates both artifacts, and reports how each was adjudicated. Launch a fresh reviewer to re-review, passing that report verbatim and the revision's commit range — until approved.
 
