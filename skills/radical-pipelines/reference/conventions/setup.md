@@ -69,6 +69,12 @@ Ask the owner for the format and capture at least one concrete example.
 
 Suggested default: `<commit-description> (<agent-name>)`.
 
+### PR format
+
+The format of the pipeline's PR title and description. Consulted by the orchestrator only, at PR time.
+
+Ask the owner for the format — a template, required sections, style rules — and capture any example.
+
 ### Team spawning (required)
 
 How agents are spawned, addressed, seated in their assigned worktree, and terminated when their work ends.

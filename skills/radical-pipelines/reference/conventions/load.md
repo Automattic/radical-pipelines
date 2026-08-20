@@ -11,6 +11,7 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Issues                 | Where the project tracks issues and how to read, comment on, and update them               | Yes       |
 | Worktree root          | Where worktrees live                                                                       | Yes       |
 | Commit format          | How to write commits                                                                       | No        |
+| PR format              | How to write the pipeline's PR title and description                                       | No        |
 | Team spawning          | How to spawn, address, seat, and terminate agents                                           | Yes       |
 | Agent models           | Which model/settings each spawned agent runs on                                            | No        |
 | Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |

@@ -5,7 +5,7 @@ Closure actions are moments the owner invokes on a pipeline: opening its PR, mer
 ## Open the PR
 
 1. Fire `before-opening-pr`.
-2. Open the PR from the pipeline's latest run branch onto the project's main branch:
+2. Open the PR from the pipeline's latest run branch onto the project's main branch, writing its title and description per the **PR format** convention:
    - `artifacts-in-repo`: push the run branch and open the PR with your own tools.
    - `artifacts-in-fork`: perform the upstream PR transformation below.
 3. Fire `after-opening-pr` and report the outcome.
