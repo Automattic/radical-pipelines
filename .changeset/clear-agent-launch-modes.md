@@ -2,4 +2,4 @@
 "@automattic/radical-pipelines": patch
 ---
 
-Keep each agent launch to its workflow step.
+Keep agent launches scoped to their workflow steps and serialize handoffs after requested work completes.
