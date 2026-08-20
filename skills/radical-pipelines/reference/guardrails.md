@@ -9,6 +9,6 @@ Each guardrail is captured at setup as a block in `.rp.md`:
 ```markdown
 ### <name>
 
-- rule: <the prose rule>
+- rule: <the rule>
 - agents: <one or more agent names>
 ```
