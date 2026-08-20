@@ -122,7 +122,7 @@ describe("appendToErrorLog", () => {
 });
 
 describe("shapeStatus", () => {
-  test("includes the plugin version, pin comparison, mapped ledger rows, and recent errors", () => {
+  test("includes the plugin version, pin comparison, mapped ledger rows, recent errors, and loop ticks", () => {
     const result = shapeStatus({
       pluginVersion: "radical-pipelines@1.2.3",
       pinComparison: "match",
@@ -141,6 +141,7 @@ describe("shapeStatus", () => {
         },
       ],
       errorLog: ["boom"],
+      loopTickLog: [{ loopID: "loop_1", outcome: "busy", at: 123 }],
     });
 
     assert.deepEqual(result, {
@@ -161,6 +162,7 @@ describe("shapeStatus", () => {
         },
       ],
       recentErrors: ["boom"],
+      recentLoopTicks: [{ loopID: "loop_1", outcome: "busy", at: 123 }],
       readFailures: [],
     });
   });
@@ -223,5 +225,6 @@ describe("shapeStatus", () => {
 
     assert.deepEqual(result.ledger, []);
     assert.deepEqual(result.recentErrors, []);
+    assert.deepEqual(result.recentLoopTicks, []);
   });
 });
