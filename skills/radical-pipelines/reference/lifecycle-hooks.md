@@ -12,19 +12,24 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 
 | Hook                            | Moment                                                                                                     |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `pipeline-created`              | The pipeline exists: base run branch, worktree, pipeline family folder, and committed intent               |
+| `pipeline-created`              | The family's first pipeline exists: base run branch, worktree, pipeline family folder, and committed intent |
 | `run-started`                   | Work on a run begins — the pipeline was created, resumed, revised, or forked — before anything is launched |
 | `branch-created`                | A run branch or lane branch is created                                                                     |
 | `worktree-created`              | A worktree is created, or recreated on resume                                                              |
 | `phase-started`                 | A phase begins                                                                                             |
 | `phase-completed`               | A phase's completion predicate is satisfied, before the next phase begins                                  |
 | `lanes-merged`                  | A multi-lane phase's lane branches are merged into the run branch                                          |
-| `phase-rolled-back`             | A resume reverts an in-progress active phase                                                               |
+| `phase-rolled-back`             | A resume rolls back an active phase's partial work                                                         |
 | `blocker-reported`              | An agent's blocker report arrives                                                                          |
 | `run-ended`                     | The run stops — target phase completed, blocker, owner cancellation, or failure                            |
-| `pr-opened`                     | The owner asks to open the pipeline's PR                                                                   |
-| `pipeline-merged`               | The owner reports the pipeline merged                                                                      |
-| `pipeline-closed-without-merge` | The owner closes the pipeline without merging                                                              |
+| `before-opening-pr`             | The owner asks to open the pipeline's PR, before any work                                                  |
+| `after-opening-pr`              | The pipeline's PR exists                                                                                   |
+| `before-merging-pr`             | The owner announces the pipeline's PR is about to merge                                                    |
+| `after-merging-pr`              | The owner reports the pipeline's PR merged                                                                 |
+| `before-closing-without-merge`  | The owner asks to close the pipeline without merging                                                       |
+| `after-closing-without-merge`   | The pipeline is closed without merging                                                                     |
+
+The `before-`/`after-` hooks bracket the closure actions the owner invokes on a pipeline (`closure-actions.md`); a blocking failure in a `before-` hook stops its action.
 
 ## The `.rp.md` per-hook block
 
@@ -35,7 +40,3 @@ Each hook the project defines is captured as a block under a `Lifecycle hooks` s
 
 <the instructions to run — an instruction may be marked **blocking**>
 ```
-
-## Closure actions
-
-The last three hooks are closure moments the owner invokes on a pipeline: opening its PR, recording its merge, closing it without merging. Each request is a firing point — fire the hook and report the outcome; the work itself lives in the hooks or with the owner.

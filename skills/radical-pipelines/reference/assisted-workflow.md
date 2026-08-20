@@ -25,6 +25,10 @@ The guardrails naming the phase's agents (`spec-*` or `design-doc-*`) apply to y
 
 You write the artifacts yourself, in the run branch's worktree addressed by absolute path. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does.
 
-## 4. Report and close out
+## 4. Close out the run
 
-Once the phase's completion predicate is satisfied, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Push the run branch. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.
+Close-out fires whenever the run stops — the phase completed, an owner cancellation, or a failure:
+
+1. Push the run branch.
+2. Report the outcome; for a completed phase, which phase completed, where its artifacts live, and any notes worth surfacing.
+3. Tell the owner that the assisted run has ended — continuing to a later phase happens in a separate session.
