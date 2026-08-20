@@ -14,7 +14,7 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Team spawning          | How to spawn and address agents, and how to seat each agent in its worktree                | Yes       |
 | Agent models           | Which model/settings each spawned agent runs on                                            | No        |
 | Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |
-| Guardrails             | The prose rules the project's agents must satisfy                                          | No        |
+| Guardrails             | The rules the project's agents must satisfy                                          | No        |
 | Artifact storage       | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes       |
 
 ## Missing conventions
