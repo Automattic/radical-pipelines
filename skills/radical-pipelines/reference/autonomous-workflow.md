@@ -34,9 +34,9 @@ Run each phase from the next phase up to the target phase, in order.
 
 At run start:
 
-1. Ensure the run branch's worktree exists per the **Worktree root** convention, firing `worktree-created` if you create it.
+1. Ensure the run branch's worktree exists per the **Worktree root** convention, firing the `worktree-created` lifecycle hook if you create it.
 2. Start a recurring health monitor for the run per `health-monitoring.md`.
-3. Fire `run-started`.
+3. Fire the `run-started` lifecycle hook.
 
 You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. Address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch; your own working directory changes only to seat an agent.
 
@@ -50,12 +50,12 @@ You own all branch and worktree topology: you create every branch and worktree (
 
 For each phase:
 
-1. Fire `phase-started`.
+1. Fire the `phase-started` lifecycle hook.
 2. Create the phase subfolder inside the run folder (`<pipeline-family-folder>/<run>/<phase>` per `pipeline-versioning.md`).
 3. Read its phase reference.
 4. Run the phase per its reference, applying the per-phase decisions collected in step 3.
 5. Verify the phase's completion predicate per `pipeline-versioning.md` ("Per-phase completion").
-6. Fire `phase-completed`.
+6. Fire the `phase-completed` lifecycle hook.
 7. Give the owner a short report before moving on: which phase completed, where its artifacts live, and any notes worth surfacing (e.g. number of rejected review iterations, deviations from defaults). Do not ask questions — this is informational only.
 8. Continue with the following phase, until the target phase has completed.
 
@@ -83,7 +83,7 @@ Agents are instructed to stop and report a blocker — instead of inventing a mi
 
 When a blocker arrives:
 
-1. Fire `blocker-reported`.
+1. Fire the `blocker-reported` lifecycle hook.
 2. Stop the autonomous run immediately. Do not advance to the next phase, and do not relaunch the blocked agent without an input change.
 3. Surface the blocker to the owner verbatim, including the three fields above and the path to any partial artifact the agent committed.
 4. Name the phase whose artifact must change. The route to change it is a fork cut below that phase (`fork-pipeline.md`), re-running it with the blocker payload as input.
@@ -96,5 +96,5 @@ Close-out fires whenever the run stops — target phase completed, a blocker, an
 
 1. Stop the health monitor (see `health-monitoring.md` for the cancellation command).
 2. Push the run branch and any remaining lane branches.
-3. Fire `run-ended`.
+3. Fire the `run-ended` lifecycle hook.
 4. Tell the owner that the autonomous run is complete.
