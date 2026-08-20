@@ -64,11 +64,12 @@ Each time you spawn an agent:
 
 - Follow the **Team spawning** convention to spawn the agent seated in its worktree — started inside it, its branch checked out.
 - Give the agent a name unique within the run and hold its identifier — the handle that directs a message to that agent alone, assigned at spawn or returned by it per the **Team spawning** convention. Address every message to an agent by its identifier.
+- Include only the work and inputs assigned by the step that launches it.
 - Include the `## Conventions` block at the top of its initial prompt per `conventions/passing.md`.
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
 - When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it whole: as the committed file's path when one holds it, verbatim otherwise, never interpreted or framed.
 
-Agents message you when their work completes, when they need research or a decision, and when they hit a blocker; an agent serving a request answers its requester. Every message you send an agent carries work it must act on. When an agent's work ends, terminate its session per the **Team spawning** convention.
+Agents message you when their work completes, when they need research or a decision, and when they hit a blocker; an agent serving a request answers its requester. Every message you send an agent carries work it must act on. Accept an agent's completion only after every agent serving its requests has finished and the agent reports completion afterward. Terminate its session per the **Team spawning** convention before continuing the workflow.
 
 ## 6. Handle blockers
 
