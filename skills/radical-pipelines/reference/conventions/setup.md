@@ -102,14 +102,6 @@ This is highly dependent on the agentic coding tool but you can document the exi
 
 **Capture per guardrail** as the per-guardrail block defined in `../guardrails.md`, asking the owner for each field.
 
-**Validate embedded commands as you capture.** When a rule embeds a command, run it once. The only question is **did the command execute?** — whether the check it backs passes is the agents' concern at run time, not yours, so any exit code counts, including non-zero. If it did not execute — command-not-found, not-executable, or it never returns on its own (hangs or waits for interactive input) — surface the failure to the owner (the error and exit code) and offer to (a) fix or replace it, (b) drop the guardrail, or (c) — only if the owner insists the command is correct and the validation environment is the discrepancy — keep it as an escape hatch. A rule with nothing runnable has nothing to validate.
-
-Also:
-
-- **Per-rule and independent.** One unrunnable command does not block writing the other guardrails or abort the wider capture — drop or correct it and finish the rest.
-- **Match the agents' environment as closely as you can reach.** Setup runs in the main checkout, since no worktree exists yet, so validate in at least the project's standard shell and working directory. Perfect parity is impossible but the floor still catches the realistic failures — command-not-found, tool-not-installed, bad invocation or wrong-shell quoting.
-- **Validation has side effects.** Running a command that writes, deploys, or destroys takes effect on the owner's checkout. Confirm before running such a command, or accept the owner's word and use the escape hatch. Setup's interactive, one-time nature accommodates a bounded real run.
-
 ### Artifact storage (required)
 
 How this project stores Radical Pipelines artifacts.

@@ -27,19 +27,16 @@ The per-task Acceptance — the named flows covered by passing e2e tests — is 
 
 ### 3. Satisfy the guardrails
 
-Satisfy every rule in your `## Conventions` block's **Guardrails** field, running any command a rule embeds as the rule directs. Each is mandatory.
+Satisfy every rule in your `## Conventions` block's **Guardrails** field before you commit.
 
-- Every rule must be satisfied before you commit.
 - Do not bypass a rule's check (no `--no-verify`, no `skip`, no commented-out checks).
-- Sort each rule:
-  - **No Guardrails field** — proceed. This is not a blocker, and it warrants no warning.
-  - **A rule's embedded command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
-  - **A rule is not satisfied** — its command runs and fails, or the check it states does not hold. That is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
+- An unsatisfied rule is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
+- **No Guardrails field** — proceed. This is not a blocker, and it warrants no warning.
 - Confirm every per-task Acceptance criterion is covered by a passing test before declaring the task done.
 
 ### 4. Commit and report
 
-1. Commit the tests using the **Commit format**. Group changes logically. Only commit when every rule is satisfied.
+1. Commit the tests using the **Commit format**. Group changes logically.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines
