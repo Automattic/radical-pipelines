@@ -29,9 +29,9 @@ The per-task Acceptance — the named flows covered by passing e2e tests — is 
 
 Satisfy every rule in your `## Conventions` block's **Guardrails** field before you commit.
 
+- **No Guardrails field** — proceed. This is not a blocker, and it warrants no warning.
 - Do not bypass a rule's check (no `--no-verify`, no `skip`, no commented-out checks).
 - An unsatisfied rule is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
-- **No Guardrails field** — proceed. This is not a blocker, and it warrants no warning.
 - Confirm every per-task Acceptance criterion is covered by a passing test before declaring the task done.
 
 ### 4. Commit and report

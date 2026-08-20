@@ -21,7 +21,7 @@ Map the next phase to its reference file:
 
 Create the phase subfolder inside the run folder (`<pipeline-family-folder>/<run>/<phase>` per `pipeline-versioning.md`) and run the phase per its reference.
 
-The guardrails naming the phase's agents apply to your work: surface them to the owner and ask before executing them.
+The guardrails naming the phase's agents (`spec-*` or `design-doc-*`) apply to your work: surface them to the owner and satisfy them as the owner directs.
 
 You write the artifacts yourself, in the run branch's worktree addressed by absolute path. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does.
 

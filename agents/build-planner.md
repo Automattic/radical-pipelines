@@ -82,7 +82,7 @@ Use the following structure:
 - **Per-task acceptance is required.** Every task must have one or more observable acceptance criteria describing _what must be true when this task is done_, scoped to the task. They translate the spec acceptance criterion the task traces to into task-level checks (often more granular). They must be observable and verifiable, but they describe **what**, not **how it is verified**. They must not contradict the spec acceptance criterion they trace to. Even trivial tasks need at least one criterion.
 - **Name exact files.** Use real paths from the codebase wherever possible. "Update the auth module" is not enough; "update `src/auth/session.ts`" is.
 - **Stay within spec and design.** Do not invent functionality, alternative designs, or extra scope.
-- **Satisfy the guardrails.** Rules in your `## Conventions` block's **Guardrails** field are mandatory; satisfy every one in the work you produce.
+- **Satisfy the guardrails.** Satisfy every rule in your `## Conventions` block's **Guardrails** field in the work you produce.
 - **Plan the e2e flows.** Transform the spec's acceptance criteria and edge cases with behavior to test into the `## E2E test plan` section. Per-task unit-test selection stays the build-writer-tdd's; do not prescribe which unit tests a task writes.
 - **Do NOT plan documentation.** Documentation is planned and executed in the document phase. Do not include documentation tasks here.
 - **Do NOT write code.** Describe the change; do not produce the implementation.

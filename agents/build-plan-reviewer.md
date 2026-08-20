@@ -53,6 +53,14 @@ Use this structure:
 
 <!-- One paragraph: overall assessment of the plan quality. -->
 
+## Checks
+
+<!-- One row per rule in the Guardrails field. Result: satisfied | unsatisfied. Omit when no rule names you. -->
+
+| Guardrail | Result |
+| --------- | ------ |
+| ...       | ...    |
+
 ## Non-blocking findings
 
 <!-- Only if approved: real findings that do not warrant a rejection. -->
@@ -86,7 +94,7 @@ Use this structure:
 - **Check against the codebase.** Verify file paths and module shapes the plan assumes. If they don't match reality, flag it.
 - **Gate minimal artifacts.** A minimal artifact is legitimate only when the research record shows the investigation that came back empty. For each "none" the artifact claims — no risks, no alternatives, no affected areas — find the recorded sweep behind it; reject a minimal conclusion that lacks that evidence.
 - **Never manufacture findings.** Reject for any real issue; approve when the plan survives your checks.
-- **Evaluate the guardrails.** Evaluate every rule in your `## Conventions` block's **Guardrails** field, record each outcome in your review, and treat an unsatisfied rule as a rejection finding.
+- **Evaluate the guardrails.** Evaluate every rule in your `## Conventions` block's **Guardrails** field, record each outcome in the Checks table, and treat an unsatisfied rule as a rejection finding.
 - **Do NOT rewrite the plan yourself.** You only review and provide feedback.
 - **Do NOT review beyond the plan.** Code quality and documentation are not your concern — only that the plan is complete, ordered, feasible, and traceable to the spec and design.
 - **Stop and report blockers.** Normal review findings (gaps in the plan, missed acceptance criteria, etc.) go in a rejection verdict, not a blocker; reserve blockers for broken inputs — the plan, spec, or design doc missing or unreadable, or a required convention undefined. When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

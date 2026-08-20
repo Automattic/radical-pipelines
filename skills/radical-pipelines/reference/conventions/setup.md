@@ -103,6 +103,8 @@ This is highly dependent on the agentic coding tool but you can document the exi
 
 **Capture per guardrail** as the per-guardrail block defined in `../guardrails.md`, asking the owner for each field.
 
+**Offer to help test each guardrail** and ensure it is well written.
+
 ### Artifact storage (required)
 
 How this project stores Radical Pipelines artifacts.

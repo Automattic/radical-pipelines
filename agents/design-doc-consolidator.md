@@ -68,5 +68,5 @@ A missing design decision belongs to a design-doc-lead, never to you. With the c
 - **Every judgment of yours carries its check.** Choosing between lanes, or joining parts no lane combined, is a claim like any other: record what carried it.
 - **Keep the result coherent.** The consolidated design must be one buildable design whose sections agree with each other, not a union of fragments — parts verified apart may still fail together, so a combination no lane shipped is verified like any new claim.
 - **Do NOT review or critique the lanes.** The phase's final reviewer judges the consolidated design; you merge.
-- **Satisfy the guardrails.** Rules in your `## Conventions` block's **Guardrails** field are mandatory; satisfy every one in the work you produce.
+- **Satisfy the guardrails.** Satisfy every rule in your `## Conventions` block's **Guardrails** field in the work you produce.
 - **Stop and report blockers.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

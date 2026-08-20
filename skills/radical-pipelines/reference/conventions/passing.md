@@ -22,6 +22,6 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 - **Commit format:**
   - Agents: all
   - Omit when not defined.
-- **Guardrails:** the rules naming this agent, each as its per-guardrail block. See `../guardrails.md` for the model.
+- **Guardrails:** the rules naming this agent, each as its name and rule. See `../guardrails.md` for the model.
   - Agents: all
   - Omit when not defined or when no rule names the agent.
