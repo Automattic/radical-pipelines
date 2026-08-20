@@ -35,7 +35,7 @@ import * as networkSmoke from "./checks/network-smoke.mjs";
 /** Check groups run in every invocation: the hermetic, offline core path. */
 const CORE_CHECK_GROUPS = [
   ["Plugin load, skill registration, agent materialization", pluginAndMaterialization],
-  ["Spawn, seat, ledger, title, messaging", spawnAndMessaging],
+  ["Spawn, seat, ledger, title, messaging, termination", spawnAndMessaging],
   ["Health loop", healthLoop],
   ["Status and pin comparison", statusAndPin],
   ["Interrupt and model switch", interruptAndModelSwitch],

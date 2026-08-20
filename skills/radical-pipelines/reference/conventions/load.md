@@ -11,7 +11,7 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Issues                 | Where the project tracks issues and how to read, comment on, and update them               | Yes       |
 | Worktree root          | Where worktrees live                                                                       | Yes       |
 | Commit format          | How to write commits                                                                       | No        |
-| Team spawning          | How to spawn and address agents, and how to seat each agent in its worktree                | Yes       |
+| Team spawning          | How to spawn, address, seat, and terminate agents                                           | Yes       |
 | Agent models           | Which model/settings each spawned agent runs on                                            | No        |
 | Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |
 | Guardrails             | The deterministic verification gates — exact commands judged pass/fail by exit code        | No        |

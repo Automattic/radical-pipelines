@@ -255,12 +255,13 @@ A tool must provide:
 3. **Mid-run messaging** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
 4. **Seating** — each agent starts with its working directory fixed inside an orchestrator-chosen git worktree.
 5. **Directed messaging with unique identity** — every spawned agent has an identifier that directs a message to it alone, known to the orchestrator: assigned at spawn (e.g. a name the orchestrator passes in) or returned by it (e.g. an id in the spawn result).
-6. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
+6. **Session termination** — the orchestrator can end a spawned agent's session when its work ends.
+7. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
 
 Optional, needed only when the project configures the matching convention:
 
-7. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
+8. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
 
 The rules file documents the tool's mechanics for the conventions — Team spawning, Health monitoring, worktrees — and surfaces any prerequisite the owner must meet before the tool is declared ready.
 
-**opencode** is the second realized tool. Its rules file is `skills/radical-pipelines/reference/conventions/opencode.md`. Because a rules file alone cannot supply capabilities the tool lacks natively, opencode also ships a packaging artifact — the zero-dependency plugin at `opencode/plugin.mjs` — that provides the coordination `rp_*` tools opencode has no native primitive for (team spawning, directed messaging, health monitoring, status).
+**opencode** is the second realized tool. Its rules file is `skills/radical-pipelines/reference/conventions/opencode.md`. Because a rules file alone cannot supply capabilities the tool lacks natively, opencode also ships a packaging artifact — the zero-dependency plugin at `opencode/plugin.mjs` — that provides the coordination `rp_*` tools opencode has no native primitive for (team spawning, directed messaging, session termination, health monitoring, status).
