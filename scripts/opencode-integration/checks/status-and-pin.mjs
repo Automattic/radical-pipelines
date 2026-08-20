@@ -49,6 +49,7 @@ export async function run(ctx) {
     assert.equal(status.pin, "match", `expected rp_status's pin comparison to be "match", got: ${status.pin}`);
     assert.ok(Array.isArray(status.ledger));
     assert.ok(Array.isArray(status.recentErrors));
+    assert.ok(Array.isArray(status.recentLoopTicks));
   });
 
   await runCheck(results, "rp_status's ledger reflects a spawned session recognized via its durable title", async () => {

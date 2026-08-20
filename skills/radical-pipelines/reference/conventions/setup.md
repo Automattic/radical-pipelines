@@ -71,7 +71,7 @@ Suggested default: `<commit-description> (<agent-name>)`.
 
 ### Team spawning (required)
 
-How agents are spawned and addressed across orchestrator sessions, and how each spawned agent is seated — started inside its assigned worktree with its branch checked out.
+How agents are spawned, addressed, seated in their assigned worktree, and terminated when their work ends.
 
 This is highly dependent on the agentic coding tool but you can document the existing tools and store them as a convention so the research doesn't need to be done on each run.
 

@@ -9,9 +9,9 @@
  * "Code Mode" `execute` tool: the model writes a snippet of restricted
  * JavaScript that calls `tools.<name>(input)`, and `execute`'s arguments
  * carry that snippet as a `code` string — verified live against the pinned
- * build. To drive `rp_spawn`/`rp_send`/`rp_loop_*`/`rp_status` deterministically
- * from a scripted "model", this stub recognizes a directive embedded in the
- * driving prompt's text — `__RP_CODE__:<code>:__END__` — and, on a match it
+ * build. To drive `rp_spawn`/`rp_send`/`rp_terminate`/`rp_loop_*`/`rp_status`
+ * deterministically from a scripted "model", this stub recognizes a directive
+ * embedded in the driving prompt's text — `__RP_CODE__:<code>:__END__` — and, on a match it
  * has not already answered, emits a tool_call for `execute` running exactly
  * that code. Any other turn (no directive, or a directive already answered
  * once) gets a fixed plain-text reply, ending the turn normally.

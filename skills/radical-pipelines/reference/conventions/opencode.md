@@ -11,7 +11,7 @@ The block below is the canonical content for `.rp.md`.
 
 ### Team spawning
 
-Spawn each agent with `rp_spawn`, passing the run-unique instance name, the RP profile name, a `provider/model[#variant]` string, the absolute worktree path to seat the session in, the initial prompt, and the run branch. The session's working directory is fixed for its lifetime. The result's session ID is the identifier for addressing messages to it. Message an agent with `rp_send`. `rp_spawn` appends the opencode messaging protocol and the spawner's session ID to every initial prompt; it directs agents to report with `rp_send` to the **Requester identifier** when present, otherwise to the spawner. The spawner is notified automatically when a spawned agent's first turn completes; agents report completion of any later work themselves.
+Spawn each agent with `rp_spawn`, passing the run-unique instance name, the RP profile name, a `provider/model[#variant]` string, the absolute worktree path to seat the session in, the initial prompt, and the run branch. The session's working directory is fixed for its lifetime. The result's session ID is the identifier for addressing messages to it. Message an agent with `rp_send`. `rp_spawn` appends the opencode messaging protocol and the spawner's session ID to every initial prompt; it directs agents to report with `rp_send` to the **Requester identifier** when present, otherwise to the spawner. The spawner is notified automatically when a spawned agent's first turn completes; agents report completion of any later work themselves. When an agent's work ends, call `rp_terminate` with its session ID.
 
 Sessions run commands in a non-interactive `$SHELL -c` that sources no profile or rc files; shell functions defined there exist only when the command initializes them itself.
 
@@ -19,10 +19,10 @@ A read outside a session's worktree raises a permission request that blocks the 
 
 ### Health monitoring
 
-- **Start:** `rp_loop_start` with the interval and the monitor prompt from `reference/health-monitoring.md`; target defaults to the calling session.
+- **Start:** `rp_loop_start` with the interval and the monitor prompt from `reference/health-monitoring.md`; target defaults to the calling session. Ticks fire when idle and steer after two intervals without activity.
 - **List active loops:** `rp_loop_list`.
 - **Cancel:** `rp_loop_cancel` with the loop id.
-- **Status:** `rp_status` reports each spawned session's running state, current tool, and pending permission requests; a session with a pending request is blocked awaiting adjudication, not stalled.
+- **Status:** `rp_status` reports each spawned session's running state, current tool, pending permission requests, and recent health-loop ticks; a session with a pending request is blocked awaiting adjudication, not stalled.
 ```
 
 **Agent models** values are opencode-native `provider/model[#variant]` strings.

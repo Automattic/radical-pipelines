@@ -2,9 +2,10 @@
  * RP's opencode v2 plugin.
  *
  * Zero-dependency ESM module supplying the coordination layer opencode lacks
- * natively (team spawning, directed messaging, health monitoring, permission
- * mediation, status). Every pure helper is named-exported so it can be
- * unit-tested offline, without a running opencode daemon.
+ * natively (team spawning, directed messaging, session termination, health
+ * monitoring, permission mediation, status). Every pure helper is
+ * named-exported so it can be unit-tested offline, without a running opencode
+ * daemon.
  */
 
 import { execFileSync } from "node:child_process";
@@ -334,15 +335,15 @@ function writeLoopRegistry(registryPath, entries) {
 /**
  * Add an entry to the loop registry.
  *
- * Each entry carries enough to re-arm a `setInterval` after a restart: the
+ * Each entry carries enough to re-arm a recurring timer after a restart: the
  * loop id, its tick interval, the prompt to inject, and the session it
  * targets.
  *
  * @param {string} registryPath Absolute path to the registry JSON file.
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry
  *   The loop entry to add. `id` uniquely identifies the loop; `interval` is
- *   the tick period in milliseconds; `prompt` is the text injected on an idle
- *   tick; `targetSession` is the session ID the loop watches and prompts.
+ *   the tick period in milliseconds; `prompt` is the text injected when a tick
+ *   fires; `targetSession` is the session ID the loop watches and prompts.
  * @returns {void}
  */
 function addLoopEntry(registryPath, entry) {
@@ -378,11 +379,14 @@ function deleteLoopEntry(registryPath, id) {
  */
 const LOOP_TIMERS_KEY = Symbol.for("radical-pipelines.opencode.loopTimers");
 
+/** Active sessions become stale after this many unchanged loop intervals. */
+const LOOP_STALE_INTERVALS = 2;
+
 /**
  * Fetch the process-wide map of armed loop timers, creating it on first use.
  *
- * @returns {Map<string, NodeJS.Timeout>} The singleton map from loop id to
- *   its live `setInterval` handle.
+ * @returns {Map<string, {timer: NodeJS.Timeout | undefined, inFlight: Promise<void> | null, ready: Promise<void> | undefined, cancelled: boolean}>}
+ *   The singleton map from loop id to its timer state.
  */
 function getLoopTimers() {
   if (!globalThis[LOOP_TIMERS_KEY]) {
@@ -397,15 +401,41 @@ function getLoopTimers() {
  *
  * @param {{ id: string, interval: number }} entry The loop entry to arm; only
  *   `id` and `interval` are read here (`tick` receives the full entry).
- * @param {(entry: object) => void} tick Called with `entry` on every tick.
- * @returns {void}
+ * @param {(entry: object, isCancelled: () => boolean) => void | Promise<void>} tick
+ *   Called with `entry` and its cancellation state on every tick.
+ * @returns {Promise<void>} Resolves when any replaced loop has stopped and
+ *   the new timer is armed.
  */
 function armLoopTimer(entry, tick) {
-  disarmLoopTimer(entry.id);
-  getLoopTimers().set(
-    entry.id,
-    setInterval(() => tick(entry), entry.interval),
-  );
+  const timers = getLoopTimers();
+  const previous = timers.get(entry.id);
+  const previousStopped = previous ? stopLoopTimer(previous) : Promise.resolve();
+  const state = { timer: undefined, inFlight: null, ready: undefined, cancelled: false };
+  const schedule = () => {
+    state.timer = setTimeout(() => {
+      state.timer = undefined;
+      if (state.cancelled) return;
+      state.inFlight = Promise.resolve()
+        .then(() => tick(entry, () => state.cancelled))
+        .catch(() => {})
+        .finally(() => {
+          state.inFlight = null;
+          if (!state.cancelled) schedule();
+        });
+    }, entry.interval);
+  };
+  timers.set(entry.id, state);
+  state.ready = previousStopped.then(() => {
+    if (!state.cancelled && timers.get(entry.id) === state) schedule();
+  });
+  return state.ready;
+}
+
+/** Stop one timer state and wait for its startup and active tick. */
+function stopLoopTimer(state) {
+  state.cancelled = true;
+  clearTimeout(state.timer);
+  return Promise.all([state.ready, state.inFlight].filter(Boolean)).then(() => {});
 }
 
 /**
@@ -415,15 +445,15 @@ function armLoopTimer(entry, tick) {
  * a no-op.
  *
  * @param {string} id The loop id to disarm.
- * @returns {void}
+ * @returns {Promise<void>} Resolves when any in-flight tick has stopped.
  */
 function disarmLoopTimer(id) {
   const timers = getLoopTimers();
-  const timer = timers.get(id);
-  if (timer) {
-    clearInterval(timer);
-    timers.delete(id);
-  }
+  const state = timers.get(id);
+  if (!state) return Promise.resolve();
+  return stopLoopTimer(state).finally(() => {
+    if (timers.get(id) === state) timers.delete(id);
+  });
 }
 
 /**
@@ -438,25 +468,60 @@ function disarmLoopTimer(id) {
  * @param {{
  *   server: {baseURL: string, password: string} | null,
  *   isSessionActive: (server: object, sessionID: string) => Promise<boolean>,
- *   injectPrompt: (sessionID: string, text: string) => Promise<*>,
- *   onSkippedNoServer: (entry: object) => void,
+ *   getSessionUpdatedAt: (server: object, sessionID: string) => Promise<number>,
+ *   injectPrompt: (sessionID: string, text: string, delivery: "queue" | "steer") => Promise<*>,
+ *   onOutcome: (outcome: object) => void,
+ *   isCancelled?: () => boolean,
+ *   now?: () => number,
  * }} deps The tick's effects: the resolved server (or `null` when
- *   unreachable, see `resolveServer`), the idle check, the prompt injector,
- *   and a logger invoked when the tick is skipped for lack of a reachable
- *   server.
- * @returns {Promise<"no-server" | "busy" | "injected">} What the tick did.
+ *   unreachable, see `resolveServer`), session-state reads, the prompt
+ *   injector, and the outcome recorder. `now` defaults to `Date.now`.
+ * @returns {Promise<object>} The recorded outcome.
  */
-async function runLoopTick(entry, { server, isSessionActive, injectPrompt, onSkippedNoServer }) {
-  if (!server) {
-    onSkippedNoServer(entry);
-    return "no-server";
+async function runLoopTick(
+  entry,
+  {
+    server,
+    isSessionActive,
+    getSessionUpdatedAt: readUpdatedAt,
+    injectPrompt,
+    onOutcome,
+    isCancelled = () => false,
+    now = Date.now,
+  },
+) {
+  let result;
+  try {
+    if (isCancelled()) {
+      result = { outcome: "cancelled" };
+    } else if (!server) {
+      result = { outcome: "no-server" };
+    } else {
+      const active = await isSessionActive(server, entry.targetSession);
+      if (isCancelled()) {
+        result = { outcome: "cancelled" };
+      } else if (!active) {
+        await injectPrompt(entry.targetSession, entry.prompt, "queue");
+        result = { outcome: "injected", reason: "idle" };
+      } else {
+        const lastActivity = await readUpdatedAt(server, entry.targetSession);
+        if (isCancelled()) {
+          result = { outcome: "cancelled" };
+        } else if (now() - lastActivity <= entry.interval * LOOP_STALE_INTERVALS) {
+          result = { outcome: "busy", lastActivity };
+        } else {
+          await injectPrompt(entry.targetSession, entry.prompt, "steer");
+          result = { outcome: "injected", reason: "stale-running", lastActivity };
+        }
+      }
+    }
+  } catch (error) {
+    const failure = { outcome: "failed", error: String(error) };
+    onOutcome(failure);
+    throw error;
   }
-  const active = await isSessionActive(server, entry.targetSession);
-  if (active) {
-    return "busy";
-  }
-  await injectPrompt(entry.targetSession, entry.prompt);
-  return "injected";
+  onOutcome(result);
+  return result;
 }
 
 /**
@@ -603,7 +668,7 @@ function nodeHttpRequest(url, { method, headers, body }) {
  *
  * @param {{ baseURL: string, password: string }} server A server resolved by
  *   `resolveServer`.
- * @param {"GET" | "POST"} method The HTTP method.
+ * @param {"GET" | "POST" | "DELETE"} method The HTTP method.
  * @param {string} path The request path, resolved against `server.baseURL`.
  * @param {*} [body] A JSON-serializable request body (POST only).
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
@@ -649,6 +714,34 @@ async function isSessionActive(server, sessionID, requestFn) {
   }
   const active = response.body?.data;
   return Boolean(active && Object.prototype.hasOwnProperty.call(active, sessionID));
+}
+
+/**
+ * Read a session's last-activity timestamp.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session ID to read.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<number>} The session record's `time.updated` timestamp.
+ * @throws {Error} When the read fails or the timestamp is absent.
+ */
+async function getSessionUpdatedAt(server, sessionID, requestFn) {
+  const response = await requestServer(
+    server,
+    "GET",
+    `/api/session/${sessionID}`,
+    undefined,
+    requestFn,
+  );
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`GET /api/session/${sessionID} returned ${response.status}`);
+  }
+  const updated = response.body?.data?.time?.updated;
+  if (!Number.isFinite(updated)) {
+    throw new Error(`GET /api/session/${sessionID} response is missing time.updated`);
+  }
+  return updated;
 }
 
 /**
@@ -862,6 +955,7 @@ async function buildStatusPayload({
     pinComparison,
     ledgerEntries,
     errorLog: getErrorLog(),
+    loopTickLog: getLoopTickLog(),
     readFailures: [...failures.values()],
   });
 }
@@ -915,6 +1009,26 @@ function getErrorLog() {
  */
 function recordError(entry) {
   globalThis[ERROR_LOG_KEY] = appendToErrorLog(getErrorLog(), entry);
+}
+
+/** `globalThis` key backing the bounded recent health-loop tick log. */
+const LOOP_TICK_LOG_KEY = Symbol.for("radical-pipelines.opencode.loopTickLog");
+
+/** Fetch the process-wide recent health-loop tick log. */
+function getLoopTickLog() {
+  if (!globalThis[LOOP_TICK_LOG_KEY]) {
+    globalThis[LOOP_TICK_LOG_KEY] = [];
+  }
+  return globalThis[LOOP_TICK_LOG_KEY];
+}
+
+/** Append an entry to the process-wide recent health-loop tick log. */
+function recordLoopTick(entry) {
+  globalThis[LOOP_TICK_LOG_KEY] = appendToErrorLog(
+    getLoopTickLog(),
+    entry,
+    DEFAULT_LOOP_TICK_LOG_CAP,
+  );
 }
 
 /** Event types the completion listener treats as terminal for a session. */
@@ -979,13 +1093,14 @@ function formatStructuredError(error) {
  *
  * Ignores non-terminal events and terminal events on sessions RP did not
  * spawn. For a recognized child's terminal event: always records it in the
- * bounded error log — including, for a failed event, the structured error it
- * carries, so `rp_status`'s `recentErrors` reports the cause; on the child's
- * *first* terminal event only, notifies the spawner (queue delivery) and
- * re-asserts the child's durable `rp:` title over the reach helper. The
- * notification text names the terminal outcome — "succeeded" or "failed" —
- * so a first-turn spawn failure reads as a failure rather than as a false
- * success, and a failure notification carries the structured error's cause.
+ * bounded error log when it failed, including the structured error it
+ * carries, so `rp_status`'s `recentErrors` reports the cause. Routine success
+ * events stay out of that log. On the child's *first* terminal event only,
+ * notifies the spawner (queue delivery) and re-asserts the child's durable
+ * `rp:` title over the reach helper. The notification text names the terminal
+ * outcome — "succeeded" or "failed" — so a first-turn spawn failure reads as
+ * a failure rather than as a false success, and a failure notification carries
+ * the structured error's cause.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
  * @param {{
@@ -1008,11 +1123,13 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
   }
 
   const error = terminalEventError(event);
-  const logEntry = { type: event.type, sessionID, at: Date.now() };
-  if (error !== undefined) {
-    logEntry.error = error;
+  if (event.type === "session.execution.failed") {
+    const logEntry = { type: event.type, sessionID, at: Date.now() };
+    if (error !== undefined) {
+      logEntry.error = error;
+    }
+    recordError(logEntry);
   }
-  recordError(logEntry);
 
   const notified = getNotifiedChildren();
   if (notified.has(sessionID)) {
@@ -1601,6 +1718,9 @@ function comparePinnedBuild(runningBuild, pinnedCli) {
  */
 const DEFAULT_ERROR_LOG_CAP = 20;
 
+/** Default cap for the in-memory recent health-loop tick ring. */
+const DEFAULT_LOOP_TICK_LOG_CAP = 100;
+
 /**
  * Append an entry to a bounded, in-memory error log ring.
  *
@@ -1646,14 +1766,16 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     currentTool: object | undefined,
  *   }>,
  *   errorLog: Array<*>,
+ *   loopTickLog?: Array<*>,
  *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
  * }} input The status payload's components. `pluginVersion` identifies the
  *   running plugin build; `pinComparison` is the result of comparing the
  *   running opencode build against the pin; `ledgerEntries` is one row per
- *   live spawn; `errorLog` is the bounded recent-errors ring; `readFailures`
- *   lists the server reads that failed while gathering the ledger — a
- *   non-empty list means the ledger's `running`/`pending`/`permissions`
- *   fields are incomplete, not that the sessions are idle.
+ *   live spawn; `errorLog` and `loopTickLog` are bounded recent-event rings;
+ *   `readFailures` lists the server reads that failed while gathering the
+ *   ledger — a non-empty list means the ledger's
+ *   `running`/`pending`/`permissions` fields are incomplete, not that the
+ *   sessions are idle.
  * @returns {{
  *   pluginVersion: string,
  *   pin: "match" | "outside the verified surface" | "not determinable",
@@ -1670,10 +1792,18 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     currentTool: object | undefined,
  *   }>,
  *   recentErrors: Array<*>,
+ *   recentLoopTicks: Array<*>,
  *   readFailures: Array<{endpoint: string, status: number | "transport", count: number}>,
  * }} The shaped `rp_status` result.
  */
-function shapeStatus({ pluginVersion, pinComparison, ledgerEntries, errorLog, readFailures = [] }) {
+function shapeStatus({
+  pluginVersion,
+  pinComparison,
+  ledgerEntries,
+  errorLog,
+  loopTickLog = [],
+  readFailures = [],
+}) {
   return {
     pluginVersion,
     pin: pinComparison,
@@ -1690,6 +1820,7 @@ function shapeStatus({ pluginVersion, pinComparison, ledgerEntries, errorLog, re
       currentTool: entry.currentTool,
     })),
     recentErrors: errorLog,
+    recentLoopTicks: loopTickLog,
     readFailures,
   };
 }
@@ -1912,6 +2043,53 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
 }
 
 /**
+ * Build the `rp_terminate` tool descriptor.
+ *
+ * @param {{
+ *   env: Record<string, string | undefined>,
+ *   readServiceRecordOverride?: (env: object) => object | null,
+ *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ * }} deps `env`/`readServiceRecordOverride` reach `resolveServer`;
+ *   `requestFn` reaches the HTTP client.
+ * @returns {{name: string, description: string, input: object, execute: Function}}
+ *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
+ */
+function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
+  return {
+    name: "rp_terminate",
+    description: "Terminate a finished RP agent by deleting its opencode session.",
+    output: ANY_OUTPUT_SCHEMA,
+    input: {
+      type: "object",
+      properties: {
+        session: { type: "string", description: "Session ID of the finished agent." },
+      },
+      required: ["session"],
+    },
+    async execute({ session }) {
+      const server = resolveServer({ env, readServiceRecord: readServiceRecordOverride });
+      if (!server) {
+        return toToolResult({ error: "server unreachable" });
+      }
+      const response = await requestServer(
+        server,
+        "DELETE",
+        `/api/session/${session}`,
+        undefined,
+        requestFn,
+      );
+      if (response.status === 404) {
+        return toToolResult({ status: 404, error: "SessionNotFoundError" });
+      }
+      if (response.status < 200 || response.status >= 300) {
+        return toToolResult({ status: response.status, error: "SessionTerminationFailed" });
+      }
+      return toToolResult({ terminated: true });
+    },
+  };
+}
+
+/**
  * Build the `rp_permission_reply` tool descriptor.
  *
  * @param {{
@@ -2079,13 +2257,13 @@ function buildLoopStartTool({ registryPath, tick }) {
   return {
     name: "rp_loop_start",
     description:
-      "Start a recurring health-loop prompt against a session, firing only while it is idle.",
+      "Start a recurring health-loop prompt against a session, firing while idle or after two intervals without activity.",
     output: ANY_OUTPUT_SCHEMA,
     input: {
       type: "object",
       properties: {
         interval: { type: "number", description: "Tick period in milliseconds." },
-        prompt: { type: "string", description: "Prompt injected on an idle tick." },
+        prompt: { type: "string", description: "Prompt injected when a tick fires." },
         target_session: {
           type: "string",
           description: "Session watched and prompted; defaults to the calling session.",
@@ -2101,7 +2279,7 @@ function buildLoopStartTool({ registryPath, tick }) {
         targetSession: target_session ?? toolCtx.sessionID,
       };
       addLoopEntry(registryPath, entry);
-      armLoopTimer(entry, tick);
+      await armLoopTimer(entry, tick);
       return toToolResult({ id: entry.id });
     },
   };
@@ -2144,8 +2322,12 @@ function buildLoopCancelTool(registryPath) {
       required: ["id"],
     },
     async execute({ id }) {
-      disarmLoopTimer(id);
-      deleteLoopEntry(registryPath, id);
+      const stopped = disarmLoopTimer(id);
+      try {
+        deleteLoopEntry(registryPath, id);
+      } finally {
+        await stopped;
+      }
       return toToolResult({ cancelled: true });
     },
   };
@@ -2166,7 +2348,7 @@ function buildLoopCancelTool(registryPath) {
 function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }) {
   return {
     name: "rp_status",
-    description: "Report plugin version, pin comparison, ledger snapshot, and recent errors.",
+    description: "Report plugin version, pin comparison, ledger snapshot, recent errors, and health-loop ticks.",
     output: ANY_OUTPUT_SCHEMA,
     input: { type: "object", properties: {} },
     async execute() {
@@ -2213,7 +2395,7 @@ async function consumeEvents(ctx, onEvent) {
 /**
  * The RP opencode plugin's `setup` function.
  *
- * Registers the seven coordination tools and the packaged skill source on
+ * Registers the eight coordination tools and the packaged skill source on
  * every call (opencode re-runs `setup` once per directory scope); guards the
  * completion listener's event subscription and the loop registry's re-arm
  * behind `SETUP_ONCE_KEY` so they run exactly once per daemon process.
@@ -2255,20 +2437,48 @@ function setup(ctx, deps = {}) {
 
   const registryPath = resolveLoopRegistryPath(env);
 
-  const tick = (entry) =>
-    runLoopTick(entry, {
-      server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
-      isSessionActive: (server, sessionID) => isSessionActive(server, sessionID, requestFn),
-      injectPrompt: (sessionID, text) => ctx.session.prompt({ sessionID, text, delivery: "queue" }),
-      onSkippedNoServer: (loopEntry) =>
-        recordError({ type: "loop.tick.skipped", loopID: loopEntry.id, reason: "server unreachable" }),
-    }).catch((error) =>
-      recordError({ type: "loop.tick.failed", loopID: entry.id, error: String(error) }),
-    );
+  const tick = async (entry, isCancelled) => {
+    let outcomeRecorded = false;
+    const onOutcome = (outcome) => {
+      const tickEntry = {
+        loopID: entry.id,
+        targetSession: entry.targetSession,
+        at: Date.now(),
+        ...outcome,
+      };
+      recordLoopTick(tickEntry);
+      outcomeRecorded = true;
+      if (outcome.outcome === "no-server") {
+        recordError({
+          type: "loop.tick.skipped",
+          loopID: entry.id,
+          reason: "server unreachable",
+          at: tickEntry.at,
+        });
+      }
+    };
+
+    try {
+      await runLoopTick(entry, {
+        server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
+        isSessionActive: (server, sessionID) => isSessionActive(server, sessionID, requestFn),
+        getSessionUpdatedAt: (server, sessionID) => getSessionUpdatedAt(server, sessionID, requestFn),
+        injectPrompt: (sessionID, text, delivery) => ctx.session.prompt({ sessionID, text, delivery }),
+        onOutcome,
+        isCancelled,
+      });
+    } catch (error) {
+      if (!outcomeRecorded) {
+        onOutcome({ outcome: "failed", error: String(error) });
+      }
+      recordError({ type: "loop.tick.failed", loopID: entry.id, error: String(error), at: Date.now() });
+    }
+  };
 
   ctx.tool.transform((tools) => {
     tools.add(buildSpawnTool(ctx, { resolveRepoRootFn }));
     tools.add(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn }));
+    tools.add(buildTerminateTool({ env, readServiceRecordOverride, requestFn }));
     tools.add(buildLoopStartTool({ registryPath, tick }));
     tools.add(buildLoopListTool(registryPath));
     tools.add(buildLoopCancelTool(registryPath));
@@ -2317,7 +2527,7 @@ function setup(ctx, deps = {}) {
       });
     });
     for (const entry of listLoopEntries(registryPath)) {
-      armLoopTimer(entry, tick);
+      void armLoopTimer(entry, tick);
     }
   }
 }
@@ -2343,6 +2553,7 @@ export {
   formatRedirectMessage,
   formatStructuredError,
   formatTitle,
+  getSessionUpdatedAt,
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
