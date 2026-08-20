@@ -14,7 +14,7 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Team spawning          | How to spawn, address, seat, and terminate agents                                           | Yes       |
 | Agent models           | Which model/settings each spawned agent runs on                                            | No        |
 | Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |
-| Guardrails             | The deterministic verification gates — exact commands judged pass/fail by exit code        | No        |
+| Guardrails             | The rules the project's agents must satisfy                                          | No        |
 | Artifact storage       | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes       |
 
 ## Missing conventions
@@ -29,8 +29,8 @@ If the owner declines setup, cancels, or leaves required answers unresolved, sto
 
 ## Local overrides
 
-A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.md` to override a restricted subset of conventions for their own working copy.
+A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.md` to override conventions for their own working copy.
 
 When you are inside a worktree, resolve the main root with `dirname(git rev-parse --git-common-dir)` and read it from there, since the git-ignored file is never copied into the worktree.
 
-After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited. Guardrails is shared and committed-only; it is never taken from `.rp.local.md`.
+After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.

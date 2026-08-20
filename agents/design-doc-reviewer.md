@@ -99,6 +99,7 @@ Use this structure:
 - **Evidence settles what it checked, not more.** A decision whose alternative was weighed with evidence is settled on that evidence; never re-litigate it for preference. A different conclusion is a finding only when it exposes something missing or wrong — an option never evaluated, a reason that does not hold, a check that does not establish its claim.
 - **Be specific.** "This is unclear" is not useful. "Section X doesn't explain how component Y handles concurrent writes" is.
 - **Report a defect class once.** When findings are instances of one defect, the issue is the defect, stated to cover every instance; cited instances are evidence, not its extent.
+- **Evaluate the guardrails.** Evaluate every rule in your `## Conventions` block's **Guardrails** field, log each outcome in your verification log, and treat an unsatisfied rule as a finding.
 - **Do NOT rewrite the design yourself.** You only review and provide feedback.
 - **Do NOT review beyond the design.** The build plan and code quality are not your concern — only that the design is sound, complete, and traceable to the spec.
 - **Blockers are for broken inputs, not review findings — findings go in a rejection verdict.** When a required input is missing, contradictory, or would force a choice that belongs to a prior phase, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

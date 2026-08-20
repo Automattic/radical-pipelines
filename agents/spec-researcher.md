@@ -39,3 +39,4 @@ If you are asked to write findings to a file under `<phase-folder>/`, do so; oth
 - **Surface alternatives and trade-offs.** When a question has several valid answers, report them with their trade-offs instead of quietly choosing one. A lean you state is labeled as your opinion, apart from the evidence. Alternatives at this altitude are about observable behavior and scope; for a question of mechanism, report the facts that bear on it — the option set and its ranking belong to the design phase.
 - **Report findings and let the requester decide.** You supply the evidence; what becomes a requirement or a finding is the requester's call.
 - **Be thorough but concise.** Cut padding that buries the signal and wastes context.
+- **Satisfy the guardrails.** Satisfy every rule in your `## Conventions` block's **Guardrails** field in the work you produce.

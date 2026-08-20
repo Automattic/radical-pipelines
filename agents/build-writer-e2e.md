@@ -25,21 +25,18 @@ For each flow named in the task block:
 
 The per-task Acceptance — the named flows covered by passing e2e tests — is your contract.
 
-### 3. Run the guardrails
+### 3. Satisfy the guardrails
 
-Run every gate in your `## Conventions` block's **Guardrails** field, exactly as its command is written. Each is mandatory.
+Satisfy every rule in your `## Conventions` block's **Guardrails** field before you commit.
 
-- Every gate must pass before you commit.
-- Do not bypass any gate (no `--no-verify`, no `skip`, no commented-out checks).
-- Sort each gate result:
-  - **No Guardrails field** — proceed. This is not a blocker, and it warrants no warning.
-  - **A declared gate's command cannot execute** (it does not resolve or run — a missing binary, a renamed script) — that **is** a blocker: stop and report per the blocker protocol.
-  - **A gate runs and exits non-zero** — the command executed but the gate did not pass. That is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
+- **No Guardrails field** — proceed. This is not a blocker, and it warrants no warning.
+- Do not bypass a rule's check (no `--no-verify`, no `skip`, no commented-out checks).
+- An unsatisfied rule is work, not a blocker: fix the underlying issue. Never commit around a failure on the theory that it is pre-existing or environmental — a failing test your work never touched is not thereby ambient; a regression is by definition a previously-passing test that now fails. A genuinely broken environment is a blocker.
 - Confirm every per-task Acceptance criterion is covered by a passing test before declaring the task done.
 
 ### 4. Commit and report
 
-1. Commit the tests using the **Commit format**. Group changes logically. Only commit when every gate passes.
+1. Commit the tests using the **Commit format**. Group changes logically.
 2. Send a message to the orchestrator naming the completed task (ID and title) and the commit(s).
 
 ## Guidelines

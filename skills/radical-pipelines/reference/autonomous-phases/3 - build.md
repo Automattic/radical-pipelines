@@ -26,10 +26,10 @@ This phase has no per-phase decisions.
 | Agent                 | Role                                                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `build-planner`   | Writes `build-plan.md`.                                                                                                                      |
-| `build-plan-reviewer` | Reviews the build plan adversarially; validates the guardrail scopes.                                                                       |
-| `build-writer-tdd`    | One fresh instance per task. Implements its assigned task with TDD, runs the gates, commits.                                                 |
-| `build-writer-e2e`    | One fresh instance per task. Implements the planned e2e flows, runs the gates, commits.                                                      |
-| `build-writer-edit`   | One fresh instance per task. Applies its assigned no-behavior-change edit, runs the gates, commits.                                          |
+| `build-plan-reviewer` | Reviews the build plan adversarially.                                                                       |
+| `build-writer-tdd`    | One fresh instance per task. Implements its assigned task with TDD, satisfies the guardrails, commits.                                                 |
+| `build-writer-e2e`    | One fresh instance per task. Implements the planned e2e flows, satisfies the guardrails, commits.                                                      |
+| `build-writer-edit`   | One fresh instance per task. Applies its assigned no-behavior-change edit, satisfies the guardrails, commits.                                          |
 | `build-reviewer`      | One fresh instance per batch. Reviews the run's diff against the plan, spec, and design.                                                     |
 
 ## Steps
