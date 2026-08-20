@@ -2,4 +2,4 @@
 "@automattic/radical-pipelines": patch
 ---
 
-Keep each agent launch to one profile mode.
+Keep each agent launch to its workflow step.
