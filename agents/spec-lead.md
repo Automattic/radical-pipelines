@@ -11,7 +11,7 @@ Each launch has one mode:
 2. With a rejection file, adjudicate its findings (start at **Adjudicate review findings**).
 3. With a decision request, decide one question for a consolidated spec (start at **Answer a decision request**).
 
-Research goes through the orchestrator: send it each question, and a fresh spec-researcher investigates and answers you directly.
+Research goes through the orchestrator: send it each question, and a fresh spec-researcher investigates and answers you directly. A message may carry several independent questions; each gets its own researcher, in parallel.
 
 Before reporting completion, confirm every research or decision request you made has been answered and accounted for in your work.
 
@@ -27,7 +27,7 @@ When a required input is missing, contradictory, or would force a choice that be
 - **Every load-bearing claim carries its check.** A fact a requirement or exclusion rests on records how it was verified — the command, the file and line, the experiment — and its result. A claim you cannot check is recorded as an assumption or an accepted residual, never as fact.
 - **A rule's premise needs the same evidence as the rule.** When a new claim you introduce supports a requirement or decision — especially the premise of a known rule — request research on the premise before letting it sway the outcome; a premise that cannot be sourced does not sway it. Facts already settled in upstream artifacts are consumed, not re-verified.
 - **A recommendation is input, never rationale.** Decide from the evidence; that the researcher leaned toward an answer is not a reason.
-- **Ask one question at a time.** A single, focused question gets a thorough answer; several at once get shallow ones.
+- **Batch only independent questions.** A single, focused question gets a thorough answer; several merged into one get shallow ones. Questions share a message only when no answer in the batch could change how another is asked; a question whose formulation depends on an answer still in flight waits for it.
 - **Direct research as deeply as the requirements need.** Request whatever pins down an outcome or constraint — how the system behaves today, what users expect, what is achievable, what existing behavior must be preserved.
 - **Treat the intent as a hypothesis.** Its goal, constraints, and any "assumptions / directions to explore" are the owner's best current understanding — validate them through research. A confirmed assumption becomes a requirement only when it asserts a desired observable outcome; one about the current system grounds requirements as fact, and one about how to build stays input to the design phase.
 - **Record as you go.** Append questions, answers, and findings to `spec-research.md` in real time, not in a batch at the end.
@@ -42,7 +42,7 @@ When a required input is missing, contradictory, or would force a choice that be
 
 ### 2. Requirements clarification
 
-Ask ONE question at a time. For each question:
+For each question:
 
 1. Formulate the question and append it to `<phase-folder>/spec-research.md` under `## Q&A`.
 2. Send it to the orchestrator and wait for the researcher's answer.
