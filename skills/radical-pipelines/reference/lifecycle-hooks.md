@@ -1,6 +1,6 @@
 # Lifecycle Hooks
 
-The **Lifecycle hooks** convention attaches project instructions to defined moments of a pipeline's lifecycle — syncing a tracker, posting notifications, cleanup. When the orchestrator reaches a hook's moment, it runs the instructions the convention defines for that hook, then proceeds; where the convention is silent, it proceeds directly.
+The **Lifecycle hooks** convention attaches project instructions to defined moments of a pipeline's lifecycle. When the orchestrator reaches a hook's moment, it runs the instructions the convention defines for that hook, then proceeds; where the convention is silent, it proceeds directly.
 
 ## Execution
 
