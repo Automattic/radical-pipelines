@@ -14,6 +14,8 @@ You plan **what to document, where, and for whom** — not what the docs actuall
 
 Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**: all your writes and commits land inside that worktree, on that branch. Before your first write, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
+When you finish your work and have no more work left to do, declare your completion with the available completion tool or, failing that, a message to your spawner.
+
 ## Workflow
 
 ### 1. Gather context

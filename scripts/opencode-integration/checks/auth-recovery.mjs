@@ -83,7 +83,7 @@ export async function run(ctx) {
         server,
         orchestrator.id,
         (messages) =>
-          messages.find((m) => m.type === "user" && m.text?.includes(`${childID}) failed on its first turn.`)),
+          messages.find((m) => m.type === "user" && m.text?.includes(`${childID}) failed a turn.`)),
         { timeoutMs: 20_000, label: "the spawner to receive the failure notification" },
       );
       assert.match(
