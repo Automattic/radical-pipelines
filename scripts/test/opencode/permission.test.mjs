@@ -83,10 +83,10 @@ function permissionDeps({ env = SERVER_ENV, exists = () => true, replyStatus = 2
   };
 }
 
-/** A permission.v2.asked event carried in `properties`. */
+/** A permission.asked event carried in `properties`. */
 function askedEvent({ requestID, sessionID, action = "external_directory", resources }) {
   return {
-    type: "permission.v2.asked",
+    type: "permission.asked",
     properties: { id: requestID, sessionID, action, resources },
   };
 }
@@ -119,7 +119,7 @@ describe("parsePermissionAsked", () => {
 
   test("also accepts a data-carried ask", () => {
     const parsed = parsePermissionAsked({
-      type: "permission.v2.asked",
+      type: "permission.asked",
       data: { id: "per_2", sessionID: "ses_2", action: "read", resources: ["x"] },
     });
     assert.equal(parsed.requestID, "per_2");
@@ -129,11 +129,11 @@ describe("parsePermissionAsked", () => {
   test("returns undefined for a non-permission event or an ask missing its id or session", () => {
     assert.equal(parsePermissionAsked({ type: "session.tool.called", properties: {} }), undefined);
     assert.equal(
-      parsePermissionAsked({ type: "permission.v2.asked", properties: { sessionID: "ses_1" } }),
+      parsePermissionAsked({ type: "permission.asked", properties: { sessionID: "ses_1" } }),
       undefined,
     );
     assert.equal(
-      parsePermissionAsked({ type: "permission.v2.asked", properties: { id: "per_1" } }),
+      parsePermissionAsked({ type: "permission.asked", properties: { id: "per_1" } }),
       undefined,
     );
   });

@@ -1161,10 +1161,10 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
 }
 
 /** Event type opencode publishes when a session blocks on a permission ask. */
-const PERMISSION_ASKED_EVENT_TYPE = "permission.v2.asked";
+const PERMISSION_ASKED_EVENT_TYPE = "permission.asked";
 
 /**
- * Parse a `permission.v2.asked` event into the fields the permission
+ * Parse a `permission.asked` event into the fields the permission
  * mediator needs, across the `properties`/`data` carrier shapes events
  * appear in (see `terminalEventSessionID`).
  *
