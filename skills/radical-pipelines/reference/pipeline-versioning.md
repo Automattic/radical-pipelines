@@ -27,7 +27,7 @@ Parsing is deterministic because the segment shapes are reserved: `v<digits>` is
 
 Branches exist at exactly two levels.
 
-**Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what merges into the project's main branch. A run's commits start at its intent commit and end at its branch's tip.
+**Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what ships to the project's main branch. A run's commits start at its intent commit and end at its branch's tip.
 
 **Lane branches** carry the parallel work of isolated lanes in the spec and design-doc phases: one branch per lane, forked from the run branch at phase start, each lane writing only its `lane-<K>` subfolder of the phase folder. When every lane is approved, the lane branches are merged into the run branch and deleted, and their worktrees removed — the lane folders and commit history live on in the run branch. Divergent lanes run sequentially in the run branch's worktree and create no lane branches. Rolling back a lane to its start deletes its lane branch (see `resume-pipeline.md`).
 
