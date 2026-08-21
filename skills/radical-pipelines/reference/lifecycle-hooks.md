@@ -12,7 +12,8 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 
 | Hook                            | Moment                                                                                                     |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `pipeline-created`              | The family's first pipeline exists: base run branch, worktree, pipeline family folder, and committed intent |
+| `before-creating-pipeline-family` | The family's first pipeline is about to be created, before any step                                       |
+| `after-creating-pipeline-family` | The family's first pipeline exists: base run branch, worktree, pipeline family folder, and committed intent |
 | `run-started`                   | Work on a run begins — the pipeline was created, resumed, revised, or forked — before anything is launched |
 | `before-creating-branch`        | A run branch or lane branch is about to be created                                                         |
 | `after-creating-branch`         | A run branch or lane branch is created                                                                     |

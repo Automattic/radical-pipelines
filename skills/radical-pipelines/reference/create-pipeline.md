@@ -2,6 +2,8 @@
 
 Creates a new pipeline through phase 0 — the base run branch and worktree, the pipeline family folder, and a committed `intent.md`.
 
+Fire the `before-creating-pipeline-family` lifecycle hook, then follow the steps.
+
 ## Steps
 
 ### 1. Determine the family identifiers
@@ -39,4 +41,4 @@ The phase-0 folder must be self-contained — once committed, agents must not ne
 
 ### 6. Commit
 
-Commit the newly created artifacts following the **Commit format** convention. Fire the `pipeline-created` and `phase-completed` lifecycle hooks.
+Commit the newly created artifacts following the **Commit format** convention. Fire the `after-creating-pipeline-family` and `phase-completed` lifecycle hooks.
