@@ -69,6 +69,12 @@ Ask the owner for the format and capture at least one concrete example.
 
 Suggested default: `<commit-description> (<agent-name>)`.
 
+### PR format
+
+The format of the pipeline's PR title and description. Consulted by the orchestrator only, at PR time.
+
+Ask the owner for the format — a template, required sections, style rules — and capture any example.
+
 ### Team spawning (required)
 
 How agents are spawned, addressed, seated in their assigned worktree, and terminated when their work ends.
@@ -105,6 +111,10 @@ This is highly dependent on the agentic coding tool but you can document the exi
 
 **Offer to help test each guardrail** and ensure it is well written.
 
+### Lifecycle hooks
+
+The hook points, execution rules, and the per-hook block live in `../lifecycle-hooks.md`. Show the owner the hook points and ask which need instructions; capture each as its per-hook block.
+
 ### Artifact storage (required)
 
 How this project stores Radical Pipelines artifacts.
@@ -128,13 +138,7 @@ Explain this and ask the owner:
 - A fork of the repository is required. All artifact-bearing pipeline work happens on branches in the fork.
 - `.rp.md`, the pipeline family folder, and per-phase commits live in the fork only. They are never pushed to `upstream`.
 - The upstream PR is never opened without explicit owner approval.
-- When the owner approves opening a PR, the orchestrator always:
-  1. Generates a clean branch name for `upstream` (separate from the fork branch).
-  2. Cherry-picks only the code commits from the pipeline's latest run branch — artifact commits are excluded.
-  3. Rewrites the cherry-picked commit messages to an upstream-friendly format.
-  4. Pushes the clean branch directly to `upstream`.
-  5. Opens the PR in `upstream` from that clean branch.
-- The PR's source branch lives in `upstream`, not in the fork — viewers of the PR never see the fork. If the fork is private, its existence is hidden entirely.
+- When the owner approves opening a PR, the orchestrator performs the upstream PR transformation in `../closure-actions.md`: artifact commits never reach `upstream`, and the PR ships from a clean branch — viewers of the PR never see the fork, and if the fork is private, its existence is hidden entirely.
 
 Then collect the information needed to operate in fork mode:
 

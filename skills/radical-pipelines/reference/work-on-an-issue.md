@@ -27,6 +27,7 @@ List the issue's pipelines per `pipeline-versioning.md` ("Listing pipelines for 
 - **Resume** an in-progress pipeline → read `resume-pipeline.md`, then continue to step 3.
 - **Revise** a pipeline whose latest run is complete → read `revision-pipeline.md`, then continue to step 3.
 - **Fork** a new pipeline version from an existing one → read `fork-pipeline.md`, then continue to step 3.
+- **Open the PR**, **merge the PR**, or **close without merging** a pipeline → read `closure-actions.md`.
 
 When the owner is unsure which same-issue action to take:
 

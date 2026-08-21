@@ -6,7 +6,7 @@ The phase to run is the pipeline's **next phase** (see `pipeline-versioning.md`)
 
 ## 1. Frame the conversation
 
-Tell the owner explicitly that this is the assisted workflow, name the phase you are about to run, and explain that the two of you will work through it together — typically through Q&A — and that nothing is committed until the owner approves.
+Tell the owner explicitly that this is the assisted workflow, name the phase you are about to run, and explain that the two of you will work through it together — typically through Q&A — and that nothing is committed until the owner approves. Fire the `run-started` lifecycle hook.
 
 ## 2. Identify the phase reference
 
@@ -19,12 +19,17 @@ Map the next phase to its reference file:
 
 ## 3. Execute the phase
 
-Create the phase subfolder inside the run folder (`<pipeline-family-folder>/<run>/<phase>` per `pipeline-versioning.md`) and run the phase per its reference.
+Fire the `phase-started` lifecycle hook. Create the phase subfolder inside the run folder (`<pipeline-family-folder>/<run>/<phase>` per `pipeline-versioning.md`) and run the phase per its reference.
 
 The guardrails naming the phase's agents (`spec-*` or `design-doc-*`) apply to your work: surface them to the owner and satisfy them as the owner directs.
 
-You write the artifacts yourself, in the run branch's worktree addressed by absolute path. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does.
+You write the artifacts yourself, in the run branch's worktree addressed by absolute path. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does. Fire the `phase-completed` lifecycle hook.
 
-## 4. Report and close out
+## 4. Close out the run
 
-Once the phase's completion predicate is satisfied, give the owner a short report: which phase completed, where its artifacts live, and any notes worth surfacing. Push the run branch. Then tell the owner that the assisted run is complete — continuing to a later phase happens in a separate session.
+Close-out fires whenever the run stops — the phase completed, an owner cancellation, or a failure:
+
+1. Push the run branch.
+2. Fire the `run-ended` lifecycle hook.
+3. Report the outcome; for a completed phase, which phase completed, where its artifacts live, and any notes worth surfacing.
+4. Tell the owner that the assisted run has ended — continuing to a later phase happens in a separate session.

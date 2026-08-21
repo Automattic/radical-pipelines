@@ -11,10 +11,12 @@ Project-specific conventions are stored in the `.rp.md` file.
 | Issues                 | Where the project tracks issues and how to read, comment on, and update them               | Yes       |
 | Worktree root          | Where worktrees live                                                                       | Yes       |
 | Commit format          | How to write commits                                                                       | No        |
+| PR format              | How to write the pipeline's PR title and description                                       | No        |
 | Team spawning          | How to spawn, address, seat, and terminate agents                                           | Yes       |
 | Agent models           | Which model/settings each spawned agent runs on                                            | No        |
 | Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |
 | Guardrails             | The rules the project's agents must satisfy                                          | No        |
+| Lifecycle hooks        | Prose instructions the orchestrator runs at defined pipeline moments                       | No        |
 | Artifact storage       | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes       |
 
 ## Missing conventions
@@ -34,3 +36,7 @@ A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.
 When you are inside a worktree, resolve the main root with `dirname(git rev-parse --git-common-dir)` and read it from there, since the git-ignored file is never copied into the worktree.
 
 After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.
+
+## Lifecycle hooks
+
+Read `../lifecycle-hooks.md` — the workflows fire its hooks at defined moments.
