@@ -57,7 +57,7 @@ Ask the owner where issues are tracked and how to access them (a CLI, an API, fi
 
 ### Worktree root (required)
 
-The root path under which the orchestrator creates one worktree per branch with raw `git worktree`, and from which it removes each worktree when its work is done.
+The root path under which the orchestrator creates one worktree per branch with raw `git worktree`, and from which it removes lane worktrees when their lanes are done.
 
 Suggested default: `.worktrees/`.
 

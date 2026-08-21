@@ -2,6 +2,8 @@
 
 Creates a new pipeline through phase 0 — the base run branch and worktree, the pipeline family folder, and a committed `intent.md`.
 
+Fire the `before-creating-pipeline-family` lifecycle hook, then follow the steps.
+
 ## Steps
 
 ### 1. Determine the family identifiers
@@ -14,7 +16,7 @@ The start ref is the project's main branch. When the owner stacks on unmerged wo
 
 ### 3. Create the base run branch and worktree
 
-Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktree root** convention. Fire the `branch-created` and `worktree-created` lifecycle hooks. Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
+When the start ref is the project's main branch and it tracks a remote, refresh it from that remote first. Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktree root** convention, each bracketed by its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`). Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
 
 ### 4. Create the pipeline family folder
 
@@ -39,4 +41,4 @@ The phase-0 folder must be self-contained — once committed, agents must not ne
 
 ### 6. Commit
 
-Commit the newly created artifacts following the **Commit format** convention. Fire the `pipeline-created` and `phase-completed` lifecycle hooks.
+Commit the newly created artifacts following the **Commit format** convention. Fire the `after-creating-pipeline-family` and `phase-completed` lifecycle hooks.

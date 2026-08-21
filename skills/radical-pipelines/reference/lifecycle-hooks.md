@@ -12,14 +12,17 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 
 | Hook                            | Moment                                                                                                     |
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `pipeline-created`              | The family's first pipeline exists: base run branch, worktree, pipeline family folder, and committed intent |
+| `before-creating-pipeline-family` | The family's first pipeline is about to be created, before any step                                       |
+| `after-creating-pipeline-family` | The family's first pipeline exists: base run branch, worktree, pipeline family folder, and committed intent |
 | `run-started`                   | Work on a run begins — the pipeline was created, resumed, revised, or forked — before anything is launched |
-| `branch-created`                | A run branch or lane branch is created                                                                     |
-| `worktree-created`              | A worktree is created, or recreated on resume                                                              |
+| `before-creating-branch`        | A run branch or lane branch is about to be created                                                         |
+| `after-creating-branch`         | A run branch or lane branch is created                                                                     |
+| `before-creating-worktree`      | A worktree is about to be created, or recreated on resume                                                  |
+| `after-creating-worktree`       | A worktree is created, or recreated on resume                                                              |
 | `phase-started`                 | Work on a phase begins or resumes                                                                          |
 | `phase-completed`               | A phase's completion predicate is satisfied, before the next phase begins                                  |
-| `lanes-merged`                  | A multi-lane phase's lane branches are merged into the run branch                                          |
-| `phase-rolled-back`             | A resume rolls back an active phase's partial work                                                         |
+| `before-merging-lanes`          | A multi-lane phase's lane branches are about to be merged into the run branch                              |
+| `after-merging-lanes`           | A multi-lane phase's lane branches are merged into the run branch                                          |
 | `blocker-reported`              | An agent's blocker report arrives                                                                          |
 | `run-ended`                     | The run stops — target phase completed, blocker, owner cancellation, or failure                            |
 | `before-opening-pr`             | The owner asks to open the pipeline's PR, before any work                                                  |
@@ -29,7 +32,7 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 | `before-closing-without-merge`  | The owner asks to close the pipeline without merging                                                       |
 | `after-closing-without-merge`   | The pipeline is closed without merging                                                                     |
 
-The `before-`/`after-` hooks bracket the closure actions the owner invokes on a pipeline (`closure-actions.md`); a blocking failure in a `before-` hook stops its action.
+A `before-`/`after-` pair brackets an action; a blocking failure in the `before-` hook stops that action. The closure pairs bracket the closure actions the owner invokes on a pipeline (`closure-actions.md`).
 
 ## The `.rp.md` per-hook block
 

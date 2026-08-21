@@ -34,11 +34,11 @@ Run each phase from the next phase up to the target phase, in order.
 
 At run start:
 
-1. Ensure the run branch's worktree exists per the **Worktree root** convention, firing the `worktree-created` lifecycle hook if you create it.
+1. Ensure the run branch's worktree exists per the **Worktree root** convention; if you create it, bracket the creation with the `before-creating-worktree`/`after-creating-worktree` lifecycle hooks.
 2. Fire the `run-started` lifecycle hook.
 3. Start a recurring health monitor for the run per `health-monitoring.md`.
 
-You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove worktrees when their work is done — branches remain. Agents only occupy the worktrees you prepared. Address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch; your own working directory changes only to seat an agent.
+You own all branch and worktree topology: you create every branch and worktree (including lane branches and worktrees before lane agents spawn) and remove lane worktrees and branches when their lanes are done — run branches and worktrees remain. Agents only occupy the worktrees you prepared. Address every tree explicitly — `git -C <worktree> …`, absolute paths for reads and writes, `git show <ref>:<path>` for any branch; your own working directory changes only to seat an agent.
 
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
