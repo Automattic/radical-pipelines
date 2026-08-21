@@ -15,7 +15,7 @@ Closure actions are moments the owner invokes on a pipeline: opening its PR, mer
 Consult the **Artifact storage** convention for the remotes and the upstream branch and commit formats, then:
 
 1. Generate a clean branch name for `upstream` from the upstream branch format — separate from the fork branch — and create the branch at `upstream`'s main branch.
-2. Cherry-pick every commit from the pipeline's latest run branch except the artifact commits.
+2. Cherry-pick, oldest first, every non-artifact commit reachable from the pipeline's latest run branch but not from `upstream`'s main branch.
 3. Rewrite the cherry-picked commit messages to the upstream commit format.
 4. Push the clean branch directly to `upstream`.
 5. Open the PR in `upstream` from that clean branch. The PR's source branch lives in `upstream`, not in the fork — viewers of the PR never see the fork.

@@ -16,7 +16,7 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 | `run-started`                   | Work on a run begins — the pipeline was created, resumed, revised, or forked — before anything is launched |
 | `branch-created`                | A run branch or lane branch is created                                                                     |
 | `worktree-created`              | A worktree is created, or recreated on resume                                                              |
-| `phase-started`                 | A phase begins                                                                                             |
+| `phase-started`                 | Work on a phase begins or resumes                                                                          |
 | `phase-completed`               | A phase's completion predicate is satisfied, before the next phase begins                                  |
 | `lanes-merged`                  | A multi-lane phase's lane branches are merged into the run branch                                          |
 | `phase-rolled-back`             | A resume rolls back an active phase's partial work                                                         |
