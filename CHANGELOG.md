@@ -1,5 +1,55 @@
 # @automattic/radical-pipelines
 
+## 0.14.0
+### Minor Changes
+
+
+
+- [#253](https://github.com/Automattic/radical-pipelines/pull/253) [`d9fe18a`](https://github.com/Automattic/radical-pipelines/commit/d9fe18a952928e27d2cd49372c901b29926164d1) Thanks [@luisherranz](https://github.com/luisherranz)! - Convert the action lifecycle hooks to `before-`/`after-` pairs — `pipeline-created`, `branch-created`, `worktree-created`, and `lanes-merged` become `before-creating-pipeline-family`/`after-creating-pipeline-family`, `before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`, and `before-merging-lanes`/`after-merging-lanes` — and remove `phase-rolled-back`.
+
+
+
+- [#221](https://github.com/Automattic/radical-pipelines/pull/221) [`c75162a`](https://github.com/Automattic/radical-pipelines/commit/c75162afe683d739827404db34f606ed0ea06ec9) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: redefine guardrails as prose rules any agent can be named by — the `.rp.md` block becomes `rule:` + `agents:`, and the exit-code and `{scope}` fill machinery is removed
+
+
+
+- [#219](https://github.com/Automattic/radical-pipelines/pull/219) [`38e9060`](https://github.com/Automattic/radical-pipelines/commit/38e90602690583477978a3e9bf80581c988d7d50) Thanks [@luisherranz](https://github.com/luisherranz)! - Add the Lifecycle hooks convention — prose instructions the orchestrator runs at defined pipeline moments — and owner-invoked closure actions bracketed by before/after hooks, in which the orchestrator opens the pipeline's PR in both artifact-storage modes (title and description per an optional PR format convention) and merges it on request. Generalize the assisted close-out to fire on any stop, and migrate this repository's Linear sync onto the mechanism.
+
+
+
+- [#221](https://github.com/Automattic/radical-pipelines/pull/221) [`d736622`](https://github.com/Automattic/radical-pipelines/commit/d7366221b9e980ab3a103b3aa64450de88ee4c73) Thanks [@luisherranz](https://github.com/luisherranz)! - Allow `.rp.local.md` to override any convention, removing the Guardrails committed-only restriction
+
+
+
+- [#255](https://github.com/Automattic/radical-pipelines/pull/255) [`d57be8e`](https://github.com/Automattic/radical-pipelines/commit/d57be8e676844992ef611ed5004dbcd236827df6) Thanks [@luisherranz](https://github.com/luisherranz)! - Let spec and design-doc leads batch independent research questions in one message; the orchestrator launches one fresh researcher per question, in parallel
+
+
+
+- [#249](https://github.com/Automattic/radical-pipelines/pull/249) [`710e2b5`](https://github.com/Automattic/radical-pipelines/commit/710e2b578d72acbed6c182fb976a4a99cb8e8890) Thanks [@luisherranz](https://github.com/luisherranz)! - Terminate finished agent sessions across supported tools, add `rp_terminate` for opencode, and update its verified pin to `0.0.0-dev-17711`.
+
+
+### Patch Changes
+
+
+
+- [#251](https://github.com/Automattic/radical-pipelines/pull/251) [`cadedcb`](https://github.com/Automattic/radical-pipelines/commit/cadedcb75d6bf1c40b8c5dbee5bdf3dc138e6166) Thanks [@luisherranz](https://github.com/luisherranz)! - Keep launches scoped to their workflow steps and require requested work to finish and be accounted for before handoff.
+
+
+
+- [#252](https://github.com/Automattic/radical-pipelines/pull/252) [`1b44caa`](https://github.com/Automattic/radical-pipelines/commit/1b44caa004a22cc36e83fe61e690f80b728f8c34) Thanks [@luisherranz](https://github.com/luisherranz)! - Make health-loop ticks observable, steer prompts into stale opencode sessions, and avoid blocking on Claude Code shutdown.
+
+
+
+- [#257](https://github.com/Automattic/radical-pipelines/pull/257) [`5143308`](https://github.com/Automattic/radical-pipelines/commit/514330875f5e7bafc6545edae74fcd4ea8771482) Thanks [@luisherranz](https://github.com/luisherranz)! - Fix the opencode permission mediator never firing: subscribe to the `permission.asked` event type, which renamed opencode's former `permission.v2.asked`. Blocked asks are again redirected or announced to the spawner instead of surfacing only through `rp_status` polling.
+
+
+
+- [#253](https://github.com/Automattic/radical-pipelines/pull/253) [`b58a6a0`](https://github.com/Automattic/radical-pipelines/commit/b58a6a068cff48db935a3bf1bf3403f6ee9afe15) Thanks [@luisherranz](https://github.com/luisherranz)! - Refresh the project's main branch from its remote before creating a base run branch from it.
+
+
+
+- [#253](https://github.com/Automattic/radical-pipelines/pull/253) [`2f26b13`](https://github.com/Automattic/radical-pipelines/commit/2f26b13be8b722087c7b68b8b0b7fa4dd2f0f7b0) Thanks [@luisherranz](https://github.com/luisherranz)! - Describe worktree removal as it works: the orchestrator removes lane worktrees and branches when their lanes are done; run branches and worktrees remain.
+
 ## 0.13.0
 ### Minor Changes
 
