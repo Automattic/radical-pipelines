@@ -34,7 +34,7 @@ Run each phase from the next phase up to the target phase, in order.
 
 At run start:
 
-1. Ensure the run branch's worktree exists per the **Worktree root** convention, firing the `worktree-created` lifecycle hook if you create it.
+1. Ensure the run branch's worktree exists per the **Worktree root** convention; if you create it, bracket the creation with the `before-creating-worktree`/`after-creating-worktree` lifecycle hooks.
 2. Fire the `run-started` lifecycle hook.
 3. Start a recurring health monitor for the run per `health-monitoring.md`.
 

@@ -14,7 +14,7 @@ The start ref is the project's main branch. When the owner stacks on unmerged wo
 
 ### 3. Create the base run branch and worktree
 
-When the start ref is the project's main branch and it tracks a remote, refresh it from that remote first. Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktree root** convention. Fire the `branch-created` and `worktree-created` lifecycle hooks. Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
+When the start ref is the project's main branch and it tracks a remote, refresh it from that remote first. Create the base run branch — named `<branch-base>` (`v1` and `base` implicit) — at the start ref, and its worktree per the **Worktree root** convention, each bracketed by its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`). Operate from where you are: address the worktree by absolute path and run git through `git -C <worktree>`.
 
 ### 4. Create the pipeline family folder
 
