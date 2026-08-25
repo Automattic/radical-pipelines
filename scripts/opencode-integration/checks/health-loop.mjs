@@ -191,6 +191,61 @@ export async function run(ctx) {
 
   await runCheck(
     results,
+    "probes that produce no assistant record at all are classified as failed on an idle target",
+    async () => {
+      // A missing provider admits the input and produces nothing: no
+      // assistant message ever appears, so only the idle no-response rule
+      // can stop the loop from re-injecting forever.
+      const recordless = await createSession(server, {
+        agent: "build",
+        directory: ctx.projectDir,
+        model: { providerID: "missing-provider", id: "missing-model" },
+      });
+      const recordlessMarker = "suite-health-loop-no-record-ping";
+      const startResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_start({interval: 500, prompt: ${JSON.stringify(recordlessMarker)}, target_session: ${JSON.stringify(recordless.id)}});`,
+      );
+      const recordlessLoopID = startResult.structuredJSON.id;
+
+      const ticks = await pollUntil(
+        async () => {
+          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+          const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+            (tick) => tick.loopID === recordlessLoopID,
+          );
+          return observed.some(
+            (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
+          )
+            ? observed
+            : undefined;
+        },
+        { timeoutMs: 30_000, intervalMs: 400, label: "an escalated failed-probe tick with no assistant records" },
+      );
+
+      const injections = ticks.filter((tick) => tick.outcome === "injected").length;
+      assert.ok(
+        injections <= 3,
+        `expected the no-response rule to rate-limit probes, got ${injections}: ${JSON.stringify(ticks)}`,
+      );
+      const transcript = await getMessages(server, recordless.id);
+      assert.ok(
+        !transcript.some((message) => message.type === "assistant"),
+        "the repro requires that no assistant record was ever produced",
+      );
+
+      const cancelResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_cancel({id: ${JSON.stringify(recordlessLoopID)}});`,
+      );
+      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+    },
+  );
+
+  await runCheck(
+    results,
     "slow failing probes are held while in flight and back off once classified, instead of chaining",
     async () => {
       // Each probe turn runs ~1.5s before failing (unauthenticated provider

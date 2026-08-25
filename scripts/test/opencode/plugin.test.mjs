@@ -22,10 +22,12 @@ import plugin, {
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
+  lastSessionEventAt,
   lookupSpawn,
   promoteInboxItem,
   readCliVersion,
   readPackageVersion,
+  recordSessionEventActivity,
   readServiceRecordFile,
   recordSpawn,
   requestServer,
@@ -890,6 +892,17 @@ describe("promoteInboxItem", () => {
   });
 });
 
+describe("recordSessionEventActivity / lastSessionEventAt", () => {
+  test("records the newest observation per session and ignores events naming none", () => {
+    recordSessionEventActivity({ data: { sessionID: "ses_activity_test" } }, 1_000);
+    recordSessionEventActivity({ data: { sessionID: "ses_activity_test" } }, 2_000);
+    recordSessionEventActivity({ type: "server.heartbeat", data: {} }, 3_000);
+
+    assert.equal(lastSessionEventAt("ses_activity_test"), 2_000);
+    assert.equal(lastSessionEventAt("ses_activity_never_seen"), undefined);
+  });
+});
+
 describe("isDeadStreamMessage", () => {
   test("matches only an unfinished message whose last part is a tool call stuck streaming", () => {
     assert.equal(
@@ -1552,6 +1565,113 @@ describe("runLoopTick", () => {
       reason: "dead-stream-suspected",
       lastActivity: 5_000,
     });
+  });
+
+  test("an unchanged fingerprint with events still flowing is not confirmed dead", async () => {
+    // The projection keeps a streaming tool call's input empty while its
+    // arguments arrive, so an identical fingerprint proves nothing by
+    // itself; only event silence since the suspicion confirms death.
+    const interrupts = [];
+    const state = {};
+    let clock = 10_000;
+    let lastEvent;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getLastEventAt: () => lastEvent,
+      injectPrompt: () => {
+        throw new Error("must not inject into a streaming target");
+      },
+      interruptSession: async (server, sessionID) => interrupts.push(sessionID),
+      onOutcome: () => {},
+      now: () => clock,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+
+    // Argument deltas keep emitting events even though the projection is
+    // static: the confirmation must be deferred, not fired.
+    clock = 11_000;
+    lastEvent = 10_500;
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    assert.deepEqual(interrupts, [], "a stream emitting events must never be interrupted");
+
+    // One interval of true silence later, the confirmation fires.
+    clock = 12_000;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
+  test("cancellation during the confirming tick's reads prevents the interrupt", async () => {
+    let cancelled = false;
+    const state = {};
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => {
+        cancelled = true;
+        return [];
+      },
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      injectPrompt: () => {
+        throw new Error("must not inject after cancellation");
+      },
+      interruptSession: () => {
+        throw new Error("a cancelled loop must never interrupt its target");
+      },
+      onOutcome: () => {},
+      isCancelled: () => cancelled,
+      now: () => 10_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    assert.deepEqual(await runLoopTick(entry, deps), { outcome: "cancelled" });
+  });
+
+  test("a target that became active during the idle reads coalesces instead of failing the probe", async () => {
+    // The idleness sample ages while the inbox and transcript are read; if
+    // execution started in the meantime, the probe's response may still be
+    // coming and must not be written off.
+    const state = { lastInjection: { id: "usr_1", at: 9_000, evaluated: false } };
+    const activeAnswers = [false, true];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => activeAnswers.shift(),
+      getInbox: async () => [],
+      getMessages: async () => [{ id: "usr_1", type: "user", text: "check" }],
+      injectPrompt: () => {
+        throw new Error("must not inject while the probe's response may be starting");
+      },
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "skipped", reason: "awaiting-response" });
+    assert.equal(state.lastInjection.evaluated, false, "the probe must remain evaluable");
+    assert.equal(state.backoffLevel ?? 0, 0, "no failure may be recorded for a possibly-starting response");
   });
 
   test("a parked queue copy is promoted before the confirming interrupt so the freed session receives it", async () => {
