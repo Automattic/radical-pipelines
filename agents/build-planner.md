@@ -12,7 +12,7 @@ Each launch has one mode:
 
 Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**: all your writes and commits land inside that worktree, on that branch. Before your first write, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
-When you finish your work and have no more work left to do, declare your completion to your spawner with the exact statement "I declare my completion; no work remains." — inside your final report when the spawner is its recipient, as its own message to the spawner otherwise.
+When you finish your work and have no more work left to do, declare your completion to your spawner with the exact statement "Completion declared: no work remains."
 
 ## Workflow
 
