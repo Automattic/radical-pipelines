@@ -204,7 +204,7 @@ describe("default export", () => {
 describe("setup: tool and skill registration", () => {
   afterEach(clearAllLoopTimers);
 
-  test("registers exactly the nine named tools and the packaged skills", () => {
+  test("registers exactly the eight named tools and the packaged skills", () => {
     const { ctx, tools, addedSkills } = createFakeCtx();
 
     setup(ctx, isolatedDeps({ env: {} }));
@@ -216,7 +216,6 @@ describe("setup: tool and skill registration", () => {
         "rp_loop_list",
         "rp_loop_start",
         "rp_permission_reply",
-        "rp_request_termination",
         "rp_send",
         "rp_spawn",
         "rp_status",
@@ -355,7 +354,7 @@ describe("rp_spawn", () => {
     assert.match(initialPrompt.text, /\*\*Spawner identifier:\*\* ses_orchestrator/);
     assert.match(initialPrompt.text, /`rp_send`/);
     assert.match(initialPrompt.text, /Requester identifier.*otherwise.*Spawner identifier/s);
-    assert.match(initialPrompt.text, /declare your completion by calling `rp_request_termination`/);
+    assert.match(initialPrompt.text, /completion declaration always goes to the \*\*Spawner identifier\*\*/);
   });
 
   test("appendSpawnProtocol preserves the caller prompt and uses the authoritative runtime spawner ID", () => {
@@ -415,91 +414,6 @@ describe("rp_terminate", () => {
       await tools.get("rp_terminate").execute({ session: "ses_finished" }),
       toToolResult({ error: "server unreachable" }),
     );
-  });
-});
-
-describe("rp_request_termination", () => {
-  afterEach(clearAllLoopTimers);
-
-  test("notifies the caller's spawner once; a repeated declaration reports success without a second notification", async () => {
-    const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
-    sessions.set("ses_done_spawner", { id: "ses_done_spawner" });
-    sessions.set("ses_done_child", { id: "ses_done_child" });
-    recordSpawn("ses_done_child", {
-      name: "spec-researcher-1",
-      run: "258-agent-declared-completion",
-      spawner: "ses_done_spawner",
-    });
-
-    const promptCalls = [];
-    const originalPrompt = ctx.session.prompt.bind(ctx.session);
-    ctx.session.prompt = async (args) => {
-      promptCalls.push(args);
-      return originalPrompt(args);
-    };
-
-    const tool = tools.get("rp_request_termination");
-    const result = await tool.execute({}, { sessionID: "ses_done_child" });
-
-    assert.deepEqual(result, toToolResult({ requested: true }));
-    assert.equal(promptCalls.length, 1);
-    assert.equal(promptCalls[0].sessionID, "ses_done_spawner");
-    assert.equal(promptCalls[0].delivery, "queue");
-    assert.match(
-      promptCalls[0].text,
-      /\[rp\] spec-researcher-1 \(ses_done_child\) declares its work complete/,
-    );
-    assert.match(promptCalls[0].text, /rp_terminate/);
-
-    const repeated = await tool.execute({}, { sessionID: "ses_done_child" });
-    assert.deepEqual(repeated, toToolResult({ requested: true }));
-    assert.equal(promptCalls.length, 1, "the spawner is notified once per agent");
-  });
-
-  test("reports an unrecognized caller session as an error without notifying anyone", async () => {
-    const { ctx, tools } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
-
-    const promptCalls = [];
-    ctx.session.prompt = async (args) => {
-      promptCalls.push(args);
-      return args;
-    };
-
-    const result = await tools
-      .get("rp_request_termination")
-      .execute({}, { sessionID: "ses_never_spawned" });
-
-    assert.deepEqual(result, toToolResult({ error: "not an RP-spawned session" }));
-    assert.equal(promptCalls.length, 0);
-  });
-
-  test("a declaration whose notification fails is retriable: the next call notifies again", async () => {
-    const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
-    sessions.set("ses_retry_child", { id: "ses_retry_child" });
-    recordSpawn("ses_retry_child", {
-      name: "spec-researcher-2",
-      run: "258-agent-declared-completion",
-      spawner: "ses_retry_spawner",
-    });
-
-    const tool = tools.get("rp_request_termination");
-    // The spawner session does not exist yet: the notification prompt throws.
-    await assert.rejects(() => tool.execute({}, { sessionID: "ses_retry_child" }));
-
-    sessions.set("ses_retry_spawner", { id: "ses_retry_spawner" });
-    const promptCalls = [];
-    const originalPrompt = ctx.session.prompt.bind(ctx.session);
-    ctx.session.prompt = async (args) => {
-      promptCalls.push(args);
-      return originalPrompt(args);
-    };
-
-    const result = await tool.execute({}, { sessionID: "ses_retry_child" });
-    assert.deepEqual(result, toToolResult({ requested: true }));
-    assert.equal(promptCalls.length, 1);
   });
 });
 

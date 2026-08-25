@@ -2,10 +2,10 @@
  * RP's opencode v2 plugin.
  *
  * Zero-dependency ESM module supplying the coordination layer opencode lacks
- * natively (team spawning, directed messaging, completion signaling, session
- * termination, health monitoring, permission mediation, status). Every pure
- * helper is named-exported so it can be unit-tested offline, without a
- * running opencode daemon.
+ * natively (team spawning, directed messaging, session termination, health
+ * monitoring, permission mediation, status). Every pure helper is
+ * named-exported so it can be unit-tested offline, without a running opencode
+ * daemon.
  */
 
 import { execFileSync } from "node:child_process";
@@ -236,7 +236,7 @@ function formatAttribution(sender) {
  * @returns {string} The original prompt followed by the runtime protocol.
  */
 function appendSpawnProtocol(prompt, spawnerID) {
-  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** when your prompt provides one; otherwise use the **Spawner identifier** above.\n\nWhen you finish your work and have no more work left to do, declare your completion by calling \`rp_request_termination\`.`;
+  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** when your prompt provides one; otherwise use the **Spawner identifier** above. Your completion declaration always goes to the **Spawner identifier**.`;
 }
 
 /** Prefix marking a session title as an RP-managed, reconstructible one. */
@@ -983,28 +983,6 @@ function getTitledChildren() {
 }
 
 /**
- * `globalThis` key backing the process-wide set of child session IDs whose
- * completion declaration has already been forwarded to their spawner.
- *
- * Enforces "notify the spawner once per agent" across every per-directory
- * `setup(ctx)` re-run, the same way `LEDGER_KEY` shares the spawn ledger.
- */
-const COMPLETION_DECLARED_KEY = Symbol.for("radical-pipelines.opencode.completionDeclared");
-
-/**
- * Fetch the process-wide set of child session IDs that already declared
- * completion, creating it on first use.
- *
- * @returns {Set<string>} The singleton set.
- */
-function getCompletionDeclarations() {
-  if (!globalThis[COMPLETION_DECLARED_KEY]) {
-    globalThis[COMPLETION_DECLARED_KEY] = new Set();
-  }
-  return globalThis[COMPLETION_DECLARED_KEY];
-}
-
-/**
  * `globalThis` key backing the bounded, in-memory recent-errors ring the
  * terminal-event listener and loop scheduler append to.
  */
@@ -1114,7 +1092,7 @@ function formatStructuredError(error) {
  *
  * Ignores non-terminal events and terminal events on sessions RP did not
  * spawn. A successful turn is not a completion signal — an agent declares
- * its own completion via `rp_request_termination` — so success events pass
+ * its own completion in a message to its spawner — so success events pass
  * silently. Every failed turn is recorded in the bounded error log
  * (including the structured error it carries, so `rp_status`'s
  * `recentErrors` reports the cause) and announced to the spawner (queue
@@ -2104,46 +2082,6 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
 }
 
 /**
- * Build the `rp_request_termination` tool descriptor.
- *
- * The completion signal: a spawned agent calls this when its work ends, and
- * the plugin notifies the agent's spawner (queue delivery) so the spawner can
- * terminate the session with `rp_terminate`. The spawner is notified once per
- * agent — a repeated declaration reports success without a second
- * notification. The dedupe set is marked only after the notification is
- * admitted, so a failed notify can be retried.
- *
- * @param {object} ctx The plugin's opencode context, as passed to `setup`.
- * @returns {{name: string, description: string, input: object, execute: Function}}
- *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
- */
-function buildRequestTerminationTool(ctx) {
-  return {
-    name: "rp_request_termination",
-    description:
-      "Declare the calling agent's work complete. Notifies its spawner once so the session can be terminated.",
-    output: ANY_OUTPUT_SCHEMA,
-    input: { type: "object", properties: {} },
-    async execute(_input, toolCtx) {
-      const entry = lookupSpawn(toolCtx.sessionID);
-      if (!entry) {
-        return toToolResult({ error: "not an RP-spawned session" });
-      }
-      const declared = getCompletionDeclarations();
-      if (!declared.has(toolCtx.sessionID)) {
-        await ctx.session.prompt({
-          sessionID: entry.spawner,
-          text: `[rp] ${entry.name} (${toolCtx.sessionID}) declares its work complete. Terminate it with rp_terminate.`,
-          delivery: "queue",
-        });
-        declared.add(toolCtx.sessionID);
-      }
-      return toToolResult({ requested: true });
-    },
-  };
-}
-
-/**
  * Build the `rp_permission_reply` tool descriptor.
  *
  * @param {{
@@ -2449,7 +2387,7 @@ async function consumeEvents(ctx, onEvent) {
 /**
  * The RP opencode plugin's `setup` function.
  *
- * Registers the nine coordination tools and the packaged skill source on
+ * Registers the eight coordination tools and the packaged skill source on
  * every call (opencode re-runs `setup` once per directory scope); guards the
  * terminal-event listener's subscription and the loop registry's re-arm
  * behind `SETUP_ONCE_KEY` so they run exactly once per daemon process.
@@ -2538,7 +2476,6 @@ function setup(ctx, deps = {}) {
     tools.add(buildLoopCancelTool(registryPath));
     tools.add(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }));
     tools.add(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn }));
-    tools.add(buildRequestTerminationTool(ctx));
     return tools;
   });
 

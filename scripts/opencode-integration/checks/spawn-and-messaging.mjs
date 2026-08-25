@@ -1,5 +1,5 @@
 /**
- * Spawn, seat, identifier, and completion-declaration mechanics, and
+ * Spawn, seat, identifier, and durable-title mechanics, and
  * directed messaging in both directions (including the message-failure
  * chain's send-time and lingering-delivery stages), and session termination,
  * driven against the sandbox's running `serve` process via the plugin's real
@@ -235,41 +235,6 @@ export async function run(ctx) {
         timeoutMs: 10_000,
         label: "the once-pending message to be promoted and delivered to the child",
       });
-    },
-  );
-
-  await runCheck(
-    results,
-    "rp_request_termination declares the child's completion to its spawner, once",
-    async () => {
-      const first = await driveToolCall(
-        server,
-        childID,
-        `return await tools.rp_request_termination({});`,
-      );
-      assert.equal(first.structuredJSON?.requested, true, `expected {requested: true}, got: ${first.text}`);
-
-      await pollUntil(
-        () => getSessionMessagesContaining(server, orchestrator.id, `${childID}) declares its work complete`),
-        { timeoutMs: 20_000, label: "the spawner to receive the child's completion declaration" },
-      );
-
-      // A repeated declaration reports success but does not notify again.
-      const repeated = await driveToolCall(
-        server,
-        childID,
-        `return await tools.rp_request_termination({});`,
-      );
-      assert.equal(repeated.structuredJSON?.requested, true);
-      await delay(1_000);
-      const declarations = (await getMessages(server, orchestrator.id)).filter(
-        (m) => m.type === "user" && m.text?.includes(`${childID}) declares its work complete`),
-      );
-      assert.equal(
-        declarations.length,
-        1,
-        `expected exactly one completion declaration, got ${declarations.length}`,
-      );
     },
   );
 

@@ -72,7 +72,7 @@ Each time you spawn an agent:
 - Resolve its model and settings via the **Agent models** convention and apply them as parameters of the spawn itself.
 - When a launch prompt carries prior-phase evidence — such as a rejection's issues — pass it whole: as the committed file's path when one holds it, verbatim otherwise, never interpreted or framed.
 
-Agents message you when their work completes, when they need research or a decision, and when they hit a blocker; an agent serving a request answers its requester. Every message you send an agent carries work it must act on. Accept an agent's completion only after every agent serving its requests has finished and the agent reports completion afterward. A completion report is workflow input, not the completion signal: the agent separately declares its own completion per the **Team spawning** convention, and only that declaration — never a report or turn activity — ends its session. Terminate it on the declaration, per the same convention.
+Agents message you when their work completes, when they need research or a decision, and when they hit a blocker; an agent serving a request answers its requester. Every message you send an agent carries work it must act on. An agent is done only when a message from it carries its completion declaration — the exact statement "I declare my completion; no work remains." — never when its prose merely sounds finished or its activity stops. Accept a completion only after every agent serving its requests has finished and the agent declares afterward. On the declaration, terminate the agent's session per the **Team spawning** convention.
 
 ## 6. Handle blockers
 

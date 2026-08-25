@@ -9,7 +9,7 @@ The block below is the canonical content for `.rp.md`.
 ```markdown
 ## Team spawning
 
-Spawn each agent as a Claude Code teammate. A teammate runs in the shell working directory its sender was in at the last send: a spawn starts it there, and every message restarts it there — whoever the sender is. A directory change inside a teammate does not persist to its next command. To seat an agent, at every send — spawn or message: `cd` into its worktree, send, then `cd` back. Never use Claude Code's worktree tools (`EnterWorktree`/`ExitWorktree`) during a run — a worktree switch is session-wide and retargets the working directory of every running agent. A teammate's spawn result includes its `agentId` — the identifier for addressing messages to it. An agent's completion declaration is a completion message to its spawner. On it, send a shutdown request to its identifier without blocking workflow progress on its exit.
+Spawn each agent as a Claude Code teammate. A teammate runs in the shell working directory its sender was in at the last send: a spawn starts it there, and every message restarts it there — whoever the sender is. A directory change inside a teammate does not persist to its next command. To seat an agent, at every send — spawn or message: `cd` into its worktree, send, then `cd` back. Never use Claude Code's worktree tools (`EnterWorktree`/`ExitWorktree`) during a run — a worktree switch is session-wide and retargets the working directory of every running agent. A teammate's spawn result includes its `agentId` — the identifier for addressing messages to it. On an agent's completion declaration, send a shutdown request to its identifier without blocking workflow progress on its exit.
 
 ## Health monitoring
 
