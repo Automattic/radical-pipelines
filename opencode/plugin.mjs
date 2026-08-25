@@ -236,7 +236,7 @@ function formatAttribution(sender) {
  * @returns {string} The original prompt followed by the runtime protocol.
  */
 function appendSpawnProtocol(prompt, spawnerID) {
-  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** when your prompt provides one; otherwise use the **Spawner identifier** above. Your completion declaration always goes to the **Spawner identifier**.`;
+  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** for what your profile addresses to your requester; otherwise use the **Spawner identifier** above.`;
 }
 
 /** Prefix marking a session title as an RP-managed, reconstructible one. */

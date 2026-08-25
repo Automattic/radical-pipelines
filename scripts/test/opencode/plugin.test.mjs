@@ -354,7 +354,7 @@ describe("rp_spawn", () => {
     assert.match(initialPrompt.text, /\*\*Spawner identifier:\*\* ses_orchestrator/);
     assert.match(initialPrompt.text, /`rp_send`/);
     assert.match(initialPrompt.text, /Requester identifier.*otherwise.*Spawner identifier/s);
-    assert.match(initialPrompt.text, /completion declaration always goes to the \*\*Spawner identifier\*\*/);
+    assert.match(initialPrompt.text, /for what your profile addresses to your requester/);
   });
 
   test("appendSpawnProtocol preserves the caller prompt and uses the authoritative runtime spawner ID", () => {
