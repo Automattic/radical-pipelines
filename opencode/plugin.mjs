@@ -548,11 +548,12 @@ function evaluateProbe(state, newest) {
  *   session; a steer can) rather than injected again.
  * - **Failed-probe backoff** — each injection is evaluated once, on
  *   whichever branch first observes a finished turn (see `evaluateProbe`);
- *   a failed probe makes the loop skip the next `2^level - 1` injection
- *   opportunities, capped at `LOOP_BACKOFF_MAX_SKIPS`. Every tick still
- *   inspects the target — the backoff suppresses injections, never
- *   observation or escalation — and the first successful turn ends it, so
- *   the pipeline resumes on the first probe after conditions clear.
+ *   a failed probe makes the loop skip the next `2^level - 1` idle
+ *   injection opportunities, capped at `LOOP_BACKOFF_MAX_SKIPS`. Every
+ *   tick still inspects the target — the backoff suppresses idle probes,
+ *   never observation, escalation, or the stale steer that arms
+ *   dead-stream recovery — and the first successful turn ends it, so the
+ *   pipeline resumes on the first probe after conditions clear.
  * - **Dead-stream escalation** — when a steer is still pending against a
  *   target that is active yet stale, the tick inspects the target's newest
  *   assistant message; only the provably dead stream (see
@@ -679,16 +680,21 @@ async function runIdleTick(entry, { server, readInbox, readNewestAssistant, inje
     state.backoffSkips -= 1;
     return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
   }
+  // Timestamped before the admission round trip: the server schedules
+  // execution without joining it, so a turn can start — and fail — before
+  // admission resolves; a marker taken afterwards would postdate that
+  // failure and leave it forever unclassifiable.
+  const injectedAt = now();
   await injectPrompt(entry.targetSession, entry.prompt, "queue");
-  state.lastInjection = { at: now(), evaluated: false };
+  state.lastInjection = { at: injectedAt, evaluated: false };
   return { outcome: "injected", reason: "idle" };
 }
 
 /**
  * The active branch of `runLoopTick`: probe evaluation on the busy path,
- * stale steer with queue-promotion, and the gated dead-stream interrupt —
- * all inspection runs regardless of backoff; only the steer injection is
- * suppressed by it.
+ * stale steer with queue-promotion, and the gated dead-stream interrupt.
+ * The backoff never applies here: an active target is not being probed, and
+ * the stale steer must fire promptly to arm dead-stream recovery.
  *
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry The loop entry.
  * @param {object} deps The subset of `runLoopTick`'s resolved deps this branch uses.
@@ -743,17 +749,16 @@ async function runActiveTick(
     if (isCancelled()) {
       return { outcome: "cancelled" };
     }
-    const evaluation = evaluateProbe(state, newest);
-    if (evaluation?.verdict === "failed") {
-      return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
-    }
+    // Bookkeeping only: the verdict feeds the idle path's backoff, but never
+    // suppresses the steer below — it is the arming step for dead-stream
+    // recovery, and is already self-limited (staleness needs two silent
+    // intervals, and a pending steer coalesces), so delaying it would only
+    // postpone recovery of a hung target.
+    evaluateProbe(state, newest);
   }
-  if ((state.backoffSkips ?? 0) > 0) {
-    state.backoffSkips -= 1;
-    return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
-  }
+  const injectedAt = now();
   await injectPrompt(entry.targetSession, entry.prompt, "steer");
-  state.lastInjection = { at: now(), evaluated: false };
+  state.lastInjection = { at: injectedAt, evaluated: false };
   return { outcome: "injected", reason: "stale-running", lastActivity };
 }
 

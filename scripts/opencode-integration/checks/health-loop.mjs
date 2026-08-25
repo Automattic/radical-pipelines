@@ -12,6 +12,7 @@ import {
   driveToolCall,
   getActiveSessionIDs,
   getInbox,
+  getMessages,
   getSession,
   pollMessages,
   pollUntil,
@@ -185,6 +186,74 @@ export async function run(ctx) {
         `return await tools.rp_loop_cancel({id: ${JSON.stringify(backoffLoopID)}});`,
       );
       assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+    },
+  );
+
+  await runCheck(
+    results,
+    "a parked queue copy of the monitor prompt is promoted to steer in place, not duplicated",
+    async () => {
+      const promoTarget = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
+      const promoMarker = "suite-health-loop-promotion-ping";
+
+      // Occupy the target, then park a queue copy of the exact monitor
+      // prompt behind the running turn.
+      await prompt(server, promoTarget.id, slowPrompt(8_000, `promo-busy-${Date.now()}`), { delivery: "steer" });
+      await pollUntil(
+        async () => ((await getActiveSessionIDs(server)).has(promoTarget.id) ? true : undefined),
+        { timeoutMs: 5_000, label: "the promotion target to become active" },
+      );
+      await prompt(server, promoTarget.id, promoMarker, { delivery: "queue" });
+      const parked = (await getInbox(server, promoTarget.id)).find((item) => item.payload?.text === promoMarker);
+      assert.ok(parked, "expected the queue copy to park in the inbox behind the running turn");
+      assert.equal(parked.delivery, "queue");
+
+      const startResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_start({interval: 800, prompt: ${JSON.stringify(promoMarker)}, target_session: ${JSON.stringify(promoTarget.id)}});`,
+      );
+      const promoLoopID = startResult.structuredJSON.id;
+
+      const promotedTick = await pollUntil(
+        async () => {
+          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+          return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
+            (tick) => tick.loopID === promoLoopID && tick.outcome === "promoted",
+          );
+        },
+        { timeoutMs: 15_000, intervalMs: 400, label: "a queue-to-steer promotion tick" },
+      );
+      assert.equal(promotedTick.reason, "stale-running");
+
+      // Same item, new delivery: the parked copy was converted, not
+      // replaced or duplicated.
+      const promoted = (await getInbox(server, promoTarget.id)).filter(
+        (item) => item.payload?.text === promoMarker,
+      );
+      assert.equal(promoted.length, 1, `expected exactly one pending copy, got: ${JSON.stringify(promoted)}`);
+      assert.equal(promoted[0].id, parked.id, "the promoted item must keep the parked item's inbox ID");
+      assert.equal(promoted[0].delivery, "steer");
+
+      const cancelResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_cancel({id: ${JSON.stringify(promoLoopID)}});`,
+      );
+      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+
+      // The promoted copy delivers exactly once.
+      await pollMessages(
+        server,
+        promoTarget.id,
+        (messages) => messages.find((message) => message.type === "user" && message.text === promoMarker),
+        { timeoutMs: 15_000, label: "the promoted steer to deliver" },
+      );
+      await delay(1_000);
+      const deliveries = (await getMessages(server, promoTarget.id)).filter(
+        (message) => message.type === "user" && message.text === promoMarker,
+      );
+      assert.equal(deliveries.length, 1, `expected a single delivery, got ${deliveries.length}`);
     },
   );
 

@@ -1276,6 +1276,60 @@ describe("runLoopTick", () => {
     });
   });
 
+  test("a turn failing during the admission round trip is still classified as a failed probe", async () => {
+    // The server admits and schedules without joining execution, so a fast
+    // failure can complete before the injection call resolves. The
+    // injection marker must predate admission, or such failures would
+    // forever evade classification.
+    let clock = 10_000;
+    let newest = null;
+    const state = {};
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => [],
+      getNewestAssistantMessage: async () => newest,
+      injectPrompt: async () => {
+        // The admission round trip takes 50ms, during which the scheduled
+        // turn starts and fails instantly.
+        newest = { type: "assistant", finish: "error", time: { created: clock + 10 } };
+        clock += 50;
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      state,
+    };
+
+    assert.deepEqual(await runLoopTick(entry, deps), { outcome: "injected", reason: "idle" });
+    assert.equal(state.lastInjection.at, 10_000, "the marker must predate the admission round trip");
+
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "failed-probe",
+      level: 1,
+      skips: 1,
+    });
+  });
+
+  test("a stale target during a backoff window still receives the steer that arms dead-stream recovery", async () => {
+    const calls = [];
+    const state = { backoffSkips: 5, backoffLevel: 3 };
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "injected", reason: "stale-running", lastActivity: 5_000 });
+    assert.deepEqual(calls, ["steer"]);
+    assert.equal(state.backoffSkips, 5, "the steer must not consume a backoff skip");
+  });
+
   test("the dead-stream interrupt still fires during a backoff window", async () => {
     const interrupts = [];
     const state = { backoffSkips: 5, backoffLevel: 3 };
