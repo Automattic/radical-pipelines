@@ -148,7 +148,7 @@ Releases are driven by CI (`.github/workflows/release.yml`), with **no npm** pub
 1. **Pending changesets land on `trunk`.** When a PR with changesets is merged to `trunk`, the Release workflow runs.
 2. **CI opens/updates the "Version Packages" PR.** With pending changesets, the workflow runs `npm run release:version`, which bumps the version, regenerates `CHANGELOG.md`, syncs `.claude-plugin/plugin.json`, and reconciles `package-lock.json` so its two recorded-version fields match the bumped version. The result is pushed to the `changeset-release/trunk` branch and surfaced as a "Version Packages" pull request.
 3. **A maintainer reviews and merges** the Version Packages PR.
-4. **CI creates the tag and Release.** The human merge of the Version PR is what advances the flow: the next run creates the `v<version>` git tag (via `npx changeset tag`) and the GitHub Release, whose body is the `## <version>` entry from `CHANGELOG.md`.
+4. **CI creates the tag and Release.** The human merge of the Version PR is what advances the flow: the next run creates the `v<version>` git tag (via `npx changeset git-tag`) and the GitHub Release, whose body is the `## <version>` entry from `CHANGELOG.md`.
 
 The release workflow uses only the default `GITHUB_TOKEN`. The bot's own pushes (the version-bump commit, the tag push) do **not** re-trigger the workflow; only the human merge of the Version Packages PR advances the flow to the tag/Release step. There is no auto-merge and no loop.
 
@@ -160,7 +160,7 @@ The release workflow uses only the default `GITHUB_TOKEN`. The bot's own pushes 
 
 If you ever need to cut a release locally (CI being unavailable, etc.), this procedure produces the **same** `v<version>` tag and changelog-bodied GitHub Release as CI. There is **no npm publish** anywhere in it.
 
-Prerequisites: a clean `trunk` working tree, `gh` authenticated, and a `GITHUB_TOKEN` exported — `@changesets/changelog-github` throws without it. `changelog-github` calls `dotenv` at load, so a gitignored `.env` containing `GITHUB_TOKEN=…` works equally well (see [Local GITHUB_TOKEN](#local-github_token)).
+Prerequisites: a clean `trunk` working tree, `gh` authenticated, and a `GITHUB_TOKEN` exported — `@changesets/changelog-github` throws without it. `changelog-github` loads `.env` at module load, so a gitignored `.env` containing `GITHUB_TOKEN=…` works equally well (see [Local GITHUB_TOKEN](#local-github_token)).
 
 ```bash
 # 0. On a clean trunk, gh authenticated, GITHUB_TOKEN set.
@@ -178,7 +178,7 @@ git commit -am "Version Packages"
 git push origin trunk
 
 # 3. Create the tag (idempotent — a no-op if it already exists) and push it.
-npx changeset tag
+npx changeset git-tag
 git push origin "v$(node -p "require('./package.json').version")"
 
 # 4. Create the GitHub Release with the top "## <version>" CHANGELOG section
@@ -196,7 +196,7 @@ If a PR that should have had a changeset was merged without one, just add the ch
 
 ## Re-running a failed release
 
-If the Release workflow fails, re-run the job. `npx changeset tag` is **idempotent**: if the `v<version>` tag already exists, it is a no-op.
+If the Release workflow fails, re-run the job. `npx changeset git-tag` is **idempotent**: if the `v<version>` tag already exists, it is a no-op.
 
 **Edge case:** re-running will **not** backfill a missing GitHub Release for a tag that already exists. If the tag was created but the Release was not, create it manually:
 
@@ -235,7 +235,7 @@ These are optional and are deliberately **not** applied as part of this work (br
 
 ## Local GITHUB_TOKEN
 
-Any **local** `npm run release:version` (or the [manual release escape hatch](#manual-release-escape-hatch)) needs a `GITHUB_TOKEN`, because `@changesets/changelog-github` requires it to fetch PR, commit, and author metadata — without it, it throws. `changelog-github` calls `dotenv` at module load, so a gitignored `.env` file containing `GITHUB_TOKEN=…` is the easiest mechanism (both `.env` and `.env.local` are gitignored).
+Any **local** `npm run release:version` (or the [manual release escape hatch](#manual-release-escape-hatch)) needs a `GITHUB_TOKEN`, because `@changesets/changelog-github` requires it to fetch PR, commit, and author metadata — without it, it throws. `changelog-github` loads `.env` at module load, so a gitignored `.env` file containing `GITHUB_TOKEN=…` is the easiest mechanism (both `.env` and `.env.local` are gitignored).
 
 Because this is a **private** repository, the token needs read access to private content:
 
