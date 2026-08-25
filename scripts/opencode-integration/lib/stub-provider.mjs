@@ -31,6 +31,17 @@ const DIRECTIVE_RE = /__RP_CODE__:([\s\S]*?):__END__/;
 const SLOW_RE = /__RP_SLOW__:(\d+):__END__/;
 
 /**
+ * Directive embedded in a driving prompt's text — `__RP_STALL__:<ms>:__END__`
+ * — that makes the stub emit a tool_call header whose arguments never finish
+ * streaming, then hold the connection open for `<ms>` (or until the client
+ * aborts): a deterministic reproduction of a provider stream dying
+ * mid-tool-call, leaving the session's newest assistant message with a tool
+ * part stuck in `streaming` state. Answered once per distinct directive
+ * text, like `DIRECTIVE_RE`.
+ */
+const STALL_RE = /__RP_STALL__:(\d+):__END__/;
+
+/**
  * Directive embedded in a driving prompt's text —
  * `__RP_NATIVE_TOOL__:<json {name, args}>:__END__` — that forces a native
  * (non-Code-Mode) tool_call for one of opencode's own built-in tools (e.g.
@@ -165,6 +176,34 @@ export function startStubProvider({ port }) {
         await delay(Number(slowMatch[1]));
       }
 
+      // Matched only on the agent turn (see `offered` above); the title
+      // request must never be the one that hangs.
+      const stallMatch = offered.size > 0 ? text.match(STALL_RE) : null;
+      if (stallMatch && !firedDirectives.has(stallMatch[0])) {
+        firedDirectives.add(stallMatch[0]);
+        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+        res.write(
+          sseChunk(parsed.model ?? "stub-model", {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                index: 0,
+                id: `call_stall_${firedDirectives.size}`,
+                type: "function",
+                function: { name: "execute", arguments: "" },
+              },
+            ],
+          }),
+        );
+        // Dead stream: no more frames. The held-open window is bounded so a
+        // leaked stall can never wedge the suite; the client aborting first
+        // (the expected interrupt) just ends the response early.
+        await Promise.race([delay(Number(stallMatch[1])), new Promise((r) => req.on("close", r))]);
+        res.end();
+        return;
+      }
+
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
 
       if (nativeMatch && !nativeAlreadyAnswered) {
@@ -267,4 +306,20 @@ export function nativeToolPrompt(toolName, args) {
  */
 export function slowPrompt(delayMs, nonce) {
   return `__RP_SLOW__:${delayMs}:__END__ // ${nonce}`;
+}
+
+/**
+ * Build a driving prompt that makes the stub die mid-tool-call: it emits a
+ * tool_call header whose arguments never arrive, then goes silent for up to
+ * `holdMs`, leaving the session hung on a provably dead stream (a tool part
+ * stuck in `streaming` state) until something interrupts it.
+ *
+ * @param {number} holdMs Upper bound on the held-open window; the expected
+ *   interrupt ends it earlier.
+ * @param {string} nonce A value unique to this call, keeping the one-shot
+ *   directive dedup from mistaking two distinct calls for a repeat.
+ * @returns {string} The prompt text to post as the driving session's input.
+ */
+export function stallPrompt(holdMs, nonce) {
+  return `__RP_STALL__:${holdMs}:__END__ // ${nonce}`;
 }

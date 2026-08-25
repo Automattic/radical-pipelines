@@ -13,11 +13,12 @@ import {
   getActiveSessionIDs,
   getInbox,
   getSession,
+  pollMessages,
   pollUntil,
   prompt,
 } from "../lib/api-client.mjs";
 import { startServe, stopServe } from "../lib/sandbox.mjs";
-import { slowPrompt } from "../lib/stub-provider.mjs";
+import { slowPrompt, stallPrompt } from "../lib/stub-provider.mjs";
 
 const STUB_MODEL = { providerID: "stub", id: "stub-model" };
 
@@ -87,6 +88,18 @@ export async function run(ctx) {
       (await getActiveSessionIDs(server)).has(target.id),
       "expected the stale override to fire while the slow target was still active",
     );
+
+    // Coalescing: further ticks over the still-running window must not add
+    // a second steer copy of the pending prompt.
+    await delay(1_500);
+    const steersAfter = (await getInbox(server, target.id)).filter(
+      (item) => item.payload?.text === marker && item.delivery === "steer" && !baselineIDs.has(item.id),
+    );
+    assert.equal(
+      steersAfter.length,
+      1,
+      `expected the pending steer to be coalesced, not duplicated, got: ${JSON.stringify(steersAfter)}`,
+    );
   });
 
   await runCheck(results, "rp_loop_cancel stops further ticks, while rp_status retains their outcomes", async () => {
@@ -115,6 +128,124 @@ export async function run(ctx) {
     );
     assert.equal(ticksAfter.length, ticks.length, "expected no further tick outcomes after cancel");
   });
+
+  await runCheck(
+    results,
+    "probes that only produce failing turns engage an escalating backoff instead of a flood",
+    async () => {
+      // Every turn on the deliberately unauthenticated provider fails, so
+      // each injected monitor prompt is a failed probe.
+      const failing = await createSession(server, {
+        agent: "build",
+        directory: ctx.projectDir,
+        model: { providerID: "stubnoauth", id: "stub-model" },
+      });
+      const backoffMarker = "suite-health-loop-backoff-ping";
+      const startResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_start({interval: 700, prompt: ${JSON.stringify(backoffMarker)}, target_session: ${JSON.stringify(failing.id)}});`,
+      );
+      const backoffLoopID = startResult.structuredJSON.id;
+
+      // A failed-probe tick at level >= 2 proves the full escalation cycle:
+      // inject -> fail -> classify -> skip -> re-inject -> fail -> escalate.
+      const ticks = await pollUntil(
+        async () => {
+          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+          const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+            (tick) => tick.loopID === backoffLoopID,
+          );
+          return observed.some(
+            (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
+          )
+            ? observed
+            : undefined;
+        },
+        { timeoutMs: 30_000, intervalMs: 400, label: "an escalated (level >= 2) failed-probe tick" },
+      );
+
+      assert.ok(
+        ticks.some((tick) => tick.outcome === "injected" && tick.reason === "idle"),
+        `expected at least one probe injection, got: ${JSON.stringify(ticks)}`,
+      );
+      assert.ok(
+        ticks.some((tick) => tick.outcome === "skipped" && tick.reason === "backoff"),
+        `expected backoff skips between probes, got: ${JSON.stringify(ticks)}`,
+      );
+      const injections = ticks.filter((tick) => tick.outcome === "injected").length;
+      assert.ok(
+        injections <= 3,
+        `expected the backoff to rate-limit probes (max 3 injections before level 2), got ${injections}: ${JSON.stringify(ticks)}`,
+      );
+
+      const cancelResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_cancel({id: ${JSON.stringify(backoffLoopID)}});`,
+      );
+      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+    },
+  );
+
+  await runCheck(
+    results,
+    "a target hung on a dead provider stream is interrupted, and the pending steer then delivers",
+    async () => {
+      const hung = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
+      // The stub emits a tool_call header whose arguments never arrive,
+      // then goes silent: the session hangs with a tool part stuck in
+      // `streaming` state, exactly the live incident's signature.
+      const stallTurn = prompt(server, hung.id, stallPrompt(60_000, `stall-${Date.now()}`), {
+        delivery: "steer",
+      }).catch(() => {});
+      await pollUntil(
+        async () => ((await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),
+        { timeoutMs: 5_000, label: "the stalled target to become active" },
+      );
+
+      const deadMarker = "suite-health-loop-dead-stream-ping";
+      const startResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_start({interval: 800, prompt: ${JSON.stringify(deadMarker)}, target_session: ${JSON.stringify(hung.id)}});`,
+      );
+      const deadLoopID = startResult.structuredJSON.id;
+
+      const interruptedTick = await pollUntil(
+        async () => {
+          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+          return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
+            (tick) => tick.loopID === deadLoopID && tick.outcome === "interrupted" && tick.reason === "dead-stream",
+          );
+        },
+        { timeoutMs: 30_000, intervalMs: 400, label: "a dead-stream interrupted tick" },
+      );
+      assert.equal(interruptedTick.reason, "dead-stream");
+
+      // `continue=true` resumes execution with the pending steer: the
+      // monitor prompt must actually run, and the freed session must return
+      // to idle.
+      await pollMessages(
+        server,
+        hung.id,
+        (messages) => messages.find((message) => message.type === "user" && message.text === deadMarker),
+        { timeoutMs: 15_000, label: "the pending steer to deliver after the interrupt" },
+      );
+      await pollUntil(
+        async () => (!(await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),
+        { timeoutMs: 15_000, label: "the freed target to return to idle" },
+      );
+
+      const cancelResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
+      );
+      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+      await stallTurn;
+    },
+  );
 
   await runCheck(
     results,
