@@ -212,15 +212,20 @@ export async function run(ctx) {
       );
       const deadLoopID = startResult.structuredJSON.id;
 
+      let observedTicks = [];
       const interruptedTick = await pollUntil(
         async () => {
           const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-          return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
-            (tick) => tick.loopID === deadLoopID && tick.outcome === "interrupted" && tick.reason === "dead-stream",
+          observedTicks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+            (tick) => tick.loopID === deadLoopID,
           );
+          return observedTicks.find((tick) => tick.outcome === "interrupted" && tick.reason === "dead-stream");
         },
         { timeoutMs: 30_000, intervalMs: 400, label: "a dead-stream interrupted tick" },
-      );
+      ).catch((error) => {
+        error.message += `; observed ticks: ${JSON.stringify(observedTicks)}`;
+        throw error;
+      });
       assert.equal(interruptedTick.reason, "dead-stream");
 
       // `continue=true` resumes execution with the pending steer: the

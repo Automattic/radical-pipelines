@@ -198,8 +198,11 @@ export function startStubProvider({ port }) {
         );
         // Dead stream: no more frames. The held-open window is bounded so a
         // leaked stall can never wedge the suite; the client aborting first
-        // (the expected interrupt) just ends the response early.
-        await Promise.race([delay(Number(stallMatch[1])), new Promise((r) => req.on("close", r))]);
+        // (the expected interrupt) just ends the response early. The abort
+        // signal must be the *response's* close (connection terminated) —
+        // the request's own close fires as soon as its body completes,
+        // which would end the stall immediately.
+        await Promise.race([delay(Number(stallMatch[1])), new Promise((r) => res.on("close", r))]);
         res.end();
         return;
       }
