@@ -489,6 +489,27 @@ function isDeadStreamMessage(message) {
   return Boolean(last && last.type === "tool" && last.state?.status === "streaming");
 }
 
+/**
+ * Fingerprint a dead-stream candidate for the two-observation confirmation.
+ *
+ * A session-level stale timestamp says nothing about the *stream's* own
+ * freshness — a healthy tool call whose header just arrived can coexist
+ * with an old session timestamp — so a candidate is interrupted only when
+ * the same message, part, and accumulated arguments are observed unchanged
+ * one full interval apart. Any progress changes the fingerprint and
+ * restarts the confirmation.
+ *
+ * @param {object} message A message matching `isDeadStreamMessage`.
+ * @returns {string} A stable fingerprint of the frozen stream's state.
+ */
+function deadStreamFingerprint(message) {
+  const parts = Array.isArray(message.content) ? message.content : [];
+  const last = parts[parts.length - 1];
+  const args = last?.state?.input;
+  const argsLength = typeof args === "string" ? args.length : JSON.stringify(args ?? "").length;
+  return `${message.id ?? ""}:${parts.length}:${last?.id ?? ""}:${argsLength}`;
+}
+
 /** Whether an assistant message is a finished turn (successful or failed). */
 function isFinishedTurn(message) {
   return message.finish !== undefined || message.error !== undefined;
@@ -508,9 +529,12 @@ function isFinishedTurn(message) {
  * @param {{id?: string, at: number}} injection The recorded injection.
  * @returns {{status: "none" | "undelivered" | "awaiting-response"} | {status: "finished", message: object}}
  *   `none` — nothing attributable exists (fallback anchoring only);
- *   `undelivered` — the input is not in the transcript yet;
- *   `awaiting-response` — the input was delivered but its responding turn
- *   has not finished; `finished` — the responding turn, ready to classify.
+ *   `undelivered` — the input is not in the read transcript page: still
+ *   parked, vanished, or aged past the page boundary — the branches
+ *   disambiguate via the inbox and supersede a vanished anchor rather than
+ *   wait on it; `awaiting-response` — the input was delivered but its
+ *   responding turn has not finished; `finished` — the responding turn,
+ *   ready to classify.
  */
 function findProbeResponse(messages, injection) {
   if (!injection.id) {
@@ -566,13 +590,28 @@ function evaluateProbe(state, messages) {
   }
   state.lastInjection.evaluated = true;
   if (response.message.finish === "error" || response.message.error !== undefined) {
-    state.backoffLevel = (state.backoffLevel ?? 0) + 1;
-    state.backoffSkips = Math.min(2 ** state.backoffLevel - 1, LOOP_BACKOFF_MAX_SKIPS);
-    return { verdict: "failed", level: state.backoffLevel, skips: state.backoffSkips };
+    return { verdict: "failed", ...recordFailedProbe(state) };
   }
   state.backoffLevel = 0;
   state.backoffSkips = 0;
   return { verdict: "succeeded" };
+}
+
+/**
+ * Record one failed probe: consume the evaluation and escalate the backoff.
+ *
+ * Shared by `evaluateProbe` (an error-finish responding turn) and the idle
+ * branch's no-response rule (a delivered probe with no responding turn on
+ * an idle target — nothing is processing, so none is coming).
+ *
+ * @param {object} state The loop's mutable tick-to-tick memory.
+ * @returns {{level: number, skips: number}} The escalated backoff.
+ */
+function recordFailedProbe(state) {
+  state.lastInjection.evaluated = true;
+  state.backoffLevel = (state.backoffLevel ?? 0) + 1;
+  state.backoffSkips = Math.min(2 ** state.backoffLevel - 1, LOOP_BACKOFF_MAX_SKIPS);
+  return { level: state.backoffLevel, skips: state.backoffSkips };
 }
 
 /**
@@ -586,25 +625,31 @@ function evaluateProbe(state, messages) {
  * loop from flooding or losing a target that cannot make progress:
  *
  * - **Coalescing** — a tick that finds this loop's prompt still pending in
- *   the target's inbox, or already delivered with its responding turn not
- *   yet finished, injects nothing: a probe is never duplicated while its
- *   predecessor's outcome is undecided. On the stale path a pending
- *   *queue* copy is promoted to steer delivery in place (a parked queue
- *   item cannot reach a running session; a steer can) rather than
- *   injected again.
+ *   the target's inbox, or delivered to an *active* target with its
+ *   responding turn not yet finished, injects nothing: a probe is never
+ *   duplicated while its predecessor's outcome is undecided. On the stale
+ *   path a pending *queue* copy is promoted to steer delivery in place (a
+ *   parked queue item cannot reach a running session; a steer can) rather
+ *   than injected again. An anchor found in neither the inbox nor the
+ *   transcript page (vanished or aged out) is superseded, never waited on.
  * - **Failed-probe backoff** — each injection is evaluated once, against
  *   the turn that responded to it (see `evaluateProbe`), on whichever
  *   branch first observes that turn finished; a failed probe makes the
  *   loop skip the next `2^level - 1` injection opportunities — queue and
- *   steer alike — capped at `LOOP_BACKOFF_MAX_SKIPS`. Every tick still
+ *   steer alike — capped at `LOOP_BACKOFF_MAX_SKIPS`. A delivered probe
+ *   with no responding turn on an *idle* target is a failed probe too:
+ *   nothing is processing, so no response is coming. Every tick still
  *   inspects the target — the backoff suppresses injections, never
  *   observation or escalation — and the first successful turn ends it, so
  *   the pipeline resumes on the first probe after conditions clear.
  * - **Dead-stream escalation** — a target that is active yet stale with
- *   the dead-stream signature (see `isDeadStreamMessage`) is interrupted
- *   directly — with `continue=true`, so any pending steer resumes and an
- *   idle drain follows; the freed target is then re-probed normally. The
- *   signature needs no pending steer as evidence, so recovery is never
+ *   the dead-stream signature (see `isDeadStreamMessage`) is suspected on
+ *   first observation and interrupted when the same frozen stream (see
+ *   `deadStreamFingerprint`) is observed again one interval later — with
+ *   `continue=true`, after promoting any parked queue copy of the prompt
+ *   so the resumed execution delivers it, and with the skip window
+ *   cleared so the freed target is re-probed on the next tick. The
+ *   confirmation needs no pending steer as evidence, so recovery is never
  *   delayed by coalescing or backoff. A target genuinely inside a long
  *   tool call is left alone.
  *
@@ -626,6 +671,7 @@ function evaluateProbe(state, messages) {
  *     lastInjection?: {id?: string, at: number, evaluated: boolean},
  *     backoffLevel?: number,
  *     backoffSkips?: number,
+ *     deadStreamSuspect?: string,
  *   },
  * }} deps The tick's effects: the resolved server (or `null` when
  *   unreachable, see `resolveServer`), session-state reads, the prompt
@@ -724,9 +770,11 @@ async function injectProbe(entry, injectPrompt, delivery, now, state) {
  * The idle branch of `runLoopTick`: coalesce, evaluate the previous
  * injection, then inject with queue delivery unless backing off.
  *
- * An idle target with a delivered-but-unresponded probe is not waited on:
- * an idle session is not processing, so waiting would deadlock; the probe
- * is superseded by the next injection instead.
+ * A delivered probe with no responding turn on an idle target is a failed
+ * probe: nothing is processing, so no response is coming (a missing model
+ * or a crash that produced no assistant record), and re-injecting would
+ * flood. A probe whose anchor is in neither the inbox nor the transcript
+ * page (vanished or aged out) is superseded instead of waited on.
  *
  * @param {{ id: string, prompt: string, targetSession: string }} entry The loop entry.
  * @param {object} deps The subset of `runLoopTick`'s resolved deps this branch uses.
@@ -749,6 +797,13 @@ async function runIdleTick(entry, { server, readInbox, readMessages, injectPromp
     if (evaluation?.verdict === "failed") {
       return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
     }
+    if (evaluation?.pending === "awaiting-response") {
+      const escalated = recordFailedProbe(state);
+      return { outcome: "skipped", reason: "failed-probe", ...escalated };
+    }
+    if (evaluation?.pending === "undelivered") {
+      state.lastInjection.evaluated = true;
+    }
   }
   if ((state.backoffSkips ?? 0) > 0) {
     state.backoffSkips -= 1;
@@ -760,9 +815,9 @@ async function runIdleTick(entry, { server, readInbox, readMessages, injectPromp
 
 /**
  * The active branch of `runLoopTick`: probe evaluation on the busy path;
- * on the stale path, the interrupt-first dead-stream check, coalescing
- * (pending steer, queue-promotion, or an unfinished responding turn), and
- * the backoff-gated steer.
+ * on the stale path, the two-observation dead-stream confirmation and
+ * interrupt, coalescing (pending steer, queue-promotion, or an unfinished
+ * responding turn), and the backoff-gated steer.
  *
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry The loop entry.
  * @param {object} deps The subset of `runLoopTick`'s resolved deps this branch uses.
@@ -795,12 +850,33 @@ async function runActiveTick(
   if (isCancelled()) {
     return { outcome: "cancelled" };
   }
-  // Interrupt-first: the dead-stream signature plus a stale session is the
-  // whole gate — recovery must never wait behind coalescing or backoff.
-  if (isDeadStreamMessage(messages.find((message) => message.type === "assistant") ?? null)) {
+  const newestAssistant = messages.find((message) => message.type === "assistant") ?? null;
+  if (isDeadStreamMessage(newestAssistant)) {
+    const fingerprint = deadStreamFingerprint(newestAssistant);
+    if (state.deadStreamSuspect !== fingerprint) {
+      // First observation: a stale session timestamp says nothing about the
+      // stream's own freshness, so a candidate is only suspected here and
+      // interrupted when observed frozen again one interval later.
+      state.deadStreamSuspect = fingerprint;
+      return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+    }
+    delete state.deadStreamSuspect;
+    // A parked queue copy would out-survive the interrupt (`continue=true`
+    // resumes steering input while queued prompts stay parked) and then
+    // coalesce every later tick: promote it first so the resumed execution
+    // delivers it.
+    const inbox = await readInbox(server, entry.targetSession);
+    const pendingCopy = inbox.find((item) => item.payload?.text === entry.prompt);
+    if (pendingCopy && pendingCopy.delivery !== "steer") {
+      await promote(server, entry.targetSession, pendingCopy.id);
+    }
     await interrupt(server, entry.targetSession);
+    // The freed target must be re-probed on the next tick, not after a
+    // leftover skip window.
+    state.backoffSkips = 0;
     return { outcome: "interrupted", reason: "dead-stream", lastActivity };
   }
+  delete state.deadStreamSuspect;
   const inbox = await readInbox(server, entry.targetSession);
   if (isCancelled()) {
     return { outcome: "cancelled" };
@@ -817,8 +893,13 @@ async function runActiveTick(
   if (evaluation?.verdict === "failed") {
     return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
   }
-  if (evaluation?.pending) {
+  if (evaluation?.pending === "awaiting-response") {
     return { outcome: "skipped", reason: "awaiting-response", lastActivity };
+  }
+  if (evaluation?.pending === "undelivered") {
+    // In neither the inbox nor the transcript page: vanished or aged out —
+    // superseded rather than waited on, or recovery would stall forever.
+    state.lastInjection.evaluated = true;
   }
   if ((state.backoffSkips ?? 0) > 0) {
     state.backoffSkips -= 1;
@@ -1085,7 +1166,16 @@ async function getSessionInbox(server, sessionID, requestFn) {
  * @throws {Error} On a non-2xx response.
  */
 async function getSessionMessages(server, sessionID, requestFn) {
-  const response = await requestServer(server, "GET", `/api/session/${sessionID}/message`, undefined, requestFn);
+  // An explicit limit well above the server's default page: probe anchors
+  // must stay visible across many intervening turns (see
+  // `findProbeResponse`'s aging note).
+  const response = await requestServer(
+    server,
+    "GET",
+    `/api/session/${sessionID}/message?limit=200`,
+    undefined,
+    requestFn,
+  );
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`GET /api/session/${sessionID}/message returned ${response.status}`);
   }

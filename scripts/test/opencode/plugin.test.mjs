@@ -839,6 +839,7 @@ describe("getSessionMessages", () => {
     ];
     const requestFn = async (url) => {
       assert.equal(url.pathname, "/api/session/ses_1/message");
+      assert.equal(url.search, "?limit=200", "the read must out-page the server's default so anchors age slowly");
       return { status: 200, body: { data: messages } };
     };
 
@@ -1367,16 +1368,14 @@ describe("runLoopTick", () => {
     assert.deepEqual(result, { outcome: "skipped", reason: "backoff", remaining: 4 });
   });
 
-  test("the dead-stream interrupt fires with no pending steer, even during a backoff window", async () => {
+  test("the dead-stream interrupt fires with no pending steer, even during a backoff window, and clears it", async () => {
     const interrupts = [];
     const state = { backoffSkips: 5, backoffLevel: 3 };
-    const result = await runLoopTick(entry, {
+    const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 5_000,
-      getInbox: () => {
-        throw new Error("the dead-stream check must not depend on the inbox");
-      },
+      getInbox: async () => [],
       getMessages: async () => [
         {
           id: "as_1",
@@ -1391,38 +1390,207 @@ describe("runLoopTick", () => {
       onOutcome: () => {},
       now: () => 10_000,
       state,
-    });
+    };
 
-    assert.deepEqual(result, { outcome: "interrupted", reason: "dead-stream", lastActivity: 5_000 });
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
     assert.deepEqual(interrupts, ["ses_target"]);
-    assert.equal(state.backoffSkips, 5, "escalation must not consume a backoff skip");
+    assert.equal(state.backoffSkips, 0, "the freed target must be re-probed on the next tick, not after the window");
   });
 
-  test("a stale target with a dead stream is interrupted, not steered", async () => {
+  test("an idle target whose delivered probe got no response records a failed probe instead of flooding", async () => {
+    // A missing model (or a crash before any assistant record) admits the
+    // input and produces nothing: the session is idle, so no response is
+    // coming, and re-injecting every tick would flood.
+    const state = { lastInjection: { id: "usr_1", at: 9_000, evaluated: false } };
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => [],
+      getMessages: async () => [{ id: "usr_1", type: "user", text: "check" }],
+      injectPrompt: () => {
+        throw new Error("must not re-inject over an unanswered probe");
+      },
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    };
+
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "failed-probe",
+      level: 1,
+      skips: 1,
+    });
+    assert.deepEqual(await runLoopTick(entry, deps), { outcome: "skipped", reason: "backoff", remaining: 0 });
+  });
+
+  test("a probe anchor found in neither the inbox nor the transcript page is superseded, not waited on", async () => {
+    // The anchor aged past the read page (or was cancelled): waiting on it
+    // would suppress monitoring forever.
+    const idleState = { lastInjection: { id: "usr_gone", at: 1_000, evaluated: false } };
+    const idleCalls = [];
+    assert.deepEqual(
+      await runLoopTick(entry, {
+        server: { baseURL: "http://x", password: "y" },
+        isSessionActive: async () => false,
+        getInbox: async () => [],
+        getMessages: async () => [{ id: "as_50", type: "assistant", finish: "stop", time: { created: 9_000 } }],
+        injectPrompt: async (sessionID, text, delivery) => {
+          idleCalls.push(delivery);
+          return { data: { id: "usr_2" } };
+        },
+        onOutcome: () => {},
+        now: () => 10_000,
+        state: idleState,
+      }),
+      { outcome: "injected", reason: "idle" },
+    );
+    assert.deepEqual(idleCalls, ["queue"]);
+
+    const staleState = { lastInjection: { id: "usr_gone", at: 1_000, evaluated: false } };
+    const staleCalls = [];
+    assert.deepEqual(
+      await runLoopTick(entry, {
+        server: { baseURL: "http://x", password: "y" },
+        isSessionActive: async () => true,
+        getSessionUpdatedAt: async () => 5_000,
+        getInbox: async () => [],
+        getMessages: async () => [{ id: "as_50", type: "assistant", finish: "stop", time: { created: 9_000 } }],
+        injectPrompt: async (sessionID, text, delivery) => {
+          staleCalls.push(delivery);
+          return { data: { id: "usr_2" } };
+        },
+        onOutcome: () => {},
+        now: () => 10_000,
+        state: staleState,
+      }),
+      { outcome: "injected", reason: "stale-running", lastActivity: 5_000 },
+    );
+    assert.deepEqual(staleCalls, ["steer"]);
+  });
+
+  test("a stale target with a frozen stream is suspected first, then interrupted on the second observation", async () => {
     const interrupts = [];
-    const outcomes = [];
-    const result = await runLoopTick(entry, {
+    const state = {};
+    const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
       getMessages: async () => [
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
       interruptSession: async (server, sessionID) => interrupts.push(sessionID),
-      onOutcome: (outcome) => outcomes.push(outcome),
+      onOutcome: () => {},
       now: () => 10_000,
+      state,
+    };
+
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-suspected",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, [], "the first observation must not interrupt");
+
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
+  test("a stream that progressed between observations is never interrupted", async () => {
+    const state = {};
+    let args = "";
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: args } }],
+        },
+      ],
+      injectPrompt: () => {
+        throw new Error("must not inject into a streaming target");
+      },
+      interruptSession: () => {
+        throw new Error("a healthy, progressing stream must never be interrupted");
+      },
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    };
+
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-suspected",
+      lastActivity: 5_000,
     });
 
-    assert.deepEqual(result, { outcome: "interrupted", reason: "dead-stream", lastActivity: 5_000 });
-    assert.deepEqual(outcomes, [result]);
-    assert.deepEqual(interrupts, ["ses_target"]);
+    // The arguments grew between ticks: same message, live stream.
+    args = '{"name":"rev8-doc';
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-suspected",
+      lastActivity: 5_000,
+    });
+  });
+
+  test("a parked queue copy is promoted before the confirming interrupt so the freed session receives it", async () => {
+    const calls = [];
+    const state = {};
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [{ id: "inb_1", delivery: "queue", payload: { text: "check" } }],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      injectPrompt: () => {
+        throw new Error("must not inject into a dead-stream target");
+      },
+      promoteInboxItem: async (server, sessionID, inboxID) => calls.push(`promote:${inboxID}`),
+      interruptSession: async () => calls.push("interrupt"),
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    };
+
+    // First observation only suspects; the parked copy must not be
+    // promoted yet (the session may still be alive).
+    const first = await runLoopTick(entry, deps);
+    assert.equal(first.reason, "dead-stream-suspected");
+    assert.deepEqual(calls, []);
+
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(calls, ["promote:inb_1", "interrupt"], "the copy must be steerable before the claim is released");
   });
 
   test("a stale target with an unconsumed steer but an executing tool call is left alone", async () => {

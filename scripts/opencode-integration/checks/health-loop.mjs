@@ -326,7 +326,14 @@ export async function run(ctx) {
         { timeoutMs: 5_000, label: "the stalled target to become active" },
       );
 
+      // Park a queue copy of the monitor prompt behind the hung turn: the
+      // interrupt must not strand it (`continue=true` leaves queued prompts
+      // parked), so the confirming tick promotes it to steer first.
       const deadMarker = "suite-health-loop-dead-stream-ping";
+      await prompt(server, hung.id, deadMarker, { delivery: "queue" });
+      const parkedCopy = (await getInbox(server, hung.id)).find((item) => item.payload?.text === deadMarker);
+      assert.ok(parkedCopy, "expected the queue copy to park behind the hung turn");
+
       const startResult = await driveToolCall(
         server,
         controller.id,
@@ -350,14 +357,14 @@ export async function run(ctx) {
       });
       assert.equal(interruptedTick.reason, "dead-stream");
 
-      // The interrupt frees the session; the loop's next idle tick injects
-      // the monitor prompt, which must actually run — and the freed session
-      // must return to idle.
+      // The parked copy — promoted just before the interrupt — must be the
+      // delivery that reaches the freed session: same admitted ID, so the
+      // interrupt stranded nothing.
       await pollMessages(
         server,
         hung.id,
-        (messages) => messages.find((message) => message.type === "user" && message.text === deadMarker),
-        { timeoutMs: 15_000, label: "the monitor prompt to reach the freed session" },
+        (messages) => messages.find((message) => message.type === "user" && message.id === parkedCopy.id),
+        { timeoutMs: 15_000, label: "the parked monitor copy to reach the freed session" },
       );
       await pollUntil(
         async () => (!(await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),
