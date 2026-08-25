@@ -14,7 +14,11 @@ import plugin, {
   buildStatusPayload,
   disarmLoopTimer,
   formatStructuredError,
+  getNewestAssistantMessage,
+  getSessionInbox,
   getSessionUpdatedAt,
+  interruptSession,
+  isDeadStreamMessage,
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
@@ -805,6 +809,109 @@ describe("getSessionUpdatedAt", () => {
   });
 });
 
+describe("getSessionInbox", () => {
+  const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
+
+  test("returns the pending inbox items, defaulting to empty", async () => {
+    const items = [{ id: "inb_1", delivery: "steer", payload: { text: "check" } }];
+    const requestFn = async (url) => {
+      assert.equal(url.pathname, "/api/session/ses_1/inbox");
+      return { status: 200, body: { data: items } };
+    };
+
+    assert.deepEqual(await getSessionInbox(server, "ses_1", requestFn), items);
+    assert.deepEqual(await getSessionInbox(server, "ses_1", async () => ({ status: 200 })), []);
+  });
+
+  test("throws on a failed read rather than reporting an empty inbox", async () => {
+    await assert.rejects(() => getSessionInbox(server, "ses_1", async () => ({ status: 500 })), /returned 500/);
+  });
+});
+
+describe("getNewestAssistantMessage", () => {
+  const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
+
+  test("returns the first assistant entry of the newest-first message list", async () => {
+    const requestFn = async (url) => {
+      assert.equal(url.pathname, "/api/session/ses_1/message");
+      return {
+        status: 200,
+        body: {
+          data: [
+            { type: "user", text: "check" },
+            { type: "assistant", finish: "error" },
+            { type: "assistant", finish: "stop" },
+          ],
+        },
+      };
+    };
+
+    assert.deepEqual(await getNewestAssistantMessage(server, "ses_1", requestFn), {
+      type: "assistant",
+      finish: "error",
+    });
+  });
+
+  test("returns null for a session with no assistant messages and throws on a failed read", async () => {
+    assert.equal(
+      await getNewestAssistantMessage(server, "ses_1", async () => ({
+        status: 200,
+        body: { data: [{ type: "user", text: "check" }] },
+      })),
+      null,
+    );
+    await assert.rejects(
+      () => getNewestAssistantMessage(server, "ses_1", async () => ({ status: 500 })),
+      /returned 500/,
+    );
+  });
+});
+
+describe("interruptSession", () => {
+  const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
+
+  test("posts an interrupt that releases the claim but continues the queued inbox", async () => {
+    const calls = [];
+    const requestFn = async (url, init) => {
+      calls.push({ path: url.pathname + url.search, method: init.method });
+      return { status: 204 };
+    };
+
+    await interruptSession(server, "ses_1", requestFn);
+    assert.deepEqual(calls, [{ path: "/api/session/ses_1/interrupt?continue=true", method: "POST" }]);
+  });
+
+  test("throws on a non-2xx response", async () => {
+    await assert.rejects(() => interruptSession(server, "ses_1", async () => ({ status: 404 })), /returned 404/);
+  });
+});
+
+describe("isDeadStreamMessage", () => {
+  test("matches only an unfinished message whose last part is a tool call stuck streaming", () => {
+    assert.equal(
+      isDeadStreamMessage({
+        content: [{ type: "text", text: "spawning" }, { type: "tool", state: { status: "streaming" } }],
+      }),
+      true,
+    );
+  });
+
+  test("rejects finished, errored, executing-tool, and absent messages", () => {
+    assert.equal(isDeadStreamMessage(null), false);
+    assert.equal(
+      isDeadStreamMessage({ finish: "error", content: [{ type: "tool", state: { status: "streaming" } }] }),
+      false,
+    );
+    assert.equal(
+      isDeadStreamMessage({ error: { type: "aborted" }, content: [{ type: "tool", state: { status: "streaming" } }] }),
+      false,
+    );
+    assert.equal(isDeadStreamMessage({ content: [{ type: "tool", state: { status: "running" } }] }), false);
+    assert.equal(isDeadStreamMessage({ content: [{ type: "text", text: "thinking" }] }), false);
+    assert.equal(isDeadStreamMessage({ content: [] }), false);
+  });
+});
+
 describe("runLoopTick", () => {
   const entry = { id: "loop_1", interval: 1000, prompt: "check", targetSession: "ses_target" };
 
@@ -854,6 +961,7 @@ describe("runLoopTick", () => {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 7_999,
+      getInbox: async () => [],
       injectPrompt: async (sessionID, text, delivery) => {
         calls.push({ sessionID, text, delivery });
       },
@@ -880,6 +988,7 @@ describe("runLoopTick", () => {
       getSessionUpdatedAt: () => {
         throw new Error("must not read activity for an idle target");
       },
+      getInbox: async () => [],
       injectPrompt: async (sessionID, text, delivery) => {
         calls.push({ sessionID, text, delivery });
       },
@@ -933,6 +1042,220 @@ describe("runLoopTick", () => {
     assert.deepEqual(outcomes, [result]);
     assert.equal(injected, false);
   });
+
+  test("an idle target with this loop's prompt still pending in its inbox is not injected again", async () => {
+    const outcomes = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => [{ id: "inb_1", delivery: "queue", payload: { text: "check" } }],
+      getNewestAssistantMessage: () => {
+        throw new Error("must not read messages while the prompt is pending");
+      },
+      injectPrompt: () => {
+        throw new Error("must not duplicate a pending prompt");
+      },
+      onOutcome: (outcome) => outcomes.push(outcome),
+      state: {},
+    });
+
+    assert.deepEqual(result, { outcome: "skipped", reason: "pending-delivery" });
+    assert.deepEqual(outcomes, [result]);
+  });
+
+  test("an injection answered only by an error-finish turn backs off, then probes again", async () => {
+    const state = {};
+    const calls = [];
+    let newest = null;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => [],
+      getNewestAssistantMessage: async () => newest,
+      injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    };
+
+    // Tick 1: first injection.
+    assert.deepEqual(await runLoopTick(entry, deps), { outcome: "injected", reason: "idle" });
+    assert.deepEqual(state.lastInjection, { at: 10_000, evaluated: false });
+
+    // The injected turn fails instantly (network down, quota exhausted...).
+    newest = { type: "assistant", finish: "error", time: { created: 10_500 } };
+
+    // Tick 2: the failed probe is detected once and starts the backoff.
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "failed-probe",
+      level: 1,
+      skips: 1,
+    });
+
+    // Tick 3: skipped without touching the server.
+    assert.deepEqual(await runLoopTick(entry, { ...deps, isSessionActive: null, getInbox: null }), {
+      outcome: "skipped",
+      reason: "backoff",
+      remaining: 0,
+    });
+
+    // Tick 4: the backoff expired — the loop probes again.
+    assert.deepEqual(await runLoopTick(entry, deps), { outcome: "injected", reason: "idle" });
+    assert.deepEqual(calls, ["queue", "queue"]);
+  });
+
+  test("consecutive failed probes double the backoff up to its cap", async () => {
+    const state = { lastInjection: { at: 10_000, evaluated: false }, backoffLevel: 2 };
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => [],
+      getNewestAssistantMessage: async () => ({ type: "assistant", finish: "error", time: { created: 10_500 } }),
+      injectPrompt: () => {
+        throw new Error("must not inject while backing off");
+      },
+      onOutcome: () => {},
+      now: () => 20_000,
+      state,
+    };
+
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "failed-probe",
+      level: 3,
+      skips: 7,
+    });
+
+    // A fourth consecutive failure stays at the cap.
+    state.backoffSkips = 0;
+    state.lastInjection = { at: 10_000, evaluated: false };
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "failed-probe",
+      level: 4,
+      skips: 7,
+    });
+  });
+
+  test("a successful turn after an injection resets the backoff and injects normally", async () => {
+    const state = { lastInjection: { at: 10_000, evaluated: false }, backoffLevel: 3 };
+    const calls = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => [],
+      getNewestAssistantMessage: async () => ({ type: "assistant", finish: "stop", time: { created: 10_500 } }),
+      injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
+      onOutcome: () => {},
+      now: () => 20_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "injected", reason: "idle" });
+    assert.equal(state.backoffLevel, 0);
+    assert.deepEqual(calls, ["queue"]);
+  });
+
+  test("an error-finish turn older than the injection does not trigger the backoff", async () => {
+    const state = { lastInjection: { at: 10_000, evaluated: false } };
+    const calls = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => [],
+      getNewestAssistantMessage: async () => ({ type: "assistant", finish: "error", time: { created: 9_000 } }),
+      injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
+      onOutcome: () => {},
+      now: () => 20_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "injected", reason: "idle" });
+    assert.deepEqual(calls, ["queue"]);
+  });
+
+  test("a busy target resets the backoff level", async () => {
+    const state = { backoffLevel: 3 };
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 9_500,
+      injectPrompt: () => {
+        throw new Error("must not inject into a busy target");
+      },
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "busy", lastActivity: 9_500 });
+    assert.equal(state.backoffLevel, 0);
+  });
+
+  test("a stale target with an unconsumed steer and a dead stream is interrupted, not steered again", async () => {
+    const interrupts = [];
+    const outcomes = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [{ id: "inb_1", delivery: "steer", payload: { text: "check" } }],
+      getNewestAssistantMessage: async () => ({
+        type: "assistant",
+        content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
+      }),
+      injectPrompt: () => {
+        throw new Error("must not duplicate the pending steer");
+      },
+      interruptSession: async (server, sessionID) => interrupts.push(sessionID),
+      onOutcome: (outcome) => outcomes.push(outcome),
+      now: () => 10_000,
+    });
+
+    assert.deepEqual(result, { outcome: "interrupted", reason: "dead-stream", lastActivity: 5_000 });
+    assert.deepEqual(outcomes, [result]);
+    assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
+  test("a stale target with an unconsumed steer but an executing tool call is left alone", async () => {
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [{ id: "inb_1", delivery: "steer", payload: { text: "check" } }],
+      getNewestAssistantMessage: async () => ({
+        type: "assistant",
+        content: [{ type: "tool", name: "shell", state: { status: "running" } }],
+      }),
+      injectPrompt: () => {
+        throw new Error("must not duplicate the pending steer");
+      },
+      interruptSession: () => {
+        throw new Error("must never interrupt an executing tool call");
+      },
+      onOutcome: () => {},
+      now: () => 10_000,
+    });
+
+    assert.deepEqual(result, { outcome: "skipped", reason: "pending-delivery", lastActivity: 5_000 });
+  });
+
+  test("a pending queue delivery does not coalesce the stale steer, which alone can reach a running target", async () => {
+    const calls = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [{ id: "inb_1", delivery: "queue", payload: { text: "check" } }],
+      injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
+      onOutcome: () => {},
+      now: () => 10_000,
+    });
+
+    assert.deepEqual(result, { outcome: "injected", reason: "stale-running", lastActivity: 5_000 });
+    assert.deepEqual(calls, ["steer"]);
+  });
 });
 
 describe("armLoopTimer / disarmLoopTimer", () => {
@@ -959,6 +1282,26 @@ describe("armLoopTimer / disarmLoopTimer", () => {
 
     await delay(70);
     assert.equal(calls, callsAtDisarm, "no further ticks after disarm");
+  });
+
+  test("passes one mutable runtime object to every tick of an armed loop", async () => {
+    const runtimes = [];
+    const entry = { id: "loop_timer_test_runtime", interval: 10 };
+
+    await armLoopTimer(entry, (tickEntry, isCancelled, runtime) => {
+      runtime.count = (runtime.count ?? 0) + 1;
+      runtimes.push(runtime);
+    });
+
+    const deadline = Date.now() + 2_000;
+    while (runtimes.length < 2 && Date.now() < deadline) {
+      await delay(10);
+    }
+    await disarmLoopTimer(entry.id);
+
+    assert.ok(runtimes.length >= 2, `expected multiple ticks, got ${runtimes.length}`);
+    assert.equal(runtimes[0], runtimes[1], "each tick must receive the same runtime object");
+    assert.equal(runtimes[0].count, runtimes.length, "tick-to-tick mutations must persist");
   });
 
   test("serializes slow ticks instead of overlapping them", async () => {
@@ -1082,6 +1425,12 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
       }
       if (url.pathname === "/api/session/ses_caller") {
         return { status: 200, body: { data: { time: { updated: Date.now() } } } };
+      }
+      if (url.pathname === "/api/session/ses_caller/inbox") {
+        return { status: 200, body: { data: [] } };
+      }
+      if (url.pathname === "/api/session/ses_caller/message") {
+        return { status: 200, body: { data: [] } };
       }
       throw new Error(`unexpected request: ${url.pathname}`);
     };

@@ -19,7 +19,7 @@ A read outside a session's worktree raises a permission request that blocks the 
 
 ### Health monitoring
 
-- **Start:** `rp_loop_start` with the interval and the monitor prompt from `reference/health-monitoring.md`; target defaults to the calling session. Ticks fire when idle and steer after two intervals without activity.
+- **Start:** `rp_loop_start` with the interval and the monitor prompt from `reference/health-monitoring.md`; target defaults to the calling session. Ticks fire when idle and steer after two intervals without activity; the loop coalesces undelivered prompts, backs off while injections only produce failing turns, and interrupts a target stuck on a dead provider stream.
 - **List active loops:** `rp_loop_list`.
 - **Cancel:** `rp_loop_cancel` with the loop id.
 - **Status:** `rp_status` reports each spawned session's running state, current tool, pending permission requests, and recent health-loop ticks; a session with a pending request is blocked awaiting adjudication, not stalled.
