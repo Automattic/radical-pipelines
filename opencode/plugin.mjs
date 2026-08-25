@@ -517,6 +517,66 @@ function isDeadStreamMessage(message) {
 }
 
 /**
+ * `globalThis` key backing the per-target interrupt serialization chain.
+ *
+ * Stored on `globalThis` for the same re-import rationale as `LEDGER_KEY`:
+ * two loops targeting one session must serialize their confirm-and-interrupt
+ * sequences whichever scope armed them.
+ */
+const TARGET_INTERRUPT_LOCKS_KEY = Symbol.for("radical-pipelines.opencode.targetInterruptLocks");
+
+/**
+ * `globalThis` key backing the per-target last-interrupt timestamps.
+ */
+const TARGET_INTERRUPT_AT_KEY = Symbol.for("radical-pipelines.opencode.targetInterruptAt");
+
+/**
+ * Run `fn` holding the target's interrupt lock, serializing with every
+ * other confirm-and-interrupt sequence aimed at the same session.
+ *
+ * @param {string} sessionID The target session.
+ * @param {() => Promise<T>} fn The critical section.
+ * @returns {Promise<T>} `fn`'s result.
+ * @template T
+ */
+async function withTargetInterruptLock(sessionID, fn) {
+  if (!globalThis[TARGET_INTERRUPT_LOCKS_KEY]) {
+    globalThis[TARGET_INTERRUPT_LOCKS_KEY] = new Map();
+  }
+  const locks = globalThis[TARGET_INTERRUPT_LOCKS_KEY];
+  const previous = locks.get(sessionID) ?? Promise.resolve();
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const tail = previous.then(() => gate);
+  locks.set(sessionID, tail);
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (locks.get(sessionID) === tail) {
+      locks.delete(sessionID);
+    }
+  }
+}
+
+/**
+ * Record / read the last dead-stream interrupt issued against a target, so
+ * a second loop whose suspicion predates it never interrupts the successor
+ * execution the first interrupt resumed.
+ */
+function recordTargetInterrupt(sessionID, at) {
+  recordSessionObservation(TARGET_INTERRUPT_AT_KEY, sessionID, at);
+}
+
+/** @param {string} sessionID @returns {number | undefined} */
+function lastTargetInterruptAt(sessionID) {
+  return getSessionObservationMap(TARGET_INTERRUPT_AT_KEY).get(sessionID);
+}
+
+/**
  * Fingerprint a dead-stream candidate for the two-observation confirmation.
  *
  * A session-level stale timestamp says nothing about the *stream's* own
@@ -676,18 +736,22 @@ function recordFailedProbe(state) {
  *   the dead-stream signature (see `isDeadStreamMessage`) is suspected on
  *   first observation and interrupted only once the same projected
  *   fingerprint (see `deadStreamFingerprint`) has stayed frozen for the
- *   whole wall-clock confirmation window (`deadStreamConfirmMs`) — elapsed
- *   time is the sole authorizer, because the pinned build exposes no
- *   signal that proves argument-streaming progress. Observed
- *   execution-progress events are strictly a veto that re-arms the window
- *   (see `recordSessionEventActivity`), and a final fingerprint-and-events
- *   revalidation runs immediately before the interrupt so progress during
- *   the tick's own reads still vetoes it. The interrupt runs with
- *   `continue=true`, after promoting any parked queue copy of the prompt
- *   so the resumed execution delivers it, and clears the skip window so
- *   the freed target is re-probed on the next tick. Recovery is never
- *   delayed by coalescing or backoff; a target genuinely inside a long or
- *   still-streaming tool call is left alone.
+ *   whole wall-clock confirmation window (`deadStreamConfirmMs`) with
+ *   *no observed liveness*: neither raw provider-response chunks (the
+ *   authoritative signal, teed by the `http.response` hook — see
+ *   `observeHttpResponse`) nor execution-progress events (see
+ *   `recordSessionEventActivity`). Liveness signals are strictly vetoes
+ *   that re-arm the window — their absence alone never authorizes; only
+ *   the elapsed window does. Confirmation and interrupt run serialized
+ *   per target (`withTargetLock`), skipping targets another loop already
+ *   interrupted after this suspicion began, and a final
+ *   fingerprint-and-liveness revalidation runs inside the lock immediately
+ *   before the interrupt. The interrupt runs with `continue=true`, after
+ *   promoting any parked queue copy of the prompt so the resumed execution
+ *   delivers it, and clears the skip window so the freed target is
+ *   re-probed on the next tick. Recovery is never delayed by coalescing or
+ *   backoff; a target genuinely inside a long or still-streaming tool call
+ *   is left alone.
  *
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry
  *   The loop entry being ticked.
@@ -698,6 +762,10 @@ function recordFailedProbe(state) {
  *   getInbox: (server: object, sessionID: string) => Promise<Array<object>>,
  *   getMessages: (server: object, sessionID: string) => Promise<Array<object>>,
  *   getLastEventAt: (sessionID: string) => number | undefined,
+ *   getRawProgressAt: (sessionID: string) => number | undefined,
+ *   getLastInterruptAt: (sessionID: string) => number | undefined,
+ *   recordInterrupt: (sessionID: string, at: number) => void,
+ *   withTargetLock: (sessionID: string, fn: () => Promise<object>) => Promise<object>,
  *   injectPrompt: (sessionID: string, text: string, delivery: "queue" | "steer") => Promise<*>,
  *   promoteInboxItem: (server: object, sessionID: string, inboxID: string) => Promise<*>,
  *   interruptSession: (server: object, sessionID: string) => Promise<*>,
@@ -730,6 +798,10 @@ async function runLoopTick(
     getInbox: readInbox,
     getMessages: readMessages,
     getLastEventAt = () => undefined,
+    getRawProgressAt = () => undefined,
+    getLastInterruptAt = () => undefined,
+    recordInterrupt = () => {},
+    withTargetLock = (sessionID, fn) => fn(),
     injectPrompt,
     promoteInboxItem: promote,
     interruptSession: interrupt,
@@ -768,6 +840,10 @@ async function runLoopTick(
           readInbox,
           readMessages,
           getLastEventAt,
+          getRawProgressAt,
+          getLastInterruptAt,
+          recordInterrupt,
+          withTargetLock,
           injectPrompt,
           promote,
           interrupt,
@@ -909,6 +985,10 @@ async function runActiveTick(
     readInbox,
     readMessages,
     getLastEventAt,
+    getRawProgressAt,
+    getLastInterruptAt,
+    recordInterrupt,
+    withTargetLock,
     injectPrompt,
     promote,
     interrupt,
@@ -951,56 +1031,76 @@ async function runActiveTick(
       state.deadStreamSuspect = { fingerprint, at: now() };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
-    const lastEvent = getLastEventAt(entry.targetSession);
-    if (lastEvent !== undefined && lastEvent >= state.deadStreamSuspect.at) {
-      // Progress events flowed since the suspicion — the stream is alive
-      // even though the projection cannot show it. Observed progress
-      // vetoes and re-arms the window.
+    const suspectedAt = state.deadStreamSuspect.at;
+    const hasLiveness = (readAt) => {
+      const stamp = readAt();
+      return stamp !== undefined && stamp >= suspectedAt;
+    };
+    if (
+      hasLiveness(() => getRawProgressAt(entry.targetSession)) ||
+      hasLiveness(() => getLastEventAt(entry.targetSession))
+    ) {
+      // The stream produced raw response bytes or progress events since the
+      // suspicion — it is alive whatever the projection shows. Observed
+      // liveness vetoes and re-arms the window.
       state.deadStreamSuspect = { fingerprint, at: now() };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
-    if (now() - state.deadStreamSuspect.at < deadStreamConfirmMs) {
-      // Event silence is not proof — the pinned build emits nothing for
-      // partial argument chunks — so only the elapsed window authorizes.
+    if (now() - suspectedAt < deadStreamConfirmMs) {
+      // Total silence, but not yet for the whole window: keep waiting.
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
-    // A parked queue copy would out-survive the interrupt (`continue=true`
-    // resumes steering input while queued prompts stay parked) and then
-    // coalesce every later tick: promote it first so the resumed execution
-    // delivers it.
-    const inbox = await readInbox(server, entry.targetSession);
-    if (isCancelled()) {
-      return { outcome: "cancelled" };
-    }
-    const pendingCopy = inbox.find((item) => item.payload?.text === entry.prompt);
-    if (pendingCopy && pendingCopy.delivery !== "steer") {
-      await promote(server, entry.targetSession, pendingCopy.id);
-    }
-    if (isCancelled()) {
-      return { outcome: "cancelled" };
-    }
-    // Final revalidation: the reads above took time, and progress or
-    // completion during them must veto the interrupt.
-    const freshMessages = await readMessages(server, entry.targetSession);
-    if (isCancelled()) {
-      return { outcome: "cancelled" };
-    }
-    const freshAssistant = freshMessages.find((message) => message.type === "assistant") ?? null;
-    const freshEvent = getLastEventAt(entry.targetSession);
-    if (
-      !isDeadStreamMessage(freshAssistant) ||
-      deadStreamFingerprint(freshAssistant) !== fingerprint ||
-      (freshEvent !== undefined && freshEvent >= state.deadStreamSuspect.at)
-    ) {
+    return await withTargetLock(entry.targetSession, async () => {
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const interruptedAt = getLastInterruptAt(entry.targetSession);
+      if (interruptedAt !== undefined && interruptedAt >= suspectedAt) {
+        // Another loop already interrupted this target after our suspicion
+        // began: our evidence describes the interrupted execution, not the
+        // one that resumed. Never interrupt the successor on it.
+        delete state.deadStreamSuspect;
+        return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+      }
+      // A parked queue copy would out-survive the interrupt
+      // (`continue=true` resumes steering input while queued prompts stay
+      // parked) and then coalesce every later tick: promote it first so
+      // the resumed execution delivers it.
+      const inbox = await readInbox(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const pendingCopy = inbox.find((item) => item.payload?.text === entry.prompt);
+      if (pendingCopy && pendingCopy.delivery !== "steer") {
+        await promote(server, entry.targetSession, pendingCopy.id);
+      }
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      // Final revalidation, inside the lock: the reads above took time, and
+      // progress or completion during them must veto the interrupt.
+      const freshMessages = await readMessages(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const freshAssistant = freshMessages.find((message) => message.type === "assistant") ?? null;
+      if (
+        !isDeadStreamMessage(freshAssistant) ||
+        deadStreamFingerprint(freshAssistant) !== fingerprint ||
+        hasLiveness(() => getRawProgressAt(entry.targetSession)) ||
+        hasLiveness(() => getLastEventAt(entry.targetSession))
+      ) {
+        delete state.deadStreamSuspect;
+        return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+      }
       delete state.deadStreamSuspect;
-      return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
-    }
-    delete state.deadStreamSuspect;
-    await interrupt(server, entry.targetSession);
-    // The freed target must be re-probed on the next tick, not after a
-    // leftover skip window.
-    state.backoffSkips = 0;
-    return { outcome: "interrupted", reason: "dead-stream", lastActivity };
+      recordInterrupt(entry.targetSession, now());
+      await interrupt(server, entry.targetSession);
+      // The freed target must be re-probed on the next tick, not after a
+      // leftover skip window.
+      state.backoffSkips = 0;
+      return { outcome: "interrupted", reason: "dead-stream", lastActivity };
+    });
   }
   delete state.deadStreamSuspect;
   const inbox = await readInbox(server, entry.targetSession);
@@ -1643,16 +1743,104 @@ const LOOP_TICK_LOG_KEY = Symbol.for("radical-pipelines.opencode.loopTickLog");
 const SESSION_EVENT_ACTIVITY_KEY = Symbol.for("radical-pipelines.opencode.sessionEventActivity");
 
 /**
- * Fetch the process-wide session-activity map, creating it on first use.
+ * `globalThis` key backing the per-session raw-progress timestamps.
  *
- * @returns {Map<string, number>} Session ID to the timestamp of the most
- *   recent event observed for it.
+ * Stored on `globalThis` for the same re-import rationale as `LEDGER_KEY`.
  */
-function getSessionEventActivityMap() {
-  if (!globalThis[SESSION_EVENT_ACTIVITY_KEY]) {
-    globalThis[SESSION_EVENT_ACTIVITY_KEY] = new Map();
+const SESSION_RAW_PROGRESS_KEY = Symbol.for("radical-pipelines.opencode.sessionRawProgress");
+
+/** Bound on entries retained per session-observation map (oldest evicted). */
+const SESSION_OBSERVATION_CAP = 256;
+
+/**
+ * Record a per-session observation into a bounded `globalThis`-backed map.
+ *
+ * Deleting before setting keeps the entry's insertion position fresh, so
+ * the eviction below always removes the least-recently-updated session.
+ *
+ * @param {symbol} key The map's `globalThis` key.
+ * @param {string} sessionID The session observed.
+ * @param {number} at The observation timestamp.
+ * @returns {void}
+ */
+function recordSessionObservation(key, sessionID, at) {
+  const map = getSessionObservationMap(key);
+  map.delete(sessionID);
+  map.set(sessionID, at);
+  if (map.size > SESSION_OBSERVATION_CAP) {
+    map.delete(map.keys().next().value);
   }
-  return globalThis[SESSION_EVENT_ACTIVITY_KEY];
+}
+
+/**
+ * Fetch a process-wide session-observation map, creating it on first use.
+ *
+ * @param {symbol} key The map's `globalThis` key.
+ * @returns {Map<string, number>} Session ID to observation timestamp.
+ */
+function getSessionObservationMap(key) {
+  if (!globalThis[key]) {
+    globalThis[key] = new Map();
+  }
+  return globalThis[key];
+}
+
+/**
+ * Record that a raw provider-response chunk arrived for a session.
+ *
+ * Fed by the `http.response` session hook, which tees the provider's
+ * streaming body: every chunk of the raw response — including partial
+ * argument fragments that surface nowhere else — refreshes this timestamp.
+ * This is the authoritative liveness signal for the dead-stream guard: a
+ * stream producing bytes is alive whatever the projection shows.
+ *
+ * @param {string} sessionID The session whose response produced a chunk.
+ * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
+ * @returns {void}
+ */
+function recordRawSessionProgress(sessionID, at = Date.now()) {
+  recordSessionObservation(SESSION_RAW_PROGRESS_KEY, sessionID, at);
+}
+
+/**
+ * Read the timestamp of the most recent raw response chunk for a session.
+ *
+ * @param {string} sessionID The session to look up.
+ * @returns {number | undefined} The timestamp, or `undefined` when no chunk
+ *   has been observed.
+ */
+function lastRawSessionProgressAt(sessionID) {
+  return getSessionObservationMap(SESSION_RAW_PROGRESS_KEY).get(sessionID);
+}
+
+/**
+ * Wrap a session's provider response so its streamed chunks record raw
+ * progress, passing the bytes through untouched.
+ *
+ * The `http.response` hook's `response` field is mutable for exactly this
+ * kind of interposition; a body-less response just records the arrival.
+ *
+ * @param {{sessionID: string, response: Response}} input The hook input.
+ * @returns {void}
+ */
+function observeHttpResponse(input) {
+  recordRawSessionProgress(input.sessionID);
+  const body = input.response?.body;
+  if (!body || typeof body.pipeThrough !== "function") {
+    return;
+  }
+  const sessionID = input.sessionID;
+  const tee = new TransformStream({
+    transform(chunk, controller) {
+      recordRawSessionProgress(sessionID);
+      controller.enqueue(chunk);
+    },
+  });
+  input.response = new Response(body.pipeThrough(tee), {
+    status: input.response.status,
+    statusText: input.response.statusText,
+    headers: input.response.headers,
+  });
 }
 
 /**
@@ -1679,17 +1867,21 @@ const PROGRESS_EVENT_PREFIXES = [
  * missing or stale entry carries no weight on its own; authorization comes
  * from the wall-clock confirmation window (see `runLoopTick`).
  *
- * @param {{type?: string, data?: {sessionID?: string}}} event An opencode event.
- * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
+ * @param {{type?: string, created?: number, data?: {sessionID?: string}}} event An opencode event.
+ * @param {number} [at] Overrides the timestamp; defaults to the event's own
+ *   `created` time (falling back to `Date.now()` when absent).
  * @returns {void}
  */
-function recordSessionEventActivity(event, at = Date.now()) {
+function recordSessionEventActivity(event, at) {
   const sessionID = event?.data?.sessionID;
   if (typeof sessionID !== "string" || typeof event?.type !== "string") {
     return;
   }
   if (PROGRESS_EVENT_PREFIXES.some((prefix) => event.type.startsWith(prefix))) {
-    getSessionEventActivityMap().set(sessionID, at);
+    // The event's own creation time, not the consumption time: an old event
+    // draining from a lagged queue must not masquerade as fresh progress.
+    const timestamp = at ?? (Number.isFinite(event.created) ? event.created : Date.now());
+    recordSessionObservation(SESSION_EVENT_ACTIVITY_KEY, sessionID, timestamp);
   }
 }
 
@@ -1702,7 +1894,7 @@ function recordSessionEventActivity(event, at = Date.now()) {
  *   session is indistinguishable from silence, and treated as such.
  */
 function lastSessionEventAt(sessionID) {
-  return getSessionEventActivityMap().get(sessionID);
+  return getSessionObservationMap(SESSION_EVENT_ACTIVITY_KEY).get(sessionID);
 }
 
 /** Fetch the process-wide recent health-loop tick log. */
@@ -3077,15 +3269,15 @@ const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
  *   never stops the loop from consuming the next.
  * @returns {Promise<void>} Resolves only if the stream itself ends.
  */
-async function consumeEvents(ctx, onEvent) {
-  for await (const event of ctx.event.subscribe()) {
+async function consumeEvents(ctx, onEvent, signal) {
+  for await (const event of ctx.event.subscribe(signal ? { signal } : undefined)) {
     await onEvent(event).catch((error) => recordError({ type: "listener.failed", error: String(error) }));
   }
 }
 
 /**
  * Keep the event subscription alive for the daemon's lifetime, resubscribing
- * whenever the stream ends or fails.
+ * whenever the stream ends or fails, until the signal aborts.
  *
  * The subscription feeds the progress-veto signal (see
  * `recordSessionEventActivity`); an unsupervised loss would silently stop
@@ -3094,17 +3286,26 @@ async function consumeEvents(ctx, onEvent) {
  *
  * @param {object} ctx The plugin's opencode context.
  * @param {(event: object) => Promise<void>} onEvent Forwarded to `consumeEvents`.
- * @param {{ delayMs?: number, maxRestarts?: number }} [options] Retry pacing;
- *   `maxRestarts` bounds the loop in tests (unbounded by default).
- * @returns {Promise<void>} Resolves only when `maxRestarts` is exhausted.
+ * @param {{ delayMs?: number, maxRestarts?: number, signal?: AbortSignal }} [options]
+ *   Retry pacing; `maxRestarts` bounds the loop in tests (unbounded by
+ *   default); `signal` tears the supervisor down (plugin cleanup).
+ * @returns {Promise<void>} Resolves when `signal` aborts or `maxRestarts`
+ *   is exhausted.
  */
-async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = Infinity } = {}) {
-  for (let restarts = 0; restarts <= maxRestarts; restarts++) {
+async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = Infinity, signal } = {}) {
+  for (let restarts = 0; restarts <= maxRestarts && !signal?.aborted; restarts++) {
     try {
-      await consumeEvents(ctx, onEvent);
-      recordError({ type: "listener.ended", at: Date.now() });
+      await consumeEvents(ctx, onEvent, signal);
+      if (!signal?.aborted) {
+        recordError({ type: "listener.ended", at: Date.now() });
+      }
     } catch (error) {
-      recordError({ type: "listener.lost", error: String(error), at: Date.now() });
+      if (!signal?.aborted) {
+        recordError({ type: "listener.lost", error: String(error), at: Date.now() });
+      }
+    }
+    if (signal?.aborted) {
+      return;
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
@@ -3139,7 +3340,9 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  *   `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
  *   `resolveRepoRootFn` reaches `rp_spawn`; `exists` reaches the permission
  *   mediator's redirect check.
- * @returns {void}
+ * @returns {() => Promise<void>} The plugin cleanup: aborts the supervised
+ *   event subscription, disposes the raw-liveness hook, disarms every loop
+ *   timer, and clears the once-guard so a reloaded plugin re-arms.
  */
 function setup(ctx, deps = {}) {
   const {
@@ -3184,6 +3387,10 @@ function setup(ctx, deps = {}) {
         getInbox: (server, sessionID) => getSessionInbox(server, sessionID, requestFn),
         getMessages: (server, sessionID) => getSessionMessages(server, sessionID, requestFn),
         getLastEventAt: (sessionID) => lastSessionEventAt(sessionID),
+        getRawProgressAt: (sessionID) => lastRawSessionProgressAt(sessionID),
+        getLastInterruptAt: (sessionID) => lastTargetInterruptAt(sessionID),
+        recordInterrupt: (sessionID, at) => recordTargetInterrupt(sessionID, at),
+        withTargetLock: withTargetInterruptLock,
         injectPrompt: (sessionID, text, delivery) => ctx.session.prompt({ sessionID, text, delivery }),
         promoteInboxItem: (server, sessionID, inboxID) => promoteInboxItem(server, sessionID, inboxID, requestFn),
         interruptSession: (server, sessionID) => interruptSession(server, sessionID, requestFn),
@@ -3234,28 +3441,59 @@ function setup(ctx, deps = {}) {
   }
 
   if (!globalThis[SETUP_ONCE_KEY]) {
-    globalThis[SETUP_ONCE_KEY] = true;
-    void superviseEvents(ctx, async (event) => {
-      recordSessionEventActivity(event);
-      onToolEvent(event);
-      await onPermissionAsked(event, {
-        ctx,
-        env,
-        readServiceRecord: readServiceRecordOverride,
-        requestFn,
-        exists,
-      });
-      await onTerminalEvent(event, {
-        ctx,
-        env,
-        readServiceRecord: readServiceRecordOverride,
-        requestFn,
-      });
-    });
+    const observers = { abort: new AbortController(), httpHook: undefined };
+    globalThis[SETUP_ONCE_KEY] = observers;
+    void superviseEvents(
+      ctx,
+      async (event) => {
+        recordSessionEventActivity(event);
+        onToolEvent(event);
+        await onPermissionAsked(event, {
+          ctx,
+          env,
+          readServiceRecord: readServiceRecordOverride,
+          requestFn,
+          exists,
+        });
+        await onTerminalEvent(event, {
+          ctx,
+          env,
+          readServiceRecord: readServiceRecordOverride,
+          requestFn,
+        });
+      },
+      { signal: observers.abort.signal },
+    );
+    // The raw-liveness observer: tees every provider response so streamed
+    // chunks record per-session raw progress (see `observeHttpResponse`).
+    // Registration failure is recorded, not fatal — without it the
+    // dead-stream veto simply loses its strongest signal.
+    void Promise.resolve()
+      .then(() => ctx.session.hook("http.response", observeHttpResponse))
+      .then((registration) => {
+        observers.httpHook = registration;
+      })
+      .catch((error) => recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() }));
     for (const entry of listLoopEntries(registryPath)) {
       void armLoopTimer(entry, tick);
     }
   }
+
+  // The plugin API invokes the returned cleanup when unloading the plugin:
+  // tear down the observers and armed timers, and clear the once-guard so
+  // a reloaded plugin's setup can re-arm everything.
+  return async () => {
+    const observers = globalThis[SETUP_ONCE_KEY];
+    if (!observers || observers === true) {
+      delete globalThis[SETUP_ONCE_KEY];
+      return;
+    }
+    delete globalThis[SETUP_ONCE_KEY];
+    observers.abort.abort();
+    await Promise.resolve(observers.httpHook?.dispose?.()).catch(() => {});
+    const timers = getLoopTimers();
+    await Promise.all([...timers.keys()].map((id) => disarmLoopTimer(id)));
+  };
 }
 
 export default { id: PLUGIN_ID, setup };
@@ -3287,10 +3525,13 @@ export {
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
+  lastRawSessionProgressAt,
   lastSessionEventAt,
+  lastTargetInterruptAt,
   listLoopEntries,
   lookupSpawn,
   materializeAgents,
+  observeHttpResponse,
   onPermissionAsked,
   onToolEvent,
   parseModelString,
@@ -3303,8 +3544,10 @@ export {
   readPinManifest,
   readServiceRecordFile,
   readSkillDirectory,
+  recordRawSessionProgress,
   recordSessionEventActivity,
   recordSpawn,
+  recordTargetInterrupt,
   redirectTargets,
   replyToPermission,
   requestServer,
@@ -3323,4 +3566,5 @@ export {
   terminalEventSessionID,
   toToolResult,
   toolTarget,
+  withTargetInterruptLock,
 };

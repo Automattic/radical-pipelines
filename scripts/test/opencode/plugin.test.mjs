@@ -22,8 +22,10 @@ import plugin, {
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
+  lastRawSessionProgressAt,
   lastSessionEventAt,
   lookupSpawn,
+  observeHttpResponse,
   promoteInboxItem,
   readCliVersion,
   readPackageVersion,
@@ -39,6 +41,7 @@ import plugin, {
   setup,
   superviseEvents,
   terminalEventError,
+  withTargetInterruptLock,
   terminalEventSessionID,
   toToolResult,
 } from "../../../opencode/plugin.mjs";
@@ -162,6 +165,11 @@ function createFakeCtx({
         }
         return { sessionID, text, delivery };
       },
+      // Matches the real ctx.session.hook contract: registers a model hook
+      // and resolves to a disposable Registration.
+      async hook() {
+        return { dispose: async () => {} };
+      },
     },
     event: {
       subscribe() {
@@ -264,6 +272,24 @@ describe("setup: tool and skill registration", () => {
     setup(second.ctx, isolatedDeps({ env: {} }));
 
     assert.equal(first.subscribeCalls + second.subscribeCalls, 1);
+  });
+
+  test("setup returns a cleanup that tears the observers down and lets a reloaded setup re-arm", async () => {
+    delete globalThis[SETUP_ONCE_KEY];
+
+    const first = createFakeCtx();
+    const cleanup = setup(first.ctx, isolatedDeps({ env: {} }));
+    assert.equal(typeof cleanup, "function", "the plugin API expects setup to return its cleanup");
+    assert.ok(globalThis[SETUP_ONCE_KEY], "the once-guard must be armed after setup");
+
+    await cleanup();
+    assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "cleanup must clear the once-guard");
+
+    // A reloaded plugin's setup must be able to re-arm the observers.
+    const second = createFakeCtx();
+    const secondCleanup = setup(second.ctx, isolatedDeps({ env: {} }));
+    assert.equal(second.subscribeCalls, 1, "a post-cleanup setup must resubscribe");
+    await secondCleanup();
   });
 
   test("a materialization collision with a pre-existing foreign agent file is surfaced via rp_status's recentErrors", async () => {
@@ -943,6 +969,91 @@ describe("recordSessionEventActivity / lastSessionEventAt", () => {
 
     assert.equal(lastSessionEventAt("ses_activity_test"), 2_000);
     assert.equal(lastSessionEventAt("ses_activity_never_seen"), undefined);
+  });
+
+  test("a delayed event is stamped with its own creation time, not the consumption time", () => {
+    // An old event draining from a lagged queue must not masquerade as
+    // fresh progress and re-arm the dead-stream window.
+    recordSessionEventActivity({
+      type: "session.text.delta",
+      created: 1_234,
+      data: { sessionID: "ses_activity_delayed" },
+    });
+    assert.equal(lastSessionEventAt("ses_activity_delayed"), 1_234);
+  });
+
+  test("observation maps are bounded, evicting the least-recently-updated session", () => {
+    for (let i = 0; i < 300; i++) {
+      recordSessionEventActivity({ type: "session.text.delta", data: { sessionID: `ses_bound_${i}` } }, i);
+    }
+    assert.equal(lastSessionEventAt("ses_bound_0"), undefined, "the oldest entries must be evicted");
+    assert.equal(lastSessionEventAt("ses_bound_299"), 299);
+  });
+});
+
+describe("observeHttpResponse / lastRawSessionProgressAt", () => {
+  test("tees the provider response so each streamed chunk records raw progress, bytes untouched", async () => {
+    const encoder = new TextEncoder();
+    const chunks = ["data: one\n\n", "data: two\n\n"];
+    const body = new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        controller.close();
+      },
+    });
+    const input = {
+      sessionID: "ses_raw_progress_test",
+      response: new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    };
+
+    const before = Date.now();
+    observeHttpResponse(input);
+    assert.ok(lastRawSessionProgressAt("ses_raw_progress_test") >= before, "the arrival itself must record");
+
+    const received = await input.response.text();
+    assert.equal(received, chunks.join(""), "the tee must pass the bytes through untouched");
+    assert.ok(
+      lastRawSessionProgressAt("ses_raw_progress_test") >= before,
+      "each streamed chunk must refresh the raw-progress timestamp",
+    );
+    assert.equal(input.response.status, 200);
+  });
+
+  test("a body-less response records the arrival without wrapping", () => {
+    const input = { sessionID: "ses_raw_progress_nobody", response: { status: 204, body: null } };
+    observeHttpResponse(input);
+    assert.ok(lastRawSessionProgressAt("ses_raw_progress_nobody") !== undefined);
+    assert.equal(input.response.status, 204, "the response must be left as-is");
+  });
+});
+
+describe("withTargetInterruptLock", () => {
+  test("serializes critical sections per target while leaving other targets unblocked", async () => {
+    const order = [];
+    let releaseFirst;
+    const firstGate = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    const first = withTargetInterruptLock("ses_lock_a", async () => {
+      order.push("a1:start");
+      await firstGate;
+      order.push("a1:end");
+    });
+    const second = withTargetInterruptLock("ses_lock_a", async () => {
+      order.push("a2");
+    });
+    const other = withTargetInterruptLock("ses_lock_b", async () => {
+      order.push("b");
+    });
+
+    await other;
+    assert.deepEqual(order, ["a1:start", "b"], "a different target must not wait behind the lock");
+    releaseFirst();
+    await Promise.all([first, second]);
+    assert.deepEqual(order, ["a1:start", "b", "a1:end", "a2"], "same-target sections must serialize in order");
   });
 });
 
@@ -1673,6 +1784,95 @@ describe("runLoopTick", () => {
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
+  test("raw response chunks veto the interrupt indefinitely, even past the confirmation window", async () => {
+    // The reviewer's boundary case: a healthy stream trickling argument
+    // chunks with a frozen projection, outliving the window. The raw
+    // liveness signal must keep vetoing for as long as bytes arrive.
+    const state = {};
+    let clock = 10_000;
+    let lastRawChunk;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => lastRawChunk,
+      injectPrompt: () => {
+        throw new Error("must not inject into a streaming target");
+      },
+      interruptSession: () => {
+        throw new Error("a stream producing bytes must never be interrupted");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+
+    // Chunks keep arriving; every tick far beyond the window stays a veto.
+    for (let tick = 0; tick < 5; tick++) {
+      clock += 1_500;
+      lastRawChunk = clock - 100;
+      assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    }
+  });
+
+  test("two loops confirming the same dead target produce exactly one interrupt", async () => {
+    const interrupts = [];
+    let interruptedAt;
+    const messages = [
+      {
+        id: "as_1",
+        type: "assistant",
+        content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+      },
+    ];
+    let clock = 10_000;
+    const makeDeps = (state) => ({
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => messages,
+      getLastInterruptAt: () => interruptedAt,
+      recordInterrupt: (sessionID, at) => {
+        interruptedAt = at;
+      },
+      withTargetLock: withTargetInterruptLock,
+      injectPrompt: () => {
+        throw new Error("must not inject");
+      },
+      interruptSession: async (server, sessionID) => interrupts.push(sessionID),
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    });
+    const stateA = {};
+    const stateB = {};
+
+    // Both loops suspect the same frozen stream...
+    assert.equal((await runLoopTick(entry, makeDeps(stateA))).reason, "dead-stream-suspected");
+    assert.equal((await runLoopTick(entry, makeDeps(stateB))).reason, "dead-stream-suspected");
+
+    // ...and confirm concurrently after the window. Serialization plus the
+    // last-interrupt guard must yield a single interrupt: the second loop's
+    // evidence describes the execution the first one already interrupted.
+    clock = 11_100;
+    const results = await Promise.all([runLoopTick(entry, makeDeps(stateA)), runLoopTick(entry, makeDeps(stateB))]);
+    assert.deepEqual(interrupts, ["ses_target"], "the successor execution must never be interrupted on old evidence");
+    assert.deepEqual(results.map((result) => result.outcome).sort(), ["interrupted", "skipped"]);
   });
 
   test("cancellation during the confirming tick's reads prevents the interrupt", async () => {

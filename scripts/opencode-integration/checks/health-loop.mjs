@@ -412,6 +412,16 @@ export async function run(ctx) {
       });
       assert.equal(interruptedTick.reason, "dead-stream");
 
+      // The interrupt contract: suspicion first, then at least the full
+      // confirmation window (4 s in this sandbox) of observed silence.
+      const suspectedTicks = observedTicks.filter((tick) => tick.reason === "dead-stream-suspected");
+      assert.ok(suspectedTicks.length > 0, "the interrupt must be preceded by an explicit suspicion");
+      const firstSuspectedAt = Math.min(...suspectedTicks.map((tick) => tick.at));
+      assert.ok(
+        interruptedTick.at - firstSuspectedAt >= 3_500,
+        `expected at least the ~4s confirmation window between suspicion (${firstSuspectedAt}) and interrupt (${interruptedTick.at})`,
+      );
+
       // The parked copy — promoted just before the interrupt — must be the
       // delivery that reaches the freed session: same admitted ID, so the
       // interrupt stranded nothing.
@@ -440,12 +450,13 @@ export async function run(ctx) {
     results,
     "a healthy slow argument stream is suspected but never interrupted",
     async () => {
-      // Argument chunks trickle in every 250 ms while the projected
-      // transcript stays frozen — the exact shape of a dead stream, except
-      // alive. The wall-clock confirmation window (4 s in this sandbox)
-      // must outlast the stream, so the loop suspects but never interrupts.
+      // Argument chunks trickle in every 250 ms for ~6 s while the
+      // projected transcript stays frozen — the exact shape of a dead
+      // stream, except alive — deliberately *outliving* the 4 s sandbox
+      // confirmation window: only the raw-liveness veto (teed provider
+      // chunks) can protect it past the boundary.
       const trickling = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
-      const trickleTurn = prompt(server, trickling.id, tricklePrompt(250, 12, `trickle-${Date.now()}`), {
+      const trickleTurn = prompt(server, trickling.id, tricklePrompt(250, 24, `trickle-${Date.now()}`), {
         delivery: "steer",
       }).catch(() => {});
       await pollUntil(
@@ -473,11 +484,20 @@ export async function run(ctx) {
         { timeoutMs: 15_000, intervalMs: 300, label: "the healthy trickle to be suspected" },
       );
 
-      // The stream completes on its own; the freed session returns to idle.
+      // The stream completes on its own; the freed session returns to idle
+      // with a successfully finished turn — never an aborted one.
       await pollUntil(
         async () => (!(await getActiveSessionIDs(server)).has(trickling.id) ? true : undefined),
-        { timeoutMs: 20_000, label: "the trickling turn to complete naturally" },
+        { timeoutMs: 25_000, label: "the trickling turn to complete naturally" },
       );
+      const finished = await pollMessages(
+        server,
+        trickling.id,
+        (messages) =>
+          messages.find((message) => message.type === "assistant" && message.finish && message.finish !== "error"),
+        { timeoutMs: 10_000, label: "the trickling turn's successful finish" },
+      );
+      assert.ok(finished.finish, "the trickled tool call must complete as a normal turn");
 
       const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
       const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
