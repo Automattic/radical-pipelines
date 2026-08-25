@@ -31,11 +31,13 @@ import plugin, {
   readServiceRecordFile,
   recordSpawn,
   requestServer,
+  resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
   resolveRunningBuild,
   resolveServer,
   runLoopTick,
   setup,
+  superviseEvents,
   terminalEventError,
   terminalEventSessionID,
   toToolResult,
@@ -892,11 +894,52 @@ describe("promoteInboxItem", () => {
   });
 });
 
+describe("superviseEvents", () => {
+  test("resubscribes after the stream fails and after it ends, recording each loss", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
+    let subscriptions = 0;
+    const ctx = {
+      event: {
+        subscribe() {
+          subscriptions += 1;
+          if (subscriptions === 1) {
+            // eslint-disable-next-line require-yield
+            return (async function* () {
+              throw new Error("stream lost");
+            })();
+          }
+          return (async function* () {})();
+        },
+      },
+    };
+
+    await superviseEvents(ctx, async () => {}, { delayMs: 1, maxRestarts: 1 });
+
+    assert.equal(subscriptions, 2, "a lost subscription must be replaced");
+    assert.ok(globalThis[ERROR_LOG_KEY].some((entry) => entry.type === "listener.lost"));
+    assert.ok(globalThis[ERROR_LOG_KEY].some((entry) => entry.type === "listener.ended"));
+  });
+});
+
+describe("resolveDeadStreamConfirmMs", () => {
+  test("defaults to ten minutes and honors a positive numeric override", () => {
+    assert.equal(resolveDeadStreamConfirmMs({}), 600_000);
+    assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "4000" }), 4_000);
+    assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "bogus" }), 600_000);
+    assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "-5" }), 600_000);
+  });
+});
+
 describe("recordSessionEventActivity / lastSessionEventAt", () => {
-  test("records the newest observation per session and ignores events naming none", () => {
-    recordSessionEventActivity({ data: { sessionID: "ses_activity_test" } }, 1_000);
-    recordSessionEventActivity({ data: { sessionID: "ses_activity_test" } }, 2_000);
-    recordSessionEventActivity({ type: "server.heartbeat", data: {} }, 3_000);
+  test("records execution-progress events only, keeping the newest observation per session", () => {
+    recordSessionEventActivity({ type: "session.tool.input.started", data: { sessionID: "ses_activity_test" } }, 1_000);
+    recordSessionEventActivity({ type: "session.text.ended", data: { sessionID: "ses_activity_test" } }, 2_000);
+    // Inbox and metadata traffic can surround a hung session indefinitely
+    // and must never defer its recovery.
+    recordSessionEventActivity({ type: "session.inbox.delivered", data: { sessionID: "ses_activity_test" } }, 3_000);
+    recordSessionEventActivity({ type: "permission.asked", data: { sessionID: "ses_activity_test" } }, 4_000);
+    recordSessionEventActivity({ type: "server.heartbeat", data: {} }, 5_000);
+    recordSessionEventActivity({ data: { sessionID: "ses_activity_test" } }, 6_000);
 
     assert.equal(lastSessionEventAt("ses_activity_test"), 2_000);
     assert.equal(lastSessionEventAt("ses_activity_never_seen"), undefined);
@@ -1384,6 +1427,7 @@ describe("runLoopTick", () => {
   test("the dead-stream interrupt fires with no pending steer, even during a backoff window, and clears it", async () => {
     const interrupts = [];
     const state = { backoffSkips: 5, backoffLevel: 3 };
+    let clock = 10_000;
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
@@ -1401,11 +1445,13 @@ describe("runLoopTick", () => {
       },
       interruptSession: async (server, sessionID) => interrupts.push(sessionID),
       onOutcome: () => {},
-      now: () => 10_000,
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
       state,
     };
 
     assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 11_100;
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
@@ -1487,9 +1533,10 @@ describe("runLoopTick", () => {
     assert.deepEqual(staleCalls, ["steer"]);
   });
 
-  test("a stale target with a frozen stream is suspected first, then interrupted on the second observation", async () => {
+  test("a frozen stream is suspected, held for the confirmation window, then interrupted", async () => {
     const interrupts = [];
     const state = {};
+    let clock = 10_000;
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
@@ -1507,7 +1554,8 @@ describe("runLoopTick", () => {
       },
       interruptSession: async (server, sessionID) => interrupts.push(sessionID),
       onOutcome: () => {},
-      now: () => 10_000,
+      now: () => clock,
+      deadStreamConfirmMs: 2_000,
       state,
     };
 
@@ -1518,6 +1566,16 @@ describe("runLoopTick", () => {
     });
     assert.deepEqual(interrupts, [], "the first observation must not interrupt");
 
+    // Frozen, but the wall-clock window has not elapsed: still suspected.
+    clock = 11_000;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-suspected",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, [], "an unelapsed window must not authorize the interrupt");
+
+    clock = 12_100;
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
@@ -1594,20 +1652,21 @@ describe("runLoopTick", () => {
       interruptSession: async (server, sessionID) => interrupts.push(sessionID),
       onOutcome: () => {},
       now: () => clock,
+      deadStreamConfirmMs: 1_000,
       state,
     };
 
     assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
 
-    // Argument deltas keep emitting events even though the projection is
-    // static: the confirmation must be deferred, not fired.
-    clock = 11_000;
+    // Progress events veto the confirmation and re-arm the window even
+    // though the projection is static.
+    clock = 11_100;
     lastEvent = 10_500;
     assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
     assert.deepEqual(interrupts, [], "a stream emitting events must never be interrupted");
 
-    // One interval of true silence later, the confirmation fires.
-    clock = 12_000;
+    // A full window of true silence later, the confirmation fires.
+    clock = 12_200;
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
@@ -1619,6 +1678,7 @@ describe("runLoopTick", () => {
   test("cancellation during the confirming tick's reads prevents the interrupt", async () => {
     let cancelled = false;
     const state = {};
+    let clock = 10_000;
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
@@ -1642,11 +1702,13 @@ describe("runLoopTick", () => {
       },
       onOutcome: () => {},
       isCancelled: () => cancelled,
-      now: () => 10_000,
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
       state,
     };
 
     assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 11_100;
     assert.deepEqual(await runLoopTick(entry, deps), { outcome: "cancelled" });
   });
 
@@ -1677,6 +1739,7 @@ describe("runLoopTick", () => {
   test("a parked queue copy is promoted before the confirming interrupt so the freed session receives it", async () => {
     const calls = [];
     const state = {};
+    let clock = 10_000;
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
@@ -1695,7 +1758,8 @@ describe("runLoopTick", () => {
       promoteInboxItem: async (server, sessionID, inboxID) => calls.push(`promote:${inboxID}`),
       interruptSession: async () => calls.push("interrupt"),
       onOutcome: () => {},
-      now: () => 10_000,
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
       state,
     };
 
@@ -1705,12 +1769,85 @@ describe("runLoopTick", () => {
     assert.equal(first.reason, "dead-stream-suspected");
     assert.deepEqual(calls, []);
 
+    clock = 11_100;
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
       lastActivity: 5_000,
     });
     assert.deepEqual(calls, ["promote:inb_1", "interrupt"], "the copy must be steerable before the claim is released");
+  });
+
+  test("progress during the confirming tick's own reads vetoes the interrupt at the last moment", async () => {
+    const state = {};
+    let clock = 10_000;
+    let messages = [
+      {
+        id: "as_1",
+        type: "assistant",
+        content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+      },
+    ];
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => {
+        // The stream completes while the confirming tick reads the inbox.
+        messages = [{ id: "as_1", type: "assistant", finish: "tool-calls", time: { created: clock } }];
+        return [];
+      },
+      getMessages: async () => messages,
+      injectPrompt: () => {
+        throw new Error("must not inject during confirmation");
+      },
+      interruptSession: () => {
+        throw new Error("progress during the confirming reads must veto the interrupt");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 11_100;
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+  });
+
+  test("a fast successful probe finishing between the snapshot and the idle recheck is classified from the fresh read", async () => {
+    const state = { lastInjection: { id: "usr_1", at: 9_000, evaluated: false } };
+    let messages = [{ id: "usr_1", type: "user", text: "check" }];
+    let activeReads = 0;
+    const calls = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => {
+        activeReads += 1;
+        if (activeReads === 2) {
+          // The successful turn ran to completion between the transcript
+          // snapshot and this idleness recheck.
+          messages = [
+            { id: "as_1", type: "assistant", finish: "stop", time: { created: 9_800 } },
+            { id: "usr_1", type: "user", text: "check" },
+          ];
+        }
+        return false;
+      },
+      getInbox: async () => [],
+      getMessages: async () => messages,
+      injectPrompt: async (sessionID, text, delivery) => {
+        calls.push(delivery);
+        return { data: { id: "usr_2" } };
+      },
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "injected", reason: "idle" });
+    assert.equal(state.backoffLevel, 0, "a successful response must never be recorded as a failed probe");
+    assert.deepEqual(calls, ["queue"]);
   });
 
   test("a stale target with an unconsumed steer but an executing tool call is left alone", async () => {

@@ -390,6 +390,33 @@ const LOOP_STALE_INTERVALS = 2;
 const LOOP_BACKOFF_MAX_SKIPS = 7;
 
 /**
+ * Wall-clock window a dead-stream suspect must stay frozen before its
+ * interrupt is authorized (see `runLoopTick`'s dead-stream guard).
+ *
+ * The pinned build offers no observable signal that distinguishes a tool
+ * call whose arguments are still streaming from one whose stream died —
+ * the projection keeps `state.input` empty and no events accompany partial
+ * argument chunks — so elapsed time is the only sound evidence: no
+ * plausible provider streams a single tool call's arguments for this long
+ * with zero observable change. Overridable via
+ * `RP_LOOP_DEAD_STREAM_CONFIRM_MS` so the integration harness can exercise
+ * the confirmation without ten-minute waits.
+ */
+const LOOP_DEAD_STREAM_CONFIRM_MS = 600_000;
+
+/**
+ * Resolve the dead-stream confirmation window from the environment.
+ *
+ * @param {Record<string, string | undefined>} env The process environment.
+ * @returns {number} The override when it parses to a positive number, else
+ *   `LOOP_DEAD_STREAM_CONFIRM_MS`.
+ */
+function resolveDeadStreamConfirmMs(env) {
+  const override = Number(env.RP_LOOP_DEAD_STREAM_CONFIRM_MS);
+  return Number.isFinite(override) && override > 0 ? override : LOOP_DEAD_STREAM_CONFIRM_MS;
+}
+
+/**
  * Fetch the process-wide map of armed loop timers, creating it on first use.
  *
  * @returns {Map<string, {timer: NodeJS.Timeout | undefined, inFlight: Promise<void> | null, ready: Promise<void> | undefined, cancelled: boolean}>}
@@ -647,16 +674,20 @@ function recordFailedProbe(state) {
  *   the pipeline resumes on the first probe after conditions clear.
  * - **Dead-stream escalation** — a target that is active yet stale with
  *   the dead-stream signature (see `isDeadStreamMessage`) is suspected on
- *   first observation and interrupted only when confirmed one interval
- *   later: the same projected fingerprint (see `deadStreamFingerprint`)
- *   *and* no session event observed since the suspicion — the projection
- *   cannot show streaming arguments, so event silence is the proof of
- *   death. The interrupt runs with `continue=true`, after promoting any
- *   parked queue copy of the prompt so the resumed execution delivers it,
- *   and clears the skip window so the freed target is re-probed on the
- *   next tick. The confirmation needs no pending steer as evidence, so
- *   recovery is never delayed by coalescing or backoff. A target genuinely
- *   inside a long or still-streaming tool call is left alone.
+ *   first observation and interrupted only once the same projected
+ *   fingerprint (see `deadStreamFingerprint`) has stayed frozen for the
+ *   whole wall-clock confirmation window (`deadStreamConfirmMs`) — elapsed
+ *   time is the sole authorizer, because the pinned build exposes no
+ *   signal that proves argument-streaming progress. Observed
+ *   execution-progress events are strictly a veto that re-arms the window
+ *   (see `recordSessionEventActivity`), and a final fingerprint-and-events
+ *   revalidation runs immediately before the interrupt so progress during
+ *   the tick's own reads still vetoes it. The interrupt runs with
+ *   `continue=true`, after promoting any parked queue copy of the prompt
+ *   so the resumed execution delivers it, and clears the skip window so
+ *   the freed target is re-probed on the next tick. Recovery is never
+ *   delayed by coalescing or backoff; a target genuinely inside a long or
+ *   still-streaming tool call is left alone.
  *
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry
  *   The loop entry being ticked.
@@ -673,6 +704,7 @@ function recordFailedProbe(state) {
  *   onOutcome: (outcome: object) => void,
  *   isCancelled?: () => boolean,
  *   now?: () => number,
+ *   deadStreamConfirmMs?: number,
  *   state?: {
  *     lastInjection?: {id?: string, at: number, evaluated: boolean},
  *     backoffLevel?: number,
@@ -704,6 +736,7 @@ async function runLoopTick(
     onOutcome,
     isCancelled = () => false,
     now = Date.now,
+    deadStreamConfirmMs = LOOP_DEAD_STREAM_CONFIRM_MS,
     state = {},
   },
 ) {
@@ -740,6 +773,7 @@ async function runLoopTick(
           interrupt,
           isCancelled,
           now,
+          deadStreamConfirmMs,
           state,
         });
       }
@@ -807,19 +841,43 @@ async function runIdleTick(entry, { server, isSessionActive, readInbox, readMess
       return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
     }
     if (evaluation?.pending === "awaiting-response") {
-      // The idleness sample is by now reads old; execution may have started
-      // in the meantime, and failing the probe then would ignore its
-      // eventual response. Only a target still idle proves no response is
-      // coming.
-      const activeNow = await isSessionActive(server, entry.targetSession);
+      // The idleness sample is by now reads old; a turn may have started —
+      // or started *and finished* — in the meantime, and failing the probe
+      // then would ignore its response. Bracket a fresh transcript read
+      // between two idle observations: only a response missing from a
+      // snapshot taken while provably idle on both sides proves no
+      // response is coming.
+      const activeBefore = await isSessionActive(server, entry.targetSession);
       if (isCancelled()) {
         return { outcome: "cancelled" };
       }
-      if (activeNow) {
+      if (activeBefore) {
         return { outcome: "skipped", reason: "awaiting-response" };
       }
-      const escalated = recordFailedProbe(state);
-      return { outcome: "skipped", reason: "failed-probe", ...escalated };
+      const freshMessages = await readMessages(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const reEvaluation = evaluateProbe(state, freshMessages);
+      if (reEvaluation?.verdict === "failed") {
+        return { outcome: "skipped", reason: "failed-probe", level: reEvaluation.level, skips: reEvaluation.skips };
+      }
+      if (reEvaluation?.pending === "awaiting-response") {
+        const activeAfter = await isSessionActive(server, entry.targetSession);
+        if (isCancelled()) {
+          return { outcome: "cancelled" };
+        }
+        if (activeAfter) {
+          return { outcome: "skipped", reason: "awaiting-response" };
+        }
+        const escalated = recordFailedProbe(state);
+        return { outcome: "skipped", reason: "failed-probe", ...escalated };
+      }
+      if (reEvaluation?.pending === "undelivered") {
+        state.lastInjection.evaluated = true;
+      }
+      // A succeeded verdict falls through: the backoff was reset and the
+      // normal injection cadence resumes below.
     }
     if (evaluation?.pending === "undelivered") {
       state.lastInjection.evaluated = true;
@@ -845,7 +903,20 @@ async function runIdleTick(entry, { server, isSessionActive, readInbox, readMess
  */
 async function runActiveTick(
   entry,
-  { server, readUpdatedAt, readInbox, readMessages, getLastEventAt, injectPrompt, promote, interrupt, isCancelled, now, state },
+  {
+    server,
+    readUpdatedAt,
+    readInbox,
+    readMessages,
+    getLastEventAt,
+    injectPrompt,
+    promote,
+    interrupt,
+    isCancelled,
+    now,
+    deadStreamConfirmMs,
+    state,
+  },
 ) {
   const lastActivity = await readUpdatedAt(server, entry.targetSession);
   if (isCancelled()) {
@@ -876,19 +947,23 @@ async function runActiveTick(
     if (state.deadStreamSuspect?.fingerprint !== fingerprint) {
       // First observation: a stale session timestamp says nothing about the
       // stream's own freshness, so a candidate is only suspected here and
-      // interrupted when confirmed one interval later.
+      // interrupted once frozen for the whole confirmation window.
       state.deadStreamSuspect = { fingerprint, at: now() };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
     const lastEvent = getLastEventAt(entry.targetSession);
     if (lastEvent !== undefined && lastEvent >= state.deadStreamSuspect.at) {
-      // The projection is unchanged but events flowed since the suspicion —
-      // the stream is alive (the projection cannot show streaming
-      // arguments). Absolve the observed activity and keep watching.
+      // Progress events flowed since the suspicion — the stream is alive
+      // even though the projection cannot show it. Observed progress
+      // vetoes and re-arms the window.
       state.deadStreamSuspect = { fingerprint, at: now() };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
-    delete state.deadStreamSuspect;
+    if (now() - state.deadStreamSuspect.at < deadStreamConfirmMs) {
+      // Event silence is not proof — the pinned build emits nothing for
+      // partial argument chunks — so only the elapsed window authorizes.
+      return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+    }
     // A parked queue copy would out-survive the interrupt (`continue=true`
     // resumes steering input while queued prompts stay parked) and then
     // coalesce every later tick: promote it first so the resumed execution
@@ -904,6 +979,23 @@ async function runActiveTick(
     if (isCancelled()) {
       return { outcome: "cancelled" };
     }
+    // Final revalidation: the reads above took time, and progress or
+    // completion during them must veto the interrupt.
+    const freshMessages = await readMessages(server, entry.targetSession);
+    if (isCancelled()) {
+      return { outcome: "cancelled" };
+    }
+    const freshAssistant = freshMessages.find((message) => message.type === "assistant") ?? null;
+    const freshEvent = getLastEventAt(entry.targetSession);
+    if (
+      !isDeadStreamMessage(freshAssistant) ||
+      deadStreamFingerprint(freshAssistant) !== fingerprint ||
+      (freshEvent !== undefined && freshEvent >= state.deadStreamSuspect.at)
+    ) {
+      delete state.deadStreamSuspect;
+      return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+    }
+    delete state.deadStreamSuspect;
     await interrupt(server, entry.targetSession);
     // The freed target must be re-probed on the next tick, not after a
     // leftover skip window.
@@ -1564,20 +1656,39 @@ function getSessionEventActivityMap() {
 }
 
 /**
- * Record that an event was observed for its session, when it names one.
+ * Event-type prefixes that evidence *execution progress* for a session —
+ * model output and step movement. Inbox admissions, permission traffic,
+ * and other metadata activity are excluded: they can occur indefinitely
+ * around a hung session and must not defer its recovery.
+ */
+const PROGRESS_EVENT_PREFIXES = [
+  "session.step.",
+  "session.text.",
+  "session.reasoning.",
+  "session.tool.",
+  "session.execution.",
+];
+
+/**
+ * Record that an execution-progress event was observed for its session.
  *
- * Fed by the plugin's event subscription, this is the loop's raw progress
- * signal: streaming deltas (tool arguments, text) surface here even though
- * the projected transcript shows no change, so a live stream is
- * distinguishable from a dead one (see `runLoopTick`'s dead-stream guard).
+ * Fed by the plugin's event subscription. This signal is strictly a *veto*
+ * for the dead-stream guard — observed progress defers an interrupt, but
+ * silence never authorizes one (the pinned build emits no events for
+ * partial argument chunks, and the observer itself can lag or fail), so a
+ * missing or stale entry carries no weight on its own; authorization comes
+ * from the wall-clock confirmation window (see `runLoopTick`).
  *
- * @param {{data?: {sessionID?: string}}} event An opencode event.
+ * @param {{type?: string, data?: {sessionID?: string}}} event An opencode event.
  * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
  * @returns {void}
  */
 function recordSessionEventActivity(event, at = Date.now()) {
   const sessionID = event?.data?.sessionID;
-  if (typeof sessionID === "string") {
+  if (typeof sessionID !== "string" || typeof event?.type !== "string") {
+    return;
+  }
+  if (PROGRESS_EVENT_PREFIXES.some((prefix) => event.type.startsWith(prefix))) {
     getSessionEventActivityMap().set(sessionID, at);
   }
 }
@@ -2973,6 +3084,33 @@ async function consumeEvents(ctx, onEvent) {
 }
 
 /**
+ * Keep the event subscription alive for the daemon's lifetime, resubscribing
+ * whenever the stream ends or fails.
+ *
+ * The subscription feeds the progress-veto signal (see
+ * `recordSessionEventActivity`); an unsupervised loss would silently stop
+ * observation. Because the signal is veto-only, a gap can never *authorize*
+ * an interrupt — resubscription just restores the protection.
+ *
+ * @param {object} ctx The plugin's opencode context.
+ * @param {(event: object) => Promise<void>} onEvent Forwarded to `consumeEvents`.
+ * @param {{ delayMs?: number, maxRestarts?: number }} [options] Retry pacing;
+ *   `maxRestarts` bounds the loop in tests (unbounded by default).
+ * @returns {Promise<void>} Resolves only when `maxRestarts` is exhausted.
+ */
+async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = Infinity } = {}) {
+  for (let restarts = 0; restarts <= maxRestarts; restarts++) {
+    try {
+      await consumeEvents(ctx, onEvent);
+      recordError({ type: "listener.ended", at: Date.now() });
+    } catch (error) {
+      recordError({ type: "listener.lost", error: String(error), at: Date.now() });
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
+
+/**
  * The RP opencode plugin's `setup` function.
  *
  * Registers the eight coordination tools and the packaged skill source on
@@ -3051,6 +3189,7 @@ function setup(ctx, deps = {}) {
         interruptSession: (server, sessionID) => interruptSession(server, sessionID, requestFn),
         onOutcome,
         isCancelled,
+        deadStreamConfirmMs: resolveDeadStreamConfirmMs(env),
         state: runtime,
       });
     } catch (error) {
@@ -3096,7 +3235,7 @@ function setup(ctx, deps = {}) {
 
   if (!globalThis[SETUP_ONCE_KEY]) {
     globalThis[SETUP_ONCE_KEY] = true;
-    consumeEvents(ctx, async (event) => {
+    void superviseEvents(ctx, async (event) => {
       recordSessionEventActivity(event);
       onToolEvent(event);
       await onPermissionAsked(event, {
@@ -3171,6 +3310,7 @@ export {
   requestServer,
   resolveAgentsTargetDir,
   resolveCurrentSpawn,
+  resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
   resolveRepoRoot,
   resolveRunningBuild,
@@ -3178,6 +3318,7 @@ export {
   runLoopTick,
   setup,
   shapeStatus,
+  superviseEvents,
   terminalEventError,
   terminalEventSessionID,
   toToolResult,

@@ -31,6 +31,17 @@ const DIRECTIVE_RE = /__RP_CODE__:([\s\S]*?):__END__/;
 const SLOW_RE = /__RP_SLOW__:(\d+):__END__/;
 
 /**
+ * Directive embedded in a driving prompt's text —
+ * `__RP_TRICKLE__:<chunkMs>,<chunks>:__END__` — that makes the stub emit a
+ * tool_call header and then stream its JSON arguments one small chunk every
+ * `<chunkMs>` milliseconds, `<chunks>` times, before finishing the call
+ * normally: a *healthy* slow argument stream, indistinguishable from a dead
+ * one in the projected transcript. Answered once per distinct directive
+ * text, like `DIRECTIVE_RE`.
+ */
+const TRICKLE_RE = /__RP_TRICKLE__:(\d+),(\d+):__END__/;
+
+/**
  * Directive embedded in a driving prompt's text — `__RP_STALL__:<ms>:__END__`
  * — that makes the stub emit a tool_call header whose arguments never finish
  * streaming, then hold the connection open for `<ms>` (or until the client
@@ -184,6 +195,49 @@ export function startStubProvider({ port }) {
       }
 
       // Matched only on the agent turn (see `offered` above); the title
+      // request must never be the one that trickles.
+      const trickleMatch = offered.size > 0 && offered.has("execute") ? text.match(TRICKLE_RE) : null;
+      if (trickleMatch && !firedDirectives.has(trickleMatch[0])) {
+        firedDirectives.add(trickleMatch[0]);
+        const chunkMs = Number(trickleMatch[1]);
+        const chunkCount = Number(trickleMatch[2]);
+        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+        res.write(
+          sseChunk(parsed.model ?? "stub-model", {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                index: 0,
+                id: `call_trickle_${firedDirectives.size}`,
+                type: "function",
+                function: { name: "execute", arguments: "" },
+              },
+            ],
+          }),
+        );
+        // Stream the arguments' JSON one fragment at a time — a healthy
+        // stream whose projection stays frozen until the JSON completes.
+        const argument = JSON.stringify({ code: "return 'trickle-complete';" });
+        const fragment = Math.ceil(argument.length / chunkCount);
+        for (let i = 0; i < argument.length; i += fragment) {
+          await delay(chunkMs);
+          if (res.writableEnded || res.destroyed) {
+            return;
+          }
+          res.write(
+            sseChunk(parsed.model ?? "stub-model", {
+              tool_calls: [{ index: 0, function: { arguments: argument.slice(i, i + fragment) } }],
+            }),
+          );
+        }
+        res.write(sseChunk(parsed.model ?? "stub-model", {}, "tool_calls"));
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
+
+      // Matched only on the agent turn (see `offered` above); the title
       // request must never be the one that hangs.
       const stallMatch = offered.size > 0 ? text.match(STALL_RE) : null;
       if (stallMatch && !firedDirectives.has(stallMatch[0])) {
@@ -332,4 +386,19 @@ export function slowPrompt(delayMs, nonce) {
  */
 export function stallPrompt(holdMs, nonce) {
   return `__RP_STALL__:${holdMs}:__END__ // ${nonce}`;
+}
+
+/**
+ * Build a driving prompt for a healthy slow argument stream: a tool_call
+ * whose JSON arguments arrive one chunk every `chunkMs` over `chunks`
+ * fragments, then complete normally.
+ *
+ * @param {number} chunkMs Delay between argument fragments.
+ * @param {number} chunks Number of fragments.
+ * @param {string} nonce A value unique to this call, keeping the one-shot
+ *   directive dedup from mistaking two distinct calls for a repeat.
+ * @returns {string} The prompt text to post as the driving session's input.
+ */
+export function tricklePrompt(chunkMs, chunks, nonce) {
+  return `__RP_TRICKLE__:${chunkMs},${chunks}:__END__ // ${nonce}`;
 }

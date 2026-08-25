@@ -19,7 +19,7 @@ import {
   prompt,
 } from "../lib/api-client.mjs";
 import { startServe, stopServe } from "../lib/sandbox.mjs";
-import { slowPrompt, stallPrompt } from "../lib/stub-provider.mjs";
+import { slowPrompt, stallPrompt, tricklePrompt } from "../lib/stub-provider.mjs";
 
 const STUB_MODEL = { providerID: "stub", id: "stub-model" };
 
@@ -433,6 +433,68 @@ export async function run(ctx) {
       );
       assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
       await stallTurn;
+    },
+  );
+
+  await runCheck(
+    results,
+    "a healthy slow argument stream is suspected but never interrupted",
+    async () => {
+      // Argument chunks trickle in every 250 ms while the projected
+      // transcript stays frozen — the exact shape of a dead stream, except
+      // alive. The wall-clock confirmation window (4 s in this sandbox)
+      // must outlast the stream, so the loop suspects but never interrupts.
+      const trickling = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
+      const trickleTurn = prompt(server, trickling.id, tricklePrompt(250, 12, `trickle-${Date.now()}`), {
+        delivery: "steer",
+      }).catch(() => {});
+      await pollUntil(
+        async () => ((await getActiveSessionIDs(server)).has(trickling.id) ? true : undefined),
+        { timeoutMs: 5_000, label: "the trickling target to become active" },
+      );
+
+      const trickleMarker = "suite-health-loop-trickle-ping";
+      const startResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_start({interval: 600, prompt: ${JSON.stringify(trickleMarker)}, target_session: ${JSON.stringify(trickling.id)}});`,
+      );
+      const trickleLoopID = startResult.structuredJSON.id;
+
+      // The suspicion must actually engage (the stream looks dead to the
+      // projection) or this check proves nothing.
+      await pollUntil(
+        async () => {
+          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+          return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
+            (tick) => tick.loopID === trickleLoopID && tick.reason === "dead-stream-suspected",
+          );
+        },
+        { timeoutMs: 15_000, intervalMs: 300, label: "the healthy trickle to be suspected" },
+      );
+
+      // The stream completes on its own; the freed session returns to idle.
+      await pollUntil(
+        async () => (!(await getActiveSessionIDs(server)).has(trickling.id) ? true : undefined),
+        { timeoutMs: 20_000, label: "the trickling turn to complete naturally" },
+      );
+
+      const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+      const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+        (tick) => tick.loopID === trickleLoopID,
+      );
+      assert.ok(
+        !ticks.some((tick) => tick.outcome === "interrupted"),
+        `a healthy stream must never be interrupted, got: ${JSON.stringify(ticks)}`,
+      );
+
+      const cancelResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_cancel({id: ${JSON.stringify(trickleLoopID)}});`,
+      );
+      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+      await trickleTurn;
     },
   );
 
