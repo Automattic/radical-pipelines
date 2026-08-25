@@ -191,6 +191,59 @@ export async function run(ctx) {
 
   await runCheck(
     results,
+    "slow failing probes are held while in flight and back off once classified, instead of chaining",
+    async () => {
+      // Each probe turn runs ~1.5s before failing (unauthenticated provider
+      // honoring the slow directive), so the target is often active at tick
+      // time — the shape that previously chained injections indefinitely.
+      const slowFailing = await createSession(server, {
+        agent: "build",
+        directory: ctx.projectDir,
+        model: { providerID: "stubnoauth", id: "stub-model" },
+      });
+      // The monitor prompt must carry the stub's slow directive, but its
+      // delimiters cannot appear contiguously in this driving prompt — the
+      // stub's own code-directive parser would terminate at the embedded
+      // ":__END__". Assemble it inside the Code Mode snippet instead.
+      const startResult = await driveToolCall(
+        server,
+        controller.id,
+        `const p = ["__RP_SLOW__", ":1500:", "__EN" + "D__", " // suite-health-loop-slow-fail-ping"].join(""); return await tools.rp_loop_start({interval: 600, prompt: p, target_session: ${JSON.stringify(slowFailing.id)}});`,
+      );
+      const slowLoopID = startResult.structuredJSON.id;
+
+      const ticks = await pollUntil(
+        async () => {
+          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+          const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+            (tick) => tick.loopID === slowLoopID,
+          );
+          return observed.some(
+            (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
+          )
+            ? observed
+            : undefined;
+        },
+        { timeoutMs: 40_000, intervalMs: 400, label: "an escalated failed-probe tick under slow failures" },
+      );
+
+      const injections = ticks.filter((tick) => tick.outcome === "injected" || tick.outcome === "promoted").length;
+      assert.ok(
+        injections <= 3,
+        `expected slow failures to back off, not chain (max 3 injections before level 2), got ${injections}: ${JSON.stringify(ticks)}`,
+      );
+
+      const cancelResult = await driveToolCall(
+        server,
+        controller.id,
+        `return await tools.rp_loop_cancel({id: ${JSON.stringify(slowLoopID)}});`,
+      );
+      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+    },
+  );
+
+  await runCheck(
+    results,
     "a parked queue copy of the monitor prompt is promoted to steer in place, not duplicated",
     async () => {
       const promoTarget = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
@@ -259,7 +312,7 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "a target hung on a dead provider stream is interrupted, and the pending steer then delivers",
+    "a target hung on a dead provider stream is interrupted, and the monitor prompt then reaches it",
     async () => {
       const hung = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
       // The stub emits a tool_call header whose arguments never arrive,
@@ -297,14 +350,14 @@ export async function run(ctx) {
       });
       assert.equal(interruptedTick.reason, "dead-stream");
 
-      // `continue=true` resumes execution with the pending steer: the
-      // monitor prompt must actually run, and the freed session must return
-      // to idle.
+      // The interrupt frees the session; the loop's next idle tick injects
+      // the monitor prompt, which must actually run — and the freed session
+      // must return to idle.
       await pollMessages(
         server,
         hung.id,
         (messages) => messages.find((message) => message.type === "user" && message.text === deadMarker),
-        { timeoutMs: 15_000, label: "the pending steer to deliver after the interrupt" },
+        { timeoutMs: 15_000, label: "the monitor prompt to reach the freed session" },
       );
       await pollUntil(
         async () => (!(await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),

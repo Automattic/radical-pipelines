@@ -127,7 +127,23 @@ export function startStubProvider({ port }) {
         return;
       }
 
+      let parsed;
+      try {
+        parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        parsed = {};
+      }
+
+      const text = lastUserText(parsed.messages ?? []);
+
       if (req.headers.authorization === `Bearer ${INVALID_AUTH_KEY}`) {
+        // A slow directive delays the failure, turning the instant 401 into
+        // a slow-failing turn — the shape that keeps a session active while
+        // its probes fail.
+        const slowFailMatch = text.match(SLOW_RE);
+        if (slowFailMatch) {
+          await delay(Number(slowFailMatch[1]));
+        }
         res.writeHead(401, { "content-type": "application/json" });
         res.end(
           JSON.stringify({
@@ -140,15 +156,6 @@ export function startStubProvider({ port }) {
         );
         return;
       }
-
-      let parsed;
-      try {
-        parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-      } catch {
-        parsed = {};
-      }
-
-      const text = lastUserText(parsed.messages ?? []);
 
       // A driven turn reaches this provider more than once: opencode also
       // generates the session title from the same user text, on a request

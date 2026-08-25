@@ -489,39 +489,83 @@ function isDeadStreamMessage(message) {
   return Boolean(last && last.type === "tool" && last.state?.status === "streaming");
 }
 
+/** Whether an assistant message is a finished turn (successful or failed). */
+function isFinishedTurn(message) {
+  return message.finish !== undefined || message.error !== undefined;
+}
+
+/**
+ * Locate the turn that responded to this loop's injected input.
+ *
+ * Anchored on the admitted input's message ID, so a concurrent, unrelated
+ * turn that starts during the admission round trip is never mistaken for
+ * the probe's response: the responding turn is the assistant message
+ * immediately following the injected input in the transcript. The
+ * injection timestamp is only a fallback for an injection whose admitted
+ * ID could not be captured.
+ *
+ * @param {Array<object>} messages The session's messages, newest first.
+ * @param {{id?: string, at: number}} injection The recorded injection.
+ * @returns {{status: "none" | "undelivered" | "awaiting-response"} | {status: "finished", message: object}}
+ *   `none` — nothing attributable exists (fallback anchoring only);
+ *   `undelivered` — the input is not in the transcript yet;
+ *   `awaiting-response` — the input was delivered but its responding turn
+ *   has not finished; `finished` — the responding turn, ready to classify.
+ */
+function findProbeResponse(messages, injection) {
+  if (!injection.id) {
+    const finished = messages.find((message) => message.type === "assistant" && isFinishedTurn(message));
+    if (!finished || (finished.time?.created ?? 0) < injection.at) {
+      return { status: "none" };
+    }
+    return { status: "finished", message: finished };
+  }
+  const index = messages.findIndex((message) => message.id === injection.id);
+  if (index === -1) {
+    return { status: "undelivered" };
+  }
+  for (let i = index - 1; i >= 0; i--) {
+    if (messages[i].type === "assistant") {
+      return isFinishedTurn(messages[i])
+        ? { status: "finished", message: messages[i] }
+        : { status: "awaiting-response" };
+    }
+  }
+  return { status: "awaiting-response" };
+}
+
 /**
  * Classify the outcome of this loop's previous injection, once, from the
- * target's newest assistant message.
+ * turn that responded to it (see `findProbeResponse`).
  *
- * A verdict exists only when a turn *finished* at or after the injection:
- * an error finish is a failed probe (the injection accomplished nothing —
- * network outage, provider quota exhaustion, auth failure; the class is
- * irrelevant) and escalates the backoff; any other finish is a success and
- * ends the backoff. An in-flight turn, or a newest message predating the
- * injection, yields no verdict and leaves the injection unevaluated, so a
- * later tick classifies it — a probe still failing slowly is never counted
- * as healthy activity. `lastInjection.evaluated` flips only here, after the
- * message read has already succeeded, so a failed read never consumes the
+ * A verdict exists only when the responding turn has finished: an error is
+ * a failed probe (the injection accomplished nothing — network outage,
+ * provider quota exhaustion, auth failure; the class is irrelevant) and
+ * escalates the backoff; any other finish is a success and ends the
+ * backoff. An undelivered input or an unfinished responding turn yields a
+ * pending status instead, leaving the injection unevaluated for a later
+ * tick — a probe still failing slowly is never counted as healthy
+ * activity. `lastInjection.evaluated` flips only here, after the message
+ * read has already succeeded, so a failed read never consumes the
  * evaluation.
  *
- * @param {{ lastInjection?: {at: number, evaluated: boolean}, backoffLevel?: number, backoffSkips?: number }} state
+ * @param {{ lastInjection?: {id?: string, at: number, evaluated: boolean}, backoffLevel?: number, backoffSkips?: number }} state
  *   The loop's mutable tick-to-tick memory.
- * @param {object | null} newest The target's newest assistant message.
- * @returns {{verdict: "failed", level: number, skips: number} | {verdict: "succeeded"} | null}
- *   The verdict, or `null` when there is nothing to evaluate yet.
+ * @param {Array<object>} messages The target's messages, newest first.
+ * @returns {{verdict: "failed", level: number, skips: number} | {verdict: "succeeded"} | {pending: string} | null}
+ *   The verdict, a pending status while the probe's outcome is not yet
+ *   decidable, or `null` when there is nothing to evaluate.
  */
-function evaluateProbe(state, newest) {
+function evaluateProbe(state, messages) {
   if (!state.lastInjection || state.lastInjection.evaluated) {
     return null;
   }
-  if (!newest || (newest.finish === undefined && newest.error === undefined)) {
-    return null;
-  }
-  if ((newest.time?.created ?? 0) < state.lastInjection.at) {
-    return null;
+  const response = findProbeResponse(messages, state.lastInjection);
+  if (response.status !== "finished") {
+    return response.status === "none" ? null : { pending: response.status };
   }
   state.lastInjection.evaluated = true;
-  if (newest.finish === "error" || newest.error !== undefined) {
+  if (response.message.finish === "error" || response.message.error !== undefined) {
     state.backoffLevel = (state.backoffLevel ?? 0) + 1;
     state.backoffSkips = Math.min(2 ** state.backoffLevel - 1, LOOP_BACKOFF_MAX_SKIPS);
     return { verdict: "failed", level: state.backoffLevel, skips: state.backoffSkips };
@@ -542,24 +586,27 @@ function evaluateProbe(state, newest) {
  * loop from flooding or losing a target that cannot make progress:
  *
  * - **Coalescing** — a tick that finds this loop's prompt still pending in
- *   the target's inbox injects nothing: an unconsumed prompt is never
- *   duplicated. On the stale path a pending *queue* copy is promoted to
- *   steer delivery in place (a parked queue item cannot reach a running
- *   session; a steer can) rather than injected again.
- * - **Failed-probe backoff** — each injection is evaluated once, on
- *   whichever branch first observes a finished turn (see `evaluateProbe`);
- *   a failed probe makes the loop skip the next `2^level - 1` idle
- *   injection opportunities, capped at `LOOP_BACKOFF_MAX_SKIPS`. Every
- *   tick still inspects the target — the backoff suppresses idle probes,
- *   never observation, escalation, or the stale steer that arms
- *   dead-stream recovery — and the first successful turn ends it, so the
- *   pipeline resumes on the first probe after conditions clear.
- * - **Dead-stream escalation** — when a steer is still pending against a
- *   target that is active yet stale, the tick inspects the target's newest
- *   assistant message; only the provably dead stream (see
- *   `isDeadStreamMessage`) is interrupted — with `continue=true`, so
- *   execution resumes with the pending steer, monitor prompt included. A
- *   target genuinely inside a long tool call is left alone.
+ *   the target's inbox, or already delivered with its responding turn not
+ *   yet finished, injects nothing: a probe is never duplicated while its
+ *   predecessor's outcome is undecided. On the stale path a pending
+ *   *queue* copy is promoted to steer delivery in place (a parked queue
+ *   item cannot reach a running session; a steer can) rather than
+ *   injected again.
+ * - **Failed-probe backoff** — each injection is evaluated once, against
+ *   the turn that responded to it (see `evaluateProbe`), on whichever
+ *   branch first observes that turn finished; a failed probe makes the
+ *   loop skip the next `2^level - 1` injection opportunities — queue and
+ *   steer alike — capped at `LOOP_BACKOFF_MAX_SKIPS`. Every tick still
+ *   inspects the target — the backoff suppresses injections, never
+ *   observation or escalation — and the first successful turn ends it, so
+ *   the pipeline resumes on the first probe after conditions clear.
+ * - **Dead-stream escalation** — a target that is active yet stale with
+ *   the dead-stream signature (see `isDeadStreamMessage`) is interrupted
+ *   directly — with `continue=true`, so any pending steer resumes and an
+ *   idle drain follows; the freed target is then re-probed normally. The
+ *   signature needs no pending steer as evidence, so recovery is never
+ *   delayed by coalescing or backoff. A target genuinely inside a long
+ *   tool call is left alone.
  *
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry
  *   The loop entry being ticked.
@@ -568,7 +615,7 @@ function evaluateProbe(state, newest) {
  *   isSessionActive: (server: object, sessionID: string) => Promise<boolean>,
  *   getSessionUpdatedAt: (server: object, sessionID: string) => Promise<number>,
  *   getInbox: (server: object, sessionID: string) => Promise<Array<object>>,
- *   getNewestAssistantMessage: (server: object, sessionID: string) => Promise<object | null>,
+ *   getMessages: (server: object, sessionID: string) => Promise<Array<object>>,
  *   injectPrompt: (sessionID: string, text: string, delivery: "queue" | "steer") => Promise<*>,
  *   promoteInboxItem: (server: object, sessionID: string, inboxID: string) => Promise<*>,
  *   interruptSession: (server: object, sessionID: string) => Promise<*>,
@@ -576,17 +623,18 @@ function evaluateProbe(state, newest) {
  *   isCancelled?: () => boolean,
  *   now?: () => number,
  *   state?: {
- *     lastInjection?: {at: number, evaluated: boolean},
+ *     lastInjection?: {id?: string, at: number, evaluated: boolean},
  *     backoffLevel?: number,
  *     backoffSkips?: number,
  *   },
  * }} deps The tick's effects: the resolved server (or `null` when
  *   unreachable, see `resolveServer`), session-state reads, the prompt
- *   injector, the queue-to-steer promotion, the interrupt escalation, and
- *   the outcome recorder. `now` defaults to `Date.now`. `state` is the
- *   loop's mutable tick-to-tick memory, owned by the armed timer (see
- *   `armLoopTimer`); it defaults to a throwaway object so a bare call
- *   behaves like a first tick.
+ *   injector (whose resolved value is the admitted input record — its ID
+ *   anchors probe evaluation), the queue-to-steer promotion, the interrupt
+ *   escalation, and the outcome recorder. `now` defaults to `Date.now`.
+ *   `state` is the loop's mutable tick-to-tick memory, owned by the armed
+ *   timer (see `armLoopTimer`); it defaults to a throwaway object so a
+ *   bare call behaves like a first tick.
  * @returns {Promise<object>} The recorded outcome.
  */
 async function runLoopTick(
@@ -596,7 +644,7 @@ async function runLoopTick(
     isSessionActive,
     getSessionUpdatedAt: readUpdatedAt,
     getInbox: readInbox,
-    getNewestAssistantMessage: readNewestAssistant,
+    getMessages: readMessages,
     injectPrompt,
     promoteInboxItem: promote,
     interruptSession: interrupt,
@@ -620,7 +668,7 @@ async function runLoopTick(
         result = await runIdleTick(entry, {
           server,
           readInbox,
-          readNewestAssistant,
+          readMessages,
           injectPrompt,
           isCancelled,
           now,
@@ -631,7 +679,7 @@ async function runLoopTick(
           server,
           readUpdatedAt,
           readInbox,
-          readNewestAssistant,
+          readMessages,
           injectPrompt,
           promote,
           interrupt,
@@ -651,14 +699,40 @@ async function runLoopTick(
 }
 
 /**
+ * Perform one injection and record it as the loop's last probe, anchored on
+ * the admitted input's message ID when the injector surfaces one.
+ *
+ * The timestamp is taken before the admission round trip — the server
+ * schedules execution without joining it, so a turn can start (and fail)
+ * before admission resolves — and serves only as the anchoring fallback.
+ *
+ * @param {{ prompt: string, targetSession: string }} entry The loop entry.
+ * @param {(sessionID: string, text: string, delivery: string) => Promise<*>} injectPrompt The injector.
+ * @param {"queue" | "steer"} delivery The delivery mode.
+ * @param {() => number} now The clock.
+ * @param {object} state The loop's mutable tick-to-tick memory.
+ * @returns {Promise<void>} Resolves when the injection is admitted.
+ */
+async function injectProbe(entry, injectPrompt, delivery, now, state) {
+  const injectedAt = now();
+  const admitted = await injectPrompt(entry.targetSession, entry.prompt, delivery);
+  const id = admitted?.data?.id ?? admitted?.id;
+  state.lastInjection = { ...(typeof id === "string" ? { id } : {}), at: injectedAt, evaluated: false };
+}
+
+/**
  * The idle branch of `runLoopTick`: coalesce, evaluate the previous
  * injection, then inject with queue delivery unless backing off.
+ *
+ * An idle target with a delivered-but-unresponded probe is not waited on:
+ * an idle session is not processing, so waiting would deadlock; the probe
+ * is superseded by the next injection instead.
  *
  * @param {{ id: string, prompt: string, targetSession: string }} entry The loop entry.
  * @param {object} deps The subset of `runLoopTick`'s resolved deps this branch uses.
  * @returns {Promise<object>} The branch's outcome.
  */
-async function runIdleTick(entry, { server, readInbox, readNewestAssistant, injectPrompt, isCancelled, now, state }) {
+async function runIdleTick(entry, { server, readInbox, readMessages, injectPrompt, isCancelled, now, state }) {
   const inbox = await readInbox(server, entry.targetSession);
   if (isCancelled()) {
     return { outcome: "cancelled" };
@@ -667,11 +741,11 @@ async function runIdleTick(entry, { server, readInbox, readNewestAssistant, inje
     return { outcome: "skipped", reason: "pending-delivery" };
   }
   if (state.lastInjection && !state.lastInjection.evaluated) {
-    const newest = await readNewestAssistant(server, entry.targetSession);
+    const messages = await readMessages(server, entry.targetSession);
     if (isCancelled()) {
       return { outcome: "cancelled" };
     }
-    const evaluation = evaluateProbe(state, newest);
+    const evaluation = evaluateProbe(state, messages);
     if (evaluation?.verdict === "failed") {
       return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
     }
@@ -680,21 +754,15 @@ async function runIdleTick(entry, { server, readInbox, readNewestAssistant, inje
     state.backoffSkips -= 1;
     return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
   }
-  // Timestamped before the admission round trip: the server schedules
-  // execution without joining it, so a turn can start — and fail — before
-  // admission resolves; a marker taken afterwards would postdate that
-  // failure and leave it forever unclassifiable.
-  const injectedAt = now();
-  await injectPrompt(entry.targetSession, entry.prompt, "queue");
-  state.lastInjection = { at: injectedAt, evaluated: false };
+  await injectProbe(entry, injectPrompt, "queue", now, state);
   return { outcome: "injected", reason: "idle" };
 }
 
 /**
- * The active branch of `runLoopTick`: probe evaluation on the busy path,
- * stale steer with queue-promotion, and the gated dead-stream interrupt.
- * The backoff never applies here: an active target is not being probed, and
- * the stale steer must fire promptly to arm dead-stream recovery.
+ * The active branch of `runLoopTick`: probe evaluation on the busy path;
+ * on the stale path, the interrupt-first dead-stream check, coalescing
+ * (pending steer, queue-promotion, or an unfinished responding turn), and
+ * the backoff-gated steer.
  *
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry The loop entry.
  * @param {object} deps The subset of `runLoopTick`'s resolved deps this branch uses.
@@ -702,7 +770,7 @@ async function runIdleTick(entry, { server, readInbox, readNewestAssistant, inje
  */
 async function runActiveTick(
   entry,
-  { server, readUpdatedAt, readInbox, readNewestAssistant, injectPrompt, promote, interrupt, isCancelled, now, state },
+  { server, readUpdatedAt, readInbox, readMessages, injectPrompt, promote, interrupt, isCancelled, now, state },
 ) {
   const lastActivity = await readUpdatedAt(server, entry.targetSession);
   if (isCancelled()) {
@@ -710,33 +778,34 @@ async function runActiveTick(
   }
   if (now() - lastActivity <= entry.interval * LOOP_STALE_INTERVALS) {
     // Recent activity may be this loop's own probe failing slowly, so the
-    // backoff is not reset here; only an observed finished turn decides.
+    // backoff is not reset here; only the observed responding turn decides.
     if (state.lastInjection && !state.lastInjection.evaluated) {
-      const newest = await readNewestAssistant(server, entry.targetSession);
+      const messages = await readMessages(server, entry.targetSession);
       if (isCancelled()) {
         return { outcome: "cancelled" };
       }
-      const evaluation = evaluateProbe(state, newest);
+      const evaluation = evaluateProbe(state, messages);
       if (evaluation?.verdict === "failed") {
         return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
       }
     }
     return { outcome: "busy", lastActivity };
   }
+  const messages = await readMessages(server, entry.targetSession);
+  if (isCancelled()) {
+    return { outcome: "cancelled" };
+  }
+  // Interrupt-first: the dead-stream signature plus a stale session is the
+  // whole gate — recovery must never wait behind coalescing or backoff.
+  if (isDeadStreamMessage(messages.find((message) => message.type === "assistant") ?? null)) {
+    await interrupt(server, entry.targetSession);
+    return { outcome: "interrupted", reason: "dead-stream", lastActivity };
+  }
   const inbox = await readInbox(server, entry.targetSession);
   if (isCancelled()) {
     return { outcome: "cancelled" };
   }
-  const pendingSteer = inbox.find((item) => item.payload?.text === entry.prompt && item.delivery === "steer");
-  if (pendingSteer) {
-    const newest = await readNewestAssistant(server, entry.targetSession);
-    if (isCancelled()) {
-      return { outcome: "cancelled" };
-    }
-    if (isDeadStreamMessage(newest)) {
-      await interrupt(server, entry.targetSession);
-      return { outcome: "interrupted", reason: "dead-stream", lastActivity };
-    }
+  if (inbox.some((item) => item.payload?.text === entry.prompt && item.delivery === "steer")) {
     return { outcome: "skipped", reason: "pending-delivery", lastActivity };
   }
   const pendingQueue = inbox.find((item) => item.payload?.text === entry.prompt);
@@ -744,21 +813,18 @@ async function runActiveTick(
     await promote(server, entry.targetSession, pendingQueue.id);
     return { outcome: "promoted", reason: "stale-running", lastActivity };
   }
-  if (state.lastInjection && !state.lastInjection.evaluated) {
-    const newest = await readNewestAssistant(server, entry.targetSession);
-    if (isCancelled()) {
-      return { outcome: "cancelled" };
-    }
-    // Bookkeeping only: the verdict feeds the idle path's backoff, but never
-    // suppresses the steer below — it is the arming step for dead-stream
-    // recovery, and is already self-limited (staleness needs two silent
-    // intervals, and a pending steer coalesces), so delaying it would only
-    // postpone recovery of a hung target.
-    evaluateProbe(state, newest);
+  const evaluation = evaluateProbe(state, messages);
+  if (evaluation?.verdict === "failed") {
+    return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
   }
-  const injectedAt = now();
-  await injectPrompt(entry.targetSession, entry.prompt, "steer");
-  state.lastInjection = { at: injectedAt, evaluated: false };
+  if (evaluation?.pending) {
+    return { outcome: "skipped", reason: "awaiting-response", lastActivity };
+  }
+  if ((state.backoffSkips ?? 0) > 0) {
+    state.backoffSkips -= 1;
+    return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
+  }
+  await injectProbe(entry, injectPrompt, "steer", now, state);
   return { outcome: "injected", reason: "stale-running", lastActivity };
 }
 
@@ -1005,27 +1071,25 @@ async function getSessionInbox(server, sessionID, requestFn) {
 }
 
 /**
- * Read a session's newest assistant message, parts included.
+ * Read a session's projected messages, newest first, parts included.
  *
- * Backs the loop tick's failed-probe evaluation (`finish`/`time.created`)
- * and the dead-stream gate (`content` part states); the endpoint returns
- * messages newest first, so the first assistant entry is the newest.
+ * Backs the loop tick's failed-probe evaluation (locating the injected
+ * input and its responding turn) and the dead-stream gate (the newest
+ * assistant message's `content` part states).
  *
  * @param {{ baseURL: string, password: string }} server A resolved server.
  * @param {string} sessionID The session ID to read.
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
  *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<object | null>} The newest assistant message, or `null`
- *   when the session has none.
+ * @returns {Promise<Array<object>>} The session's messages, newest first.
  * @throws {Error} On a non-2xx response.
  */
-async function getNewestAssistantMessage(server, sessionID, requestFn) {
+async function getSessionMessages(server, sessionID, requestFn) {
   const response = await requestServer(server, "GET", `/api/session/${sessionID}/message`, undefined, requestFn);
   if (response.status < 200 || response.status >= 300) {
     throw new Error(`GET /api/session/${sessionID}/message returned ${response.status}`);
   }
-  const messages = response.body?.data ?? [];
-  return messages.find((message) => message.type === "assistant") ?? null;
+  return response.body?.data ?? [];
 }
 
 /**
@@ -2805,7 +2869,7 @@ function setup(ctx, deps = {}) {
         isSessionActive: (server, sessionID) => isSessionActive(server, sessionID, requestFn),
         getSessionUpdatedAt: (server, sessionID) => getSessionUpdatedAt(server, sessionID, requestFn),
         getInbox: (server, sessionID) => getSessionInbox(server, sessionID, requestFn),
-        getNewestAssistantMessage: (server, sessionID) => getNewestAssistantMessage(server, sessionID, requestFn),
+        getMessages: (server, sessionID) => getSessionMessages(server, sessionID, requestFn),
         injectPrompt: (sessionID, text, delivery) => ctx.session.prompt({ sessionID, text, delivery }),
         promoteInboxItem: (server, sessionID, inboxID) => promoteInboxItem(server, sessionID, inboxID, requestFn),
         interruptSession: (server, sessionID) => interruptSession(server, sessionID, requestFn),
@@ -2899,8 +2963,8 @@ export {
   formatRedirectMessage,
   formatStructuredError,
   formatTitle,
-  getNewestAssistantMessage,
   getSessionInbox,
+  getSessionMessages,
   getSessionUpdatedAt,
   interruptSession,
   isDeadStreamMessage,

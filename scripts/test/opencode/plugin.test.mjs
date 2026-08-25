@@ -14,8 +14,8 @@ import plugin, {
   buildStatusPayload,
   disarmLoopTimer,
   formatStructuredError,
-  getNewestAssistantMessage,
   getSessionInbox,
+  getSessionMessages,
   getSessionUpdatedAt,
   interruptSession,
   isDeadStreamMessage,
@@ -829,42 +829,25 @@ describe("getSessionInbox", () => {
   });
 });
 
-describe("getNewestAssistantMessage", () => {
+describe("getSessionMessages", () => {
   const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
 
-  test("returns the first assistant entry of the newest-first message list", async () => {
+  test("returns the newest-first message list, defaulting to empty", async () => {
+    const messages = [
+      { id: "msg_2", type: "assistant", finish: "error" },
+      { id: "msg_1", type: "user", text: "check" },
+    ];
     const requestFn = async (url) => {
       assert.equal(url.pathname, "/api/session/ses_1/message");
-      return {
-        status: 200,
-        body: {
-          data: [
-            { type: "user", text: "check" },
-            { type: "assistant", finish: "error" },
-            { type: "assistant", finish: "stop" },
-          ],
-        },
-      };
+      return { status: 200, body: { data: messages } };
     };
 
-    assert.deepEqual(await getNewestAssistantMessage(server, "ses_1", requestFn), {
-      type: "assistant",
-      finish: "error",
-    });
+    assert.deepEqual(await getSessionMessages(server, "ses_1", requestFn), messages);
+    assert.deepEqual(await getSessionMessages(server, "ses_1", async () => ({ status: 200 })), []);
   });
 
-  test("returns null for a session with no assistant messages and throws on a failed read", async () => {
-    assert.equal(
-      await getNewestAssistantMessage(server, "ses_1", async () => ({
-        status: 200,
-        body: { data: [{ type: "user", text: "check" }] },
-      })),
-      null,
-    );
-    await assert.rejects(
-      () => getNewestAssistantMessage(server, "ses_1", async () => ({ status: 500 })),
-      /returned 500/,
-    );
+  test("throws on a failed read", async () => {
+    await assert.rejects(() => getSessionMessages(server, "ses_1", async () => ({ status: 500 })), /returned 500/);
   });
 });
 
@@ -982,6 +965,7 @@ describe("runLoopTick", () => {
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 7_999,
       getInbox: async () => [],
+      getMessages: async () => [],
       injectPrompt: async (sessionID, text, delivery) => {
         calls.push({ sessionID, text, delivery });
       },
@@ -1069,7 +1053,7 @@ describe("runLoopTick", () => {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
       getInbox: async () => [{ id: "inb_1", delivery: "queue", payload: { text: "check" } }],
-      getNewestAssistantMessage: () => {
+      getMessages: () => {
         throw new Error("must not read messages while the prompt is pending");
       },
       injectPrompt: () => {
@@ -1086,24 +1070,32 @@ describe("runLoopTick", () => {
   test("an injection answered only by an error-finish turn backs off, then probes again", async () => {
     const state = {};
     const calls = [];
-    let newest = null;
+    let messages = [];
+    let nextID = 0;
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
       getInbox: async () => [],
-      getNewestAssistantMessage: async () => newest,
-      injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
+      getMessages: async () => messages,
+      injectPrompt: async (sessionID, text, delivery) => {
+        calls.push(delivery);
+        nextID += 1;
+        return { data: { id: `usr_${nextID}` } };
+      },
       onOutcome: () => {},
       now: () => 10_000,
       state,
     };
 
-    // Tick 1: first injection.
+    // Tick 1: first injection, anchored on the admitted input's ID.
     assert.deepEqual(await runLoopTick(entry, deps), { outcome: "injected", reason: "idle" });
-    assert.deepEqual(state.lastInjection, { at: 10_000, evaluated: false });
+    assert.deepEqual(state.lastInjection, { id: "usr_1", at: 10_000, evaluated: false });
 
     // The injected turn fails instantly (network down, quota exhausted...).
-    newest = { type: "assistant", finish: "error", time: { created: 10_500 } };
+    messages = [
+      { id: "as_1", type: "assistant", finish: "error", time: { created: 10_500 } },
+      { id: "usr_1", type: "user", text: "check" },
+    ];
 
     // Tick 2: the failed probe is detected once and starts the backoff.
     assert.deepEqual(await runLoopTick(entry, deps), {
@@ -1127,12 +1119,15 @@ describe("runLoopTick", () => {
   });
 
   test("consecutive failed probes double the backoff up to its cap", async () => {
-    const state = { lastInjection: { at: 10_000, evaluated: false }, backoffLevel: 2 };
+    const state = { lastInjection: { id: "usr_1", at: 10_000, evaluated: false }, backoffLevel: 2 };
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
       getInbox: async () => [],
-      getNewestAssistantMessage: async () => ({ type: "assistant", finish: "error", time: { created: 10_500 } }),
+      getMessages: async () => [
+        { id: "as_1", type: "assistant", finish: "error", time: { created: 10_500 } },
+        { id: "usr_1", type: "user", text: "check" },
+      ],
       injectPrompt: () => {
         throw new Error("must not inject while backing off");
       },
@@ -1150,7 +1145,7 @@ describe("runLoopTick", () => {
 
     // A fourth consecutive failure stays at the cap.
     state.backoffSkips = 0;
-    state.lastInjection = { at: 10_000, evaluated: false };
+    state.lastInjection = { id: "usr_1", at: 10_000, evaluated: false };
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "skipped",
       reason: "failed-probe",
@@ -1160,13 +1155,16 @@ describe("runLoopTick", () => {
   });
 
   test("a successful turn after an injection ends the backoff and injects normally", async () => {
-    const state = { lastInjection: { at: 10_000, evaluated: false }, backoffLevel: 3, backoffSkips: 5 };
+    const state = { lastInjection: { id: "usr_1", at: 10_000, evaluated: false }, backoffLevel: 3, backoffSkips: 5 };
     const calls = [];
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
       getInbox: async () => [],
-      getNewestAssistantMessage: async () => ({ type: "assistant", finish: "stop", time: { created: 10_500 } }),
+      getMessages: async () => [
+        { id: "as_1", type: "assistant", finish: "stop", time: { created: 10_500 } },
+        { id: "usr_1", type: "user", text: "check" },
+      ],
       injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
       onOutcome: () => {},
       now: () => 20_000,
@@ -1179,14 +1177,14 @@ describe("runLoopTick", () => {
     assert.deepEqual(calls, ["queue"]);
   });
 
-  test("an error-finish turn older than the injection does not trigger the backoff", async () => {
+  test("with only timestamp anchoring, an error turn older than the injection does not trigger the backoff", async () => {
     const state = { lastInjection: { at: 10_000, evaluated: false } };
     const calls = [];
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
       getInbox: async () => [],
-      getNewestAssistantMessage: async () => ({ type: "assistant", finish: "error", time: { created: 9_000 } }),
+      getMessages: async () => [{ id: "as_1", type: "assistant", finish: "error", time: { created: 9_000 } }],
       injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
       onOutcome: () => {},
       now: () => 20_000,
@@ -1198,16 +1196,15 @@ describe("runLoopTick", () => {
   });
 
   test("a busy target whose probe is still in flight leaves the backoff and the evaluation untouched", async () => {
-    const state = { lastInjection: { at: 9_000, evaluated: false }, backoffLevel: 3 };
+    const state = { lastInjection: { id: "usr_1", at: 9_000, evaluated: false }, backoffLevel: 3 };
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 9_500,
-      getNewestAssistantMessage: async () => ({
-        type: "assistant",
-        time: { created: 9_100 },
-        content: [{ type: "text", text: "..." }],
-      }),
+      getMessages: async () => [
+        { id: "as_1", type: "assistant", time: { created: 9_100 }, content: [{ type: "text", text: "..." }] },
+        { id: "usr_1", type: "user", text: "check" },
+      ],
       injectPrompt: () => {
         throw new Error("must not inject into a busy target");
       },
@@ -1218,23 +1215,23 @@ describe("runLoopTick", () => {
 
     assert.deepEqual(result, { outcome: "busy", lastActivity: 9_500 });
     assert.equal(state.backoffLevel, 3, "an unresolved probe must not reset the backoff");
-    assert.equal(state.lastInjection.evaluated, false, "an in-flight turn yields no verdict");
+    assert.equal(state.lastInjection.evaluated, false, "an in-flight responding turn yields no verdict");
   });
 
   test("a busy target whose probe finished as an error engages the backoff without waiting for idle", async () => {
     // The slow-failure chain: the probe turn errors and follow-up activity
     // keeps the session active, so the target is never observed idle. The
-    // busy path itself must classify the finished error turn.
-    const state = { lastInjection: { at: 9_000, evaluated: false } };
+    // busy path itself must classify the finished responding turn.
+    const state = { lastInjection: { id: "usr_1", at: 9_000, evaluated: false } };
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 9_500,
-      getNewestAssistantMessage: async () => ({
-        type: "assistant",
-        finish: "error",
-        time: { created: 9_400 },
-      }),
+      getMessages: async () => [
+        { id: "as_2", type: "assistant", time: { created: 9_600 } },
+        { id: "as_1", type: "assistant", finish: "error", time: { created: 9_400 } },
+        { id: "usr_1", type: "user", text: "check" },
+      ],
       injectPrompt: () => {
         throw new Error("must not inject into a busy target");
       },
@@ -1246,13 +1243,44 @@ describe("runLoopTick", () => {
     assert.deepEqual(result, { outcome: "skipped", reason: "failed-probe", level: 1, skips: 1 });
   });
 
+  test("an unrelated turn that started during the admission round trip is never classified as the probe", async () => {
+    // A concurrent prompt can start — and fail — while the probe's admission
+    // round trip is still in flight. ID anchoring attributes only the turn
+    // that actually responded to the injected input.
+    const state = { lastInjection: { id: "usr_9", at: 10_000, evaluated: false }, backoffLevel: 0 };
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getMessages: async () => [
+        // Newest first: our input was delivered, but no turn has responded
+        // to it yet; the newest *finished* turn is an unrelated failure
+        // from after the injection timestamp.
+        { id: "usr_9", type: "user", text: "check" },
+        { id: "as_5", type: "assistant", finish: "error", time: { created: 10_010 } },
+        { id: "usr_5", type: "user", text: "unrelated" },
+      ],
+      getInbox: async () => [],
+      injectPrompt: () => {
+        throw new Error("must not inject while the probe's response is pending");
+      },
+      onOutcome: () => {},
+      now: () => 20_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "skipped", reason: "awaiting-response", lastActivity: 5_000 });
+    assert.equal(state.backoffLevel, 0, "an unrelated failure must not engage the backoff");
+    assert.equal(state.lastInjection.evaluated, false);
+  });
+
   test("a failed evaluation read does not consume the evaluation", async () => {
-    const state = { lastInjection: { at: 9_000, evaluated: false } };
+    const state = { lastInjection: { id: "usr_1", at: 9_000, evaluated: false } };
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
       getInbox: async () => [],
-      getNewestAssistantMessage: async () => {
+      getMessages: async () => {
         throw new Error("message read failed");
       },
       injectPrompt: () => {
@@ -1267,7 +1295,10 @@ describe("runLoopTick", () => {
     assert.equal(state.lastInjection.evaluated, false, "a failed read must leave the probe evaluable");
 
     // The next tick, with the read working again, classifies the probe.
-    deps.getNewestAssistantMessage = async () => ({ type: "assistant", finish: "error", time: { created: 9_500 } });
+    deps.getMessages = async () => [
+      { id: "as_1", type: "assistant", finish: "error", time: { created: 9_500 } },
+      { id: "usr_1", type: "user", text: "check" },
+    ];
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "skipped",
       reason: "failed-probe",
@@ -1278,22 +1309,25 @@ describe("runLoopTick", () => {
 
   test("a turn failing during the admission round trip is still classified as a failed probe", async () => {
     // The server admits and schedules without joining execution, so a fast
-    // failure can complete before the injection call resolves. The
-    // injection marker must predate admission, or such failures would
-    // forever evade classification.
+    // failure can complete before the injection call resolves. ID anchoring
+    // attributes it regardless of timestamps.
     let clock = 10_000;
-    let newest = null;
+    let messages = [];
     const state = {};
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => false,
       getInbox: async () => [],
-      getNewestAssistantMessage: async () => newest,
+      getMessages: async () => messages,
       injectPrompt: async () => {
         // The admission round trip takes 50ms, during which the scheduled
         // turn starts and fails instantly.
-        newest = { type: "assistant", finish: "error", time: { created: clock + 10 } };
+        messages = [
+          { id: "as_1", type: "assistant", finish: "error", time: { created: clock + 10 } },
+          { id: "usr_1", type: "user", text: "check" },
+        ];
         clock += 50;
+        return { data: { id: "usr_1" } };
       },
       onOutcome: () => {},
       now: () => clock,
@@ -1301,7 +1335,7 @@ describe("runLoopTick", () => {
     };
 
     assert.deepEqual(await runLoopTick(entry, deps), { outcome: "injected", reason: "idle" });
-    assert.equal(state.lastInjection.at, 10_000, "the marker must predate the admission round trip");
+    assert.equal(state.lastInjection.at, 10_000, "the fallback marker must predate the admission round trip");
 
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "skipped",
@@ -1311,37 +1345,45 @@ describe("runLoopTick", () => {
     });
   });
 
-  test("a stale target during a backoff window still receives the steer that arms dead-stream recovery", async () => {
-    const calls = [];
+  test("a stale steer is gated by the backoff", async () => {
+    // Steering a stale target is an injection like any other: during a
+    // skip window it is suppressed — hung-target recovery does not depend
+    // on it, because the dead-stream interrupt fires directly.
     const state = { backoffSkips: 5, backoffLevel: 3 };
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 5_000,
       getInbox: async () => [],
-      injectPrompt: async (sessionID, text, delivery) => calls.push(delivery),
+      getMessages: async () => [],
+      injectPrompt: () => {
+        throw new Error("must not inject during backoff");
+      },
       onOutcome: () => {},
       now: () => 10_000,
       state,
     });
 
-    assert.deepEqual(result, { outcome: "injected", reason: "stale-running", lastActivity: 5_000 });
-    assert.deepEqual(calls, ["steer"]);
-    assert.equal(state.backoffSkips, 5, "the steer must not consume a backoff skip");
+    assert.deepEqual(result, { outcome: "skipped", reason: "backoff", remaining: 4 });
   });
 
-  test("the dead-stream interrupt still fires during a backoff window", async () => {
+  test("the dead-stream interrupt fires with no pending steer, even during a backoff window", async () => {
     const interrupts = [];
     const state = { backoffSkips: 5, backoffLevel: 3 };
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 5_000,
-      getInbox: async () => [{ id: "inb_1", delivery: "steer", payload: { text: "check" } }],
-      getNewestAssistantMessage: async () => ({
-        type: "assistant",
-        content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
-      }),
+      getInbox: () => {
+        throw new Error("the dead-stream check must not depend on the inbox");
+      },
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
+        },
+      ],
       injectPrompt: () => {
         throw new Error("must not inject during backoff");
       },
@@ -1356,20 +1398,22 @@ describe("runLoopTick", () => {
     assert.equal(state.backoffSkips, 5, "escalation must not consume a backoff skip");
   });
 
-  test("a stale target with an unconsumed steer and a dead stream is interrupted, not steered again", async () => {
+  test("a stale target with a dead stream is interrupted, not steered", async () => {
     const interrupts = [];
     const outcomes = [];
     const result = await runLoopTick(entry, {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 5_000,
-      getInbox: async () => [{ id: "inb_1", delivery: "steer", payload: { text: "check" } }],
-      getNewestAssistantMessage: async () => ({
-        type: "assistant",
-        content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
-      }),
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
+        },
+      ],
       injectPrompt: () => {
-        throw new Error("must not duplicate the pending steer");
+        throw new Error("must not inject into a dead-stream target");
       },
       interruptSession: async (server, sessionID) => interrupts.push(sessionID),
       onOutcome: (outcome) => outcomes.push(outcome),
@@ -1387,10 +1431,13 @@ describe("runLoopTick", () => {
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 5_000,
       getInbox: async () => [{ id: "inb_1", delivery: "steer", payload: { text: "check" } }],
-      getNewestAssistantMessage: async () => ({
-        type: "assistant",
-        content: [{ type: "tool", name: "shell", state: { status: "running" } }],
-      }),
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "shell", state: { status: "running" } }],
+        },
+      ],
       injectPrompt: () => {
         throw new Error("must not duplicate the pending steer");
       },
@@ -1411,6 +1458,7 @@ describe("runLoopTick", () => {
       isSessionActive: async () => true,
       getSessionUpdatedAt: async () => 5_000,
       getInbox: async () => [{ id: "inb_1", delivery: "queue", payload: { text: "check" } }],
+      getMessages: async () => [],
       injectPrompt: () => {
         throw new Error("must not duplicate the parked prompt");
       },
@@ -1421,6 +1469,32 @@ describe("runLoopTick", () => {
 
     assert.deepEqual(result, { outcome: "promoted", reason: "stale-running", lastActivity: 5_000 });
     assert.deepEqual(promotions, [{ sessionID: "ses_target", inboxID: "inb_1" }]);
+  });
+
+  test("a stale target whose probe response is still in flight is not steered on top", async () => {
+    // The slow-failure chain's steady state: the previous steer was
+    // consumed and its responding turn is failing slowly. Re-steering here
+    // is what floods; the tick waits for the responding turn's verdict.
+    const state = { lastInjection: { id: "usr_1", at: 4_000, evaluated: false } };
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        { id: "as_1", type: "assistant", time: { created: 4_100 }, content: [] },
+        { id: "usr_1", type: "user", text: "check" },
+      ],
+      injectPrompt: () => {
+        throw new Error("must not steer while the probe's response is in flight");
+      },
+      onOutcome: () => {},
+      now: () => 10_000,
+      state,
+    });
+
+    assert.deepEqual(result, { outcome: "skipped", reason: "awaiting-response", lastActivity: 5_000 });
+    assert.equal(state.lastInjection.evaluated, false);
   });
 });
 
