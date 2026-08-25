@@ -36,7 +36,6 @@ import plugin, {
 
 /** Well-known globalThis symbols the module keys its singletons under. */
 const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
-const NOTIFIED_CHILDREN_KEY = Symbol.for("radical-pipelines.opencode.notifiedChildren");
 const LOOP_TIMERS_KEY = Symbol.for("radical-pipelines.opencode.loopTimers");
 const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
 const LOOP_TICK_LOG_KEY = Symbol.for("radical-pipelines.opencode.loopTickLog");
@@ -355,6 +354,7 @@ describe("rp_spawn", () => {
     assert.match(initialPrompt.text, /\*\*Spawner identifier:\*\* ses_orchestrator/);
     assert.match(initialPrompt.text, /`rp_send`/);
     assert.match(initialPrompt.text, /Requester identifier.*otherwise.*Spawner identifier/s);
+    assert.match(initialPrompt.text, /for what your profile addresses to your requester/);
   });
 
   test("appendSpawnProtocol preserves the caller prompt and uses the authoritative runtime spawner ID", () => {
@@ -1251,21 +1251,21 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
   });
 });
 
-describe("completion listener (first-terminal-event-only notification)", () => {
+describe("terminal-event listener", () => {
   beforeEach(() => {
     delete globalThis[SETUP_ONCE_KEY];
   });
 
   afterEach(clearAllLoopTimers);
 
-  test("notifies the spawner on the child's first terminal event only; a second terminal event on the same child produces no additional notification", async () => {
+  test("a succeeded terminal event produces no spawner notification; every failed terminal event announces the failure", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, pushEvent, sessions } = fakeCtx;
     sessions.set("ses_spawner_evt", { id: "ses_spawner_evt" });
     sessions.set("ses_child_evt", { id: "ses_child_evt" });
     recordSpawn("ses_child_evt", {
       name: "worker",
-      run: "144-opencode-support",
+      run: "258-agent-declared-completion",
       spawner: "ses_spawner_evt",
     });
 
@@ -1284,62 +1284,61 @@ describe("completion listener (first-terminal-event-only notification)", () => {
 
     pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_evt" } });
     await delay(10);
-    assert.equal(promptCalls.length, 1);
-    assert.equal(promptCalls[0].sessionID, "ses_spawner_evt");
-    assert.equal(promptCalls[0].delivery, "queue");
+    assert.equal(
+      promptCalls.length,
+      0,
+      "a successful turn is not a completion signal and must not notify the spawner",
+    );
 
     pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_evt" } });
     await delay(10);
-    assert.equal(
-      promptCalls.length,
-      1,
-      "a second terminal event on the same child must not notify the spawner again",
-    );
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_evt" } });
+    await delay(10);
+    assert.equal(promptCalls.length, 2, "every failed turn must be announced, not just the first");
+    for (const call of promptCalls) {
+      assert.equal(call.sessionID, "ses_spawner_evt");
+      assert.equal(call.delivery, "queue");
+      assert.match(call.text, /worker \(ses_child_evt\) failed a turn/);
+      assert.doesNotMatch(call.text, /succeeded/i);
+    }
   });
 
-  test("the notification text conveys the terminal outcome, distinguishing succeeded from failed", async () => {
+  test("re-asserts the child's durable rp: title on its first terminal event only", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, pushEvent, sessions } = fakeCtx;
-    sessions.set("ses_spawner_outcome", { id: "ses_spawner_outcome" });
-    sessions.set("ses_child_ok", { id: "ses_child_ok" });
-    sessions.set("ses_child_bad", { id: "ses_child_bad" });
-    recordSpawn("ses_child_ok", {
-      name: "worker-ok",
-      run: "144-opencode-support",
-      spawner: "ses_spawner_outcome",
-    });
-    recordSpawn("ses_child_bad", {
-      name: "worker-bad",
-      run: "144-opencode-support",
-      spawner: "ses_spawner_outcome",
+    sessions.set("ses_spawner_title", { id: "ses_spawner_title" });
+    sessions.set("ses_child_title", { id: "ses_child_title" });
+    recordSpawn("ses_child_title", {
+      name: "worker-title",
+      run: "258-agent-declared-completion",
+      spawner: "ses_spawner_title",
     });
 
-    const promptCalls = [];
-    ctx.session.prompt = async (args) => {
-      promptCalls.push(args);
-      return args;
-    };
-
-    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
-
-    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_ok" } });
-    await delay(10);
-    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_bad" } });
-    await delay(10);
-
-    assert.equal(promptCalls.length, 2);
-    assert.match(
-      promptCalls[0].text,
-      /succeeded/i,
-      `expected the succeeded outcome in the text, got: ${promptCalls[0].text}`,
+    const renames = [];
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          renames.push({ url, init });
+          return { status: 204, body: undefined };
+        },
+      }),
     );
-    assert.doesNotMatch(promptCalls[0].text, /failed/i);
-    assert.match(
-      promptCalls[1].text,
-      /failed/i,
-      `expected the failed outcome in the text, got: ${promptCalls[1].text}`,
+
+    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_title" } });
+    await delay(10);
+    assert.equal(renames.length, 1);
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title/rename");
+    assert.equal(
+      renames[0].init.body,
+      JSON.stringify({ title: "rp:258-agent-declared-completion:worker-title" }),
     );
-    assert.doesNotMatch(promptCalls[1].text, /succeeded/i);
+
+    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_title" } });
+    await delay(10);
+    assert.equal(renames.length, 1, "a later terminal event must not re-assert the title again");
   });
 
   test("a successful terminal event does not enter the recent-errors log", async () => {

@@ -17,6 +17,8 @@ Before reporting completion, confirm every research or decision request you made
 
 Your prompt's `## Conventions` block includes your **Worktree path** (absolute) and **Branch name**: all your writes and commits land inside that worktree, on that branch. Before your first write, verify that your working directory is under the worktree path and that `HEAD` equals the branch name; on mismatch, stop and report — never change directory or switch branches to fix it.
 
+When you finish your work and have no more work left to do, declare your completion with the exact statement "Completion declared: no work remains." — at the end of your final report, or as its own message to your spawner when that report goes to a requester.
+
 ## How you work
 
 - **Design decisions realize the spec's outcomes.** Each topic you work produces a decision about how the feature will be built — approach, components, interfaces, data flow, mechanism — and serves a specific spec requirement or acceptance criterion. A topic that traces to nothing in the spec is a sign you are designing something that wasn't asked for.

@@ -1,5 +1,5 @@
 /**
- * Spawn, seat, identifier, and completion-notification mechanics, and
+ * Spawn, seat, identifier, and durable-title mechanics, and
  * directed messaging in both directions (including the message-failure
  * chain's send-time and lingering-delivery stages), and session termination,
  * driven against the sandbox's running `serve` process via the plugin's real
@@ -87,33 +87,35 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "the spawner receives a completion notification and the child's durable title wins the auto-title race",
+    "a successful first turn asserts the child's durable title without notifying the spawner",
     async () => {
       // The child's own first turn (its initial "say hello" prompt, posted
       // by rp_spawn) runs against the stub with no directive, so it
-      // completes as a plain turn — triggering the completion listener's
-      // first-terminal-event notification and title re-assert.
+      // completes as a plain turn — triggering the terminal-event listener's
+      // title re-assert.
       await waitForAssistantFinish(server, childID, "stop");
 
-      await pollUntil(
-        () => getSessionMessagesContaining(server, orchestrator.id, `${childID}) succeeded on its first turn.`),
-        { timeoutMs: 20_000, label: "the spawner to receive a completion notification naming the child" },
-      );
-
-      // The rename call is the very next awaited step after the spawner
-      // notification in the listener, but is still a separate async hop —
-      // poll briefly rather than asserting on a single immediate read.
       const title = await pollUntil(
         async () => {
           const child = await getSession(server, childID);
           return child.title === "rp:suite-run:suite-child" ? child.title : undefined;
         },
-        { timeoutMs: 5_000, label: "the child's durable rp: title to win the auto-title race" },
+        { timeoutMs: 20_000, label: "the child's durable rp: title to win the auto-title race" },
       );
       assert.equal(
         title,
         "rp:suite-run:suite-child",
         "expected the child's durable rp: title to win over opencode's own auto-title",
+      );
+
+      // A successful turn is not a completion signal: the spawner must not
+      // have been told the child succeeded. The title re-assert above
+      // happens after the point where the old notification was sent, so by
+      // now an erroneous notification would have been admitted.
+      const messages = await getMessages(server, orchestrator.id);
+      assert.ok(
+        !messages.some((m) => m.type === "user" && m.text?.includes(`${childID}) succeeded`)),
+        "a successful turn must not produce a spawner notification",
       );
     },
   );

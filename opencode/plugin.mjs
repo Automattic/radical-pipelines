@@ -236,7 +236,7 @@ function formatAttribution(sender) {
  * @returns {string} The original prompt followed by the runtime protocol.
  */
 function appendSpawnProtocol(prompt, spawnerID) {
-  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** when your prompt provides one; otherwise use the **Spawner identifier** above.`;
+  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** for what your profile addresses to your requester; otherwise use the **Spawner identifier** above.`;
 }
 
 /** Prefix marking a session title as an RP-managed, reconstructible one. */
@@ -961,31 +961,30 @@ async function buildStatusPayload({
 }
 
 /**
- * `globalThis` key backing the process-wide set of child session IDs already
- * notified to their spawner.
+ * `globalThis` key backing the process-wide set of child session IDs whose
+ * durable `rp:` title has been asserted.
  *
- * Enforces "notify on the first terminal event only" across every
- * per-directory `setup(ctx)` re-run, the same way `LEDGER_KEY` shares the
- * spawn ledger.
+ * Enforces "re-assert the title once per child" across every per-directory
+ * `setup(ctx)` re-run, the same way `LEDGER_KEY` shares the spawn ledger.
  */
-const NOTIFIED_CHILDREN_KEY = Symbol.for("radical-pipelines.opencode.notifiedChildren");
+const TITLED_CHILDREN_KEY = Symbol.for("radical-pipelines.opencode.titledChildren");
 
 /**
- * Fetch the process-wide set of already-notified child session IDs,
- * creating it on first use.
+ * Fetch the process-wide set of already-titled child session IDs, creating
+ * it on first use.
  *
  * @returns {Set<string>} The singleton set.
  */
-function getNotifiedChildren() {
-  if (!globalThis[NOTIFIED_CHILDREN_KEY]) {
-    globalThis[NOTIFIED_CHILDREN_KEY] = new Set();
+function getTitledChildren() {
+  if (!globalThis[TITLED_CHILDREN_KEY]) {
+    globalThis[TITLED_CHILDREN_KEY] = new Set();
   }
-  return globalThis[NOTIFIED_CHILDREN_KEY];
+  return globalThis[TITLED_CHILDREN_KEY];
 }
 
 /**
  * `globalThis` key backing the bounded, in-memory recent-errors ring the
- * completion listener and loop scheduler append to.
+ * terminal-event listener and loop scheduler append to.
  */
 const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
 
@@ -1031,7 +1030,7 @@ function recordLoopTick(entry) {
   );
 }
 
-/** Event types the completion listener treats as terminal for a session. */
+/** Event types the terminal-event listener treats as terminal for a session. */
 const TERMINAL_EVENT_TYPES = new Set([
   "session.execution.succeeded",
   "session.execution.failed",
@@ -1089,18 +1088,16 @@ function formatStructuredError(error) {
 }
 
 /**
- * Handle one event delivered to the completion listener.
+ * Handle one event delivered to the terminal-event listener.
  *
  * Ignores non-terminal events and terminal events on sessions RP did not
- * spawn. For a recognized child's terminal event: always records it in the
- * bounded error log when it failed, including the structured error it
- * carries, so `rp_status`'s `recentErrors` reports the cause. Routine success
- * events stay out of that log. On the child's *first* terminal event only,
- * notifies the spawner (queue delivery) and re-asserts the child's durable
- * `rp:` title over the reach helper. The notification text names the terminal
- * outcome — "succeeded" or "failed" — so a first-turn spawn failure reads as
- * a failure rather than as a false success, and a failure notification carries
- * the structured error's cause.
+ * spawn. A successful turn is not a completion signal — an agent declares
+ * its own completion in a message to its spawner — so success events pass
+ * silently. Every failed turn is recorded in the bounded error log
+ * (including the structured error it carries, so `rp_status`'s
+ * `recentErrors` reports the cause) and announced to the spawner (queue
+ * delivery) with that cause. The child's durable `rp:` title is re-asserted
+ * over the reach helper on its first terminal event.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
  * @param {{
@@ -1108,8 +1105,8 @@ function formatStructuredError(error) {
  *   env: Record<string, string | undefined>,
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- * }} deps `ctx` supplies `ctx.session.prompt` for the notification; the rest
- *   resolve the server for the title re-assert.
+ * }} deps `ctx` supplies `ctx.session.prompt` for the failure announcement;
+ *   the rest resolve the server for the title re-assert.
  * @returns {Promise<void>}
  */
 async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }) {
@@ -1122,32 +1119,26 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
     return;
   }
 
-  const error = terminalEventError(event);
   if (event.type === "session.execution.failed") {
+    const error = terminalEventError(event);
     const logEntry = { type: event.type, sessionID, at: Date.now() };
     if (error !== undefined) {
       logEntry.error = error;
     }
     recordError(logEntry);
+
+    const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
+    await ctx.session.prompt({
+      sessionID: entry.spawner,
+      text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
+      delivery: "queue",
+    });
   }
 
-  const notified = getNotifiedChildren();
-  if (notified.has(sessionID)) {
+  const titled = getTitledChildren();
+  if (titled.has(sessionID)) {
     return;
   }
-  notified.add(sessionID);
-
-  const outcome = event.type === "session.execution.succeeded" ? "succeeded" : "failed";
-  const cause =
-    outcome === "failed" && error !== undefined
-      ? ` Cause: ${formatStructuredError(error)}`
-      : "";
-  await ctx.session.prompt({
-    sessionID: entry.spawner,
-    text: `[rp] ${entry.name} (${sessionID}) ${outcome} on its first turn.${cause}`,
-    delivery: "queue",
-  });
-
   const server = resolveServer({ env, readServiceRecord });
   if (server) {
     await requestServer(
@@ -1157,6 +1148,7 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
       { title: formatTitle({ run: entry.run, name: entry.name }) },
       requestFn,
     );
+    titled.add(sessionID);
   }
 }
 
@@ -2366,14 +2358,14 @@ function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVer
 
 /**
  * `globalThis` key guarding the plugin's global, process-wide concerns —
- * the completion listener's `ctx.event.subscribe` and the loop registry's
+ * the terminal-event listener's `ctx.event.subscribe` and the loop registry's
  * re-arm-at-setup — so they run exactly once across every per-directory
  * `setup(ctx)` re-run within one daemon process.
  */
 const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
 
 /**
- * Drive the completion listener from opencode's event stream.
+ * Drive the plugin's event listeners from opencode's event stream.
  *
  * `ctx.event.subscribe()` takes no handler argument — it returns an
  * `AsyncIterable` that must itself be consumed with `for await`; it is not a
@@ -2397,7 +2389,7 @@ async function consumeEvents(ctx, onEvent) {
  *
  * Registers the eight coordination tools and the packaged skill source on
  * every call (opencode re-runs `setup` once per directory scope); guards the
- * completion listener's event subscription and the loop registry's re-arm
+ * terminal-event listener's subscription and the loop registry's re-arm
  * behind `SETUP_ONCE_KEY` so they run exactly once per daemon process.
  * Materializes the agent profiles on every call, recording any collision
  * with a pre-existing, non-RP-owned agent file to the bounded error log
