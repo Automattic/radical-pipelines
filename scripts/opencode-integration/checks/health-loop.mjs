@@ -149,43 +149,46 @@ export async function run(ctx) {
       );
       const backoffLoopID = startResult.structuredJSON.id;
 
-      // A failed-probe tick at level >= 2 proves the full escalation cycle:
-      // inject -> fail -> classify -> skip -> re-inject -> fail -> escalate.
-      const ticks = await pollUntil(
-        async () => {
-          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-          const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-            (tick) => tick.loopID === backoffLoopID,
-          );
-          return observed.some(
-            (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
-          )
-            ? observed
-            : undefined;
-        },
-        { timeoutMs: 30_000, intervalMs: 400, label: "an escalated (level >= 2) failed-probe tick" },
-      );
+      try {
 
-      assert.ok(
-        ticks.some((tick) => tick.outcome === "injected" && tick.reason === "idle"),
-        `expected at least one probe injection, got: ${JSON.stringify(ticks)}`,
-      );
-      assert.ok(
-        ticks.some((tick) => tick.outcome === "skipped" && tick.reason === "backoff"),
-        `expected backoff skips between probes, got: ${JSON.stringify(ticks)}`,
-      );
-      const injections = ticks.filter((tick) => tick.outcome === "injected").length;
-      assert.ok(
-        injections <= 3,
-        `expected the backoff to rate-limit probes (max 3 injections before level 2), got ${injections}: ${JSON.stringify(ticks)}`,
-      );
+        // A failed-probe tick at level >= 2 proves the full escalation cycle:
+        // inject -> fail -> classify -> skip -> re-inject -> fail -> escalate.
+        const ticks = await pollUntil(
+          async () => {
+            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+              (tick) => tick.loopID === backoffLoopID,
+            );
+            return observed.some(
+              (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
+            )
+              ? observed
+              : undefined;
+          },
+          { timeoutMs: 30_000, intervalMs: 400, label: "an escalated (level >= 2) failed-probe tick" },
+        );
 
-      const cancelResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_cancel({id: ${JSON.stringify(backoffLoopID)}});`,
-      );
-      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+        assert.ok(
+          ticks.some((tick) => tick.outcome === "injected" && tick.reason === "idle"),
+          `expected at least one probe injection, got: ${JSON.stringify(ticks)}`,
+        );
+        assert.ok(
+          ticks.some((tick) => tick.outcome === "skipped" && tick.reason === "backoff"),
+          `expected backoff skips between probes, got: ${JSON.stringify(ticks)}`,
+        );
+        const injections = ticks.filter((tick) => tick.outcome === "injected").length;
+        assert.ok(
+          injections <= 3,
+          `expected the backoff to rate-limit probes (max 3 injections before level 2), got ${injections}: ${JSON.stringify(ticks)}`,
+        );
+
+      } finally {
+        await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(backoffLoopID)}});`,
+        ).catch(() => {});
+      }
     },
   );
 
@@ -209,38 +212,41 @@ export async function run(ctx) {
       );
       const recordlessLoopID = startResult.structuredJSON.id;
 
-      const ticks = await pollUntil(
-        async () => {
-          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-          const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-            (tick) => tick.loopID === recordlessLoopID,
-          );
-          return observed.some(
-            (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
-          )
-            ? observed
-            : undefined;
-        },
-        { timeoutMs: 30_000, intervalMs: 400, label: "an escalated failed-probe tick with no assistant records" },
-      );
+      try {
 
-      const injections = ticks.filter((tick) => tick.outcome === "injected").length;
-      assert.ok(
-        injections <= 3,
-        `expected the no-response rule to rate-limit probes, got ${injections}: ${JSON.stringify(ticks)}`,
-      );
-      const transcript = await getMessages(server, recordless.id);
-      assert.ok(
-        !transcript.some((message) => message.type === "assistant"),
-        "the repro requires that no assistant record was ever produced",
-      );
+        const ticks = await pollUntil(
+          async () => {
+            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+              (tick) => tick.loopID === recordlessLoopID,
+            );
+            return observed.some(
+              (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
+            )
+              ? observed
+              : undefined;
+          },
+          { timeoutMs: 30_000, intervalMs: 400, label: "an escalated failed-probe tick with no assistant records" },
+        );
 
-      const cancelResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_cancel({id: ${JSON.stringify(recordlessLoopID)}});`,
-      );
-      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+        const injections = ticks.filter((tick) => tick.outcome === "injected").length;
+        assert.ok(
+          injections <= 3,
+          `expected the no-response rule to rate-limit probes, got ${injections}: ${JSON.stringify(ticks)}`,
+        );
+        const transcript = await getMessages(server, recordless.id);
+        assert.ok(
+          !transcript.some((message) => message.type === "assistant"),
+          "the repro requires that no assistant record was ever produced",
+        );
+
+      } finally {
+        await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(recordlessLoopID)}});`,
+        ).catch(() => {});
+      }
     },
   );
 
@@ -267,33 +273,36 @@ export async function run(ctx) {
       );
       const slowLoopID = startResult.structuredJSON.id;
 
-      const ticks = await pollUntil(
-        async () => {
-          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-          const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-            (tick) => tick.loopID === slowLoopID,
-          );
-          return observed.some(
-            (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
-          )
-            ? observed
-            : undefined;
-        },
-        { timeoutMs: 40_000, intervalMs: 400, label: "an escalated failed-probe tick under slow failures" },
-      );
+      try {
 
-      const injections = ticks.filter((tick) => tick.outcome === "injected" || tick.outcome === "promoted").length;
-      assert.ok(
-        injections <= 3,
-        `expected slow failures to back off, not chain (max 3 injections before level 2), got ${injections}: ${JSON.stringify(ticks)}`,
-      );
+        const ticks = await pollUntil(
+          async () => {
+            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+              (tick) => tick.loopID === slowLoopID,
+            );
+            return observed.some(
+              (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
+            )
+              ? observed
+              : undefined;
+          },
+          { timeoutMs: 40_000, intervalMs: 400, label: "an escalated failed-probe tick under slow failures" },
+        );
 
-      const cancelResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_cancel({id: ${JSON.stringify(slowLoopID)}});`,
-      );
-      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+        const injections = ticks.filter((tick) => tick.outcome === "injected" || tick.outcome === "promoted").length;
+        assert.ok(
+          injections <= 3,
+          `expected slow failures to back off, not chain (max 3 injections before level 2), got ${injections}: ${JSON.stringify(ticks)}`,
+        );
+
+      } finally {
+        await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(slowLoopID)}});`,
+        ).catch(() => {});
+      }
     },
   );
 
@@ -323,45 +332,54 @@ export async function run(ctx) {
       );
       const promoLoopID = startResult.structuredJSON.id;
 
-      const promotedTick = await pollUntil(
-        async () => {
-          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-          return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
-            (tick) => tick.loopID === promoLoopID && tick.outcome === "promoted",
-          );
-        },
-        { timeoutMs: 15_000, intervalMs: 400, label: "a queue-to-steer promotion tick" },
-      );
-      assert.equal(promotedTick.reason, "stale-running");
+      try {
 
-      // Same item, new delivery: the parked copy was converted, not
-      // replaced or duplicated.
-      const promoted = (await getInbox(server, promoTarget.id)).filter(
-        (item) => item.payload?.text === promoMarker,
-      );
-      assert.equal(promoted.length, 1, `expected exactly one pending copy, got: ${JSON.stringify(promoted)}`);
-      assert.equal(promoted[0].id, parked.id, "the promoted item must keep the parked item's inbox ID");
-      assert.equal(promoted[0].delivery, "steer");
+        const promotedTick = await pollUntil(
+          async () => {
+            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
+              (tick) => tick.loopID === promoLoopID && tick.outcome === "promoted",
+            );
+          },
+          { timeoutMs: 15_000, intervalMs: 400, label: "a queue-to-steer promotion tick" },
+        );
+        assert.equal(promotedTick.reason, "stale-running");
 
-      const cancelResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_cancel({id: ${JSON.stringify(promoLoopID)}});`,
-      );
-      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+        // Same item, new delivery: the parked copy was converted, not
+        // replaced or duplicated.
+        const promoted = (await getInbox(server, promoTarget.id)).filter(
+          (item) => item.payload?.text === promoMarker,
+        );
+        assert.equal(promoted.length, 1, `expected exactly one pending copy, got: ${JSON.stringify(promoted)}`);
+        assert.equal(promoted[0].id, parked.id, "the promoted item must keep the parked item's inbox ID");
+        assert.equal(promoted[0].delivery, "steer");
 
-      // The promoted copy delivers exactly once.
-      await pollMessages(
-        server,
-        promoTarget.id,
-        (messages) => messages.find((message) => message.type === "user" && message.text === promoMarker),
-        { timeoutMs: 15_000, label: "the promoted steer to deliver" },
-      );
-      await delay(1_000);
-      const deliveries = (await getMessages(server, promoTarget.id)).filter(
-        (message) => message.type === "user" && message.text === promoMarker,
-      );
-      assert.equal(deliveries.length, 1, `expected a single delivery, got ${deliveries.length}`);
+        const cancelResult = await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(promoLoopID)}});`,
+        );
+        assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+
+        // The promoted copy delivers exactly once.
+        await pollMessages(
+          server,
+          promoTarget.id,
+          (messages) => messages.find((message) => message.type === "user" && message.text === promoMarker),
+          { timeoutMs: 15_000, label: "the promoted steer to deliver" },
+        );
+        await delay(1_000);
+        const deliveries = (await getMessages(server, promoTarget.id)).filter(
+          (message) => message.type === "user" && message.text === promoMarker,
+        );
+        assert.equal(deliveries.length, 1, `expected a single delivery, got ${deliveries.length}`);
+      } finally {
+        await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(promoLoopID)}});`,
+        ).catch(() => {});
+      }
     },
   );
 
@@ -396,53 +414,62 @@ export async function run(ctx) {
       );
       const deadLoopID = startResult.structuredJSON.id;
 
-      let observedTicks = [];
-      const interruptedTick = await pollUntil(
-        async () => {
-          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-          observedTicks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-            (tick) => tick.loopID === deadLoopID,
-          );
-          return observedTicks.find((tick) => tick.outcome === "interrupted" && tick.reason === "dead-stream");
-        },
-        { timeoutMs: 30_000, intervalMs: 400, label: "a dead-stream interrupted tick" },
-      ).catch((error) => {
-        error.message += `; observed ticks: ${JSON.stringify(observedTicks)}`;
-        throw error;
-      });
-      assert.equal(interruptedTick.reason, "dead-stream");
+      try {
 
-      // The interrupt contract: suspicion first, then at least the full
-      // confirmation window (4 s in this sandbox) of observed silence.
-      const suspectedTicks = observedTicks.filter((tick) => tick.reason === "dead-stream-suspected");
-      assert.ok(suspectedTicks.length > 0, "the interrupt must be preceded by an explicit suspicion");
-      const firstSuspectedAt = Math.min(...suspectedTicks.map((tick) => tick.at));
-      assert.ok(
-        interruptedTick.at - firstSuspectedAt >= 3_500,
-        `expected at least the ~4s confirmation window between suspicion (${firstSuspectedAt}) and interrupt (${interruptedTick.at})`,
-      );
+        let observedTicks = [];
+        const interruptedTick = await pollUntil(
+          async () => {
+            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            observedTicks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+              (tick) => tick.loopID === deadLoopID,
+            );
+            return observedTicks.find((tick) => tick.outcome === "interrupted" && tick.reason === "dead-stream");
+          },
+          { timeoutMs: 30_000, intervalMs: 400, label: "a dead-stream interrupted tick" },
+        ).catch((error) => {
+          error.message += `; observed ticks: ${JSON.stringify(observedTicks)}`;
+          throw error;
+        });
+        assert.equal(interruptedTick.reason, "dead-stream");
 
-      // The parked copy — promoted just before the interrupt — must be the
-      // delivery that reaches the freed session: same admitted ID, so the
-      // interrupt stranded nothing.
-      await pollMessages(
-        server,
-        hung.id,
-        (messages) => messages.find((message) => message.type === "user" && message.id === parkedCopy.id),
-        { timeoutMs: 15_000, label: "the parked monitor copy to reach the freed session" },
-      );
-      await pollUntil(
-        async () => (!(await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),
-        { timeoutMs: 15_000, label: "the freed target to return to idle" },
-      );
+        // The interrupt contract: suspicion first, then at least the full
+        // confirmation window (4 s in this sandbox) of observed silence.
+        const suspectedTicks = observedTicks.filter((tick) => tick.reason === "dead-stream-suspected");
+        assert.ok(suspectedTicks.length > 0, "the interrupt must be preceded by an explicit suspicion");
+        const firstSuspectedAt = Math.min(...suspectedTicks.map((tick) => tick.at));
+        assert.ok(
+          interruptedTick.at - firstSuspectedAt >= 3_500,
+          `expected at least the ~4s confirmation window between suspicion (${firstSuspectedAt}) and interrupt (${interruptedTick.at})`,
+        );
 
-      const cancelResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
-      );
-      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
-      await stallTurn;
+        // The parked copy — promoted just before the interrupt — must be the
+        // delivery that reaches the freed session: same admitted ID, so the
+        // interrupt stranded nothing.
+        await pollMessages(
+          server,
+          hung.id,
+          (messages) => messages.find((message) => message.type === "user" && message.id === parkedCopy.id),
+          { timeoutMs: 15_000, label: "the parked monitor copy to reach the freed session" },
+        );
+        await pollUntil(
+          async () => (!(await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),
+          { timeoutMs: 15_000, label: "the freed target to return to idle" },
+        );
+
+        const cancelResult = await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
+        );
+        assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+      } finally {
+        await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
+        ).catch(() => {});
+        await stallTurn;
+      }
     },
   );
 
@@ -450,13 +477,13 @@ export async function run(ctx) {
     results,
     "a healthy slow argument stream is suspected but never interrupted",
     async () => {
-      // Argument chunks trickle in every 250 ms for ~6 s while the
+      // Argument chunks trickle in every 250 ms for ~9 s while the
       // projected transcript stays frozen — the exact shape of a dead
-      // stream, except alive — deliberately *outliving* the 4 s sandbox
-      // confirmation window: only the raw-liveness veto (teed provider
-      // chunks) can protect it past the boundary.
+      // stream, except alive — deliberately *outliving* suspicion plus the
+      // 4 s sandbox confirmation window: only the raw-liveness veto (teed
+      // provider chunks) can protect it past the boundary.
       const trickling = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
-      const trickleTurn = prompt(server, trickling.id, tricklePrompt(250, 24, `trickle-${Date.now()}`), {
+      const trickleTurn = prompt(server, trickling.id, tricklePrompt(250, 36, `trickle-${Date.now()}`), {
         delivery: "steer",
       }).catch(() => {});
       await pollUntil(
@@ -472,49 +499,62 @@ export async function run(ctx) {
       );
       const trickleLoopID = startResult.structuredJSON.id;
 
-      // The suspicion must actually engage (the stream looks dead to the
-      // projection) or this check proves nothing.
-      await pollUntil(
-        async () => {
-          const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-          return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
-            (tick) => tick.loopID === trickleLoopID && tick.reason === "dead-stream-suspected",
-          );
-        },
-        { timeoutMs: 15_000, intervalMs: 300, label: "the healthy trickle to be suspected" },
-      );
+      try {
 
-      // The stream completes on its own; the freed session returns to idle
-      // with a successfully finished turn — never an aborted one.
-      await pollUntil(
-        async () => (!(await getActiveSessionIDs(server)).has(trickling.id) ? true : undefined),
-        { timeoutMs: 25_000, label: "the trickling turn to complete naturally" },
-      );
-      const finished = await pollMessages(
-        server,
-        trickling.id,
-        (messages) =>
-          messages.find((message) => message.type === "assistant" && message.finish && message.finish !== "error"),
-        { timeoutMs: 10_000, label: "the trickling turn's successful finish" },
-      );
-      assert.ok(finished.finish, "the trickled tool call must complete as a normal turn");
+        // The suspicion must actually engage (the stream looks dead to the
+        // projection) or this check proves nothing.
+        await pollUntil(
+          async () => {
+            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
+              (tick) => tick.loopID === trickleLoopID && tick.reason === "dead-stream-suspected",
+            );
+          },
+          { timeoutMs: 15_000, intervalMs: 300, label: "the healthy trickle to be suspected" },
+        );
 
-      const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
-      const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-        (tick) => tick.loopID === trickleLoopID,
-      );
-      assert.ok(
-        !ticks.some((tick) => tick.outcome === "interrupted"),
-        `a healthy stream must never be interrupted, got: ${JSON.stringify(ticks)}`,
-      );
+        // The stream completes on its own; the freed session returns to idle
+        // with a successfully finished turn — never an aborted one.
+        await pollUntil(
+          async () => (!(await getActiveSessionIDs(server)).has(trickling.id) ? true : undefined),
+          { timeoutMs: 25_000, label: "the trickling turn to complete naturally" },
+        );
+        const finished = await pollMessages(
+          server,
+          trickling.id,
+          (messages) =>
+            messages.find((message) => message.type === "assistant" && message.finish && message.finish !== "error"),
+          { timeoutMs: 10_000, label: "the trickling turn's successful finish" },
+        );
+        assert.ok(finished.finish, "the trickled tool call must complete as a normal turn");
 
-      const cancelResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_cancel({id: ${JSON.stringify(trickleLoopID)}});`,
-      );
-      assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
-      await trickleTurn;
+        const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+        const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
+          (tick) => tick.loopID === trickleLoopID,
+        );
+        assert.ok(
+          !ticks.some((tick) => tick.outcome === "interrupted"),
+          `a healthy stream must never be interrupted, got: ${JSON.stringify(ticks)}`,
+        );
+        // The boundary must actually be crossed: the suspicion span has to
+        // exceed the 4 s confirmation window for this check to prove the
+        // veto, not merely outrun the clock.
+        const suspectedAts = ticks
+          .filter((tick) => tick.reason === "dead-stream-suspected")
+          .map((tick) => tick.at);
+        assert.ok(
+          Math.max(...suspectedAts) - Math.min(...suspectedAts) >= 4_000,
+          `expected the suspicion to span the confirmation window, got: ${JSON.stringify(ticks)}`,
+        );
+
+      } finally {
+        await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_cancel({id: ${JSON.stringify(trickleLoopID)}});`,
+        ).catch(() => {});
+        await trickleTurn;
+      }
     },
   );
 

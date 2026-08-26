@@ -563,12 +563,30 @@ async function withTargetInterruptLock(sessionID, fn) {
 }
 
 /**
- * Record / read the last dead-stream interrupt issued against a target, so
- * a second loop whose suspicion predates it never interrupts the successor
- * execution the first interrupt resumed.
+ * How long a target's last-interrupt record is retained. Suspicions re-arm
+ * within ticks, so any suspicion predating a day-old interrupt has long
+ * been superseded; pruning by age keeps the map bounded without ever
+ * evicting a *relevant* safety record (LRU eviction here could let two
+ * loops interrupt the same target on pre-existing suspicions).
+ */
+const TARGET_INTERRUPT_RETENTION_MS = 86_400_000;
+
+/**
+ * Record the last dead-stream interrupt issued against a target, so a
+ * second loop whose suspicion predates it never interrupts the successor
+ * execution the first interrupt resumed. Recorded only after the interrupt
+ * request succeeded — a failed request records nothing, leaving the next
+ * confirmation free to retry.
  */
 function recordTargetInterrupt(sessionID, at) {
-  recordSessionObservation(TARGET_INTERRUPT_AT_KEY, sessionID, at);
+  const map = getSessionObservationMap(TARGET_INTERRUPT_AT_KEY);
+  for (const [id, recordedAt] of map) {
+    if (at - recordedAt > TARGET_INTERRUPT_RETENTION_MS) {
+      map.delete(id);
+    }
+  }
+  const previous = map.get(sessionID);
+  map.set(sessionID, previous !== undefined && previous > at ? previous : at);
 }
 
 /** @param {string} sessionID @returns {number | undefined} */
@@ -738,11 +756,14 @@ function recordFailedProbe(state) {
  *   fingerprint (see `deadStreamFingerprint`) has stayed frozen for the
  *   whole wall-clock confirmation window (`deadStreamConfirmMs`) with
  *   *no observed liveness*: neither raw provider-response chunks (the
- *   authoritative signal, teed by the `http.response` hook — see
- *   `observeHttpResponse`) nor execution-progress events (see
+ *   authoritative signal, teed per location by the `http.response` hook —
+ *   see `observeHttpResponse`) nor execution-progress events (see
  *   `recordSessionEventActivity`). Liveness signals are strictly vetoes
- *   that re-arm the window — their absence alone never authorizes; only
- *   the elapsed window does. Confirmation and interrupt run serialized
+ *   that re-arm the window — their absence alone never authorizes; and
+ *   silence itself only counts where bytes were once observed: a target
+ *   with no raw-progress record at all has unknown coverage and is never
+ *   escalated (`dead-stream-unobserved`). Confirmation and interrupt run
+ *   serialized
  *   per target (`withTargetLock`), skipping targets another loop already
  *   interrupted after this suspicion began, and a final
  *   fingerprint-and-liveness revalidation runs inside the lock immediately
@@ -1046,6 +1067,14 @@ async function runActiveTick(
       state.deadStreamSuspect = { fingerprint, at: now() };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
+    if (getRawProgressAt(entry.targetSession) === undefined) {
+      // Silence can only be measured where bytes were once observed. An
+      // undefined raw-progress record means the target's provider traffic
+      // is not covered (its location's response hook is missing or failed,
+      // or the record was evicted) — unknown coverage disables escalation
+      // rather than authorizing it.
+      return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
+    }
     if (now() - suspectedAt < deadStreamConfirmMs) {
       // Total silence, but not yet for the whole window: keep waiting.
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
@@ -1087,6 +1116,7 @@ async function runActiveTick(
       if (
         !isDeadStreamMessage(freshAssistant) ||
         deadStreamFingerprint(freshAssistant) !== fingerprint ||
+        getRawProgressAt(entry.targetSession) === undefined ||
         hasLiveness(() => getRawProgressAt(entry.targetSession)) ||
         hasLiveness(() => getLastEventAt(entry.targetSession))
       ) {
@@ -1094,8 +1124,11 @@ async function runActiveTick(
         return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
       }
       delete state.deadStreamSuspect;
-      recordInterrupt(entry.targetSession, now());
       await interrupt(server, entry.targetSession);
+      // Recorded only now, after the request succeeded: a failed interrupt
+      // must leave the next confirmation free to retry rather than skip on
+      // a phantom record.
+      recordInterrupt(entry.targetSession, now());
       // The freed target must be re-probed on the next tick, not after a
       // leftover skip window.
       state.backoffSkips = 0;
@@ -1757,6 +1790,8 @@ const SESSION_OBSERVATION_CAP = 256;
  *
  * Deleting before setting keeps the entry's insertion position fresh, so
  * the eviction below always removes the least-recently-updated session.
+ * The stored value never regresses: an older observation draining late
+ * refreshes the entry's recency but keeps the newest timestamp.
  *
  * @param {symbol} key The map's `globalThis` key.
  * @param {string} sessionID The session observed.
@@ -1765,8 +1800,9 @@ const SESSION_OBSERVATION_CAP = 256;
  */
 function recordSessionObservation(key, sessionID, at) {
   const map = getSessionObservationMap(key);
+  const previous = map.get(sessionID);
   map.delete(sessionID);
-  map.set(sessionID, at);
+  map.set(sessionID, previous !== undefined && previous > at ? previous : at);
   if (map.size > SESSION_OBSERVATION_CAP) {
     map.delete(map.keys().next().value);
   }
@@ -3269,15 +3305,30 @@ const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
  *   never stops the loop from consuming the next.
  * @returns {Promise<void>} Resolves only if the stream itself ends.
  */
-async function consumeEvents(ctx, onEvent, signal) {
-  for await (const event of ctx.event.subscribe(signal ? { signal } : undefined)) {
-    await onEvent(event).catch((error) => recordError({ type: "listener.failed", error: String(error) }));
+async function consumeEvents(ctx, onEvent, onIterator) {
+  const iterator = ctx.event.subscribe()[Symbol.asyncIterator]();
+  onIterator?.(iterator);
+  try {
+    while (true) {
+      const { value, done } = await iterator.next();
+      if (done) {
+        return;
+      }
+      await onEvent(value).catch((error) => recordError({ type: "listener.failed", error: String(error) }));
+    }
+  } finally {
+    onIterator?.(null);
   }
 }
 
 /**
  * Keep the event subscription alive for the daemon's lifetime, resubscribing
  * whenever the stream ends or fails, until the signal aborts.
+ *
+ * The pinned subscribe API accepts no cancellation options, so teardown
+ * retains the live iterator and closes it with `return()` when the signal
+ * aborts — otherwise a cleaned-up supervisor would stay blocked on `next()`
+ * forever while a reloaded plugin starts another.
  *
  * The subscription feeds the progress-veto signal (see
  * `recordSessionEventActivity`); an unsupervised loss would silently stop
@@ -3293,21 +3344,35 @@ async function consumeEvents(ctx, onEvent, signal) {
  *   is exhausted.
  */
 async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = Infinity, signal } = {}) {
-  for (let restarts = 0; restarts <= maxRestarts && !signal?.aborted; restarts++) {
-    try {
-      await consumeEvents(ctx, onEvent, signal);
-      if (!signal?.aborted) {
-        recordError({ type: "listener.ended", at: Date.now() });
+  let activeIterator = null;
+  const closeActive = () => {
+    void activeIterator?.return?.().catch(() => {});
+  };
+  signal?.addEventListener("abort", closeActive, { once: true });
+  try {
+    for (let restarts = 0; restarts <= maxRestarts && !signal?.aborted; restarts++) {
+      try {
+        await consumeEvents(ctx, onEvent, (iterator) => {
+          activeIterator = iterator;
+          if (signal?.aborted) {
+            closeActive();
+          }
+        });
+        if (!signal?.aborted) {
+          recordError({ type: "listener.ended", at: Date.now() });
+        }
+      } catch (error) {
+        if (!signal?.aborted) {
+          recordError({ type: "listener.lost", error: String(error), at: Date.now() });
+        }
       }
-    } catch (error) {
-      if (!signal?.aborted) {
-        recordError({ type: "listener.lost", error: String(error), at: Date.now() });
+      if (signal?.aborted) {
+        return;
       }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    if (signal?.aborted) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  } finally {
+    signal?.removeEventListener("abort", closeActive);
   }
 }
 
@@ -3340,9 +3405,11 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  *   `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
  *   `resolveRepoRootFn` reaches `rp_spawn`; `exists` reaches the permission
  *   mediator's redirect check.
- * @returns {() => Promise<void>} The plugin cleanup: aborts the supervised
- *   event subscription, disposes the raw-liveness hook, disarms every loop
- *   timer, and clears the once-guard so a reloaded plugin re-arms.
+ * @returns {() => Promise<void>} This location's cleanup: disposes its own
+ *   raw-liveness hook, and — when the last live location releases the
+ *   shared resources — closes the supervised event subscription, disarms
+ *   every loop timer, and clears the once-guard so a reloaded plugin
+ *   re-arms.
  */
 function setup(ctx, deps = {}) {
   const {
@@ -3440,9 +3507,10 @@ function setup(ctx, deps = {}) {
     recordError({ type: "agent.materialize.collision", name });
   }
 
-  if (!globalThis[SETUP_ONCE_KEY]) {
-    const observers = { abort: new AbortController(), httpHook: undefined };
-    globalThis[SETUP_ONCE_KEY] = observers;
+  let shared = globalThis[SETUP_ONCE_KEY];
+  if (!shared || shared === true) {
+    shared = { refs: 0, abort: new AbortController() };
+    globalThis[SETUP_ONCE_KEY] = shared;
     void superviseEvents(
       ctx,
       async (event) => {
@@ -3462,37 +3530,46 @@ function setup(ctx, deps = {}) {
           requestFn,
         });
       },
-      { signal: observers.abort.signal },
+      { signal: shared.abort.signal },
     );
-    // The raw-liveness observer: tees every provider response so streamed
-    // chunks record per-session raw progress (see `observeHttpResponse`).
-    // Registration failure is recorded, not fatal — without it the
-    // dead-stream veto simply loses its strongest signal.
-    void Promise.resolve()
-      .then(() => ctx.session.hook("http.response", observeHttpResponse))
-      .then((registration) => {
-        observers.httpHook = registration;
-      })
-      .catch((error) => recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() }));
     for (const entry of listLoopEntries(registryPath)) {
       void armLoopTimer(entry, tick);
     }
   }
+  shared.refs += 1;
 
-  // The plugin API invokes the returned cleanup when unloading the plugin:
-  // tear down the observers and armed timers, and clear the once-guard so
-  // a reloaded plugin's setup can re-arm everything.
+  // The raw-liveness observer, registered per location: `ctx.session.hook`
+  // is location-scoped, so the once-guarded resources above must not own
+  // it — every location tees its own provider responses (see
+  // `observeHttpResponse`). Registration failure is recorded, and the
+  // dead-stream gate treats uncovered targets as unobservable rather than
+  // silent, so escalation is disabled where this hook is missing.
+  const hookRegistration = Promise.resolve()
+    .then(() => ctx.session.hook("http.response", observeHttpResponse))
+    .catch((error) => {
+      recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() });
+      return undefined;
+    });
+
+  // The plugin API invokes the returned cleanup when unloading a location:
+  // dispose only this location's hook, and tear the shared observer and
+  // timers down only when the last live location releases them — clearing
+  // the once-guard so a reloaded plugin's setup can re-arm everything.
+  let cleaned = false;
   return async () => {
-    const observers = globalThis[SETUP_ONCE_KEY];
-    if (!observers || observers === true) {
-      delete globalThis[SETUP_ONCE_KEY];
+    if (cleaned) {
       return;
     }
-    delete globalThis[SETUP_ONCE_KEY];
-    observers.abort.abort();
-    await Promise.resolve(observers.httpHook?.dispose?.()).catch(() => {});
-    const timers = getLoopTimers();
-    await Promise.all([...timers.keys()].map((id) => disarmLoopTimer(id)));
+    cleaned = true;
+    const registration = await hookRegistration;
+    await Promise.resolve(registration?.dispose?.()).catch(() => {});
+    shared.refs -= 1;
+    if (shared.refs <= 0 && globalThis[SETUP_ONCE_KEY] === shared) {
+      delete globalThis[SETUP_ONCE_KEY];
+      shared.abort.abort();
+      const timers = getLoopTimers();
+      await Promise.all([...timers.keys()].map((id) => disarmLoopTimer(id)));
+    }
   };
 }
 

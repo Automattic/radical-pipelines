@@ -86,6 +86,8 @@ function createFakeCtx({
   // callback-registration API. Verified live against the pinned build (a
   // callback-style stub masked the listener never actually running).
   let subscribeCalls = 0;
+  let hookRegistrations = 0;
+  let hookDisposals = 0;
   const eventQueue = [];
   const eventWaiters = [];
 
@@ -168,7 +170,12 @@ function createFakeCtx({
       // Matches the real ctx.session.hook contract: registers a model hook
       // and resolves to a disposable Registration.
       async hook() {
-        return { dispose: async () => {} };
+        hookRegistrations += 1;
+        return {
+          dispose: async () => {
+            hookDisposals += 1;
+          },
+        };
       },
     },
     event: {
@@ -199,6 +206,12 @@ function createFakeCtx({
     pushEvent,
     get subscribeCalls() {
       return subscribeCalls;
+    },
+    get hookRegistrations() {
+      return hookRegistrations;
+    },
+    get hookDisposals() {
+      return hookDisposals;
     },
   };
 }
@@ -284,12 +297,43 @@ describe("setup: tool and skill registration", () => {
 
     await cleanup();
     assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "cleanup must clear the once-guard");
+    assert.equal(first.hookDisposals, 1, "the location's own hook must be disposed");
 
     // A reloaded plugin's setup must be able to re-arm the observers.
     const second = createFakeCtx();
     const secondCleanup = setup(second.ctx, isolatedDeps({ env: {} }));
     assert.equal(second.subscribeCalls, 1, "a post-cleanup setup must resubscribe");
     await secondCleanup();
+  });
+
+  test("every location registers its own raw-liveness hook, and cleanup ownership is reference-counted", async () => {
+    delete globalThis[SETUP_ONCE_KEY];
+
+    const first = createFakeCtx();
+    const second = createFakeCtx();
+    const firstCleanup = setup(first.ctx, isolatedDeps({ env: {} }));
+    const secondCleanup = setup(second.ctx, isolatedDeps({ env: {} }));
+
+    // The hook is location-scoped: the once-guard must not swallow the
+    // second location's registration.
+    await delay(0);
+    assert.equal(first.hookRegistrations, 1);
+    assert.equal(second.hookRegistrations, 1, "the second location must get its own hook");
+
+    // A non-owner location's cleanup disposes only its own hook, never the
+    // shared observers or another location's registration.
+    await secondCleanup();
+    assert.equal(second.hookDisposals, 1);
+    assert.equal(first.hookDisposals, 0, "another location's hook must survive");
+    assert.ok(globalThis[SETUP_ONCE_KEY], "the shared observers must survive while a location is live");
+
+    // Double-invoking one cleanup must not release another's reference.
+    await secondCleanup();
+    assert.ok(globalThis[SETUP_ONCE_KEY], "a repeated cleanup must not double-release");
+
+    await firstCleanup();
+    assert.equal(first.hookDisposals, 1);
+    assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "the last location's cleanup tears down the shared resources");
   });
 
   test("a materialization collision with a pre-existing foreign agent file is surfaced via rp_status's recentErrors", async () => {
@@ -947,6 +991,41 @@ describe("superviseEvents", () => {
   });
 });
 
+describe("superviseEvents teardown", () => {
+  test("aborting the signal closes the retained iterator instead of leaving next() blocked", async () => {
+    let returned = false;
+    let releaseNext;
+    const blockedNext = new Promise((resolve) => {
+      releaseNext = resolve;
+    });
+    const ctx = {
+      event: {
+        subscribe() {
+          return {
+            [Symbol.asyncIterator]() {
+              return {
+                next: () => blockedNext,
+                return: async () => {
+                  returned = true;
+                  releaseNext({ value: undefined, done: true });
+                  return { value: undefined, done: true };
+                },
+              };
+            },
+          };
+        },
+      },
+    };
+
+    const abort = new AbortController();
+    const supervisor = superviseEvents(ctx, async () => {}, { delayMs: 1, signal: abort.signal });
+    await delay(5);
+    abort.abort();
+    await supervisor;
+    assert.ok(returned, "teardown must close the pinned iterator via return()");
+  });
+});
+
 describe("resolveDeadStreamConfirmMs", () => {
   test("defaults to ten minutes and honors a positive numeric override", () => {
     assert.equal(resolveDeadStreamConfirmMs({}), 600_000);
@@ -980,6 +1059,12 @@ describe("recordSessionEventActivity / lastSessionEventAt", () => {
       data: { sessionID: "ses_activity_delayed" },
     });
     assert.equal(lastSessionEventAt("ses_activity_delayed"), 1_234);
+  });
+
+  test("an older event refreshing the entry never regresses a newer timestamp", () => {
+    recordSessionEventActivity({ type: "session.text.delta", data: { sessionID: "ses_activity_order" } }, 5_000);
+    recordSessionEventActivity({ type: "session.text.delta", data: { sessionID: "ses_activity_order" } }, 3_000);
+    assert.equal(lastSessionEventAt("ses_activity_order"), 5_000);
   });
 
   test("observation maps are bounded, evicting the least-recently-updated session", () => {
@@ -1551,6 +1636,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
         },
       ],
+      getRawProgressAt: () => 1,
       injectPrompt: () => {
         throw new Error("must not inject during backoff");
       },
@@ -1660,6 +1746,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
+      getRawProgressAt: () => 1,
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -1757,6 +1844,7 @@ describe("runLoopTick", () => {
         },
       ],
       getLastEventAt: () => lastEvent,
+      getRawProgressAt: () => 1,
       injectPrompt: () => {
         throw new Error("must not inject into a streaming target");
       },
@@ -1846,6 +1934,7 @@ describe("runLoopTick", () => {
       getInbox: async () => [],
       getMessages: async () => messages,
       getLastInterruptAt: () => interruptedAt,
+      getRawProgressAt: () => 1,
       recordInterrupt: (sessionID, at) => {
         interruptedAt = at;
       },
@@ -1875,6 +1964,101 @@ describe("runLoopTick", () => {
     assert.deepEqual(results.map((result) => result.outcome).sort(), ["interrupted", "skipped"]);
   });
 
+  test("a target with no raw-progress record has unknown coverage and is never escalated", async () => {
+    // Silence can only be measured where bytes were once observed: a
+    // missing raw record (uncovered location, failed hook, or eviction)
+    // must disable escalation, not authorize it.
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: () => {
+        throw new Error("unknown coverage must never authorize an interrupt");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 15_000;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-unobserved",
+      lastActivity: 5_000,
+    });
+  });
+
+  test("a failed interrupt request is not recorded, leaving the next confirmation free to retry", async () => {
+    let recorded;
+    const state = {};
+    let clock = 10_000;
+    let failInterrupt = true;
+    const interrupts = [];
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => 1,
+      getLastInterruptAt: () => recorded,
+      recordInterrupt: (sessionID, at) => {
+        recorded = at;
+      },
+      injectPrompt: () => {
+        throw new Error("must not inject");
+      },
+      interruptSession: async (server, sessionID) => {
+        if (failInterrupt) {
+          throw new Error("interrupt request failed");
+        }
+        interrupts.push(sessionID);
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 11_100;
+    await assert.rejects(() => runLoopTick(entry, deps), /interrupt request failed/);
+    assert.equal(recorded, undefined, "a failed request must record nothing");
+
+    // The next confirmation retries instead of skipping on a phantom record.
+    failInterrupt = false;
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 12_300;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, ["ses_target"]);
+    assert.equal(recorded, 12_300);
+  });
+
   test("cancellation during the confirming tick's reads prevents the interrupt", async () => {
     let cancelled = false;
     const state = {};
@@ -1894,6 +2078,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
+      getRawProgressAt: () => 1,
       injectPrompt: () => {
         throw new Error("must not inject after cancellation");
       },
@@ -1952,6 +2137,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
+      getRawProgressAt: () => 1,
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -1998,6 +2184,7 @@ describe("runLoopTick", () => {
         return [];
       },
       getMessages: async () => messages,
+      getRawProgressAt: () => 1,
       injectPrompt: () => {
         throw new Error("must not inject during confirmation");
       },

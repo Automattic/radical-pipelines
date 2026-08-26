@@ -218,7 +218,13 @@ export function startStubProvider({ port }) {
         );
         // Stream the arguments' JSON one fragment at a time — a healthy
         // stream whose projection stays frozen until the JSON completes.
-        const argument = JSON.stringify({ code: "return 'trickle-complete';" });
+        // Padded so the argument always splits into the *requested* number
+        // of fragments: an argument shorter than the chunk count would
+        // otherwise cut the stream's duration below what the caller asked
+        // for (and below the confirmation window a check means to cross).
+        const argument = JSON.stringify({
+          code: `return 'trickle-complete'; // ${"x".repeat(chunkCount * 2)}`,
+        });
         const fragment = Math.ceil(argument.length / chunkCount);
         for (let i = 0; i < argument.length; i += fragment) {
           await delay(chunkMs);
