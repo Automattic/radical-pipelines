@@ -1,6 +1,6 @@
 ---
 name: radical-pipelines
-description: Run an autonomous software engineering pipeline that takes an issue through five sequential phases (Intent → Spec → Design doc → Build → Document), each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
+description: Run an autonomous software engineering pipeline that takes an issue through five sequential phases (Intent → Spec → Design doc → Build → Document) — or a single amend phase for small, fully pinned changes — each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
 ---
 
 # Radical Pipelines
@@ -25,7 +25,7 @@ You can move forward the pipelines through the different phases in two modes: au
 
 ### The assisted workflow
 
-- You drive a single phase directly with the owner, typically through Q&A and research, and synthesize the artifacts yourself. No team of agents are spawned.
+- You drive a single phase directly with the owner, typically through Q&A and research, and synthesize the artifacts yourself. No team of agents are spawned (the execution half of an amend run's phase is the exception).
 - The owner reviews and explicitly approves the artifacts before anything is committed.
 
 ## Phases
@@ -37,6 +37,8 @@ You can move forward the pipelines through the different phases in two modes: au
 | 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs                                           |
 | 3   | Build      | `3-build`      | The build plan, code changes with the tests their tasks call for, behavior verification, and a build summary |
 | 4   | Document   | `4-document`   | The document plan, documentation (both internal and external), and a document summary               |
+
+A qualifying small change runs as an **amend** instead: a single `1-amend` phase carrying the plan and its execution (`reference/amend-pipeline.md`).
 
 ## Project conventions
 

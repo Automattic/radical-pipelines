@@ -2,7 +2,7 @@
 
 This is the entry point of the **assisted workflow**. You drive a single phase directly with the owner — typically through Q&A — and write the artifacts yourself. No agents are spawned. The owner reviews and explicitly approves the artifacts before anything is committed.
 
-The phase to run is the pipeline's **next phase** (see `pipeline-versioning.md`). Assisted mode covers the spec and design-doc phases: a pipeline's intent is already in place, and the build and document phases run in the autonomous workflow. If the next phase is `3-build` or `4-document`, tell the owner and offer the autonomous workflow.
+The phase to run is the pipeline's **next phase** (see `pipeline-versioning.md`). Assisted mode covers the spec and design-doc phases, and an amend run's plan half — the one assisted case that then spawns agents, for its execution. A pipeline's intent is already in place, and the build and document phases run in the autonomous workflow. If the next phase is `3-build` or `4-document`, tell the owner and offer the autonomous workflow.
 
 ## 1. Frame the conversation
 
@@ -14,6 +14,7 @@ Map the next phase to its reference file:
 
 | Phase          | Subfolder      | Reference                           |
 | -------------- | -------------- | ----------------------------------- |
+| 1 - Amend      | `1-amend`      | `assisted-phases/1 - amend.md`      |
 | 1 - Spec       | `1-spec`       | `assisted-phases/1 - spec.md`       |
 | 2 - Design doc | `2-design-doc` | `assisted-phases/2 - design-doc.md` |
 

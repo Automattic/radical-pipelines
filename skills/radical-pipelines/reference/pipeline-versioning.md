@@ -1,13 +1,13 @@
 # Pipeline Versioning
 
-An issue's pipelines form a **pipeline family**: the first pipeline is `v1`; each fork — a new approach tried from a previous pipeline — adds `v2`, `v3`, … Within a pipeline, work happens in **runs**: one pass of the full phase flow. The **base** run comes first; revision runs are layered one at a time on top of a complete run.
+An issue's pipelines form a **pipeline family**: the first pipeline is `v1`; each fork — a new approach tried from a previous pipeline — adds `v2`, `v3`, … Within a pipeline, work happens in **runs**. A run is either **full** — one pass of the five-phase flow — or an **amend** — a single `1-amend` phase for a qualifying small change (`amend-pipeline.md`). The **base** run comes first; layered runs — revisions (full) and amends — are added one at a time on top of a complete run.
 
 ## Branch grammar
 
 The **Branch name base** convention produces the `<branch-base>` — it may contain slashes for namespacing and must not contain `_`. Everything after it is fixed skill grammar with `_` as the structural separator; every other segment is kebab-case:
 
 ```
-<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]
+<branch-base>[_v<N>][_(rev|amend)-<N>-<desc>][_<phase>-lane-<K>]
 ```
 
 Omitted segments are defaults: no version segment means `v1`, no run segment means the base run.
@@ -15,13 +15,14 @@ Omitted segments are defaults: no version segment means `v1`, no run segment mea
 ```
 123-fix-checkout                                    v1 base
 123-fix-checkout_rev-1-fix-something                v1 rev-1
+123-fix-checkout_amend-2-fix-typo                   v1 amend-2
 123-fix-checkout_1-spec-lane-2                      v1 base, spec lane 2
 123-fix-checkout_v2                                 v2 base
 123-fix-checkout_v2_rev-1-fix-copy                  v2 rev-1
 123-fix-checkout_v2_rev-1-fix-copy_1-spec-lane-2    v2 rev-1, spec lane 2
 ```
 
-Parsing is deterministic because the segment shapes are reserved: `v<digits>` is a version, `rev-<N>-<desc>` a run, `<phase>-lane-<K>` a lane. In `rev-<N>-<desc>`, `<desc>` is a kebab-case summary of the revision's goal and `N` is the next integer after the pipeline's existing revisions. In `<phase>-lane-<K>`, `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
+Parsing is deterministic because the segment shapes are reserved: `v<digits>` is a version, `rev-<N>-<desc>` a revision run, `amend-<N>-<desc>` an amend run, `<phase>-lane-<K>` a lane. In the run segment, `<desc>` is a kebab-case summary of the run's goal and `N` is the next integer on the pipeline's single layered-run counter — revisions and amends share it, so the prefix carries the kind and the numbers carry the order. In `<phase>-lane-<K>`, `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
 
 ## Branches
 
@@ -33,7 +34,7 @@ Branches exist at exactly two levels.
 
 ## Artifacts
 
-Artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` or `rev-<N>-<desc>` (matching the run's branch segment) and `<phase>` is the phase folder. A multi-lane phase's per-lane artifacts live in `lane-<K>` subfolders of the phase folder; the consolidated artifacts sit at the folder root. The **Pipeline family folder** convention produces one folder per family, identical across all forks, so cross-fork comparison is a constant path under a varying ref:
+Artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` or the run's branch segment (`rev-<N>-<desc>`, `amend-<N>-<desc>`) and `<phase>` is the phase folder. A multi-lane phase's per-lane artifacts live in `lane-<K>` subfolders of the phase folder; the consolidated artifacts sit at the folder root. The **Pipeline family folder** convention produces one folder per family, identical across all forks, so cross-fork comparison is a constant path under a varying ref:
 
 ```
 git show <ref>:<pipeline-family-folder>/base/1-spec/spec.md
@@ -53,13 +54,16 @@ A phase's predicate is evaluated at `<pipeline-family-folder>/<run>/<phase>` on 
 | Phase          | Required artifacts                                                                                           |
 | -------------- | ------------------------------------------------------------------------------------------------------------ |
 | 0 – Intent     | `intent.md`                                                                                                  |
+| 1 – Amend      | `amend-plan-research.md`, `amend-plan.md`, `amend-plan-review-approved.md`, `amend-review-approved.md`, `amend-summary.md` |
 | 1 – Spec       | `spec-research.md`, `spec.md`, `spec-review-approved.md`                                                     |
 | 2 – Design doc | `design-doc-research.md`, `design-doc.md`, `design-doc-review-approved.md`                                   |
 | 3 – Build      | `build-plan.md`, `build-plan-review-approved.md`, `build-review-approved.md`, `build-summary.md`             |
 | 4 – Document   | `document-plan.md`, `document-plan-review-approved.md`, `document-review-approved.md`, `document-summary.md` |
 
+A full run's phases are `0-intent` through `4-document`; an amend run's are `0-intent` and `1-amend`. A layered run's kind is carried by its branch segment; `base`'s kind is fixed when its phase 1 starts — `1-spec` makes it full, `1-amend` an amend.
+
 - A phase with artifacts present — in the worktree or committed — but its predicate unsatisfied is **in progress**.
-- A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` revision, or `base`.
+- A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` layered run, or `base`.
 - The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none.
 - The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase.
 
@@ -81,7 +85,7 @@ Two layers answer two different questions:
 
 ## Rendering the pipeline tree
 
-Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue. Nodes are phases: each run contributes a node per phase it has, in order, prefixed `v<N> <run>:` (`<run>` omitted for the base run, as in the branch grammar). A revision run hangs off the previous run's last phase; pipelines started from the main branch hang under the root; a fork hangs under the phase node of its cut commit. An inherited phase the fork modified reappears in the fork's own chain marked `(modified)`; inherited phases that don't reappear are identical.
+Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue. Nodes are phases: each run contributes a node per phase it has, in order, prefixed `v<N> <run>:` (`<run>` omitted for the base run, as in the branch grammar). A layered run hangs off the previous run's last phase; pipelines started from the main branch hang under the root; a fork hangs under the phase node of its cut commit. An inherited phase the fork modified reappears in the fork's own chain marked `(modified)`; inherited phases that don't reappear are identical.
 
 - A stretch of phases with no fork in the middle may be compressed onto one line with `→`, and its middle elided to `…`; a `(modified)` phase stays visible.
 - `(in progress)` marks a phase that is in progress.

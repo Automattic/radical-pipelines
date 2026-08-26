@@ -8,7 +8,7 @@ Starts a revision of a complete, unmerged pipeline: a new run branch layered on 
 
 Re-verify BOTH gates here, independently of any menu — the direct "revise this pipeline" route bypasses `work-on-an-issue.md`:
 
-- **(a) Complete.** The pipeline's latest run is complete through `4-document`, with the **Per-phase completion** predicate evaluated within the latest run (`pipeline-versioning.md`). If it is not, steer the owner to **resume** (`resume-pipeline.md`) to finish the run, or to **fork** (`fork-pipeline.md`) to try a different approach.
+- **(a) Complete.** The pipeline's latest run is complete — its final phase satisfies the **Per-phase completion** predicate evaluated within the latest run (`pipeline-versioning.md`). If it is not, steer the owner to **resume** (`resume-pipeline.md`) to finish the run, or to **fork** (`fork-pipeline.md`) to try a different approach.
 - **(b) Unmerged.** The pipeline is unmerged, per the merged detection in `pipeline-versioning.md` ("Lineage"). If it is merged, the requested change is new work: handle it as a NEW issue via `manage-issues.md`, not a revision.
 
 These two are the ONLY preconditions. The advisories below never gate a revision the owner chooses.

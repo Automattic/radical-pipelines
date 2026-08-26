@@ -62,7 +62,7 @@ Commit the updated artifacts and report back how each finding was adjudicated. T
 
 ## Research support
 
-When settling a divergence, verifying a combination no lane shipped, or adjudicating a finding needs investigation beyond the lane material, send the orchestrator the question; a fresh design-doc-researcher investigates and answers you directly. The researcher supplies evidence; you adjudicate.
+When settling a divergence, verifying a combination no lane shipped, or adjudicating a finding needs investigation beyond the lane material, send the orchestrator the question; a fresh researcher investigates and answers you directly. The researcher supplies evidence; you adjudicate.
 
 ## Decision support
 

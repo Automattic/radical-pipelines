@@ -18,7 +18,7 @@ Tell the owner explicitly that this is the autonomous workflow and that you will
 
 Ask the owner where the autonomous run should stop. Frame it in plain language; do not show the owner internal phase numbers unless they ask.
 
-If the owner does not specify, default to the last phase.
+If the owner does not specify, default to the last phase. An amend run has a single phase; skip the question.
 
 ## 3. Collect per-phase decisions
 
@@ -43,6 +43,7 @@ You own all branch and worktree topology: you create every branch and worktree (
 | Phase          | Subfolder      | Reference                             |
 | -------------- | -------------- | ------------------------------------- |
 | 0 - Intent     | `0-intent`     | Already in place                      |
+| 1 - Amend      | `1-amend`      | `autonomous-phases/1 - amend.md`      |
 | 1 - Spec       | `1-spec`       | `autonomous-phases/1 - spec.md`       |
 | 2 - Design doc | `2-design-doc` | `autonomous-phases/2 - design-doc.md` |
 | 3 - Build      | `3-build`      | `autonomous-phases/3 - build.md`      |
@@ -93,7 +94,7 @@ A blocker stops the run: perform the close-out (step 7).
 
 ## 7. Close out the run
 
-Close-out fires whenever the run stops — target phase completed, a blocker, an owner cancellation, or a failure:
+Close-out fires whenever the run stops — target phase completed, a blocker, an eject (`amend-pipeline.md`, "The eject"), an owner cancellation, or a failure:
 
 1. Stop the health monitor (see `health-monitoring.md` for the cancellation command).
 2. Push the run branch and any remaining lane branches.

@@ -9,7 +9,7 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
 - **Artifact folder:** `<pipeline-family-folder>/<run>` — the run's artifact folder, relative to the worktree root. Agent profiles resolve their `<artifact-folder>/…` paths against it.
   - Agents: all
 - **Phase folder:** `<artifact-folder>/<phase>`, or `<artifact-folder>/<phase>/lane-<K>` when the agent works a lane — the folder for the agent's own phase's artifacts. Agent profiles resolve their `<phase-folder>/…` paths against it.
-  - Agents: `spec-lead`, `spec-researcher`, `spec-reviewer`, `spec-consolidator`, `design-doc-lead`, `design-doc-researcher`, `design-doc-reviewer`, `design-doc-consolidator`
+  - Agents: `researcher`, `spec-lead`, `spec-reviewer`, `spec-consolidator`, `design-doc-lead`, `design-doc-reviewer`, `design-doc-consolidator`, `amend-lead`, `amend-plan-reviewer`, `amend-reviewer`
 - **Lane mode:** `isolated` or `divergent`.
   - Agents: `design-doc-lead`, `design-doc-consolidator`
   - Omit when the phase runs a single lane, and for a lead launched with a decision request.
@@ -17,7 +17,7 @@ Each time the orchestrator spawns an agent, it includes a `## Conventions` block
   - Agents: `design-doc-lead`, `design-doc-reviewer`
   - Omit outside a divergent lane, including consolidation review.
 - **Requester identifier:** the identifier of the requesting agent this agent answers to.
-  - Agents: `spec-researcher`, `design-doc-researcher`, `spec-lead`, `design-doc-lead`
+  - Agents: `researcher`, `spec-lead`, `design-doc-lead`
   - For leads, only when launched with a decision request; omit otherwise.
 - **Commit format:**
   - Agents: all

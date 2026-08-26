@@ -10,7 +10,7 @@ Cancel any health monitor still registered for this pipeline per the **Health mo
 
 ### 2. Locate the latest run branch and its worktree
 
-Enumerate the family's branches and parse them with the branch grammar (`pipeline-versioning.md`); the latest run is the highest-`N` revision, or `base`. Reuse the run branch's worktree if it exists; otherwise recreate it from the branch per the **Worktree root** convention, bracketed by the `before-creating-worktree`/`after-creating-worktree` lifecycle hooks.
+Enumerate the family's branches and parse them with the branch grammar (`pipeline-versioning.md`); the latest run is the highest-`N` layered run, or `base`. Reuse the run branch's worktree if it exists; otherwise recreate it from the branch per the **Worktree root** convention, bracketed by the `before-creating-worktree`/`after-creating-worktree` lifecycle hooks.
 
 ### 3. Verify state against the completion predicates
 

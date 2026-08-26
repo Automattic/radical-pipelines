@@ -9,7 +9,7 @@ Creates a new pipeline version by branching at a **cut commit** in a parent pipe
 Show the owner the pipeline tree for this issue, rendered per `pipeline-versioning.md` ("Rendering the pipeline tree"). Then ask:
 
 - **Parent pipeline** — which existing pipeline to fork from.
-- **Inherited point** — the run to cut in (default: the parent's latest run) and the highest phase to inherit within it, by folder name (`0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`). Pick `base`'s `0-intent` to start the new pipeline over with only the intent. The inherited phase must be **complete** in that run (per **Per-phase completion** in `pipeline-versioning.md`).
+- **Inherited point** — the run to cut in (default: the parent's latest run) and the highest phase to inherit within it, by folder name (`0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`; `1-amend` in an amend run). Pick `base`'s `0-intent` to start the new pipeline over with only the intent. The inherited phase must be **complete** in that run (per **Per-phase completion** in `pipeline-versioning.md`).
 
 If the owner has already specified either, skip the question.
 

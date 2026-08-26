@@ -26,6 +26,7 @@ List the issue's pipelines per `pipeline-versioning.md` ("Listing pipelines for 
 
 - **Resume** an in-progress pipeline → read `resume-pipeline.md`, then continue to step 3.
 - **Revise** a pipeline whose latest run is complete → read `revision-pipeline.md`, then continue to step 3.
+- **Amend** a pipeline whose latest run is complete, for a small, fully pinned change → read `amend-pipeline.md`, then continue to step 3.
 - **Fork** a new pipeline version from an existing one → read `fork-pipeline.md`, then continue to step 3.
 - **Open the PR**, **merge the PR**, or **close without merging** a pipeline → read `closure-actions.md`.
 
@@ -33,11 +34,14 @@ When the owner is unsure which same-issue action to take:
 
 - **Resume** — finish an incomplete latest run.
 - **Revise** — layer a new run branch on a complete run, building on the existing work.
+- **Amend** — deliver a small, fully pinned change through a single-phase run layered on a complete run.
 - **Fork** — a new pipeline version branched at a cut commit, to try a different approach.
+
+Apply the amend qualification test (`amend-pipeline.md`) to the owner's request: when it passes, recommend the amend; when it fails, the option is not offered — and an owner who asks for an amend is told it does not qualify, and why.
 
 If the owner has already specified what to do, skip the question.
 
-**If no pipelines exist**, create the pipeline per `create-pipeline.md`, and continue to step 3.
+**If no pipelines exist**, create the pipeline per `create-pipeline.md`, and continue to step 3. When the request passes the amend qualification test (`amend-pipeline.md`), recommend running the base run as an amend; the accepted choice takes effect at dispatch, where phase 1 starts as `1-amend`.
 
 ### 3. Pick the workflow mode
 
