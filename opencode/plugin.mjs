@@ -579,30 +579,15 @@ async function withTargetInterruptLock(sessionID, fn) {
 }
 
 /**
- * How long a target's last-interrupt record is retained. Suspicions re-arm
- * within ticks, so any suspicion predating a day-old interrupt has long
- * been superseded; pruning by age keeps the map bounded without ever
- * evicting a *relevant* safety record (LRU eviction here could let two
- * loops interrupt the same target on pre-existing suspicions).
- */
-const TARGET_INTERRUPT_RETENTION_MS = 86_400_000;
-
-/**
  * Record the last dead-stream interrupt issued against a target, so a
  * second loop whose suspicion predates it never interrupts the successor
  * execution the first interrupt resumed. Recorded only after the interrupt
  * request succeeded — a failed request records nothing, leaving the next
- * confirmation free to retry.
+ * confirmation free to retry. Shares the age-only retention of every other
+ * evidence map: safety records age out, they are never crowded out.
  */
 function recordTargetInterrupt(sessionID, at) {
-  const map = getSessionObservationMap(TARGET_INTERRUPT_AT_KEY);
-  for (const [id, recordedAt] of map) {
-    if (at - recordedAt > TARGET_INTERRUPT_RETENTION_MS) {
-      map.delete(id);
-    }
-  }
-  const previous = map.get(sessionID);
-  map.set(sessionID, previous !== undefined && previous > at ? previous : at);
+  recordSessionObservation(TARGET_INTERRUPT_AT_KEY, sessionID, at);
 }
 
 /** @param {string} sessionID @returns {number | undefined} */
@@ -1061,13 +1046,18 @@ async function runActiveTick(
   const newestAssistant = messages.find((message) => message.type === "assistant") ?? null;
   if (isDeadStreamMessage(newestAssistant)) {
     const fingerprint = deadStreamFingerprint(newestAssistant);
-    // Coverage is tied to the *current* response generation: the raw record
-    // must describe a response that started at or after the suspected
-    // message's creation. A historical observation from an earlier turn
-    // proves nothing about the stream under suspicion.
+    // Coverage is tied to the *current* response generation: a still-open
+    // (unfinished) response stream that started at or after the suspected
+    // message's creation, less ordering slack. Requiring the stream to be
+    // open is the identity guarantee — a completed earlier response (a
+    // title request, a prior turn milliseconds before) can never
+    // impersonate the hung stream, however close the timestamps; and a
+    // current response the hook missed leaves no open generation, so it is
+    // unobserved, never silently covered by history.
     const streamCoverage = () => {
       const raw = getRawProgressAt(entry.targetSession);
-      return raw !== undefined && raw.startedAt >= (newestAssistant.time?.created ?? 0) - RAW_COVERAGE_SLACK_MS;
+      const threshold = (newestAssistant.time?.created ?? 0) - RAW_COVERAGE_SLACK_MS;
+      return raw !== undefined && raw.open.some((generation) => generation.startedAt >= threshold);
     };
     if (state.deadStreamSuspect?.fingerprint !== fingerprint) {
       // First observation: a stale session timestamp says nothing about the
@@ -1153,6 +1143,7 @@ async function runActiveTick(
         return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
       }
       delete state.deadStreamSuspect;
+      const silenceMs = now() - suspectedAt;
       await interrupt(server, entry.targetSession);
       // Recorded only now, after the request succeeded: a failed interrupt
       // must leave the next confirmation free to retry rather than skip on
@@ -1161,7 +1152,7 @@ async function runActiveTick(
       // The freed target must be re-probed on the next tick, not after a
       // leftover skip window.
       state.backoffSkips = 0;
-      return { outcome: "interrupted", reason: "dead-stream", lastActivity };
+      return { outcome: "interrupted", reason: "dead-stream", silenceMs, lastActivity };
     });
   }
   delete state.deadStreamSuspect;
@@ -1811,14 +1802,49 @@ const SESSION_EVENT_ACTIVITY_KEY = Symbol.for("radical-pipelines.opencode.sessio
  */
 const SESSION_RAW_PROGRESS_KEY = Symbol.for("radical-pipelines.opencode.sessionRawProgress");
 
-/** Bound on entries retained per session-observation map (oldest evicted). */
-const SESSION_OBSERVATION_CAP = 256;
+/**
+ * How long session-observation evidence is retained.
+ *
+ * Evidence ages out; it is never crowded out: an entry younger than this is
+ * never evicted however many sessions are active, because evicting recent
+ * liveness would convert an observed byte into apparent silence and could
+ * authorize interrupting a live stream. Memory stays bounded by the number
+ * of sessions active within the retention, and the retention comfortably
+ * exceeds any sane dead-stream confirmation window.
+ */
+const SESSION_EVIDENCE_RETENTION_MS = 86_400_000;
 
 /**
- * Record a per-session observation into a bounded `globalThis`-backed map.
+ * Size threshold that triggers age-pruning of a session-observation map.
+ * Pruning removes only entries older than `SESSION_EVIDENCE_RETENTION_MS`;
+ * when every entry is recent, the map is allowed to grow instead.
+ */
+const SESSION_OBSERVATION_PRUNE_THRESHOLD = 256;
+
+/**
+ * Prune a session-observation map's aged entries once it grows past the
+ * threshold.
  *
- * Deleting before setting keeps the entry's insertion position fresh, so
- * the eviction below always removes the least-recently-updated session.
+ * @param {Map<string, *>} map The observation map.
+ * @param {number} at The current timestamp.
+ * @param {(value: *) => number} newestOf Extracts a value's newest stamp.
+ * @returns {void}
+ */
+function pruneSessionObservations(map, at, newestOf) {
+  if (map.size <= SESSION_OBSERVATION_PRUNE_THRESHOLD) {
+    return;
+  }
+  for (const [id, value] of map) {
+    if (at - newestOf(value) > SESSION_EVIDENCE_RETENTION_MS) {
+      map.delete(id);
+    }
+  }
+}
+
+/**
+ * Record a per-session observation into an age-pruned `globalThis`-backed
+ * map.
+ *
  * The stored value never regresses: an older observation draining late
  * refreshes the entry's recency but keeps the newest timestamp.
  *
@@ -1832,9 +1858,7 @@ function recordSessionObservation(key, sessionID, at) {
   const previous = map.get(sessionID);
   map.delete(sessionID);
   map.set(sessionID, previous !== undefined && previous > at ? previous : at);
-  if (map.size > SESSION_OBSERVATION_CAP) {
-    map.delete(map.keys().next().value);
-  }
+  pruneSessionObservations(map, at, (value) => value);
 }
 
 /**
@@ -1850,24 +1874,67 @@ function getSessionObservationMap(key) {
   return globalThis[key];
 }
 
+/** Bound on concurrently tracked open response generations per session. */
+const RAW_OPEN_GENERATION_CAP = 8;
+
+/**
+ * Fetch (creating on first use) a session's raw-progress record.
+ *
+ * @param {string} sessionID The session observed.
+ * @param {number} at The observation timestamp (drives pruning).
+ * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number}>}}
+ */
+function getRawSessionRecord(sessionID, at) {
+  const map = getSessionObservationMap(SESSION_RAW_PROGRESS_KEY);
+  let record = map.get(sessionID);
+  map.delete(sessionID);
+  if (!record) {
+    record = { lastAt: at, open: [] };
+  }
+  map.set(sessionID, record);
+  pruneSessionObservations(map, at, (value) => value.lastAt);
+  return record;
+}
+
 /**
  * Record that a new raw provider response began for a session.
  *
- * Starts a fresh raw-progress record: `startedAt` identifies the *current*
- * response generation, so coverage can be tied to the stream under
- * suspicion rather than to any historical observation for the session.
+ * Opens a response *generation*: the entry stays in `open` until the
+ * response's stream ends or aborts, so coverage can require an unfinished
+ * stream — a completed earlier response (a title request, a prior turn
+ * milliseconds before) can never impersonate the stream under suspicion,
+ * however close the timestamps.
  *
  * @param {string} sessionID The session whose response arrived.
  * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
- * @returns {void}
+ * @returns {{startedAt: number, lastAt: number}} The opened generation.
  */
 function recordRawResponseStart(sessionID, at = Date.now()) {
-  const map = getSessionObservationMap(SESSION_RAW_PROGRESS_KEY);
-  map.delete(sessionID);
-  map.set(sessionID, { startedAt: at, lastAt: at });
-  if (map.size > SESSION_OBSERVATION_CAP) {
-    map.delete(map.keys().next().value);
+  const record = getRawSessionRecord(sessionID, at);
+  const generation = { startedAt: at, lastAt: at };
+  record.open.push(generation);
+  if (record.open.length > RAW_OPEN_GENERATION_CAP) {
+    record.open.shift();
   }
+  record.lastAt = record.lastAt > at ? record.lastAt : at;
+  return generation;
+}
+
+/**
+ * Record that a response generation's stream ended (completed or aborted).
+ *
+ * @param {string} sessionID The session whose response ended.
+ * @param {{startedAt: number, lastAt: number}} generation The generation.
+ * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
+ * @returns {void}
+ */
+function recordRawResponseEnd(sessionID, generation, at = Date.now()) {
+  const record = getRawSessionRecord(sessionID, at);
+  const index = record.open.indexOf(generation);
+  if (index !== -1) {
+    record.open.splice(index, 1);
+  }
+  record.lastAt = record.lastAt > at ? record.lastAt : at;
 }
 
 /**
@@ -1880,31 +1947,27 @@ function recordRawResponseStart(sessionID, at = Date.now()) {
  * stream producing bytes is alive whatever the projection shows.
  *
  * @param {string} sessionID The session whose response produced a chunk.
+ * @param {{startedAt: number, lastAt: number}} [generation] The producing
+ *   generation, when known.
  * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
  * @returns {void}
  */
-function recordRawSessionProgress(sessionID, at = Date.now()) {
-  const map = getSessionObservationMap(SESSION_RAW_PROGRESS_KEY);
-  const record = map.get(sessionID);
-  if (!record) {
-    recordRawResponseStart(sessionID, at);
-    return;
+function recordRawSessionProgress(sessionID, generation, at = Date.now()) {
+  const record = getRawSessionRecord(sessionID, at);
+  if (generation) {
+    generation.lastAt = generation.lastAt > at ? generation.lastAt : at;
   }
-  map.delete(sessionID);
-  map.set(sessionID, { startedAt: record.startedAt, lastAt: record.lastAt > at ? record.lastAt : at });
-  if (map.size > SESSION_OBSERVATION_CAP) {
-    map.delete(map.keys().next().value);
-  }
+  record.lastAt = record.lastAt > at ? record.lastAt : at;
 }
 
 /**
  * Read a session's raw-progress record.
  *
  * @param {string} sessionID The session to look up.
- * @returns {{startedAt: number, lastAt: number} | undefined} The current
- *   response generation's start and most recent chunk timestamps, or
- *   `undefined` when no response has been observed (or the record was
- *   evicted).
+ * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number}>} | undefined}
+ *   The newest chunk timestamp across all responses plus the still-open
+ *   response generations, or `undefined` when nothing has been observed
+ *   (or the record aged out).
  */
 function lastRawSessionProgressAt(sessionID) {
   return getSessionObservationMap(SESSION_RAW_PROGRESS_KEY).get(sessionID);
@@ -1921,16 +1984,24 @@ function lastRawSessionProgressAt(sessionID) {
  * @returns {void}
  */
 function observeHttpResponse(input) {
-  recordRawResponseStart(input.sessionID);
+  const sessionID = input.sessionID;
   const body = input.response?.body;
   if (!body || typeof body.pipeThrough !== "function") {
+    // A body-less response cannot hang mid-stream; just record the arrival.
+    recordRawSessionProgress(sessionID, undefined);
     return;
   }
-  const sessionID = input.sessionID;
+  const generation = recordRawResponseStart(sessionID);
   const tee = new TransformStream({
     transform(chunk, controller) {
-      recordRawSessionProgress(sessionID);
+      recordRawSessionProgress(sessionID, generation);
       controller.enqueue(chunk);
+    },
+    flush() {
+      recordRawResponseEnd(sessionID, generation);
+    },
+    cancel() {
+      recordRawResponseEnd(sessionID, generation);
     },
   });
   input.response = new Response(body.pipeThrough(tee), {
@@ -3605,8 +3676,10 @@ function setup(ctx, deps = {}) {
   // `observeHttpResponse`). Registration is retried before giving up; each
   // failure is recorded, and the dead-stream gate treats uncovered targets
   // as unobservable rather than silent, so escalation is disabled wherever
-  // this hook is missing — coverage re-establishes from the next observed
-  // response once a retry lands.
+  // this hook is missing. A hook landing late cannot retroactively tee a
+  // response whose headers already passed; coverage returns only with the
+  // next response the hook actually observes (a provider retry, or the
+  // target's next turn).
   const hookRegistration = (async () => {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {

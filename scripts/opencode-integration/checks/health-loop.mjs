@@ -14,6 +14,7 @@ import {
   getInbox,
   getMessages,
   getSession,
+  interrupt,
   pollMessages,
   pollUntil,
   prompt,
@@ -436,10 +437,9 @@ export async function run(ctx) {
         // confirmation window (4 s in this sandbox) of observed silence.
         const suspectedTicks = observedTicks.filter((tick) => tick.reason === "dead-stream-suspected");
         assert.ok(suspectedTicks.length > 0, "the interrupt must be preceded by an explicit suspicion");
-        const firstSuspectedAt = Math.min(...suspectedTicks.map((tick) => tick.at));
         assert.ok(
-          interruptedTick.at - firstSuspectedAt >= 3_500,
-          `expected at least the ~4s confirmation window between suspicion (${firstSuspectedAt}) and interrupt (${interruptedTick.at})`,
+          interruptedTick.silenceMs >= 4_000,
+          `expected the full 4s confirmation window of observed silence, got ${interruptedTick.silenceMs}ms`,
         );
 
         // The parked copy — promoted just before the interrupt — must be the
@@ -468,6 +468,8 @@ export async function run(ctx) {
           controller.id,
           `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
         ).catch(() => {});
+        // A failed assertion must not leave the stalled execution running.
+        await interrupt(server, hung.id).catch(() => {});
         await stallTurn;
       }
     },
@@ -553,6 +555,9 @@ export async function run(ctx) {
           controller.id,
           `return await tools.rp_loop_cancel({id: ${JSON.stringify(trickleLoopID)}});`,
         ).catch(() => {});
+        // Idle interruption is a no-op; a failed assertion must not leave
+        // the trickling execution running.
+        await interrupt(server, trickling.id).catch(() => {});
         await trickleTurn;
       }
     },

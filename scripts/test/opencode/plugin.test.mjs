@@ -1067,12 +1067,27 @@ describe("recordSessionEventActivity / lastSessionEventAt", () => {
     assert.equal(lastSessionEventAt("ses_activity_order"), 5_000);
   });
 
-  test("observation maps are bounded, evicting the least-recently-updated session", () => {
+  test("evidence ages out but is never crowded out", () => {
+    // Aged entries are pruned once the map grows...
     for (let i = 0; i < 300; i++) {
-      recordSessionEventActivity({ type: "session.text.delta", data: { sessionID: `ses_bound_${i}` } }, i);
+      recordSessionEventActivity({ type: "session.text.delta", data: { sessionID: `ses_aged_${i}` } }, i);
     }
-    assert.equal(lastSessionEventAt("ses_bound_0"), undefined, "the oldest entries must be evicted");
-    assert.equal(lastSessionEventAt("ses_bound_299"), 299);
+    recordSessionEventActivity(
+      { type: "session.text.delta", data: { sessionID: "ses_aged_fresh" } },
+      86_400_000 + 1_000,
+    );
+    assert.equal(lastSessionEventAt("ses_aged_0"), undefined, "aged entries must be pruned");
+    assert.equal(lastSessionEventAt("ses_aged_fresh"), 86_400_000 + 1_000);
+
+    // ...but volume alone never evicts recent liveness: converting an
+    // observed byte into apparent silence could authorize interrupting a
+    // live stream.
+    const base = 86_400_000 + 2_000;
+    for (let i = 0; i < 300; i++) {
+      recordSessionEventActivity({ type: "session.text.delta", data: { sessionID: `ses_recent_${i}` } }, base + i);
+    }
+    assert.equal(lastSessionEventAt("ses_recent_0"), base, "recent entries must survive any volume");
+    assert.equal(lastSessionEventAt("ses_recent_299"), base + 299);
   });
 });
 
@@ -1096,22 +1111,26 @@ describe("observeHttpResponse / lastRawSessionProgressAt", () => {
     const before = Date.now();
     observeHttpResponse(input);
     const arrival = lastRawSessionProgressAt("ses_raw_progress_test");
-    assert.ok(arrival.startedAt >= before, "the arrival itself must start a fresh response generation");
+    assert.equal(arrival.open.length, 1, "the arrival must open a response generation");
+    assert.ok(arrival.open[0].startedAt >= before);
 
     const received = await input.response.text();
     assert.equal(received, chunks.join(""), "the tee must pass the bytes through untouched");
     const record = lastRawSessionProgressAt("ses_raw_progress_test");
     assert.ok(record.lastAt >= before, "each streamed chunk must refresh the raw-progress timestamp");
-    assert.equal(record.startedAt, arrival.startedAt, "chunks must not restart the response generation");
+    assert.equal(record.open.length, 0, "a completed stream must close its generation — identity, not history");
     assert.equal(input.response.status, 200);
   });
 
-  test("a body-less response records the arrival without wrapping", () => {
+  test("a body-less response records the arrival without opening a generation", () => {
     const input = { sessionID: "ses_raw_progress_nobody", response: { status: 204, body: null } };
     observeHttpResponse(input);
-    assert.ok(lastRawSessionProgressAt("ses_raw_progress_nobody")?.startedAt !== undefined);
+    const record = lastRawSessionProgressAt("ses_raw_progress_nobody");
+    assert.ok(record?.lastAt !== undefined);
+    assert.deepEqual(record.open, [], "nothing can hang mid-stream without a body");
     assert.equal(input.response.status, 204, "the response must be left as-is");
   });
+
 });
 
 describe("withTargetInterruptLock", () => {
@@ -1636,7 +1655,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
         },
       ],
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       injectPrompt: () => {
         throw new Error("must not inject during backoff");
       },
@@ -1652,6 +1671,7 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 1_100,
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
@@ -1746,7 +1766,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -1777,6 +1797,7 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 2_100,
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
@@ -1844,7 +1865,7 @@ describe("runLoopTick", () => {
         },
       ],
       getLastEventAt: () => lastEvent,
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a streaming target");
       },
@@ -1869,6 +1890,7 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 1_100,
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
@@ -1893,7 +1915,8 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => (lastRawChunk === undefined ? undefined : { startedAt: 0, lastAt: lastRawChunk }),
+      getRawProgressAt: () =>
+        lastRawChunk === undefined ? undefined : { lastAt: lastRawChunk, open: [{ startedAt: 0, lastAt: lastRawChunk }] },
       injectPrompt: () => {
         throw new Error("must not inject into a streaming target");
       },
@@ -1934,7 +1957,7 @@ describe("runLoopTick", () => {
       getInbox: async () => [],
       getMessages: async () => messages,
       getLastInterruptAt: () => interruptedAt,
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       recordInterrupt: (sessionID, at) => {
         interruptedAt = at;
       },
@@ -2022,7 +2045,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ startedAt: 100, lastAt: 100 }),
+      getRawProgressAt: () => ({ lastAt: 100, open: [{ startedAt: 100, lastAt: 100 }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a suspected target");
       },
@@ -2064,7 +2087,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ startedAt: 8_500, lastAt: 8_600 }),
+      getRawProgressAt: () => ({ lastAt: 8_600, open: [{ startedAt: 8_500, lastAt: 8_600 }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -2080,6 +2103,7 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 1_100,
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
@@ -2089,7 +2113,7 @@ describe("runLoopTick", () => {
     const interrupts = [];
     const state = {};
     let clock = 10_000;
-    let raw = { startedAt: 9_100, lastAt: 9_200 };
+    let raw = { lastAt: 9_200, open: [{ startedAt: 9_100, lastAt: 9_200 }] };
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
@@ -2124,12 +2148,13 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 1_100,
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
   });
 
-  test("coverage can be established late, once a retried hook observes the stream", async () => {
+  test("coverage returns with the next response a late-landing hook actually observes", async () => {
     const interrupts = [];
     const state = {};
     let clock = 10_000;
@@ -2163,9 +2188,11 @@ describe("runLoopTick", () => {
     clock = 11_100;
     assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-unobserved");
 
-    // A hook lands and observes the current stream's retry; its bytes are
-    // stale by the next tick, so silence is finally measurable.
-    raw = { startedAt: 11_200, lastAt: 11_200 };
+    // A hook cannot retroactively tee a response whose headers already
+    // passed; what it observes is the *next* response for the session — a
+    // provider retry here — opening a fresh generation whose bytes are
+    // stale by the following tick, so silence finally becomes measurable.
+    raw = { lastAt: 11_200, open: [{ startedAt: 11_200, lastAt: 11_200 }] };
     clock = 11_150 + 1_000;
     // First covered tick vetoes on the fresh bytes and re-arms...
     assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
@@ -2174,9 +2201,55 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 1_500,
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
+  test("a completed response milliseconds before the suspected message is never coverage for it", async () => {
+    // The reviewer's identity counterexample: consecutive assistant rows
+    // 215 ms apart. The prior turn's response closed its generation, so it
+    // cannot impersonate the current, unobserved stream — slack or no
+    // slack.
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_2",
+          type: "assistant",
+          time: { created: 9_215 },
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+        { id: "as_1", type: "assistant", finish: "stop", time: { created: 9_000 } },
+      ],
+      // The prior response: started within the slack window but *closed* —
+      // its bytes are history, not the current stream.
+      getRawProgressAt: () => ({ lastAt: 9_210, open: [] }),
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: () => {
+        throw new Error("a closed prior response must never authorize interrupting an unobserved stream");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 12_000;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-unobserved",
+      lastActivity: 5_000,
+    });
   });
 
   test("a failed interrupt request is not recorded, leaving the next confirmation free to retry", async () => {
@@ -2197,7 +2270,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       getLastInterruptAt: () => recorded,
       recordInterrupt: (sessionID, at) => {
         recorded = at;
@@ -2229,6 +2302,7 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 1_200,
       lastActivity: 5_000,
     });
     assert.deepEqual(interrupts, ["ses_target"]);
@@ -2254,7 +2328,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       injectPrompt: () => {
         throw new Error("must not inject after cancellation");
       },
@@ -2313,7 +2387,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -2335,6 +2409,7 @@ describe("runLoopTick", () => {
     assert.deepEqual(await runLoopTick(entry, deps), {
       outcome: "interrupted",
       reason: "dead-stream",
+      silenceMs: 1_100,
       lastActivity: 5_000,
     });
     assert.deepEqual(calls, ["promote:inb_1", "interrupt"], "the copy must be steerable before the claim is released");
@@ -2360,7 +2435,7 @@ describe("runLoopTick", () => {
         return [];
       },
       getMessages: async () => messages,
-      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
       injectPrompt: () => {
         throw new Error("must not inject during confirmation");
       },
