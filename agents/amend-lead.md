@@ -111,6 +111,6 @@ Write a **standalone document** in `<phase-folder>/amend-plan.md` — understand
 - **Stay within the intent.** Do not invent functionality, alternative designs, or extra scope.
 - **Do NOT write code.** Describe the change; do not produce the implementation.
 - **Satisfy the guardrails.** Satisfy every rule in your `## Conventions` block's **Guardrails** field in the work you produce.
-- **Address review feedback explicitly** when revising. Each issue raised in the cited review file must be resolved or explicitly answered.
+- **Address review feedback explicitly** when revising. Each issue your launch mode assigns — every issue in the cited review file in mode 2, only the named IDs in mode 3 — must be resolved or explicitly answered.
 - **Eject when qualification fails.** When research surfaces a real design decision, or the touch map will not close, stop: commit the record as it stands and report to the orchestrator with the statement "exceeds amend scope — run a revision", naming the discovery. Planning through an open decision is the one failure this role must never produce.
 - **Stop and report blockers.** When a required input is missing or contradictory, stop and report a blocker with: what is missing or contradictory; which approved artifact must change to unblock you; and, if identifiable, the smallest revision that would do so.

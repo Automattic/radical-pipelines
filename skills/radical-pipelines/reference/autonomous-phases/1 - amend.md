@@ -63,7 +63,7 @@ flowchart TD
     F -->|no| E
     F -->|yes| G[amend-reviewer]
     G --> H{Approved?}
-    H -->|no — execution findings: re-dispatch flagged tasks| E
-    H -->|no — outside-map findings: map adjudication| A
+    H -->|no — any outside-map finding: map adjudication first| A
+    H -->|no — execution findings only: re-dispatch flagged tasks| E
     H -->|yes| I[Phase complete]
 ```
