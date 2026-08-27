@@ -995,7 +995,7 @@ const TERMINATED_SESSIONS_KEY = Symbol.for("radical-pipelines.opencode.terminate
  * A session is present while at least one `rp_terminate` call for it is in
  * flight, and remains present once any call has confirmed the deletion.
  *
- * @returns {Map<string, {inFlight: number, confirmed: boolean, startedAt: number, deferred: Array<() => Promise<void>>}>}
+ * @returns {Map<string, {inFlight: number, confirmed: boolean, deferred: Array<() => Promise<void>>}>}
  *   The singleton map.
  */
 function getTerminationState() {
@@ -1006,20 +1006,29 @@ function getTerminationState() {
 }
 
 /**
+ * Run one terminal-event report so a failure inside it can never escape to
+ * its caller, recording it the way the event loop does.
+ *
+ * Both the event loop and the release path use this, so a report behaves
+ * identically whichever reaches it: one failing report is logged and the next
+ * still runs, and it cannot change what `rp_terminate` returns or raises.
+ *
+ * @param {() => Promise<void>} run The report to isolate.
+ * @returns {Promise<void>} Always resolves.
+ */
+function isolateListener(run) {
+  return run().catch((error) => recordError({ type: "listener.failed", error: String(error) }));
+}
+
+/**
  * Record that a termination attempt for a session has started.
  *
  * @param {string} sessionID The session being terminated.
- * @param {() => number} [now] Clock, injectable for tests.
  * @returns {void}
  */
-function beginTermination(sessionID, now = Date.now) {
+function beginTermination(sessionID) {
   const state = getTerminationState();
-  const entry = state.get(sessionID) ?? {
-    inFlight: 0,
-    confirmed: false,
-    startedAt: now(),
-    deferred: [],
-  };
+  const entry = state.get(sessionID) ?? { inFlight: 0, confirmed: false, deferred: [] };
   entry.inFlight += 1;
   state.set(sessionID, entry);
 }
@@ -1038,50 +1047,72 @@ function beginTermination(sessionID, now = Date.now) {
  *
  * @param {string} sessionID The session the attempt targeted.
  * @param {boolean} confirmed Whether this attempt deleted the session.
- * @returns {Array<() => Promise<void>>} Held terminal-event handlers to run,
- *   empty unless this attempt settled the last of a failed termination.
+ * @returns {boolean} `true` when the caller must now call
+ *   `releaseTermination`, which is exactly when nothing was terminated.
  */
 function endTermination(sessionID, confirmed) {
   const state = getTerminationState();
   const entry = state.get(sessionID);
   if (!entry) {
-    return [];
+    return false;
   }
   entry.inFlight -= 1;
   entry.confirmed = entry.confirmed || confirmed;
   if (entry.inFlight > 0) {
-    return [];
+    return false;
   }
-  const held = entry.deferred;
-  entry.deferred = [];
   if (entry.confirmed) {
     // The session is gone; anything it emitted on the way out was the shutdown.
-    return [];
+    entry.deferred = [];
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Report everything a failed termination was holding, then forget the session.
+ *
+ * The state stays in place for the whole drain, so an event arriving partway
+ * through joins the end of the queue instead of overtaking what is already
+ * held — the listener's arrival order survives the release. Each report is
+ * isolated, so one failure neither stops the rest nor reaches `rp_terminate`.
+ *
+ * @param {string} sessionID The session whose termination failed.
+ * @returns {Promise<void>}
+ */
+async function releaseTermination(sessionID) {
+  const state = getTerminationState();
+  const entry = state.get(sessionID);
+  if (!entry) {
+    return;
+  }
+  while (entry.deferred.length > 0) {
+    await isolateListener(entry.deferred.shift());
   }
   state.delete(sessionID);
-  return held;
 }
 
 /**
  * Decide what a terminal event's arrival during a termination means.
  *
- * An event the session emitted *before* its shutdown began is its own news
- * however late this listener reaches it, so it reports normally. Otherwise a
- * confirmed deletion discards it, and an unknown outcome holds it: discarding
- * on the mere intent to terminate would lose a genuine failure for good when
- * the delete turns out to fail.
+ * A confirmed deletion discards it: the session is gone, and the plugin
+ * cannot tell a failure the delete provoked from one the session raised on
+ * its own moments earlier — both carry the same type on the same session, and
+ * `created` is a millisecond wall clock that cannot separate them. Suppressing
+ * is the safe side of that ambiguity, since the spawner asked for this agent
+ * to stop and a report about a session it just destroyed is not actionable.
+ *
+ * An unknown outcome holds it instead. Discarding on the mere intent to
+ * terminate would lose a genuine failure for good when the delete turns out to
+ * fail and the agent is still alive.
  *
  * @param {string} sessionID The session the event pertains to.
- * @param {{created?: number}} event The terminal event.
  * @param {() => Promise<void>} run Reports the event.
  * @returns {boolean} `true` when the termination took the event over.
  */
-function withheldByTermination(sessionID, event, run) {
+function withheldByTermination(sessionID, run) {
   const entry = getTerminationState().get(sessionID);
   if (!entry) {
-    return false;
-  }
-  if (typeof event?.created === "number" && event.created < entry.startedAt) {
     return false;
   }
   if (entry.confirmed) {
@@ -1199,10 +1230,12 @@ function formatStructuredError(error) {
 /**
  * Handle one event delivered to the terminal-event listener.
  *
- * Ignores non-terminal events, terminal events on sessions RP did not spawn,
- * and every event on a session terminated through `rp_terminate` — a delete
- * races whatever the session was doing, and a failure it provokes is the
- * expected end of a deliberate shutdown rather than a fault to report.
+ * Ignores non-terminal events and terminal events on sessions RP did not
+ * spawn. An event on a session `rp_terminate` is deleting goes to
+ * `withheldByTermination`, which discards it once a delete has confirmed —
+ * the failure a delete provokes is the expected end of a deliberate shutdown,
+ * not a fault to report — and holds it while the outcome is unknown, so a
+ * delete that fails still reports what the surviving session raised.
  * A successful turn is not a completion signal — an agent declares its own
  * completion in a message to its spawner — so success events pass silently.
  * Every failed turn is recorded in the bounded error log (including the
@@ -1264,7 +1297,7 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
     }
   };
 
-  if (withheldByTermination(sessionID, event, report)) {
+  if (withheldByTermination(sessionID, report)) {
     return;
   }
   await report();
@@ -2172,7 +2205,9 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
  * While the outcome is unknown a terminal event is *held*, not dropped:
  * intent to terminate is not termination, and a delete that fails leaves a
  * live session whose failure its spawner still needs. Settling releases what
- * was held unless some attempt confirmed the deletion.
+ * was held unless some attempt confirmed the deletion, and every released
+ * report is isolated, so nothing that happens inside one can change what this
+ * tool returns or raises.
  *
  * A transport throw is ambiguous — the server may have committed the delete
  * before the socket failed — and is treated as "not terminated", so anything
@@ -2209,8 +2244,8 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
       // still alive whenever nothing was terminated, and its failures are
       // still its spawner's business.
       const settle = async (confirmed) => {
-        for (const report of endTermination(session, confirmed)) {
-          await report();
+        if (endTermination(session, confirmed)) {
+          await releaseTermination(session);
         }
       };
       beginTermination(session);
@@ -2544,7 +2579,7 @@ const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
  */
 async function consumeEvents(ctx, onEvent) {
   for await (const event of ctx.event.subscribe()) {
-    await onEvent(event).catch((error) => recordError({ type: "listener.failed", error: String(error) }));
+    await isolateListener(() => onEvent(event));
   }
 }
 

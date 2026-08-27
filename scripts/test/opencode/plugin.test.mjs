@@ -1484,21 +1484,25 @@ describe("terminal-event listener", () => {
     });
   }
 
-  test("a failure the session emitted before its termination began is reported even if seen later", async () => {
+  test("one failing released report neither stops the others nor changes the tool's result", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, tools, pushEvent, sessions } = fakeCtx;
-    sessions.set("ses_spawner_before", { id: "ses_spawner_before" });
-    sessions.set("ses_child_before", { id: "ses_child_before" });
-    recordSpawn("ses_child_before", {
+    sessions.set("ses_spawner_iso", { id: "ses_spawner_iso" });
+    sessions.set("ses_child_iso", { id: "ses_child_iso" });
+    recordSpawn("ses_child_iso", {
       name: "worker",
       run: "267-steer-inter-agent-messages",
-      spawner: "ses_spawner_before",
+      spawner: "ses_spawner_iso",
     });
 
-    const promptCalls = [];
-    ctx.session.prompt = async (args) => {
-      promptCalls.push(args);
-      return args;
+    // A dead spawner is the ordinary way this happens.
+    let attempts = 0;
+    ctx.session.prompt = async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error("spawner prompt failed");
+      }
+      return {};
     };
 
     setup(
@@ -1506,33 +1510,73 @@ describe("terminal-event listener", () => {
       isolatedDeps({
         env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
         readServiceRecord: () => null,
-        // Events are handled serially, so one emitted before the terminate can
-        // still be reached after it. `created` is what distinguishes them.
         requestFn: async (url, init) => {
           if (init.method !== "DELETE") {
             return { status: 200, body: undefined };
           }
-          pushEvent({
-            type: "session.execution.failed",
-            data: { sessionID: "ses_child_before" },
-            created: 1,
-          });
+          for (const message of ["first", "second"]) {
+            pushEvent({
+              type: "session.execution.failed",
+              data: { sessionID: "ses_child_iso" },
+              properties: { error: { type: "provider", message } },
+            });
+          }
           await delay(10);
-          return { status: 204, body: undefined };
+          return { status: 500, body: undefined };
+        },
+      }),
+    );
+    globalThis[ERROR_LOG_KEY] = [];
+
+    // The rejecting report must not become this tool's outcome.
+    assert.deepEqual(
+      await tools.get("rp_terminate").execute({ session: "ses_child_iso" }),
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+    await delay(10);
+
+    assert.equal(attempts, 2, "a failing report must not stop the reports held behind it");
+    assert.ok(
+      globalThis[ERROR_LOG_KEY].some((e) => e.type === "listener.failed"),
+      "a failing released report must be recorded the way the event loop records one",
+    );
+  });
+
+  test("a failing released report does not mask the transport error rp_terminate raises", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_mask", { id: "ses_spawner_mask" });
+    sessions.set("ses_child_mask", { id: "ses_child_mask" });
+    recordSpawn("ses_child_mask", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_mask",
+    });
+
+    ctx.session.prompt = async () => {
+      throw new Error("spawner prompt failed");
+    };
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          if (init.method !== "DELETE") {
+            return { status: 200, body: undefined };
+          }
+          pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_mask" } });
+          await delay(10);
+          throw new Error("socket hang up");
         },
       }),
     );
 
-    assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_child_before" }),
-      toToolResult({ terminated: true }),
-    );
-    await delay(10);
-
-    assert.equal(
-      promptCalls.length,
-      1,
-      "a failure that predates the shutdown is the session's own news, not the shutdown's",
+    await assert.rejects(
+      () => tools.get("rp_terminate").execute({ session: "ses_child_mask" }),
+      /socket hang up/,
+      "the caller must see why the delete failed, not why a report did",
     );
   });
 
