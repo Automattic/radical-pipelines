@@ -30,7 +30,7 @@ List the issue's pipelines per `pipeline-versioning.md` ("Listing pipelines for 
 
 When a pipeline's latest run is ejected, surface its recorded follow-up route (`amend-pipeline.md`, "The eject") alongside the menu; the actions above evaluate against the latest non-ejected run.
 - **Fork** a new pipeline version from an existing one → read `fork-pipeline.md`, then continue to step 3.
-- **Open the PR**, **merge the PR**, or **close without merging** a pipeline → read `closure-actions.md`.
+- **Open the PR**, **merge the PR**, or **close without merging** a pipeline with a non-ejected run → read `closure-actions.md`.
 
 When the owner is unsure which same-issue action to take:
 

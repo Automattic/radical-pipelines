@@ -25,7 +25,7 @@ When work in an amend surfaces a disqualifying discovery — a real design decis
 
 At close-out the orchestrator commits `1-amend/amend-ejected.md` — the statement, the discovery, and the follow-up route — making the ejected state durable (`pipeline-versioning.md`).
 
-The follow-up starts from the tip the amend started from, reusing the amend's intent with the surfaced discovery recorded as an open assumption: for a layered amend, a revision at the pipeline's next layered-run number (`revision-pipeline.md` — the ejected run does not block it); for a base amend, a fork cut at its `0-intent` re-run from phase 1 as a full pipeline (`fork-pipeline.md`), re-authoring the intent to record the discovery.
+The follow-up starts from the tip the amend started from, reusing the amend's intent with the surfaced discovery recorded as an open assumption: for a layered amend, a revision at the pipeline's next layered-run number (`revision-pipeline.md` — the ejected run does not block it); for a base amend, a fork cut at its `0-intent` (`fork-pipeline.md`) that re-runs the inherited intent phase to change it: author the revised intent per `create-pipeline.md`'s intent step — the amend's intent with the discovery recorded as an open assumption, shown to the owner and committed on approval — then continue from phase 1 as a full pipeline.
 
 ## Steps — layered amend
 

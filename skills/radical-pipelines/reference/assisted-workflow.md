@@ -1,6 +1,6 @@
 # Running the Assisted Workflow
 
-This is the entry point of the **assisted workflow**. You drive a single phase directly with the owner — typically through Q&A — and write the artifacts yourself. No agents are spawned. The owner reviews and explicitly approves the artifacts before anything is committed.
+This is the entry point of the **assisted workflow**. You drive a single phase directly with the owner — typically through Q&A — and write the artifacts yourself; the owner-driven work spawns no agents. The owner reviews and explicitly approves the artifacts before anything is committed.
 
 The phase to run is the pipeline's **next phase** (see `pipeline-versioning.md`). Assisted mode covers the spec and design-doc phases, and an amend run's plan half — the one assisted case that then spawns agents, for its execution. A pipeline's intent is already in place, and the build and document phases run in the autonomous workflow. If the next phase is `3-build` or `4-document`, tell the owner and offer the autonomous workflow.
 

@@ -1562,12 +1562,17 @@ const OWNERSHIP_MANIFEST_NAME = ".rp-owned.json";
  * Manifest entries feed filesystem operations inside `targetDir` (overwrite
  * and stale-file deletion), so only entries that are plain `.md` basenames
  * are honored: an entry that is not a string, contains a path separator or
- * `..`, or starts with a dot is discarded. A manifest that is missing,
- * unparsable, or not an array reads as empty.
+ * `..`, or starts with a dot is discarded. A missing manifest reads as empty
+ * (a never-materialized directory); an unparsable or non-array manifest is
+ * corrupt state and throws — treating it as empty would classify every
+ * RP-owned file as foreign, permanently stranding stale profiles and
+ * skipping upgrades.
  *
  * @param {string} targetDir Absolute path to the target agents directory.
  * @returns {Set<string>} The recorded RP-owned filenames, or an empty set
- *   when the directory has no usable manifest.
+ *   when the directory has no manifest yet.
+ * @throws {Error} When the manifest exists but is unparsable or not an
+ *   array; the message names the file and the recovery.
  */
 function readOwnershipManifest(targetDir) {
   const manifestPath = join(targetDir, OWNERSHIP_MANIFEST_NAME);
@@ -1578,10 +1583,13 @@ function readOwnershipManifest(targetDir) {
   try {
     parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
   } catch {
-    return new Set();
+    parsed = undefined;
   }
   if (!Array.isArray(parsed)) {
-    return new Set();
+    throw new Error(
+      `Corrupt RP ownership manifest at ${manifestPath}: expected a JSON array of filenames. ` +
+        "Refusing to guess ownership — restore the file or delete it after removing RP-materialized profiles, then re-run.",
+    );
   }
   return new Set(
     parsed.filter(

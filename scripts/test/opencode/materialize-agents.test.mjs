@@ -166,17 +166,31 @@ describe("materializeAgents", () => {
     assert.equal(readFileSync(victim, "utf8"), "innocent bystander");
   });
 
-  test("a corrupt or non-array manifest reads as empty and materialization proceeds", () => {
-    mkdirSync(targetDir, { recursive: true });
+  test("a corrupt manifest after a normal install fails safely instead of stranding ownership", () => {
+    materializeAgents(sourceDir, targetDir);
+    const installedA = readFileSync(join(targetDir, "agent-a.md"), "utf8");
+    writeFileSync(join(sourceDir, "agent-a.md"), "---\nname: agent-a\n---\n\nAgent A body, v2.\n");
+    rmSync(join(sourceDir, "agent-b.md"));
     writeFileSync(join(targetDir, ".rp-owned.json"), "{not json");
 
-    const result = materializeAgents(sourceDir, targetDir);
-
-    assert.deepEqual(result.written.sort(), ["agent-a.md", "agent-b.md"]);
-    const manifest = JSON.parse(
-      readFileSync(join(targetDir, ".rp-owned.json"), "utf8"),
+    assert.throws(
+      () => materializeAgents(sourceDir, targetDir),
+      /Corrupt RP ownership manifest/,
     );
-    assert.deepEqual(manifest, ["agent-a.md", "agent-b.md"]);
+    // Nothing was silently reclassified: target files and manifest are untouched.
+    assert.equal(readFileSync(join(targetDir, "agent-a.md"), "utf8"), installedA);
+    assert.ok(existsSync(join(targetDir, "agent-b.md")));
+    assert.equal(readFileSync(join(targetDir, ".rp-owned.json"), "utf8"), "{not json");
+  });
+
+  test("a non-array manifest fails safely too", () => {
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(join(targetDir, ".rp-owned.json"), JSON.stringify({ owned: [] }));
+
+    assert.throws(
+      () => materializeAgents(sourceDir, targetDir),
+      /Corrupt RP ownership manifest/,
+    );
   });
 
   test("a foreign (non-RP-owned) target file absent from the source set is left untouched", () => {
