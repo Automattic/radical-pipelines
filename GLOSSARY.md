@@ -13,7 +13,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Run** — one pass of a pipeline's work, full (the five-phase flow) or amend (the single `1-amend` phase): `base` (always first, implicit in names) or a layered run.
 - **Layered run** — a run added on a complete previous run: `rev-<N>-<desc>` (a revision) or `amend-<N>-<desc>` (an amend), sharing one sequential counter with the prefix carrying the kind.
 - **Revision** — a full layered run, driven by its intent's Origin section.
-- **Amend** — a run delivering a small, fully pinned change through the single `1-amend` phase; qualifies when the intent pins the target state, no design decision is left open, and the touch map closes (`amend-pipeline.md`).
+- **Amend** — a run delivering a small, fully pinned change through the single `1-amend` phase; qualifies when the intent pins the target state, no design decision is left open, and the touch map is small and closes (`amend-pipeline.md`).
 - **Eject** — an amend's terminal stop when a disqualifying discovery surfaces ("exceeds amend scope — run a revision"): `amend-ejected.md` records it, and the change re-enters as a revision or full pipeline.
 - **Phase** — one stage of a run: `0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`; an amend run's phase 1 is `1-amend`.
 - **Pipeline family folder** — the single folder holding all of a pipeline family's artifacts, produced by the convention of the same name; identical across forks (no version in its name). Artifacts live at `<pipeline-family-folder>/<run>/<phase>`.
@@ -24,7 +24,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 - **Branch-base** — the per-pipeline-family stem produced by the Branch name base convention; must not contain `_`.
 - **Branch grammar** — `<branch-base>[_v<N>][_(rev|amend)-<N>-<desc>][_<phase>-lane-<K>]`; underscore separates segments, `v1` and `base` are implicit, segments have reserved shapes so parsing is deterministic; `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
-- **Run branch** — the branch holding one run's commits. Run branches chain: each starts at the previous run's tip. There is no pipeline-level branch; the pipeline's tip is its latest run branch, which is what merges to main.
+- **Run branch** — the branch holding one run's commits. Run branches chain: each starts at the previous non-ejected run's tip. There is no pipeline-level branch; the pipeline's tip is its latest non-ejected run branch, which is what merges to main.
 - **Lane branch** — a branch forked from the run branch at phase start for one isolated lane, writing only its `lane-<K>` subfolder of the phase folder. Merged into the run branch and deleted when every lane is approved; a rolled-back phase's lane branches are deleted. Divergent lanes create none.
 - **Start ref** — where a base run's branch begins: the project's main branch (default), another pipeline's run-branch tip (stacking), or a cut commit (fork).
 - **Stacking** — starting a pipeline on top of an unmerged pipeline's run tip.

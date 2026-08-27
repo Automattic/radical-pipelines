@@ -151,6 +151,34 @@ describe("materializeAgents", () => {
     assert.ok(!existsSync(join(targetDir, "agent-b.md")));
   });
 
+  test("a manifest entry that escapes the target directory is ignored, never deleted", () => {
+    const victim = join(root, "victim.txt");
+    writeFileSync(victim, "innocent bystander");
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(
+      join(targetDir, ".rp-owned.json"),
+      JSON.stringify(["../victim.txt", "../../victim.txt", "/etc/hosts.md", 42, null]),
+    );
+
+    const result = materializeAgents(sourceDir, targetDir);
+
+    assert.deepEqual(result.removed, []);
+    assert.equal(readFileSync(victim, "utf8"), "innocent bystander");
+  });
+
+  test("a corrupt or non-array manifest reads as empty and materialization proceeds", () => {
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(join(targetDir, ".rp-owned.json"), "{not json");
+
+    const result = materializeAgents(sourceDir, targetDir);
+
+    assert.deepEqual(result.written.sort(), ["agent-a.md", "agent-b.md"]);
+    const manifest = JSON.parse(
+      readFileSync(join(targetDir, ".rp-owned.json"), "utf8"),
+    );
+    assert.deepEqual(manifest, ["agent-a.md", "agent-b.md"]);
+  });
+
   test("a foreign (non-RP-owned) target file absent from the source set is left untouched", () => {
     mkdirSync(targetDir, { recursive: true });
     writeFileSync(join(targetDir, "foreign.md"), "not ours");

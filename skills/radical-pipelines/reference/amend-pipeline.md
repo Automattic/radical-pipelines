@@ -25,7 +25,7 @@ When work in an amend surfaces a disqualifying discovery — a real design decis
 
 At close-out the orchestrator commits `1-amend/amend-ejected.md` — the statement, the discovery, and the follow-up route — making the ejected state durable (`pipeline-versioning.md`).
 
-The follow-up starts from the tip the amend started from, reusing the amend's intent with the surfaced discovery recorded as an open assumption: for a layered amend, a revision at the family's next layered-run number (`revision-pipeline.md` — the ejected run does not block it); for a base amend, a fork cut at its `0-intent` re-run from phase 1 as a full pipeline (`fork-pipeline.md`), re-authoring the intent to record the discovery.
+The follow-up starts from the tip the amend started from, reusing the amend's intent with the surfaced discovery recorded as an open assumption: for a layered amend, a revision at the pipeline's next layered-run number (`revision-pipeline.md` — the ejected run does not block it); for a base amend, a fork cut at its `0-intent` re-run from phase 1 as a full pipeline (`fork-pipeline.md`), re-authoring the intent to record the discovery.
 
 ## Steps — layered amend
 
@@ -39,7 +39,7 @@ Re-verify all three gates here, independently of any menu:
 
 ### 2. Create the amend run branch and worktree
 
-Determine the run name `amend-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the run branch at the previous run branch's tip, and its worktree per the **Worktree root** convention, each bracketed by its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`).
+Determine the run name `amend-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the run branch at the previous non-ejected run branch's tip, and its worktree per the **Worktree root** convention, each bracketed by its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`).
 
 ### 3. Create the run folder and author the intent
 

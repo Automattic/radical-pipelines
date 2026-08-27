@@ -1559,17 +1559,41 @@ const OWNERSHIP_MANIFEST_NAME = ".rp-owned.json";
  * Read the set of filenames recorded as RP-owned in a target agents
  * directory.
  *
+ * Manifest entries feed filesystem operations inside `targetDir` (overwrite
+ * and stale-file deletion), so only entries that are plain `.md` basenames
+ * are honored: an entry that is not a string, contains a path separator or
+ * `..`, or starts with a dot is discarded. A manifest that is missing,
+ * unparsable, or not an array reads as empty.
+ *
  * @param {string} targetDir Absolute path to the target agents directory.
  * @returns {Set<string>} The recorded RP-owned filenames, or an empty set
- *   when the directory has no manifest yet (e.g. it was never materialized
- *   into before).
+ *   when the directory has no usable manifest.
  */
 function readOwnershipManifest(targetDir) {
   const manifestPath = join(targetDir, OWNERSHIP_MANIFEST_NAME);
   if (!existsSync(manifestPath)) {
     return new Set();
   }
-  return new Set(JSON.parse(readFileSync(manifestPath, "utf8")));
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch {
+    return new Set();
+  }
+  if (!Array.isArray(parsed)) {
+    return new Set();
+  }
+  return new Set(
+    parsed.filter(
+      (name) =>
+        typeof name === "string" &&
+        name.endsWith(".md") &&
+        !name.startsWith(".") &&
+        !name.includes("/") &&
+        !name.includes("\\") &&
+        !name.includes(".."),
+    ),
+  );
 }
 
 /**

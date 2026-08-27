@@ -25,8 +25,10 @@ List the issue's pipelines per `pipeline-versioning.md` ("Listing pipelines for 
 **If pipelines exist**, show the owner the tree and ask how to proceed:
 
 - **Resume** an in-progress pipeline → read `resume-pipeline.md`, then continue to step 3.
-- **Revise** a pipeline whose latest run is complete → read `revision-pipeline.md`, then continue to step 3.
-- **Amend** an unmerged pipeline whose latest run is complete, for a small, fully pinned change → read `amend-pipeline.md`, then continue to step 3.
+- **Revise** a pipeline whose latest non-ejected run is complete → read `revision-pipeline.md`, then continue to step 3.
+- **Amend** an unmerged pipeline whose latest non-ejected run is complete, for a small, fully pinned change → read `amend-pipeline.md`, then continue to step 3.
+
+When a pipeline's latest run is ejected, surface its recorded follow-up route (`amend-pipeline.md`, "The eject") alongside the menu; the actions above evaluate against the latest non-ejected run.
 - **Fork** a new pipeline version from an existing one → read `fork-pipeline.md`, then continue to step 3.
 - **Open the PR**, **merge the PR**, or **close without merging** a pipeline → read `closure-actions.md`.
 

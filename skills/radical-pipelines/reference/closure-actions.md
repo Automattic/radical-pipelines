@@ -5,7 +5,7 @@ Closure actions are moments the owner invokes on a pipeline: opening its PR, mer
 ## Open the PR
 
 1. Fire `before-opening-pr`.
-2. Open the PR from the pipeline's latest run branch onto the project's main branch, writing its title and description per the **PR format** convention:
+2. Open the PR from the pipeline's latest non-ejected run branch onto the project's main branch, writing its title and description per the **PR format** convention:
    - `artifacts-in-repo`: push the run branch and open the PR with your own tools.
    - `artifacts-in-fork`: perform the upstream PR transformation below.
 3. Fire `after-opening-pr` and report the outcome.
@@ -15,7 +15,7 @@ Closure actions are moments the owner invokes on a pipeline: opening its PR, mer
 Consult the **Artifact storage** convention for the remotes and the upstream branch and commit formats, then:
 
 1. Generate a clean branch name for `upstream` from the upstream branch format — separate from the fork branch — and create the branch at `upstream`'s main branch.
-2. Cherry-pick, oldest first, every non-artifact commit reachable from the pipeline's latest run branch but not from `upstream`'s main branch.
+2. Cherry-pick, oldest first, every non-artifact commit reachable from the pipeline's latest non-ejected run branch but not from `upstream`'s main branch.
 3. Rewrite the cherry-picked commit messages to the upstream commit format.
 4. Push the clean branch directly to `upstream`.
 5. Open the PR in `upstream` from that clean branch. The PR's source branch lives in `upstream`, not in the fork — viewers of the PR never see the fork.

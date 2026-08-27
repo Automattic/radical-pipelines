@@ -2,7 +2,7 @@
 
 Runs can stall or fail silently. An agent stops producing output, an inter-agent message is lost, a provider login expires, or a tool call hits a network blip. The owner only finds out when they check back in.
 
-The autonomous workflow launches a recurring **health monitor** that watches the run, attempts bounded auto-recovery, and escalates to the owner when it cannot resolve an issue. The assisted workflow does not use a monitor — the owner is already in the loop and sees issues as they happen.
+The autonomous workflow launches a recurring **health monitor** that watches the run, attempts bounded auto-recovery, and escalates to the owner when it cannot resolve an issue. The assisted workflow does not use one for the work the owner drives directly — the owner is already in the loop and sees issues as they happen; an amend's autonomous execution half launches one like any autonomous run.
 
 ## When to launch
 

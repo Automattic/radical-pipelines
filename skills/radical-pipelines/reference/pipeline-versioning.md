@@ -28,7 +28,7 @@ Parsing is deterministic because the segment shapes are reserved: `v<digits>` is
 
 Branches exist at exactly two levels.
 
-**Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous run's branch. The pipeline's tip is its latest run branch — that is what ships to the project's main branch. A run's commits start at its intent commit and end at its branch's tip.
+**Run branches** are chained: the base run's branch starts at the pipeline's start ref, and every later run's branch starts at the tip of the previous non-ejected run's branch — an ejected run's branch stays behind as a closed sibling record. The pipeline's tip is its latest non-ejected run branch — that is what ships to the project's main branch. A run's commits start at its intent commit and end at its branch's tip.
 
 **Lane branches** carry the parallel work of isolated lanes in the spec and design-doc phases: one branch per lane, forked from the run branch at phase start, each lane writing only its `lane-<K>` subfolder of the phase folder. When every lane is approved, the lane branches are merged into the run branch and deleted, and their worktrees removed — the lane folders and commit history live on in the run branch. Divergent lanes run sequentially in the run branch's worktree and create no lane branches. Rolling back a lane to its start deletes its lane branch (see `resume-pipeline.md`).
 
@@ -78,7 +78,7 @@ Two layers answer two different questions:
   - `identical` — the inherited artifact is unchanged since the cut.
   - `modified` — the fork changed it.
 
-**Merged detection:** a pipeline is merged when `git merge-base --is-ancestor <latest-run-tip> <main>` succeeds.
+**Merged detection:** a pipeline is merged when `git merge-base --is-ancestor <latest-non-ejected-run-tip> <main>` succeeds.
 
 ## Listing pipelines for an issue
 
@@ -87,7 +87,7 @@ Two layers answer two different questions:
 
 ## Rendering the pipeline tree
 
-Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue. Nodes are phases: each run contributes a node per phase it has, in order, prefixed `v<N> <run>:` (`<run>` omitted for the base run, as in the branch grammar). A layered run hangs off the previous run's last phase; pipelines started from the main branch hang under the root; a fork hangs under the phase node of its cut commit. An inherited phase the fork modified reappears in the fork's own chain marked `(modified)`; inherited phases that don't reappear are identical.
+Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue. Nodes are phases: each run contributes a node per phase it has, in order, prefixed `v<N> <run>:` (`<run>` omitted for the base run, as in the branch grammar). A layered run hangs off the last phase of the previous non-ejected run — an ejected run and its follow-up are siblings there; pipelines started from the main branch hang under the root; a fork hangs under the phase node of its cut commit. An inherited phase the fork modified reappears in the fork's own chain marked `(modified)`; inherited phases that don't reappear are identical.
 
 - A stretch of phases with no fork in the middle may be compressed onto one line with `→`, and its middle elided to `…`; a `(modified)` phase stays visible.
 - `(in progress)` marks a phase that is in progress; `(ejected)` marks an ejected amend run's phase.

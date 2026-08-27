@@ -22,7 +22,7 @@ Confirm the final revision count and boundaries with the owner BEFORE creating a
 
 ### 3. Create the revision run branch and worktree
 
-Determine the run name `rev-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the revision run branch at the previous run branch's tip, and its worktree per the **Worktree root** convention, each bracketed by its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`).
+Determine the run name `rev-<N>-<desc>` per the branch grammar (`pipeline-versioning.md`). Create the revision run branch at the previous non-ejected run branch's tip, and its worktree per the **Worktree root** convention, each bracketed by its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`).
 
 ### 4. Create the run folder and author the revision intent
 

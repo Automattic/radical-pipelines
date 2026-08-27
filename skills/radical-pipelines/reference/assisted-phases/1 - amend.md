@@ -34,7 +34,7 @@ Do the two mandatory investigations, recording every search — including the on
 
 When a finding needs the owner's confirmation of an existing pin, ask under `## Q&A` — one question at a time.
 
-**Eject.** If research surfaces a real design decision or the touch map will not close, stop: tell the owner the amend exceeds its scope with the discovery and its evidence, and name the follow-up route per `../amend-pipeline.md` ("The eject"). Commit the record as it stands and perform the workflow's close-out.
+**Eject.** If research surfaces a real design decision or the touch map will not stay small and closed, stop: tell the owner the amend exceeds its scope with the discovery and its evidence, and name the follow-up route per `../amend-pipeline.md` ("The eject"). Commit the record as it stands and perform the workflow's close-out.
 
 ### 3. Synthesize `amend-plan.md`
 
@@ -67,7 +67,7 @@ Write `<pipeline-family-folder>/<run>/1-amend/amend-plan.md` as a standalone doc
 - **Type:** tdd | e2e | edit | doc
 - **Audience:** <!-- doc tasks only -->
 - **Files to change:** ...
-- **Changes:** ...
+- **Changes:** ... <!-- doc tasks: a **Sections / scope** field replaces **Changes** -->
 - **Depends on:** none / Task N
 - **Traces to:** Pinned target N / intent constraint
 - **Acceptance:**
@@ -102,4 +102,4 @@ Commit `amend-plan-research.md`, `amend-plan.md`, and `amend-plan-review-approve
 
 ### 6. Execute
 
-Continue with task execution per `../autonomous-phases/1 - amend.md` steps 5–9, under the autonomous workflow's execution rules (`../autonomous-workflow.md`): its agent-spawning rules and health monitor (step 5), and its blocker handling — the eject included (step 6). The phase completes on the reviewer's approval, per the completion predicate (`../pipeline-versioning.md`); the assisted close-out then runs.
+Continue with task execution per `../autonomous-phases/1 - amend.md` steps 5–9, under the autonomous workflow's execution rules (`../autonomous-workflow.md`): its agent-spawning rules (step 5) and its blocker handling — the eject included (step 6). Start a health monitor per `../health-monitoring.md` when execution begins and cancel it whenever execution stops. A rejection naming work outside the touch map returns the map to you and the owner: adjudicate it as in step 2, update `amend-plan.md`, and re-commit on the owner's approval before re-dispatching. The phase completes on the reviewer's approval, per the completion predicate (`../pipeline-versioning.md`); the assisted close-out then runs.

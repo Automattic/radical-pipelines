@@ -74,7 +74,7 @@ Write a **standalone document** in `<phase-folder>/amend-plan.md` — understand
 - **Type:** tdd | e2e | edit | doc
 - **Audience:** <!-- doc tasks only -->
 - **Files to change:** ...
-- **Changes:** ... <!-- for doc tasks: Sections / scope -->
+- **Changes:** ... <!-- doc tasks: a **Sections / scope** field replaces **Changes** -->
 - **Depends on:** none / Task N
 - **Traces to:** Pinned target N / intent constraint
 - **Acceptance:**
@@ -92,7 +92,7 @@ Write a **standalone document** in `<phase-folder>/amend-plan.md` — understand
 - `tdd` — a change with behavior to test, proven by new unit tests derived from its Acceptance.
 - `e2e` — realizes flows from the `## E2E test plan` over behavior prior tasks built; it does not implement the behavior under test.
 - `edit` — a change with no behavior to test, verified by inspection and the guardrails.
-- `doc` — a documentation-surface change, carrying an **Audience** and its sections and scope in **Changes**.
+- `doc` — a documentation-surface change, carrying an **Audience** and a **Sections / scope** field in place of **Changes**.
 
 ### 4. Commit and report
 
