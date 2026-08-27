@@ -408,17 +408,7 @@ const LOOP_BACKOFF_MAX_SKIPS = 7;
  */
 const LOOP_DEAD_STREAM_CONFIRM_MS = 3_600_000;
 
-/**
- * Ordering slack for tying a raw-progress record to the current response.
- *
- * The assistant message row and the provider response race at millisecond
- * scale — observed live: the response headers can reach the `http.response`
- * hook just before the message row's `created` timestamp is assigned — so
- * coverage tolerates a record that started slightly *before* the message.
- * The slack stays far below any real turn-to-turn gap, so a record from an
- * earlier turn still reads as historical, never as coverage.
- */
-const RAW_COVERAGE_SLACK_MS = 2_000;
+
 
 /**
  * Resolve the dead-stream confirmation window from the environment.
@@ -529,7 +519,13 @@ function isDeadStreamMessage(message) {
   }
   const parts = Array.isArray(message.content) ? message.content : [];
   const last = parts[parts.length - 1];
-  return Boolean(last && last.type === "tool" && last.state?.status === "streaming");
+  if (!last || last.type !== "tool" || last.state?.status !== "streaming") {
+    return false;
+  }
+  // Completed tool calls execute concurrently with the rest of the stream,
+  // so `[running, streaming]` is a legitimate shape: an executing tool
+  // anywhere in the message is observable work and vetoes the signature.
+  return !parts.some((part) => part.type === "tool" && part.state?.status === "running");
 }
 
 /**
@@ -1046,18 +1042,24 @@ async function runActiveTick(
   const newestAssistant = messages.find((message) => message.type === "assistant") ?? null;
   if (isDeadStreamMessage(newestAssistant)) {
     const fingerprint = deadStreamFingerprint(newestAssistant);
-    // Coverage is tied to the *current* response generation: a still-open
-    // (unfinished) response stream that started at or after the suspected
-    // message's creation, less ordering slack. Requiring the stream to be
-    // open is the identity guarantee — a completed earlier response (a
-    // title request, a prior turn milliseconds before) can never
-    // impersonate the hung stream, however close the timestamps; and a
-    // current response the hook missed leaves no open generation, so it is
-    // unobserved, never silently covered by history.
-    const streamCoverage = () => {
+    // Coverage is response *identity*, not a clock comparison: the still-
+    // open (unfinished) generation whose consumed bytes carried the
+    // suspected tool part's provider-unique call id. Time-to-first-token
+    // gaps cannot break it (the id arrives in the same bytes that created
+    // the part), a completed or unrelated response can never impersonate
+    // the hung stream, and a wrapper another hook replaced never consumed
+    // bytes, so an abandoned generation can never claim identity. A stream
+    // the tee did not observe leaves no match and stays unescalatable.
+    const parts = Array.isArray(newestAssistant.content) ? newestAssistant.content : [];
+    const suspectCallID = parts[parts.length - 1]?.id;
+    const findMatchedGeneration = () => {
+      if (typeof suspectCallID !== "string" || suspectCallID.length === 0) {
+        return undefined;
+      }
       const raw = getRawProgressAt(entry.targetSession);
-      const threshold = (newestAssistant.time?.created ?? 0) - RAW_COVERAGE_SLACK_MS;
-      return raw !== undefined && raw.open.some((generation) => generation.startedAt >= threshold);
+      return raw?.open?.find(
+        (generation) => Array.isArray(generation.ids) && generation.ids.includes(suspectCallID),
+      );
     };
     if (state.deadStreamSuspect?.fingerprint !== fingerprint) {
       // First observation: a stale session timestamp says nothing about the
@@ -1065,13 +1067,16 @@ async function runActiveTick(
       // interrupted once frozen for the whole confirmation window. The
       // coverage verdict is pinned in loop state so a later map eviction
       // cannot retract established evidence.
-      state.deadStreamSuspect = { fingerprint, at: now(), covered: streamCoverage() };
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: Boolean(findMatchedGeneration()) };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
     const suspectedAt = state.deadStreamSuspect.at;
     const rawLiveness = () => {
-      const raw = getRawProgressAt(entry.targetSession);
-      return raw !== undefined && raw.lastAt >= suspectedAt;
+      // Scoped to the matched generation: bytes on unrelated same-session
+      // responses neither veto the suspected stream forever nor stand in
+      // for its own progress.
+      const matched = findMatchedGeneration();
+      return matched !== undefined && matched.lastAt >= suspectedAt;
     };
     const eventLiveness = () => {
       const stamp = getLastEventAt(entry.targetSession);
@@ -1081,16 +1086,16 @@ async function runActiveTick(
       // The stream produced raw response bytes or progress events since the
       // suspicion — it is alive whatever the projection shows. Observed
       // liveness vetoes and re-arms the window.
-      state.deadStreamSuspect = { fingerprint, at: now(), covered: streamCoverage() };
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: Boolean(findMatchedGeneration()) };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
     if (!state.deadStreamSuspect.covered) {
-      // Silence only counts where the current stream's bytes were once
+      // Silence only counts where the suspected stream's own bytes were
       // observed. Coverage can still be established late (a hook that
-      // registered after the suspicion began observes the stream from its
+      // registered after the suspicion began observes the session from its
       // next response); until then, escalation stays disabled rather than
       // authorized.
-      if (!streamCoverage()) {
+      if (!findMatchedGeneration()) {
         return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
       }
       state.deadStreamSuspect.covered = true;
@@ -1874,15 +1879,22 @@ function getSessionObservationMap(key) {
   return globalThis[key];
 }
 
-/** Bound on concurrently tracked open response generations per session. */
-const RAW_OPEN_GENERATION_CAP = 8;
+/** Bound on distinct identifier values remembered per response generation. */
+const RAW_GENERATION_ID_CAP = 64;
 
 /**
  * Fetch (creating on first use) a session's raw-progress record.
  *
+ * The record's `lastAt` is refreshed *before* the map is pruned, so a
+ * session reusing an aged record can never prune — and thereby detach —
+ * the very record its new response is about to populate. Open generations
+ * are themselves pruned by age only (see `SESSION_EVIDENCE_RETENTION_MS`),
+ * never by count: dropping a live generation for volume could erase the
+ * exact evidence a later confirmation needs.
+ *
  * @param {string} sessionID The session observed.
  * @param {number} at The observation timestamp (drives pruning).
- * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number}>}}
+ * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number, ids: string[]}>}}
  */
 function getRawSessionRecord(sessionID, at) {
   const map = getSessionObservationMap(SESSION_RAW_PROGRESS_KEY);
@@ -1891,6 +1903,8 @@ function getRawSessionRecord(sessionID, at) {
   if (!record) {
     record = { lastAt: at, open: [] };
   }
+  record.lastAt = record.lastAt > at ? record.lastAt : at;
+  record.open = record.open.filter((generation) => at - generation.lastAt <= SESSION_EVIDENCE_RETENTION_MS);
   map.set(sessionID, record);
   pruneSessionObservations(map, at, (value) => value.lastAt);
   return record;
@@ -1902,22 +1916,34 @@ function getRawSessionRecord(sessionID, at) {
  * Opens a response *generation*: the entry stays in `open` until the
  * response's stream ends or aborts, so coverage can require an unfinished
  * stream — a completed earlier response (a title request, a prior turn
- * milliseconds before) can never impersonate the stream under suspicion,
- * however close the timestamps.
+ * milliseconds before) can never impersonate the stream under suspicion.
  *
  * @param {string} sessionID The session whose response arrived.
  * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
- * @returns {{startedAt: number, lastAt: number}} The opened generation.
+ * @returns {{startedAt: number, lastAt: number, ids: string[]}} The opened generation.
  */
 function recordRawResponseStart(sessionID, at = Date.now()) {
   const record = getRawSessionRecord(sessionID, at);
-  const generation = { startedAt: at, lastAt: at };
+  const generation = { startedAt: at, lastAt: at, ids: [] };
   record.open.push(generation);
-  if (record.open.length > RAW_OPEN_GENERATION_CAP) {
-    record.open.shift();
-  }
-  record.lastAt = record.lastAt > at ? record.lastAt : at;
   return generation;
+}
+
+/**
+ * Remember an identifier value observed in a generation's consumed bytes.
+ *
+ * Provider streams carry the tool-call id of every call they produce, so
+ * the identifiers a generation was *seen carrying* tie it to the projected
+ * tool part under suspicion — response identity by content, not by clock.
+ *
+ * @param {{ids: string[]}} generation The generation that carried the id.
+ * @param {string} id The identifier value observed.
+ * @returns {void}
+ */
+function recordGenerationID(generation, id) {
+  if (!generation.ids.includes(id) && generation.ids.length < RAW_GENERATION_ID_CAP) {
+    generation.ids.push(id);
+  }
 }
 
 /**
@@ -1964,7 +1990,7 @@ function recordRawSessionProgress(sessionID, generation, at = Date.now()) {
  * Read a session's raw-progress record.
  *
  * @param {string} sessionID The session to look up.
- * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number}>} | undefined}
+ * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number, ids: string[]}>} | undefined}
  *   The newest chunk timestamp across all responses plus the still-open
  *   response generations, or `undefined` when nothing has been observed
  *   (or the record aged out).
@@ -1972,6 +1998,13 @@ function recordRawSessionProgress(sessionID, generation, at = Date.now()) {
 function lastRawSessionProgressAt(sessionID) {
   return getSessionObservationMap(SESSION_RAW_PROGRESS_KEY).get(sessionID);
 }
+
+/**
+ * Pattern extracting identifier values from a response's decoded bytes.
+ * Matches any `"id": "..."` field; the superset is harmless — matching is
+ * by the suspected tool part's provider-unique call id.
+ */
+const RAW_ID_PATTERN = /"id"\s*:\s*"([^"]{1,128})"/g;
 
 /**
  * Wrap a session's provider response so its streamed chunks record raw
@@ -1992,9 +2025,28 @@ function observeHttpResponse(input) {
     return;
   }
   const generation = recordRawResponseStart(sessionID);
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  let tail = "";
   const tee = new TransformStream({
     transform(chunk, controller) {
       recordRawSessionProgress(sessionID, generation);
+      try {
+        // Identity capture: remember the identifier values these consumed
+        // bytes carried (with a tail carry across chunk boundaries), so
+        // the generation can be matched to the projected tool part it
+        // produced. Only bytes the runner actually consumes flow through
+        // here — a wrapper another hook replaced never transforms, so an
+        // abandoned generation can never claim identity.
+        const text = tail + decoder.decode(chunk, { stream: true });
+        RAW_ID_PATTERN.lastIndex = 0;
+        let match;
+        while ((match = RAW_ID_PATTERN.exec(text)) !== null) {
+          recordGenerationID(generation, match[1]);
+        }
+        tail = text.slice(-160);
+      } catch {
+        // Identity capture is best-effort; liveness recording above stands.
+      }
       controller.enqueue(chunk);
     },
     flush() {
@@ -3673,26 +3725,19 @@ function setup(ctx, deps = {}) {
   // The raw-liveness observer, registered per location: `ctx.session.hook`
   // is location-scoped, so the once-guarded resources above must not own
   // it — every location tees its own provider responses (see
-  // `observeHttpResponse`). Registration is retried before giving up; each
-  // failure is recorded, and the dead-stream gate treats uncovered targets
-  // as unobservable rather than silent, so escalation is disabled wherever
+  // `observeHttpResponse`). Pinned registration inserts the callback
+  // synchronously with no failure channel; the guard below still records
+  // the unexpected, and the dead-stream gate treats uncovered targets as
+  // unobservable rather than silent, so escalation is disabled wherever
   // this hook is missing. A hook landing late cannot retroactively tee a
   // response whose headers already passed; coverage returns only with the
-  // next response the hook actually observes (a provider retry, or the
-  // target's next turn).
-  const hookRegistration = (async () => {
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        return await ctx.session.hook("http.response", observeHttpResponse);
-      } catch (error) {
-        recordError({ type: "observer.hook.failed", attempt, error: String(error), at: Date.now() });
-        if (attempt < 3) {
-          await new Promise((resolve) => setTimeout(resolve, 1_000));
-        }
-      }
-    }
-    return undefined;
-  })();
+  // next response the hook actually observes.
+  const hookRegistration = Promise.resolve()
+    .then(() => ctx.session.hook("http.response", observeHttpResponse))
+    .catch((error) => {
+      recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() });
+      return undefined;
+    });
 
   // The plugin API invokes the returned cleanup when unloading a location:
   // dispose only this location's hook, and tear the shared observer and
@@ -3764,6 +3809,7 @@ export {
   readPinManifest,
   readServiceRecordFile,
   readSkillDirectory,
+  recordRawResponseStart,
   recordRawSessionProgress,
   recordSessionEventActivity,
   recordSpawn,

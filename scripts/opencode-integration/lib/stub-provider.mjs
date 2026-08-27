@@ -42,15 +42,19 @@ const SLOW_RE = /__RP_SLOW__:(\d+):__END__/;
 const TRICKLE_RE = /__RP_TRICKLE__:(\d+),(\d+):__END__/;
 
 /**
- * Directive embedded in a driving prompt's text — `__RP_STALL__:<ms>:__END__`
- * — that makes the stub emit a tool_call header whose arguments never finish
- * streaming, then hold the connection open for `<ms>` (or until the client
- * aborts): a deterministic reproduction of a provider stream dying
- * mid-tool-call, leaving the session's newest assistant message with a tool
- * part stuck in `streaming` state. Answered once per distinct directive
- * text, like `DIRECTIVE_RE`.
+ * Directive embedded in a driving prompt's text —
+ * `__RP_STALL__:<ms>[,<firstFrameDelayMs>]:__END__` — that makes the stub
+ * flush its response headers, wait the optional time-to-first-token gap,
+ * emit a tool_call header whose arguments never finish streaming, then hold
+ * the connection open for `<ms>` (or until the client aborts): a
+ * deterministic reproduction of a provider stream dying mid-tool-call,
+ * leaving the session's newest assistant message with a tool part stuck in
+ * `streaming` state. The header/first-frame gap models real providers,
+ * whose assistant row (created from the first model event) can postdate the
+ * response start by seconds. Answered once per distinct directive text,
+ * like `DIRECTIVE_RE`.
  */
-const STALL_RE = /__RP_STALL__:(\d+):__END__/;
+const STALL_RE = /__RP_STALL__:(\d+)(?:,(\d+))?:__END__/;
 
 /**
  * Directive embedded in a driving prompt's text —
@@ -249,6 +253,14 @@ export function startStubProvider({ port }) {
       if (stallMatch && !firedDirectives.has(stallMatch[0])) {
         firedDirectives.add(stallMatch[0]);
         res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+        const firstFrameDelay = Number(stallMatch[2] ?? 0);
+        if (firstFrameDelay > 0) {
+          res.flushHeaders?.();
+          await delay(firstFrameDelay);
+          if (res.writableEnded || res.destroyed) {
+            return;
+          }
+        }
         res.write(
           sseChunk(parsed.model ?? "stub-model", {
             role: "assistant",
@@ -388,10 +400,14 @@ export function slowPrompt(delayMs, nonce) {
  *   interrupt ends it earlier.
  * @param {string} nonce A value unique to this call, keeping the one-shot
  *   directive dedup from mistaking two distinct calls for a repeat.
+ * @param {number} [firstFrameDelayMs] Optional gap between the response
+ *   headers and the first tool_call frame, modeling provider
+ *   time-to-first-token.
  * @returns {string} The prompt text to post as the driving session's input.
  */
-export function stallPrompt(holdMs, nonce) {
-  return `__RP_STALL__:${holdMs}:__END__ // ${nonce}`;
+export function stallPrompt(holdMs, nonce, firstFrameDelayMs) {
+  const timing = firstFrameDelayMs ? `${holdMs},${firstFrameDelayMs}` : `${holdMs}`;
+  return `__RP_STALL__:${timing}:__END__ // ${nonce}`;
 }
 
 /**

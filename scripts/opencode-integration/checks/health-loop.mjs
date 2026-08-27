@@ -389,33 +389,38 @@ export async function run(ctx) {
     "a target hung on a dead provider stream is interrupted, and the monitor prompt then reaches it",
     async () => {
       const hung = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
-      // The stub emits a tool_call header whose arguments never arrive,
-      // then goes silent: the session hangs with a tool part stuck in
-      // `streaming` state, exactly the live incident's signature.
-      const stallTurn = prompt(server, hung.id, stallPrompt(60_000, `stall-${Date.now()}`), {
-        delivery: "steer",
-      }).catch(() => {});
-      await pollUntil(
-        async () => ((await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),
-        { timeoutMs: 5_000, label: "the stalled target to become active" },
-      );
-
-      // Park a queue copy of the monitor prompt behind the hung turn: the
-      // interrupt must not strand it (`continue=true` leaves queued prompts
-      // parked), so the confirming tick promotes it to steer first.
       const deadMarker = "suite-health-loop-dead-stream-ping";
-      await prompt(server, hung.id, deadMarker, { delivery: "queue" });
-      const parkedCopy = (await getInbox(server, hung.id)).find((item) => item.payload?.text === deadMarker);
-      assert.ok(parkedCopy, "expected the queue copy to park behind the hung turn");
-
-      const startResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_start({interval: 800, prompt: ${JSON.stringify(deadMarker)}, target_session: ${JSON.stringify(hung.id)}});`,
-      );
-      const deadLoopID = startResult.structuredJSON.id;
+      let stallTurn;
+      let deadLoopID;
 
       try {
+        // The stub flushes headers, waits a provider-sized time-to-first-
+        // token gap, emits a tool_call header whose arguments never arrive,
+        // then goes silent: the session hangs with a tool part stuck in
+        // `streaming` state — the live incident's signature, with the
+        // adversarial header/row gap included.
+        stallTurn = prompt(server, hung.id, stallPrompt(60_000, `stall-${Date.now()}`, 2_500), {
+          delivery: "steer",
+        }).catch(() => {});
+        await pollUntil(
+          async () => ((await getActiveSessionIDs(server)).has(hung.id) ? true : undefined),
+          { timeoutMs: 5_000, label: "the stalled target to become active" },
+        );
+
+        // Park a queue copy of the monitor prompt behind the hung turn: the
+        // interrupt must not strand it (`continue=true` leaves queued
+        // prompts parked), so the confirming tick promotes it to steer
+        // first.
+        await prompt(server, hung.id, deadMarker, { delivery: "queue" });
+        const parkedCopy = (await getInbox(server, hung.id)).find((item) => item.payload?.text === deadMarker);
+        assert.ok(parkedCopy, "expected the queue copy to park behind the hung turn");
+
+        const startResult = await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_start({interval: 800, prompt: ${JSON.stringify(deadMarker)}, target_session: ${JSON.stringify(hung.id)}});`,
+        );
+        deadLoopID = startResult.structuredJSON.id;
 
         let observedTicks = [];
         const interruptedTick = await pollUntil(
@@ -463,14 +468,18 @@ export async function run(ctx) {
         );
         assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
       } finally {
-        await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
-        ).catch(() => {});
+        if (deadLoopID) {
+          await driveToolCall(
+            server,
+            controller.id,
+            `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
+          ).catch(() => {});
+        }
         // A failed assertion must not leave the stalled execution running.
         await interrupt(server, hung.id).catch(() => {});
-        await stallTurn;
+        if (stallTurn) {
+          await stallTurn;
+        }
       }
     },
   );
@@ -485,23 +494,25 @@ export async function run(ctx) {
       // 4 s sandbox confirmation window: only the raw-liveness veto (teed
       // provider chunks) can protect it past the boundary.
       const trickling = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
-      const trickleTurn = prompt(server, trickling.id, tricklePrompt(250, 36, `trickle-${Date.now()}`), {
-        delivery: "steer",
-      }).catch(() => {});
-      await pollUntil(
-        async () => ((await getActiveSessionIDs(server)).has(trickling.id) ? true : undefined),
-        { timeoutMs: 5_000, label: "the trickling target to become active" },
-      );
-
       const trickleMarker = "suite-health-loop-trickle-ping";
-      const startResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_start({interval: 600, prompt: ${JSON.stringify(trickleMarker)}, target_session: ${JSON.stringify(trickling.id)}});`,
-      );
-      const trickleLoopID = startResult.structuredJSON.id;
+      let trickleTurn;
+      let trickleLoopID;
 
       try {
+        trickleTurn = prompt(server, trickling.id, tricklePrompt(250, 36, `trickle-${Date.now()}`), {
+          delivery: "steer",
+        }).catch(() => {});
+        await pollUntil(
+          async () => ((await getActiveSessionIDs(server)).has(trickling.id) ? true : undefined),
+          { timeoutMs: 5_000, label: "the trickling target to become active" },
+        );
+
+        const startResult = await driveToolCall(
+          server,
+          controller.id,
+          `return await tools.rp_loop_start({interval: 600, prompt: ${JSON.stringify(trickleMarker)}, target_session: ${JSON.stringify(trickling.id)}});`,
+        );
+        trickleLoopID = startResult.structuredJSON.id;
 
         // The suspicion must actually engage (the stream looks dead to the
         // projection) or this check proves nothing.
@@ -550,15 +561,19 @@ export async function run(ctx) {
         );
 
       } finally {
-        await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(trickleLoopID)}});`,
-        ).catch(() => {});
+        if (trickleLoopID) {
+          await driveToolCall(
+            server,
+            controller.id,
+            `return await tools.rp_loop_cancel({id: ${JSON.stringify(trickleLoopID)}});`,
+          ).catch(() => {});
+        }
         // Idle interruption is a no-op; a failed assertion must not leave
         // the trickling execution running.
         await interrupt(server, trickling.id).catch(() => {});
-        await trickleTurn;
+        if (trickleTurn) {
+          await trickleTurn;
+        }
       }
     },
   );

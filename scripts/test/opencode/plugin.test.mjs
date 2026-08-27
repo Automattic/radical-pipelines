@@ -29,6 +29,7 @@ import plugin, {
   promoteInboxItem,
   readCliVersion,
   readPackageVersion,
+  recordRawResponseStart,
   recordSessionEventActivity,
   readServiceRecordFile,
   recordSpawn,
@@ -1122,6 +1123,74 @@ describe("observeHttpResponse / lastRawSessionProgressAt", () => {
     assert.equal(input.response.status, 200);
   });
 
+  test("captures identifier values from consumed bytes, across chunk boundaries", async () => {
+    const encoder = new TextEncoder();
+    // The id value is split across two chunks: the tail carry must join it.
+    const chunks = ['data: {"id":"call_', 'boundary_test","choices":[]}\n\n'];
+    const body = new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        // Held open: the generation must stay open with its ids readable.
+      },
+    });
+    const input = {
+      sessionID: "ses_raw_ids_test",
+      response: new Response(body, { status: 200 }),
+    };
+    observeHttpResponse(input);
+    const reader = input.response.body.getReader();
+    await reader.read();
+    await reader.read();
+
+    const record = lastRawSessionProgressAt("ses_raw_ids_test");
+    assert.equal(record.open.length, 1);
+    assert.ok(
+      record.open[0].ids.includes("call_boundary_test"),
+      `expected the split id to be captured, got: ${JSON.stringify(record.open[0].ids)}`,
+    );
+  });
+
+  test("a session reusing an aged record cannot prune it out from under its own new response", () => {
+    // Seed enough aged sessions to trigger pruning, including an aged
+    // record for the session about to be reused.
+    const base = 10_000_000_000;
+    recordRawResponseStart("ses_reuse_detach", base - 90_000_000);
+    for (let i = 0; i < 300; i++) {
+      recordRawResponseStart(`ses_reuse_filler_${i}`, base - 89_000_000);
+    }
+    // The reused session's new response must land in the *live* record.
+    recordRawResponseStart("ses_reuse_detach", base);
+    const record = lastRawSessionProgressAt("ses_reuse_detach");
+    assert.ok(record, "the reused record must survive its own arrival's pruning");
+    assert.equal(
+      record.open.filter((generation) => generation.startedAt === base).length,
+      1,
+      "the new generation must be attached to the live record",
+    );
+  });
+
+  test("open generations are pruned by age only, never by count", () => {
+    const base = 20_000_000_000;
+    for (let i = 0; i < 12; i++) {
+      recordRawResponseStart("ses_gen_volume", base + i);
+    }
+    assert.equal(
+      lastRawSessionProgressAt("ses_gen_volume").open.length,
+      12,
+      "volume alone must never evict a live generation",
+    );
+
+    // Aged-out generations do get pruned on the next observation.
+    recordRawResponseStart("ses_gen_volume", base + 86_400_000 + 1_000);
+    assert.equal(
+      lastRawSessionProgressAt("ses_gen_volume").open.length,
+      1,
+      "generations older than the retention must age out",
+    );
+  });
+
   test("a body-less response records the arrival without opening a generation", () => {
     const input = { sessionID: "ses_raw_progress_nobody", response: { status: 204, body: null } };
     observeHttpResponse(input);
@@ -1168,6 +1237,21 @@ describe("isDeadStreamMessage", () => {
         content: [{ type: "text", text: "spawning" }, { type: "tool", state: { status: "streaming" } }],
       }),
       true,
+    );
+  });
+
+  test("an executing tool anywhere in the message vetoes, even behind a trailing streaming part", () => {
+    // Completed tool calls execute concurrently with the remaining stream,
+    // so `[running, streaming]` is legitimate work in flight: interrupting
+    // it would kill the running tool.
+    assert.equal(
+      isDeadStreamMessage({
+        content: [
+          { type: "tool", id: "call_1", name: "shell", state: { status: "running" } },
+          { type: "tool", id: "call_2", name: "rp_spawn", state: { status: "streaming", input: "" } },
+        ],
+      }),
+      false,
     );
   });
 
@@ -1652,10 +1736,10 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming" } }],
         },
       ],
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject during backoff");
       },
@@ -1763,10 +1847,10 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -1861,11 +1945,11 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
       getLastEventAt: () => lastEvent,
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a streaming target");
       },
@@ -1912,11 +1996,11 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
       getRawProgressAt: () =>
-        lastRawChunk === undefined ? undefined : { lastAt: lastRawChunk, open: [{ startedAt: 0, lastAt: lastRawChunk }] },
+        lastRawChunk === undefined ? undefined : { lastAt: lastRawChunk, open: [{ startedAt: 0, lastAt: lastRawChunk, ids: ["call_1"] }] },
       injectPrompt: () => {
         throw new Error("must not inject into a streaming target");
       },
@@ -1946,7 +2030,7 @@ describe("runLoopTick", () => {
       {
         id: "as_1",
         type: "assistant",
-        content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
       },
     ];
     let clock = 10_000;
@@ -1957,7 +2041,7 @@ describe("runLoopTick", () => {
       getInbox: async () => [],
       getMessages: async () => messages,
       getLastInterruptAt: () => interruptedAt,
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       recordInterrupt: (sessionID, at) => {
         interruptedAt = at;
       },
@@ -2002,7 +2086,7 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
       injectPrompt: () => {
@@ -2042,10 +2126,10 @@ describe("runLoopTick", () => {
           id: "as_1",
           type: "assistant",
           time: { created: 9_000 },
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ lastAt: 100, open: [{ startedAt: 100, lastAt: 100 }] }),
+      getRawProgressAt: () => ({ lastAt: 100, open: [{ startedAt: 100, lastAt: 100, ids: ["call_old"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a suspected target");
       },
@@ -2067,10 +2151,11 @@ describe("runLoopTick", () => {
     });
   });
 
-  test("a record starting just before the message's row tolerates same-turn ordering jitter", async () => {
-    // Observed live: response headers can reach the hook milliseconds
-    // before the assistant row's `created` is assigned. That jitter must
-    // not read as historical coverage.
+  test("identity holds across any time-to-first-token gap: headers long before the row still cover", async () => {
+    // The row is created from the first model event, not the headers, so
+    // the gap between response start and row creation is provider-sized —
+    // seconds, not milliseconds. Identity is by carried call id, so the
+    // gap cannot matter in either direction.
     const interrupts = [];
     const state = {};
     let clock = 10_000;
@@ -2084,10 +2169,10 @@ describe("runLoopTick", () => {
           id: "as_1",
           type: "assistant",
           time: { created: 9_000 },
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ lastAt: 8_600, open: [{ startedAt: 8_500, lastAt: 8_600 }] }),
+      getRawProgressAt: () => ({ lastAt: 8_600, open: [{ startedAt: 2_000, lastAt: 8_600, ids: ["call_1"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -2113,7 +2198,7 @@ describe("runLoopTick", () => {
     const interrupts = [];
     const state = {};
     let clock = 10_000;
-    let raw = { lastAt: 9_200, open: [{ startedAt: 9_100, lastAt: 9_200 }] };
+    let raw = { lastAt: 9_200, open: [{ startedAt: 9_100, lastAt: 9_200, ids: ["call_1"] }] };
     const deps = {
       server: { baseURL: "http://x", password: "y" },
       isSessionActive: async () => true,
@@ -2124,7 +2209,7 @@ describe("runLoopTick", () => {
           id: "as_1",
           type: "assistant",
           time: { created: 9_000 },
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
       getRawProgressAt: () => raw,
@@ -2169,7 +2254,7 @@ describe("runLoopTick", () => {
           id: "as_1",
           type: "assistant",
           time: { created: 9_000 },
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
       getRawProgressAt: () => raw,
@@ -2192,7 +2277,7 @@ describe("runLoopTick", () => {
     // passed; what it observes is the *next* response for the session — a
     // provider retry here — opening a fresh generation whose bytes are
     // stale by the following tick, so silence finally becomes measurable.
-    raw = { lastAt: 11_200, open: [{ startedAt: 11_200, lastAt: 11_200 }] };
+    raw = { lastAt: 11_200, open: [{ startedAt: 11_200, lastAt: 11_200, ids: ["call_1"] }] };
     clock = 11_150 + 1_000;
     // First covered tick vetoes on the fresh bytes and re-arms...
     assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
@@ -2224,7 +2309,7 @@ describe("runLoopTick", () => {
           id: "as_2",
           type: "assistant",
           time: { created: 9_215 },
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
         { id: "as_1", type: "assistant", finish: "stop", time: { created: 9_000 } },
       ],
@@ -2252,6 +2337,97 @@ describe("runLoopTick", () => {
     });
   });
 
+  test("an abandoned generation that never consumed bytes can never claim identity", async () => {
+    // A later hook can replace the teed response; the abandoned wrapper's
+    // generation stays open but transforms nothing, so it carries no ids —
+    // coverage must come from the response path actually consumed.
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => ({ lastAt: 9_100, open: [{ startedAt: 9_050, lastAt: 9_050, ids: [] }] }),
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: () => {
+        throw new Error("an unconsumed wrapper must never authorize an interrupt");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 12_000;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-unobserved",
+      lastActivity: 5_000,
+    });
+  });
+
+  test("bytes on unrelated same-session responses do not veto the suspected stream forever", async () => {
+    // The veto is scoped to the matched generation: a concurrent response
+    // (e.g. session.generate) trickling bytes must not defer recovery of
+    // the hung agent turn indefinitely.
+    const interrupts = [];
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      // The matched generation is silent; an unrelated concurrent one keeps
+      // producing bytes (session-wide lastAt stays fresh).
+      getRawProgressAt: () => ({
+        lastAt: clock,
+        open: [
+          { startedAt: 9_050, lastAt: 9_100, ids: ["call_1"] },
+          { startedAt: 9_500, lastAt: clock, ids: ["call_unrelated"] },
+        ],
+      }),
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: async (server, sessionID) => interrupts.push(sessionID),
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 11_100;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      silenceMs: 1_100,
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
   test("a failed interrupt request is not recorded, leaving the next confirmation free to retry", async () => {
     let recorded;
     const state = {};
@@ -2267,10 +2443,10 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       getLastInterruptAt: () => recorded,
       recordInterrupt: (sessionID, at) => {
         recorded = at;
@@ -2325,10 +2501,10 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject after cancellation");
       },
@@ -2384,10 +2560,10 @@ describe("runLoopTick", () => {
         {
           id: "as_1",
           type: "assistant",
-          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -2422,7 +2598,7 @@ describe("runLoopTick", () => {
       {
         id: "as_1",
         type: "assistant",
-        content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
       },
     ];
     const deps = {
@@ -2435,7 +2611,7 @@ describe("runLoopTick", () => {
         return [];
       },
       getMessages: async () => messages,
-      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1 }] }),
+      getRawProgressAt: () => ({ lastAt: 1, open: [{ startedAt: 0, lastAt: 1, ids: ["call_1"] }] }),
       injectPrompt: () => {
         throw new Error("must not inject during confirmation");
       },
