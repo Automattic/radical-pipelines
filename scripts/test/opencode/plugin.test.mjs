@@ -29,7 +29,9 @@ import plugin, {
   promoteInboxItem,
   readCliVersion,
   readPackageVersion,
+  recordGenerationID,
   recordRawResponseStart,
+  recordRawSessionProgress,
   recordSessionEventActivity,
   readServiceRecordFile,
   recordSpawn,
@@ -1147,9 +1149,59 @@ describe("observeHttpResponse / lastRawSessionProgressAt", () => {
     const record = lastRawSessionProgressAt("ses_raw_ids_test");
     assert.equal(record.open.length, 1);
     assert.ok(
-      record.open[0].ids.includes("call_boundary_test"),
-      `expected the split id to be captured, got: ${JSON.stringify(record.open[0].ids)}`,
+      record.open[0].ids.has("call_boundary_test"),
+      `expected the split id to be captured, got: ${JSON.stringify([...record.open[0].ids])}`,
     );
+  });
+
+  test("captures projected tool ids across pinned provider protocols, decoding JSON escapes", async () => {
+    const encoder = new TextEncoder();
+    const chunks = [
+      // Open Responses: the projected tool-part id is `call_id`, not `id`.
+      'data: {"id":"fc_item_1","call_id":"call_projected_1","type":"function_call"}\n\n',
+      // Bedrock: `toolUseId`, with no `id` field at all.
+      'data: {"contentBlockStart":{"start":{"toolUse":{"toolUseId":"tooluse_bedrock_1"}}}}\n\n',
+      // Escaped raw value must match its decoded projected form.
+      'data: {"call_id":"call_\\u0031"}\n\n',
+    ];
+    const body = new ReadableStream({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(encoder.encode(chunk));
+        }
+        // Held open: generation stays inspectable.
+      },
+    });
+    const input = { sessionID: "ses_raw_protocols_test", response: new Response(body, { status: 200 }) };
+    observeHttpResponse(input);
+    const reader = input.response.body.getReader();
+    for (let i = 0; i < chunks.length; i++) {
+      await reader.read();
+    }
+
+    const ids = lastRawSessionProgressAt("ses_raw_protocols_test").open[0].ids;
+    for (const expected of ["fc_item_1", "call_projected_1", "tooluse_bedrock_1", "call_1"]) {
+      assert.ok(ids.has(expected), `expected ${expected} captured, got: ${JSON.stringify([...ids])}`);
+    }
+  });
+
+  test("a resumed byte re-attaches its aged generation instead of pruning it away", () => {
+    const base = 30_000_000_000;
+    const generation = recordRawResponseStart("ses_resume_detach", base);
+    // 24h of silence, then the stream proves itself with a byte.
+    recordRawSessionProgress("ses_resume_detach", generation, base + 86_400_000 + 1_000);
+    const record = lastRawSessionProgressAt("ses_resume_detach");
+    assert.ok(record.open.includes(generation), "the producing generation must survive its own resumption");
+    assert.equal(generation.lastAt, base + 86_400_000 + 1_000);
+  });
+
+  test("a valid call id is never displaced by id volume", () => {
+    const generation = recordRawResponseStart("ses_id_volume", 40_000_000_000);
+    for (let i = 0; i < 200; i++) {
+      recordGenerationID(generation, `chatcmpl_${i}`);
+    }
+    recordGenerationID(generation, "call_suspected_late");
+    assert.ok(generation.ids.has("call_suspected_late"), "late ids must not be silently discarded");
   });
 
   test("a session reusing an aged record cannot prune it out from under its own new response", () => {
@@ -2362,6 +2414,94 @@ describe("runLoopTick", () => {
       },
       interruptSession: () => {
         throw new Error("an unconsumed wrapper must never authorize an interrupt");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 12_000;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-unobserved",
+      lastActivity: 5_000,
+    });
+  });
+
+  test("any matching generation producing bytes vetoes, not merely the first match", async () => {
+    // Two open generations can carry one call id (sampled-then-replayed).
+    // A silent older match must not shadow a live newer one.
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => ({
+        lastAt: clock,
+        open: [
+          { startedAt: 9_050, lastAt: 9_100, ids: ["call_1"] },
+          { startedAt: 9_500, lastAt: clock, ids: ["call_1"] },
+        ],
+      }),
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: () => {
+        throw new Error("a live matching generation must veto the interrupt");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 12_000;
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 14_000;
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+  });
+
+  test("multiple silent generations carrying one call id are ambiguous and never authorize", async () => {
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", id: "call_1", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => ({
+        lastAt: 9_100,
+        open: [
+          { startedAt: 9_050, lastAt: 9_100, ids: ["call_1"] },
+          { startedAt: 9_060, lastAt: 9_090, ids: ["call_1"] },
+        ],
+      }),
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: () => {
+        throw new Error("ambiguous identity must never authorize an interrupt");
       },
       onOutcome: () => {},
       now: () => clock,

@@ -1043,23 +1043,26 @@ async function runActiveTick(
   if (isDeadStreamMessage(newestAssistant)) {
     const fingerprint = deadStreamFingerprint(newestAssistant);
     // Coverage is response *identity*, not a clock comparison: the still-
-    // open (unfinished) generation whose consumed bytes carried the
+    // open (unfinished) generations whose consumed bytes carried the
     // suspected tool part's provider-unique call id. Time-to-first-token
     // gaps cannot break it (the id arrives in the same bytes that created
     // the part), a completed or unrelated response can never impersonate
-    // the hung stream, and a wrapper another hook replaced never consumed
-    // bytes, so an abandoned generation can never claim identity. A stream
-    // the tee did not observe leaves no match and stays unescalatable.
+    // the hung stream, and a wrapper another hook replaced without
+    // consuming never carries the id, so it can claim nothing. Every
+    // matching generation counts: any live one vetoes, and more than one
+    // is ambiguous identity that never authorizes. The residual a passive
+    // tee cannot see — a later hook consuming the identity-bearing bytes
+    // through this tee and then silently substituting the response without
+    // cancelling it — is undetectable from here and excluded by the
+    // documented single-observer assumption.
     const parts = Array.isArray(newestAssistant.content) ? newestAssistant.content : [];
     const suspectCallID = parts[parts.length - 1]?.id;
-    const findMatchedGeneration = () => {
+    const matchedGenerations = () => {
       if (typeof suspectCallID !== "string" || suspectCallID.length === 0) {
-        return undefined;
+        return [];
       }
       const raw = getRawProgressAt(entry.targetSession);
-      return raw?.open?.find(
-        (generation) => Array.isArray(generation.ids) && generation.ids.includes(suspectCallID),
-      );
+      return raw?.open?.filter((generation) => generationCarries(generation, suspectCallID)) ?? [];
     };
     if (state.deadStreamSuspect?.fingerprint !== fingerprint) {
       // First observation: a stale session timestamp says nothing about the
@@ -1067,16 +1070,16 @@ async function runActiveTick(
       // interrupted once frozen for the whole confirmation window. The
       // coverage verdict is pinned in loop state so a later map eviction
       // cannot retract established evidence.
-      state.deadStreamSuspect = { fingerprint, at: now(), covered: Boolean(findMatchedGeneration()) };
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: matchedGenerations().length === 1 };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
     const suspectedAt = state.deadStreamSuspect.at;
     const rawLiveness = () => {
-      // Scoped to the matched generation: bytes on unrelated same-session
-      // responses neither veto the suspected stream forever nor stand in
-      // for its own progress.
-      const matched = findMatchedGeneration();
-      return matched !== undefined && matched.lastAt >= suspectedAt;
+      // Any generation carrying the suspected id that produced bytes since
+      // the suspicion vetoes — never just the first match — while bytes on
+      // unrelated same-session responses neither veto the suspected stream
+      // forever nor stand in for its own progress.
+      return matchedGenerations().some((generation) => generation.lastAt >= suspectedAt);
     };
     const eventLiveness = () => {
       const stamp = getLastEventAt(entry.targetSession);
@@ -1086,19 +1089,28 @@ async function runActiveTick(
       // The stream produced raw response bytes or progress events since the
       // suspicion — it is alive whatever the projection shows. Observed
       // liveness vetoes and re-arms the window.
-      state.deadStreamSuspect = { fingerprint, at: now(), covered: Boolean(findMatchedGeneration()) };
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: matchedGenerations().length === 1 };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
-    if (!state.deadStreamSuspect.covered) {
-      // Silence only counts where the suspected stream's own bytes were
-      // observed. Coverage can still be established late (a hook that
-      // registered after the suspicion began observes the session from its
-      // next response); until then, escalation stays disabled rather than
-      // authorized.
-      if (!findMatchedGeneration()) {
+    {
+      const matches = matchedGenerations();
+      if (matches.length > 1) {
+        // Two open generations carrying one call id is sampled-then-
+        // replaced or replayed identity: ambiguous evidence never
+        // authorizes escalation.
         return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
       }
-      state.deadStreamSuspect.covered = true;
+      if (!state.deadStreamSuspect.covered) {
+        // Silence only counts where the suspected stream's own bytes were
+        // observed. Coverage can still be established late (a hook that
+        // registered after the suspicion began observes the session from
+        // its next response); until then, escalation stays disabled rather
+        // than authorized.
+        if (matches.length !== 1) {
+          return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
+        }
+        state.deadStreamSuspect.covered = true;
+      }
     }
     if (now() - suspectedAt < deadStreamConfirmMs) {
       // Total silence, but not yet for the whole window: keep waiting.
@@ -1141,6 +1153,7 @@ async function runActiveTick(
       if (
         !isDeadStreamMessage(freshAssistant) ||
         deadStreamFingerprint(freshAssistant) !== fingerprint ||
+        matchedGenerations().length > 1 ||
         rawLiveness() ||
         eventLiveness()
       ) {
@@ -1879,8 +1892,13 @@ function getSessionObservationMap(key) {
   return globalThis[key];
 }
 
-/** Bound on distinct identifier values remembered per response generation. */
-const RAW_GENERATION_ID_CAP = 64;
+/**
+ * Safety bound on distinct identifier values remembered per response
+ * generation. Far above anything a real response produces (values are
+ * deduplicated), so a valid call id is never silently discarded; the bound
+ * only guards runaway memory on a pathological stream.
+ */
+const RAW_GENERATION_ID_CAP = 8_192;
 
 /**
  * Fetch (creating on first use) a session's raw-progress record.
@@ -1924,7 +1942,7 @@ function getRawSessionRecord(sessionID, at) {
  */
 function recordRawResponseStart(sessionID, at = Date.now()) {
   const record = getRawSessionRecord(sessionID, at);
-  const generation = { startedAt: at, lastAt: at, ids: [] };
+  const generation = { startedAt: at, lastAt: at, ids: new Set() };
   record.open.push(generation);
   return generation;
 }
@@ -1936,14 +1954,28 @@ function recordRawResponseStart(sessionID, at = Date.now()) {
  * the identifiers a generation was *seen carrying* tie it to the projected
  * tool part under suspicion — response identity by content, not by clock.
  *
- * @param {{ids: string[]}} generation The generation that carried the id.
+ * @param {{ids: Set<string>}} generation The generation that carried the id.
  * @param {string} id The identifier value observed.
  * @returns {void}
  */
 function recordGenerationID(generation, id) {
-  if (!generation.ids.includes(id) && generation.ids.length < RAW_GENERATION_ID_CAP) {
-    generation.ids.push(id);
+  if (generation.ids.size < RAW_GENERATION_ID_CAP) {
+    generation.ids.add(id);
   }
+}
+
+/**
+ * Whether a generation's consumed bytes carried an identifier value.
+ *
+ * Tolerates both the live `Set` and the plain-array form tests stub.
+ *
+ * @param {{ids: Set<string> | string[]}} generation The generation.
+ * @param {string} id The identifier value.
+ * @returns {boolean}
+ */
+function generationCarries(generation, id) {
+  const ids = generation.ids;
+  return Array.isArray(ids) ? ids.includes(id) : Boolean(ids?.has?.(id));
 }
 
 /**
@@ -1979,9 +2011,17 @@ function recordRawResponseEnd(sessionID, generation, at = Date.now()) {
  * @returns {void}
  */
 function recordRawSessionProgress(sessionID, generation, at = Date.now()) {
-  const record = getRawSessionRecord(sessionID, at);
+  // The producing generation is refreshed *before* the record is fetched:
+  // fetching prunes open generations by their old timestamps, and a byte
+  // resuming after a long silence must never prune — and thereby detach —
+  // the very generation it proves alive. A generation aged out by an
+  // earlier observation is re-attached: its stream just proved itself.
   if (generation) {
     generation.lastAt = generation.lastAt > at ? generation.lastAt : at;
+  }
+  const record = getRawSessionRecord(sessionID, at);
+  if (generation && !record.open.includes(generation)) {
+    record.open.push(generation);
   }
   record.lastAt = record.lastAt > at ? record.lastAt : at;
 }
@@ -2001,10 +2041,15 @@ function lastRawSessionProgressAt(sessionID) {
 
 /**
  * Pattern extracting identifier values from a response's decoded bytes.
- * Matches any `"id": "..."` field; the superset is harmless — matching is
- * by the suspected tool part's provider-unique call id.
+ *
+ * Pinned provider protocols project the tool-part id from different raw
+ * fields — Chat's `id`, Open Responses' `call_id`, Bedrock's `toolUseId` —
+ * so every id-suffixed key's string value is captured, and the quoted JSON
+ * token is decoded so escaped values (`"call_\u0031"`) match their
+ * projected form. The superset is harmless: matching is by the suspected
+ * tool part's provider-unique call id.
  */
-const RAW_ID_PATTERN = /"id"\s*:\s*"([^"]{1,128})"/g;
+const RAW_ID_PATTERN = /"[A-Za-z0-9_]*[iI][dD]"\s*:\s*("(?:[^"\\]|\\.){0,1024}")/g;
 
 /**
  * Wrap a session's provider response so its streamed chunks record raw
@@ -2041,9 +2086,15 @@ function observeHttpResponse(input) {
         RAW_ID_PATTERN.lastIndex = 0;
         let match;
         while ((match = RAW_ID_PATTERN.exec(text)) !== null) {
-          recordGenerationID(generation, match[1]);
+          try {
+            // Decode the quoted JSON token so escaped raw values match
+            // their projected form.
+            recordGenerationID(generation, JSON.parse(match[1]));
+          } catch {
+            recordGenerationID(generation, match[1].slice(1, -1));
+          }
         }
-        tail = text.slice(-160);
+        tail = text.slice(-1_200);
       } catch {
         // Identity capture is best-effort; liveness recording above stands.
       }
@@ -3809,6 +3860,7 @@ export {
   readPinManifest,
   readServiceRecordFile,
   readSkillDirectory,
+  recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
   recordSessionEventActivity,
