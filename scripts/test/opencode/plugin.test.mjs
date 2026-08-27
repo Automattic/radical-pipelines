@@ -1309,16 +1309,19 @@ describe("terminal-event listener", () => {
     }
   });
 
-  test("a session terminated through rp_terminate announces nothing and records no error", async () => {
+  test("a failure arriving while the delete is still in flight is suppressed, and other sessions keep announcing", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, tools, pushEvent, sessions } = fakeCtx;
-    sessions.set("ses_spawner_term", { id: "ses_spawner_term" });
-    sessions.set("ses_child_term", { id: "ses_child_term" });
-    recordSpawn("ses_child_term", {
-      name: "worker",
-      run: "267-steer-inter-agent-messages",
-      spawner: "ses_spawner_term",
-    });
+    for (const id of ["ses_spawner_term", "ses_child_term", "ses_child_other"]) {
+      sessions.set(id, { id });
+    }
+    for (const id of ["ses_child_term", "ses_child_other"]) {
+      recordSpawn(id, {
+        name: id === "ses_child_term" ? "worker" : "bystander",
+        run: "267-steer-inter-agent-messages",
+        spawner: "ses_spawner_term",
+      });
+    }
 
     const promptCalls = [];
     ctx.session.prompt = async (args) => {
@@ -1331,16 +1334,20 @@ describe("terminal-event listener", () => {
       isolatedDeps({
         env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
         readServiceRecord: () => null,
-        requestFn: async () => ({ status: 204, body: undefined }),
+        // The delete-associated failure is observed while the request is
+        // still in flight, so emitting it here — before the response
+        // resolves — is what proves the marker is recorded up front. Moving
+        // the record after a successful response fails this test.
+        requestFn: async () => {
+          pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_term" } });
+          await delay(10);
+          return { status: 204, body: undefined };
+        },
       }),
     );
     globalThis[ERROR_LOG_KEY] = [];
 
     await tools.get("rp_terminate").execute({ session: "ses_child_term" });
-
-    // Deleting a session interrupts its running turn, so the failure the
-    // delete itself causes must not be reported back as a fault.
-    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_term" } });
     await delay(10);
 
     assert.deepEqual(promptCalls, [], "a deliberate shutdown must not be announced as a failure");
@@ -1348,6 +1355,82 @@ describe("terminal-event listener", () => {
       globalThis[ERROR_LOG_KEY].filter((entry) => entry.sessionID === "ses_child_term"),
       [],
       "a deliberate shutdown must not appear in recentErrors",
+    );
+
+    // Suppression is per-session, not a disabled listener.
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_other" } });
+    await delay(10);
+    assert.equal(promptCalls.length, 1, "an untouched session must still announce its failures");
+    assert.match(promptCalls[0].text, /bystander \(ses_child_other\) failed a turn/);
+  });
+
+  test("a failed attempt does not erase the suppression a successful termination placed", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_twice", { id: "ses_spawner_twice" });
+    sessions.set("ses_child_twice", { id: "ses_child_twice" });
+    recordSpawn("ses_child_twice", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_twice",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+
+    let status = 204;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async () => ({ status, body: undefined }),
+      }),
+    );
+
+    const tool = tools.get("rp_terminate");
+    await tool.execute({ session: "ses_child_twice" });
+
+    status = 500;
+    assert.deepEqual(
+      await tool.execute({ session: "ses_child_twice" }),
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_twice" } });
+    await delay(10);
+    assert.deepEqual(
+      promptCalls,
+      [],
+      "a later failed attempt must not resurrect announcements for an already-terminated session",
+    );
+  });
+
+  test("a first-call 404 leaves no marker behind", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, sessions } = fakeCtx;
+    sessions.set("ses_spawner_404", { id: "ses_spawner_404" });
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async () => ({ status: 404, body: undefined }),
+      }),
+    );
+
+    assert.deepEqual(
+      await tools.get("rp_terminate").execute({ session: "ses_never_existed" }),
+      toToolResult({ status: 404, error: "SessionNotFoundError" }),
+    );
+    assert.equal(
+      globalThis[TERMINATED_SESSIONS_KEY]?.has("ses_never_existed") ?? false,
+      false,
+      "a delete that terminated nothing must not leave a permanent marker",
     );
   });
 

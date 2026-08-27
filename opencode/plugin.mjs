@@ -1110,9 +1110,9 @@ function formatStructuredError(error) {
  * Handle one event delivered to the terminal-event listener.
  *
  * Ignores non-terminal events, terminal events on sessions RP did not spawn,
- * and every event on a session terminated through `rp_terminate` — deleting a
- * session interrupts whatever turn it was running, and that interruption is
- * the expected end of a deliberate shutdown rather than a fault to report.
+ * and every event on a session terminated through `rp_terminate` — a delete
+ * races whatever the session was doing, and a failure it provokes is the
+ * expected end of a deliberate shutdown rather than a fault to report.
  * A successful turn is not a completion signal — an agent declares its own
  * completion in a message to its spawner — so success events pass silently.
  * Every failed turn is recorded in the bounded error log (including the
@@ -2064,12 +2064,18 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
  * Build the `rp_terminate` tool descriptor.
  *
  * Records the session as deliberately terminated *before* issuing the delete,
- * so the terminal-event listener suppresses the failure the delete itself
- * causes: deleting a session interrupts its running turn, and that
- * interruption is published while the request is still in flight. A delete
- * that comes back non-2xx un-records it, since a session that survived a
- * failed termination can still fail for real. A 404 stays recorded — the
- * session is already gone.
+ * because a delete-associated failure is observed in the same second as the
+ * request: recording on success would land too late to suppress it. A clean
+ * interrupt publishes `session.execution.interrupted`, which this plugin
+ * ignores, so the failure comes from work that races the deletion rather than
+ * from the interrupt itself — an execution that still touches the session
+ * once its row is gone.
+ *
+ * Only the call that introduced the marker may withdraw it, so a failed
+ * attempt cannot erase the suppression an earlier or concurrent successful
+ * termination relies on. A first-call 404 withdraws it — nothing was
+ * terminated — while a 404 on a repeated deletion keeps the marker its
+ * successful call placed.
  *
  * @param {{
  *   env: Record<string, string | undefined>,
@@ -2098,7 +2104,16 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
         return toToolResult({ error: "server unreachable" });
       }
       const terminated = getTerminatedSessions();
+      // Only the call that introduced the marker may withdraw it, so an
+      // attempt that fails cannot erase the suppression an earlier or
+      // concurrent successful termination of the same session is relying on.
+      const introduced = !terminated.has(session);
       terminated.add(session);
+      const withdraw = () => {
+        if (introduced) {
+          terminated.delete(session);
+        }
+      };
       let response;
       try {
         response = await requestServer(
@@ -2109,14 +2124,15 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
           requestFn,
         );
       } catch (error) {
-        terminated.delete(session);
+        withdraw();
         throw error;
       }
       if (response.status === 404) {
+        withdraw();
         return toToolResult({ status: 404, error: "SessionNotFoundError" });
       }
       if (response.status < 200 || response.status >= 300) {
-        terminated.delete(session);
+        withdraw();
         return toToolResult({ status: response.status, error: "SessionTerminationFailed" });
       }
       return toToolResult({ terminated: true });
