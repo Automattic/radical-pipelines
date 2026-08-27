@@ -994,10 +994,9 @@ const TERMINATED_SESSIONS_KEY = Symbol.for("radical-pipelines.opencode.terminate
  *
  * A session is present while at least one `rp_terminate` call for it is in
  * flight, and remains present once any call has confirmed the deletion.
- * Membership is exactly the condition under which terminal events for that
- * session are ignored.
  *
- * @returns {Map<string, {inFlight: number, confirmed: boolean}>} The singleton map.
+ * @returns {Map<string, {inFlight: number, confirmed: boolean, startedAt: number, deferred: Array<() => Promise<void>>}>}
+ *   The singleton map.
  */
 function getTerminationState() {
   if (!globalThis[TERMINATED_SESSIONS_KEY]) {
@@ -1010,50 +1009,86 @@ function getTerminationState() {
  * Record that a termination attempt for a session has started.
  *
  * @param {string} sessionID The session being terminated.
+ * @param {() => number} [now] Clock, injectable for tests.
  * @returns {void}
  */
-function beginTermination(sessionID) {
+function beginTermination(sessionID, now = Date.now) {
   const state = getTerminationState();
-  const entry = state.get(sessionID) ?? { inFlight: 0, confirmed: false };
+  const entry = state.get(sessionID) ?? {
+    inFlight: 0,
+    confirmed: false,
+    startedAt: now(),
+    deferred: [],
+  };
   entry.inFlight += 1;
   state.set(sessionID, entry);
 }
 
 /**
- * Record how one termination attempt ended.
+ * Record how one termination attempt ended, and release whatever the pending
+ * outcome was holding.
  *
  * Suppression survives while any other attempt is still in flight and forever
  * once some attempt confirmed the deletion, so a failing attempt can never
- * withdraw the suppression a concurrent successful one depends on. State is
- * dropped only when nothing is in flight and nothing was ever terminated,
- * which is what keeps a never-spawned session ID from leaving a marker.
+ * withdraw the suppression a concurrent successful one depends on. When every
+ * attempt has settled and none deleted anything, the session is still alive:
+ * its state is dropped — which is also what keeps a never-spawned session ID
+ * from leaving a marker — and the terminal events held while the outcome was
+ * unknown are handed back to the caller to report after all.
  *
  * @param {string} sessionID The session the attempt targeted.
  * @param {boolean} confirmed Whether this attempt deleted the session.
- * @returns {void}
+ * @returns {Array<() => Promise<void>>} Held terminal-event handlers to run,
+ *   empty unless this attempt settled the last of a failed termination.
  */
 function endTermination(sessionID, confirmed) {
   const state = getTerminationState();
   const entry = state.get(sessionID);
   if (!entry) {
-    return;
+    return [];
   }
   entry.inFlight -= 1;
   entry.confirmed = entry.confirmed || confirmed;
-  if (entry.inFlight <= 0 && !entry.confirmed) {
-    state.delete(sessionID);
+  if (entry.inFlight > 0) {
+    return [];
   }
+  const held = entry.deferred;
+  entry.deferred = [];
+  if (entry.confirmed) {
+    // The session is gone; anything it emitted on the way out was the shutdown.
+    return [];
+  }
+  state.delete(sessionID);
+  return held;
 }
 
 /**
- * Whether terminal events for a session are the expected consequence of a
- * deliberate termination rather than a fault to report.
+ * Decide what a terminal event's arrival during a termination means.
  *
- * @param {string} sessionID The session a terminal event pertains to.
- * @returns {boolean} `true` while a termination is in flight or confirmed.
+ * An event the session emitted *before* its shutdown began is its own news
+ * however late this listener reaches it, so it reports normally. Otherwise a
+ * confirmed deletion discards it, and an unknown outcome holds it: discarding
+ * on the mere intent to terminate would lose a genuine failure for good when
+ * the delete turns out to fail.
+ *
+ * @param {string} sessionID The session the event pertains to.
+ * @param {{created?: number}} event The terminal event.
+ * @param {() => Promise<void>} run Reports the event.
+ * @returns {boolean} `true` when the termination took the event over.
  */
-function isTerminating(sessionID) {
-  return getTerminationState().has(sessionID);
+function withheldByTermination(sessionID, event, run) {
+  const entry = getTerminationState().get(sessionID);
+  if (!entry) {
+    return false;
+  }
+  if (typeof event?.created === "number" && event.created < entry.startedAt) {
+    return false;
+  }
+  if (entry.confirmed) {
+    return true;
+  }
+  entry.deferred.push(run);
+  return true;
 }
 
 /**
@@ -1195,41 +1230,44 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
   if (!entry) {
     return;
   }
-  if (isTerminating(sessionID)) {
-    return;
-  }
+  const report = async () => {
+    if (event.type === "session.execution.failed") {
+      const error = terminalEventError(event);
+      const logEntry = { type: event.type, sessionID, at: Date.now() };
+      if (error !== undefined) {
+        logEntry.error = error;
+      }
+      recordError(logEntry);
 
-  if (event.type === "session.execution.failed") {
-    const error = terminalEventError(event);
-    const logEntry = { type: event.type, sessionID, at: Date.now() };
-    if (error !== undefined) {
-      logEntry.error = error;
+      const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
+      await ctx.session.prompt({
+        sessionID: entry.spawner,
+        text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
+        delivery: "steer",
+      });
     }
-    recordError(logEntry);
 
-    const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
-    await ctx.session.prompt({
-      sessionID: entry.spawner,
-      text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
-      delivery: "steer",
-    });
-  }
+    const titled = getTitledChildren();
+    if (titled.has(sessionID)) {
+      return;
+    }
+    const server = resolveServer({ env, readServiceRecord });
+    if (server) {
+      await requestServer(
+        server,
+        "POST",
+        `/api/session/${sessionID}/rename`,
+        { title: formatTitle({ run: entry.run, name: entry.name }) },
+        requestFn,
+      );
+      titled.add(sessionID);
+    }
+  };
 
-  const titled = getTitledChildren();
-  if (titled.has(sessionID)) {
+  if (withheldByTermination(sessionID, event, report)) {
     return;
   }
-  const server = resolveServer({ env, readServiceRecord });
-  if (server) {
-    await requestServer(
-      server,
-      "POST",
-      `/api/session/${sessionID}/rename`,
-      { title: formatTitle({ run: entry.run, name: entry.name }) },
-      requestFn,
-    );
-    titled.add(sessionID);
-  }
+  await report();
 }
 
 /** Event type opencode publishes when a session blocks on a permission ask. */
@@ -2131,10 +2169,14 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
  * can withdraw what a concurrent successful one depends on. A delete that
  * terminated nothing and raced nothing leaves no marker behind.
  *
+ * While the outcome is unknown a terminal event is *held*, not dropped:
+ * intent to terminate is not termination, and a delete that fails leaves a
+ * live session whose failure its spawner still needs. Settling releases what
+ * was held unless some attempt confirmed the deletion.
+ *
  * A transport throw is ambiguous — the server may have committed the delete
- * before the socket failed — and is treated as "not terminated": an event
- * that arrives later is announced rather than silently dropped, preferring a
- * visible surplus report over an invisible missing one.
+ * before the socket failed — and is treated as "not terminated", so anything
+ * held is reported: a visible surplus report beats an invisible missing one.
  *
  * @param {{
  *   env: Record<string, string | undefined>,
@@ -2162,6 +2204,15 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
       if (!server) {
         return toToolResult({ error: "server unreachable" });
       }
+      // A terminal event that arrives while this delete is in flight is held
+      // rather than dropped, so settling has to release it: the session is
+      // still alive whenever nothing was terminated, and its failures are
+      // still its spawner's business.
+      const settle = async (confirmed) => {
+        for (const report of endTermination(session, confirmed)) {
+          await report();
+        }
+      };
       beginTermination(session);
       let response;
       try {
@@ -2173,18 +2224,18 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
           requestFn,
         );
       } catch (error) {
-        endTermination(session, false);
+        await settle(false);
         throw error;
       }
       if (response.status === 404) {
-        endTermination(session, false);
+        await settle(false);
         return toToolResult({ status: 404, error: "SessionNotFoundError" });
       }
       if (response.status < 200 || response.status >= 300) {
-        endTermination(session, false);
+        await settle(false);
         return toToolResult({ status: response.status, error: "SessionTerminationFailed" });
       }
-      endTermination(session, true);
+      await settle(true);
       return toToolResult({ terminated: true });
     },
   };

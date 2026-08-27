@@ -1409,6 +1409,133 @@ describe("terminal-event listener", () => {
     );
   });
 
+  for (const outcome of [
+    { label: "500", requestFn: async () => ({ status: 500, body: undefined }) },
+    { label: "404", requestFn: async () => ({ status: 404, body: undefined }) },
+    {
+      label: "a transport throw",
+      requestFn: async () => {
+        throw new Error("socket hang up");
+      },
+    },
+  ]) {
+    test(`a failure held while the delete is in flight is reported once that delete ends in ${outcome.label}`, async () => {
+      const fakeCtx = createFakeCtx();
+      const { ctx, tools, pushEvent, sessions } = fakeCtx;
+      sessions.set("ses_spawner_held", { id: "ses_spawner_held" });
+      sessions.set("ses_child_held", { id: "ses_child_held" });
+      recordSpawn("ses_child_held", {
+        name: "worker",
+        run: "267-steer-inter-agent-messages",
+        spawner: "ses_spawner_held",
+      });
+
+      const promptCalls = [];
+      ctx.session.prompt = async (args) => {
+        promptCalls.push(args);
+        return args;
+      };
+
+      setup(
+        ctx,
+        isolatedDeps({
+          env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+          readServiceRecord: () => null,
+          // The session fails on its own — a provider error, say — while the
+          // delete that will not succeed is still in flight. Only the delete
+          // emits it; the listener's own title re-assert uses this same
+          // transport.
+          requestFn: async (url, init) => {
+            if (init.method !== "DELETE") {
+              return { status: 200, body: undefined };
+            }
+            pushEvent({
+              type: "session.execution.failed",
+              data: { sessionID: "ses_child_held" },
+              properties: { error: { type: "provider", message: "upstream exploded" } },
+            });
+            await delay(10);
+            return outcome.requestFn(url, init);
+          },
+        }),
+      );
+      globalThis[ERROR_LOG_KEY] = [];
+
+      await tools
+        .get("rp_terminate")
+        .execute({ session: "ses_child_held" })
+        .catch(() => undefined);
+      await delay(10);
+
+      // Nothing was terminated, so the agent is alive and its failure is
+      // still its spawner's business. Dropping it would lose it for good.
+      assert.equal(
+        promptCalls.length,
+        1,
+        `a failure held across a delete that ended in ${outcome.label} must still be announced`,
+      );
+      assert.match(promptCalls[0].text, /worker \(ses_child_held\) failed a turn/);
+      assert.match(promptCalls[0].text, /upstream exploded/);
+      assert.equal(
+        globalThis[ERROR_LOG_KEY].filter((e) => e.sessionID === "ses_child_held").length,
+        1,
+        "the held failure must also reach recentErrors",
+      );
+    });
+  }
+
+  test("a failure the session emitted before its termination began is reported even if seen later", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_before", { id: "ses_spawner_before" });
+    sessions.set("ses_child_before", { id: "ses_child_before" });
+    recordSpawn("ses_child_before", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_before",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        // Events are handled serially, so one emitted before the terminate can
+        // still be reached after it. `created` is what distinguishes them.
+        requestFn: async (url, init) => {
+          if (init.method !== "DELETE") {
+            return { status: 200, body: undefined };
+          }
+          pushEvent({
+            type: "session.execution.failed",
+            data: { sessionID: "ses_child_before" },
+            created: 1,
+          });
+          await delay(10);
+          return { status: 204, body: undefined };
+        },
+      }),
+    );
+
+    assert.deepEqual(
+      await tools.get("rp_terminate").execute({ session: "ses_child_before" }),
+      toToolResult({ terminated: true }),
+    );
+    await delay(10);
+
+    assert.equal(
+      promptCalls.length,
+      1,
+      "a failure that predates the shutdown is the session's own news, not the shutdown's",
+    );
+  });
+
   test("a failing attempt does not withdraw the suppression a concurrent successful one needs", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, tools, pushEvent, sessions } = fakeCtx;
