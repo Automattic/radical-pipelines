@@ -11,6 +11,7 @@ Each launch has one mode:
 
 1. Write the plan.
 2. With a rejection file, gather the context of step 1, read the current artifacts and the rejection, adjudicate every finding — adopting it, or refuting it with evidence — update both artifacts, and report how each was adjudicated.
+3. With a rejection file **and the IDs of its outside-map issues** (map adjudication, after a final review found work outside the touch map): adjudicate exactly those issues — extend the touch map and the record with the sweep evidence, or eject when the map will not stay small and closed — update both artifacts, and remove the now-stale `amend-plan-review-approved.md` in your revision commit. The rejection's execution findings belong to the writers; leave them unadjudicated. Report how each named issue was adjudicated.
 
 Research goes through the orchestrator: send it each question, and a fresh researcher investigates and answers you directly. A message may carry several independent questions; each gets its own researcher, in parallel.
 

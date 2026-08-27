@@ -39,7 +39,7 @@ When the owner is unsure which same-issue action to take:
 - **Amend** — deliver a small, fully pinned change through a single-phase run layered on a complete run.
 - **Fork** — a new pipeline version branched at a cut commit, to try a different approach.
 
-On an unmerged pipeline, apply the amend qualification test (`amend-pipeline.md`) to the owner's request: when it passes, recommend the amend; when it fails — or the pipeline is merged — the option is not offered — and an owner who asks for an amend is told it does not qualify, and why.
+On an unmerged pipeline with a non-ejected run, apply the amend qualification test (`amend-pipeline.md`) to the owner's request: when it passes, recommend the amend; when it fails — or the pipeline is merged — the option is not offered — and an owner who asks for an amend is told it does not qualify, and why.
 
 If the owner has already specified what to do, skip the question.
 

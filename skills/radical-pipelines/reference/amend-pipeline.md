@@ -33,7 +33,7 @@ The follow-up starts from the tip the amend started from, reusing the amend's in
 
 Re-verify all three gates here, independently of any menu:
 
-- **(a) Complete.** The pipeline's latest non-ejected run is complete (its final phase satisfies the **Per-phase completion** predicate in `pipeline-versioning.md`). If it is not, steer the owner to **resume** (`resume-pipeline.md`), or to **fork** (`fork-pipeline.md`) to try a different approach.
+- **(a) Complete.** The pipeline has a non-ejected run, and the latest one is complete (its final phase satisfies the **Per-phase completion** predicate in `pipeline-versioning.md`). With no non-ejected run, only the eject's recorded follow-up applies (`pipeline-versioning.md`); with an incomplete one, steer the owner to **resume** (`resume-pipeline.md`), or to **fork** (`fork-pipeline.md`) to try a different approach.
 - **(b) Unmerged.** The pipeline is unmerged, per the merged detection in `pipeline-versioning.md` ("Lineage"). If it is merged, the requested change is new work: handle it via `manage-issues.md`, not an amend.
 - **(c) Qualified.** The request passes the qualification test above. If it fails, offer a revision (`revision-pipeline.md`) instead.
 

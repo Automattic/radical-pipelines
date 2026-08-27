@@ -45,7 +45,7 @@ Serve any agent's research request: launch a fresh `researcher` per question —
    1. Launch a fresh writer chosen by the task's `Type` — `build-writer-tdd` for a `tdd` task, `build-writer-e2e` for an `e2e` task, `build-writer-edit` for an `edit` task, `document-writer` for a `doc` task — with the verbatim task block and, on a re-dispatch after rejection, the path to the latest `amend-review-N-rejected.md` plus the issues scoped to this task.
    2. Wait for the writer to commit before launching the next task. Writers share the run worktree, so this step is strictly sequential.
 7. After every writer in the batch has committed, launch a fresh `amend-reviewer` with the list of task IDs in the batch and the rejection iteration number N (starting at 1, incremented per rejection — only used if this iteration ends in rejection). The reviewer derives its own diff base — the parent of the commit that added `amend-plan.md` — so its diff spans the phase's whole work; the batch task list scopes the expected new work, not the review's boundaries. On rejection the reviewer writes `amend-review-N-rejected.md`; on approval it writes `amend-review-approved.md` and `amend-summary.md`, committed together.
-8. On **rejected**: when the rejection names work outside the plan's touch map, first relaunch a fresh `amend-lead` with those outside-map issues verbatim to adjudicate the map — extending `amend-plan.md` and its record with the sweep evidence, or ejecting when the map will not stay small and closed — removing the now-stale `amend-plan-review-approved.md` in its revision commit; a fresh `amend-plan-reviewer` re-approves the revised plan, writing the approval anew. Execution findings stay with the writers. Then build the next batch: the reviewer's reported task IDs whose resolution requires new work, plus any task the revised plan added. Dispatch it per step 6; when the batch is empty — the plan revision alone resolved the rejection — go directly to step 7. Increment N for the next rejection iteration.
+8. On **rejected**: when the rejection names work outside the plan's touch map, first relaunch a fresh `amend-lead` in map adjudication — with the rejection file's path and the IDs of its outside-map issues — to extend `amend-plan.md` and its record with the sweep evidence, or eject when the map will not stay small and closed, removing the now-stale `amend-plan-review-approved.md` in its revision commit; the revised plan then re-enters the plan loop (steps 2–3: the re-review carries the lead's adjudication report and the revision's commit range) until approved. Execution findings stay with the writers. Then build the next batch: every reported or revised task whose required work is not already complete in the diff — flagged tasks needing new work, and extended or added plan entries alike. Dispatch it per step 6; when the batch is empty — the plan revision alone resolved the rejection — go directly to step 7. Increment N for the next rejection iteration.
 9. On **approved**, verify the phase's completion predicate per `../pipeline-versioning.md` ("Per-phase completion").
 
 **The eject.** At any step, the lead or a reviewer may declare the eject, and a writer may report the same discovery as a blocker (`../amend-pipeline.md`, "The eject"). Stop the run and perform the workflow's close-out; the committed artifacts remain the run's record.
@@ -57,11 +57,13 @@ flowchart TD
     A -->|amend-plan-research.md + amend-plan.md| C[amend-plan-reviewer]
     C --> D{Approved?}
     D -->|no — findings| A
-    D -->|yes — one writer per task| E[Writer by task Type]
+    D -->|yes — batch of tasks with work to do| E[Writer by task Type]
+    D -->|yes — empty batch after a map revision| G
     E -->|commits the task's work| F{All batch tasks done?}
     F -->|no| E
     F -->|yes| G[amend-reviewer]
     G --> H{Approved?}
-    H -->|no — re-dispatch flagged tasks| E
+    H -->|no — execution findings: re-dispatch flagged tasks| E
+    H -->|no — outside-map findings: map adjudication| A
     H -->|yes| I[Phase complete]
 ```
