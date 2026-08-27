@@ -393,16 +393,32 @@ const LOOP_BACKOFF_MAX_SKIPS = 7;
  * Wall-clock window a dead-stream suspect must stay frozen before its
  * interrupt is authorized (see `runLoopTick`'s dead-stream guard).
  *
- * The pinned build offers no observable signal that distinguishes a tool
- * call whose arguments are still streaming from one whose stream died —
- * the projection keeps `state.input` empty and no events accompany partial
- * argument chunks — so elapsed time is the only sound evidence: no
- * plausible provider streams a single tool call's arguments for this long
- * with zero observable change. Overridable via
+ * A raw response chunk observed by the location's `http.response` tee
+ * proves liveness, but no observable signal proves death: a stream that
+ * legitimately pauses longer than any finite window is indistinguishable
+ * from one whose connection silently died. Interrupting after this window
+ * of *total* byte-and-event silence is therefore an accepted, documented
+ * heuristic (per #261's amended constraint), tuned so that a false
+ * positive — a live provider sending nothing at all for a full hour on a
+ * connection nothing else killed first — is beyond any observed provider
+ * behavior, while a genuine hang still recovers unattended the same day
+ * it happens rather than whenever a human notices. Overridable via
  * `RP_LOOP_DEAD_STREAM_CONFIRM_MS` so the integration harness can exercise
- * the confirmation without ten-minute waits.
+ * the confirmation without hour-long waits.
  */
-const LOOP_DEAD_STREAM_CONFIRM_MS = 600_000;
+const LOOP_DEAD_STREAM_CONFIRM_MS = 3_600_000;
+
+/**
+ * Ordering slack for tying a raw-progress record to the current response.
+ *
+ * The assistant message row and the provider response race at millisecond
+ * scale — observed live: the response headers can reach the `http.response`
+ * hook just before the message row's `created` timestamp is assigned — so
+ * coverage tolerates a record that started slightly *before* the message.
+ * The slack stays far below any real turn-to-turn gap, so a record from an
+ * earlier turn still reads as historical, never as coverage.
+ */
+const RAW_COVERAGE_SLACK_MS = 2_000;
 
 /**
  * Resolve the dead-stream confirmation window from the environment.
@@ -1045,35 +1061,49 @@ async function runActiveTick(
   const newestAssistant = messages.find((message) => message.type === "assistant") ?? null;
   if (isDeadStreamMessage(newestAssistant)) {
     const fingerprint = deadStreamFingerprint(newestAssistant);
+    // Coverage is tied to the *current* response generation: the raw record
+    // must describe a response that started at or after the suspected
+    // message's creation. A historical observation from an earlier turn
+    // proves nothing about the stream under suspicion.
+    const streamCoverage = () => {
+      const raw = getRawProgressAt(entry.targetSession);
+      return raw !== undefined && raw.startedAt >= (newestAssistant.time?.created ?? 0) - RAW_COVERAGE_SLACK_MS;
+    };
     if (state.deadStreamSuspect?.fingerprint !== fingerprint) {
       // First observation: a stale session timestamp says nothing about the
       // stream's own freshness, so a candidate is only suspected here and
-      // interrupted once frozen for the whole confirmation window.
-      state.deadStreamSuspect = { fingerprint, at: now() };
+      // interrupted once frozen for the whole confirmation window. The
+      // coverage verdict is pinned in loop state so a later map eviction
+      // cannot retract established evidence.
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: streamCoverage() };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
     const suspectedAt = state.deadStreamSuspect.at;
-    const hasLiveness = (readAt) => {
-      const stamp = readAt();
+    const rawLiveness = () => {
+      const raw = getRawProgressAt(entry.targetSession);
+      return raw !== undefined && raw.lastAt >= suspectedAt;
+    };
+    const eventLiveness = () => {
+      const stamp = getLastEventAt(entry.targetSession);
       return stamp !== undefined && stamp >= suspectedAt;
     };
-    if (
-      hasLiveness(() => getRawProgressAt(entry.targetSession)) ||
-      hasLiveness(() => getLastEventAt(entry.targetSession))
-    ) {
+    if (rawLiveness() || eventLiveness()) {
       // The stream produced raw response bytes or progress events since the
       // suspicion — it is alive whatever the projection shows. Observed
       // liveness vetoes and re-arms the window.
-      state.deadStreamSuspect = { fingerprint, at: now() };
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: streamCoverage() };
       return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
     }
-    if (getRawProgressAt(entry.targetSession) === undefined) {
-      // Silence can only be measured where bytes were once observed. An
-      // undefined raw-progress record means the target's provider traffic
-      // is not covered (its location's response hook is missing or failed,
-      // or the record was evicted) — unknown coverage disables escalation
-      // rather than authorizing it.
-      return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
+    if (!state.deadStreamSuspect.covered) {
+      // Silence only counts where the current stream's bytes were once
+      // observed. Coverage can still be established late (a hook that
+      // registered after the suspicion began observes the stream from its
+      // next response); until then, escalation stays disabled rather than
+      // authorized.
+      if (!streamCoverage()) {
+        return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
+      }
+      state.deadStreamSuspect.covered = true;
     }
     if (now() - suspectedAt < deadStreamConfirmMs) {
       // Total silence, but not yet for the whole window: keep waiting.
@@ -1116,9 +1146,8 @@ async function runActiveTick(
       if (
         !isDeadStreamMessage(freshAssistant) ||
         deadStreamFingerprint(freshAssistant) !== fingerprint ||
-        getRawProgressAt(entry.targetSession) === undefined ||
-        hasLiveness(() => getRawProgressAt(entry.targetSession)) ||
-        hasLiveness(() => getLastEventAt(entry.targetSession))
+        rawLiveness() ||
+        eventLiveness()
       ) {
         delete state.deadStreamSuspect;
         return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
@@ -1822,11 +1851,31 @@ function getSessionObservationMap(key) {
 }
 
 /**
+ * Record that a new raw provider response began for a session.
+ *
+ * Starts a fresh raw-progress record: `startedAt` identifies the *current*
+ * response generation, so coverage can be tied to the stream under
+ * suspicion rather than to any historical observation for the session.
+ *
+ * @param {string} sessionID The session whose response arrived.
+ * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
+ * @returns {void}
+ */
+function recordRawResponseStart(sessionID, at = Date.now()) {
+  const map = getSessionObservationMap(SESSION_RAW_PROGRESS_KEY);
+  map.delete(sessionID);
+  map.set(sessionID, { startedAt: at, lastAt: at });
+  if (map.size > SESSION_OBSERVATION_CAP) {
+    map.delete(map.keys().next().value);
+  }
+}
+
+/**
  * Record that a raw provider-response chunk arrived for a session.
  *
  * Fed by the `http.response` session hook, which tees the provider's
  * streaming body: every chunk of the raw response — including partial
- * argument fragments that surface nowhere else — refreshes this timestamp.
+ * argument fragments that surface nowhere else — refreshes `lastAt`.
  * This is the authoritative liveness signal for the dead-stream guard: a
  * stream producing bytes is alive whatever the projection shows.
  *
@@ -1835,15 +1884,27 @@ function getSessionObservationMap(key) {
  * @returns {void}
  */
 function recordRawSessionProgress(sessionID, at = Date.now()) {
-  recordSessionObservation(SESSION_RAW_PROGRESS_KEY, sessionID, at);
+  const map = getSessionObservationMap(SESSION_RAW_PROGRESS_KEY);
+  const record = map.get(sessionID);
+  if (!record) {
+    recordRawResponseStart(sessionID, at);
+    return;
+  }
+  map.delete(sessionID);
+  map.set(sessionID, { startedAt: record.startedAt, lastAt: record.lastAt > at ? record.lastAt : at });
+  if (map.size > SESSION_OBSERVATION_CAP) {
+    map.delete(map.keys().next().value);
+  }
 }
 
 /**
- * Read the timestamp of the most recent raw response chunk for a session.
+ * Read a session's raw-progress record.
  *
  * @param {string} sessionID The session to look up.
- * @returns {number | undefined} The timestamp, or `undefined` when no chunk
- *   has been observed.
+ * @returns {{startedAt: number, lastAt: number} | undefined} The current
+ *   response generation's start and most recent chunk timestamps, or
+ *   `undefined` when no response has been observed (or the record was
+ *   evicted).
  */
 function lastRawSessionProgressAt(sessionID) {
   return getSessionObservationMap(SESSION_RAW_PROGRESS_KEY).get(sessionID);
@@ -1860,7 +1921,7 @@ function lastRawSessionProgressAt(sessionID) {
  * @returns {void}
  */
 function observeHttpResponse(input) {
-  recordRawSessionProgress(input.sessionID);
+  recordRawResponseStart(input.sessionID);
   const body = input.response?.body;
   if (!body || typeof body.pipeThrough !== "function") {
     return;
@@ -3541,15 +3602,24 @@ function setup(ctx, deps = {}) {
   // The raw-liveness observer, registered per location: `ctx.session.hook`
   // is location-scoped, so the once-guarded resources above must not own
   // it — every location tees its own provider responses (see
-  // `observeHttpResponse`). Registration failure is recorded, and the
-  // dead-stream gate treats uncovered targets as unobservable rather than
-  // silent, so escalation is disabled where this hook is missing.
-  const hookRegistration = Promise.resolve()
-    .then(() => ctx.session.hook("http.response", observeHttpResponse))
-    .catch((error) => {
-      recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() });
-      return undefined;
-    });
+  // `observeHttpResponse`). Registration is retried before giving up; each
+  // failure is recorded, and the dead-stream gate treats uncovered targets
+  // as unobservable rather than silent, so escalation is disabled wherever
+  // this hook is missing — coverage re-establishes from the next observed
+  // response once a retry lands.
+  const hookRegistration = (async () => {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await ctx.session.hook("http.response", observeHttpResponse);
+      } catch (error) {
+        recordError({ type: "observer.hook.failed", attempt, error: String(error), at: Date.now() });
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 1_000));
+        }
+      }
+    }
+    return undefined;
+  })();
 
   // The plugin API invokes the returned cleanup when unloading a location:
   // dispose only this location's hook, and tear the shared observer and

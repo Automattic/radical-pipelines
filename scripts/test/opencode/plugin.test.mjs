@@ -1027,11 +1027,11 @@ describe("superviseEvents teardown", () => {
 });
 
 describe("resolveDeadStreamConfirmMs", () => {
-  test("defaults to ten minutes and honors a positive numeric override", () => {
-    assert.equal(resolveDeadStreamConfirmMs({}), 600_000);
+  test("defaults to one hour and honors a positive numeric override", () => {
+    assert.equal(resolveDeadStreamConfirmMs({}), 3_600_000);
     assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "4000" }), 4_000);
-    assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "bogus" }), 600_000);
-    assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "-5" }), 600_000);
+    assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "bogus" }), 3_600_000);
+    assert.equal(resolveDeadStreamConfirmMs({ RP_LOOP_DEAD_STREAM_CONFIRM_MS: "-5" }), 3_600_000);
   });
 });
 
@@ -1095,21 +1095,21 @@ describe("observeHttpResponse / lastRawSessionProgressAt", () => {
 
     const before = Date.now();
     observeHttpResponse(input);
-    assert.ok(lastRawSessionProgressAt("ses_raw_progress_test") >= before, "the arrival itself must record");
+    const arrival = lastRawSessionProgressAt("ses_raw_progress_test");
+    assert.ok(arrival.startedAt >= before, "the arrival itself must start a fresh response generation");
 
     const received = await input.response.text();
     assert.equal(received, chunks.join(""), "the tee must pass the bytes through untouched");
-    assert.ok(
-      lastRawSessionProgressAt("ses_raw_progress_test") >= before,
-      "each streamed chunk must refresh the raw-progress timestamp",
-    );
+    const record = lastRawSessionProgressAt("ses_raw_progress_test");
+    assert.ok(record.lastAt >= before, "each streamed chunk must refresh the raw-progress timestamp");
+    assert.equal(record.startedAt, arrival.startedAt, "chunks must not restart the response generation");
     assert.equal(input.response.status, 200);
   });
 
   test("a body-less response records the arrival without wrapping", () => {
     const input = { sessionID: "ses_raw_progress_nobody", response: { status: 204, body: null } };
     observeHttpResponse(input);
-    assert.ok(lastRawSessionProgressAt("ses_raw_progress_nobody") !== undefined);
+    assert.ok(lastRawSessionProgressAt("ses_raw_progress_nobody")?.startedAt !== undefined);
     assert.equal(input.response.status, 204, "the response must be left as-is");
   });
 });
@@ -1636,7 +1636,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming" } }],
         },
       ],
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       injectPrompt: () => {
         throw new Error("must not inject during backoff");
       },
@@ -1746,7 +1746,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -1844,7 +1844,7 @@ describe("runLoopTick", () => {
         },
       ],
       getLastEventAt: () => lastEvent,
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       injectPrompt: () => {
         throw new Error("must not inject into a streaming target");
       },
@@ -1893,7 +1893,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => lastRawChunk,
+      getRawProgressAt: () => (lastRawChunk === undefined ? undefined : { startedAt: 0, lastAt: lastRawChunk }),
       injectPrompt: () => {
         throw new Error("must not inject into a streaming target");
       },
@@ -1934,7 +1934,7 @@ describe("runLoopTick", () => {
       getInbox: async () => [],
       getMessages: async () => messages,
       getLastInterruptAt: () => interruptedAt,
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       recordInterrupt: (sessionID, at) => {
         interruptedAt = at;
       },
@@ -2003,6 +2003,182 @@ describe("runLoopTick", () => {
     });
   });
 
+  test("a historical raw record from an earlier turn does not count as coverage of the current stream", async () => {
+    // The reviewer's replay: raw timestamp 100 from a prior response, an
+    // uncovered current stream suspected at 10000 — session history must
+    // not authorize interrupting a stream that was never observed.
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => ({ startedAt: 100, lastAt: 100 }),
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: () => {
+        throw new Error("historical coverage must never authorize an interrupt");
+      },
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 12_000;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "skipped",
+      reason: "dead-stream-unobserved",
+      lastActivity: 5_000,
+    });
+  });
+
+  test("a record starting just before the message's row tolerates same-turn ordering jitter", async () => {
+    // Observed live: response headers can reach the hook milliseconds
+    // before the assistant row's `created` is assigned. That jitter must
+    // not read as historical coverage.
+    const interrupts = [];
+    const state = {};
+    let clock = 10_000;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => ({ startedAt: 8_500, lastAt: 8_600 }),
+      injectPrompt: () => {
+        throw new Error("must not inject into a dead-stream target");
+      },
+      interruptSession: async (server, sessionID) => interrupts.push(sessionID),
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 11_100;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
+  test("coverage pinned at suspicion survives a later record eviction, so a genuine stall still recovers", async () => {
+    const interrupts = [];
+    const state = {};
+    let clock = 10_000;
+    let raw = { startedAt: 9_100, lastAt: 9_200 };
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => raw,
+      injectPrompt: () => {
+        throw new Error("must not inject into a dead-stream target");
+      },
+      interruptSession: async (server, sessionID) => interrupts.push(sessionID),
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    // Suspicion establishes coverage of the current stream...
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+
+    // ...then 256 busier sessions evict the record. The pinned verdict must
+    // hold: eviction is not a retraction, and the stall still recovers.
+    raw = undefined;
+    clock = 11_100;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
+  test("coverage can be established late, once a retried hook observes the stream", async () => {
+    const interrupts = [];
+    const state = {};
+    let clock = 10_000;
+    let raw;
+    const deps = {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => true,
+      getSessionUpdatedAt: async () => 5_000,
+      getInbox: async () => [],
+      getMessages: async () => [
+        {
+          id: "as_1",
+          type: "assistant",
+          time: { created: 9_000 },
+          content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
+        },
+      ],
+      getRawProgressAt: () => raw,
+      injectPrompt: () => {
+        throw new Error("must not inject into a suspected target");
+      },
+      interruptSession: async (server, sessionID) => interrupts.push(sessionID),
+      onOutcome: () => {},
+      now: () => clock,
+      deadStreamConfirmMs: 1_000,
+      state,
+    };
+
+    // Uncovered at suspicion: escalation disabled.
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    clock = 11_100;
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-unobserved");
+
+    // A hook lands and observes the current stream's retry; its bytes are
+    // stale by the next tick, so silence is finally measurable.
+    raw = { startedAt: 11_200, lastAt: 11_200 };
+    clock = 11_150 + 1_000;
+    // First covered tick vetoes on the fresh bytes and re-arms...
+    assert.equal((await runLoopTick(entry, deps)).reason, "dead-stream-suspected");
+    // ...then a silent window authorizes.
+    clock += 1_500;
+    assert.deepEqual(await runLoopTick(entry, deps), {
+      outcome: "interrupted",
+      reason: "dead-stream",
+      lastActivity: 5_000,
+    });
+    assert.deepEqual(interrupts, ["ses_target"]);
+  });
+
   test("a failed interrupt request is not recorded, leaving the next confirmation free to retry", async () => {
     let recorded;
     const state = {};
@@ -2021,7 +2197,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       getLastInterruptAt: () => recorded,
       recordInterrupt: (sessionID, at) => {
         recorded = at;
@@ -2078,7 +2254,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       injectPrompt: () => {
         throw new Error("must not inject after cancellation");
       },
@@ -2137,7 +2313,7 @@ describe("runLoopTick", () => {
           content: [{ type: "tool", name: "rp_spawn", state: { status: "streaming", input: "" } }],
         },
       ],
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       injectPrompt: () => {
         throw new Error("must not inject into a dead-stream target");
       },
@@ -2184,7 +2360,7 @@ describe("runLoopTick", () => {
         return [];
       },
       getMessages: async () => messages,
-      getRawProgressAt: () => 1,
+      getRawProgressAt: () => ({ startedAt: 0, lastAt: 1 }),
       injectPrompt: () => {
         throw new Error("must not inject during confirmation");
       },

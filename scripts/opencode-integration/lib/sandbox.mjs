@@ -248,7 +248,7 @@ export function startServe({ projectDir, env, binDir, opencodeBin }) {
     OPENCODE_PASSWORD: SERVE_PASSWORD,
     RP_OPENCODE_SERVER_URL: baseURL,
     // Shrink the health loop's dead-stream confirmation window (production
-    // default: ten minutes) so the suite can exercise the confirmation and
+    // default: one hour) so the suite can exercise the confirmation and
     // its healthy-stream veto within seconds.
     RP_LOOP_DEAD_STREAM_CONFIRM_MS: "4000",
   };
