@@ -983,22 +983,77 @@ function getTitledChildren() {
 }
 
 /**
- * `globalThis` key backing the set of session IDs `rp_terminate` has asked
- * the server to delete.
+ * `globalThis` key backing the per-session termination state `rp_terminate`
+ * maintains for the terminal-event listener.
  */
 const TERMINATED_SESSIONS_KEY = Symbol.for("radical-pipelines.opencode.terminatedSessions");
 
 /**
- * Fetch the process-wide set of deliberately terminated session IDs, creating
- * it on first use.
+ * Fetch the process-wide map of per-session termination state, creating it on
+ * first use.
  *
- * @returns {Set<string>} The singleton set.
+ * A session is present while at least one `rp_terminate` call for it is in
+ * flight, and remains present once any call has confirmed the deletion.
+ * Membership is exactly the condition under which terminal events for that
+ * session are ignored.
+ *
+ * @returns {Map<string, {inFlight: number, confirmed: boolean}>} The singleton map.
  */
-function getTerminatedSessions() {
+function getTerminationState() {
   if (!globalThis[TERMINATED_SESSIONS_KEY]) {
-    globalThis[TERMINATED_SESSIONS_KEY] = new Set();
+    globalThis[TERMINATED_SESSIONS_KEY] = new Map();
   }
   return globalThis[TERMINATED_SESSIONS_KEY];
+}
+
+/**
+ * Record that a termination attempt for a session has started.
+ *
+ * @param {string} sessionID The session being terminated.
+ * @returns {void}
+ */
+function beginTermination(sessionID) {
+  const state = getTerminationState();
+  const entry = state.get(sessionID) ?? { inFlight: 0, confirmed: false };
+  entry.inFlight += 1;
+  state.set(sessionID, entry);
+}
+
+/**
+ * Record how one termination attempt ended.
+ *
+ * Suppression survives while any other attempt is still in flight and forever
+ * once some attempt confirmed the deletion, so a failing attempt can never
+ * withdraw the suppression a concurrent successful one depends on. State is
+ * dropped only when nothing is in flight and nothing was ever terminated,
+ * which is what keeps a never-spawned session ID from leaving a marker.
+ *
+ * @param {string} sessionID The session the attempt targeted.
+ * @param {boolean} confirmed Whether this attempt deleted the session.
+ * @returns {void}
+ */
+function endTermination(sessionID, confirmed) {
+  const state = getTerminationState();
+  const entry = state.get(sessionID);
+  if (!entry) {
+    return;
+  }
+  entry.inFlight -= 1;
+  entry.confirmed = entry.confirmed || confirmed;
+  if (entry.inFlight <= 0 && !entry.confirmed) {
+    state.delete(sessionID);
+  }
+}
+
+/**
+ * Whether terminal events for a session are the expected consequence of a
+ * deliberate termination rather than a fault to report.
+ *
+ * @param {string} sessionID The session a terminal event pertains to.
+ * @returns {boolean} `true` while a termination is in flight or confirmed.
+ */
+function isTerminating(sessionID) {
+  return getTerminationState().has(sessionID);
 }
 
 /**
@@ -1140,7 +1195,7 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
   if (!entry) {
     return;
   }
-  if (getTerminatedSessions().has(sessionID)) {
+  if (isTerminating(sessionID)) {
     return;
   }
 
@@ -2063,19 +2118,23 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
 /**
  * Build the `rp_terminate` tool descriptor.
  *
- * Records the session as deliberately terminated *before* issuing the delete,
- * because a delete-associated failure is observed in the same second as the
- * request: recording on success would land too late to suppress it. A clean
- * interrupt publishes `session.execution.interrupted`, which this plugin
- * ignores, so the failure comes from work that races the deletion rather than
- * from the interrupt itself — an execution that still touches the session
- * once its row is gone.
+ * Marks the session as terminating *before* issuing the delete, because a
+ * delete-associated `session.execution.failed` has been observed in the same
+ * second as the request: marking on success would land too late to suppress
+ * it. What produces that failure is not established — a clean interrupt
+ * publishes `session.execution.interrupted`, which this plugin ignores, so it
+ * is not the interrupt — and the suppression deliberately does not depend on
+ * knowing.
  *
- * Only the call that introduced the marker may withdraw it, so a failed
- * attempt cannot erase the suppression an earlier or concurrent successful
- * termination relies on. A first-call 404 withdraws it — nothing was
- * terminated — while a 404 on a repeated deletion keeps the marker its
- * successful call placed.
+ * `endTermination` keeps suppression alive while any other attempt is in
+ * flight and forever once one confirmed the deletion, so no failing attempt
+ * can withdraw what a concurrent successful one depends on. A delete that
+ * terminated nothing and raced nothing leaves no marker behind.
+ *
+ * A transport throw is ambiguous — the server may have committed the delete
+ * before the socket failed — and is treated as "not terminated": an event
+ * that arrives later is announced rather than silently dropped, preferring a
+ * visible surplus report over an invisible missing one.
  *
  * @param {{
  *   env: Record<string, string | undefined>,
@@ -2103,17 +2162,7 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
       if (!server) {
         return toToolResult({ error: "server unreachable" });
       }
-      const terminated = getTerminatedSessions();
-      // Only the call that introduced the marker may withdraw it, so an
-      // attempt that fails cannot erase the suppression an earlier or
-      // concurrent successful termination of the same session is relying on.
-      const introduced = !terminated.has(session);
-      terminated.add(session);
-      const withdraw = () => {
-        if (introduced) {
-          terminated.delete(session);
-        }
-      };
+      beginTermination(session);
       let response;
       try {
         response = await requestServer(
@@ -2124,17 +2173,18 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
           requestFn,
         );
       } catch (error) {
-        withdraw();
+        endTermination(session, false);
         throw error;
       }
       if (response.status === 404) {
-        withdraw();
+        endTermination(session, false);
         return toToolResult({ status: 404, error: "SessionNotFoundError" });
       }
       if (response.status < 200 || response.status >= 300) {
-        withdraw();
+        endTermination(session, false);
         return toToolResult({ status: response.status, error: "SessionTerminationFailed" });
       }
+      endTermination(session, true);
       return toToolResult({ terminated: true });
     },
   };

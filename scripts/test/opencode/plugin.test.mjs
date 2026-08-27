@@ -1409,6 +1409,75 @@ describe("terminal-event listener", () => {
     );
   });
 
+  test("a failing attempt does not withdraw the suppression a concurrent successful one needs", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_race", { id: "ses_spawner_race" });
+    sessions.set("ses_child_race", { id: "ses_child_race" });
+    recordSpawn("ses_child_race", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_race",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+
+    // Two gates make the interleaving deterministic rather than timing-based:
+    // the call that introduces the marker fails first, and the concurrent
+    // follower's delete is still in flight when its event arrives.
+    const gate = () => {
+      let open;
+      return { opened: new Promise((resolve) => (open = resolve)), open: () => open() };
+    };
+    const first = gate();
+    const second = gate();
+    let attempt = 0;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async () => {
+          attempt += 1;
+          if (attempt === 1) {
+            await first.opened;
+            return { status: 500, body: undefined };
+          }
+          await second.opened;
+          return { status: 204, body: undefined };
+        },
+      }),
+    );
+
+    const tool = tools.get("rp_terminate");
+    const introducer = tool.execute({ session: "ses_child_race" });
+    const follower = tool.execute({ session: "ses_child_race" });
+    await delay(5); // both attempts in flight
+
+    first.open();
+    assert.deepEqual(
+      await introducer,
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+
+    // The follower's delete is still in flight, so its delete-associated
+    // failure must still be suppressed even though the introducer withdrew.
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_race" } });
+    await delay(10);
+    assert.deepEqual(
+      promptCalls,
+      [],
+      "a failed attempt must not expose the session a concurrent attempt is still deleting",
+    );
+
+    second.open();
+    assert.deepEqual(await follower, toToolResult({ terminated: true }));
+  });
+
   test("a first-call 404 leaves no marker behind", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, tools, sessions } = fakeCtx;

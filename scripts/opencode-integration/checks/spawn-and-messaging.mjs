@@ -227,22 +227,24 @@ export async function run(ctx) {
 
       await busyTurn;
 
-      const messages = await pollUntil(
+      const ordered = await pollUntil(
         async () => {
-          const all = await getMessages(server, childID);
+          // `GET /message` does not promise transcript order, so establish it
+          // before locating anything: the wait and the assertion below are
+          // both about where the injection landed among the turn's steps.
+          const all = (await getMessages(server, childID)).sort(
+            (a, b) => a.time.created - b.time.created,
+          );
           const marker = all.findIndex((m) => m.type === "user" && m.text?.includes(midTurnMarker));
           if (marker === -1) return undefined;
-          // Settled only once an assistant message follows the injection.
-          return all.slice(marker).some((m) => m.type === "assistant" && m.finish !== undefined)
+          // Settled only once a completed assistant message follows the injection.
+          return all.slice(marker + 1).some((m) => m.type === "assistant" && m.finish !== undefined)
             ? all
             : undefined;
         },
         { timeoutMs: 20_000, label: "the injected message to be delivered and answered" },
       );
 
-      // `GET /message` does not promise transcript order, so establish it
-      // here — the whole assertion is about where the injection landed.
-      const ordered = [...messages].sort((a, b) => a.time.created - b.time.created);
       const directiveIndex = ordered.findIndex((m) => m.type === "user" && m.text?.includes(nonce));
       const markerIndex = ordered.findIndex(
         (m) => m.type === "user" && m.text?.includes(midTurnMarker),
