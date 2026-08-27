@@ -88,7 +88,7 @@ When a blocker arrives:
 1. Fire the `blocker-reported` lifecycle hook.
 2. Stop the autonomous run immediately. Do not advance to the next phase, and do not relaunch the blocked agent without an input change.
 3. Surface the blocker to the owner verbatim, including the three fields above and the path to any partial artifact the agent committed.
-4. Name the phase whose artifact must change. The route to change it is a fork cut below that phase (`fork-pipeline.md`), re-running it with the blocker payload as input.
+4. Name the phase whose artifact must change. The route to change it is a fork cut below that phase (`fork-pipeline.md`), re-running it with the blocker payload as input. In an amend run, a blocker carrying a disqualifying discovery is the eject: the follow-up route comes from `amend-pipeline.md` ("The eject") instead.
 
 A blocker stops the run: perform the close-out (step 7).
 

@@ -20,6 +20,7 @@ A vague idea yields just a Title and a Goal. That is a complete, valid intent.
 - **Lead with the goal, then invite — don't run a checklist.** Marching through "constraints? assumptions? context?" pressures the owner into manufacturing answers and re-introduces over-specification.
 - **No requirements, design, or implementation.** Acceptance criteria belong to phase 1, architecture to phase 2, task breakdown to phase 3. Putting them in **the intent** pre-empts the phase that exists to produce them.
 - **Reflect hypotheses back as open.** Anything the owner proposes about _how_ or about the current state is recorded under Assumptions, not as a requirement.
+- **A pinned target is a constraint.** A target state the owner has decided — the ground an amend qualifies on — is recorded under Constraints, not demoted to an open assumption.
 
 ## Provenance header (intents created from an issue)
 
@@ -30,4 +31,4 @@ A base intent created from an issue carries a two-line blockquote placed **after
 > This file is self-contained; agents do not need to open the source issue.
 ```
 
-Revision intents carry their mandatory **Origin** section as their provenance instead.
+Layered-run intents (revisions and amends) carry their mandatory **Origin** section as their provenance instead.

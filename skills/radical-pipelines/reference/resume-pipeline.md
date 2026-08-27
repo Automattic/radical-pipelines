@@ -10,7 +10,7 @@ Cancel any health monitor still registered for this pipeline per the **Health mo
 
 ### 2. Locate the latest run branch and its worktree
 
-Enumerate the family's branches and parse them with the branch grammar (`pipeline-versioning.md`); the latest run is the highest-`N` layered run, or `base`. Reuse the run branch's worktree if it exists; otherwise recreate it from the branch per the **Worktree root** convention, bracketed by the `before-creating-worktree`/`after-creating-worktree` lifecycle hooks.
+Enumerate the family's branches and parse them with the branch grammar (`pipeline-versioning.md`); the latest run is the highest-`N` layered run, or `base`. An ejected amend run is terminal: instead of resuming, offer its follow-up route (`amend-pipeline.md`, "The eject"). Reuse the run branch's worktree if it exists; otherwise recreate it from the branch per the **Worktree root** convention, bracketed by the `before-creating-worktree`/`after-creating-worktree` lifecycle hooks.
 
 ### 3. Verify state against the completion predicates
 
@@ -18,7 +18,7 @@ Evaluate the **Per-phase completion** predicates (`pipeline-versioning.md`) with
 
 ### 4. Determine the resume point
 
-**No active phase.** The resume point is the phase after the completed phase; there is nothing to roll back.
+**No active phase.** The resume point is the phase after the completed phase; there is nothing to roll back. For a base run whose phase 1 has not started, the run's kind is not yet fixed (`pipeline-versioning.md`): re-apply the amend qualification test (`amend-pipeline.md`) at dispatch, as at pipeline creation.
 
 **An active phase.** Resume investigatively, judging each lane on its own flow. The artifacts, the commits, and the phase's diff — from the parent of its first commit — are the only record of progress. The resume point is the latest state the record proves reached whose next action follows from the record alone; everything past it, including uncommitted changes, is partial work. When no such state exists, the resume point is the phase start. For example, an approved build plan whose diff completes three tasks resumes at the fourth task; a rejected plan with a committed revision resumes at the revision's review.
 

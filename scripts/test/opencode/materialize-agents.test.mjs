@@ -120,4 +120,44 @@ describe("materializeAgents", () => {
     assert.deepEqual(result.written.sort(), ["agent-a.md", "agent-b.md"]);
     assert.equal(readFileSync(join(targetDir, "agent-a.md"), "utf8"), updated);
   });
+
+  test("deleting a source profile removes the stale RP-owned target file and un-records it", () => {
+    materializeAgents(sourceDir, targetDir);
+
+    rmSync(join(sourceDir, "agent-b.md"));
+
+    const result = materializeAgents(sourceDir, targetDir);
+
+    assert.deepEqual(result.removed, ["agent-b.md"]);
+    assert.ok(!existsSync(join(targetDir, "agent-b.md")));
+    const manifest = JSON.parse(
+      readFileSync(join(targetDir, ".rp-owned.json"), "utf8"),
+    );
+    assert.deepEqual(manifest, ["agent-a.md"]);
+  });
+
+  test("renaming a source profile installs the new name and removes the old one", () => {
+    materializeAgents(sourceDir, targetDir);
+
+    const body = readFileSync(join(sourceDir, "agent-b.md"), "utf8");
+    rmSync(join(sourceDir, "agent-b.md"));
+    writeFileSync(join(sourceDir, "agent-c.md"), body);
+
+    const result = materializeAgents(sourceDir, targetDir);
+
+    assert.ok(result.written.includes("agent-c.md"));
+    assert.deepEqual(result.removed, ["agent-b.md"]);
+    assert.ok(existsSync(join(targetDir, "agent-c.md")));
+    assert.ok(!existsSync(join(targetDir, "agent-b.md")));
+  });
+
+  test("a foreign (non-RP-owned) target file absent from the source set is left untouched", () => {
+    mkdirSync(targetDir, { recursive: true });
+    writeFileSync(join(targetDir, "foreign.md"), "not ours");
+
+    const result = materializeAgents(sourceDir, targetDir);
+
+    assert.deepEqual(result.removed, []);
+    assert.equal(readFileSync(join(targetDir, "foreign.md"), "utf8"), "not ours");
+  });
 });

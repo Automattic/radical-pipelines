@@ -62,8 +62,10 @@ A phase's predicate is evaluated at `<pipeline-family-folder>/<run>/<phase>` on 
 
 A full run's phases are `0-intent` through `4-document`; an amend run's are `0-intent` and `1-amend`. A layered run's kind is carried by its branch segment; `base`'s kind is fixed when its phase 1 starts — `1-spec` makes it full, `1-amend` an amend.
 
+An amend run ends **ejected** when a disqualifying discovery stops it (`amend-pipeline.md`, "The eject"): its `1-amend/amend-ejected.md`, committed at close-out, records the discovery and the follow-up route. An ejected run is terminal — it never resumes, its predicate is never satisfied — and layering skips it: the next layered run starts at the tip of the latest non-ejected complete run, taking the next number on the shared counter.
+
 - A phase with artifacts present — in the worktree or committed — but its predicate unsatisfied is **in progress**.
-- A pipeline's **completed phase** and **active phase** are those of its latest run — the highest-`N` layered run, or `base`.
+- A pipeline's **completed phase** and **active phase** are those of its latest non-ejected run — the highest-`N` layered run, or `base`.
 - The completed phase is the highest phase whose predicate is satisfied; the active phase is the phase after it when that phase is in progress, otherwise none.
 - The pipeline's **next phase** is its active phase if one exists, otherwise the phase after the completed phase.
 
@@ -88,7 +90,7 @@ Two layers answer two different questions:
 Render the tree from ancestry, as plain ASCII with box-drawing characters (`├`, `└`, `│`, `─`) so it displays correctly in any surface. The root is the issue. Nodes are phases: each run contributes a node per phase it has, in order, prefixed `v<N> <run>:` (`<run>` omitted for the base run, as in the branch grammar). A layered run hangs off the previous run's last phase; pipelines started from the main branch hang under the root; a fork hangs under the phase node of its cut commit. An inherited phase the fork modified reappears in the fork's own chain marked `(modified)`; inherited phases that don't reappear are identical.
 
 - A stretch of phases with no fork in the middle may be compressed onto one line with `→`, and its middle elided to `…`; a `(modified)` phase stays visible.
-- `(in progress)` marks a phase that is in progress.
+- `(in progress)` marks a phase that is in progress; `(ejected)` marks an ejected amend run's phase.
 - `[merged]` marks the latest run of a merged pipeline.
 
 Example — v1 merged after one revision; v2 cut at v1's spec and rewrote it; v3 cut at v1's design doc and kept it; v4 started from the main branch:

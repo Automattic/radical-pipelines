@@ -57,7 +57,7 @@ export async function run(ctx) {
     const spawnResult = await driveToolCall(
       server,
       orchestrator.id,
-      `return await tools.rp_spawn({name:"status-check-child", agent:"spec-researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"status-check-run"});`,
+      `return await tools.rp_spawn({name:"status-check-child", agent:"researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"status-check-run"});`,
     );
     const childID = spawnResult.text;
 
@@ -70,7 +70,7 @@ export async function run(ctx) {
     const row = status.ledger.find((r) => r.sessionID === childID);
     assert.ok(row, `expected rp_status's ledger to include the spawned child ${childID}`);
     assert.equal(row.name, "status-check-child");
-    assert.equal(row.agent, "spec-researcher");
+    assert.equal(row.agent, "researcher");
     assert.equal(row.directory, projectDir);
   });
 }

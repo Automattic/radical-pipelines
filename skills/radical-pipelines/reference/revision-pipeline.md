@@ -8,7 +8,7 @@ Starts a revision of a complete, unmerged pipeline: a new run branch layered on 
 
 Re-verify BOTH gates here, independently of any menu — the direct "revise this pipeline" route bypasses `work-on-an-issue.md`:
 
-- **(a) Complete.** The pipeline's latest run is complete — its final phase satisfies the **Per-phase completion** predicate evaluated within the latest run (`pipeline-versioning.md`). If it is not, steer the owner to **resume** (`resume-pipeline.md`) to finish the run, or to **fork** (`fork-pipeline.md`) to try a different approach.
+- **(a) Complete.** The pipeline's latest non-ejected run is complete — its final phase satisfies the **Per-phase completion** predicate evaluated within that run (`pipeline-versioning.md`); an ejected amend above it is its own closed record and does not block. If it is not, steer the owner to **resume** (`resume-pipeline.md`) to finish the run, or to **fork** (`fork-pipeline.md`) to try a different approach.
 - **(b) Unmerged.** The pipeline is unmerged, per the merged detection in `pipeline-versioning.md` ("Lineage"). If it is merged, the requested change is new work: handle it as a NEW issue via `manage-issues.md`, not a revision.
 
 These two are the ONLY preconditions. The advisories below never gate a revision the owner chooses.
@@ -28,7 +28,7 @@ Determine the run name `rev-<N>-<desc>` per the branch grammar (`pipeline-versio
 
 Create the run folder `<pipeline-family-folder>/rev-<N>-<desc>/` with its `0-intent/` subfolder in the worktree. Author the revision intent at `rev-<N>-<desc>/0-intent/intent.md` the same way the base intent is orchestrator-authored (the `create-pipeline.md` intent step), following the schema and authoring discipline in `intent-format.md`. Beyond that shared schema, a revision intent carries these revision-only additions:
 
-- An **Origin** section, MANDATORY for revisions and unique to them — its provenance (per `intent-format.md`). It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of what prompted the revision) PLUS a convenience link, so a later phase reading only this revision intent understands what prompted it without following the link.
+- An **Origin** section, MANDATORY for layered runs — its provenance (per `intent-format.md`). It is **self-contained**: it carries the substance of the request (a direct quote or faithful paraphrase of what prompted the revision) PLUS a convenience link, so a later phase reading only this revision intent understands what prompted it without following the link.
 - Any source assets are placed in this run's `0-intent/` folder and referenced by relative path, the same as base intents.
 
 Show the owner the rendered revision intent and write it only on explicit approval — every revision intent is confirmed before the run starts, however directly the owner dictated it. Then commit it per the **Commit format** convention and fire the `phase-completed` lifecycle hook.

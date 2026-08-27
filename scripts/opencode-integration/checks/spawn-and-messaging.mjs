@@ -55,7 +55,7 @@ export async function run(ctx) {
       server,
       orchestrator.id,
       `try {
-        return await tools.rp_spawn({name:"bogus-model-attempt", agent:"spec-researcher", model:"not-a-valid-model-string", directory:${JSON.stringify(projectDir)}, prompt:"hi", run:"suite-run"});
+        return await tools.rp_spawn({name:"bogus-model-attempt", agent:"researcher", model:"not-a-valid-model-string", directory:${JSON.stringify(projectDir)}, prompt:"hi", run:"suite-run"});
       } catch (e) { return { rejected: true, message: String(e) }; }`,
     );
     assert.ok(result.structuredJSON?.rejected, `expected the bogus model string to be rejected, got: ${result.text}`);
@@ -66,7 +66,7 @@ export async function run(ctx) {
     const result = await driveToolCall(
       server,
       orchestrator.id,
-      `return await tools.rp_spawn({name:"suite-child", agent:"spec-researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"suite-run"});`,
+      `return await tools.rp_spawn({name:"suite-child", agent:"researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"suite-run"});`,
     );
     assert.equal(result.structuredJSON, undefined, "rp_spawn's structured result is the bare session ID, not JSON");
     assert.ok(result.text?.startsWith("ses_"), `expected a session ID, got: ${result.text}`);
@@ -74,7 +74,7 @@ export async function run(ctx) {
 
     const child = await getSession(server, childID);
     assert.equal(child.location.directory, projectDir, "the spawned session must be seated at the requested directory");
-    assert.equal(child.agent, "spec-researcher");
+    assert.equal(child.agent, "researcher");
 
     const launch = await pollUntil(
       async () => (await getMessages(server, childID)).find((message) => message.type === "user"),

@@ -1,6 +1,6 @@
 # Running the Amend Phase (Phase 1 of an amend run)
 
-Advances an amend run from phase 0 (`intent.md`) to done, entirely on the run branch and its worktree, in two loops. First the plan loop: a lead researches the change through per-question researchers and writes the amend plan — spec and design substance plus the task list in one artifact — which a reviewer adjudicates until approved. Then execution: each task is dispatched to a fresh writer chosen by its `Type`, and a single `amend-reviewer` reviews the whole diff after each batch, running the plan's gates once. On rejection, only the flagged tasks are re-dispatched; the cycle repeats until the reviewer approves.
+Advances an amend run from phase 0 (`intent.md`) to done, entirely on the run branch and its worktree, in two loops. First the plan loop: a lead researches the change through per-question researchers and writes the amend plan — spec and design substance plus the task list in one artifact — which a reviewer adjudicates until approved. Then execution: each task is dispatched to a fresh writer chosen by its `Type`, and a single `amend-reviewer` reviews the whole diff after each batch, running the plan's gates. On rejection, only the flagged tasks are re-dispatched; the cycle repeats until the reviewer approves.
 
 Inputs:
 

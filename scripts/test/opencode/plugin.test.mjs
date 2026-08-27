@@ -1720,19 +1720,19 @@ describe("buildStatusPayload", () => {
 
   test("reports failed server reads in readFailures, aggregated per endpoint and status, instead of rendering them as idle and healthy", async () => {
     recordSpawn("ses_status_f1", {
-      name: "spec-researcher-1",
+      name: "researcher-1",
       run: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     recordSpawn("ses_status_f2", {
-      name: "spec-researcher-2",
+      name: "researcher-2",
       run: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
     const sessionRecord = (id, name) => ({
       id,
-      agent: "spec-researcher",
+      agent: "researcher",
       model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
       location: { directory: "/repo" },
       time: { updated: 42 },
@@ -1744,8 +1744,8 @@ describe("buildStatusPayload", () => {
           status: 200,
           body: {
             data: [
-              sessionRecord("ses_status_f1", "spec-researcher-1"),
-              sessionRecord("ses_status_f2", "spec-researcher-2"),
+              sessionRecord("ses_status_f1", "researcher-1"),
+              sessionRecord("ses_status_f2", "researcher-2"),
             ],
           },
         };
@@ -1782,7 +1782,7 @@ describe("buildStatusPayload", () => {
 
   test("reports thrown server reads as transport failures while preserving the partial ledger", async () => {
     recordSpawn("ses_status_transport", {
-      name: "spec-researcher-transport",
+      name: "researcher-transport",
       run: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
@@ -1794,7 +1794,7 @@ describe("buildStatusPayload", () => {
             data: [
               {
                 id: "ses_status_transport",
-                agent: "spec-researcher",
+                agent: "researcher",
                 model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
                 location: { directory: "/repo" },
                 time: { updated: 42 },

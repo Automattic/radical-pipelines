@@ -64,7 +64,7 @@ On **approved**, verify the phase 2 completion predicate per `../pipeline-versio
 ```mermaid
 flowchart TD
     subgraph lane [Each lane]
-        B[Design Doc Lead] -->|question via orchestrator| C[Design Doc Researcher per question]
+        B[Design Doc Lead] -->|question via orchestrator| C[researcher per question]
         C -->|answers| B
         B -->|record + design doc| E[Design Doc Reviewer]
         E --> F{Approved?}

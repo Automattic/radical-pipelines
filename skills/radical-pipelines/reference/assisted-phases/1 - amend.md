@@ -1,6 +1,6 @@
 # Running the Amend Phase Assisted (Phase 1 of an amend run)
 
-Assisted mode covers the amend phase's **plan half**: you drive the research and the plan directly with the owner, and the owner's approval stands in for the plan review. Execution then runs autonomously — the one assisted phase that spawns agents, per the run plan below.
+Assisted mode covers the amend phase's **plan half**: you drive the research and the plan directly with the owner, and the owner's approval stands in for the plan review. Execution then runs autonomously (step 6).
 
 Inputs:
 
@@ -51,6 +51,12 @@ Write `<pipeline-family-folder>/<run>/1-amend/amend-plan.md` as a standalone doc
 
 ## E2E test plan
 
+### Flow N: <title>
+
+- **Steps:** ...
+- **Expected:** ...
+- **Traces to:** Pinned target N
+
 ## Gates
 
 ## Tasks
@@ -96,4 +102,4 @@ Commit `amend-plan-research.md`, `amend-plan.md`, and `amend-plan-review-approve
 
 ### 6. Execute
 
-Continue with task execution per `../autonomous-phases/1 - amend.md` steps 5–9 — writers and the `amend-reviewer` run exactly as in the autonomous workflow, following its agent-spawning rules (`../autonomous-workflow.md` step 5).
+Continue with task execution per `../autonomous-phases/1 - amend.md` steps 5–9, under the autonomous workflow's execution rules (`../autonomous-workflow.md`): its agent-spawning rules and health monitor (step 5), and its blocker handling — the eject included (step 6). The phase completes on the reviewer's approval, per the completion predicate (`../pipeline-versioning.md`); the assisted close-out then runs.

@@ -52,11 +52,17 @@ Write a **standalone document** in `<phase-folder>/amend-plan.md` — understand
 
 ## E2E test plan
 
-<!-- Pinned behavior with end-to-end flows to automate, as in a build plan. "None" when no pinned behavior needs a new flow. -->
+<!-- Pinned behavior with end-to-end flows to automate. "None" when no pinned behavior needs a new flow. -->
+
+### Flow N: <title>
+
+- **Steps:** ...
+- **Expected:** ...
+- **Traces to:** Pinned target N
 
 ## Gates
 
-<!-- The checks the amend-reviewer runs once, after all tasks: test scopes, sweeps over the touch map, and any other verification that proves the pinned target holds. -->
+<!-- The checks the amend-reviewer runs after all tasks: test scopes, sweeps over the touch map, and any other verification that proves the pinned target holds. -->
 
 ## Tasks
 

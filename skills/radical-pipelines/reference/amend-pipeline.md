@@ -1,6 +1,6 @@
 # Amending a Pipeline
 
-An **amend** delivers a small, fully pinned change through a single `1-amend` phase instead of the full phase flow, with the same guarantees: a research pass before anything is written, a closed touch map, and an adversarial review of the whole diff with the gates run once.
+An **amend** delivers a small, fully pinned change through a single `1-amend` phase instead of the full phase flow, with the same guarantees: a research pass before anything is written, a closed touch map, and an adversarial review of the whole diff that runs the gates.
 
 An amend runs in two positions:
 
@@ -23,7 +23,9 @@ The orchestrator applies this test to the owner's request and recommends an amen
 
 When work in an amend surfaces a disqualifying discovery — a real design decision, a touch map that won't close — the run ends: the amend exceeds its scope. The `amend-lead` and the reviewers declare the eject with the statement "exceeds amend scope — run a revision"; a writer that hits the condition reports it as a blocker with the same effect. In every case the orchestrator stops the run with the normal close-out, and the committed artifacts — including any rejection carrying the eject — remain the run's record.
 
-The follow-up is a new run from the same tip: a revision at the family's next layered-run number for a layered amend, a new pipeline for a base amend. Its intent reuses the amend's, with the surfaced discovery recorded as an open assumption.
+At close-out the orchestrator commits `1-amend/amend-ejected.md` — the statement, the discovery, and the follow-up route — making the ejected state durable (`pipeline-versioning.md`).
+
+The follow-up starts from the tip the amend started from, reusing the amend's intent with the surfaced discovery recorded as an open assumption: for a layered amend, a revision at the family's next layered-run number (`revision-pipeline.md` — the ejected run does not block it); for a base amend, a fork cut at its `0-intent` re-run from phase 1 as a full pipeline (`fork-pipeline.md`), re-authoring the intent to record the discovery.
 
 ## Steps — layered amend
 
@@ -31,7 +33,7 @@ The follow-up is a new run from the same tip: a revision at the family's next la
 
 Re-verify all three gates here, independently of any menu:
 
-- **(a) Complete.** The pipeline's latest run is complete (its final phase satisfies the **Per-phase completion** predicate in `pipeline-versioning.md`). If it is not, steer the owner to **resume** (`resume-pipeline.md`), or to **fork** (`fork-pipeline.md`) to try a different approach.
+- **(a) Complete.** The pipeline's latest non-ejected run is complete (its final phase satisfies the **Per-phase completion** predicate in `pipeline-versioning.md`). If it is not, steer the owner to **resume** (`resume-pipeline.md`), or to **fork** (`fork-pipeline.md`) to try a different approach.
 - **(b) Unmerged.** The pipeline is unmerged, per the merged detection in `pipeline-versioning.md` ("Lineage"). If it is merged, the requested change is new work: handle it via `manage-issues.md`, not an amend.
 - **(c) Qualified.** The request passes the qualification test above. If it fails, offer a revision (`revision-pipeline.md`) instead.
 

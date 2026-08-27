@@ -32,6 +32,7 @@ Check for:
 - **Coverage** — every Pinned target entry is delivered by at least one task and proven by a gate; every intent constraint is honored.
 - **Traceability and acceptance** — each task points to a pin or constraint and carries observable, verifiable per-task acceptance consistent with it.
 - **Type fidelity** — each task's `Type` matches its content: a `tdd` task has behavior to test, an `edit` task none, an `e2e` task realizes planned flows without implementing behavior, a `doc` task changes documentation surfaces and names its audience.
+- **E2E flows** — every `## E2E test plan` flow carries the `### Flow N` schema (Steps / Expected / Traces to) the e2e writer consumes; a `None` body is valid only with the recorded sweep behind it.
 - **Ordering, granularity, feasibility** — dependencies correct, tasks executable against the current codebase without mid-task design decisions.
 - **Gates** — the gates prove the pinned target holds and cover the touch map; each gate is runnable as written.
 - **Scope** — the plan stays within the intent; the Out of scope section holds the boundary.

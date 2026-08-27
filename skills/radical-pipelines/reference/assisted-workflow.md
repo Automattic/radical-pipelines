@@ -22,13 +22,13 @@ Map the next phase to its reference file:
 
 Fire the `phase-started` lifecycle hook. Create the phase subfolder inside the run folder (`<pipeline-family-folder>/<run>/<phase>` per `pipeline-versioning.md`) and run the phase per its reference.
 
-The guardrails naming the phase's agents (`spec-*` or `design-doc-*`) apply to your work: surface them to the owner and satisfy them as the owner directs.
+The guardrails naming the agents whose work you take over — the phase's lead, researcher, and reviewer roles — apply to your work: surface them to the owner and satisfy them as the owner directs.
 
-You write the artifacts yourself, in the run branch's worktree addressed by absolute path. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does. Fire the `phase-completed` lifecycle hook.
+You write the artifacts yourself, in the run branch's worktree addressed by absolute path. After the owner explicitly approves the final artifact(s), write the per-phase **approval file** (`<artifact>-review-approved.md`) capturing the owner's approval as the reviewer-equivalent for assisted mode — see the phase reference for the exact filename(s) and template. Commit the final artifacts and the approval file(s) together in a single commit following the **Commit format** convention. The approval file is what makes the phase satisfy the completion predicate in `pipeline-versioning.md`, the same way an autonomous reviewer's `-approved.md` does (in an amend run it closes only the plan half; completion follows the phase reference). Fire the `phase-completed` lifecycle hook.
 
 ## 4. Close out the run
 
-Close-out fires whenever the run stops — the phase completed, an owner cancellation, or a failure:
+Close-out fires whenever the run stops — the phase completed, an eject (`amend-pipeline.md`, "The eject"), an owner cancellation, or a failure:
 
 1. Push the run branch.
 2. Fire the `run-ended` lifecycle hook.

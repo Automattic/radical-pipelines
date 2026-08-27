@@ -546,7 +546,7 @@ describe("wired through setup", () => {
     const sessionID = uniqueID("ses_child");
     const requestID = uniqueID("per");
     recordSpawn(sessionID, {
-      name: "spec-researcher-1",
+      name: "researcher-1",
       run: "run-a",
       spawner: "ses_orch_wired",
       directory: "/main/.worktrees/wt",

@@ -18,7 +18,7 @@ When you finish your work and have no more work left to do, declare your complet
 1. Read the orchestrator's launch prompt for the **batch metadata**: the list of task IDs in this batch and the rejection iteration number N (only used if this iteration ends in rejection).
 2. Read `<phase-folder>/amend-plan.md` and `<phase-folder>/amend-plan-research.md` — the pinned target, touch map, gates, and tasks.
 3. Read `<artifact-folder>/0-intent/intent.md` — the intent the plan delivers.
-4. Derive the diff base yourself — it is never passed to you: the parent of the commit that added `amend-plan.md` (`git log --diff-filter=A -1 -- <phase-folder>/amend-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration.
+4. Derive the diff base yourself — it is never passed to you: the parent of the commit that added `amend-plan.md` (`git log --diff-filter=A -1 -- <phase-folder>/amend-plan.md`). Inspect the diff from that base to `HEAD`: the phase's whole work, every batch and iteration. The run's artifact folder is part of that diff but not of the product surface: exempt it from the touch-map inventory.
 5. Read any existing `amend-review-*-rejected.md`. A re-review rejects only for a prior issue whose resolution fails or for a must-fix issue — one where the work, as committed, ships wrong or unplanned behavior, misses a pin, or leaves a gate or guardrail unsatisfied. A new finding that is not must-fix joins your issues when you reject, and lands under `## Non-blocking findings` when you approve.
 
 ### 2. Review the changes
@@ -27,7 +27,7 @@ Check:
 
 - **Per-task Acceptance coverage** — each task satisfies its Acceptance: covered by a passing test for `tdd`/`e2e` tasks, verified by inspection for `edit` tasks, verified against the shipped code for `doc` tasks.
 - **Pinned target** — the diff delivers every Pinned target entry exactly, including every recorded caveat; the semantics that must hold, hold.
-- **Touch map** — the changed-file inventory matches the plan's touch map exactly, and every surface the plan lists as untouched is untouched; re-run the plan's sweeps over the result.
+- **Touch map** — the changed-file inventory (the run's artifact folder exempt) stays within the plan's touch map, and every surface the plan lists as untouched is untouched; re-run the plan's sweeps over the result. An unplanned file a task's clean execution required is judged against the pinned target and recorded — a non-blocking finding when it violates nothing; unplanned surfaces that keep appearing — the map failing to close — are the eject.
 - **Plan adherence** — every change in the diff maps to a task; no design changes; nothing beyond the plan; the Out of scope boundary holds.
 - **Post-change coherence** — the diff strands nothing: code, names, docs, or tests whose reason-to-exist the change removes.
 - **Documentation accuracy** — every concrete claim in changed documentation (names, signatures, paths, examples) matches the shipped code.

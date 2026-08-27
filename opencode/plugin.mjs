@@ -16,6 +16,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -1618,17 +1619,22 @@ function resolveAgentsTargetDir(env = process.env) {
  *  - a target filename that already exists but is *not* recorded as
  *    RP-owned — a foreign file of the same name — is left untouched and
  *    reported as a collision instead of being clobbered;
- *  - every filename written is (re)recorded as RP-owned.
+ *  - every filename written is (re)recorded as RP-owned;
+ *  - a filename recorded as RP-owned that is absent from the current source
+ *    set — a profile deleted or renamed upstream — is removed from the
+ *    target and un-recorded, so upgrades never leave stale profiles behind.
  *
  * @param {string} [sourceDir] Absolute path to the directory of source agent
  *   profiles. Defaults to `../agents` resolved relative to this module (the
  *   repository's `agents/` directory at runtime).
  * @param {string} [targetDir] Absolute path to the target agents directory.
  *   Defaults to opencode's global agents directory (see `resolveAgentsTargetDir`).
- * @returns {{ written: string[], collisions: string[] }} `written` lists the
- *   source filenames copied into `targetDir` this run; `collisions` lists
- *   filenames that already existed under `targetDir` as foreign (non-RP-owned)
- *   files, and so were left unmodified.
+ * @returns {{ written: string[], collisions: string[], removed: string[] }}
+ *   `written` lists the source filenames copied into `targetDir` this run;
+ *   `collisions` lists filenames that already existed under `targetDir` as
+ *   foreign (non-RP-owned) files, and so were left unmodified; `removed`
+ *   lists previously RP-owned filenames deleted because they are absent from
+ *   the current source set.
  */
 function materializeAgents(
   sourceDir = DEFAULT_AGENTS_SOURCE_DIR,
@@ -1654,9 +1660,20 @@ function materializeAgents(
     written.push(name);
   }
 
+  const currentSource = new Set(profiles);
+  const removed = [];
+  for (const name of [...owned]) {
+    if (currentSource.has(name)) {
+      continue;
+    }
+    rmSync(join(targetDir, name), { force: true });
+    owned.delete(name);
+    removed.push(name);
+  }
+
   writeOwnershipManifest(targetDir, owned);
 
-  return { written, collisions };
+  return { written, collisions, removed };
 }
 
 /**

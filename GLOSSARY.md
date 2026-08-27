@@ -7,12 +7,15 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Issue** — the tracked unit of work a pipeline realizes.
 - **Pipeline family** — all of an issue's pipelines (`v1`, `v2`, …); shares one pipeline family folder and one branch-base.
 - **Intent** — the phase-0 input: goal, constraints, context, open assumptions.
-- **Origin section** — the revision intent's mandatory, self-contained provenance section: the substance of the request plus a convenience link.
+- **Origin section** — a layered-run intent's mandatory, self-contained provenance section: the substance of the request plus a convenience link.
 - **Pipeline** — one attempt at an issue: a chain of runs sharing a pipeline family folder and a version.
 - **Pipeline version** — `v1`, `v2`, … One per fork of the same issue; `v1` is implicit in names.
-- **Run** — one pass of the phase flow: `base` (always first, implicit in names) or `rev-<N>-<desc>` (a revision).
-- **Revision** — a run layered on a complete previous run, driven by a revision intent.
-- **Phase** — one stage of a run: `0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`.
+- **Run** — one pass of a pipeline's work, full (the five-phase flow) or amend (the single `1-amend` phase): `base` (always first, implicit in names) or a layered run.
+- **Layered run** — a run added on a complete previous run: `rev-<N>-<desc>` (a revision) or `amend-<N>-<desc>` (an amend), sharing one sequential counter with the prefix carrying the kind.
+- **Revision** — a full layered run, driven by its intent's Origin section.
+- **Amend** — a run delivering a small, fully pinned change through the single `1-amend` phase; qualifies when the intent pins the target state, no design decision is left open, and the touch map closes (`amend-pipeline.md`).
+- **Eject** — an amend's terminal stop when a disqualifying discovery surfaces ("exceeds amend scope — run a revision"): `amend-ejected.md` records it, and the change re-enters as a revision or full pipeline.
+- **Phase** — one stage of a run: `0-intent`, `1-spec`, `2-design-doc`, `3-build`, `4-document`; an amend run's phase 1 is `1-amend`.
 - **Pipeline family folder** — the single folder holding all of a pipeline family's artifacts, produced by the convention of the same name; identical across forks (no version in its name). Artifacts live at `<pipeline-family-folder>/<run>/<phase>`.
 - **Owner** — the human running the pipeline. Talks only to the orchestrator.
 - **Orchestrator** — the top-level agent executing the skill: loads conventions, creates topology, spawns agents, verifies predicates, reports to the owner.
@@ -20,7 +23,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 ## Branches and topology
 
 - **Branch-base** — the per-pipeline-family stem produced by the Branch name base convention; must not contain `_`.
-- **Branch grammar** — `<branch-base>[_v<N>][_rev-<N>-<desc>][_<phase>-lane-<K>]`; underscore separates segments, `v1` and `base` are implicit, segments have reserved shapes so parsing is deterministic; `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
+- **Branch grammar** — `<branch-base>[_v<N>][_(rev|amend)-<N>-<desc>][_<phase>-lane-<K>]`; underscore separates segments, `v1` and `base` are implicit, segments have reserved shapes so parsing is deterministic; `<phase>` is the phase folder name (`1-spec`, `2-design-doc`).
 - **Run branch** — the branch holding one run's commits. Run branches chain: each starts at the previous run's tip. There is no pipeline-level branch; the pipeline's tip is its latest run branch, which is what merges to main.
 - **Lane branch** — a branch forked from the run branch at phase start for one isolated lane, writing only its `lane-<K>` subfolder of the phase folder. Merged into the run branch and deleted when every lane is approved; a rolled-back phase's lane branches are deleted. Divergent lanes create none.
 - **Start ref** — where a base run's branch begins: the project's main branch (default), another pipeline's run-branch tip (stacking), or a cut commit (fork).
@@ -33,25 +36,27 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 ## Phase artifacts
 
+- **`1-amend`** — `amend-plan-research.md`, `amend-plan.md`, `amend-plan-review-N-rejected.md`, `amend-plan-review-approved.md`, code + documentation on the run branch, `amend-review-N-rejected.md`, `amend-review-approved.md`, `amend-summary.md`; `amend-ejected.md` on an eject.
 - **`1-spec`** — `spec-research.md`, `spec.md`, `spec-review-N-rejected.md`, `spec-review-approved.md`.
 - **`2-design-doc`** — `design-doc-research.md`, `design-doc.md`, `design-doc-review-N-rejected.md`, `design-doc-review-approved.md`.
 - **`3-build`** — `build-plan.md`, `build-plan-review-N-rejected.md`, `build-plan-review-approved.md`, code + tests on the run branch, `build-review-N-rejected.md`, `build-review-approved.md`, `build-summary.md`.
 - **`4-document`** — `document-plan.md`, `document-plan-review-N-rejected.md`, `document-plan-review-approved.md`, documentation on the run branch, `document-review-N-rejected.md`, `document-review-approved.md`, `document-summary.md`.
 - **Completion predicate** — the per-phase set of committed artifacts (primary artifact + approval markers) that marks a phase complete, evaluated in the run folder on the run branch.
 - **Shipped code** — the code, tests, and inline API documentation the build phase committed on the run branch.
-- **Summary** — the human-readable record of what Build or Document produced (`build-summary.md`, `document-summary.md`), written by the phase reviewer on approval.
+- **Summary** — the human-readable record of what a phase produced (`build-summary.md`, `document-summary.md`, `amend-summary.md`), written by the phase reviewer on approval.
 
 ## Agents
 
-- **Spec phase** — `spec-lead`, `spec-researcher` (fresh per question), `spec-reviewer`, `spec-consolidator`.
-- **Design doc phase** — `design-doc-lead`, `design-doc-researcher` (fresh per question), `design-doc-reviewer`, `design-doc-consolidator`.
+- **Spec phase** — `spec-lead`, `researcher` (fresh per question), `spec-reviewer`, `spec-consolidator`.
+- **Design doc phase** — `design-doc-lead`, `researcher` (fresh per question), `design-doc-reviewer`, `design-doc-consolidator`.
+- **Amend phase** — `amend-lead`, `researcher` (fresh per question), `amend-plan-reviewer`, the build writers and `document-writer`, `amend-reviewer`.
 - **Build phase** — `build-planner`, `build-plan-reviewer`, `build-writer-tdd`, `build-writer-e2e`, `build-writer-edit`, `build-reviewer`.
 - **Document phase** — `document-planner`, `document-plan-reviewer`, `document-writer`, `document-reviewer`.
-- **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh instance per iteration: planner or writer in the build and document phases, lead or consolidator in the spec and design-doc phases); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file). A re-review rejects only for a failed resolution or a must-fix issue.
+- **Producer / reviewer loop** — a producer creates the artifact and revises it on rejection (a fresh instance per iteration: planner or writer in the build and document phases, lead or consolidator in the spec, design-doc, and amend phases); an adversarial reviewer rejects (numbered rejection file) or approves (singleton approval file). A re-review rejects only for a failed resolution or a must-fix issue.
 - **Must-fix issue** — an issue that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a re-review rejects.
 - **Non-blocking finding** — a real finding a re-review notices that is not must-fix; joins the rejection's issues when the re-review rejects, recorded in the approval otherwise.
-- **Batch** — the set of build/document tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
-- **Task type (`Type`)** — routes each build task to its writer. `tdd` and `edit` are the two routes for changing the product — with and without behavior to test; an `e2e` task realizes the plan's e2e flows over behavior prior tasks built and does not implement the behavior under test.
+- **Batch** — the set of tasks dispatched since the previous review; scopes the reviewer's expected new work, never the review's boundaries (the diff the reviewer inspects spans the phase's whole work; issues may attach to any task in the plan).
+- **Task type (`Type`)** — routes each task to its writer. `tdd` and `edit` change the product — with and without behavior to test; an `e2e` task realizes the plan's e2e flows over behavior prior tasks built and does not implement the behavior under test; a `doc` task (amend runs) changes documentation surfaces for a named audience.
 - **Conventions block** — the `## Conventions` block the orchestrator places at the top of every agent's initial prompt (fields defined in `passing.md`): Worktree path, Branch name, Artifact folder, Phase folder, Lane mode, Lane mandate, Requester identifier, Commit format, Guardrails.
 - **Consolidator** — merges approved lane artifacts into the consolidated artifact and consolidated research on the run branch, backs its own judgments with checks (researcher on request), and — a fresh instance per rejection — adjudicates the final reviewer's findings; a decision no lane settled goes through a decision request.
 - **Decision request** — the consolidator's route for a decision no lane settled: a fresh lead scoped to the question researches, decides, and records the decision in the consolidated record, answering the consolidator directly; the consolidated record names the request's entries as provenance.
@@ -59,7 +64,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 ## Workflows
 
 - **Autonomous workflow** — the orchestrator collects the run plan up-front (target phase, per-phase decisions) and runs phases end-to-end with teams of agents, without further questions.
-- **Assisted workflow** — the orchestrator drives one phase directly with the owner (spec and design-doc only); no agents spawned; the owner's explicit approval produces the approval file.
+- **Assisted workflow** — the orchestrator drives one phase directly with the owner (spec, design-doc, and an amend's plan half); no agents spawned, except that an amend's execution half then runs autonomously; the owner's explicit approval produces the plan-half approval file.
 - **Decisions** — per-phase choices collected at run start.
 - **Target phase** — the highest phase an autonomous run executes before stopping.
 - **Blocker** — an agent's stop-and-report when required input is missing, contradictory, or would force a prior phase's decision; payload: what is missing/contradictory, which approved artifact must change, the smallest unblocking revision.
