@@ -26,7 +26,7 @@ For investigation heavier than you can carry, send the orchestrator the question
 
 Check for:
 
-- **Qualification** — does the plan hold a pinned target, no open design decision, and a closed touch map? A task hiding a choice, a pin the evidence contradicts, or a touch map still growing is an eject, not an issue.
+- **Qualification** — does the plan hold a pinned target, no open design decision, and a closed touch map? A task hiding a choice or a touch map still growing is an eject, not an issue; a plan that misrepresents the pinned intent is an ordinary rejection. Evidence contradicting a pin ejects only when it shows the target itself cannot stay pinned without a new decision.
 - **Sweeps re-executed** — re-run the searches the record claims closed the touch map; the results must match. A closed claim with no recorded sweep, or a sweep that returns surfaces the plan omits, is a rejection finding.
 - **Pins verified** — re-check the semantic verification of the pinned target: the referenced implementations, docs, and tests say what the plan says they say, including every recorded caveat.
 - **Coverage** — every Pinned target entry is delivered by at least one task and proven by a gate; every intent constraint is honored.

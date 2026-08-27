@@ -17,7 +17,7 @@ Outputs, at `<pipeline-family-folder>/<run>/1-amend/`:
 
 - You MUST append every finding and owner decision to `amend-plan-research.md` in real time, not in batches.
 - You MUST NOT proceed past any gate without explicit owner confirmation.
-- Research the codebase yourself; ask the owner one question at a time when a decision is theirs.
+- Research the codebase yourself; ask the owner one question at a time when a confirmation of an existing pin is theirs to give. A question that would have the owner make a new design decision is the eject, not Q&A.
 
 ## Steps
 
@@ -32,7 +32,7 @@ Do the two mandatory investigations, recording every search — including the on
 - **Ramification sweeps.** Enumerate every surface the change touches until the touch map closes.
 - **Semantic verification of the pinned target.** Verify the pinned target against reality: read the referenced implementations, docs, and tests rather than trusting the intent's description of them; record any caveat.
 
-When a finding needs an owner decision, ask under `## Q&A` — one question at a time.
+When a finding needs the owner's confirmation of an existing pin, ask under `## Q&A` — one question at a time.
 
 **Eject.** If research surfaces a real design decision or the touch map will not close, stop: tell the owner the amend exceeds its scope with the discovery and its evidence, and name the follow-up route per `../amend-pipeline.md` ("The eject"). Commit the record as it stands and perform the workflow's close-out.
 

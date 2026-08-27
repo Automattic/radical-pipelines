@@ -14,7 +14,7 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `before-creating-pipeline-family` | The family's first pipeline is about to be created, before any step                                       |
 | `after-creating-pipeline-family` | The family's first pipeline exists: base run branch, worktree, pipeline family folder, and committed intent |
-| `run-started`                   | Work on a run begins — the pipeline was created, resumed, revised, or forked — before anything is launched |
+| `run-started`                   | Work on a run begins — the pipeline was created, resumed, revised, amended, or forked — before anything is launched |
 | `before-creating-branch`        | A run branch or lane branch is about to be created                                                         |
 | `after-creating-branch`         | A run branch or lane branch is created                                                                     |
 | `before-creating-worktree`      | A worktree is about to be created, or recreated on resume                                                  |
@@ -24,7 +24,7 @@ The **Lifecycle hooks** convention attaches project instructions to defined mome
 | `before-merging-lanes`          | A multi-lane phase's lane branches are about to be merged into the run branch                              |
 | `after-merging-lanes`           | A multi-lane phase's lane branches are merged into the run branch                                          |
 | `blocker-reported`              | An agent's blocker report arrives                                                                          |
-| `run-ended`                     | The run stops — target phase completed, blocker, owner cancellation, or failure                            |
+| `run-ended`                     | The run stops — target phase completed, blocker, eject, owner cancellation, or failure                     |
 | `before-opening-pr`             | The owner asks to open the pipeline's PR, before any work                                                  |
 | `after-opening-pr`              | The pipeline's PR exists                                                                                   |
 | `before-merging-pr`             | The owner asks to merge the pipeline's PR, before any work                                                 |
