@@ -1042,18 +1042,16 @@ function beginTermination(sessionID) {
  * Record how one termination attempt ended, and release whatever the pending
  * outcome was holding.
  *
- * Suppression survives while any other attempt is still in flight and forever
- * once some attempt confirmed the deletion, so a failing attempt can never
- * withdraw the suppression a concurrent successful one depends on. When every
- * attempt has settled and none deleted anything, the session is still alive:
- * its state is dropped — which is also what keeps a never-spawned session ID
- * from leaving a marker — and the terminal events held while the outcome was
- * unknown are handed back to the caller to report after all.
+ * Suppression lasts forever once some attempt confirmed the deletion, so a
+ * failing attempt can never withdraw the suppression a successful one depends
+ * on. Otherwise nothing was terminated and the session may still be alive, so
+ * the caller releases: `releaseTermination` decides there whether every peer
+ * has settled, since it must re-check that after each await regardless.
  *
  * @param {string} sessionID The session the attempt targeted.
  * @param {boolean} confirmed Whether this attempt deleted the session.
  * @returns {boolean} `true` when the caller must now call
- *   `releaseTermination`, which is exactly when nothing was terminated.
+ *   `releaseTermination`, which is whenever this attempt terminated nothing.
  */
 function endTermination(sessionID, confirmed) {
   const state = getTerminationState();
@@ -1070,9 +1068,9 @@ function endTermination(sessionID, confirmed) {
     entry.deferred = [];
     return false;
   }
-  if (entry.inFlight > 0) {
-    return false;
-  }
+  // Whether a peer is still in flight is `releaseTermination`'s gate, which it
+  // has to re-check after every await anyway; repeating it here would be a
+  // second copy of the same rule that no behaviour depends on.
   return true;
 }
 

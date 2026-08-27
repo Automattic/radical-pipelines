@@ -446,6 +446,39 @@ describe("rp_send", () => {
     assert.equal(captured.delivery, "steer", "an unexpected argument must not select delivery");
   });
 
+  test("delivers to the sender's own spawner with steer", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    setup(ctx, isolatedDeps({ env: {} }));
+    sessions.set("ses_worker", { id: "ses_worker" });
+    sessions.set("ses_its_spawner", { id: "ses_its_spawner" });
+    // The commonest direction there is: an agent reporting to whoever spawned
+    // it, including its completion declaration.
+    recordSpawn("ses_worker", {
+      name: "build-writer-edit",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_its_spawner",
+    });
+
+    let captured;
+    const originalPrompt = ctx.session.prompt.bind(ctx.session);
+    ctx.session.prompt = async (args) => {
+      captured = args;
+      return originalPrompt(args);
+    };
+
+    await tools.get("rp_send").execute(
+      { to: "ses_its_spawner", message: "Completion declared: no work remains." },
+      { sessionID: "ses_worker" },
+    );
+
+    assert.equal(captured.sessionID, "ses_its_spawner");
+    assert.equal(
+      captured.delivery,
+      "steer",
+      "a spawner running its own turn must still receive its agent's report",
+    );
+  });
+
   test("delivers agent-to-agent with steer, not only to and from the orchestrator", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
     setup(ctx, isolatedDeps({ env: {} }));
