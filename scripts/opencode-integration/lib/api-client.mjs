@@ -114,14 +114,26 @@ export async function getSession(server, sessionID) {
 }
 
 /**
- * List a session's messages, newest first (opencode's own ordering).
+ * List a session's messages, in opencode's own default ordering unless asked
+ * otherwise.
  *
  * @param {{baseURL:string,password:string}} server
  * @param {string} sessionID
+ * @param {{order?: "asc" | "desc", limit?: number}} [options] `order` selects
+ *   the endpoint's sequence-backed timeline direction — `asc` is oldest
+ *   first, and items keep that order across pages.
  * @returns {Promise<Array<object>>}
  */
-export async function getMessages(server, sessionID) {
-  const response = await request(server, "GET", `/api/session/${sessionID}/message`);
+export async function getMessages(server, sessionID, { order, limit } = {}) {
+  const query = new URLSearchParams();
+  if (order !== undefined) {
+    query.set("order", order);
+  }
+  if (limit !== undefined) {
+    query.set("limit", String(limit));
+  }
+  const suffix = query.size > 0 ? `?${query}` : "";
+  const response = await request(server, "GET", `/api/session/${sessionID}/message${suffix}`);
   return data(response) ?? [];
 }
 

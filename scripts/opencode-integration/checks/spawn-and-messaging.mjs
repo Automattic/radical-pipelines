@@ -229,12 +229,11 @@ export async function run(ctx) {
 
       const ordered = await pollUntil(
         async () => {
-          // `GET /message` does not promise transcript order, so establish it
-          // before locating anything: the wait and the assertion below are
-          // both about where the injection landed among the turn's steps.
-          const all = (await getMessages(server, childID)).sort(
-            (a, b) => a.time.created - b.time.created,
-          );
+          // Ask the endpoint for its sequence-backed oldest-first timeline
+          // rather than reconstructing one: this assertion is entirely about
+          // where the injection landed among the turn's steps, and a
+          // millisecond clock cannot separate messages within one step.
+          const all = await getMessages(server, childID, { order: "asc", limit: 200 });
           const marker = all.findIndex((m) => m.type === "user" && m.text?.includes(midTurnMarker));
           if (marker === -1) return undefined;
           // Settled only once a completed assistant message follows the injection.
