@@ -23,7 +23,7 @@ Find the highest existing `v<N>` in the family per `pipeline-versioning.md` ("Li
 
 ### 4. Create the branch and worktree
 
-Create the fork's first run branch at the cut commit, and its worktree per the **Worktree root** convention. The branch carries the cut run's segment: `<branch-base>_v<N+1>` for a cut in `base`, `<branch-base>_v<N+1>_rev-<K>-<desc>` for a cut in a revision run. Bracket each creation with its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`).
+Create the fork's first run branch at the cut commit, and its worktree per the **Worktree root** convention. The branch carries the cut run's segment: `<branch-base>_v<N+1>` for a cut in `base`; for a cut in a layered run, that run's segment follows (`<branch-base>_v<N+1>_rev-<K>-<desc>` or `<branch-base>_v<N+1>_amend-<K>-<desc>`). Bracket each creation with its lifecycle hooks (`before-creating-branch`/`after-creating-branch`, `before-creating-worktree`/`after-creating-worktree`).
 
 ### 5. Continue as a normal pipeline
 
