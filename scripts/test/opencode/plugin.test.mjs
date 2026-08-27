@@ -1728,6 +1728,11 @@ describe("terminal-event listener", () => {
     pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_win" } });
     await delay(10);
     assert.equal(promptCalls.length, 1, "the deleted session must stay suppressed");
+    assert.equal(
+      globalThis[TERMINATED_SESSIONS_KEY]?.get("ses_child_win")?.deferred.length,
+      0,
+      "a confirmed marker must discard late events, not accumulate them forever",
+    );
   });
 
   test("a confirmed deletion drops its held reports without waiting for a stalled peer", async () => {

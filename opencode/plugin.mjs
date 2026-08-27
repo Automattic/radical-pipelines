@@ -1051,7 +1051,8 @@ function beginTermination(sessionID) {
  * @param {string} sessionID The session the attempt targeted.
  * @param {boolean} confirmed Whether this attempt deleted the session.
  * @returns {boolean} `true` when the caller must now call
- *   `releaseTermination`, which is whenever this attempt terminated nothing.
+ *   `releaseTermination` — that is, when no attempt on this session has
+ *   confirmed a deletion, whether this one or an earlier one.
  */
 function endTermination(sessionID, confirmed) {
   const state = getTerminationState();
@@ -2216,10 +2217,11 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
  * is not the interrupt — and the suppression deliberately does not depend on
  * knowing.
  *
- * `endTermination` keeps suppression alive while any other attempt is in
- * flight and forever once one confirmed the deletion, so no failing attempt
- * can withdraw what a concurrent successful one depends on. A delete that
- * terminated nothing and raced nothing leaves no marker behind.
+ * Suppression lasts forever once any attempt confirms the deletion, and
+ * `releaseTermination` holds it in place while a peer attempt is still in
+ * flight, so no failing attempt can withdraw what a concurrent successful one
+ * depends on. A delete that terminated nothing and raced nothing leaves no
+ * marker behind.
  *
  * While the outcome is unknown a terminal event is *held*, not dropped:
  * intent to terminate is not termination, and a delete that fails leaves a
