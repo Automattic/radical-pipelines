@@ -995,7 +995,7 @@ const TERMINATED_SESSIONS_KEY = Symbol.for("radical-pipelines.opencode.terminate
  * A session is present while at least one `rp_terminate` call for it is in
  * flight, and remains present once any call has confirmed the deletion.
  *
- * @returns {Map<string, {inFlight: number, confirmed: boolean, deferred: Array<() => Promise<void>>}>}
+ * @returns {Map<string, {inFlight: number, confirmed: boolean, deferred: Array<() => Promise<void>>, releasing: boolean}>}
  *   The singleton map.
  */
 function getTerminationState() {
@@ -1028,7 +1028,12 @@ function isolateListener(run) {
  */
 function beginTermination(sessionID) {
   const state = getTerminationState();
-  const entry = state.get(sessionID) ?? { inFlight: 0, confirmed: false, deferred: [] };
+  const entry = state.get(sessionID) ?? {
+    inFlight: 0,
+    confirmed: false,
+    deferred: [],
+    releasing: false,
+  };
   entry.inFlight += 1;
   state.set(sessionID, entry);
 }
@@ -1077,19 +1082,33 @@ function endTermination(sessionID, confirmed) {
  * held — the listener's arrival order survives the release. Each report is
  * isolated, so one failure neither stops the rest nor reaches `rp_terminate`.
  *
+ * A release owns the session's state only while that state stays the one it
+ * started on, unclaimed and unconfirmed. A termination beginning during a
+ * report hands ownership to that newer attempt: draining its events would
+ * report an outcome nobody knows yet, and deleting its state would lose the
+ * marker it is about to earn. Every condition is therefore re-checked after
+ * each await, and one release runs at a time, since a second would interleave
+ * with this drain and could delete state this one still owns.
+ *
  * @param {string} sessionID The session whose termination failed.
  * @returns {Promise<void>}
  */
 async function releaseTermination(sessionID) {
   const state = getTerminationState();
   const entry = state.get(sessionID);
-  if (!entry) {
+  if (!entry || entry.releasing) {
     return;
   }
-  while (entry.deferred.length > 0) {
-    await isolateListener(entry.deferred.shift());
+  entry.releasing = true;
+  while (state.get(sessionID) === entry && entry.inFlight === 0 && !entry.confirmed) {
+    const next = entry.deferred.shift();
+    if (!next) {
+      state.delete(sessionID);
+      break;
+    }
+    await isolateListener(next);
   }
-  state.delete(sessionID);
+  entry.releasing = false;
 }
 
 /**

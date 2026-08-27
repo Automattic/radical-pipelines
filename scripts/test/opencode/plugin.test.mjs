@@ -1542,6 +1542,97 @@ describe("terminal-event listener", () => {
     );
   });
 
+  test("a termination beginning during a release keeps its own state and suppression", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_adopt", { id: "ses_spawner_adopt" });
+    sessions.set("ses_child_adopt", { id: "ses_child_adopt" });
+    recordSpawn("ses_child_adopt", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_adopt",
+    });
+
+    const gate = () => {
+      let open;
+      return { opened: new Promise((resolve) => (open = resolve)), open: () => open() };
+    };
+    const firstReport = gate();
+    const secondDelete = gate();
+
+    // The first attempt's released report blocks here, holding the release
+    // open while the second termination begins.
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      if (promptCalls.length === 1) {
+        await firstReport.opened;
+      }
+      return args;
+    };
+
+    let attempt = 0;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          if (init.method !== "DELETE") {
+            return { status: 200, body: undefined };
+          }
+          attempt += 1;
+          if (attempt === 1) {
+            pushEvent({
+              type: "session.execution.failed",
+              data: { sessionID: "ses_child_adopt" },
+              properties: { error: { type: "provider", message: "first attempt" } },
+            });
+            await delay(10);
+            return { status: 500, body: undefined };
+          }
+          pushEvent({
+            type: "session.execution.failed",
+            data: { sessionID: "ses_child_adopt" },
+            properties: { error: { type: "provider", message: "second attempt" } },
+          });
+          await secondDelete.opened;
+          return { status: 204, body: undefined };
+        },
+      }),
+    );
+
+    const tool = tools.get("rp_terminate");
+    const failing = tool.execute({ session: "ses_child_adopt" });
+    await delay(30); // reach the blocked report inside the first release
+    const succeeding = tool.execute({ session: "ses_child_adopt" });
+    await delay(30); // the second attempt's event is admitted mid-release
+
+    firstReport.open();
+    assert.deepEqual(
+      await failing,
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+
+    secondDelete.open();
+    assert.deepEqual(await succeeding, toToolResult({ terminated: true }));
+    await delay(10);
+
+    assert.deepEqual(
+      promptCalls.map((call) => call.text.match(/Cause: provider: (.+)$/)?.[1]),
+      ["first attempt"],
+      "the stale release must not drain an event whose termination had not settled",
+    );
+    assert.ok(
+      globalThis[TERMINATED_SESSIONS_KEY]?.has("ses_child_adopt"),
+      "the successful termination's marker must survive the earlier release",
+    );
+
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_adopt" } });
+    await delay(10);
+    assert.equal(promptCalls.length, 1, "a deleted session must stay suppressed afterwards");
+  });
+
   test("a failing released report does not mask the transport error rp_terminate raises", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, tools, pushEvent, sessions } = fakeCtx;
