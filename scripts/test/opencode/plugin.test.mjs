@@ -421,6 +421,60 @@ describe("rp_terminate", () => {
 describe("rp_send", () => {
   afterEach(clearAllLoopTimers);
 
+  test("exposes no delivery control and ignores one smuggled into the arguments", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    setup(ctx, isolatedDeps({ env: {} }));
+    sessions.set("ses_sender", { id: "ses_sender" });
+    sessions.set("ses_receiver", { id: "ses_receiver" });
+
+    // A caller-selectable delivery mode is how this defect comes back.
+    const send = tools.get("rp_send");
+    assert.deepEqual(Object.keys(send.input.properties).sort(), ["message", "to"]);
+    assert.deepEqual([...send.input.required].sort(), ["message", "to"]);
+
+    let captured;
+    const originalPrompt = ctx.session.prompt.bind(ctx.session);
+    ctx.session.prompt = async (args) => {
+      captured = args;
+      return originalPrompt(args);
+    };
+
+    await send.execute(
+      { to: "ses_receiver", message: "hello", delivery: "queue" },
+      { sessionID: "ses_sender" },
+    );
+    assert.equal(captured.delivery, "steer", "an unexpected argument must not select delivery");
+  });
+
+  test("delivers agent-to-agent with steer, not only to and from the orchestrator", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    setup(ctx, isolatedDeps({ env: {} }));
+    sessions.set("ses_researcher", { id: "ses_researcher" });
+    sessions.set("ses_requester", { id: "ses_requester" });
+    // Both ends are RP spawns: the requester/researcher pair, not the spawner.
+    for (const [id, name] of [
+      ["ses_researcher", "researcher-q1"],
+      ["ses_requester", "amend-lead"],
+    ]) {
+      recordSpawn(id, { name, run: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
+    }
+
+    let captured;
+    const originalPrompt = ctx.session.prompt.bind(ctx.session);
+    ctx.session.prompt = async (args) => {
+      captured = args;
+      return originalPrompt(args);
+    };
+
+    await tools
+      .get("rp_send")
+      .execute({ to: "ses_requester", message: "Q1 answer" }, { sessionID: "ses_researcher" });
+
+    assert.equal(captured.sessionID, "ses_requester");
+    assert.equal(captured.delivery, "steer");
+    assert.ok(captured.text.startsWith("[from researcher-q1 (ses_researcher)]"));
+  });
+
   test("delivers with steer and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
     setup(ctx, isolatedDeps({ env: {} }));
@@ -1256,6 +1310,11 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
   });
 });
 
+/** Run `rp_terminate` for a session, for tests that start two concurrently. */
+function tool_execute(tools, session) {
+  return tools.get("rp_terminate").execute({ session });
+}
+
 describe("terminal-event listener", () => {
   beforeEach(() => {
     delete globalThis[SETUP_ONCE_KEY];
@@ -1497,8 +1556,10 @@ describe("terminal-event listener", () => {
 
     // A dead spawner is the ordinary way this happens.
     let attempts = 0;
-    ctx.session.prompt = async () => {
+    const announced = [];
+    ctx.session.prompt = async (args) => {
       attempts += 1;
+      announced.push(args.text.match(/Cause: provider: (.+)$/)?.[1]);
       if (attempts === 1) {
         throw new Error("spawner prompt failed");
       }
@@ -1536,9 +1597,229 @@ describe("terminal-event listener", () => {
     await delay(10);
 
     assert.equal(attempts, 2, "a failing report must not stop the reports held behind it");
+    assert.deepEqual(
+      announced,
+      ["first", "second"],
+      "held reports must release in the order they were held, not in reverse",
+    );
     assert.ok(
       globalThis[ERROR_LOG_KEY].some((e) => e.type === "listener.failed"),
       "a failing released report must be recorded the way the event loop records one",
+    );
+  });
+
+  test("a confirmed termination during an older release keeps its marker and drops the held reports", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_win", { id: "ses_spawner_win" });
+    sessions.set("ses_child_win", { id: "ses_child_win" });
+    recordSpawn("ses_child_win", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_win",
+    });
+
+    const gate = () => {
+      let open;
+      return { opened: new Promise((resolve) => (open = resolve)), open: () => open() };
+    };
+    const firstReport = gate();
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      if (promptCalls.length === 1) {
+        await firstReport.opened;
+      }
+      return args;
+    };
+
+    let attempt = 0;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          if (init.method !== "DELETE") {
+            return { status: 200, body: undefined };
+          }
+          attempt += 1;
+          if (attempt === 1) {
+            pushEvent({
+              type: "session.execution.failed",
+              data: { sessionID: "ses_child_win" },
+              properties: { error: { type: "provider", message: "first attempt" } },
+            });
+            await delay(10);
+            return { status: 500, body: undefined };
+          }
+          pushEvent({
+            type: "session.execution.failed",
+            data: { sessionID: "ses_child_win" },
+            properties: { error: { type: "provider", message: "second attempt" } },
+          });
+          await delay(10);
+          return { status: 204, body: undefined };
+        },
+      }),
+    );
+    globalThis[ERROR_LOG_KEY] = [];
+
+    const failing = tool_execute(tools, "ses_child_win");
+    await delay(30); // the first release is blocked inside its report
+
+    // The second attempt settles successfully while that release is blocked.
+    assert.deepEqual(
+      await tool_execute(tools, "ses_child_win"),
+      toToolResult({ terminated: true }),
+    );
+
+    firstReport.open();
+    assert.deepEqual(
+      await failing,
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+    await delay(10);
+
+    assert.ok(
+      globalThis[TERMINATED_SESSIONS_KEY]?.has("ses_child_win"),
+      "a release resuming after a confirmed deletion must not erase its marker",
+    );
+    assert.deepEqual(
+      promptCalls.map((call) => call.text.match(/Cause: provider: (.+)$/)?.[1]),
+      ["first attempt"],
+      "the deletion is confirmed, so the events it was holding are the shutdown's and are dropped",
+    );
+
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_win" } });
+    await delay(10);
+    assert.equal(promptCalls.length, 1, "the deleted session must stay suppressed");
+  });
+
+  test("a confirmed deletion drops its held reports without waiting for a stalled peer", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_stall", { id: "ses_spawner_stall" });
+    sessions.set("ses_child_stall", { id: "ses_child_stall" });
+    recordSpawn("ses_child_stall", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_stall",
+    });
+
+    let openStalled;
+    const stalled = new Promise((resolve) => (openStalled = resolve));
+
+    let attempt = 0;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          if (init.method !== "DELETE") {
+            return { status: 200, body: undefined };
+          }
+          attempt += 1;
+          if (attempt === 1) {
+            pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_stall" } });
+            await delay(20); // let the listener hold it before this attempt settles
+            return { status: 204, body: undefined };
+          }
+          await stalled;
+          return { status: 500, body: undefined };
+        },
+      }),
+    );
+
+    const succeeding = tool_execute(tools, "ses_child_stall");
+    const stalling = tool_execute(tools, "ses_child_stall");
+
+    assert.deepEqual(await succeeding, toToolResult({ terminated: true }));
+
+    const entry = globalThis[TERMINATED_SESSIONS_KEY]?.get("ses_child_stall");
+    assert.ok(entry, "the confirmed marker must outlive the peer still in flight");
+    assert.equal(entry.confirmed, true);
+    assert.equal(
+      entry.deferred.length,
+      0,
+      "a report the confirmed deletion discards must not be stranded until the peer settles",
+    );
+
+    openStalled();
+    assert.deepEqual(
+      await stalling,
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+  });
+
+  test("a second failed release cannot overtake the release already draining", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_two", { id: "ses_spawner_two" });
+    sessions.set("ses_child_two", { id: "ses_child_two" });
+    recordSpawn("ses_child_two", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_two",
+    });
+
+    const gate = () => {
+      let open;
+      return { opened: new Promise((resolve) => (open = resolve)), open: () => open() };
+    };
+    const firstReport = gate();
+
+    // Completion order, not call order, is what a second releaser corrupts.
+    const started = [];
+    const finished = [];
+    ctx.session.prompt = async (args) => {
+      const cause = args.text.match(/Cause: provider: (.+)$/)?.[1];
+      started.push(cause);
+      if (started.length === 1) {
+        await firstReport.opened;
+      }
+      finished.push(cause);
+      return args;
+    };
+
+    let attempt = 0;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          if (init.method !== "DELETE") {
+            return { status: 200, body: undefined };
+          }
+          attempt += 1;
+          pushEvent({
+            type: "session.execution.failed",
+            data: { sessionID: "ses_child_two" },
+            properties: { error: { type: "provider", message: `attempt ${attempt}` } },
+          });
+          await delay(10);
+          return { status: 500, body: undefined };
+        },
+      }),
+    );
+
+    const first = tool_execute(tools, "ses_child_two");
+    await delay(30); // the first release is blocked inside its report
+    const second = tool_execute(tools, "ses_child_two");
+    await delay(30); // its own failure would start a competing release
+
+    firstReport.open();
+    await first;
+    await second;
+    await delay(20);
+
+    assert.deepEqual(
+      finished,
+      ["attempt 1", "attempt 2"],
+      "a competing release must not report past the one already draining",
     );
   });
 

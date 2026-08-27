@@ -1063,12 +1063,14 @@ function endTermination(sessionID, confirmed) {
   }
   entry.inFlight -= 1;
   entry.confirmed = entry.confirmed || confirmed;
-  if (entry.inFlight > 0) {
+  if (entry.confirmed) {
+    // The session is gone; anything it emitted on the way out was the
+    // shutdown. Drop it as soon as that is known rather than after the last
+    // attempt settles, so a peer that stalls cannot strand it.
+    entry.deferred = [];
     return false;
   }
-  if (entry.confirmed) {
-    // The session is gone; anything it emitted on the way out was the shutdown.
-    entry.deferred = [];
+  if (entry.inFlight > 0) {
     return false;
   }
   return true;
