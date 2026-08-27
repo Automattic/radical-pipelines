@@ -39,6 +39,7 @@ const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
 const LOOP_TIMERS_KEY = Symbol.for("radical-pipelines.opencode.loopTimers");
 const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
 const LOOP_TICK_LOG_KEY = Symbol.for("radical-pipelines.opencode.loopTickLog");
+const TERMINATED_SESSIONS_KEY = Symbol.for("radical-pipelines.opencode.terminatedSessions");
 
 /** Create a fresh, empty temp directory (used for materializeAgents overrides). */
 function freshDir() {
@@ -420,7 +421,7 @@ describe("rp_terminate", () => {
 describe("rp_send", () => {
   afterEach(clearAllLoopTimers);
 
-  test("enqueues with delivery: queue and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
+  test("delivers with steer and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
     setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender", { id: "ses_sender" });
@@ -447,7 +448,11 @@ describe("rp_send", () => {
     // else — no fabricated target state.
     assert.deepEqual(result, toToolResult({ enqueued: true }));
     assert.equal(captured.sessionID, "ses_receiver");
-    assert.equal(captured.delivery, "queue");
+    assert.equal(
+      captured.delivery,
+      "steer",
+      "queue delivery never reaches a target that keeps calling tools",
+    );
     assert.ok(
       captured.text.startsWith("[from spec-lead (ses_sender)]"),
       `expected attribution derived from the ledger, got: ${captured.text}`,
@@ -1254,6 +1259,7 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
 describe("terminal-event listener", () => {
   beforeEach(() => {
     delete globalThis[SETUP_ONCE_KEY];
+    delete globalThis[TERMINATED_SESSIONS_KEY];
   });
 
   afterEach(clearAllLoopTimers);
@@ -1297,10 +1303,93 @@ describe("terminal-event listener", () => {
     assert.equal(promptCalls.length, 2, "every failed turn must be announced, not just the first");
     for (const call of promptCalls) {
       assert.equal(call.sessionID, "ses_spawner_evt");
-      assert.equal(call.delivery, "queue");
+      assert.equal(call.delivery, "steer");
       assert.match(call.text, /worker \(ses_child_evt\) failed a turn/);
       assert.doesNotMatch(call.text, /succeeded/i);
     }
+  });
+
+  test("a session terminated through rp_terminate announces nothing and records no error", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_term", { id: "ses_spawner_term" });
+    sessions.set("ses_child_term", { id: "ses_child_term" });
+    recordSpawn("ses_child_term", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_term",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async () => ({ status: 204, body: undefined }),
+      }),
+    );
+    globalThis[ERROR_LOG_KEY] = [];
+
+    await tools.get("rp_terminate").execute({ session: "ses_child_term" });
+
+    // Deleting a session interrupts its running turn, so the failure the
+    // delete itself causes must not be reported back as a fault.
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_term" } });
+    await delay(10);
+
+    assert.deepEqual(promptCalls, [], "a deliberate shutdown must not be announced as a failure");
+    assert.deepEqual(
+      globalThis[ERROR_LOG_KEY].filter((entry) => entry.sessionID === "ses_child_term"),
+      [],
+      "a deliberate shutdown must not appear in recentErrors",
+    );
+  });
+
+  test("a failed termination leaves the session announcing its failures", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_alive", { id: "ses_spawner_alive" });
+    sessions.set("ses_child_alive", { id: "ses_child_alive" });
+    recordSpawn("ses_child_alive", {
+      name: "worker",
+      run: "267-steer-inter-agent-messages",
+      spawner: "ses_spawner_alive",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async () => ({ status: 500, body: undefined }),
+      }),
+    );
+
+    assert.deepEqual(
+      await tools.get("rp_terminate").execute({ session: "ses_child_alive" }),
+      toToolResult({ status: 500, error: "SessionTerminationFailed" }),
+    );
+
+    // The session survived the failed delete, so a later genuine failure is
+    // still the spawner's business.
+    pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_alive" } });
+    await delay(10);
+
+    assert.equal(promptCalls.length, 1);
+    assert.equal(promptCalls[0].sessionID, "ses_spawner_alive");
+    assert.match(promptCalls[0].text, /worker \(ses_child_alive\) failed a turn/);
   });
 
   test("re-asserts the child's durable rp: title on its first terminal event only", async () => {

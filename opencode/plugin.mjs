@@ -983,6 +983,25 @@ function getTitledChildren() {
 }
 
 /**
+ * `globalThis` key backing the set of session IDs `rp_terminate` has asked
+ * the server to delete.
+ */
+const TERMINATED_SESSIONS_KEY = Symbol.for("radical-pipelines.opencode.terminatedSessions");
+
+/**
+ * Fetch the process-wide set of deliberately terminated session IDs, creating
+ * it on first use.
+ *
+ * @returns {Set<string>} The singleton set.
+ */
+function getTerminatedSessions() {
+  if (!globalThis[TERMINATED_SESSIONS_KEY]) {
+    globalThis[TERMINATED_SESSIONS_KEY] = new Set();
+  }
+  return globalThis[TERMINATED_SESSIONS_KEY];
+}
+
+/**
  * `globalThis` key backing the bounded, in-memory recent-errors ring the
  * terminal-event listener and loop scheduler append to.
  */
@@ -1090,14 +1109,17 @@ function formatStructuredError(error) {
 /**
  * Handle one event delivered to the terminal-event listener.
  *
- * Ignores non-terminal events and terminal events on sessions RP did not
- * spawn. A successful turn is not a completion signal — an agent declares
- * its own completion in a message to its spawner — so success events pass
- * silently. Every failed turn is recorded in the bounded error log
- * (including the structured error it carries, so `rp_status`'s
- * `recentErrors` reports the cause) and announced to the spawner (queue
- * delivery) with that cause. The child's durable `rp:` title is re-asserted
- * over the reach helper on its first terminal event.
+ * Ignores non-terminal events, terminal events on sessions RP did not spawn,
+ * and every event on a session terminated through `rp_terminate` — deleting a
+ * session interrupts whatever turn it was running, and that interruption is
+ * the expected end of a deliberate shutdown rather than a fault to report.
+ * A successful turn is not a completion signal — an agent declares its own
+ * completion in a message to its spawner — so success events pass silently.
+ * Every failed turn is recorded in the bounded error log (including the
+ * structured error it carries, so `rp_status`'s `recentErrors` reports the
+ * cause) and announced to the spawner (steer delivery, so a working spawner
+ * still receives it) with that cause. The child's durable `rp:` title is
+ * re-asserted over the reach helper on its first terminal event.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
  * @param {{
@@ -1118,6 +1140,9 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
   if (!entry) {
     return;
   }
+  if (getTerminatedSessions().has(sessionID)) {
+    return;
+  }
 
   if (event.type === "session.execution.failed") {
     const error = terminalEventError(event);
@@ -1131,7 +1156,7 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
     await ctx.session.prompt({
       sessionID: entry.spawner,
       text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
-      delivery: "queue",
+      delivery: "steer",
     });
   }
 
@@ -1322,10 +1347,11 @@ function getHandledPermissions() {
  * has the same content inside the asking session's own worktree is rejected
  * with feedback redirecting the agent to the worktree copy — worktrees stay
  * independent and the agent proceeds immediately. Every other ask stays
- * pending and is forwarded to the spawner (queue delivery) to adjudicate via
- * `rp_permission_reply`; a redirect-eligible ask also falls back to
- * forwarding when the server cannot be reached to deliver the reject, or when
- * the reject reply comes back non-2xx — a reply that did not land leaves the
+ * pending and is forwarded to the spawner (steer delivery, so a working
+ * spawner still receives it) to adjudicate via `rp_permission_reply`; a
+ * redirect-eligible ask also falls back to forwarding when the server cannot
+ * be reached to deliver the reject, or when the reject reply comes back
+ * non-2xx — a reply that did not land leaves the
  * session blocked, and treating it as handled would leave it blocked with
  * nobody told. Both outcomes are recorded in the bounded log surfaced by
  * `rp_status`.
@@ -1415,7 +1441,7 @@ async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn
     await ctx.session.prompt({
       sessionID: entry.spawner,
       text: formatPermissionForward(entry, request),
-      delivery: "queue",
+      delivery: "steer",
     });
   } catch (error) {
     handled.delete(request.requestID);
@@ -2037,6 +2063,14 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
 /**
  * Build the `rp_terminate` tool descriptor.
  *
+ * Records the session as deliberately terminated *before* issuing the delete,
+ * so the terminal-event listener suppresses the failure the delete itself
+ * causes: deleting a session interrupts its running turn, and that
+ * interruption is published while the request is still in flight. A delete
+ * that comes back non-2xx un-records it, since a session that survived a
+ * failed termination can still fail for real. A 404 stays recorded — the
+ * session is already gone.
+ *
  * @param {{
  *   env: Record<string, string | undefined>,
  *   readServiceRecordOverride?: (env: object) => object | null,
@@ -2063,17 +2097,26 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
       if (!server) {
         return toToolResult({ error: "server unreachable" });
       }
-      const response = await requestServer(
-        server,
-        "DELETE",
-        `/api/session/${session}`,
-        undefined,
-        requestFn,
-      );
+      const terminated = getTerminatedSessions();
+      terminated.add(session);
+      let response;
+      try {
+        response = await requestServer(
+          server,
+          "DELETE",
+          `/api/session/${session}`,
+          undefined,
+          requestFn,
+        );
+      } catch (error) {
+        terminated.delete(session);
+        throw error;
+      }
       if (response.status === 404) {
         return toToolResult({ status: 404, error: "SessionNotFoundError" });
       }
       if (response.status < 200 || response.status >= 300) {
+        terminated.delete(session);
         return toToolResult({ status: response.status, error: "SessionTerminationFailed" });
       }
       return toToolResult({ terminated: true });
@@ -2133,13 +2176,17 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
 /**
  * Build the `rp_send` tool descriptor.
  *
- * The prompt call resolves once the message is *admitted to the target's
- * queue* — a queued message is delivered only when the target next idles, and
- * a target wedged mid-turn never drains its queue. The result therefore
- * reports `enqueued`, never "delivered", and adds the target's observed state
- * (running, queued inputs, pending permission asks) when the server is
- * reachable, so a sender can tell an about-to-deliver message from one queued
- * behind a blocked session.
+ * Steer delivery, so the message reaches the target at its next step
+ * boundary rather than waiting for a turn to end. An agent runs one turn for
+ * as long as it keeps calling tools, so queue delivery — which promotes only
+ * at a turn boundary — cannot reach a working agent at all, and is discarded
+ * outright if that agent is terminated while it still holds the message.
+ *
+ * The prompt call resolves once the message is *admitted*, not once it is
+ * read. The result therefore reports `enqueued`, never "delivered", and adds
+ * the target's observed state (running, queued inputs, pending permission
+ * asks) when the server is reachable, so a sender can tell an about-to-deliver
+ * message from one behind a blocked session.
  *
  * @param {object} ctx The plugin's opencode context, as passed to `setup`.
  * @param {{
@@ -2155,7 +2202,7 @@ function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requ
   return {
     name: "rp_send",
     description:
-      "Send a directed message to another RP session by session ID. The message is queued and delivered when the target next idles; the result reports admission and the target's observed state, not receipt.",
+      "Send a directed message to another RP session by session ID. The message reaches the target at its next step boundary, whether or not it is working; the result reports admission and the target's observed state, not receipt.",
     output: ANY_OUTPUT_SCHEMA,
     input: {
       type: "object",
@@ -2172,7 +2219,7 @@ function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requ
         sessionID: toolCtx.sessionID,
       })} ${message}`;
       try {
-        await ctx.session.prompt({ sessionID: to, text, delivery: "queue" });
+        await ctx.session.prompt({ sessionID: to, text, delivery: "steer" });
       } catch (error) {
         if (isSessionNotFoundError(error)) {
           return toToolResult({ status: 404, error: "SessionNotFoundError" });

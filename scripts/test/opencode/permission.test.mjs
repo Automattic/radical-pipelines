@@ -270,7 +270,7 @@ describe("onPermissionAsked", () => {
     assert.equal(requests.length, 0, "a forwarded ask must not be replied to");
     assert.equal(prompts.length, 1);
     assert.equal(prompts[0].sessionID, "ses_orch_fwd");
-    assert.equal(prompts[0].delivery, "queue");
+    assert.equal(prompts[0].delivery, "steer");
     assert.match(prompts[0].text, new RegExp(requestID));
     assert.match(prompts[0].text, /rp_permission_reply/);
     assert.ok(
