@@ -1,5 +1,17 @@
 # @automattic/radical-pipelines
 
+## 0.15.0
+
+### Minor Changes
+
+- [#259](https://github.com/Automattic/radical-pipelines/pull/259) [`ce7d63e`](https://github.com/Automattic/radical-pipelines/commit/ce7d63e60d8dba0d689ad4583426a14b9e9f07e7) Thanks [@luisherranz](https://github.com/luisherranz)! - Agents declare their own completion instead of it being inferred from turn activity. Every agent profile directs the agent, when its work ends, to declare completion to its spawner with the exact statement "Completion declared: no work remains." — at the end of its final report for agents that report to the spawner, as its own message for those that report to a requester — and the orchestrator terminates a session only on that declaration. The opencode plugin's first-turn success notification is dropped, and every failed turn — not just the first — is announced to the spawner with its cause.
+
+### Patch Changes
+
+- [#262](https://github.com/Automattic/radical-pipelines/pull/262) [`be42aa1`](https://github.com/Automattic/radical-pipelines/commit/be42aa19414c7a5dff70637258f7c18efe01cc11) Thanks [@luisherranz](https://github.com/luisherranz)! - Make the opencode health loop flood-proof and self-recovering: a tick never duplicates a prompt whose predecessor is still undelivered or unanswered (a parked queue copy facing a running session is promoted to steer delivery in place); each injection is evaluated against the turn that responded to it — anchored on the admitted input's message ID — and an injection answered only by a failing turn (network outage, provider quota exhaustion) triggers an exponential backoff, capped at ~8 intervals, that suppresses injections but never inspection and ends on the first successful turn; and a stale target on a dead provider stream — a frozen tool call, with no tool executing anywhere in the message, whose own response (identified by its provider call id in the bytes teed via each location's `http.response` hook) produced no bytes and no progress events for a wall-clock confirmation window, one hour by default (an accepted, documented heuristic — silence cannot prove death) — is interrupted with `continue=true`, serialized and deduplicated per target across loops, after promoting any parked monitor copy so the freed session receives it and revalidating at the last moment (the interrupt is session-scoped; the pinned API offers nothing tighter). Under the single-observer assumption, a stream whose response identity is established is never interrupted while it produces bytes, and traffic whose identity cannot be established — never observed, or its projected tool id unmatched in the observed bytes — has unknown coverage and is never escalated. The plugin's `setup` now returns a per-location cleanup that disposes its own observer and releases the shared supervision by reference count.
+
+- [#269](https://github.com/Automattic/radical-pipelines/pull/269) [`2034bdf`](https://github.com/Automattic/radical-pipelines/commit/2034bdf9b775211906426bc221f4774f80970683) Thanks [@luisherranz](https://github.com/luisherranz)! - Deliver inter-agent messages with steer so they reach a recipient that is still working, and stop reporting a deliberate `rp_terminate` as a failed turn.
+
 ## 0.14.0
 ### Minor Changes
 
