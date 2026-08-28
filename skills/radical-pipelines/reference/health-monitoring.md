@@ -16,7 +16,7 @@ The orchestrator launches the monitor itself. The owner is not asked to run a se
 
 The monitor checks every interval for the following signals:
 
-- **No-activity stall** — an agent with work outstanding (launched, its completion not yet reported) has shown no activity — no commit, no artifact write, no tool output — for longer than the no-activity threshold.
+- **No-activity stall** — an agent with work outstanding (launched, its completion not yet declared) has shown no activity — no commit, no artifact write, no tool output — for longer than the no-activity threshold.
 - **Message failure** — an inter-agent message failed, errored out, or was never delivered.
 - **Login / API-key error** — a spawned agent or the orchestrator hit a provider authentication failure.
 - **Network failure** — a tool call failed with a transient network error.

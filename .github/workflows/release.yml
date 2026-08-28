@@ -29,9 +29,8 @@ jobs:
       - run: npm test
 
       - id: changesets
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        uses: changesets/action@fdf536a68c4154480c89b42547f8102cf0d8bc47 # v2.1.1
         with:
-          version: npm run release:version # MUST override default to keep sync-version (R3)
-          publish: npx changeset tag # creates v<version> tag; action then creates the Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version-script: npm run release:version # MUST override default to keep sync-version (R3)
+          publish-script: npx changeset git-tag # creates v<version> tag; action then creates the Release

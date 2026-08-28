@@ -1,7 +1,7 @@
 /**
- * Spawn, seat, identifier, and completion-notification mechanics, and
+ * Spawn, seat, identifier, and durable-title mechanics, and
  * directed messaging in both directions (including the message-failure
- * chain's send-time and lingering-delivery stages), and session termination,
+ * chain's send-time stage and delivery into a working target), and session termination,
  * driven against the sandbox's running `serve` process via the plugin's real
  * `rp_spawn`/`rp_send`/`rp_terminate` tools.
  */
@@ -20,7 +20,7 @@ import {
   request,
   waitForAssistantFinish,
 } from "../lib/api-client.mjs";
-import { slowPrompt } from "../lib/stub-provider.mjs";
+import { nativeToolPrompt, slowPrompt } from "../lib/stub-provider.mjs";
 
 const STUB_MODEL = { providerID: "stub", id: "stub-model" };
 
@@ -87,33 +87,35 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "the spawner receives a completion notification and the child's durable title wins the auto-title race",
+    "a successful first turn asserts the child's durable title without notifying the spawner",
     async () => {
       // The child's own first turn (its initial "say hello" prompt, posted
       // by rp_spawn) runs against the stub with no directive, so it
-      // completes as a plain turn — triggering the completion listener's
-      // first-terminal-event notification and title re-assert.
+      // completes as a plain turn — triggering the terminal-event listener's
+      // title re-assert.
       await waitForAssistantFinish(server, childID, "stop");
 
-      await pollUntil(
-        () => getSessionMessagesContaining(server, orchestrator.id, `${childID}) succeeded on its first turn.`),
-        { timeoutMs: 20_000, label: "the spawner to receive a completion notification naming the child" },
-      );
-
-      // The rename call is the very next awaited step after the spawner
-      // notification in the listener, but is still a separate async hop —
-      // poll briefly rather than asserting on a single immediate read.
       const title = await pollUntil(
         async () => {
           const child = await getSession(server, childID);
           return child.title === "rp:suite-run:suite-child" ? child.title : undefined;
         },
-        { timeoutMs: 5_000, label: "the child's durable rp: title to win the auto-title race" },
+        { timeoutMs: 20_000, label: "the child's durable rp: title to win the auto-title race" },
       );
       assert.equal(
         title,
         "rp:suite-run:suite-child",
         "expected the child's durable rp: title to win over opencode's own auto-title",
+      );
+
+      // A successful turn is not a completion signal: the spawner must not
+      // have been told the child succeeded. The title re-assert above
+      // happens after the point where the old notification was sent, so by
+      // now an erroneous notification would have been admitted.
+      const messages = await getMessages(server, orchestrator.id);
+      assert.ok(
+        !messages.some((m) => m.type === "user" && m.text?.includes(`${childID}) succeeded`)),
+        "a successful turn must not produce a spawner notification",
       );
     },
   );
@@ -173,22 +175,33 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "an admitted-but-unpromoted message lingers observably in /inbox while the target is busy, then drains once it goes idle",
+    "a message admitted while the target is working is admitted as a steer and delivered inside that turn, not after it",
     async () => {
-      // Keep the child genuinely "running" for a known window (the stub
-      // delays its reply) so the message rp_send admits next is queued but
-      // not yet promoted into a turn — the lingering-delivery stage of the
-      // message-failure chain, distinct from the send-time 404 above and the
-      // post-promotion execution failure covered elsewhere.
-      const nonce = `pending-linger-check-${Date.now()}`;
-      const busyTurn = prompt(server, childID, slowPrompt(6_000, nonce), { delivery: "steer" });
+      // A turn that ends after one model call cannot tell steer from queue:
+      // its step boundary and its idle boundary are the same moment. So drive
+      // a genuinely multi-step turn — the stub delays, then answers with a
+      // tool call, forcing a continuation step — and admit the message during
+      // the delayed first step. Steer promotes it at the step boundary before
+      // the continuation; queue would hold it until the whole turn ended.
+      const nonce = `midturn-check-${Date.now()}`;
+      const busyTurn = prompt(
+        server,
+        childID,
+        // `.invalid` is reserved (RFC 2606) to never resolve, so the tool
+        // call fails fast and deterministically; the turn continues either
+        // way. The host is distinct from every other check's: the stub answers
+        // each native directive once, so a shared directive string would
+        // consume another check's one-shot.
+        `${nativeToolPrompt("webfetch", { url: "http://rp-midturn-unroutable.invalid/", format: "text" })} ${slowPrompt(4_000, nonce)}`,
+        { delivery: "steer" },
+      );
       await delay(500); // give the turn a moment to actually start running
 
-      const lingerMarker = `linger-payload-${nonce}`;
+      const midTurnMarker = `midturn-payload-${nonce}`;
       const sendResult = await driveToolCall(
         server,
         orchestrator.id,
-        `return await tools.rp_send({to:${JSON.stringify(childID)}, message:${JSON.stringify(lingerMarker)}});`,
+        `return await tools.rp_send({to:${JSON.stringify(childID)}, message:${JSON.stringify(midTurnMarker)}});`,
       );
       assert.equal(sendResult.structuredJSON.enqueued, true);
       // The send happened into a deliberately busy target: the result must
@@ -199,40 +212,54 @@ export async function run(ctx) {
         `expected the result to report the busy target as running, got: ${JSON.stringify(sendResult.structuredJSON)}`,
       );
 
-      const lingering = await pollUntil(
+      const admitted = await pollUntil(
         async () => {
           const inbox = await getInbox(server, childID);
-          return inbox.some((item) => item.payload?.text?.includes(lingerMarker)) ? inbox : undefined;
+          return inbox.find((item) => item.payload?.text?.includes(midTurnMarker));
         },
         { timeoutMs: 4_000, label: "the admitted message to appear in GET /inbox before promotion" },
       );
-      assert.ok(
-        lingering.some((item) => item.payload?.text?.includes(lingerMarker)),
-        `expected the admitted-but-unpromoted message to be observable via GET /inbox, got: ${JSON.stringify(lingering)}`,
-      );
-
-      const statusResult = await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`);
-      const status = JSON.parse(statusResult.text);
-      const row = status.ledger.find((r) => r.sessionID === childID);
-      assert.ok(row, `expected rp_status's ledger to include the busy child ${childID}`);
-      assert.ok(
-        row.pending > 0,
-        `expected rp_status's ledger row for the busy child to report a nonzero pending count, got: ${row.pending}`,
+      assert.equal(
+        admitted.delivery,
+        "steer",
+        `rp_send must admit as a steer so a working target still receives it, got: ${JSON.stringify(admitted)}`,
       );
 
       await busyTurn;
 
-      await pollUntil(
+      const ordered = await pollUntil(
         async () => {
-          const inbox = await getInbox(server, childID);
-          return inbox.length === 0 ? true : undefined;
+          // Ask the endpoint for its sequence-backed oldest-first timeline
+          // rather than reconstructing one: this assertion is entirely about
+          // where the injection landed among the turn's steps, and a
+          // millisecond clock cannot separate messages within one step.
+          const all = await getMessages(server, childID, { order: "asc", limit: 200 });
+          const marker = all.findIndex((m) => m.type === "user" && m.text?.includes(midTurnMarker));
+          if (marker === -1) return undefined;
+          // Settled only once a completed assistant message follows the injection.
+          return all.slice(marker + 1).some((m) => m.type === "assistant" && m.finish !== undefined)
+            ? all
+            : undefined;
         },
-        { timeoutMs: 10_000, label: "the pending message to drain once the target goes idle" },
+        { timeoutMs: 20_000, label: "the injected message to be delivered and answered" },
       );
-      await pollUntil(() => getSessionMessagesContaining(server, childID, lingerMarker), {
-        timeoutMs: 10_000,
-        label: "the once-pending message to be promoted and delivered to the child",
-      });
+
+      const directiveIndex = ordered.findIndex((m) => m.type === "user" && m.text?.includes(nonce));
+      const markerIndex = ordered.findIndex(
+        (m) => m.type === "user" && m.text?.includes(midTurnMarker),
+      );
+      const between = ordered
+        .slice(directiveIndex + 1, markerIndex)
+        .filter((m) => m.type === "assistant");
+      assert.equal(
+        between.length,
+        1,
+        `the message must land at the step boundary inside the turn — after the tool-call step and before its continuation — so exactly one assistant message may precede it, got ${between.length}: ${JSON.stringify(between.map((m) => m.id))}`,
+      );
+      assert.ok(
+        between[0].content?.some((part) => part.type === "tool"),
+        "the single preceding assistant message must be the tool-call step, not a finished reply",
+      );
     },
   );
 
