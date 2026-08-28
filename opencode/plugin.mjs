@@ -983,6 +983,166 @@ function getTitledChildren() {
 }
 
 /**
+ * `globalThis` key backing the per-session termination state `rp_terminate`
+ * maintains for the terminal-event listener.
+ */
+const TERMINATED_SESSIONS_KEY = Symbol.for("radical-pipelines.opencode.terminatedSessions");
+
+/**
+ * Fetch the process-wide map of per-session termination state, creating it on
+ * first use.
+ *
+ * A session is present while at least one `rp_terminate` call for it is in
+ * flight, and remains present once any call has confirmed the deletion.
+ *
+ * @returns {Map<string, {inFlight: number, confirmed: boolean, deferred: Array<() => Promise<void>>, releasing: boolean}>}
+ *   The singleton map.
+ */
+function getTerminationState() {
+  if (!globalThis[TERMINATED_SESSIONS_KEY]) {
+    globalThis[TERMINATED_SESSIONS_KEY] = new Map();
+  }
+  return globalThis[TERMINATED_SESSIONS_KEY];
+}
+
+/**
+ * Run one terminal-event report so a failure inside it can never escape to
+ * its caller, recording it the way the event loop does.
+ *
+ * Both the event loop and the release path use this, so a report behaves
+ * identically whichever reaches it: one failing report is logged and the next
+ * still runs, and it cannot change what `rp_terminate` returns or raises.
+ *
+ * @param {() => Promise<void>} run The report to isolate.
+ * @returns {Promise<void>} Always resolves.
+ */
+function isolateListener(run) {
+  return run().catch((error) => recordError({ type: "listener.failed", error: String(error) }));
+}
+
+/**
+ * Record that a termination attempt for a session has started.
+ *
+ * @param {string} sessionID The session being terminated.
+ * @returns {void}
+ */
+function beginTermination(sessionID) {
+  const state = getTerminationState();
+  const entry = state.get(sessionID) ?? {
+    inFlight: 0,
+    confirmed: false,
+    deferred: [],
+    releasing: false,
+  };
+  entry.inFlight += 1;
+  state.set(sessionID, entry);
+}
+
+/**
+ * Record how one termination attempt ended, and release whatever the pending
+ * outcome was holding.
+ *
+ * Suppression lasts forever once some attempt confirmed the deletion, so a
+ * failing attempt can never withdraw the suppression a successful one depends
+ * on. Otherwise nothing was terminated and the session may still be alive, so
+ * the caller releases: `releaseTermination` decides there whether every peer
+ * has settled, since it must re-check that after each await regardless.
+ *
+ * @param {string} sessionID The session the attempt targeted.
+ * @param {boolean} confirmed Whether this attempt deleted the session.
+ * @returns {boolean} `true` when the caller must now call
+ *   `releaseTermination` — that is, when no attempt on this session has
+ *   confirmed a deletion, whether this one or an earlier one.
+ */
+function endTermination(sessionID, confirmed) {
+  const state = getTerminationState();
+  const entry = state.get(sessionID);
+  if (!entry) {
+    return false;
+  }
+  entry.inFlight -= 1;
+  entry.confirmed = entry.confirmed || confirmed;
+  if (entry.confirmed) {
+    // The session is gone; anything it emitted on the way out was the
+    // shutdown. Drop it as soon as that is known rather than after the last
+    // attempt settles, so a peer that stalls cannot strand it.
+    entry.deferred = [];
+    return false;
+  }
+  // Whether a peer is still in flight is `releaseTermination`'s gate, which it
+  // has to re-check after every await anyway; repeating it here would be a
+  // second copy of the same rule that no behaviour depends on.
+  return true;
+}
+
+/**
+ * Report everything a failed termination was holding, then forget the session.
+ *
+ * The state stays in place for the whole drain, so an event arriving partway
+ * through joins the end of the queue instead of overtaking what is already
+ * held — the listener's arrival order survives the release. Each report is
+ * isolated, so one failure neither stops the rest nor reaches `rp_terminate`.
+ *
+ * A release owns the session's state only while that state stays the one it
+ * started on, unclaimed and unconfirmed. A termination beginning during a
+ * report hands ownership to that newer attempt: draining its events would
+ * report an outcome nobody knows yet, and deleting its state would lose the
+ * marker it is about to earn. Every condition is therefore re-checked after
+ * each await, and one release runs at a time, since a second would interleave
+ * with this drain and could delete state this one still owns.
+ *
+ * @param {string} sessionID The session whose termination failed.
+ * @returns {Promise<void>}
+ */
+async function releaseTermination(sessionID) {
+  const state = getTerminationState();
+  const entry = state.get(sessionID);
+  if (!entry || entry.releasing) {
+    return;
+  }
+  entry.releasing = true;
+  while (state.get(sessionID) === entry && entry.inFlight === 0 && !entry.confirmed) {
+    const next = entry.deferred.shift();
+    if (!next) {
+      state.delete(sessionID);
+      break;
+    }
+    await isolateListener(next);
+  }
+  entry.releasing = false;
+}
+
+/**
+ * Decide what a terminal event's arrival during a termination means.
+ *
+ * A confirmed deletion discards it: the session is gone, and the plugin
+ * cannot tell a failure the delete provoked from one the session raised on
+ * its own moments earlier — both carry the same type on the same session, and
+ * `created` is a millisecond wall clock that cannot separate them. Suppressing
+ * is the safe side of that ambiguity, since the spawner asked for this agent
+ * to stop and a report about a session it just destroyed is not actionable.
+ *
+ * An unknown outcome holds it instead. Discarding on the mere intent to
+ * terminate would lose a genuine failure for good when the delete turns out to
+ * fail and the agent is still alive.
+ *
+ * @param {string} sessionID The session the event pertains to.
+ * @param {() => Promise<void>} run Reports the event.
+ * @returns {boolean} `true` when the termination took the event over.
+ */
+function withheldByTermination(sessionID, run) {
+  const entry = getTerminationState().get(sessionID);
+  if (!entry) {
+    return false;
+  }
+  if (entry.confirmed) {
+    return true;
+  }
+  entry.deferred.push(run);
+  return true;
+}
+
+/**
  * `globalThis` key backing the bounded, in-memory recent-errors ring the
  * terminal-event listener and loop scheduler append to.
  */
@@ -1091,13 +1251,18 @@ function formatStructuredError(error) {
  * Handle one event delivered to the terminal-event listener.
  *
  * Ignores non-terminal events and terminal events on sessions RP did not
- * spawn. A successful turn is not a completion signal — an agent declares
- * its own completion in a message to its spawner — so success events pass
- * silently. Every failed turn is recorded in the bounded error log
- * (including the structured error it carries, so `rp_status`'s
- * `recentErrors` reports the cause) and announced to the spawner (queue
- * delivery) with that cause. The child's durable `rp:` title is re-asserted
- * over the reach helper on its first terminal event.
+ * spawn. An event on a session `rp_terminate` is deleting goes to
+ * `withheldByTermination`, which discards it once a delete has confirmed —
+ * the failure a delete provokes is the expected end of a deliberate shutdown,
+ * not a fault to report — and holds it while the outcome is unknown, so a
+ * delete that fails still reports what the surviving session raised.
+ * A successful turn is not a completion signal — an agent declares its own
+ * completion in a message to its spawner — so success events pass silently.
+ * Every failed turn is recorded in the bounded error log (including the
+ * structured error it carries, so `rp_status`'s `recentErrors` reports the
+ * cause) and announced to the spawner (steer delivery, so a working spawner
+ * still receives it) with that cause. The child's durable `rp:` title is
+ * re-asserted over the reach helper on its first terminal event.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
  * @param {{
@@ -1118,38 +1283,44 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
   if (!entry) {
     return;
   }
+  const report = async () => {
+    if (event.type === "session.execution.failed") {
+      const error = terminalEventError(event);
+      const logEntry = { type: event.type, sessionID, at: Date.now() };
+      if (error !== undefined) {
+        logEntry.error = error;
+      }
+      recordError(logEntry);
 
-  if (event.type === "session.execution.failed") {
-    const error = terminalEventError(event);
-    const logEntry = { type: event.type, sessionID, at: Date.now() };
-    if (error !== undefined) {
-      logEntry.error = error;
+      const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
+      await ctx.session.prompt({
+        sessionID: entry.spawner,
+        text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
+        delivery: "steer",
+      });
     }
-    recordError(logEntry);
 
-    const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
-    await ctx.session.prompt({
-      sessionID: entry.spawner,
-      text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
-      delivery: "queue",
-    });
-  }
+    const titled = getTitledChildren();
+    if (titled.has(sessionID)) {
+      return;
+    }
+    const server = resolveServer({ env, readServiceRecord });
+    if (server) {
+      await requestServer(
+        server,
+        "POST",
+        `/api/session/${sessionID}/rename`,
+        { title: formatTitle({ run: entry.run, name: entry.name }) },
+        requestFn,
+      );
+      titled.add(sessionID);
+    }
+  };
 
-  const titled = getTitledChildren();
-  if (titled.has(sessionID)) {
+  if (withheldByTermination(sessionID, report)) {
     return;
   }
-  const server = resolveServer({ env, readServiceRecord });
-  if (server) {
-    await requestServer(
-      server,
-      "POST",
-      `/api/session/${sessionID}/rename`,
-      { title: formatTitle({ run: entry.run, name: entry.name }) },
-      requestFn,
-    );
-    titled.add(sessionID);
-  }
+  await report();
 }
 
 /** Event type opencode publishes when a session blocks on a permission ask. */
@@ -1322,10 +1493,11 @@ function getHandledPermissions() {
  * has the same content inside the asking session's own worktree is rejected
  * with feedback redirecting the agent to the worktree copy — worktrees stay
  * independent and the agent proceeds immediately. Every other ask stays
- * pending and is forwarded to the spawner (queue delivery) to adjudicate via
- * `rp_permission_reply`; a redirect-eligible ask also falls back to
- * forwarding when the server cannot be reached to deliver the reject, or when
- * the reject reply comes back non-2xx — a reply that did not land leaves the
+ * pending and is forwarded to the spawner (steer delivery, so a working
+ * spawner still receives it) to adjudicate via `rp_permission_reply`; a
+ * redirect-eligible ask also falls back to forwarding when the server cannot
+ * be reached to deliver the reject, or when the reject reply comes back
+ * non-2xx — a reply that did not land leaves the
  * session blocked, and treating it as handled would leave it blocked with
  * nobody told. Both outcomes are recorded in the bounded log surfaced by
  * `rp_status`.
@@ -1415,7 +1587,7 @@ async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn
     await ctx.session.prompt({
       sessionID: entry.spawner,
       text: formatPermissionForward(entry, request),
-      delivery: "queue",
+      delivery: "steer",
     });
   } catch (error) {
     handled.delete(request.requestID);
@@ -2037,6 +2209,31 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
 /**
  * Build the `rp_terminate` tool descriptor.
  *
+ * Marks the session as terminating *before* issuing the delete, because a
+ * delete-associated `session.execution.failed` has been observed in the same
+ * second as the request: marking on success would land too late to suppress
+ * it. What produces that failure is not established — a clean interrupt
+ * publishes `session.execution.interrupted`, which this plugin ignores, so it
+ * is not the interrupt — and the suppression deliberately does not depend on
+ * knowing.
+ *
+ * Suppression lasts forever once any attempt confirms the deletion, and
+ * `releaseTermination` holds it in place while a peer attempt is still in
+ * flight, so no failing attempt can withdraw what a concurrent successful one
+ * depends on. A delete that terminated nothing and raced nothing leaves no
+ * marker behind.
+ *
+ * While the outcome is unknown a terminal event is *held*, not dropped:
+ * intent to terminate is not termination, and a delete that fails leaves a
+ * live session whose failure its spawner still needs. Settling releases what
+ * was held unless some attempt confirmed the deletion, and every released
+ * report is isolated, so nothing that happens inside one can change what this
+ * tool returns or raises.
+ *
+ * A transport throw is ambiguous — the server may have committed the delete
+ * before the socket failed — and is treated as "not terminated", so anything
+ * held is reported: a visible surplus report beats an invisible missing one.
+ *
  * @param {{
  *   env: Record<string, string | undefined>,
  *   readServiceRecordOverride?: (env: object) => object | null,
@@ -2063,19 +2260,38 @@ function buildTerminateTool({ env, readServiceRecordOverride, requestFn }) {
       if (!server) {
         return toToolResult({ error: "server unreachable" });
       }
-      const response = await requestServer(
-        server,
-        "DELETE",
-        `/api/session/${session}`,
-        undefined,
-        requestFn,
-      );
+      // A terminal event that arrives while this delete is in flight is held
+      // rather than dropped, so settling has to release it: the session is
+      // still alive whenever nothing was terminated, and its failures are
+      // still its spawner's business.
+      const settle = async (confirmed) => {
+        if (endTermination(session, confirmed)) {
+          await releaseTermination(session);
+        }
+      };
+      beginTermination(session);
+      let response;
+      try {
+        response = await requestServer(
+          server,
+          "DELETE",
+          `/api/session/${session}`,
+          undefined,
+          requestFn,
+        );
+      } catch (error) {
+        await settle(false);
+        throw error;
+      }
       if (response.status === 404) {
+        await settle(false);
         return toToolResult({ status: 404, error: "SessionNotFoundError" });
       }
       if (response.status < 200 || response.status >= 300) {
+        await settle(false);
         return toToolResult({ status: response.status, error: "SessionTerminationFailed" });
       }
+      await settle(true);
       return toToolResult({ terminated: true });
     },
   };
@@ -2133,13 +2349,17 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
 /**
  * Build the `rp_send` tool descriptor.
  *
- * The prompt call resolves once the message is *admitted to the target's
- * queue* — a queued message is delivered only when the target next idles, and
- * a target wedged mid-turn never drains its queue. The result therefore
- * reports `enqueued`, never "delivered", and adds the target's observed state
- * (running, queued inputs, pending permission asks) when the server is
- * reachable, so a sender can tell an about-to-deliver message from one queued
- * behind a blocked session.
+ * Steer delivery, so the message reaches the target at its next step
+ * boundary rather than waiting for a turn to end. An agent runs one turn for
+ * as long as it keeps calling tools, so queue delivery — which promotes only
+ * at a turn boundary — cannot reach a working agent at all, and is discarded
+ * outright if that agent is terminated while it still holds the message.
+ *
+ * The prompt call resolves once the message is *admitted*, not once it is
+ * read. The result therefore reports `enqueued`, never "delivered", and adds
+ * the target's observed state (running, queued inputs, pending permission
+ * asks) when the server is reachable, so a sender can tell an about-to-deliver
+ * message from one behind a blocked session.
  *
  * @param {object} ctx The plugin's opencode context, as passed to `setup`.
  * @param {{
@@ -2155,7 +2375,7 @@ function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requ
   return {
     name: "rp_send",
     description:
-      "Send a directed message to another RP session by session ID. The message is queued and delivered when the target next idles; the result reports admission and the target's observed state, not receipt.",
+      "Send a directed message to another RP session by session ID. The message reaches the target at its next step boundary, whether or not it is working; the result reports admission and the target's observed state, not receipt.",
     output: ANY_OUTPUT_SCHEMA,
     input: {
       type: "object",
@@ -2172,7 +2392,7 @@ function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requ
         sessionID: toolCtx.sessionID,
       })} ${message}`;
       try {
-        await ctx.session.prompt({ sessionID: to, text, delivery: "queue" });
+        await ctx.session.prompt({ sessionID: to, text, delivery: "steer" });
       } catch (error) {
         if (isSessionNotFoundError(error)) {
           return toToolResult({ status: 404, error: "SessionNotFoundError" });
@@ -2380,7 +2600,7 @@ const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
  */
 async function consumeEvents(ctx, onEvent) {
   for await (const event of ctx.event.subscribe()) {
-    await onEvent(event).catch((error) => recordError({ type: "listener.failed", error: String(error) }));
+    await isolateListener(() => onEvent(event));
   }
 }
 

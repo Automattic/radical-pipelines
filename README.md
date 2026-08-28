@@ -125,7 +125,7 @@ A single restart is enough — the plugin finishes its setup before opencode sca
 - The `radical-pipelines` skill is invokable — the plugin registers the packaged skill tree as a skill source by reference, unmodified.
 - Every RP agent is available by its RP name — the plugin materializes the agent profiles into opencode's global agents directory (`~/.config/opencode/agents/`), where each agent's id matches its RP name.
 - Every agent spawned with `rp_spawn` receives the opencode messaging protocol and its spawner's session ID automatically, so its required reports and messages — including its completion declaration, which always goes to the spawner — are routed with `rp_send` rather than left in its transcript.
-- Every failed turn of a spawned agent is announced to the spawner with its cause.
+- A spawned agent's failed turn is announced to the spawner with its cause, unless `rp_terminate` has successfully deleted that agent's session — every terminal event for a deleted session is suppressed.
 - `rp_terminate` deletes a finished agent's session so it cannot linger or receive more work.
 - Health-loop ticks skip recently active sessions, steer into sessions with no activity for two intervals, and remain observable through `rp_status`.
 - opencode's auto-update is disabled, holding the installation on the verified build.
