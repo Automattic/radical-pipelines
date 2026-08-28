@@ -383,6 +383,46 @@ const LOOP_TIMERS_KEY = Symbol.for("radical-pipelines.opencode.loopTimers");
 const LOOP_STALE_INTERVALS = 2;
 
 /**
+ * Cap on consecutive ticks the failed-probe backoff skips (see
+ * `runLoopTick`): at the default 15-minute interval the effective cadence
+ * bottoms out at one injection every ~2 hours.
+ */
+const LOOP_BACKOFF_MAX_SKIPS = 7;
+
+/**
+ * Wall-clock window a dead-stream suspect must stay frozen before its
+ * interrupt is authorized (see `runLoopTick`'s dead-stream guard).
+ *
+ * A raw response chunk observed by the location's `http.response` tee
+ * proves liveness, but no observable signal proves death: a stream that
+ * legitimately pauses longer than any finite window is indistinguishable
+ * from one whose connection silently died. Interrupting after this window
+ * of *total* byte-and-event silence is therefore an accepted, documented
+ * heuristic (per #261's amended constraint), tuned so that a false
+ * positive — a live provider sending nothing at all for a full hour on a
+ * connection nothing else killed first — is beyond any observed provider
+ * behavior, while a genuine hang still recovers unattended the same day
+ * it happens rather than whenever a human notices. Overridable via
+ * `RP_LOOP_DEAD_STREAM_CONFIRM_MS` so the integration harness can exercise
+ * the confirmation without hour-long waits.
+ */
+const LOOP_DEAD_STREAM_CONFIRM_MS = 3_600_000;
+
+
+
+/**
+ * Resolve the dead-stream confirmation window from the environment.
+ *
+ * @param {Record<string, string | undefined>} env The process environment.
+ * @returns {number} The override when it parses to a positive number, else
+ *   `LOOP_DEAD_STREAM_CONFIRM_MS`.
+ */
+function resolveDeadStreamConfirmMs(env) {
+  const override = Number(env.RP_LOOP_DEAD_STREAM_CONFIRM_MS);
+  return Number.isFinite(override) && override > 0 ? override : LOOP_DEAD_STREAM_CONFIRM_MS;
+}
+
+/**
  * Fetch the process-wide map of armed loop timers, creating it on first use.
  *
  * @returns {Map<string, {timer: NodeJS.Timeout | undefined, inFlight: Promise<void> | null, ready: Promise<void> | undefined, cancelled: boolean}>}
@@ -401,8 +441,11 @@ function getLoopTimers() {
  *
  * @param {{ id: string, interval: number }} entry The loop entry to arm; only
  *   `id` and `interval` are read here (`tick` receives the full entry).
- * @param {(entry: object, isCancelled: () => boolean) => void | Promise<void>} tick
- *   Called with `entry` and its cancellation state on every tick.
+ * @param {(entry: object, isCancelled: () => boolean, runtime: object) => void | Promise<void>} tick
+ *   Called with `entry`, its cancellation state, and the loop's mutable
+ *   runtime state (see `runLoopTick`'s `state` dep) on every tick. The
+ *   runtime object lives as long as the armed timer, so tick-to-tick memory
+ *   (backoff, last injection) survives between ticks and resets on re-arm.
  * @returns {Promise<void>} Resolves when any replaced loop has stopped and
  *   the new timer is armed.
  */
@@ -410,13 +453,13 @@ function armLoopTimer(entry, tick) {
   const timers = getLoopTimers();
   const previous = timers.get(entry.id);
   const previousStopped = previous ? stopLoopTimer(previous) : Promise.resolve();
-  const state = { timer: undefined, inFlight: null, ready: undefined, cancelled: false };
+  const state = { timer: undefined, inFlight: null, ready: undefined, cancelled: false, runtime: {} };
   const schedule = () => {
     state.timer = setTimeout(() => {
       state.timer = undefined;
       if (state.cancelled) return;
       state.inFlight = Promise.resolve()
-        .then(() => tick(entry, () => state.cancelled))
+        .then(() => tick(entry, () => state.cancelled, state.runtime))
         .catch(() => {})
         .finally(() => {
           state.inFlight = null;
@@ -457,11 +500,276 @@ function disarmLoopTimer(id) {
 }
 
 /**
+ * Decide whether an assistant message is a provably dead stream.
+ *
+ * The signature — observed live on a hung session — is an in-flight message
+ * (no `finish`, no `error`) whose last content part is a tool call stuck in
+ * `streaming`: the provider connection died while the tool call's arguments
+ * were still arriving, so the tool never executed and the turn can never
+ * reach a step boundary. A tool part in `running` state is a tool actually
+ * executing (possibly a long build or test run) and is never treated as
+ * dead.
+ *
+ * @param {object | null} message The session's newest assistant message.
+ * @returns {boolean} `true` only for the dead-stream signature.
+ */
+function isDeadStreamMessage(message) {
+  if (!message || message.finish !== undefined || message.error !== undefined) {
+    return false;
+  }
+  const parts = Array.isArray(message.content) ? message.content : [];
+  const last = parts[parts.length - 1];
+  if (!last || last.type !== "tool" || last.state?.status !== "streaming") {
+    return false;
+  }
+  // Completed tool calls execute concurrently with the rest of the stream,
+  // so `[running, streaming]` is a legitimate shape: an executing tool
+  // anywhere in the message is observable work and vetoes the signature.
+  return !parts.some((part) => part.type === "tool" && part.state?.status === "running");
+}
+
+/**
+ * `globalThis` key backing the per-target interrupt serialization chain.
+ *
+ * Stored on `globalThis` for the same re-import rationale as `LEDGER_KEY`:
+ * two loops targeting one session must serialize their confirm-and-interrupt
+ * sequences whichever scope armed them.
+ */
+const TARGET_INTERRUPT_LOCKS_KEY = Symbol.for("radical-pipelines.opencode.targetInterruptLocks");
+
+/**
+ * `globalThis` key backing the per-target last-interrupt timestamps.
+ */
+const TARGET_INTERRUPT_AT_KEY = Symbol.for("radical-pipelines.opencode.targetInterruptAt");
+
+/**
+ * Run `fn` holding the target's interrupt lock, serializing with every
+ * other confirm-and-interrupt sequence aimed at the same session.
+ *
+ * @param {string} sessionID The target session.
+ * @param {() => Promise<T>} fn The critical section.
+ * @returns {Promise<T>} `fn`'s result.
+ * @template T
+ */
+async function withTargetInterruptLock(sessionID, fn) {
+  if (!globalThis[TARGET_INTERRUPT_LOCKS_KEY]) {
+    globalThis[TARGET_INTERRUPT_LOCKS_KEY] = new Map();
+  }
+  const locks = globalThis[TARGET_INTERRUPT_LOCKS_KEY];
+  const previous = locks.get(sessionID) ?? Promise.resolve();
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const tail = previous.then(() => gate);
+  locks.set(sessionID, tail);
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (locks.get(sessionID) === tail) {
+      locks.delete(sessionID);
+    }
+  }
+}
+
+/**
+ * Record the last dead-stream interrupt issued against a target, so a
+ * second loop whose suspicion predates it never interrupts the successor
+ * execution the first interrupt resumed. Recorded only after the interrupt
+ * request succeeded — a failed request records nothing, leaving the next
+ * confirmation free to retry. Shares the age-only retention of every other
+ * evidence map: safety records age out, they are never crowded out.
+ */
+function recordTargetInterrupt(sessionID, at) {
+  recordSessionObservation(TARGET_INTERRUPT_AT_KEY, sessionID, at);
+}
+
+/** @param {string} sessionID @returns {number | undefined} */
+function lastTargetInterruptAt(sessionID) {
+  return getSessionObservationMap(TARGET_INTERRUPT_AT_KEY).get(sessionID);
+}
+
+/**
+ * Fingerprint a dead-stream candidate for the two-observation confirmation.
+ *
+ * A session-level stale timestamp says nothing about the *stream's* own
+ * freshness — a healthy tool call whose header just arrived can coexist
+ * with an old session timestamp — so a candidate is never interrupted on
+ * first sight. The fingerprint alone cannot prove death either: the
+ * projected transcript keeps `state.input` empty while incomplete JSON
+ * arguments stream, so an identical fingerprint is necessary but not
+ * sufficient — confirmation additionally requires *event silence* for the
+ * session since the suspicion was recorded (see `recordSessionEventActivity`;
+ * streaming deltas emit events even though the projection is unchanged).
+ *
+ * @param {object} message A message matching `isDeadStreamMessage`.
+ * @returns {string} A fingerprint of the projected stream state.
+ */
+function deadStreamFingerprint(message) {
+  const parts = Array.isArray(message.content) ? message.content : [];
+  const last = parts[parts.length - 1];
+  const args = last?.state?.input;
+  const argsLength = typeof args === "string" ? args.length : JSON.stringify(args ?? "").length;
+  return `${message.id ?? ""}:${parts.length}:${last?.id ?? ""}:${argsLength}`;
+}
+
+/** Whether an assistant message is a finished turn (successful or failed). */
+function isFinishedTurn(message) {
+  return message.finish !== undefined || message.error !== undefined;
+}
+
+/**
+ * Locate the turn that responded to this loop's injected input.
+ *
+ * Anchored on the admitted input's message ID, so a concurrent, unrelated
+ * turn that starts during the admission round trip is never mistaken for
+ * the probe's response: the responding turn is the assistant message
+ * immediately following the injected input in the transcript. The
+ * injection timestamp is only a fallback for an injection whose admitted
+ * ID could not be captured.
+ *
+ * @param {Array<object>} messages The session's messages, newest first.
+ * @param {{id?: string, at: number}} injection The recorded injection.
+ * @returns {{status: "none" | "undelivered" | "awaiting-response"} | {status: "finished", message: object}}
+ *   `none` — nothing attributable exists (fallback anchoring only);
+ *   `undelivered` — the input is not in the read transcript page: still
+ *   parked, vanished, or aged past the page boundary — the branches
+ *   disambiguate via the inbox and supersede a vanished anchor rather than
+ *   wait on it; `awaiting-response` — the input was delivered but its
+ *   responding turn has not finished; `finished` — the responding turn,
+ *   ready to classify.
+ */
+function findProbeResponse(messages, injection) {
+  if (!injection.id) {
+    const finished = messages.find((message) => message.type === "assistant" && isFinishedTurn(message));
+    if (!finished || (finished.time?.created ?? 0) < injection.at) {
+      return { status: "none" };
+    }
+    return { status: "finished", message: finished };
+  }
+  const index = messages.findIndex((message) => message.id === injection.id);
+  if (index === -1) {
+    return { status: "undelivered" };
+  }
+  for (let i = index - 1; i >= 0; i--) {
+    if (messages[i].type === "assistant") {
+      return isFinishedTurn(messages[i])
+        ? { status: "finished", message: messages[i] }
+        : { status: "awaiting-response" };
+    }
+  }
+  return { status: "awaiting-response" };
+}
+
+/**
+ * Classify the outcome of this loop's previous injection, once, from the
+ * turn that responded to it (see `findProbeResponse`).
+ *
+ * A verdict exists only when the responding turn has finished: an error is
+ * a failed probe (the injection accomplished nothing — network outage,
+ * provider quota exhaustion, auth failure; the class is irrelevant) and
+ * escalates the backoff; any other finish is a success and ends the
+ * backoff. An undelivered input or an unfinished responding turn yields a
+ * pending status instead, leaving the injection unevaluated for a later
+ * tick — a probe still failing slowly is never counted as healthy
+ * activity. `lastInjection.evaluated` flips only here, after the message
+ * read has already succeeded, so a failed read never consumes the
+ * evaluation.
+ *
+ * @param {{ lastInjection?: {id?: string, at: number, evaluated: boolean}, backoffLevel?: number, backoffSkips?: number }} state
+ *   The loop's mutable tick-to-tick memory.
+ * @param {Array<object>} messages The target's messages, newest first.
+ * @returns {{verdict: "failed", level: number, skips: number} | {verdict: "succeeded"} | {pending: string} | null}
+ *   The verdict, a pending status while the probe's outcome is not yet
+ *   decidable, or `null` when there is nothing to evaluate.
+ */
+function evaluateProbe(state, messages) {
+  if (!state.lastInjection || state.lastInjection.evaluated) {
+    return null;
+  }
+  const response = findProbeResponse(messages, state.lastInjection);
+  if (response.status !== "finished") {
+    return response.status === "none" ? null : { pending: response.status };
+  }
+  state.lastInjection.evaluated = true;
+  if (response.message.finish === "error" || response.message.error !== undefined) {
+    return { verdict: "failed", ...recordFailedProbe(state) };
+  }
+  state.backoffLevel = 0;
+  state.backoffSkips = 0;
+  return { verdict: "succeeded" };
+}
+
+/**
+ * Record one failed probe: consume the evaluation and escalate the backoff.
+ *
+ * Shared by `evaluateProbe` (an error-finish responding turn) and the idle
+ * branch's no-response rule (a delivered probe with no responding turn on
+ * an idle target — nothing is processing, so none is coming).
+ *
+ * @param {object} state The loop's mutable tick-to-tick memory.
+ * @returns {{level: number, skips: number}} The escalated backoff.
+ */
+function recordFailedProbe(state) {
+  state.lastInjection.evaluated = true;
+  state.backoffLevel = (state.backoffLevel ?? 0) + 1;
+  state.backoffSkips = Math.min(2 ** state.backoffLevel - 1, LOOP_BACKOFF_MAX_SKIPS);
+  return { level: state.backoffLevel, skips: state.backoffSkips };
+}
+
+/**
  * Execute one health-loop tick.
  *
  * Pure aside from its injected effects, so a tick can be exercised
  * synchronously in tests without a live server, a real timer, or a real
  * opencode session.
+ *
+ * Beyond the base idle-queue / stale-steer behavior, three guards keep the
+ * loop from flooding or losing a target that cannot make progress:
+ *
+ * - **Coalescing** — a tick that finds this loop's prompt still pending in
+ *   the target's inbox, or delivered to an *active* target with its
+ *   responding turn not yet finished, injects nothing: a probe is never
+ *   duplicated while its predecessor's outcome is undecided. On the stale
+ *   path a pending *queue* copy is promoted to steer delivery in place (a
+ *   parked queue item cannot reach a running session; a steer can) rather
+ *   than injected again. An anchor found in neither the inbox nor the
+ *   transcript page (vanished or aged out) is superseded, never waited on.
+ * - **Failed-probe backoff** — each injection is evaluated once, against
+ *   the turn that responded to it (see `evaluateProbe`), on whichever
+ *   branch first observes that turn finished; a failed probe makes the
+ *   loop skip the next `2^level - 1` injection opportunities — queue and
+ *   steer alike — capped at `LOOP_BACKOFF_MAX_SKIPS`. A delivered probe
+ *   with no responding turn on an *idle* target is a failed probe too:
+ *   nothing is processing, so no response is coming. Every tick still
+ *   inspects the target — the backoff suppresses injections, never
+ *   observation or escalation — and the first successful turn ends it, so
+ *   the pipeline resumes on the first probe after conditions clear.
+ * - **Dead-stream escalation** — a target that is active yet stale with
+ *   the dead-stream signature (see `isDeadStreamMessage`) is suspected on
+ *   first observation and interrupted only once the same projected
+ *   fingerprint (see `deadStreamFingerprint`) has stayed frozen for the
+ *   whole wall-clock confirmation window (`deadStreamConfirmMs`) with
+ *   *no observed liveness*: neither raw provider-response chunks (the
+ *   authoritative signal, teed per location by the `http.response` hook —
+ *   see `observeHttpResponse`) nor execution-progress events (see
+ *   `recordSessionEventActivity`). Liveness signals are strictly vetoes
+ *   that re-arm the window — their absence alone never authorizes; and
+ *   silence itself only counts where bytes were once observed: a target
+ *   with no raw-progress record at all has unknown coverage and is never
+ *   escalated (`dead-stream-unobserved`). Confirmation and interrupt run
+ *   serialized
+ *   per target (`withTargetLock`), skipping targets another loop already
+ *   interrupted after this suspicion began, and a final
+ *   fingerprint-and-liveness revalidation runs inside the lock immediately
+ *   before the interrupt. The interrupt runs with `continue=true`, after
+ *   promoting any parked queue copy of the prompt so the resumed execution
+ *   delivers it, and clears the skip window so the freed target is
+ *   re-probed on the next tick. Recovery is never delayed by coalescing or
+ *   backoff; a target genuinely inside a long or still-streaming tool call
+ *   is left alone.
  *
  * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry
  *   The loop entry being ticked.
@@ -469,13 +777,34 @@ function disarmLoopTimer(id) {
  *   server: {baseURL: string, password: string} | null,
  *   isSessionActive: (server: object, sessionID: string) => Promise<boolean>,
  *   getSessionUpdatedAt: (server: object, sessionID: string) => Promise<number>,
+ *   getInbox: (server: object, sessionID: string) => Promise<Array<object>>,
+ *   getMessages: (server: object, sessionID: string) => Promise<Array<object>>,
+ *   getLastEventAt: (sessionID: string) => number | undefined,
+ *   getRawProgressAt: (sessionID: string) => number | undefined,
+ *   getLastInterruptAt: (sessionID: string) => number | undefined,
+ *   recordInterrupt: (sessionID: string, at: number) => void,
+ *   withTargetLock: (sessionID: string, fn: () => Promise<object>) => Promise<object>,
  *   injectPrompt: (sessionID: string, text: string, delivery: "queue" | "steer") => Promise<*>,
+ *   promoteInboxItem: (server: object, sessionID: string, inboxID: string) => Promise<*>,
+ *   interruptSession: (server: object, sessionID: string) => Promise<*>,
  *   onOutcome: (outcome: object) => void,
  *   isCancelled?: () => boolean,
  *   now?: () => number,
+ *   deadStreamConfirmMs?: number,
+ *   state?: {
+ *     lastInjection?: {id?: string, at: number, evaluated: boolean},
+ *     backoffLevel?: number,
+ *     backoffSkips?: number,
+ *     deadStreamSuspect?: {fingerprint: string, at: number},
+ *   },
  * }} deps The tick's effects: the resolved server (or `null` when
  *   unreachable, see `resolveServer`), session-state reads, the prompt
- *   injector, and the outcome recorder. `now` defaults to `Date.now`.
+ *   injector (whose resolved value is the admitted input record — its ID
+ *   anchors probe evaluation), the queue-to-steer promotion, the interrupt
+ *   escalation, and the outcome recorder. `now` defaults to `Date.now`.
+ *   `state` is the loop's mutable tick-to-tick memory, owned by the armed
+ *   timer (see `armLoopTimer`); it defaults to a throwaway object so a
+ *   bare call behaves like a first tick.
  * @returns {Promise<object>} The recorded outcome.
  */
 async function runLoopTick(
@@ -484,10 +813,21 @@ async function runLoopTick(
     server,
     isSessionActive,
     getSessionUpdatedAt: readUpdatedAt,
+    getInbox: readInbox,
+    getMessages: readMessages,
+    getLastEventAt = () => undefined,
+    getRawProgressAt = () => undefined,
+    getLastInterruptAt = () => undefined,
+    recordInterrupt = () => {},
+    withTargetLock = (sessionID, fn) => fn(),
     injectPrompt,
+    promoteInboxItem: promote,
+    interruptSession: interrupt,
     onOutcome,
     isCancelled = () => false,
     now = Date.now,
+    deadStreamConfirmMs = LOOP_DEAD_STREAM_CONFIRM_MS,
+    state = {},
   },
 ) {
   let result;
@@ -501,18 +841,35 @@ async function runLoopTick(
       if (isCancelled()) {
         result = { outcome: "cancelled" };
       } else if (!active) {
-        await injectPrompt(entry.targetSession, entry.prompt, "queue");
-        result = { outcome: "injected", reason: "idle" };
+        result = await runIdleTick(entry, {
+          server,
+          isSessionActive,
+          readInbox,
+          readMessages,
+          injectPrompt,
+          isCancelled,
+          now,
+          state,
+        });
       } else {
-        const lastActivity = await readUpdatedAt(server, entry.targetSession);
-        if (isCancelled()) {
-          result = { outcome: "cancelled" };
-        } else if (now() - lastActivity <= entry.interval * LOOP_STALE_INTERVALS) {
-          result = { outcome: "busy", lastActivity };
-        } else {
-          await injectPrompt(entry.targetSession, entry.prompt, "steer");
-          result = { outcome: "injected", reason: "stale-running", lastActivity };
-        }
+        result = await runActiveTick(entry, {
+          server,
+          readUpdatedAt,
+          readInbox,
+          readMessages,
+          getLastEventAt,
+          getRawProgressAt,
+          getLastInterruptAt,
+          recordInterrupt,
+          withTargetLock,
+          injectPrompt,
+          promote,
+          interrupt,
+          isCancelled,
+          now,
+          deadStreamConfirmMs,
+          state,
+        });
       }
     }
   } catch (error) {
@@ -522,6 +879,331 @@ async function runLoopTick(
   }
   onOutcome(result);
   return result;
+}
+
+/**
+ * Perform one injection and record it as the loop's last probe, anchored on
+ * the admitted input's message ID when the injector surfaces one.
+ *
+ * The timestamp is taken before the admission round trip — the server
+ * schedules execution without joining it, so a turn can start (and fail)
+ * before admission resolves — and serves only as the anchoring fallback.
+ *
+ * @param {{ prompt: string, targetSession: string }} entry The loop entry.
+ * @param {(sessionID: string, text: string, delivery: string) => Promise<*>} injectPrompt The injector.
+ * @param {"queue" | "steer"} delivery The delivery mode.
+ * @param {() => number} now The clock.
+ * @param {object} state The loop's mutable tick-to-tick memory.
+ * @returns {Promise<void>} Resolves when the injection is admitted.
+ */
+async function injectProbe(entry, injectPrompt, delivery, now, state) {
+  const injectedAt = now();
+  const admitted = await injectPrompt(entry.targetSession, entry.prompt, delivery);
+  const id = admitted?.data?.id ?? admitted?.id;
+  state.lastInjection = { ...(typeof id === "string" ? { id } : {}), at: injectedAt, evaluated: false };
+}
+
+/**
+ * The idle branch of `runLoopTick`: coalesce, evaluate the previous
+ * injection, then inject with queue delivery unless backing off.
+ *
+ * A delivered probe with no responding turn on an idle target is a failed
+ * probe: nothing is processing, so no response is coming (a missing model
+ * or a crash that produced no assistant record), and re-injecting would
+ * flood. A probe whose anchor is in neither the inbox nor the transcript
+ * page (vanished or aged out) is superseded instead of waited on.
+ *
+ * @param {{ id: string, prompt: string, targetSession: string }} entry The loop entry.
+ * @param {object} deps The subset of `runLoopTick`'s resolved deps this branch uses.
+ * @returns {Promise<object>} The branch's outcome.
+ */
+async function runIdleTick(entry, { server, isSessionActive, readInbox, readMessages, injectPrompt, isCancelled, now, state }) {
+  const inbox = await readInbox(server, entry.targetSession);
+  if (isCancelled()) {
+    return { outcome: "cancelled" };
+  }
+  if (inbox.some((item) => item.payload?.text === entry.prompt)) {
+    return { outcome: "skipped", reason: "pending-delivery" };
+  }
+  if (state.lastInjection && !state.lastInjection.evaluated) {
+    const messages = await readMessages(server, entry.targetSession);
+    if (isCancelled()) {
+      return { outcome: "cancelled" };
+    }
+    const evaluation = evaluateProbe(state, messages);
+    if (evaluation?.verdict === "failed") {
+      return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
+    }
+    if (evaluation?.pending === "awaiting-response") {
+      // The idleness sample is by now reads old; a turn may have started —
+      // or started *and finished* — in the meantime, and failing the probe
+      // then would ignore its response. Bracket a fresh transcript read
+      // between two idle observations: only a response missing from a
+      // snapshot taken while provably idle on both sides proves no
+      // response is coming.
+      const activeBefore = await isSessionActive(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      if (activeBefore) {
+        return { outcome: "skipped", reason: "awaiting-response" };
+      }
+      const freshMessages = await readMessages(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const reEvaluation = evaluateProbe(state, freshMessages);
+      if (reEvaluation?.verdict === "failed") {
+        return { outcome: "skipped", reason: "failed-probe", level: reEvaluation.level, skips: reEvaluation.skips };
+      }
+      if (reEvaluation?.pending === "awaiting-response") {
+        const activeAfter = await isSessionActive(server, entry.targetSession);
+        if (isCancelled()) {
+          return { outcome: "cancelled" };
+        }
+        if (activeAfter) {
+          return { outcome: "skipped", reason: "awaiting-response" };
+        }
+        const escalated = recordFailedProbe(state);
+        return { outcome: "skipped", reason: "failed-probe", ...escalated };
+      }
+      if (reEvaluation?.pending === "undelivered") {
+        state.lastInjection.evaluated = true;
+      }
+      // A succeeded verdict falls through: the backoff was reset and the
+      // normal injection cadence resumes below.
+    }
+    if (evaluation?.pending === "undelivered") {
+      state.lastInjection.evaluated = true;
+    }
+  }
+  if ((state.backoffSkips ?? 0) > 0) {
+    state.backoffSkips -= 1;
+    return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
+  }
+  await injectProbe(entry, injectPrompt, "queue", now, state);
+  return { outcome: "injected", reason: "idle" };
+}
+
+/**
+ * The active branch of `runLoopTick`: probe evaluation on the busy path;
+ * on the stale path, the two-observation dead-stream confirmation and
+ * interrupt, coalescing (pending steer, queue-promotion, or an unfinished
+ * responding turn), and the backoff-gated steer.
+ *
+ * @param {{ id: string, interval: number, prompt: string, targetSession: string }} entry The loop entry.
+ * @param {object} deps The subset of `runLoopTick`'s resolved deps this branch uses.
+ * @returns {Promise<object>} The branch's outcome.
+ */
+async function runActiveTick(
+  entry,
+  {
+    server,
+    readUpdatedAt,
+    readInbox,
+    readMessages,
+    getLastEventAt,
+    getRawProgressAt,
+    getLastInterruptAt,
+    recordInterrupt,
+    withTargetLock,
+    injectPrompt,
+    promote,
+    interrupt,
+    isCancelled,
+    now,
+    deadStreamConfirmMs,
+    state,
+  },
+) {
+  const lastActivity = await readUpdatedAt(server, entry.targetSession);
+  if (isCancelled()) {
+    return { outcome: "cancelled" };
+  }
+  if (now() - lastActivity <= entry.interval * LOOP_STALE_INTERVALS) {
+    // Recent activity may be this loop's own probe failing slowly, so the
+    // backoff is not reset here; only the observed responding turn decides.
+    if (state.lastInjection && !state.lastInjection.evaluated) {
+      const messages = await readMessages(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const evaluation = evaluateProbe(state, messages);
+      if (evaluation?.verdict === "failed") {
+        return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
+      }
+    }
+    return { outcome: "busy", lastActivity };
+  }
+  const messages = await readMessages(server, entry.targetSession);
+  if (isCancelled()) {
+    return { outcome: "cancelled" };
+  }
+  const newestAssistant = messages.find((message) => message.type === "assistant") ?? null;
+  if (isDeadStreamMessage(newestAssistant)) {
+    const fingerprint = deadStreamFingerprint(newestAssistant);
+    // Coverage is response *identity*, not a clock comparison: the still-
+    // open (unfinished) generations whose consumed bytes carried the
+    // suspected tool part's provider-unique call id. Time-to-first-token
+    // gaps cannot break it (the id arrives in the same bytes that created
+    // the part), a completed or unrelated response can never impersonate
+    // the hung stream, and a wrapper another hook replaced without
+    // consuming never carries the id, so it can claim nothing. Every
+    // matching generation counts: any live one vetoes, and more than one
+    // is ambiguous identity that never authorizes. The residual a passive
+    // tee cannot see — a later hook consuming the identity-bearing bytes
+    // through this tee and then silently substituting the response without
+    // cancelling it — is undetectable from here and excluded by the
+    // documented single-observer assumption.
+    const parts = Array.isArray(newestAssistant.content) ? newestAssistant.content : [];
+    const suspectCallID = parts[parts.length - 1]?.id;
+    const matchedGenerations = () => {
+      if (typeof suspectCallID !== "string" || suspectCallID.length === 0) {
+        return [];
+      }
+      const raw = getRawProgressAt(entry.targetSession);
+      return raw?.open?.filter((generation) => generationCarries(generation, suspectCallID)) ?? [];
+    };
+    if (state.deadStreamSuspect?.fingerprint !== fingerprint) {
+      // First observation: a stale session timestamp says nothing about the
+      // stream's own freshness, so a candidate is only suspected here and
+      // interrupted once frozen for the whole confirmation window. The
+      // coverage verdict is pinned in loop state so a later map eviction
+      // cannot retract established evidence.
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: matchedGenerations().length === 1 };
+      return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+    }
+    const suspectedAt = state.deadStreamSuspect.at;
+    const rawLiveness = () => {
+      // Any generation carrying the suspected id that produced bytes since
+      // the suspicion vetoes — never just the first match — while bytes on
+      // unrelated same-session responses neither veto the suspected stream
+      // forever nor stand in for its own progress.
+      return matchedGenerations().some((generation) => generation.lastAt >= suspectedAt);
+    };
+    const eventLiveness = () => {
+      const stamp = getLastEventAt(entry.targetSession);
+      return stamp !== undefined && stamp >= suspectedAt;
+    };
+    if (rawLiveness() || eventLiveness()) {
+      // The stream produced raw response bytes or progress events since the
+      // suspicion — it is alive whatever the projection shows. Observed
+      // liveness vetoes and re-arms the window.
+      state.deadStreamSuspect = { fingerprint, at: now(), covered: matchedGenerations().length === 1 };
+      return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+    }
+    {
+      const matches = matchedGenerations();
+      if (matches.length > 1) {
+        // Two open generations carrying one call id is sampled-then-
+        // replaced or replayed identity: ambiguous evidence never
+        // authorizes escalation.
+        return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
+      }
+      if (!state.deadStreamSuspect.covered) {
+        // Silence only counts where the suspected stream's own bytes were
+        // observed. Coverage can still be established late (a hook that
+        // registered after the suspicion began observes the session from
+        // its next response); until then, escalation stays disabled rather
+        // than authorized.
+        if (matches.length !== 1) {
+          return { outcome: "skipped", reason: "dead-stream-unobserved", lastActivity };
+        }
+        state.deadStreamSuspect.covered = true;
+      }
+    }
+    if (now() - suspectedAt < deadStreamConfirmMs) {
+      // Total silence, but not yet for the whole window: keep waiting.
+      return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+    }
+    return await withTargetLock(entry.targetSession, async () => {
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const interruptedAt = getLastInterruptAt(entry.targetSession);
+      if (interruptedAt !== undefined && interruptedAt >= suspectedAt) {
+        // Another loop already interrupted this target after our suspicion
+        // began: our evidence describes the interrupted execution, not the
+        // one that resumed. Never interrupt the successor on it.
+        delete state.deadStreamSuspect;
+        return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+      }
+      // A parked queue copy would out-survive the interrupt
+      // (`continue=true` resumes steering input while queued prompts stay
+      // parked) and then coalesce every later tick: promote it first so
+      // the resumed execution delivers it.
+      const inbox = await readInbox(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const pendingCopy = inbox.find((item) => item.payload?.text === entry.prompt);
+      if (pendingCopy && pendingCopy.delivery !== "steer") {
+        await promote(server, entry.targetSession, pendingCopy.id);
+      }
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      // Final revalidation, inside the lock: the reads above took time, and
+      // progress or completion during them must veto the interrupt.
+      const freshMessages = await readMessages(server, entry.targetSession);
+      if (isCancelled()) {
+        return { outcome: "cancelled" };
+      }
+      const freshAssistant = freshMessages.find((message) => message.type === "assistant") ?? null;
+      if (
+        !isDeadStreamMessage(freshAssistant) ||
+        deadStreamFingerprint(freshAssistant) !== fingerprint ||
+        matchedGenerations().length > 1 ||
+        rawLiveness() ||
+        eventLiveness()
+      ) {
+        delete state.deadStreamSuspect;
+        return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
+      }
+      delete state.deadStreamSuspect;
+      const silenceMs = now() - suspectedAt;
+      await interrupt(server, entry.targetSession);
+      // Recorded only now, after the request succeeded: a failed interrupt
+      // must leave the next confirmation free to retry rather than skip on
+      // a phantom record.
+      recordInterrupt(entry.targetSession, now());
+      // The freed target must be re-probed on the next tick, not after a
+      // leftover skip window.
+      state.backoffSkips = 0;
+      return { outcome: "interrupted", reason: "dead-stream", silenceMs, lastActivity };
+    });
+  }
+  delete state.deadStreamSuspect;
+  const inbox = await readInbox(server, entry.targetSession);
+  if (isCancelled()) {
+    return { outcome: "cancelled" };
+  }
+  if (inbox.some((item) => item.payload?.text === entry.prompt && item.delivery === "steer")) {
+    return { outcome: "skipped", reason: "pending-delivery", lastActivity };
+  }
+  const pendingQueue = inbox.find((item) => item.payload?.text === entry.prompt);
+  if (pendingQueue) {
+    await promote(server, entry.targetSession, pendingQueue.id);
+    return { outcome: "promoted", reason: "stale-running", lastActivity };
+  }
+  const evaluation = evaluateProbe(state, messages);
+  if (evaluation?.verdict === "failed") {
+    return { outcome: "skipped", reason: "failed-probe", level: evaluation.level, skips: evaluation.skips };
+  }
+  if (evaluation?.pending === "awaiting-response") {
+    return { outcome: "skipped", reason: "awaiting-response", lastActivity };
+  }
+  if (evaluation?.pending === "undelivered") {
+    // In neither the inbox nor the transcript page: vanished or aged out —
+    // superseded rather than waited on, or recovery would stall forever.
+    state.lastInjection.evaluated = true;
+  }
+  if ((state.backoffSkips ?? 0) > 0) {
+    state.backoffSkips -= 1;
+    return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
+  }
+  await injectProbe(entry, injectPrompt, "steer", now, state);
+  return { outcome: "injected", reason: "stale-running", lastActivity };
 }
 
 /**
@@ -742,6 +1424,116 @@ async function getSessionUpdatedAt(server, sessionID, requestFn) {
     throw new Error(`GET /api/session/${sessionID} response is missing time.updated`);
   }
   return updated;
+}
+
+/**
+ * Read a session's admitted-but-undelivered inbox items.
+ *
+ * Backs the loop tick's coalescing: an item whose `payload.text` equals the
+ * loop's prompt is a previous injection still awaiting delivery.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session ID to read.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<Array<object>>} The pending inbox items.
+ * @throws {Error} On a non-2xx response — pending state unknown means the
+ *   tick must not inject on top of a possibly pending prompt.
+ */
+async function getSessionInbox(server, sessionID, requestFn) {
+  const response = await requestServer(server, "GET", `/api/session/${sessionID}/inbox`, undefined, requestFn);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`GET /api/session/${sessionID}/inbox returned ${response.status}`);
+  }
+  return response.body?.data ?? [];
+}
+
+/**
+ * Read a session's projected messages, newest first, parts included.
+ *
+ * Backs the loop tick's failed-probe evaluation (locating the injected
+ * input and its responding turn) and the dead-stream gate (the newest
+ * assistant message's `content` part states).
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session ID to read.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<Array<object>>} The session's messages, newest first.
+ * @throws {Error} On a non-2xx response.
+ */
+async function getSessionMessages(server, sessionID, requestFn) {
+  // An explicit limit well above the server's default page: probe anchors
+  // must stay visible across many intervening turns (see
+  // `findProbeResponse`'s aging note).
+  const response = await requestServer(
+    server,
+    "GET",
+    `/api/session/${sessionID}/message?limit=200`,
+    undefined,
+    requestFn,
+  );
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`GET /api/session/${sessionID}/message returned ${response.status}`);
+  }
+  return response.body?.data ?? [];
+}
+
+/**
+ * Promote a pending queued inbox item to steer delivery in place.
+ *
+ * The loop tick's stale-path coalescing: a parked queue copy of the monitor
+ * prompt cannot reach a running session, so it is converted to a steer —
+ * which wakes session execution — instead of injecting a duplicate.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session owning the inbox item.
+ * @param {string} inboxID The pending inbox item to promote.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<void>} Resolves when the promotion is accepted.
+ * @throws {Error} On a non-2xx response.
+ */
+async function promoteInboxItem(server, sessionID, inboxID, requestFn) {
+  const response = await requestServer(
+    server,
+    "POST",
+    `/api/session/${sessionID}/inbox/${inboxID}/steer`,
+    undefined,
+    requestFn,
+  );
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`POST /api/session/${sessionID}/inbox/${inboxID}/steer returned ${response.status}`);
+  }
+}
+
+/**
+ * Interrupt a session's in-flight execution. With `continue=true` execution
+ * resumes with pending steering input and next-in-line control items;
+ * queued prompts stay parked until the session next idles.
+ *
+ * The loop tick's dead-stream escalation — fired only when a steer is
+ * already pending, which the resumed execution then delivers: verified live
+ * to unstick a session whose provider stream died mid-tool-call.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session ID to interrupt.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<void>} Resolves when the interrupt is accepted.
+ * @throws {Error} On a non-2xx response.
+ */
+async function interruptSession(server, sessionID, requestFn) {
+  const response = await requestServer(
+    server,
+    "POST",
+    `/api/session/${sessionID}/interrupt?continue=true`,
+    undefined,
+    requestFn,
+  );
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`POST /api/session/${sessionID}/interrupt returned ${response.status}`);
+  }
 }
 
 /**
@@ -1172,6 +1964,368 @@ function recordError(entry) {
 
 /** `globalThis` key backing the bounded recent health-loop tick log. */
 const LOOP_TICK_LOG_KEY = Symbol.for("radical-pipelines.opencode.loopTickLog");
+
+/**
+ * `globalThis` key backing the per-session last-event timestamps.
+ *
+ * Stored on `globalThis` for the same re-import rationale as `LEDGER_KEY`.
+ */
+const SESSION_EVENT_ACTIVITY_KEY = Symbol.for("radical-pipelines.opencode.sessionEventActivity");
+
+/**
+ * `globalThis` key backing the per-session raw-progress timestamps.
+ *
+ * Stored on `globalThis` for the same re-import rationale as `LEDGER_KEY`.
+ */
+const SESSION_RAW_PROGRESS_KEY = Symbol.for("radical-pipelines.opencode.sessionRawProgress");
+
+/**
+ * How long session-observation evidence is retained.
+ *
+ * Evidence ages out; it is never crowded out: an entry younger than this is
+ * never evicted however many sessions are active, because evicting recent
+ * liveness would convert an observed byte into apparent silence and could
+ * authorize interrupting a live stream. Memory stays bounded by the number
+ * of sessions active within the retention, and the retention comfortably
+ * exceeds any sane dead-stream confirmation window.
+ */
+const SESSION_EVIDENCE_RETENTION_MS = 86_400_000;
+
+/**
+ * Size threshold that triggers age-pruning of a session-observation map.
+ * Pruning removes only entries older than `SESSION_EVIDENCE_RETENTION_MS`;
+ * when every entry is recent, the map is allowed to grow instead.
+ */
+const SESSION_OBSERVATION_PRUNE_THRESHOLD = 256;
+
+/**
+ * Prune a session-observation map's aged entries once it grows past the
+ * threshold.
+ *
+ * @param {Map<string, *>} map The observation map.
+ * @param {number} at The current timestamp.
+ * @param {(value: *) => number} newestOf Extracts a value's newest stamp.
+ * @returns {void}
+ */
+function pruneSessionObservations(map, at, newestOf) {
+  if (map.size <= SESSION_OBSERVATION_PRUNE_THRESHOLD) {
+    return;
+  }
+  for (const [id, value] of map) {
+    if (at - newestOf(value) > SESSION_EVIDENCE_RETENTION_MS) {
+      map.delete(id);
+    }
+  }
+}
+
+/**
+ * Record a per-session observation into an age-pruned `globalThis`-backed
+ * map.
+ *
+ * The stored value never regresses: an older observation draining late
+ * refreshes the entry's recency but keeps the newest timestamp.
+ *
+ * @param {symbol} key The map's `globalThis` key.
+ * @param {string} sessionID The session observed.
+ * @param {number} at The observation timestamp.
+ * @returns {void}
+ */
+function recordSessionObservation(key, sessionID, at) {
+  const map = getSessionObservationMap(key);
+  const previous = map.get(sessionID);
+  map.delete(sessionID);
+  map.set(sessionID, previous !== undefined && previous > at ? previous : at);
+  pruneSessionObservations(map, at, (value) => value);
+}
+
+/**
+ * Fetch a process-wide session-observation map, creating it on first use.
+ *
+ * @param {symbol} key The map's `globalThis` key.
+ * @returns {Map<string, number>} Session ID to observation timestamp.
+ */
+function getSessionObservationMap(key) {
+  if (!globalThis[key]) {
+    globalThis[key] = new Map();
+  }
+  return globalThis[key];
+}
+
+/**
+ * Safety bound on distinct identifier values remembered per response
+ * generation. Far above anything a real response produces (values are
+ * deduplicated), so a valid call id is never silently discarded; the bound
+ * only guards runaway memory on a pathological stream.
+ */
+const RAW_GENERATION_ID_CAP = 8_192;
+
+/**
+ * Fetch (creating on first use) a session's raw-progress record.
+ *
+ * The record's `lastAt` is refreshed *before* the map is pruned, so a
+ * session reusing an aged record can never prune — and thereby detach —
+ * the very record its new response is about to populate. Open generations
+ * are themselves pruned by age only (see `SESSION_EVIDENCE_RETENTION_MS`),
+ * never by count: dropping a live generation for volume could erase the
+ * exact evidence a later confirmation needs.
+ *
+ * @param {string} sessionID The session observed.
+ * @param {number} at The observation timestamp (drives pruning).
+ * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number, ids: string[]}>}}
+ */
+function getRawSessionRecord(sessionID, at) {
+  const map = getSessionObservationMap(SESSION_RAW_PROGRESS_KEY);
+  let record = map.get(sessionID);
+  map.delete(sessionID);
+  if (!record) {
+    record = { lastAt: at, open: [] };
+  }
+  record.lastAt = record.lastAt > at ? record.lastAt : at;
+  record.open = record.open.filter((generation) => at - generation.lastAt <= SESSION_EVIDENCE_RETENTION_MS);
+  map.set(sessionID, record);
+  pruneSessionObservations(map, at, (value) => value.lastAt);
+  return record;
+}
+
+/**
+ * Record that a new raw provider response began for a session.
+ *
+ * Opens a response *generation*: the entry stays in `open` until the
+ * response's stream ends or aborts, so coverage can require an unfinished
+ * stream — a completed earlier response (a title request, a prior turn
+ * milliseconds before) can never impersonate the stream under suspicion.
+ *
+ * @param {string} sessionID The session whose response arrived.
+ * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
+ * @returns {{startedAt: number, lastAt: number, ids: string[]}} The opened generation.
+ */
+function recordRawResponseStart(sessionID, at = Date.now()) {
+  const record = getRawSessionRecord(sessionID, at);
+  const generation = { startedAt: at, lastAt: at, ids: new Set() };
+  record.open.push(generation);
+  return generation;
+}
+
+/**
+ * Remember an identifier value observed in a generation's consumed bytes.
+ *
+ * Provider streams carry the tool-call id of every call they produce, so
+ * the identifiers a generation was *seen carrying* tie it to the projected
+ * tool part under suspicion — response identity by content, not by clock.
+ *
+ * @param {{ids: Set<string>}} generation The generation that carried the id.
+ * @param {string} id The identifier value observed.
+ * @returns {void}
+ */
+function recordGenerationID(generation, id) {
+  if (generation.ids.size < RAW_GENERATION_ID_CAP) {
+    generation.ids.add(id);
+  }
+}
+
+/**
+ * Whether a generation's consumed bytes carried an identifier value.
+ *
+ * Tolerates both the live `Set` and the plain-array form tests stub.
+ *
+ * @param {{ids: Set<string> | string[]}} generation The generation.
+ * @param {string} id The identifier value.
+ * @returns {boolean}
+ */
+function generationCarries(generation, id) {
+  const ids = generation.ids;
+  return Array.isArray(ids) ? ids.includes(id) : Boolean(ids?.has?.(id));
+}
+
+/**
+ * Record that a response generation's stream ended (completed or aborted).
+ *
+ * @param {string} sessionID The session whose response ended.
+ * @param {{startedAt: number, lastAt: number}} generation The generation.
+ * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
+ * @returns {void}
+ */
+function recordRawResponseEnd(sessionID, generation, at = Date.now()) {
+  const record = getRawSessionRecord(sessionID, at);
+  const index = record.open.indexOf(generation);
+  if (index !== -1) {
+    record.open.splice(index, 1);
+  }
+  record.lastAt = record.lastAt > at ? record.lastAt : at;
+}
+
+/**
+ * Record that a raw provider-response chunk arrived for a session.
+ *
+ * Fed by the `http.response` session hook, which tees the provider's
+ * streaming body: every chunk of the raw response — including partial
+ * argument fragments that surface nowhere else — refreshes `lastAt`.
+ * This is the authoritative liveness signal for the dead-stream guard: a
+ * stream producing bytes is alive whatever the projection shows.
+ *
+ * @param {string} sessionID The session whose response produced a chunk.
+ * @param {{startedAt: number, lastAt: number}} [generation] The producing
+ *   generation, when known.
+ * @param {number} [at] The observation timestamp; defaults to `Date.now()`.
+ * @returns {void}
+ */
+function recordRawSessionProgress(sessionID, generation, at = Date.now()) {
+  // The producing generation is refreshed *before* the record is fetched:
+  // fetching prunes open generations by their old timestamps, and a byte
+  // resuming after a long silence must never prune — and thereby detach —
+  // the very generation it proves alive. A generation aged out by an
+  // earlier observation is re-attached: its stream just proved itself.
+  if (generation) {
+    generation.lastAt = generation.lastAt > at ? generation.lastAt : at;
+  }
+  const record = getRawSessionRecord(sessionID, at);
+  if (generation && !record.open.includes(generation)) {
+    record.open.push(generation);
+  }
+  record.lastAt = record.lastAt > at ? record.lastAt : at;
+}
+
+/**
+ * Read a session's raw-progress record.
+ *
+ * @param {string} sessionID The session to look up.
+ * @returns {{lastAt: number, open: Array<{startedAt: number, lastAt: number, ids: string[]}>} | undefined}
+ *   The newest chunk timestamp across all responses plus the still-open
+ *   response generations, or `undefined` when nothing has been observed
+ *   (or the record aged out).
+ */
+function lastRawSessionProgressAt(sessionID) {
+  return getSessionObservationMap(SESSION_RAW_PROGRESS_KEY).get(sessionID);
+}
+
+/**
+ * Pattern extracting identifier values from a response's decoded bytes.
+ *
+ * Pinned provider protocols project the tool-part id from different raw
+ * fields — Chat's `id`, Open Responses' `call_id`, Bedrock's `toolUseId` —
+ * so every id-suffixed key's string value is captured, and the quoted JSON
+ * token is decoded so escaped values (`"call_\u0031"`) match their
+ * projected form. The superset is harmless: matching is by the suspected
+ * tool part's provider-unique call id.
+ */
+const RAW_ID_PATTERN = /"[A-Za-z0-9_]*[iI][dD]"\s*:\s*("(?:[^"\\]|\\.){0,1024}")/g;
+
+/**
+ * Wrap a session's provider response so its streamed chunks record raw
+ * progress, passing the bytes through untouched.
+ *
+ * The `http.response` hook's `response` field is mutable for exactly this
+ * kind of interposition; a body-less response just records the arrival.
+ *
+ * @param {{sessionID: string, response: Response}} input The hook input.
+ * @returns {void}
+ */
+function observeHttpResponse(input) {
+  const sessionID = input.sessionID;
+  const body = input.response?.body;
+  if (!body || typeof body.pipeThrough !== "function") {
+    // A body-less response cannot hang mid-stream; just record the arrival.
+    recordRawSessionProgress(sessionID, undefined);
+    return;
+  }
+  const generation = recordRawResponseStart(sessionID);
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  let tail = "";
+  const tee = new TransformStream({
+    transform(chunk, controller) {
+      recordRawSessionProgress(sessionID, generation);
+      try {
+        // Identity capture: remember the identifier values these consumed
+        // bytes carried (with a tail carry across chunk boundaries), so
+        // the generation can be matched to the projected tool part it
+        // produced. Only bytes the runner actually consumes flow through
+        // here — a wrapper another hook replaced never transforms, so an
+        // abandoned generation can never claim identity.
+        const text = tail + decoder.decode(chunk, { stream: true });
+        RAW_ID_PATTERN.lastIndex = 0;
+        let match;
+        while ((match = RAW_ID_PATTERN.exec(text)) !== null) {
+          try {
+            // Decode the quoted JSON token so escaped raw values match
+            // their projected form.
+            recordGenerationID(generation, JSON.parse(match[1]));
+          } catch {
+            recordGenerationID(generation, match[1].slice(1, -1));
+          }
+        }
+        tail = text.slice(-1_200);
+      } catch {
+        // Identity capture is best-effort; liveness recording above stands.
+      }
+      controller.enqueue(chunk);
+    },
+    flush() {
+      recordRawResponseEnd(sessionID, generation);
+    },
+    cancel() {
+      recordRawResponseEnd(sessionID, generation);
+    },
+  });
+  input.response = new Response(body.pipeThrough(tee), {
+    status: input.response.status,
+    statusText: input.response.statusText,
+    headers: input.response.headers,
+  });
+}
+
+/**
+ * Event-type prefixes that evidence *execution progress* for a session —
+ * model output and step movement. Inbox admissions, permission traffic,
+ * and other metadata activity are excluded: they can occur indefinitely
+ * around a hung session and must not defer its recovery.
+ */
+const PROGRESS_EVENT_PREFIXES = [
+  "session.step.",
+  "session.text.",
+  "session.reasoning.",
+  "session.tool.",
+  "session.execution.",
+];
+
+/**
+ * Record that an execution-progress event was observed for its session.
+ *
+ * Fed by the plugin's event subscription. This signal is strictly a *veto*
+ * for the dead-stream guard — observed progress defers an interrupt, but
+ * silence never authorizes one (the pinned build emits no events for
+ * partial argument chunks, and the observer itself can lag or fail), so a
+ * missing or stale entry carries no weight on its own; authorization comes
+ * from the wall-clock confirmation window (see `runLoopTick`).
+ *
+ * @param {{type?: string, created?: number, data?: {sessionID?: string}}} event An opencode event.
+ * @param {number} [at] Overrides the timestamp; defaults to the event's own
+ *   `created` time (falling back to `Date.now()` when absent).
+ * @returns {void}
+ */
+function recordSessionEventActivity(event, at) {
+  const sessionID = event?.data?.sessionID;
+  if (typeof sessionID !== "string" || typeof event?.type !== "string") {
+    return;
+  }
+  if (PROGRESS_EVENT_PREFIXES.some((prefix) => event.type.startsWith(prefix))) {
+    // The event's own creation time, not the consumption time: an old event
+    // draining from a lagged queue must not masquerade as fresh progress.
+    const timestamp = at ?? (Number.isFinite(event.created) ? event.created : Date.now());
+    recordSessionObservation(SESSION_EVENT_ACTIVITY_KEY, sessionID, timestamp);
+  }
+}
+
+/**
+ * Read the timestamp of the most recent event observed for a session.
+ *
+ * @param {string} sessionID The session to look up.
+ * @returns {number | undefined} The timestamp, or `undefined` when no event
+ *   has been observed (e.g. a fresh daemon) — which for a genuinely hung
+ *   session is indistinguishable from silence, and treated as such.
+ */
+function lastSessionEventAt(sessionID) {
+  return getSessionObservationMap(SESSION_EVENT_ACTIVITY_KEY).get(sessionID);
+}
 
 /** Fetch the process-wide recent health-loop tick log. */
 function getLoopTickLog() {
@@ -2598,9 +3752,74 @@ const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
  *   never stops the loop from consuming the next.
  * @returns {Promise<void>} Resolves only if the stream itself ends.
  */
-async function consumeEvents(ctx, onEvent) {
-  for await (const event of ctx.event.subscribe()) {
-    await isolateListener(() => onEvent(event));
+async function consumeEvents(ctx, onEvent, onIterator) {
+  const iterator = ctx.event.subscribe()[Symbol.asyncIterator]();
+  onIterator?.(iterator);
+  try {
+    while (true) {
+      const { value, done } = await iterator.next();
+      if (done) {
+        return;
+      }
+      await isolateListener(() => onEvent(value));
+    }
+  } finally {
+    onIterator?.(null);
+  }
+}
+
+/**
+ * Keep the event subscription alive for the daemon's lifetime, resubscribing
+ * whenever the stream ends or fails, until the signal aborts.
+ *
+ * The pinned subscribe API accepts no cancellation options, so teardown
+ * retains the live iterator and closes it with `return()` when the signal
+ * aborts — otherwise a cleaned-up supervisor would stay blocked on `next()`
+ * forever while a reloaded plugin starts another.
+ *
+ * The subscription feeds the progress-veto signal (see
+ * `recordSessionEventActivity`); an unsupervised loss would silently stop
+ * observation. Because the signal is veto-only, a gap can never *authorize*
+ * an interrupt — resubscription just restores the protection.
+ *
+ * @param {object} ctx The plugin's opencode context.
+ * @param {(event: object) => Promise<void>} onEvent Forwarded to `consumeEvents`.
+ * @param {{ delayMs?: number, maxRestarts?: number, signal?: AbortSignal }} [options]
+ *   Retry pacing; `maxRestarts` bounds the loop in tests (unbounded by
+ *   default); `signal` tears the supervisor down (plugin cleanup).
+ * @returns {Promise<void>} Resolves when `signal` aborts or `maxRestarts`
+ *   is exhausted.
+ */
+async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = Infinity, signal } = {}) {
+  let activeIterator = null;
+  const closeActive = () => {
+    void activeIterator?.return?.().catch(() => {});
+  };
+  signal?.addEventListener("abort", closeActive, { once: true });
+  try {
+    for (let restarts = 0; restarts <= maxRestarts && !signal?.aborted; restarts++) {
+      try {
+        await consumeEvents(ctx, onEvent, (iterator) => {
+          activeIterator = iterator;
+          if (signal?.aborted) {
+            closeActive();
+          }
+        });
+        if (!signal?.aborted) {
+          recordError({ type: "listener.ended", at: Date.now() });
+        }
+      } catch (error) {
+        if (!signal?.aborted) {
+          recordError({ type: "listener.lost", error: String(error), at: Date.now() });
+        }
+      }
+      if (signal?.aborted) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  } finally {
+    signal?.removeEventListener("abort", closeActive);
   }
 }
 
@@ -2633,7 +3852,11 @@ async function consumeEvents(ctx, onEvent) {
  *   `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
  *   `resolveRepoRootFn` reaches `rp_spawn`; `exists` reaches the permission
  *   mediator's redirect check.
- * @returns {void}
+ * @returns {() => Promise<void>} This location's cleanup: disposes its own
+ *   raw-liveness hook, and — when the last live location releases the
+ *   shared resources — closes the supervised event subscription, disarms
+ *   every loop timer, and clears the once-guard so a reloaded plugin
+ *   re-arms.
  */
 function setup(ctx, deps = {}) {
   const {
@@ -2649,7 +3872,7 @@ function setup(ctx, deps = {}) {
 
   const registryPath = resolveLoopRegistryPath(env);
 
-  const tick = async (entry, isCancelled) => {
+  const tick = async (entry, isCancelled, runtime = {}) => {
     let outcomeRecorded = false;
     const onOutcome = (outcome) => {
       const tickEntry = {
@@ -2675,9 +3898,20 @@ function setup(ctx, deps = {}) {
         server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
         isSessionActive: (server, sessionID) => isSessionActive(server, sessionID, requestFn),
         getSessionUpdatedAt: (server, sessionID) => getSessionUpdatedAt(server, sessionID, requestFn),
+        getInbox: (server, sessionID) => getSessionInbox(server, sessionID, requestFn),
+        getMessages: (server, sessionID) => getSessionMessages(server, sessionID, requestFn),
+        getLastEventAt: (sessionID) => lastSessionEventAt(sessionID),
+        getRawProgressAt: (sessionID) => lastRawSessionProgressAt(sessionID),
+        getLastInterruptAt: (sessionID) => lastTargetInterruptAt(sessionID),
+        recordInterrupt: (sessionID, at) => recordTargetInterrupt(sessionID, at),
+        withTargetLock: withTargetInterruptLock,
         injectPrompt: (sessionID, text, delivery) => ctx.session.prompt({ sessionID, text, delivery }),
+        promoteInboxItem: (server, sessionID, inboxID) => promoteInboxItem(server, sessionID, inboxID, requestFn),
+        interruptSession: (server, sessionID) => interruptSession(server, sessionID, requestFn),
         onOutcome,
         isCancelled,
+        deadStreamConfirmMs: resolveDeadStreamConfirmMs(env),
+        state: runtime,
       });
     } catch (error) {
       if (!outcomeRecorded) {
@@ -2720,28 +3954,74 @@ function setup(ctx, deps = {}) {
     recordError({ type: "agent.materialize.collision", name });
   }
 
-  if (!globalThis[SETUP_ONCE_KEY]) {
-    globalThis[SETUP_ONCE_KEY] = true;
-    consumeEvents(ctx, async (event) => {
-      onToolEvent(event);
-      await onPermissionAsked(event, {
-        ctx,
-        env,
-        readServiceRecord: readServiceRecordOverride,
-        requestFn,
-        exists,
-      });
-      await onTerminalEvent(event, {
-        ctx,
-        env,
-        readServiceRecord: readServiceRecordOverride,
-        requestFn,
-      });
-    });
+  let shared = globalThis[SETUP_ONCE_KEY];
+  if (!shared || shared === true) {
+    shared = { refs: 0, abort: new AbortController() };
+    globalThis[SETUP_ONCE_KEY] = shared;
+    void superviseEvents(
+      ctx,
+      async (event) => {
+        recordSessionEventActivity(event);
+        onToolEvent(event);
+        await onPermissionAsked(event, {
+          ctx,
+          env,
+          readServiceRecord: readServiceRecordOverride,
+          requestFn,
+          exists,
+        });
+        await onTerminalEvent(event, {
+          ctx,
+          env,
+          readServiceRecord: readServiceRecordOverride,
+          requestFn,
+        });
+      },
+      { signal: shared.abort.signal },
+    );
     for (const entry of listLoopEntries(registryPath)) {
       void armLoopTimer(entry, tick);
     }
   }
+  shared.refs += 1;
+
+  // The raw-liveness observer, registered per location: `ctx.session.hook`
+  // is location-scoped, so the once-guarded resources above must not own
+  // it — every location tees its own provider responses (see
+  // `observeHttpResponse`). Pinned registration inserts the callback
+  // synchronously with no failure channel; the guard below still records
+  // the unexpected, and the dead-stream gate treats uncovered targets as
+  // unobservable rather than silent, so escalation is disabled wherever
+  // this hook is missing. A hook landing late cannot retroactively tee a
+  // response whose headers already passed; coverage returns only with the
+  // next response the hook actually observes.
+  const hookRegistration = Promise.resolve()
+    .then(() => ctx.session.hook("http.response", observeHttpResponse))
+    .catch((error) => {
+      recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() });
+      return undefined;
+    });
+
+  // The plugin API invokes the returned cleanup when unloading a location:
+  // dispose only this location's hook, and tear the shared observer and
+  // timers down only when the last live location releases them — clearing
+  // the once-guard so a reloaded plugin's setup can re-arm everything.
+  let cleaned = false;
+  return async () => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    const registration = await hookRegistration;
+    await Promise.resolve(registration?.dispose?.()).catch(() => {});
+    shared.refs -= 1;
+    if (shared.refs <= 0 && globalThis[SETUP_ONCE_KEY] === shared) {
+      delete globalThis[SETUP_ONCE_KEY];
+      shared.abort.abort();
+      const timers = getLoopTimers();
+      await Promise.all([...timers.keys()].map((id) => disarmLoopTimer(id)));
+    }
+  };
 }
 
 export default { id: PLUGIN_ID, setup };
@@ -2765,30 +4045,45 @@ export {
   formatRedirectMessage,
   formatStructuredError,
   formatTitle,
+  getSessionInbox,
+  getSessionMessages,
   getSessionUpdatedAt,
+  interruptSession,
+  isDeadStreamMessage,
   isSessionActive,
   isSessionNotFoundError,
   isTerminalEvent,
+  lastRawSessionProgressAt,
+  lastSessionEventAt,
+  lastTargetInterruptAt,
   listLoopEntries,
   lookupSpawn,
   materializeAgents,
+  observeHttpResponse,
   onPermissionAsked,
   onToolEvent,
   parseModelString,
   parsePermissionAsked,
   parseSkillFrontmatter,
   parseTitle,
+  promoteInboxItem,
   readCliVersion,
   readPackageVersion,
   readPinManifest,
   readServiceRecordFile,
   readSkillDirectory,
+  recordGenerationID,
+  recordRawResponseStart,
+  recordRawSessionProgress,
+  recordSessionEventActivity,
   recordSpawn,
+  recordTargetInterrupt,
   redirectTargets,
   replyToPermission,
   requestServer,
   resolveAgentsTargetDir,
   resolveCurrentSpawn,
+  resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
   resolveRepoRoot,
   resolveRunningBuild,
@@ -2796,8 +4091,10 @@ export {
   runLoopTick,
   setup,
   shapeStatus,
+  superviseEvents,
   terminalEventError,
   terminalEventSessionID,
   toToolResult,
   toolTarget,
+  withTargetInterruptLock,
 };

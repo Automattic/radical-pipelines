@@ -32,6 +32,32 @@ const SLOW_RE = /__RP_SLOW__:(\d+):__END__/;
 
 /**
  * Directive embedded in a driving prompt's text —
+ * `__RP_TRICKLE__:<chunkMs>,<chunks>:__END__` — that makes the stub emit a
+ * tool_call header and then stream its JSON arguments one small chunk every
+ * `<chunkMs>` milliseconds, `<chunks>` times, before finishing the call
+ * normally: a *healthy* slow argument stream, indistinguishable from a dead
+ * one in the projected transcript. Answered once per distinct directive
+ * text, like `DIRECTIVE_RE`.
+ */
+const TRICKLE_RE = /__RP_TRICKLE__:(\d+),(\d+):__END__/;
+
+/**
+ * Directive embedded in a driving prompt's text —
+ * `__RP_STALL__:<ms>[,<firstFrameDelayMs>]:__END__` — that makes the stub
+ * flush its response headers, wait the optional time-to-first-token gap,
+ * emit a tool_call header whose arguments never finish streaming, then hold
+ * the connection open for `<ms>` (or until the client aborts): a
+ * deterministic reproduction of a provider stream dying mid-tool-call,
+ * leaving the session's newest assistant message with a tool part stuck in
+ * `streaming` state. The header/first-frame gap models real providers,
+ * whose assistant row (created from the first model event) can postdate the
+ * response start by seconds. Answered once per distinct directive text,
+ * like `DIRECTIVE_RE`.
+ */
+const STALL_RE = /__RP_STALL__:(\d+)(?:,(\d+))?:__END__/;
+
+/**
+ * Directive embedded in a driving prompt's text —
  * `__RP_NATIVE_TOOL__:<json {name, args}>:__END__` — that forces a native
  * (non-Code-Mode) tool_call for one of opencode's own built-in tools (e.g.
  * `webfetch`), which are listed directly in the request's `tools` array and
@@ -116,7 +142,23 @@ export function startStubProvider({ port }) {
         return;
       }
 
+      let parsed;
+      try {
+        parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        parsed = {};
+      }
+
+      const text = lastUserText(parsed.messages ?? []);
+
       if (req.headers.authorization === `Bearer ${INVALID_AUTH_KEY}`) {
+        // A slow directive delays the failure, turning the instant 401 into
+        // a slow-failing turn — the shape that keeps a session active while
+        // its probes fail.
+        const slowFailMatch = text.match(SLOW_RE);
+        if (slowFailMatch) {
+          await delay(Number(slowFailMatch[1]));
+        }
         res.writeHead(401, { "content-type": "application/json" });
         res.end(
           JSON.stringify({
@@ -129,15 +171,6 @@ export function startStubProvider({ port }) {
         );
         return;
       }
-
-      let parsed;
-      try {
-        parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-      } catch {
-        parsed = {};
-      }
-
-      const text = lastUserText(parsed.messages ?? []);
 
       // A driven turn reaches this provider more than once: opencode also
       // generates the session title from the same user text, on a request
@@ -163,6 +196,94 @@ export function startStubProvider({ port }) {
       const slowMatch = offered.size > 0 ? text.match(SLOW_RE) : null;
       if (slowMatch) {
         await delay(Number(slowMatch[1]));
+      }
+
+      // Matched only on the agent turn (see `offered` above); the title
+      // request must never be the one that trickles.
+      const trickleMatch = offered.size > 0 && offered.has("execute") ? text.match(TRICKLE_RE) : null;
+      if (trickleMatch && !firedDirectives.has(trickleMatch[0])) {
+        firedDirectives.add(trickleMatch[0]);
+        const chunkMs = Number(trickleMatch[1]);
+        const chunkCount = Number(trickleMatch[2]);
+        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+        res.write(
+          sseChunk(parsed.model ?? "stub-model", {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                index: 0,
+                id: `call_trickle_${firedDirectives.size}`,
+                type: "function",
+                function: { name: "execute", arguments: "" },
+              },
+            ],
+          }),
+        );
+        // Stream the arguments' JSON one fragment at a time — a healthy
+        // stream whose projection stays frozen until the JSON completes.
+        // Padded so the argument always splits into the *requested* number
+        // of fragments: an argument shorter than the chunk count would
+        // otherwise cut the stream's duration below what the caller asked
+        // for (and below the confirmation window a check means to cross).
+        const argument = JSON.stringify({
+          code: `return 'trickle-complete'; // ${"x".repeat(chunkCount * 2)}`,
+        });
+        const fragment = Math.ceil(argument.length / chunkCount);
+        for (let i = 0; i < argument.length; i += fragment) {
+          await delay(chunkMs);
+          if (res.writableEnded || res.destroyed) {
+            return;
+          }
+          res.write(
+            sseChunk(parsed.model ?? "stub-model", {
+              tool_calls: [{ index: 0, function: { arguments: argument.slice(i, i + fragment) } }],
+            }),
+          );
+        }
+        res.write(sseChunk(parsed.model ?? "stub-model", {}, "tool_calls"));
+        res.write("data: [DONE]\n\n");
+        res.end();
+        return;
+      }
+
+      // Matched only on the agent turn (see `offered` above); the title
+      // request must never be the one that hangs.
+      const stallMatch = offered.size > 0 ? text.match(STALL_RE) : null;
+      if (stallMatch && !firedDirectives.has(stallMatch[0])) {
+        firedDirectives.add(stallMatch[0]);
+        res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
+        const firstFrameDelay = Number(stallMatch[2] ?? 0);
+        if (firstFrameDelay > 0) {
+          res.flushHeaders?.();
+          await delay(firstFrameDelay);
+          if (res.writableEnded || res.destroyed) {
+            return;
+          }
+        }
+        res.write(
+          sseChunk(parsed.model ?? "stub-model", {
+            role: "assistant",
+            content: null,
+            tool_calls: [
+              {
+                index: 0,
+                id: `call_stall_${firedDirectives.size}`,
+                type: "function",
+                function: { name: "execute", arguments: "" },
+              },
+            ],
+          }),
+        );
+        // Dead stream: no more frames. The held-open window is bounded so a
+        // leaked stall can never wedge the suite; the client aborting first
+        // (the expected interrupt) just ends the response early. The abort
+        // signal must be the *response's* close (connection terminated) —
+        // the request's own close fires as soon as its body completes,
+        // which would end the stall immediately.
+        await Promise.race([delay(Number(stallMatch[1])), new Promise((r) => res.on("close", r))]);
+        res.end();
+        return;
       }
 
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
@@ -267,4 +388,39 @@ export function nativeToolPrompt(toolName, args) {
  */
 export function slowPrompt(delayMs, nonce) {
   return `__RP_SLOW__:${delayMs}:__END__ // ${nonce}`;
+}
+
+/**
+ * Build a driving prompt that makes the stub die mid-tool-call: it emits a
+ * tool_call header whose arguments never arrive, then goes silent for up to
+ * `holdMs`, leaving the session hung on a provably dead stream (a tool part
+ * stuck in `streaming` state) until something interrupts it.
+ *
+ * @param {number} holdMs Upper bound on the held-open window; the expected
+ *   interrupt ends it earlier.
+ * @param {string} nonce A value unique to this call, keeping the one-shot
+ *   directive dedup from mistaking two distinct calls for a repeat.
+ * @param {number} [firstFrameDelayMs] Optional gap between the response
+ *   headers and the first tool_call frame, modeling provider
+ *   time-to-first-token.
+ * @returns {string} The prompt text to post as the driving session's input.
+ */
+export function stallPrompt(holdMs, nonce, firstFrameDelayMs) {
+  const timing = firstFrameDelayMs ? `${holdMs},${firstFrameDelayMs}` : `${holdMs}`;
+  return `__RP_STALL__:${timing}:__END__ // ${nonce}`;
+}
+
+/**
+ * Build a driving prompt for a healthy slow argument stream: a tool_call
+ * whose JSON arguments arrive one chunk every `chunkMs` over `chunks`
+ * fragments, then complete normally.
+ *
+ * @param {number} chunkMs Delay between argument fragments.
+ * @param {number} chunks Number of fragments.
+ * @param {string} nonce A value unique to this call, keeping the one-shot
+ *   directive dedup from mistaking two distinct calls for a repeat.
+ * @returns {string} The prompt text to post as the driving session's input.
+ */
+export function tricklePrompt(chunkMs, chunks, nonce) {
+  return `__RP_TRICKLE__:${chunkMs},${chunks}:__END__ // ${nonce}`;
 }
