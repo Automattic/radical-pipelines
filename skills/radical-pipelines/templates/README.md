@@ -8,4 +8,4 @@ Rules:
 - Fill every slot; include only the Materials block of the selected mode.
 - The orchestrator computes derived values (output paths, lane ids, iteration numbers); agents never derive them.
 
-> v3 skeleton — templates pending for the remaining 13 profiles. Design record: [#273](https://github.com/Automattic/radical-pipelines/issues/273).
+> Phase 4 (document) templates pending. Design record: [#273](https://github.com/Automattic/radical-pipelines/issues/273).
