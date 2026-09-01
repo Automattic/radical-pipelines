@@ -16,6 +16,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -2978,6 +2979,16 @@ function materializeAgents(
     copyFileSync(join(sourceDir, name), targetPath);
     owned.add(name);
     written.push(name);
+  }
+
+  // Purge RP-owned profiles that no longer exist in the source: without
+  // this, deleted or renamed profiles stay registered forever.
+  const sourceNames = new Set(profiles);
+  for (const name of [...owned]) {
+    if (sourceNames.has(name)) continue;
+    const targetPath = join(targetDir, name);
+    if (existsSync(targetPath)) rmSync(targetPath);
+    owned.delete(name);
   }
 
   writeOwnershipManifest(targetDir, owned);
