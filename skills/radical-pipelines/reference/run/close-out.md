@@ -1,5 +1,9 @@
 # Close-out
 
-> v3 skeleton stub — content pending; supersedes `reference/closure-actions.md`. Design record: [#273](https://github.com/Automattic/radical-pipelines/issues/273).
+When the loop reaches the target phase:
 
-Will contain the end-of-run steps when the loop reaches the target phase: open or update the PR from the pipeline's branch (including new PRs for post-merge amendments), fire the PR hooks, act on the issue via the Issues convention, final report to the owner, cleanup (worktrees, lane branches).
+1. Verify everything is committed and stamped; push the pipeline's branch.
+2. If the target phase is build or later: open the PR from the pipeline's branch per the PR format convention (or a new PR for a post-merge amendment), firing the PR hooks around it.
+3. Act on the issue per the Issues convention and the project's lifecycle hooks.
+4. Report to the owner: what was produced, where, and any non-blocking findings carried on approvals.
+5. Clean up: terminate remaining agents, remove throwaway lane worktrees and branches, cancel health monitoring.

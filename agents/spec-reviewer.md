@@ -94,5 +94,39 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 # Formats
 
-<!-- TBD (formats phase): review file (path from your prompt) — Verdict / Reviewed revision / Verification log / Summary / Non-blocking findings (approvals) / Issues (rejections: What's wrong, Where, Suggestion, Why it matters). -->
-<!-- Frontmatter (lane, iteration, verdict, reviewed blobs, adjudicates) is written by orchestration stamps, never by you. -->
+Frontmatter (lane, iteration, verdict, reviewed blobs, adjudicates) is written by orchestration stamps, never by you; you declare the verdict in the body.
+
+```markdown
+# Spec Review
+
+## Verdict: approved | rejected | unsatisfiable
+
+<!-- unsatisfiable: name the input artifact and clause, e.g. `0-intent/intent.md#<clause>`. -->
+
+## Reviewed revision
+
+<!-- The commit the review ran against. -->
+
+## Verification log
+
+<!-- One line per check: what, how, result. Mark reused checks, naming their source review. -->
+
+## Summary
+
+<!-- One paragraph. -->
+
+## Non-blocking findings
+
+<!-- Only if approved: real findings that do not warrant rejection. -->
+
+## Issues
+
+<!-- Only if rejected. One section per defect class. -->
+
+### Issue 1: <title>
+
+**What's wrong:** ...
+**Where:** ...
+**Suggestion:** ...
+**Why it matters:** ...
+```

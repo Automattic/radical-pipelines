@@ -91,6 +91,76 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 
 # Formats
 
-<!-- TBD (formats phase): spec.md — Overview / Requirements (numbered; labels) / Out of Scope / Acceptance Criteria (Given-When-Then). -->
-<!-- TBD (formats phase): spec-research.md — intent verbatim / Q&A (attributed) / Research / Open assumptions register / Out of Scope / Consolidated Requirements. -->
-<!-- Frontmatter on both files is written by orchestration stamps, never by you. -->
+Frontmatter on both files is written by orchestration stamps, never by you.
+
+## spec.md
+
+```markdown
+# Spec: <feature name>
+
+## Overview
+
+<!-- Problem statement and solution summary. 1-2 paragraphs. -->
+
+## Requirements
+
+<!-- Numbered observable outcomes, distilled from spec-research.md. Each carries its
+     labels inline: verified claims name their record entries (Q3, Research: <topic>);
+     assumptions name their id (A2). -->
+
+1. ...
+2. ...
+
+## Out of Scope
+
+<!-- Explicit exclusions, each naming the entries that ground it. -->
+
+## Acceptance Criteria
+
+<!-- Given-When-Then, specific enough to write tests from. -->
+
+- Given X, when Y, then Z
+```
+
+## spec-research.md
+
+```markdown
+# Spec Research: <feature name>
+
+<contents of intent.md, copied verbatim>
+
+## Q&A
+
+### Q1: <question>
+
+**A:** <answer> — <source: answering agent ID, or `owner`>
+
+**Reasoning:** ...
+
+**Sources:** <files, URLs, docs, or "model knowledge, not verified">
+
+**Evidence:** <claim> — <check> → <result>
+
+## Research
+
+### <topic>
+
+<findings, with Sources and Evidence lines as above>
+
+## Open assumptions
+
+<!-- The register: one row per assumption not yet verified or fallen. -->
+
+| Id | Claim | Confirming/refuting observation | Circumstance that produces it |
+| --- | --- | --- | --- |
+| A1 | ... | ... | ... |
+
+## Out of Scope
+
+## Consolidated Requirements
+
+<!-- Numbered; each an observable outcome naming the entries that ground it. -->
+
+1. Requirement 1 (Q1, Q4)
+2. Requirement 2 (Q2; Research: <topic>; A1)
+```
