@@ -1,6 +1,6 @@
 # State
 
-How pipeline state is recorded and computed. The script under `../../scripts/` serves this spec; until it ships, every operation here is performed with bare git.
+How pipeline state is recorded and computed. The script under `../../scripts/` serves this spec — use `rp.mjs stamp` and `rp.mjs check` for the operations below; discovery, until `status` ships, is performed with bare git as described.
 
 ## The invariant
 
