@@ -4294,6 +4294,51 @@ describe("terminal-event listener", () => {
     assert.equal(renames.length, 1, "a later terminal event must not re-assert the title again");
   });
 
+  test("an interrupted first turn asserts the durable title too, without a notification or an error-log entry", async () => {
+    // Without this, a child interrupted before its first turn completes has
+    // no `rp:` title, so a daemon restart — which empties the in-memory
+    // ledger — makes it vanish from rp_status.
+    globalThis[ERROR_LOG_KEY] = [];
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_int", { id: "ses_spawner_int" });
+    sessions.set("ses_child_int", { id: "ses_child_int" });
+    recordSpawn("ses_child_int", {
+      name: "worker-interrupted",
+      run: "276-activity-reporting",
+      spawner: "ses_spawner_int",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+    const renames = [];
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          renames.push({ url, init });
+          return { status: 204, body: undefined };
+        },
+      }),
+    );
+
+    pushEvent({ type: "session.execution.interrupted", data: { sessionID: "ses_child_int" } });
+    await delay(10);
+
+    assert.equal(renames.length, 1);
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int/rename");
+    assert.equal(renames[0].init.body, JSON.stringify({ title: "rp:276-activity-reporting:worker-interrupted" }));
+    assert.equal(promptCalls.length, 0, "an interrupt is a deliberate stop, not a failure to announce");
+    assert.deepEqual(globalThis[ERROR_LOG_KEY], []);
+    assert.deepEqual(turnsFor("ses_child_int"), { turns: 1, lastTurn: turnsFor("ses_child_int").lastTurn });
+    assert.equal(turnsFor("ses_child_int").lastTurn.outcome, "interrupted");
+  });
+
   test("a successful terminal event does not enter the recent-errors log", async () => {
     globalThis[ERROR_LOG_KEY] = [];
     const fakeCtx = createFakeCtx();
@@ -4364,8 +4409,10 @@ describe("terminal-event listener", () => {
 
   test("ignores non-terminal events and terminal events on sessions RP never spawned", () => {
     assert.equal(isTerminalEvent({ type: "session.created" }), false);
+    assert.equal(isTerminalEvent({ type: "session.execution.started" }), false);
     assert.equal(isTerminalEvent({ type: "session.execution.succeeded" }), true);
     assert.equal(isTerminalEvent({ type: "session.execution.failed" }), true);
+    assert.equal(isTerminalEvent({ type: "session.execution.interrupted" }), true);
   });
 
   test("terminalEventSessionID reads the session ID from the event's data (the shape opencode's terminal events actually carry)", () => {

@@ -121,6 +121,51 @@ export async function run(ctx) {
     },
   );
 
+  await runCheck(
+    results,
+    "an interrupted first turn asserts the child's durable title too, without notifying the spawner",
+    async () => {
+      // The child's initial prompt makes the stub hold its reply, so the
+      // first turn is still running when it is interrupted: the only turn
+      // end this child ever sees is `session.execution.interrupted`. Without
+      // the title, a daemon restart would drop it from rp_status.
+      //
+      // The slow directive is assembled inside the snippet: written
+      // literally, its `:__END__` would terminate the orchestrator's own
+      // `__RP_CODE__` directive early and truncate the code.
+      const spawnResult = await driveToolCall(
+        server,
+        orchestrator.id,
+        `return await tools.rp_spawn({name:"suite-interrupted-child", agent:"spec-researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:["__RP_SLOW__","8000","__END__"].join(":") + " title-interrupt-${Date.now()}", run:"suite-run"});`,
+      );
+      const interruptedChildID = spawnResult.text;
+      await pollUntil(
+        async () => (await request(server, "GET", "/api/session/active")).body?.data?.[interruptedChildID] !== undefined,
+        { label: "the interrupted child's first turn to start" },
+      );
+      await delay(300);
+      const status = (await request(server, "POST", `/api/session/${interruptedChildID}/interrupt`)).status;
+      assert.equal(status, 204);
+
+      const title = await pollUntil(
+        async () => {
+          const child = await getSession(server, interruptedChildID);
+          return child.title === "rp:suite-run:suite-interrupted-child" ? child.title : undefined;
+        },
+        { timeoutMs: 20_000, label: "the interrupted child's durable rp: title" },
+      );
+      assert.equal(title, "rp:suite-run:suite-interrupted-child");
+
+      const finished = await waitForAssistantFinish(server, interruptedChildID, "error");
+      assert.equal(finished.error?.type, "aborted", "the interrupted turn ends as an abort, not a provider failure");
+      const messages = await getMessages(server, orchestrator.id);
+      assert.ok(
+        !messages.some((m) => m.type === "user" && m.text?.includes(`${interruptedChildID}) failed a turn`)),
+        "an interrupt is a deliberate stop and must not be announced as a failure",
+      );
+    },
+  );
+
   await runCheck(results, "rp_send enqueues with attribution derived from the caller's session, not message content", async () => {
     const result = await driveToolCall(
       server,

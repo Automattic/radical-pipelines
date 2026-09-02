@@ -2504,11 +2504,24 @@ function recordLoopTick(entry) {
   );
 }
 
-/** Event types the terminal-event listener treats as terminal for a session. */
-const TERMINAL_EVENT_TYPES = new Set([
-  "session.execution.succeeded",
-  "session.execution.failed",
+/**
+ * Event types that end a session's turn, mapped to the outcome a ledger row
+ * reports. An interrupt — verified live to emit
+ * `session.execution.interrupted`, never succeeded/failed — ends the turn
+ * like the other two; only `failed` is a failure to announce.
+ */
+const TURN_END_OUTCOMES = new Map([
+  ["session.execution.succeeded", "succeeded"],
+  ["session.execution.failed", "failed"],
+  ["session.execution.interrupted", "interrupted"],
 ]);
+
+/**
+ * Event types the terminal-event listener treats as terminal for a session:
+ * every turn end, so a child whose first turn is interrupted still gets its
+ * durable `rp:` title asserted (and stays reconstructible after a restart).
+ */
+const TERMINAL_EVENT_TYPES = new Set(TURN_END_OUTCOMES.keys());
 
 /**
  * Check whether an opencode event is a session-terminal event.
@@ -2569,18 +2582,6 @@ function formatStructuredError(error) {
 const SESSION_TURNS_KEY = Symbol.for("radical-pipelines.opencode.sessionTurns");
 
 /**
- * Event types that end a session's turn, mapped to the outcome a ledger row
- * reports. Wider than `TERMINAL_EVENT_TYPES`: an interrupt — verified live to
- * emit `session.execution.interrupted` — ends the turn without being a
- * failure to announce.
- */
-const TURN_END_OUTCOMES = new Map([
-  ["session.execution.succeeded", "succeeded"],
-  ["session.execution.failed", "failed"],
-  ["session.execution.interrupted", "interrupted"],
-]);
-
-/**
  * Record a turn's end for its session from a turn-ending event.
  *
  * Fed by the plugin's event subscription. Every session is tracked — the
@@ -2631,7 +2632,8 @@ function turnsFor(sessionID) {
  * not a fault to report — and holds it while the outcome is unknown, so a
  * delete that fails still reports what the surviving session raised.
  * A successful turn is not a completion signal — an agent declares its own
- * completion in a message to its spawner — so success events pass silently.
+ * completion in a message to its spawner — so success events pass silently,
+ * and so does an interrupt (a deliberate stop, not a fault).
  * Every failed turn is recorded in the bounded error log (including the
  * structured error it carries, so `rp_status`'s `recentErrors` reports the
  * cause) and announced to the spawner (steer delivery, so a working spawner
