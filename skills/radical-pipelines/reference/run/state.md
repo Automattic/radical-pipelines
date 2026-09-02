@@ -8,7 +8,7 @@ The working tree at any commit fully describes the pipeline's state. The tree re
 
 ## Locations
 
-A pipeline lives at `<pipelines folder root>/<branch base>/` with phase subfolders `0-intent` … `4-document`. Its branch is `<branch base>`. Throwaway lane branches append a suffix: `<branch base>_<phase>-lane-<k>` (production lanes), `<branch base>_<phase>-r<lane>` (review lanes). A post-merge amendment works on `<branch base>_amend-<n>`, cut from main.
+A pipeline lives at `<pipelines folder root>/<branch base>/` with phase subfolders `0-intent` … `4-document`. Its branch is `<branch base>`. Throwaway lane branches append a suffix: `<branch base>_<phase>-lane-<k>` (production lanes), `<branch base>_<phase>-r<lane>` (review lanes — created only when a wave has more than one lane; a single-lane wave runs on the pipeline branch). A post-merge amendment works on `<branch base>_amend-<n>`, cut from main.
 
 ## Frontmatter
 

@@ -28,8 +28,8 @@ Serve **research requests** by spawning a fresh `researcher` per question with i
 
 One wave at a time per artifact; the artifact is frozen while its wave is out.
 
-1. The run policy declares the lanes — `(model, charter)` pairs; default: one full-scope lane. For each lane, create a throwaway branch and worktree at the current commit and dispatch the reviewer (mode Fresh, Consolidation, or Delta per the situation) with its computed output path `…-review-r<lane>-<iteration>.md`.
-2. Collect all lanes; merge the lane branches — disjoint files, mechanical — and stamp each review's `reviewed` pins.
+1. The run policy declares the lanes — `(model, charter)` pairs; default: one full-scope lane. Dispatch each reviewer (mode Fresh, Consolidation, or Delta per the situation) with its computed output path `…-review-r<lane>-<iteration>.md`. A single-lane wave runs directly on the pipeline's worktree and branch. Only a multi-lane wave gets one throwaway branch and worktree per lane, all at the current commit — the isolation exists so lanes cannot see each other's output.
+2. Collect all lanes; on a multi-lane wave, merge the lane branches — disjoint files, mechanical. Stamp each review's `reviewed` pins.
 3. **All approved** → the artifact is approved; continue.
 4. **Any rejection** → dispatch a fresh producer, mode Adjudicate, with every review file of the wave. Its landing starts the next wave: every lane re-reviews delta-scoped (mode Delta). Unanimity on the current blobs is required — there is no accepted staleness.
 
