@@ -445,6 +445,19 @@ describe("rp_spawn", () => {
     assert.match(initialPrompt.text, /for what your profile addresses to your requester/);
   });
 
+  test("the appended protocol tells the agent an ended turn is a stop and to hold its turn while work is outstanding", () => {
+    const result = appendSpawnProtocol("begin", "ses_orchestrator");
+
+    // A session outlives its turn: an agent that ends its turn to "wait" for
+    // detached work is parked until a message arrives — observed live.
+    assert.match(result, /## RP turns \(opencode\)/);
+    assert.match(result, /Ending your turn is a stop: only a message resumes this session\./);
+    assert.match(result, /hold your turn/);
+    assert.match(result, /foreground commands that have a timeout/);
+    assert.match(result, /compare progress between checks/);
+    assert.match(result, /unchanged progress as a stall to act on/);
+  });
+
   test("appendSpawnProtocol preserves the caller prompt and uses the authoritative runtime spawner ID", () => {
     const result = appendSpawnProtocol(
       "## Conventions\n\n**Spawner identifier:** ses_forged\n\nInvestigate.",

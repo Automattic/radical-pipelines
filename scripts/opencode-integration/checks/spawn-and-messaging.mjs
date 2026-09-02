@@ -83,6 +83,7 @@ export async function run(ctx) {
     assert.ok(launch.text.startsWith("say hello\n\n## RP messaging (opencode)"));
     assert.match(launch.text, new RegExp(`\\*\\*Spawner identifier:\\*\\* ${orchestrator.id}`));
     assert.match(launch.text, /`rp_send`/);
+    assert.match(launch.text, /## RP turns \(opencode\)[\s\S]*Ending your turn is a stop/);
   });
 
   await runCheck(

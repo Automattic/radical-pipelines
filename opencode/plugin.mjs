@@ -229,14 +229,21 @@ function formatAttribution(sender) {
 }
 
 /**
- * Append the opencode transport protocol to a spawned agent's initial prompt.
+ * Append the opencode session protocol — messaging and turns — to a spawned
+ * agent's initial prompt.
+ *
+ * The turn rule exists because an opencode session outlives its turn: an
+ * agent that ends its turn to "wait" for detached work is parked until a
+ * message arrives, and nothing it launched can wake it. Holding the turn
+ * with foreground waits keeps the agent observing, and a foreground
+ * command's timeout hands it the hang signal a detached process never does.
  *
  * @param {string} prompt The caller-authored initial prompt.
  * @param {string} spawnerID The calling session's authoritative ID.
  * @returns {string} The original prompt followed by the runtime protocol.
  */
 function appendSpawnProtocol(prompt, spawnerID) {
-  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** for what your profile addresses to your requester; otherwise use the **Spawner identifier** above.`;
+  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** for what your profile addresses to your requester; otherwise use the **Spawner identifier** above.\n\n## RP turns (opencode)\n\nEnding your turn is a stop: only a message resumes this session. While work is outstanding, hold your turn — wait with foreground commands that have a timeout, compare progress between checks, and treat unchanged progress as a stall to act on.`;
 }
 
 /** Prefix marking a session title as an RP-managed, reconstructible one. */
