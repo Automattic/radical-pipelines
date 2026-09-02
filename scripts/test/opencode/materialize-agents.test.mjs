@@ -109,6 +109,17 @@ describe("materializeAgents", () => {
     );
   });
 
+  test("an RP-owned target whose source profile was retired is removed; foreign files stay", () => {
+    materializeAgents(sourceDir, targetDir);
+    writeFileSync(join(targetDir, "foreign.md"), "not ours");
+    rmSync(join(sourceDir, "agent-b.md"));
+    const result = materializeAgents(sourceDir, targetDir);
+    assert.deepEqual(result.removed, ["agent-b.md"]);
+    assert.equal(existsSync(join(targetDir, "agent-b.md")), false);
+    assert.equal(existsSync(join(targetDir, "agent-a.md")), true);
+    assert.equal(existsSync(join(targetDir, "foreign.md")), true);
+  });
+
   test("updating a source profile and re-materializing overwrites the RP-owned target with the new bytes", () => {
     materializeAgents(sourceDir, targetDir);
 

@@ -16,6 +16,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -248,7 +249,7 @@ function formatAttribution(sender) {
  * @returns {string} The original prompt followed by the runtime protocol.
  */
 function appendSpawnProtocol(prompt, spawnerID) {
-  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** for what your profile addresses to your requester; otherwise use the **Spawner identifier** above.\n\n## RP turns (opencode)\n\nEnding your turn is a stop: only a message resumes this session — a reply you await, or the completion notice of a background command you gave a \`timeout\`. Anything else you are waiting on holds your turn: wait with foreground commands that have a timeout, compare progress between checks, and treat unchanged progress as a stall to act on.`;
+  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: your prompt's **Requester** is the agent ID to address what your profile sends to its requester; the orchestrator is the **Spawner identifier** above. Your own agent ID is this session's ID.\n\n## RP turns (opencode)\n\nEnding your turn is a stop: only a message resumes this session — a reply you await, or the completion notice of a background command you gave a \`timeout\`. Anything else you are waiting on holds your turn: wait with foreground commands that have a timeout, compare progress between checks, and treat unchanged progress as a stall to act on.`;
 }
 
 /** Prefix marking a session title as an RP-managed, reconstructible one. */
@@ -3202,17 +3203,20 @@ function resolveAgentsTargetDir(env = process.env) {
  *  - a target filename that already exists but is *not* recorded as
  *    RP-owned — a foreign file of the same name — is left untouched and
  *    reported as a collision instead of being clobbered;
- *  - every filename written is (re)recorded as RP-owned.
+ *  - every filename written is (re)recorded as RP-owned;
+ *  - an RP-owned target whose source profile no longer exists is removed, so
+ *    retired profiles never linger in the registry.
  *
  * @param {string} [sourceDir] Absolute path to the directory of source agent
  *   profiles. Defaults to `../agents` resolved relative to this module (the
  *   repository's `agents/` directory at runtime).
  * @param {string} [targetDir] Absolute path to the target agents directory.
  *   Defaults to opencode's global agents directory (see `resolveAgentsTargetDir`).
- * @returns {{ written: string[], collisions: string[] }} `written` lists the
- *   source filenames copied into `targetDir` this run; `collisions` lists
- *   filenames that already existed under `targetDir` as foreign (non-RP-owned)
- *   files, and so were left unmodified.
+ * @returns {{ written: string[], collisions: string[], removed: string[] }}
+ *   `written` lists the source filenames copied into `targetDir` this run;
+ *   `collisions` lists filenames that already existed under `targetDir` as
+ *   foreign (non-RP-owned) files, and so were left unmodified; `removed` lists
+ *   RP-owned targets deleted because their source profile is gone.
  */
 function materializeAgents(
   sourceDir = DEFAULT_AGENTS_SOURCE_DIR,
@@ -3238,9 +3242,18 @@ function materializeAgents(
     written.push(name);
   }
 
+  const removed = [];
+  const current = new Set(profiles);
+  for (const name of [...owned]) {
+    if (current.has(name)) continue;
+    rmSync(join(targetDir, name), { force: true });
+    owned.delete(name);
+    removed.push(name);
+  }
+
   writeOwnershipManifest(targetDir, owned);
 
-  return { written, collisions };
+  return { written, collisions, removed };
 }
 
 /**

@@ -1,0 +1,43 @@
+# Glossary
+
+The canonical vocabulary of Radical Pipelines v3.
+
+- **Agent ID** — The addressable identifier assigned to an agent instance by the active tool.
+- **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against a target.
+- **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
+- **Blocker** — An agent report that its materials are malformed, an input is unreadable, or its environment is broken.
+- **Charter** — A reviewer's assigned focus, which scopes what it verifies but not what it may defeat.
+- **Claim** — A producer's `Contradicts-input: <path>#<id>` disposition, corroborated by a reviewer as `Verdict: unsatisfiable` with that target.
+- **Consolidation** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
+- **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
+- **Done-set** — The tasks whose latest task report has `outcome: completed`.
+- **Episode** — An artifact's review waves since its last approval.
+- **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
+- **Frontier** — The first unresolved item in the ordered report from `rp check`.
+- **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
+- **Inspection** — Either observing what already exists without creating evidence, or the orchestrator's decision point on recurrence or, by default, three waves without approval.
+- **Lane** — An independent production or review path; each review lane applies its own charter and verdict.
+- **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
+- **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.
+- **Origin** — The source from which something was born: an issue reference, an external source, or a trigger it responds to.
+- **Owner escalation** — A pipeline pause and evidence dossier caused by a pending claim that targets owner territory.
+- **Owner territory** — An intent item outside “Assumptions / directions to explore,” or a record entry attributed `owner`.
+- **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
+- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, and its tasks are executed.
+- **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
+- **Policy defaults** — The project convention for review lanes and charters per artifact and for inspection and valve thresholds.
+- **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
+- **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
+- **Researcher** — A fresh, inspection-only agent that answers one focused question with evidence directly to its requester.
+- **Reviewer** — An adversarial agent that verifies an artifact's declared chains under a charter, writes a verdict, and never edits the artifact.
+- **Stale** — The state of a pin whose target's current identity differs from the recorded identity.
+- **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity.
+- **Target** — The `<path>#<id>` clause that a trigger or `unsatisfiable` verdict says must change.
+- **Task report** — An immutable per-attempt worker report recording its outcome, commits, checks, and any failure evidence.
+- **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
+- **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a failed task report.
+- **Valve** — The run stop that produces an owner dossier after the convergence threshold, six waves by default, is reached without approval.
+- **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
+- **Wave** — The atomic review of one artifact at one identity by every declared review lane.
+- **Worker** — A fresh build agent that executes one task and writes its task report.
+- **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.

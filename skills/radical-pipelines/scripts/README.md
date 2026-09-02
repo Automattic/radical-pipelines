@@ -1,0 +1,34 @@
+# `rp`
+
+`rp` reports and stamps body-identity state for Radical Pipelines. Run it with Node from any path inside the repository.
+
+## `stamp`
+
+```text
+node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set <key=value>]... [--mirror] [--force]
+```
+
+- `--pin` records an artifact input.
+- `--reviewed` records a review input.
+- `--set` writes a scalar frontmatter value.
+- `--mirror` copies supported body declarations into frontmatter.
+- `--force` replaces immutable review pins.
+
+```sh
+node skills/radical-pipelines/scripts/rp.mjs stamp .pipelines/demo/1-spec/spec.md --pin .pipelines/demo/0-intent/intent.md
+```
+
+## `check`
+
+```text
+node rp.mjs check <pipeline-folder> [--lanes <r1,r2>] [--json]
+```
+
+- `--lanes` declares review lanes.
+- `--json` emits machine-readable state.
+
+```sh
+node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --lanes r1,r2
+```
+
+See the [state specification](../reference/run/state.md).

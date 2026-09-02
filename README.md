@@ -24,40 +24,42 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 
 The phases are:
 
-- **Phase 0. Intent.** The initial idea or request.
+- **Phase 0. Intent.** The initial request and any external amendments.
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
 - **Phase 3. Build.** The build plan, the code with the unit and end-to-end tests its tasks call for, behavior verification, plus a summary of what the phase produced.
-- **Phase 4. Document.** The document plan, both internal and external documentation, plus a summary of what the phase produced.
+- **Phase 4. Document.** Not available in this version; the target phase is at most Build.
 
-Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
+Planning is not a separate phase: the Build phase begins by committing a plan and getting it approved.
 
-The Spec and Design doc phases can run **multilane**: N lanes each take the phase's full machinery to an approved artifact, and a consolidator merges them into a single consolidated artifact that passes a final adversarial review. N=1 — the default — is the plain single flow.
+In the [v3 model](./docs/glossary.md), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, and its tasks are executed. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner.
 
-The pipeline is **autonomous by default, assisted when needed.** It runs on its own, but humans can intervene at any checkpoint. For particularly complex tasks, specific phases can be run in assisted mode instead.
+The Spec and Design doc phases can run **multilane**: N production lanes each produce and review a candidate, then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. N=1 — the default — is the plain single flow.
 
-It is **inspectable and relaunchable.** Every phase produces artifacts your team can review. If the output at any point isn't what the team expected, anyone on the team can go back to the phase where the assumptions diverged, correct them, and relaunch the autonomous sequence from there.
+The pipeline is **autonomous by default, assisted when needed.** After triage, an autonomous run proceeds without questions until an owner escalation or the valve. The Spec and Design doc phases can instead run in assisted mode.
+
+It is **inspectable.** Every phase produces artifacts your team can review before the final PR.
 
 It can add **determinism through redundancy.** For complex tasks, you should be able to spend more tokens on the same surface with multiple runs, validation checks, adversarial agents, and different models from different providers to converge on a more reliable output.
 
 ## What this unlocks
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
-- **Compounding quality.** When a pipeline produces a bad result, the fix lives in a specific phase (a wrong assumption in the spec, a missing constraint in the design doc). That fix improves every future run that goes through the same pipeline, not just the one that failed.
-- **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
+- **Compounding quality.** When a pipeline produces a bad result, the correction targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
+- **Consistent assets.** Tests and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
 ## Why now
 
 - **Agents have crossed the quality threshold.** They are already capable of executing autonomously and doing a very good job, as long as the requirements are well-defined.
-- **Human attention is becoming the bottleneck.** As agent adoption grows, the limiting factor in development is no longer the agents' ability to write code, it's the human time spent assisting them. Every hour spent steering an agent in real time is an hour not spent on decisions that actually need a human. And even when agents go off track, it's more optimal to inspect where they deviated, correct the assumptions, and relaunch autonomously, rather than assisting them step by step.
+- **Human attention is becoming the bottleneck.** As agent adoption grows, the limiting factor in development is no longer the agents' ability to write code, it's the human time spent assisting them. Every hour spent steering an agent in real time is an hour not spent on decisions that actually need a human. And even when agents go off track, it's more optimal to inspect where they deviated, supply the correction, and let the pipeline converge autonomously, rather than assisting them step by step.
 - **The tooling is mature enough.** Tools like Claude Code already provide the necessary primitives (skills, teams of agents, agent definitions, hooks...) to build a pipeline like this without a large investment in custom infrastructure, and for this reason, whatever is built can evolve naturally alongside them as they improve.
 
 ## Success metrics
 
 - **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task.
-- **Pipeline completion rate.** Percentage of tasks that make it from intent to finished implementation through all phases without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint.
-- **Relaunch efficiency.** When a human identifies a problem and corrects a specific phase, how many relaunch attempts does it take to reach an acceptable result? Fewer rounds means the pipeline is surfacing the right information for the human to make effective corrections.
+- **Pipeline completion rate.** Percentage of tasks that make it from intent through the target phase without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint.
+- **Correction efficiency.** When a human supplies an amendment, how many review waves does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections.
 - **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human.
 
 # Project Usage
@@ -152,19 +154,25 @@ opencode reports plugin ids, not versions, so RP surfaces its own version:
 
 ## Configuration
 
-The skill is generic — each project defines its own conventions for things like where issues are tracked, the branch name base, the pipeline family folder location, the worktree root, commit rules, and how teams of agents are spawned. A project's shared conventions live in a committed `.rp.md` file, populated by the interactive setup flow; an individual developer can optionally layer local overrides on top of it (see below).
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter carries `conventions: 1`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
-If required conventions are missing when a workflow starts, Radical Pipelines stops before running the pipeline and offers an interactive setup. Setup separates shared project guidance from guidance specific to the active agentic coding tool, and writes `.rp.md` only after the owner confirms the proposed content.
+| Convention            | What it covers                                                                                     | Required |
+| --------------------- | -------------------------------------------------------------------------------------------------- | -------- |
+| Issues                | Issue storage, operations, and the canonical issue reference                                       | Yes      |
+| Branch naming         | How a pipeline branch name and slug derive from its issue                                           | Yes      |
+| Pipelines folder root | Where pipeline folders live                                                                        | No       |
+| Worktree folder root  | Where worktrees live                                                                                | Yes      |
+| Artifact storage      | Whether conventions and pipeline artifacts live in the project repository or a separate repository | Yes      |
+| Commit format         | How agents write commits                                                                            | No       |
+| PR format             | How pull request titles and descriptions are written                                                | No       |
+| Guardrails            | Rules the project's agents must satisfy                                                             | No       |
+| Lifecycle hooks       | Prose instructions run at defined pipeline moments                                                  | No       |
+| Policy defaults       | Review lanes and charters per artifact, plus inspection and valve thresholds                        | No       |
+| Agent models          | Model and settings per profile, inside the active tool's section                                    | No       |
 
-Shared project conventions include issue tracking, the branch name base, the pipeline family folder, the worktree root, commit rules, artifact storage, an optional `PR format` convention for the pipeline's PR title and description, an optional `Guardrails` convention declaring rules agents must satisfy, and an optional `Lifecycle hooks` convention attaching prose instructions the orchestrator runs at defined pipeline moments — run started, phase completed, run ended, the pipeline's PR opened, and so on (see the [lifecycle hooks reference](./skills/radical-pipelines/reference/lifecycle-hooks.md)); see the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author them. Worktrees are raw `git worktree` checkouts under a project-chosen root — the orchestrator creates every branch and worktree — removing lane branches and worktrees when their lanes are done — and seats each agent in its worktree per the per-tool team-spawning convention; agents only occupy the worktrees prepared for them. The per-tool section supplies team spawning, health monitoring, and an optional `Agent models` convention pinning which model (and settings) each spawned agent runs on, each in the active tool's native form. Under Claude Code that is teammate spawning and shutdown plus the bundled `/loop` health monitor; under opencode it is the `rp_spawn` and `rp_terminate` lifecycle tools, the `rp_loop_*` health-monitor tools, permission mediation (an agent's read outside its worktree is auto-redirected to the worktree copy when one exists, and otherwise held for the orchestrator to answer via `rp_permission_reply`), and — for `Agent models` — opencode-native `provider/model[#variant]` strings passed verbatim to `rp_spawn`. The `Agent models` block is optional; see the [setup conventions](./skills/radical-pipelines/reference/conventions/setup.md) for how to author it.
+A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
-A developer can override conventions for their own working copy by placing a git-ignored `.rp.local.md` alongside the committed `.rp.md`: the local file wins per named unit, and the committed file is inherited wherever the local file is silent. Because `.rp.local.md` is git-ignored, it is never committed and never affects other contributors. See the [Local overrides](./skills/radical-pipelines/reference/conventions/load.md#local-overrides) section of the convention loader for details.
-
-The orchestrator loads and verifies conventions before launching phase agents. When it spawns a phase agent, it passes a `## Conventions` block with the run's artifact folder, the agent's phase folder, worktree path and branch name, the commit format, and any guardrails naming that agent. Phase agents report a blocker when required context is missing instead of inferring paths from generic examples.
-
-Each phase commits inspectable artifacts into the pipeline family folder, identical across forks. The phase folders do not sit directly under the pipeline family folder; they live under a **run** folder: artifacts live at `<pipeline-family-folder>/<run>/<phase>`, where `<run>` is `base` (the original run) or `rev-<N>-<desc>` (a revision run layered on a complete previous run). A pipeline is a chain of **run branches** — each run's branch starts at the tip of the previous run's, and the latest run branch is what merges to main. Multilane phases write each lane's artifacts in a `lane-<K>` subfolder of the phase folder: isolated lanes work on **lane branches** forked from the run branch and merged back on approval, while divergent lanes run sequentially on the run branch itself. A fork of a pipeline is a new version created by branching at the **cut commit** in the parent's history — the inherited history carries the inherited work itself, with no copying. In autonomous mode, reviewer agents write rejected iterations as `<artifact>-review-N-rejected.md` (N = 1, 2, 3, …) and a single `<artifact>-review-approved.md` on approval; in assisted mode, the orchestrator writes the `<artifact>-review-approved.md` file capturing the owner's explicit approval (assisted runs produce no rejection files because the owner iterates with the orchestrator before any commit). The build and document phases each gate on a committed plan first — `build-plan.md` / `document-plan.md` with their own review files — and each leaves a human-readable summary of what the phase produced (`3-build/build-summary.md`, `4-document/document-summary.md`), written by the phase reviewer on approval and committed alongside the approval marker. `reference/pipeline-versioning.md` documents the run model and the per-phase completion predicates the orchestrator evaluates uniformly across both modes: a phase is complete only when all its required artifacts are committed in the run folder on the run branch, so build and document complete only once their summary is committed too, not on the approval marker alone.
-
-A project's committed [`.rp.md`](./.rp.md) is organized as a shared section (issues, branch name base, pipeline family folder, artifact storage, commit format, PR format, worktree root, guardrails, lifecycle hooks) followed by a per-tool section covering only what depends on the active tool (team spawning, agent models, health monitoring). This repository's own `.rp.md` carries the shared section plus the Claude Code section. Because the per-tool section names one tool, running under a different tool leaves the tool-dependent conventions unmet: Radical Pipelines does not proceed under the committed section's conventions, and instead informs the owner and offers setup for the active tool.
+Agents reserve blockers for malformed materials, unreadable inputs, and broken environments.
 
 ## Changelog and versioning
 

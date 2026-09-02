@@ -441,8 +441,8 @@ describe("rp_spawn", () => {
     assert.ok(initialPrompt.text.startsWith("begin the review\n\n## RP messaging (opencode)"));
     assert.match(initialPrompt.text, /\*\*Spawner identifier:\*\* ses_orchestrator/);
     assert.match(initialPrompt.text, /`rp_send`/);
-    assert.match(initialPrompt.text, /Requester identifier.*otherwise.*Spawner identifier/s);
-    assert.match(initialPrompt.text, /for what your profile addresses to your requester/);
+    assert.match(initialPrompt.text, /\*\*Requester\*\*.*\*\*Spawner identifier\*\*/s);
+    assert.match(initialPrompt.text, /what your profile sends to its requester/);
   });
 
   test("the appended protocol tells the agent an ended turn is a stop and to hold its turn while work is outstanding", () => {
