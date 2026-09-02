@@ -4,7 +4,7 @@ The phase's specifics; the machine is `../loop.md`.
 
 ## Artifacts
 
-`3-build/build-plan.md` and `3-build/build-plan-research.md` — the plan loop's artifacts (the record is the artifact under review for refutations; the plan for everything else — review them together). Plan reviews land in `3-build/` as `build-plan-review-…` and the batch review as `build-review-…`, named per the wave naming in `../loop.md`; on approval the batch reviewer writes `3-build/build-summary.md`.
+`3-build/build-plan.md` and `3-build/build-plan-research.md` — the plan loop's artifacts (the record is the artifact under review for refutations; the plan for everything else — review them together). Plan reviews land in `3-build/` as `build-plan-review-…` and the batch review as `build-review-…`; on approval the batch reviewer writes `3-build/build-summary.md`.
 
 Pins: the plan artifacts pin `1-spec/spec.md`, `1-spec/spec-research.md`, `2-design-doc/design-doc.md`, and `2-design-doc/design-doc-research.md`. The batch review pins `3-build/build-plan.md`; stamp its reviewed commit range with `--set head=<commit>`.
 

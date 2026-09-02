@@ -43,4 +43,4 @@ Written by orchestration stamps, never by agents. Machine-readable provenance:
 | `amends` | `amendment-<n>.md` | The pipeline label this amendment corrects |
 | `origin` | `amendment-<n>.md` | Path of the originating record: the `unsatisfiable` review file, the failed task report, or a prior amendment (escalation chains cite the previous link) |
 
-Amendment records are numbered `0-intent/amendment-<n>.md`, one counter across all triggers.
+
