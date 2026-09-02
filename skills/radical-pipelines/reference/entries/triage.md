@@ -39,7 +39,7 @@ Mode (autonomous or assisted), target phase, review lanes and charters, escalati
 
 **New pipeline:**
 
-1. Derive the branch base per the Branch naming convention; when it collides with an existing branch or pipeline folder, suffix it (`-2`, `-3`, …). The pipeline folder is `<pipelines folder root>/<branch base>/`; the phase subfolders hang directly from it (`<branch base>/0-intent/intent.md`).
+1. Derive the branch base per the Branch naming convention; when it collides with an existing branch or pipeline folder, suffix it (`-2`, `-3`, …). The pipeline folder is `<pipelines folder root>/<branch base>/`.
 2. Create the branch from the start ref (main, the stacked tip, or the fork cut).
 3. Write `0-intent/intent.md`: the issue body verbatim, in the intent format.
 4. Stamp the origin frontmatter (`issue`, and `stacked-on`/`forked-from` when they apply); commit.
