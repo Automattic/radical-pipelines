@@ -1580,15 +1580,90 @@ function resolveRunningBuild(serviceRecord, readCliVersionFn) {
 }
 
 /**
+ * Resolve the ledger entry a session record belongs to, when RP recognizes it.
+ *
+ * @param {{ id: string, title?: string }} record A session record
+ *   (`GET /api/session`).
+ * @param {(sessionID: string) => { name: string, run: string, spawner: string } | undefined} lookup
+ *   Resolves a session ID to its recorded ledger entry (see `lookupSpawn`).
+ *   A record whose ID isn't found this way falls back to `parseTitle` on its
+ *   `title`, so restart-surviving sessions are still recognized.
+ * @returns {{ name: string, run: string, spawner?: string } | null | undefined}
+ *   The entry, or nothing when the record is neither in the ledger nor
+ *   `rp:`-titled.
+ */
+function recognizeSession(record, lookup) {
+  return lookup(record.id) ?? parseTitle(record.title ?? "");
+}
+
+/** Maximum length of a ledger row's `lastText` excerpt. */
+const LAST_TEXT_EXCERPT_CAP = 200;
+
+/**
+ * How many of a session's newest messages `rp_status` reads to locate its
+ * newest assistant text. Consecutive tool-only steps each project as their
+ * own assistant message, so the page must span a run of them.
+ */
+const LAST_TEXT_MESSAGE_LIMIT = 20;
+
+/**
+ * Extract the newest assistant text from a session's projected messages.
+ *
+ * Scans the newest-first projection for the first assistant message carrying
+ * a non-empty text part and returns that message's last such part, trimmed
+ * and truncated to `LAST_TEXT_EXCERPT_CAP`. The timestamp is the message's
+ * completion time, or its creation time while it is still in flight — text
+ * parts carry no time of their own in the pinned projection.
+ *
+ * @param {Array<object>} messages As returned by `getSessionMessages`.
+ * @returns {{ at: number | undefined, excerpt: string } | undefined} The
+ *   newest text, or `undefined` when the page holds none.
+ */
+function extractLastText(messages) {
+  for (const message of messages) {
+    if (message?.type !== "assistant") {
+      continue;
+    }
+    const parts = Array.isArray(message.content) ? message.content : [];
+    for (let i = parts.length - 1; i >= 0; i -= 1) {
+      const part = parts[i];
+      if (part?.type !== "text" || typeof part.text !== "string") {
+        continue;
+      }
+      const text = part.text.trim();
+      if (text.length === 0) {
+        continue;
+      }
+      return {
+        at: message.time?.completed ?? message.time?.created,
+        excerpt: text.length > LAST_TEXT_EXCERPT_CAP ? `${text.slice(0, LAST_TEXT_EXCERPT_CAP)}…` : text,
+      };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The later of two timestamps, tolerating absent ones.
+ *
+ * @param {*} a The first timestamp; returned as-is when neither is finite.
+ * @param {*} b The second timestamp.
+ * @returns {*} The greater finite value, the only finite one, or `a`.
+ */
+function laterOf(a, b) {
+  const finite = [a, b].filter((value) => Number.isFinite(value));
+  return finite.length > 0 ? Math.max(...finite) : a;
+}
+
+/**
  * Build the `rp_status` ledger rows from opencode's live session records and
  * the plugin's own in-memory spawn ledger.
  *
  * @param {Array<{ id: string, agent: string, model: object, location?: {directory: string}, time?: {updated: *}, title?: string }>} sessionRecords
  *   Every session opencode currently knows about (`GET /api/session`).
  * @param {(sessionID: string) => { name: string, run: string, spawner: string } | undefined} lookup
- *   Resolves a session ID to its recorded ledger entry (see `lookupSpawn`).
- *   A record whose ID isn't found this way falls back to `parseTitle` on its
- *   `title`, so restart-surviving sessions are still recognized.
+ *   Resolves a session ID to its recorded ledger entry (see
+ *   `recognizeSession`).
  * @param {Set<string> | null} activeSessionIDs Session IDs opencode reports
  *   running now (see `isSessionActive`), or `null` when the read failed.
  * @param {(sessionID: string) => number} pendingCountFor Resolves a
@@ -1598,10 +1673,21 @@ function resolveRunningBuild(serviceRecord, readCliVersionFn) {
  * @param {(sessionID: string) => object | undefined} [currentToolForFn]
  *   Resolves a session's currently executing tool call (see
  *   `currentToolFor`); defaults to none.
- * @returns {Array<{name: string, sessionID: string, agent: string, model: string, directory: string, updated: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined}>}
+ * @param {{
+ *   lastEventAtFor?: (sessionID: string) => number | undefined,
+ *   turnsFor?: (sessionID: string) => { turns: number, lastTurn: object } | undefined,
+ *   lastSendFor?: (sessionID: string) => { at: number, to: string } | undefined,
+ *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | undefined,
+ * }} [observations] Resolvers for the plugin's own per-session observations
+ *   (see `lastSessionEventAt`, `turnsFor`, `lastSendFor`, `extractLastText`);
+ *   each defaults to none.
+ * @returns {Array<{name: string, sessionID: string, agent: string, model: string, directory: string, updated: *, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, turns: number | undefined, lastSend: object | undefined, lastText: object | undefined}>}
  *   One row per session record RP recognizes as its own, in `sessionRecords`
  *   order; records RP does not recognize (neither ledger nor `rp:` title)
- *   are omitted.
+ *   are omitted. `activity` is the later of the record's `updated` — which
+ *   the pinned build moves only when the session receives input — and the
+ *   session's last observed progress event, so it also covers tool and model
+ *   progress within a turn.
  */
 function buildLedgerRows(
   sessionRecords,
@@ -1610,24 +1696,37 @@ function buildLedgerRows(
   pendingCountFor,
   permissionsFor = () => [],
   currentToolForFn = () => undefined,
+  {
+    lastEventAtFor = () => undefined,
+    turnsFor: turnsForFn = () => undefined,
+    lastSendFor: lastSendForFn = () => undefined,
+    lastTextFor = () => undefined,
+  } = {},
 ) {
   const rows = [];
   for (const record of sessionRecords) {
-    const entry = lookup(record.id) ?? parseTitle(record.title ?? "");
+    const entry = recognizeSession(record, lookup);
     if (!entry) {
       continue;
     }
+    const updated = record.time?.updated;
+    const turnRecord = turnsForFn(record.id);
     rows.push({
       name: entry.name,
       sessionID: record.id,
       agent: record.agent,
       model: record.model ? formatModelString(record.model) : record.model,
       directory: record.location?.directory,
-      updated: record.time?.updated,
+      updated,
+      activity: laterOf(updated, lastEventAtFor(record.id)),
       running: activeSessionIDs?.has(record.id),
       pending: pendingCountFor(record.id),
       permissions: permissionsFor(record.id),
       currentTool: currentToolForFn(record.id),
+      lastTurn: turnRecord?.lastTurn,
+      turns: turnRecord?.turns,
+      lastSend: lastSendForFn(record.id),
+      lastText: lastTextFor(record.id),
     });
   }
   return rows;
@@ -1670,6 +1769,7 @@ async function buildStatusPayload({
   let activeIDs = null;
   const pendingCounts = new Map();
   const pendingPermissions = new Map();
+  const lastTexts = new Map();
 
   // A failed read must be reported, not rendered as "idle and healthy":
   // defaulting a failed active-set or permission read to empty is exactly how
@@ -1711,7 +1811,9 @@ async function buildStatusPayload({
     if (activeResponse) {
       activeIDs = new Set(Object.keys(activeResponse.body?.data ?? {}));
     }
-    for (const record of sessionRecords) {
+    // Per-session reads only for the sessions that become rows: the list
+    // spans every project the server knows.
+    for (const record of sessionRecords.filter((record) => recognizeSession(record, lookupSpawn))) {
       const inboxResponse = await readEndpoint("inbox", `/api/session/${record.id}/inbox`);
       if (inboxResponse) {
         pendingCounts.set(record.id, (inboxResponse.body?.data ?? []).length);
@@ -1730,6 +1832,13 @@ async function buildStatusPayload({
           })),
         );
       }
+      const messagesResponse = await readEndpoint(
+        "message",
+        `/api/session/${record.id}/message?limit=${LAST_TEXT_MESSAGE_LIMIT}`,
+      );
+      if (messagesResponse) {
+        lastTexts.set(record.id, extractLastText(messagesResponse.body?.data ?? []));
+      }
     }
   }
 
@@ -1740,6 +1849,12 @@ async function buildStatusPayload({
     (id) => pendingCounts.get(id),
     (id) => pendingPermissions.get(id),
     currentToolFor,
+    {
+      lastEventAtFor: lastSessionEventAt,
+      turnsFor,
+      lastSendFor,
+      lastTextFor: (id) => lastTexts.get(id),
+    },
   );
 
   return shapeStatus({
@@ -2042,7 +2157,8 @@ function recordSessionObservation(key, sessionID, at) {
  * Fetch a process-wide session-observation map, creating it on first use.
  *
  * @param {symbol} key The map's `globalThis` key.
- * @returns {Map<string, number>} Session ID to observation timestamp.
+ * @returns {Map<string, *>} Session ID to observation (a timestamp, or a
+ *   record carrying one).
  */
 function getSessionObservationMap(key) {
   if (!globalThis[key]) {
@@ -2399,6 +2515,54 @@ function formatStructuredError(error) {
   }
   const parts = [error?.type, error?.message].filter(Boolean);
   return parts.length > 0 ? parts.join(": ") : JSON.stringify(error);
+}
+
+/**
+ * `globalThis` key backing the per-session turn records.
+ *
+ * Stored on `globalThis` for the same re-import rationale as `LEDGER_KEY`.
+ */
+const SESSION_TURNS_KEY = Symbol.for("radical-pipelines.opencode.sessionTurns");
+
+/**
+ * Record a turn's end for its session from a terminal event.
+ *
+ * Fed by the plugin's event subscription. Every session is tracked — the
+ * ledger surfaces only the ones RP recognizes — and entries age out like the
+ * other session observations. Non-terminal events are ignored.
+ *
+ * @param {object} event An opencode event.
+ * @param {number} [at] Overrides the timestamp; defaults to the event's own
+ *   `created` time (falling back to `Date.now()` when absent).
+ * @returns {void}
+ */
+function recordTurnEnd(event, at) {
+  if (!isTerminalEvent(event)) {
+    return;
+  }
+  const sessionID = terminalEventSessionID(event);
+  if (typeof sessionID !== "string") {
+    return;
+  }
+  const endedAt = at ?? (Number.isFinite(event.created) ? event.created : Date.now());
+  const outcome = event.type === "session.execution.failed" ? "failed" : "succeeded";
+  const map = getSessionObservationMap(SESSION_TURNS_KEY);
+  const previous = map.get(sessionID);
+  map.delete(sessionID);
+  map.set(sessionID, { turns: (previous?.turns ?? 0) + 1, lastTurn: { endedAt, outcome } });
+  pruneSessionObservations(map, endedAt, (value) => value.lastTurn.endedAt);
+}
+
+/**
+ * Read a session's turn record.
+ *
+ * @param {string} sessionID The session to look up.
+ * @returns {{ turns: number, lastTurn: { endedAt: number, outcome: "succeeded" | "failed" } } | undefined}
+ *   The count of turns observed ending and the newest one, or `undefined`
+ *   when none has been observed (e.g. a fresh daemon).
+ */
+function turnsFor(sessionID) {
+  return getSessionObservationMap(SESSION_TURNS_KEY).get(sessionID);
 }
 
 /**
@@ -2859,6 +3023,42 @@ function currentToolFor(sessionID) {
 }
 
 /**
+ * `globalThis` key backing the per-session last-`rp_send` records.
+ *
+ * Stored on `globalThis` for the same re-import rationale as `LEDGER_KEY`.
+ */
+const SESSION_LAST_SEND_KEY = Symbol.for("radical-pipelines.opencode.sessionLastSend");
+
+/**
+ * Record a session's admitted `rp_send`.
+ *
+ * Every sender is tracked — the ledger surfaces only the ones RP recognizes
+ * — and entries age out like the other session observations.
+ *
+ * @param {string} sessionID The sending session.
+ * @param {string} to The recipient session ID.
+ * @param {number} at The admission timestamp.
+ * @returns {void}
+ */
+function recordSend(sessionID, to, at) {
+  const map = getSessionObservationMap(SESSION_LAST_SEND_KEY);
+  map.delete(sessionID);
+  map.set(sessionID, { at, to });
+  pruneSessionObservations(map, at, (value) => value.at);
+}
+
+/**
+ * Read a session's last admitted `rp_send`.
+ *
+ * @param {string} sessionID The session to look up.
+ * @returns {{ at: number, to: string } | undefined} The newest send, or
+ *   `undefined` when none has been observed (e.g. a fresh daemon).
+ */
+function lastSendFor(sessionID) {
+  return getSessionObservationMap(SESSION_LAST_SEND_KEY).get(sessionID);
+}
+
+/**
  * Absolute path to RP's own agent profile sources, resolved relative to this
  * module's location so it resolves correctly regardless of the process's
  * working directory.
@@ -3078,10 +3278,15 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     model: string,
  *     directory: string,
  *     updated: string | number,
+ *     activity: string | number,
  *     running?: boolean,
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
+ *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" } | undefined,
+ *     turns: number | undefined,
+ *     lastSend: { at: number, to: string } | undefined,
+ *     lastText: { at: number | undefined, excerpt: string } | undefined,
  *   }>,
  *   errorLog: Array<*>,
  *   loopTickLog?: Array<*>,
@@ -3089,11 +3294,11 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  * }} input The status payload's components. `pluginVersion` identifies the
  *   running plugin build; `pinComparison` is the result of comparing the
  *   running opencode build against the pin; `ledgerEntries` is one row per
- *   live spawn; `errorLog` and `loopTickLog` are bounded recent-event rings;
- *   `readFailures` lists the server reads that failed while gathering the
- *   ledger — a non-empty list means the ledger's
- *   `running`/`pending`/`permissions` fields are incomplete, not that the
- *   sessions are idle.
+ *   live spawn (see `buildLedgerRows`); `errorLog` and `loopTickLog` are
+ *   bounded recent-event rings; `readFailures` lists the server reads that
+ *   failed while gathering the ledger — a non-empty list means the ledger's
+ *   `running`/`pending`/`permissions`/`lastText` fields are incomplete, not
+ *   that the sessions are idle.
  * @returns {{
  *   pluginVersion: string,
  *   pin: "match" | "outside the verified surface" | "not determinable",
@@ -3104,10 +3309,15 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     model: string,
  *     directory: string,
  *     updated: string | number,
+ *     activity: string | number,
  *     running?: boolean,
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
+ *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" } | undefined,
+ *     turns: number | undefined,
+ *     lastSend: { at: number, to: string } | undefined,
+ *     lastText: { at: number | undefined, excerpt: string } | undefined,
  *   }>,
  *   recentErrors: Array<*>,
  *   recentLoopTicks: Array<*>,
@@ -3132,10 +3342,15 @@ function shapeStatus({
       model: entry.model,
       directory: entry.directory,
       updated: entry.updated,
+      activity: entry.activity,
       running: entry.running,
       pending: entry.pending,
       permissions: entry.permissions,
       currentTool: entry.currentTool,
+      lastTurn: entry.lastTurn,
+      turns: entry.turns,
+      lastSend: entry.lastSend,
+      lastText: entry.lastText,
     })),
     recentErrors: errorLog,
     recentLoopTicks: loopTickLog,
@@ -3520,12 +3735,14 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
  *   env?: Record<string, string | undefined>,
  *   readServiceRecordOverride?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ *   now?: () => number,
  * }} [deps] `env`/`readServiceRecordOverride` reach `resolveServer`;
- *   `requestFn` reaches the HTTP client.
+ *   `requestFn` reaches the HTTP client; `now` stamps the sender's
+ *   `lastSend` record and defaults to `Date.now`.
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requestFn } = {}) {
+function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requestFn, now = Date.now } = {}) {
   return {
     name: "rp_send",
     description:
@@ -3553,6 +3770,9 @@ function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requ
         }
         throw error;
       }
+      // Admission, not receipt: the record answers "has this session
+      // messaged anyone, and whom", which is what an idle row lacks.
+      recordSend(toolCtx.sessionID, to, now());
 
       // Best-effort target-state reads: each field is included only when its
       // read succeeds, so a failed read is absent rather than a fabricated
@@ -3963,6 +4183,7 @@ function setup(ctx, deps = {}) {
       async (event) => {
         recordSessionEventActivity(event);
         onToolEvent(event);
+        recordTurnEnd(event);
         await onPermissionAsked(event, {
           ctx,
           env,
@@ -4039,6 +4260,7 @@ export {
   currentToolFor,
   deleteLoopEntry,
   disarmLoopTimer,
+  extractLastText,
   formatAttribution,
   formatModelString,
   formatPermissionForward,
@@ -4054,6 +4276,7 @@ export {
   isSessionNotFoundError,
   isTerminalEvent,
   lastRawSessionProgressAt,
+  lastSendFor,
   lastSessionEventAt,
   lastTargetInterruptAt,
   listLoopEntries,
@@ -4075,9 +4298,11 @@ export {
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
+  recordSend,
   recordSessionEventActivity,
   recordSpawn,
   recordTargetInterrupt,
+  recordTurnEnd,
   redirectTargets,
   replyToPermission,
   requestServer,
@@ -4096,5 +4321,6 @@ export {
   terminalEventSessionID,
   toToolResult,
   toolTarget,
+  turnsFor,
   withTargetInterruptLock,
 };

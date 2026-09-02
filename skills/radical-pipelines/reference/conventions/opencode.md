@@ -22,7 +22,7 @@ A read outside a session's worktree raises a permission request that blocks the 
 - **Start:** `rp_loop_start` with the interval and the monitor prompt from `reference/health-monitoring.md`; target defaults to the calling session. Ticks fire when idle and steer after two intervals without activity.
 - **List active loops:** `rp_loop_list`.
 - **Cancel:** `rp_loop_cancel` with the loop id.
-- **Status:** `rp_status` reports each spawned session's running state, current tool, pending permission requests, and recent health-loop ticks; a session with a pending request is blocked awaiting adjudication, not stalled.
+- **Status:** `rp_status` reports each spawned session's running state, current tool, pending permission requests, and recent health-loop ticks, plus its `activity` (latest input, tool, or model progress; `updated` moves only on input), `lastTurn` and `turns`, `lastSend` (last message and recipient), and `lastText` (newest assistant text); a session with a pending request is blocked awaiting adjudication, not stalled.
 ```
 
 **Agent models** values are opencode-native `provider/model[#variant]` strings.

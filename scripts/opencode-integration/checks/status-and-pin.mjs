@@ -1,8 +1,8 @@
 /**
- * rp_status's version and pin-comparison surface, and the suite's own pin
- * assertion: the suite reads the running build directly via
- * `opencode2 --version` (the same XDG-isolated invocation the harness uses
- * everywhere) and asserts it equals `opencode/pin.json`'s `cli`.
+ * rp_status's version and pin-comparison surface, its ledger rows' liveness
+ * facts, and the suite's own pin assertion: the suite reads the running build
+ * directly via `opencode2 --version` (the same XDG-isolated invocation the
+ * harness uses everywhere) and asserts it equals `opencode/pin.json`'s `cli`.
  */
 
 import assert from "node:assert/strict";
@@ -11,7 +11,8 @@ import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { runCheck } from "../lib/check-runner.mjs";
-import { createSession, driveToolCall, getSession } from "../lib/api-client.mjs";
+import { createSession, driveToolCall, getSession, waitForIdle } from "../lib/api-client.mjs";
+import { PLAIN_REPLY_TEXT } from "../lib/stub-provider.mjs";
 
 const execFileAsync = promisify(execFile);
 const STUB_MODEL = { providerID: "stub", id: "stub-model" };
@@ -72,6 +73,45 @@ export async function run(ctx) {
     assert.equal(row.name, "status-check-child");
     assert.equal(row.agent, "spec-researcher");
     assert.equal(row.directory, projectDir);
+  });
+
+  await runCheck(results, "rp_status's ledger row carries the child's liveness facts: activity, last turn, newest text, last send", async () => {
+    const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
+    const spawnResult = await driveToolCall(
+      server,
+      orchestrator.id,
+      `return await tools.rp_spawn({name:"liveness-check-child", agent:"spec-researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"liveness-check-run"});`,
+    );
+    const childID = spawnResult.text;
+    await pollForTitle(server, childID, "rp:liveness-check-run:liveness-check-child");
+    // The child's plain first turn has ended (the title is asserted on its
+    // first terminal event); it has messaged nobody yet.
+    await waitForIdle(server, childID);
+
+    const idle = JSON.parse((await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`)).text);
+    const idleRow = idle.ledger.find((r) => r.sessionID === childID);
+    assert.ok(idleRow, `expected rp_status's ledger to include the spawned child ${childID}`);
+    assert.equal(idleRow.running, false);
+    assert.equal(idleRow.lastTurn?.outcome, "succeeded", `expected a succeeded last turn, got: ${JSON.stringify(idleRow.lastTurn)}`);
+    assert.ok(idleRow.turns >= 1, `expected at least one ended turn, got: ${idleRow.turns}`);
+    assert.ok(Number.isFinite(idleRow.lastTurn.endedAt));
+    assert.ok(
+      idleRow.activity >= idleRow.updated,
+      `expected activity (${idleRow.activity}) to be no earlier than updated (${idleRow.updated})`,
+    );
+    assert.equal(idleRow.lastText?.excerpt, PLAIN_REPLY_TEXT, `expected the newest assistant text, got: ${JSON.stringify(idleRow.lastText)}`);
+    assert.ok(Number.isFinite(idleRow.lastText.at));
+    assert.equal(idleRow.lastSend, undefined, "a child that has messaged nobody carries no lastSend");
+
+    // The child reports to its spawner: the row records the admitted send.
+    await driveToolCall(server, childID, `return await tools.rp_send({to:${JSON.stringify(orchestrator.id)}, message:"Completion declared."});`);
+    await waitForIdle(server, childID);
+
+    const reported = JSON.parse((await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`)).text);
+    const reportedRow = reported.ledger.find((r) => r.sessionID === childID);
+    assert.equal(reportedRow.lastSend?.to, orchestrator.id, `expected lastSend to name the spawner, got: ${JSON.stringify(reportedRow.lastSend)}`);
+    assert.ok(Number.isFinite(reportedRow.lastSend.at));
+    assert.ok(reportedRow.turns > idleRow.turns, "the reporting turn ended too");
   });
 }
 
