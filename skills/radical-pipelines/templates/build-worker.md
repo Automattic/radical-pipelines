@@ -23,3 +23,8 @@ Fill every slot. The headings reach the agent verbatim.
 - Spec: <path to spec.md>
 - Design doc: <path to design-doc.md>
 - Plan: <path to build-plan.md>
+
+## Write your report to
+
+<path, e.g. `…/3-build/tasks/task-T5-2.md`> — the filename encodes the task and the
+attempt; never derive it yourself.

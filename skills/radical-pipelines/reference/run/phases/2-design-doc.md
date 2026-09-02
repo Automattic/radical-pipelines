@@ -6,7 +6,7 @@ The phase's specifics; the machine is `../loop.md`.
 
 `2-design-doc/design-doc.md` and `2-design-doc/design-doc-research.md` — produced together, reviewed together (`design-doc-research.md` is the artifact under review; `design-doc.md` is checked for fidelity to it). Reviews land in `2-design-doc/` as `design-doc-review-…`.
 
-Pins: the design artifacts pin `0-intent/intent.md`, `1-spec/spec.md`, and `1-spec/spec-research.md`.
+Pins per `../state.md`: `design-doc.md` pins the intent, `spec.md`, and absorbed amendments; the record carries none.
 
 ## Profiles
 
@@ -16,7 +16,7 @@ Pins: the design artifacts pin `0-intent/intent.md`, `1-spec/spec.md`, and `1-sp
 
 ## Register duty
 
-The design doc accounts for every open assumption in the spec's register: closed by reading (with citation) or carried into its own register. The reviewer checks the accounting.
+The design doc accounts for every open assumption in `spec.md`'s register: closed by reading (with citation) or carried into its own register. The reviewer checks the accounting.
 
 ## Production lanes
 

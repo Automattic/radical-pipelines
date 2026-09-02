@@ -6,11 +6,13 @@ The machine that runs a pipeline. Enter from triage with the route taken and the
 
 Repeat until the frontier is empty:
 
-1. **Check.** Walk phases 1 → the target phase and compute the frontier — the first thing that is missing, stale, or unapproved. Within a phase the order is: the artifact, then its reviews, then (build/document) its tasks.
+1. **Check.** Walk phases 1 → the target phase and compute the frontier — the first thing that is pending, missing, stale, or unapproved. Within a phase the order is: pending triggers at the artifact, then the artifact, then its reviews, then (build/document) its tasks.
 2. **Dispatch** on what the frontier is:
+   - **A pending trigger** → producer, mode Adjudicate, with the trigger as material.
    - **Artifact missing** → producer, mode Synthesize.
-   - **Artifact stale** → producer, mode Synthesize with **Input changes** (the upstream diff and the amendment record). If the producer concludes no edit is needed, apply stamp propagation instead of a new revision.
-   - **A claim or findings await adjudication** → producer, mode Adjudicate.
+   - **Artifact stale** → producer, mode Synthesize with **Input changes** (the upstream diff and any amendment record). If the producer concludes no edit is needed, apply stamp propagation instead of a new revision.
+   - **Latest wave rejected and nothing landed since** → producer, mode Adjudicate, with the wave's review files.
+   - **A claim refuted upstream** (the target re-approved with `adjudicates`) → the claimant's producer, mode Adjudicate, with the refutation.
    - **Approvals missing or stale** → a review wave.
    - **Plan fresh, tasks remain** (build/document) → workers, per the phase file.
    - **Complete through the target phase** → `close-out.md`.
@@ -20,7 +22,7 @@ A fresh session recovers by running step 1 — there is no other resume procedur
 
 ## Dispatching
 
-Fill the profile's template in `../../templates/` — the filled prompt is everything the agent knows beyond its profile. You compute every derived value (paths, lane ids, iteration numbers, output filenames). Spawn, seat, and address agents per the Agent spawning convention; prepare each worktree at the commit the dispatch must see. Terminate agents when their work ends.
+Fill the profile's template in `../../templates/` — the filled prompt is everything the agent knows beyond its profile. You compute every derived value (paths, lane ids, iteration numbers, attempt numbers, output filenames). Spawn, seat, and address agents per the Agent spawning convention; prepare each worktree at the commit the dispatch must see. Terminate agents when their work ends.
 
 Serve **research requests** by spawning a fresh `researcher` per question with its template; it answers the requester directly. Serve a **blocker** by fixing what it names — re-prepare the materials or the seat and re-dispatch; a broken environment you cannot fix is reported to the owner.
 
@@ -28,27 +30,27 @@ Serve **research requests** by spawning a fresh `researcher` per question with i
 
 One wave at a time per artifact; the artifact is frozen while its wave is out.
 
-1. The run policy declares the lanes — `(model, charter)` pairs; default: one full-scope lane. Dispatch each reviewer (mode Fresh, Consolidation, or Delta per the situation) with its computed output path, named per `state.md`. A single-lane wave runs directly on the pipeline's worktree and branch. Only a multi-lane wave gets one throwaway branch and worktree per lane, all at the current commit — the isolation exists so lanes cannot see each other's output.
-2. Collect all lanes; on a multi-lane wave, merge the lane branches — disjoint files, mechanical. Stamp each review's `reviewed` pins.
+1. The run policy declares the lanes — `(model, charter)` pairs; default: one full-scope lane. Dispatch each reviewer (mode Fresh, Consolidation, or Delta — Delta whenever the lane has reviewed this artifact before) with its computed output path, named per `state.md`. A single-lane wave runs directly on the pipeline's worktree and branch. Only a multi-lane wave gets one throwaway branch and worktree per lane, all at the current commit — the isolation exists so lanes cannot see each other's output.
+2. Collect all lanes; on a multi-lane wave, merge the lane branches — disjoint files, mechanical. Stamp each review.
 3. **All approved** → the artifact is approved; continue.
-4. **Any rejection** → dispatch a fresh producer, mode Adjudicate, with every review file of the wave. Its landing starts the next wave: every lane re-reviews delta-scoped (mode Delta). Unanimity on the current blobs is required — there is no accepted staleness.
+4. **Any rejection** → dispatch a fresh producer, mode Adjudicate, with every review file of the wave. Its landing starts the next wave: every lane re-reviews delta-scoped. Unanimity on the current blobs is required — there is no accepted staleness.
 
 ## Escalation
 
-After **every** rejection wave, check two signals:
+After **every** rejection wave, read two mechanical signals from the stamps:
 
 - an `unsatisfiable` verdict among the lanes;
-- the same root cause recurring across consecutive waves.
+- a `recurs` mark — the reviewer found a prior finding's resolution failed.
 
-Either opens an **inspection** — a decision point; judgment is allowed:
+Either opens an **inspection** — a decision point; judgment is allowed. Read what you need and decide:
 
 - **The claim stands** (per `state.md`, and the record carries the evidence): route it. The target is always among the declaring artifact's direct inputs; exhaustion claims climb one layer at a time. Write the amendment record per `../entries/intent-format.md`, stamp it, and let the loop cascade — the target's wave adjudicates the claim (its producer's Amendment judgment; its reviewers corroborate or defeat).
-- **The target clause rests on the intent or a recorded owner statement** and the target's wave grants the claim → **owner escalation**: pause, present the full dossier, record the answer verbatim and attributed `owner`, open the amendment that implements it, resume.
-- **No evidence in the record** → commission a research request, or let the loop continue if it is progressing.
+- **The target clause is the intent or a recorded owner statement** and the target's wave grants the claim (`unsatisfiable` targeting the statement's home) → **owner escalation**: pause, present the full dossier, record the answer verbatim and attributed `owner` in an amendment record, resume.
+- **Recurrence without a certified claim** → judge whether the loop is converging: commission a research request, let it continue, or stop it under the valve.
 
 You never originate verdicts or open amendments on your own initiative — claims are certified by agent pairs; you route them.
 
-**Valve:** when an artifact's wave counter reaches the non-convergence threshold (Policy defaults; default 6) and the pair has certified nothing, stop the run and report the pattern to the owner.
+**Valve:** when an artifact's waves since its last approval reach the non-convergence threshold (Policy defaults) and the pair has certified nothing, stop the run and report the pattern to the owner.
 
 ## Conduct
 

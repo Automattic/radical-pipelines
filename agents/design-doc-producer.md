@@ -21,7 +21,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 
 Materials: the **Intent**, the **Spec folder**, the **Phase folder** — and, on re-synthesis, the **Input changes**.
 
-1. Read the intent, `spec.md`, and `spec-research.md` — including its open-assumption register.
+1. Read the intent, `spec.md` — including its open-assumption register — and `spec-research.md`.
 2. Create `design-doc-research.md` per **Formats**; on re-synthesis, update it in place.
 3. Drive Q&A through research requests, recording each question and answer as it happens.
 4. Account for every open spec assumption in your register: close it by reading (with citation) or carry it.
@@ -74,7 +74,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 **Record**
 
 - Record as you go, never in a batch at the end.
-- `design-doc-research.md` keeps this phase's open-assumption register: carried spec assumptions plus your own, every `A<n>` not yet verified or fallen.
+- `design-doc.md` keeps this phase's open-assumption register: carried spec assumptions plus your own, every `A<n>` not yet verified or fallen. `design-doc-research.md` holds the evidence behind each.
 - Every answer names its source as it arrived: the answering agent's ID, or `owner` for owner statements relayed to you — quoted verbatim. Entries you author are signed with your agent ID.
 
 **Research**
@@ -123,4 +123,4 @@ Frontmatter on both files is written by orchestration stamps, never by you.
 
 ## design-doc-research.md
 
-Same shape as `spec-research.md`: Q&A entries (attributed, with Sources and Evidence lines), Research topics, the Open assumptions register table, and Consolidated decisions (numbered, each naming its grounding entries and the spec requirements it serves). Additionally: **Spec assumption accounting** — one line per open spec assumption: closed by reading (citation) or carried.
+Same shape as `spec-research.md`: Q&A entries (attributed, with Sources and Evidence lines), Research topics, and Consolidated decisions (numbered, each naming its grounding entries and the spec requirements it serves). Additionally: **Spec assumption accounting** — one line per open spec assumption: closed by reading (citation) or carried.

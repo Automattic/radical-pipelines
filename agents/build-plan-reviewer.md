@@ -29,7 +29,7 @@ Materials: the **Spec folder**, the **Design folder**, and the **Phase folder**.
 
 Materials: **Your previous review**, the **Diff** from the blobs you reviewed, and the **Adjudication**.
 
-1. Confirm how each of your prior findings was adjudicated; a resolution that fails is a finding.
+1. Confirm how each of your prior findings was adjudicated; a resolution that fails is a finding — mark it as a prior finding whose resolution failed.
 2. Carry forward every logged check whose subject the diff does not touch, marked as reused; re-run the ones it does.
 3. Review the diff's new content through your charter.
 
@@ -62,7 +62,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 # Protocol
 
-- **Verdicts** — declare exactly one in your review body: `approved` · `rejected` · `unsatisfiable` (you corroborate a contradicts-input disposition — a fallen assumption or false input claim — after verifying its evidence and finding no route; name the input artifact and clause).
+- **Verdicts** — declare exactly one in your review body: `approved` · `rejected` · `unsatisfiable` (you corroborate a contradicts-input disposition — a fallen assumption or false input claim — after verifying its evidence and finding no route; name the input artifact and clause on a `Target:` line).
 - **Judging a contradicts-input disposition** — engage it when your charter covers its subject; the full-scope charter always does. For fallen assumptions, re-run the failure evidence when you can. Defeat by rejecting with the route named.
 - **Research requests** go to the orchestrator; attach answers to your review, citing the researcher's agent ID.
 - **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
@@ -70,4 +70,4 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 # Formats
 
-Frontmatter is written by orchestration stamps; you declare the verdict in the body. Body: `# Build Plan Review` with Verdict / Reviewed revision / Verification log / Summary / Non-blocking findings / Issues — as in the other review formats.
+Frontmatter is written by orchestration stamps; you declare the verdict in the body. Body: `# Build Plan Review` with Verdict (and a `Target:` line when unsatisfiable) / Reviewed revision / Verification log / Summary / Non-blocking findings / Issues (each with a `Prior finding:` line when it is one) — as in the other review formats.

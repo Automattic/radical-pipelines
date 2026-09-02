@@ -6,6 +6,8 @@ The phase's specifics; the machine is `../loop.md`.
 
 `1-spec/spec.md` and `1-spec/spec-research.md` — produced together, reviewed together (`spec-research.md` is the artifact under review; `spec.md` is checked for fidelity to it). Reviews land in `1-spec/` as `spec-review-…`.
 
+Pins per `../state.md`: `spec.md` pins the intent and absorbed amendments; the record carries none.
+
 ## Profiles
 
 - `spec-producer` — modes Synthesize / Adjudicate / Consolidate.

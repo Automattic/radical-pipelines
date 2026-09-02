@@ -78,6 +78,19 @@ function readDoc(abs) {
   return parseFrontmatter(readFileSync(abs, "utf8"));
 }
 
+
+// The pipeline folder is the nearest ancestor of `file` that contains `0-intent`.
+function pipelineFolder(root, file) {
+  let dir = resolve(file, "..");
+  while (dir.startsWith(root)) {
+    if (existsSync(join(dir, "0-intent"))) return dir;
+    const up = resolve(dir, "..");
+    if (up === dir) break;
+    dir = up;
+  }
+  die(`cannot locate the pipeline folder (no 0-intent ancestor) for ${relative(root, file)}`);
+}
+
 // --- stamp ------------------------------------------------------------------
 
 function cmdStamp(args) {
@@ -89,11 +102,12 @@ function cmdStamp(args) {
   const { data, body } = readDoc(abs);
   const fm = data ?? new Map();
 
+  const base = pipelineFolder(root, abs);
   const pinList = (paths) =>
     paths.map((p) => {
-      const rel = relative(root, resolve(root, p));
-      const sha = blob(root, rel) ?? die(`stamp: cannot pin missing file: ${rel}`);
-      return `${rel}@${sha}`;
+      const target = resolve(root, p);
+      const sha = blob(root, relative(root, target)) ?? die(`stamp: cannot pin missing file: ${p}`);
+      return `${relative(base, target)}@${sha}`;
     });
 
   if (args.pin.length) fm.set("pins", pinList(args.pin));
@@ -111,12 +125,12 @@ function cmdStamp(args) {
 
 // --- check ------------------------------------------------------------------
 
-function pinState(root, entry) {
+function pinState(root, entry, base = root) {
   const at = entry.lastIndexOf("@");
   if (at === -1) return { entry, state: "malformed" };
   const path = entry.slice(0, at);
   const pinned = entry.slice(at + 1).split("#")[0];
-  const current = blob(root, path);
+  const current = blob(root, relative(root, resolve(base, path)));
   if (current === null) return { entry, state: "target-missing" };
   return { entry, state: current.startsWith(pinned) || pinned.startsWith(current) ? "fresh" : "stale" };
 }
@@ -131,15 +145,32 @@ function walk(dir) {
   return out;
 }
 
+function codeUnchangedSince(root, head, pipelinesRoot) {
+  try {
+    execFileSync("git", ["diff", "--quiet", head, "HEAD", "--", ".", `:(exclude)${pipelinesRoot}`], {
+      cwd: root,
+      stdio: "ignore",
+    });
+    return "fresh";
+  } catch (e) {
+    return e.status === 1 ? "STALE (code changed since head)" : "head-missing";
+  }
+}
+
 function cmdCheck(args) {
   const root = repoRoot();
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const abs = resolve(root, folder);
   if (!existsSync(abs)) die(`check: no such folder: ${folder}`);
+  const pipelineRel = relative(root, abs);
+  const pipelinesRoot = pipelineRel.split("/").slice(0, -1).join("/") || ".";
 
   const files = walk(abs).sort();
   const reviews = [];
+  const triggers = [];
+  const tasks = new Map(); // task id -> latest attempt report
   const lines = [];
+  const pinnedPaths = new Set();
 
   for (const f of files) {
     const rel = relative(root, f);
@@ -148,6 +179,17 @@ function cmdCheck(args) {
 
     if (/-review-/.test(name)) {
       reviews.push({ rel, name, data });
+      continue;
+    }
+    if (/^amendment-\d+\.md$/.test(name)) {
+      triggers.push({ rel, kind: "amendment", data });
+      continue;
+    }
+    if (/^task-.+-\d+\.md$/.test(name) && rel.includes("/tasks/")) {
+      const id = data?.get("task") ?? name.replace(/^task-(.+)-\d+\.md$/, "$1");
+      const attempt = Number(data?.get("attempt") ?? name.match(/-(\d+)\.md$/)[1]);
+      const prev = tasks.get(id);
+      if (!prev || prev.attempt < attempt) tasks.set(id, { rel, attempt, outcome: data?.get("outcome") ?? "UNSTAMPED", data });
       continue;
     }
 
@@ -160,7 +202,8 @@ function cmdCheck(args) {
       lines.push(`  ${rel}  stamped · no pins`);
       continue;
     }
-    const states = pins.map((p) => pinState(root, p));
+    for (const p of pins) pinnedPaths.add(p.slice(0, p.lastIndexOf("@")));
+    const states = pins.map((p) => pinState(root, p, abs));
     const bad = states.filter((s) => s.state !== "fresh");
     lines.push(
       bad.length === 0
@@ -169,7 +212,26 @@ function cmdCheck(args) {
     );
   }
 
-  process.stdout.write(`${relative(root, abs)}\n${lines.join("\n")}\n`);
+  for (const t of tasks.values()) {
+    if (t.outcome === "failed") triggers.push({ rel: t.rel, kind: "failed task", data: t.data });
+  }
+
+  process.stdout.write(`${pipelineRel}\n${lines.join("\n")}\n`);
+
+  if (triggers.length) {
+    process.stdout.write("triggers:\n");
+    for (const t of triggers) {
+      const target = t.data?.get("target") ?? "?";
+      const absorbed = pinnedPaths.has(relative(abs, resolve(root, t.rel)));
+      process.stdout.write(`  ${t.rel}  ${t.kind}  → ${target}  ${absorbed ? "absorbed" : "PENDING"}\n`);
+    }
+  }
+
+  if (tasks.size) {
+    const done = [...tasks.entries()].filter(([, t]) => t.outcome === "completed").map(([id]) => id);
+    const open = [...tasks.entries()].filter(([, t]) => t.outcome !== "completed").map(([id, t]) => `${id} (${t.outcome})`);
+    process.stdout.write(`tasks: done-set [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}\n`);
+  }
 
   if (reviews.length) {
     process.stdout.write("reviews:\n");
@@ -187,13 +249,21 @@ function cmdCheck(args) {
       const lane = d.get("lane") ?? "—";
       const iter = d.get("iteration") ?? "?";
       const reviewed = Array.isArray(d.get("reviewed")) ? d.get("reviewed") : [];
-      const states = reviewed.map((p) => pinState(root, p));
-      const fresh = states.length > 0 && states.every((s) => s.state === "fresh");
+      const states = reviewed.map((p) => pinState(root, p, abs));
+      let fresh = states.length > 0 && states.every((s) => s.state === "fresh");
       let extra = "";
+      if (d.get("head")) {
+        const code = codeUnchangedSince(root, d.get("head"), pipelinesRoot);
+        if (code !== "fresh") {
+          fresh = false;
+          extra += `  ${code}`;
+        }
+      }
+      if (d.get("recurs")) extra += `  recurs: ${[].concat(d.get("recurs")).join(", ")}`;
       if (verdict === "unsatisfiable") {
         const target = d.get("target");
         if (target) {
-          const t = pinState(root, target);
+          const t = pinState(root, target, abs);
           extra = t.state === "fresh" ? `  → PENDING against ${target}` : `  → superseded (target changed)`;
         }
       }

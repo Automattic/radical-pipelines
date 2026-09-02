@@ -9,7 +9,7 @@ flowchart TD
     F -->|artifact missing| PM[dispatch producer<br/>per phase runbook + mode]
     F -->|artifact stale| PS[dispatch producer with delta package:<br/>diff, amendment intent, current artifact]
     F -->|approvals missing or stale| RW[[review-wave]]
-    F -->|plan fresh, tasks remain| W[dispatch workers: plan − done-set,<br/>respect dependencies,<br/>commits carry task trailers]
+    F -->|plan fresh, tasks remain| W[dispatch workers: plan − done-set,<br/>respect dependencies,<br/>each attempt writes a task report]
     F -->|wave counter ≥ threshold<br/>on one artifact| NC[non-convergence inspection]
 
     PS --> NE{edit needed?}

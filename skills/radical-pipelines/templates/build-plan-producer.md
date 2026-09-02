@@ -26,12 +26,13 @@ messages to you are addressed by it.
 - Design folder: <path>
 - Phase folder: <path>
 - Input changes: <amendment file path; upstream diff refs>                 <!-- re-synthesis only -->
-- Done tasks: <task ids already completed, from trailers>                  <!-- re-synthesis only -->
+- Done tasks: <task ids whose latest report is completed>                   <!-- re-synthesis only -->
 
-<!-- Adjudicate -->
+<!-- Adjudicate — exactly one of: -->
 - Review lanes: <one line per review file: lane id — path>
-- Amendment: <amendment path; unsatisfiable verdict path; evidence refs>   <!-- claim judgment only -->
-- Task failures: <one line per failure: task id — report/evidence refs>
+- Amendment: <amendment path; unsatisfiable verdict path; evidence refs>
+- Refutation: <the upstream review with `adjudicates`; the record entries it cites>
+- Task report: <path of the failed report>
 
 ## Owner statements
 

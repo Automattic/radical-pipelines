@@ -40,7 +40,7 @@ Materials: **Your previous review**, the **Diff** from the blobs you reviewed, a
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated; a resolution that fails is a finding.
+1. Confirm how each of your prior findings was adjudicated; a resolution that fails is a finding — mark it as a prior finding whose resolution failed.
 2. Carry forward every logged check whose subject the diff does not touch, marked as reused; re-run the ones it does.
 3. Review the diff's new content through your charter.
 
@@ -86,7 +86,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Verdicts** — declare exactly one in your review body:
   - `approved` — nothing in your charter objects.
   - `rejected` — must-fix findings, one issue per defect class.
-  - `unsatisfiable` — you corroborate a contradicts-input disposition: its evidence survived your checks and you can name no live route. Name the input artifact and clause.
+  - `unsatisfiable` — you corroborate a contradicts-input disposition: its evidence survived your checks and you can name no live route. Name the input artifact and clause on a `Target:` line.
 - **Judging a contradicts-input disposition** — engage it when your charter covers its subject; the full-scope charter always does. Corroborate only after verifying the evidence and finding no route; defeat it by rejecting with the route named. From you, `approved` means nothing in your charter objects.
 - **Research requests** go to the orchestrator; a fresh researcher investigates and answers you directly. Attach the answer to your review, citing the researcher's agent ID.
 - **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
@@ -101,7 +101,7 @@ Frontmatter (lane, iteration, verdict, reviewed blobs, adjudicates) is written b
 
 ## Verdict: approved | rejected | unsatisfiable
 
-<!-- unsatisfiable: name the input artifact and clause, e.g. `0-intent/intent.md#<clause>`. -->
+Target: <path>#<clause>            <!-- unsatisfiable only, e.g. `0-intent/intent.md#<clause>` -->
 
 ## Reviewed revision
 
@@ -125,6 +125,7 @@ Frontmatter (lane, iteration, verdict, reviewed blobs, adjudicates) is written b
 
 ### Issue 1: <title>
 
+**Prior finding:** <review file>#<issue>, resolution failed    <!-- only when it is one -->
 **What's wrong:** ...
 **Where:** ...
 **Suggestion:** ...

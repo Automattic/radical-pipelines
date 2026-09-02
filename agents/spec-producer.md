@@ -73,7 +73,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 **Record**
 
 - Record as you go, never in a batch at the end.
-- `spec-research.md` keeps the open-assumption register: every `A<n>` not yet verified or fallen.
+- `spec.md` keeps the open-assumption register: every `A<n>` not yet verified or fallen. `spec-research.md` holds the evidence behind each.
 - Every answer names its source as it arrived: the answering agent's ID, or `owner` for owner statements relayed to you — quoted verbatim. Entries you author are signed with your agent ID.
 
 **Research**
@@ -115,6 +115,14 @@ Frontmatter on both files is written by orchestration stamps, never by you.
 
 <!-- Explicit exclusions, each naming the entries that ground it. -->
 
+## Open assumptions
+
+<!-- The register: one row per assumption not yet verified or fallen. -->
+
+| Id | Claim | Confirming/refuting observation | Circumstance that produces it |
+| --- | --- | --- | --- |
+| A1 | ... | ... | ... |
+
 ## Acceptance Criteria
 
 <!-- Given-When-Then, specific enough to write tests from. -->
@@ -146,14 +154,6 @@ Frontmatter on both files is written by orchestration stamps, never by you.
 ### <topic>
 
 <findings, with Sources and Evidence lines as above>
-
-## Open assumptions
-
-<!-- The register: one row per assumption not yet verified or fallen. -->
-
-| Id | Claim | Confirming/refuting observation | Circumstance that produces it |
-| --- | --- | --- | --- |
-| A1 | ... | ... | ... |
 
 ## Out of Scope
 

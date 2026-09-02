@@ -28,11 +28,12 @@ reach the agent verbatim.
 - Spec folder: <path>
 - Design folder: <path>
 - Phase folder: <path>
-- Diff: <commit range of the build's task work>
+- Diff: <code commits since the plan landed>
 
 <!-- Delta -->
 - Your previous review: <path>
-- Diff: <commits since it>
+- Diff: <code commits since it>
+- Task reports: <new reports since it>
 - Adjudication: <record sections / re-dispatched task ids responding to your findings>
 
 ## Write your review to
