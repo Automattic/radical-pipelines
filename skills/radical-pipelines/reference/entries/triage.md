@@ -46,7 +46,7 @@ Mode (autonomous or assisted), target phase, review lanes and charters, escalati
 
 **Amendment:**
 
-1. On the pipeline's branch (or a new branch from main when it is merged), write `0-intent/<n>-amendment.md` per the intent format — Origin carries the trigger verbatim.
+1. On the pipeline's branch (or a new branch from main when it is merged), write `0-intent/amendment-<n>.md` per the intent format — Origin carries the trigger verbatim.
 2. Stamp `amends` and `origin`; commit.
 
 ## 6. Hand off
