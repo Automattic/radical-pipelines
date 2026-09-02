@@ -13,6 +13,7 @@ import plugin, {
   buildLedgerRows,
   buildStatusPayload,
   disarmLoopTimer,
+  extractLastText,
   formatStructuredError,
   getSessionInbox,
   getSessionMessages,
@@ -23,6 +24,7 @@ import plugin, {
   isSessionNotFoundError,
   isTerminalEvent,
   lastRawSessionProgressAt,
+  lastSendFor,
   lastSessionEventAt,
   lookupSpawn,
   observeHttpResponse,
@@ -32,9 +34,11 @@ import plugin, {
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
+  recordSend,
   recordSessionEventActivity,
   readServiceRecordFile,
   recordSpawn,
+  recordTurnEnd,
   requestServer,
   resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
@@ -47,6 +51,7 @@ import plugin, {
   withTargetInterruptLock,
   terminalEventSessionID,
   toToolResult,
+  turnsFor,
 } from "../../../opencode/plugin.mjs";
 
 /** Well-known globalThis symbols the module keys its singletons under. */
@@ -440,6 +445,23 @@ describe("rp_spawn", () => {
     assert.match(initialPrompt.text, /for what your profile addresses to your requester/);
   });
 
+  test("the appended protocol tells the agent an ended turn is a stop and to hold its turn while work is outstanding", () => {
+    const result = appendSpawnProtocol("begin", "ses_orchestrator");
+
+    // A session outlives its turn: an agent that ends its turn to "wait" for
+    // detached work is parked until a message arrives — observed live. A
+    // managed background command's completion does arrive as such a message
+    // (verified against the pinned build), but only if the command finishes:
+    // background commands carry no timeout by default.
+    assert.match(result, /## RP turns \(opencode\)/);
+    assert.match(result, /Ending your turn is a stop: only a message resumes this session/);
+    assert.match(result, /a reply you await, or the completion notice of a background command you gave a `timeout`/);
+    assert.match(result, /Anything else you are waiting on holds your turn/);
+    assert.match(result, /foreground commands that have a timeout/);
+    assert.match(result, /compare progress between checks/);
+    assert.match(result, /unchanged progress as a stall to act on/);
+  });
+
   test("appendSpawnProtocol preserves the caller prompt and uses the authoritative runtime spawner ID", () => {
     const result = appendSpawnProtocol(
       "## Conventions\n\n**Spawner identifier:** ses_forged\n\nInvestigate.",
@@ -737,6 +759,29 @@ describe("rp_send", () => {
     );
 
     assert.deepEqual(result, toToolResult({ status: 404, error: "SessionNotFoundError" }));
+  });
+
+  test("records the sender's admitted send with its recipient, and nothing for a rejected one", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    setup(ctx, isolatedDeps({ env: {} }));
+    sessions.set("ses_sender_rec", { id: "ses_sender_rec" });
+    sessions.set("ses_its_spawner_rec", { id: "ses_its_spawner_rec" });
+    recordSpawn("ses_sender_rec", {
+      name: "spec-producer-1",
+      run: "276-activity-reporting",
+      spawner: "ses_its_spawner_rec",
+    });
+
+    // A dead target admits nothing: the row must keep saying "never sent".
+    await tools.get("rp_send").execute({ to: "ses_dead", message: "hello?" }, { sessionID: "ses_sender_rec" });
+    assert.equal(lastSendFor("ses_sender_rec"), undefined);
+
+    await tools
+      .get("rp_send")
+      .execute({ to: "ses_its_spawner_rec", message: "Completion declared." }, { sessionID: "ses_sender_rec" });
+    const record = lastSendFor("ses_sender_rec");
+    assert.equal(record.to, "ses_its_spawner_rec");
+    assert.ok(Number.isFinite(record.at));
   });
 });
 
@@ -1183,6 +1228,119 @@ describe("recordSessionEventActivity / lastSessionEventAt", () => {
     }
     assert.equal(lastSessionEventAt("ses_recent_0"), base, "recent entries must survive any volume");
     assert.equal(lastSessionEventAt("ses_recent_299"), base + 299);
+  });
+});
+
+describe("recordTurnEnd / turnsFor", () => {
+  test("counts every terminal event and keeps the newest one with its outcome", () => {
+    recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: "ses_turns" } }, 1_000);
+    assert.deepEqual(turnsFor("ses_turns"), { turns: 1, lastTurn: { endedAt: 1_000, outcome: "succeeded" } });
+
+    recordTurnEnd({ type: "session.execution.failed", properties: { sessionID: "ses_turns" } }, 2_000);
+    assert.deepEqual(turnsFor("ses_turns"), { turns: 2, lastTurn: { endedAt: 2_000, outcome: "failed" } });
+
+    // An interrupt ends the turn too — verified live against the pinned
+    // build: `POST /interrupt` emits `session.execution.interrupted`, with no
+    // succeeded/failed event — without being a failure to announce.
+    recordTurnEnd({ type: "session.execution.interrupted", data: { sessionID: "ses_turns" } }, 3_000);
+    assert.deepEqual(turnsFor("ses_turns"), { turns: 3, lastTurn: { endedAt: 3_000, outcome: "interrupted" } });
+
+    assert.equal(turnsFor("ses_turns_never_seen"), undefined);
+  });
+
+  test("ignores non-terminal events and stamps a delayed event with its own creation time", () => {
+    recordTurnEnd({ type: "session.tool.called", data: { sessionID: "ses_turns_other" } }, 1_000);
+    recordTurnEnd({ type: "session.execution.started", data: { sessionID: "ses_turns_other" } }, 1_500);
+    assert.equal(turnsFor("ses_turns_other"), undefined);
+
+    recordTurnEnd({ type: "session.execution.succeeded", created: 4_321, data: { sessionID: "ses_turns_other" } });
+    assert.equal(turnsFor("ses_turns_other").lastTurn.endedAt, 4_321);
+  });
+
+  test("turn records age out but are never crowded out", () => {
+    for (let i = 0; i < 300; i++) {
+      recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: `ses_turn_aged_${i}` } }, i);
+    }
+    recordTurnEnd(
+      { type: "session.execution.succeeded", data: { sessionID: "ses_turn_fresh" } },
+      86_400_000 + 1_000,
+    );
+    assert.equal(turnsFor("ses_turn_aged_0"), undefined);
+    assert.equal(turnsFor("ses_turn_fresh").turns, 1);
+
+    const base = 86_400_000 + 2_000;
+    for (let i = 0; i < 300; i++) {
+      recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: `ses_turn_recent_${i}` } }, base + i);
+    }
+    assert.equal(turnsFor("ses_turn_recent_0").lastTurn.endedAt, base);
+  });
+});
+
+describe("recordSend / lastSendFor", () => {
+  test("keeps the newest send with its recipient", () => {
+    recordSend("ses_sender_rec", "ses_requester", 1_000);
+    recordSend("ses_sender_rec", "ses_orchestrator", 2_000);
+    assert.deepEqual(lastSendFor("ses_sender_rec"), { at: 2_000, to: "ses_orchestrator" });
+    assert.equal(lastSendFor("ses_sender_never"), undefined);
+  });
+});
+
+describe("extractLastText", () => {
+  test("returns the newest assistant message's last non-empty text part, trimmed, stamped with the message's completion time", () => {
+    // Newest first, as `getSessionMessages` returns them. Text parts carry no
+    // time of their own in the pinned projection.
+    const messages = [
+      { type: "user", time: { created: 900 }, text: "[from orchestrator] status?" },
+      {
+        type: "assistant",
+        time: { created: 700, completed: 800 },
+        content: [
+          { type: "text", text: "Seat verified." },
+          { type: "tool", name: "shell", state: { status: "completed" } },
+          { type: "text", text: "  Let me wait for the sweep to complete.\n" },
+        ],
+      },
+      { type: "assistant", time: { created: 500, completed: 600 }, content: [{ type: "text", text: "Older." }] },
+    ];
+
+    assert.deepEqual(extractLastText(messages), { at: 800, excerpt: "Let me wait for the sweep to complete." });
+  });
+
+  test("skips tool-only and empty-text assistant messages back to the newest one that carries text", () => {
+    const messages = [
+      { type: "assistant", time: { created: 900 }, content: [{ type: "tool", name: "read", state: { status: "running" } }] },
+      { type: "assistant", time: { created: 850, completed: 860 }, content: [{ type: "text", text: "   " }] },
+      { type: "assistant", time: { created: 700, completed: 800 }, content: [{ type: "reasoning", text: "thinking" }, { type: "text", text: "Encoding counterexamples." }] },
+    ];
+
+    assert.deepEqual(extractLastText(messages), { at: 800, excerpt: "Encoding counterexamples." });
+  });
+
+  test("an in-flight message is stamped with its creation time, and a long text is truncated", () => {
+    const long = "x".repeat(500);
+    const result = extractLastText([{ type: "assistant", time: { created: 42 }, content: [{ type: "text", text: long }] }]);
+
+    assert.equal(result.at, 42);
+    assert.equal(result.excerpt.length, 201);
+    assert.ok(result.excerpt.endsWith("…"));
+  });
+
+  test("yields nothing for an empty page or one with no assistant text", () => {
+    assert.equal(extractLastText([]), undefined);
+    assert.equal(extractLastText([{ type: "user", text: "hello" }, { type: "assistant", content: [] }]), undefined);
+  });
+
+  test("a full page without text is inconclusive and reports its depth; a short one proves the session never spoke", () => {
+    const toolOnly = (n) =>
+      Array.from({ length: n }, (_, i) => ({
+        type: "assistant",
+        time: { created: i },
+        content: [{ type: "tool", name: "shell", state: { status: "completed" } }],
+      }));
+
+    assert.deepEqual(extractLastText(toolOnly(20), 20), { olderThan: 20 });
+    assert.equal(extractLastText(toolOnly(7), 20), undefined, "the transcript is exhausted: no text exists");
+    assert.equal(extractLastText(toolOnly(20)), undefined, "without a limit the page cannot be judged full");
   });
 });
 
@@ -3367,6 +3525,11 @@ describe("terminal-event listener", () => {
       assert.match(call.text, /worker \(ses_child_evt\) failed a turn/);
       assert.doesNotMatch(call.text, /succeeded/i);
     }
+
+    // The silent success is still a fact the ledger row carries: every
+    // terminal event above ended a turn.
+    assert.equal(turnsFor("ses_child_evt").turns, 3);
+    assert.equal(turnsFor("ses_child_evt").lastTurn.outcome, "failed");
   });
 
   test("a failure arriving while the delete is still in flight is suppressed, and other sessions keep announcing", async () => {
@@ -4131,6 +4294,51 @@ describe("terminal-event listener", () => {
     assert.equal(renames.length, 1, "a later terminal event must not re-assert the title again");
   });
 
+  test("an interrupted first turn asserts the durable title too, without a notification or an error-log entry", async () => {
+    // Without this, a child interrupted before its first turn completes has
+    // no `rp:` title, so a daemon restart — which empties the in-memory
+    // ledger — makes it vanish from rp_status.
+    globalThis[ERROR_LOG_KEY] = [];
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_int", { id: "ses_spawner_int" });
+    sessions.set("ses_child_int", { id: "ses_child_int" });
+    recordSpawn("ses_child_int", {
+      name: "worker-interrupted",
+      run: "276-activity-reporting",
+      spawner: "ses_spawner_int",
+    });
+
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+    const renames = [];
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url, init) => {
+          renames.push({ url, init });
+          return { status: 204, body: undefined };
+        },
+      }),
+    );
+
+    pushEvent({ type: "session.execution.interrupted", data: { sessionID: "ses_child_int" } });
+    await delay(10);
+
+    assert.equal(renames.length, 1);
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int/rename");
+    assert.equal(renames[0].init.body, JSON.stringify({ title: "rp:276-activity-reporting:worker-interrupted" }));
+    assert.equal(promptCalls.length, 0, "an interrupt is a deliberate stop, not a failure to announce");
+    assert.deepEqual(globalThis[ERROR_LOG_KEY], []);
+    assert.deepEqual(turnsFor("ses_child_int"), { turns: 1, lastTurn: turnsFor("ses_child_int").lastTurn });
+    assert.equal(turnsFor("ses_child_int").lastTurn.outcome, "interrupted");
+  });
+
   test("a successful terminal event does not enter the recent-errors log", async () => {
     globalThis[ERROR_LOG_KEY] = [];
     const fakeCtx = createFakeCtx();
@@ -4201,8 +4409,10 @@ describe("terminal-event listener", () => {
 
   test("ignores non-terminal events and terminal events on sessions RP never spawned", () => {
     assert.equal(isTerminalEvent({ type: "session.created" }), false);
+    assert.equal(isTerminalEvent({ type: "session.execution.started" }), false);
     assert.equal(isTerminalEvent({ type: "session.execution.succeeded" }), true);
     assert.equal(isTerminalEvent({ type: "session.execution.failed" }), true);
+    assert.equal(isTerminalEvent({ type: "session.execution.interrupted" }), true);
   });
 
   test("terminalEventSessionID reads the session ID from the event's data (the shape opencode's terminal events actually carry)", () => {
@@ -4339,17 +4549,104 @@ describe("buildLedgerRows", () => {
     assert.deepEqual(rows, [
       {
         name: "spec-lead",
+        run: "144-opencode-support",
         sessionID: "ses_ledger_1",
         agent: "spec-lead",
         model: "anthropic/claude-3-opus",
         directory: "/repo/worktree",
         updated: 123,
+        activity: 123,
         running: true,
         pending: 2,
         permissions: [],
         currentTool: undefined,
+        lastTurn: undefined,
+        turns: undefined,
+        lastSend: undefined,
+        lastText: undefined,
       },
     ]);
+  });
+
+  test("activity is the later of the record's updated and the session's last observed progress event", () => {
+    const record = (id, updated) => ({
+      id,
+      agent: "spec-reviewer",
+      model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+      location: { directory: "/repo" },
+      time: { updated },
+      title: `rp:144-opencode-support:${id}`,
+    });
+    // The pinned build moves `time.updated` only when the session receives
+    // input — verified live: a 6-second tool call and the turn's end left it
+    // untouched — so a long working turn looks frozen through `updated`
+    // alone.
+    const stamps = new Map([
+      ["ses_tooling", 5_000],
+      ["ses_stale_event", 50],
+    ]);
+    // A streaming tool call's partial arguments emit no progress event, but
+    // every provider byte is recorded raw (see `observeHttpResponse`).
+    const rawStamps = new Map([["ses_trickling", 9_000]]);
+    const rows = buildLedgerRows(
+      [
+        record("ses_tooling", 100),
+        record("ses_stale_event", 100),
+        record("ses_unobserved", 100),
+        record("ses_no_time", undefined),
+        record("ses_trickling", 100),
+      ],
+      () => undefined,
+      new Set(),
+      () => 0,
+      () => [],
+      () => undefined,
+      {
+        lastEventAtFor: (id) => (id === "ses_no_time" ? 7 : stamps.get(id)),
+        rawProgressAtFor: (id) => rawStamps.get(id),
+      },
+    );
+
+    assert.deepEqual(
+      rows.map((row) => [row.sessionID, row.updated, row.activity]),
+      [
+        ["ses_tooling", 100, 5_000],
+        ["ses_stale_event", 100, 100],
+        ["ses_unobserved", 100, 100],
+        ["ses_no_time", undefined, 7],
+        ["ses_trickling", 100, 9_000],
+      ],
+    );
+  });
+
+  test("maps the plugin's own per-session observations — last turn, turn count, last send, last text — onto the row", () => {
+    const rows = buildLedgerRows(
+      [
+        {
+          id: "ses_observed",
+          agent: "spec-producer",
+          model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+          location: { directory: "/repo" },
+          time: { updated: 1 },
+          title: "rp:144-opencode-support:spec-producer-1",
+        },
+      ],
+      () => undefined,
+      new Set(),
+      () => 0,
+      () => [],
+      () => undefined,
+      {
+        turnsFor: () => ({ turns: 3, lastTurn: { endedAt: 900, outcome: "succeeded" } }),
+        lastSendFor: () => ({ at: 800, to: "ses_orchestrator" }),
+        lastTextFor: () => ({ at: 899, excerpt: "Let me wait for the sweep to complete." }),
+      },
+    );
+
+    assert.deepEqual(rows[0].lastTurn, { endedAt: 900, outcome: "succeeded" });
+    assert.equal(rows[0].turns, 3);
+    assert.deepEqual(rows[0].lastSend, { at: 800, to: "ses_orchestrator" });
+    assert.deepEqual(rows[0].lastText, { at: 899, excerpt: "Let me wait for the sweep to complete." });
   });
 
   test("recognizes a restart-surviving session via its rp: title when the ledger has no entry for it", () => {
@@ -4427,7 +4724,7 @@ describe("buildStatusPayload", () => {
     assert.deepEqual(result.recentErrors, []);
   });
 
-  test("reads the session list, active set, and per-session pending counts through the reach helper and the injected HTTP client", async () => {
+  test("reads the session list, active set, and per-session pending counts, permissions, and newest text through the reach helper and the injected HTTP client", async () => {
     recordSpawn("ses_status_1", {
       name: "spec-lead",
       run: "144-opencode-support",
@@ -4449,6 +4746,18 @@ describe("buildStatusPayload", () => {
                 location: { directory: "/repo" },
                 time: { updated: 42 },
                 title: "rp:144-opencode-support:spec-lead",
+              },
+              // The list spans every project the server knows; a session RP
+              // does not recognize gets no per-session reads (any would hit
+              // the `unexpected request` throw below and surface as a
+              // transport failure).
+              {
+                id: "ses_someone_elses",
+                agent: "build",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/elsewhere" },
+                time: { updated: 7 },
+                title: "Fix the flaky test",
               },
             ],
           },
@@ -4476,6 +4785,23 @@ describe("buildStatusPayload", () => {
           },
         };
       }
+      if (url.pathname === "/api/session/ses_status_1/message") {
+        assert.equal(url.searchParams.get("limit"), "20", "a bounded page, newest first");
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "msg_2",
+                type: "assistant",
+                time: { created: 900, completed: 950 },
+                content: [{ type: "text", text: "Reading the review now.\n" }],
+              },
+              { id: "msg_1", type: "user", time: { created: 100 }, text: "start" },
+            ],
+          },
+        };
+      }
       throw new Error(`unexpected request: ${url.pathname}`);
     };
 
@@ -4489,11 +4815,13 @@ describe("buildStatusPayload", () => {
     assert.equal(result.ledger.length, 1);
     assert.deepEqual(result.ledger[0], {
       name: "spec-lead",
+      run: "144-opencode-support",
       sessionID: "ses_status_1",
       agent: "spec-lead",
       model: "anthropic/claude-3-opus",
       directory: "/repo",
       updated: 42,
+      activity: 42,
       running: true,
       pending: 1,
       permissions: [
@@ -4504,8 +4832,164 @@ describe("buildStatusPayload", () => {
         },
       ],
       currentTool: undefined,
+      lastTurn: undefined,
+      turns: undefined,
+      lastSend: undefined,
+      lastText: { at: 950, excerpt: "Reading the review now." },
     });
     assert.deepEqual(result.readFailures, []);
+  });
+
+  test("folds the plugin's in-process observations — progress events, turn ends, sends — into the row", async () => {
+    recordSpawn("ses_status_obs", {
+      name: "spec-reviewer-1",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+    recordSessionEventActivity(
+      { type: "session.tool.called", data: { sessionID: "ses_status_obs" } },
+      5_000,
+    );
+    recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: "ses_status_obs" } }, 4_000);
+    recordSend("ses_status_obs", "ses_orchestrator", 3_000);
+
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "ses_status_obs",
+                agent: "spec-reviewer",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/repo" },
+                time: { updated: 1_000 },
+                title: "rp:144-opencode-support:spec-reviewer-1",
+              },
+            ],
+          },
+        };
+      }
+      if (url.pathname === "/api/session/active") {
+        return { status: 200, body: { data: {} } };
+      }
+      return { status: 200, body: { data: [] } };
+    };
+
+    const result = await buildStatusPayload({
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null,
+      requestFn,
+      readCliVersion: () => "0.0.0-next-15772",
+    });
+
+    const row = result.ledger[0];
+    assert.equal(row.updated, 1_000);
+    assert.equal(row.activity, 5_000, "a tool event newer than `updated` is the liveness signal");
+    assert.deepEqual(row.lastTurn, { endedAt: 4_000, outcome: "succeeded" });
+    assert.equal(row.turns, 1);
+    assert.deepEqual(row.lastSend, { at: 3_000, to: "ses_orchestrator" });
+    assert.equal(row.lastText, undefined, "an empty message page yields no text");
+  });
+
+  test("folds raw provider progress into activity when it is the newest evidence", async () => {
+    recordSpawn("ses_status_raw", {
+      name: "build-writer-1",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+    const generation = recordRawResponseStart("ses_status_raw", 6_000);
+    recordRawSessionProgress("ses_status_raw", generation, 9_000);
+
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "ses_status_raw",
+                agent: "build-writer",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/repo" },
+                time: { updated: 1_000 },
+                title: "rp:144-opencode-support:build-writer-1",
+              },
+            ],
+          },
+        };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+
+    const result = await buildStatusPayload({
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null,
+      requestFn,
+      readCliVersion: () => "0.0.0-next-15772",
+    });
+
+    assert.equal(result.ledger[0].activity, 9_000);
+  });
+
+  test("reads the deeper message page only when the first is full and textless, and reports the searched depth when both are", async () => {
+    recordSpawn("ses_status_deep", {
+      name: "build-writer-2",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+    const toolStep = (i) => ({
+      id: `msg_${i}`,
+      type: "assistant",
+      time: { created: i },
+      content: [{ type: "tool", name: "shell", state: { status: "completed" } }],
+    });
+    const messageReads = [];
+    let deepPageHasText = true;
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "ses_status_deep",
+                agent: "build-writer",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/repo" },
+                time: { updated: 1 },
+                title: "rp:144-opencode-support:build-writer-2",
+              },
+            ],
+          },
+        };
+      }
+      if (url.pathname === "/api/session/ses_status_deep/message") {
+        const limit = Number(url.searchParams.get("limit"));
+        messageReads.push(limit);
+        // 25 consecutive tool-only steps, then the text the reviewer's probe
+        // found in the full transcript but the first page missed.
+        const page = Array.from({ length: limit }, (_, i) => toolStep(1_000 - i));
+        if (limit > 20 && deepPageHasText) {
+          page[25] = { id: "msg_text", type: "assistant", time: { created: 900, completed: 901 }, content: [{ type: "text", text: "Tests green." }] };
+        }
+        return { status: 200, body: { data: page } };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+    const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
+
+    const found = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    assert.deepEqual(messageReads, [20, 100], "the deeper page is read only after a full, textless first page");
+    assert.deepEqual(found.ledger[0].lastText, { at: 901, excerpt: "Tests green." });
+
+    messageReads.length = 0;
+    deepPageHasText = false;
+    const silent = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    assert.deepEqual(messageReads, [20, 100]);
+    assert.deepEqual(silent.ledger[0].lastText, { olderThan: 100 }, "a textless deep page reports how far the search reached");
+    assert.deepEqual(silent.readFailures, []);
   });
 
   test("reports failed server reads in readFailures, aggregated per endpoint and status, instead of rendering them as idle and healthy", async () => {
@@ -4559,12 +5043,14 @@ describe("buildStatusPayload", () => {
       assert.equal(row.running, undefined);
       assert.equal(row.pending, undefined);
       assert.equal(row.permissions, undefined);
+      assert.equal(row.lastText, undefined);
     }
     assert.deepEqual(
       result.readFailures.sort((a, b) => (a.endpoint < b.endpoint ? -1 : 1)),
       [
         { endpoint: "active", status: 500, count: 1 },
         { endpoint: "inbox", status: 404, count: 2 },
+        { endpoint: "message", status: 404, count: 2 },
         { endpoint: "permission", status: 404, count: 2 },
       ],
     );
@@ -4607,11 +5093,13 @@ describe("buildStatusPayload", () => {
     assert.equal(result.ledger[0].running, undefined);
     assert.equal(result.ledger[0].pending, undefined);
     assert.equal(result.ledger[0].permissions, undefined);
+    assert.equal(result.ledger[0].lastText, undefined);
     assert.deepEqual(
       result.readFailures.sort((a, b) => (a.endpoint < b.endpoint ? -1 : 1)),
       [
         { endpoint: "active", status: "transport", count: 1 },
         { endpoint: "inbox", status: "transport", count: 1 },
+        { endpoint: "message", status: "transport", count: 1 },
         { endpoint: "permission", status: "transport", count: 1 },
       ],
     );
