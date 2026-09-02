@@ -6,9 +6,19 @@ How pipeline state is recorded and computed. The script under `../../scripts/` s
 
 The working tree at any commit fully describes the pipeline's state. The tree records the past; policy is supplied in the present; nothing records the future. Git history may optimize a computation, never be required by one.
 
-## Locations
+## Locations and names
 
-A pipeline lives at `<pipelines folder root>/<branch base>/` with phase subfolders `0-intent` … `4-document`. Its branch is `<branch base>`. Throwaway lane branches append a suffix: `<branch base>_<phase>-lane-<k>` (production lanes), `<branch base>_<phase>-r<lane>` (review lanes — created only when a wave has more than one lane; a single-lane wave runs on the pipeline branch). A post-merge amendment works on `<branch base>_amend-<n>`, cut from main.
+Every generated name, in one place:
+
+| Thing | Name |
+| --- | --- |
+| Pipeline folder | `<pipelines folder root>/<branch base>/`, with phase subfolders `0-intent` … `4-document` |
+| Pipeline branch | `<branch base>` (per the Branch naming convention; collisions take a `-2`, `-3`, … suffix) |
+| Post-merge amendment branch | `<branch base>_amend-<n>`, cut from main |
+| Production lane branch | `<branch base>_<phase>-lane-<k>`; the lane produces into `<phase>/lane-<k>/` |
+| Review lane branch | `<branch base>_<phase>-r<lane>` — only when a wave has more than one lane; a single-lane wave runs on the pipeline branch |
+| Review file | `<artifact prefix>-review-<iteration>.md`; on a multi-lane wave `<artifact prefix>-review-r<lane>-<iteration>.md` (the lane marker keeps the files disjoint). Prefixes are the phase's artifact names (`spec`, `design-doc`, `build-plan`; the build batch is `build`) |
+| Amendment record | `0-intent/amendment-<n>.md` — one counter across all triggers |
 
 ## Frontmatter
 
