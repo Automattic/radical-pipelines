@@ -20,7 +20,6 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import http from "node:http";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -421,6 +420,20 @@ const LOOP_BACKOFF_MAX_SKIPS = 7;
  */
 const LOOP_DEAD_STREAM_CONFIRM_MS = 3_600_000;
 
+/**
+ * Deadline on one health-loop tick (see `armLoopTimer`).
+ *
+ * A tick's own reads and writes are each bounded by
+ * `SERVER_REQUEST_TIMEOUT_MS`, so this sits well above the longest tick
+ * path's request budget: it fires only on a tick that has genuinely hung,
+ * never on one that is merely slow. Its purpose is the timer's invariant
+ * that an in-flight tick always settles — the loop re-arms from the tick's
+ * completion, and disarming (cancel, re-arm, plugin cleanup) waits for it —
+ * so no single stuck tick can silently kill the loop or wedge whoever
+ * waits on it.
+ */
+const LOOP_TICK_TIMEOUT_MS = 120_000;
+
 
 
 /**
@@ -459,10 +472,16 @@ function getLoopTimers() {
  *   runtime state (see `runLoopTick`'s `state` dep) on every tick. The
  *   runtime object lives as long as the armed timer, so tick-to-tick memory
  *   (backoff, last injection) survives between ticks and resets on re-arm.
+ *   A tick still pending after `tickTimeoutMs` is abandoned: it is recorded
+ *   as a `timeout` tick and a `loop.tick.timeout` error, its `isCancelled`
+ *   reports `true` from then on so it performs no further effect, and the
+ *   loop re-arms without it.
+ * @param {number} [tickTimeoutMs] The per-tick deadline; defaults to
+ *   `LOOP_TICK_TIMEOUT_MS`.
  * @returns {Promise<void>} Resolves when any replaced loop has stopped and
  *   the new timer is armed.
  */
-function armLoopTimer(entry, tick) {
+function armLoopTimer(entry, tick, tickTimeoutMs = LOOP_TICK_TIMEOUT_MS) {
   const timers = getLoopTimers();
   const previous = timers.get(entry.id);
   const previousStopped = previous ? stopLoopTimer(previous) : Promise.resolve();
@@ -471,10 +490,22 @@ function armLoopTimer(entry, tick) {
     state.timer = setTimeout(() => {
       state.timer = undefined;
       if (state.cancelled) return;
-      state.inFlight = Promise.resolve()
-        .then(() => tick(entry, () => state.cancelled, state.runtime))
+      let abandoned = false;
+      let deadline;
+      const expired = new Promise((resolve) => {
+        deadline = setTimeout(() => {
+          abandoned = true;
+          const at = Date.now();
+          recordLoopTick({ loopID: entry.id, targetSession: entry.targetSession, at, outcome: "timeout" });
+          recordError({ type: "loop.tick.timeout", loopID: entry.id, timeoutMs: tickTimeoutMs, at });
+          resolve();
+        }, tickTimeoutMs);
+      });
+      const running = Promise.resolve().then(() => tick(entry, () => state.cancelled || abandoned, state.runtime));
+      state.inFlight = Promise.race([running, expired])
         .catch(() => {})
         .finally(() => {
+          clearTimeout(deadline);
           state.inFlight = null;
           if (!state.cancelled) schedule();
         });
@@ -907,13 +938,17 @@ async function runLoopTick(
  * @param {"queue" | "steer"} delivery The delivery mode.
  * @param {() => number} now The clock.
  * @param {object} state The loop's mutable tick-to-tick memory.
- * @returns {Promise<void>} Resolves when the injection is admitted.
+ * @param {() => boolean} isCancelled The tick's cancellation check.
+ * @returns {Promise<boolean>} `true` when the admitted probe was recorded;
+ *   `false` when the tick was cancelled while awaiting admission.
  */
-async function injectProbe(entry, injectPrompt, delivery, now, state) {
+async function injectProbe(entry, injectPrompt, delivery, now, state, isCancelled) {
   const injectedAt = now();
   const admitted = await injectPrompt(entry.targetSession, entry.prompt, delivery);
+  if (isCancelled()) return false;
   const id = admitted?.data?.id ?? admitted?.id;
   state.lastInjection = { ...(typeof id === "string" ? { id } : {}), at: injectedAt, evaluated: false };
+  return true;
 }
 
 /**
@@ -994,7 +1029,9 @@ async function runIdleTick(entry, { server, isSessionActive, readInbox, readMess
     state.backoffSkips -= 1;
     return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
   }
-  await injectProbe(entry, injectPrompt, "queue", now, state);
+  if (!(await injectProbe(entry, injectPrompt, "queue", now, state, isCancelled))) {
+    return { outcome: "cancelled" };
+  }
   return { outcome: "injected", reason: "idle" };
 }
 
@@ -1197,6 +1234,9 @@ async function runActiveTick(
   const pendingQueue = inbox.find((item) => item.payload?.text === entry.prompt);
   if (pendingQueue) {
     await promote(server, entry.targetSession, pendingQueue.id);
+    if (isCancelled()) {
+      return { outcome: "cancelled" };
+    }
     return { outcome: "promoted", reason: "stale-running", lastActivity };
   }
   const evaluation = evaluateProbe(state, messages);
@@ -1215,7 +1255,9 @@ async function runActiveTick(
     state.backoffSkips -= 1;
     return { outcome: "skipped", reason: "backoff", remaining: state.backoffSkips };
   }
-  await injectProbe(entry, injectPrompt, "steer", now, state);
+  if (!(await injectProbe(entry, injectPrompt, "steer", now, state, isCancelled))) {
+    return { outcome: "cancelled" };
+  }
   return { outcome: "injected", reason: "stale-running", lastActivity };
 }
 
@@ -1327,35 +1369,38 @@ function buildBasicAuthHeader(password) {
 }
 
 /**
- * The default `requestServer` request function: a promise wrapper over
- * node's built-in `node:http`, performing no work until called.
+ * Deadline on every request the plugin issues against the opencode server.
+ *
+ * Enforced through `AbortSignal.timeout`, the one mechanism that fires on
+ * every host runtime the plugin runs under: opencode runs on Bun, where
+ * `node:http`'s `request.setTimeout` (and `destroy`) never settle a request
+ * whose server does not answer, so a client built on them can wait forever.
+ */
+const SERVER_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * The default `requestServer` request function: a thin wrapper over the
+ * global `fetch`, performing no work until called and rejecting once
+ * `SERVER_REQUEST_TIMEOUT_MS` passes without a complete response.
  *
  * @param {URL} url The fully-resolved request URL.
  * @param {{ method: string, headers: Record<string,string>, body?: string }} init
  *   The request method, headers (including the Basic-auth header), and an
  *   optional JSON-string body.
+ * @param {number} [timeoutMs] The request deadline; defaults to
+ *   `SERVER_REQUEST_TIMEOUT_MS`.
  * @returns {Promise<{ status: number, body: * }>} The response status and,
  *   when the response has a body, its parsed JSON.
  */
-function nodeHttpRequest(url, { method, headers, body }) {
-  return new Promise((resolve, reject) => {
-    const req = http.request(url, { method, headers }, (res) => {
-      let data = "";
-      res.setEncoding("utf8");
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-      res.on("end", () => {
-        resolve({ status: res.statusCode, body: data ? JSON.parse(data) : undefined });
-      });
-    });
-    req.on("error", reject);
-    req.setTimeout(10_000, () => req.destroy(new Error("opencode server request timed out")));
-    if (body !== undefined) {
-      req.write(body);
-    }
-    req.end();
+async function fetchRequest(url, { method, headers, body }, timeoutMs = SERVER_REQUEST_TIMEOUT_MS) {
+  const response = await fetch(url, {
+    method,
+    headers,
+    body,
+    signal: AbortSignal.timeout(timeoutMs),
   });
+  const data = await response.text();
+  return { status: response.status, body: data ? JSON.parse(data) : undefined };
 }
 
 /**
@@ -1367,12 +1412,11 @@ function nodeHttpRequest(url, { method, headers, body }) {
  * @param {string} path The request path, resolved against `server.baseURL`.
  * @param {*} [body] A JSON-serializable request body (POST only).
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function; defaults to `nodeHttpRequest` (node
- *   builtins only), so tests can stub the HTTP boundary without a real
- *   server.
+ *   Injectable request function; defaults to `fetchRequest`, so tests can
+ *   stub the HTTP boundary without a real server.
  * @returns {Promise<{ status: number, body: * }>} The resolved response.
  */
-function requestServer(server, method, path, body, requestFn = nodeHttpRequest) {
+function requestServer(server, method, path, body, requestFn = fetchRequest) {
   const payload = body === undefined ? undefined : JSON.stringify(body);
   const headers = { Authorization: buildBasicAuthHeader(server.password) };
   if (payload !== undefined) {
@@ -3967,6 +4011,12 @@ function buildLoopListTool(registryPath) {
 /**
  * Build the `rp_loop_cancel` tool descriptor.
  *
+ * The tool returns as soon as the loop is disarmed and its entry removed. It
+ * never waits for a tick already in flight: a tool call holds the calling
+ * session's step open, and a tick can be pending for as long as
+ * `LOOP_TICK_TIMEOUT_MS`. The abandoned tick observes cancellation at its
+ * next guard (see `runLoopTick`) and performs no subsequent effect.
+ *
  * @param {string} registryPath Absolute path to the loop registry file.
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
@@ -3982,12 +4032,8 @@ function buildLoopCancelTool(registryPath) {
       required: ["id"],
     },
     async execute({ id }) {
-      const stopped = disarmLoopTimer(id);
-      try {
-        deleteLoopEntry(registryPath, id);
-      } finally {
-        await stopped;
-      }
+      void disarmLoopTimer(id);
+      deleteLoopEntry(registryPath, id);
       return toToolResult({ cancelled: true });
     },
   };
@@ -4335,6 +4381,7 @@ export {
   deleteLoopEntry,
   disarmLoopTimer,
   extractLastText,
+  fetchRequest,
   formatAttribution,
   formatModelString,
   formatPermissionForward,
