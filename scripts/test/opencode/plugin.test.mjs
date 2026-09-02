@@ -449,10 +449,14 @@ describe("rp_spawn", () => {
     const result = appendSpawnProtocol("begin", "ses_orchestrator");
 
     // A session outlives its turn: an agent that ends its turn to "wait" for
-    // detached work is parked until a message arrives — observed live.
+    // detached work is parked until a message arrives — observed live. A
+    // managed background command's completion does arrive as such a message
+    // (verified against the pinned build), but only if the command finishes:
+    // background commands carry no timeout by default.
     assert.match(result, /## RP turns \(opencode\)/);
-    assert.match(result, /Ending your turn is a stop: only a message resumes this session\./);
-    assert.match(result, /hold your turn/);
+    assert.match(result, /Ending your turn is a stop: only a message resumes this session/);
+    assert.match(result, /a reply you await, or the completion notice of a background command you gave a `timeout`/);
+    assert.match(result, /Anything else you are waiting on holds your turn/);
     assert.match(result, /foreground commands that have a timeout/);
     assert.match(result, /compare progress between checks/);
     assert.match(result, /unchanged progress as a stall to act on/);
@@ -1235,6 +1239,12 @@ describe("recordTurnEnd / turnsFor", () => {
     recordTurnEnd({ type: "session.execution.failed", properties: { sessionID: "ses_turns" } }, 2_000);
     assert.deepEqual(turnsFor("ses_turns"), { turns: 2, lastTurn: { endedAt: 2_000, outcome: "failed" } });
 
+    // An interrupt ends the turn too — verified live against the pinned
+    // build: `POST /interrupt` emits `session.execution.interrupted`, with no
+    // succeeded/failed event — without being a failure to announce.
+    recordTurnEnd({ type: "session.execution.interrupted", data: { sessionID: "ses_turns" } }, 3_000);
+    assert.deepEqual(turnsFor("ses_turns"), { turns: 3, lastTurn: { endedAt: 3_000, outcome: "interrupted" } });
+
     assert.equal(turnsFor("ses_turns_never_seen"), undefined);
   });
 
@@ -1318,6 +1328,19 @@ describe("extractLastText", () => {
   test("yields nothing for an empty page or one with no assistant text", () => {
     assert.equal(extractLastText([]), undefined);
     assert.equal(extractLastText([{ type: "user", text: "hello" }, { type: "assistant", content: [] }]), undefined);
+  });
+
+  test("a full page without text is inconclusive and reports its depth; a short one proves the session never spoke", () => {
+    const toolOnly = (n) =>
+      Array.from({ length: n }, (_, i) => ({
+        type: "assistant",
+        time: { created: i },
+        content: [{ type: "tool", name: "shell", state: { status: "completed" } }],
+      }));
+
+    assert.deepEqual(extractLastText(toolOnly(20), 20), { olderThan: 20 });
+    assert.equal(extractLastText(toolOnly(7), 20), undefined, "the transcript is exhausted: no text exists");
+    assert.equal(extractLastText(toolOnly(20)), undefined, "without a limit the page cannot be judged full");
   });
 });
 
@@ -4479,6 +4502,7 @@ describe("buildLedgerRows", () => {
     assert.deepEqual(rows, [
       {
         name: "spec-lead",
+        run: "144-opencode-support",
         sessionID: "ses_ledger_1",
         agent: "spec-lead",
         model: "anthropic/claude-3-opus",
@@ -4514,14 +4538,26 @@ describe("buildLedgerRows", () => {
       ["ses_tooling", 5_000],
       ["ses_stale_event", 50],
     ]);
+    // A streaming tool call's partial arguments emit no progress event, but
+    // every provider byte is recorded raw (see `observeHttpResponse`).
+    const rawStamps = new Map([["ses_trickling", 9_000]]);
     const rows = buildLedgerRows(
-      [record("ses_tooling", 100), record("ses_stale_event", 100), record("ses_unobserved", 100), record("ses_no_time", undefined)],
+      [
+        record("ses_tooling", 100),
+        record("ses_stale_event", 100),
+        record("ses_unobserved", 100),
+        record("ses_no_time", undefined),
+        record("ses_trickling", 100),
+      ],
       () => undefined,
       new Set(),
       () => 0,
       () => [],
       () => undefined,
-      { lastEventAtFor: (id) => (id === "ses_no_time" ? 7 : stamps.get(id)) },
+      {
+        lastEventAtFor: (id) => (id === "ses_no_time" ? 7 : stamps.get(id)),
+        rawProgressAtFor: (id) => rawStamps.get(id),
+      },
     );
 
     assert.deepEqual(
@@ -4531,6 +4567,7 @@ describe("buildLedgerRows", () => {
         ["ses_stale_event", 100, 100],
         ["ses_unobserved", 100, 100],
         ["ses_no_time", undefined, 7],
+        ["ses_trickling", 100, 9_000],
       ],
     );
   });
@@ -4731,6 +4768,7 @@ describe("buildStatusPayload", () => {
     assert.equal(result.ledger.length, 1);
     assert.deepEqual(result.ledger[0], {
       name: "spec-lead",
+      run: "144-opencode-support",
       sessionID: "ses_status_1",
       agent: "spec-lead",
       model: "anthropic/claude-3-opus",
@@ -4806,6 +4844,105 @@ describe("buildStatusPayload", () => {
     assert.equal(row.turns, 1);
     assert.deepEqual(row.lastSend, { at: 3_000, to: "ses_orchestrator" });
     assert.equal(row.lastText, undefined, "an empty message page yields no text");
+  });
+
+  test("folds raw provider progress into activity when it is the newest evidence", async () => {
+    recordSpawn("ses_status_raw", {
+      name: "build-writer-1",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+    const generation = recordRawResponseStart("ses_status_raw", 6_000);
+    recordRawSessionProgress("ses_status_raw", generation, 9_000);
+
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "ses_status_raw",
+                agent: "build-writer",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/repo" },
+                time: { updated: 1_000 },
+                title: "rp:144-opencode-support:build-writer-1",
+              },
+            ],
+          },
+        };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+
+    const result = await buildStatusPayload({
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null,
+      requestFn,
+      readCliVersion: () => "0.0.0-next-15772",
+    });
+
+    assert.equal(result.ledger[0].activity, 9_000);
+  });
+
+  test("reads the deeper message page only when the first is full and textless, and reports the searched depth when both are", async () => {
+    recordSpawn("ses_status_deep", {
+      name: "build-writer-2",
+      run: "144-opencode-support",
+      spawner: "ses_orchestrator",
+    });
+    const toolStep = (i) => ({
+      id: `msg_${i}`,
+      type: "assistant",
+      time: { created: i },
+      content: [{ type: "tool", name: "shell", state: { status: "completed" } }],
+    });
+    const messageReads = [];
+    let deepPageHasText = true;
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              {
+                id: "ses_status_deep",
+                agent: "build-writer",
+                model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+                location: { directory: "/repo" },
+                time: { updated: 1 },
+                title: "rp:144-opencode-support:build-writer-2",
+              },
+            ],
+          },
+        };
+      }
+      if (url.pathname === "/api/session/ses_status_deep/message") {
+        const limit = Number(url.searchParams.get("limit"));
+        messageReads.push(limit);
+        // 25 consecutive tool-only steps, then the text the reviewer's probe
+        // found in the full transcript but the first page missed.
+        const page = Array.from({ length: limit }, (_, i) => toolStep(1_000 - i));
+        if (limit > 20 && deepPageHasText) {
+          page[25] = { id: "msg_text", type: "assistant", time: { created: 900, completed: 901 }, content: [{ type: "text", text: "Tests green." }] };
+        }
+        return { status: 200, body: { data: page } };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+    const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
+
+    const found = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    assert.deepEqual(messageReads, [20, 100], "the deeper page is read only after a full, textless first page");
+    assert.deepEqual(found.ledger[0].lastText, { at: 901, excerpt: "Tests green." });
+
+    messageReads.length = 0;
+    deepPageHasText = false;
+    const silent = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    assert.deepEqual(messageReads, [20, 100]);
+    assert.deepEqual(silent.ledger[0].lastText, { olderThan: 100 }, "a textless deep page reports how far the search reached");
+    assert.deepEqual(silent.readFailures, []);
   });
 
   test("reports failed server reads in readFailures, aggregated per endpoint and status, instead of rendering them as idle and healthy", async () => {

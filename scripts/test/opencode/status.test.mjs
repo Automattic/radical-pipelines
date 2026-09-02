@@ -129,6 +129,7 @@ describe("shapeStatus", () => {
       ledgerEntries: [
         {
           name: "spec-lead",
+          run: "144-opencode-support",
           sessionID: "ses_1",
           agent: "spec-lead",
           model: "anthropic/claude-3-opus",
@@ -155,6 +156,7 @@ describe("shapeStatus", () => {
       ledger: [
         {
           name: "spec-lead",
+          run: "144-opencode-support",
           sessionID: "ses_1",
           agent: "spec-lead",
           model: "anthropic/claude-3-opus",

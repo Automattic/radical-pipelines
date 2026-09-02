@@ -11,8 +11,17 @@ import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { runCheck } from "../lib/check-runner.mjs";
-import { createSession, driveToolCall, getSession, waitForIdle } from "../lib/api-client.mjs";
-import { PLAIN_REPLY_TEXT } from "../lib/stub-provider.mjs";
+import {
+  createSession,
+  driveToolCall,
+  getActiveSessionIDs,
+  getSession,
+  interrupt,
+  pollUntil,
+  prompt,
+  waitForIdle,
+} from "../lib/api-client.mjs";
+import { PLAIN_REPLY_TEXT, slowPrompt } from "../lib/stub-provider.mjs";
 
 const execFileAsync = promisify(execFile);
 const STUB_MODEL = { providerID: "stub", id: "stub-model" };
@@ -91,6 +100,7 @@ export async function run(ctx) {
     const idle = JSON.parse((await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`)).text);
     const idleRow = idle.ledger.find((r) => r.sessionID === childID);
     assert.ok(idleRow, `expected rp_status's ledger to include the spawned child ${childID}`);
+    assert.equal(idleRow.run, "liveness-check-run", "the row names its run, so an orchestrator can filter the ledger to its own");
     assert.equal(idleRow.running, false);
     assert.equal(idleRow.lastTurn?.outcome, "succeeded", `expected a succeeded last turn, got: ${JSON.stringify(idleRow.lastTurn)}`);
     assert.ok(idleRow.turns >= 1, `expected at least one ended turn, got: ${idleRow.turns}`);
@@ -112,6 +122,20 @@ export async function run(ctx) {
     assert.equal(reportedRow.lastSend?.to, orchestrator.id, `expected lastSend to name the spawner, got: ${JSON.stringify(reportedRow.lastSend)}`);
     assert.ok(Number.isFinite(reportedRow.lastSend.at));
     assert.ok(reportedRow.turns > idleRow.turns, "the reporting turn ended too");
+
+    // An interrupted turn ends too, with its own outcome: `POST /interrupt`
+    // emits `session.execution.interrupted`, never succeeded/failed.
+    const slowTurn = prompt(server, childID, slowPrompt(6_000, `liveness-interrupt-${Date.now()}`), { delivery: "steer" });
+    await pollUntil(async () => (await getActiveSessionIDs(server)).has(childID), { label: "the child to start its slow turn" });
+    await delay(300);
+    assert.equal(await interrupt(server, childID), 204);
+    await slowTurn.catch(() => {});
+    await waitForIdle(server, childID);
+
+    const interrupted = JSON.parse((await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`)).text);
+    const interruptedRow = interrupted.ledger.find((r) => r.sessionID === childID);
+    assert.equal(interruptedRow.lastTurn?.outcome, "interrupted", `expected an interrupted last turn, got: ${JSON.stringify(interruptedRow.lastTurn)}`);
+    assert.equal(interruptedRow.turns, reportedRow.turns + 1);
   });
 }
 

@@ -233,17 +233,22 @@ function formatAttribution(sender) {
  * agent's initial prompt.
  *
  * The turn rule exists because an opencode session outlives its turn: an
- * agent that ends its turn to "wait" for detached work is parked until a
- * message arrives, and nothing it launched can wake it. Holding the turn
- * with foreground waits keeps the agent observing, and a foreground
- * command's timeout hands it the hang signal a detached process never does.
+ * idle session resumes only on an inbox item. Verified live against the
+ * pinned build: a `shell` call with `background: true` ends the turn and its
+ * completion later arrives as an inbox item that starts a new execution — so
+ * awaiting it is a legitimate reason to end the turn — but background
+ * commands carry no timeout by default, so a hung one never completes and
+ * the session is parked until someone nudges it. A detached process has no
+ * wake source at all. Foreground waits keep the agent observing, and a
+ * foreground command's timeout hands it the hang signal a detached process
+ * never does.
  *
  * @param {string} prompt The caller-authored initial prompt.
  * @param {string} spawnerID The calling session's authoritative ID.
  * @returns {string} The original prompt followed by the runtime protocol.
  */
 function appendSpawnProtocol(prompt, spawnerID) {
-  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** for what your profile addresses to your requester; otherwise use the **Spawner identifier** above.\n\n## RP turns (opencode)\n\nEnding your turn is a stop: only a message resumes this session. While work is outstanding, hold your turn — wait with foreground commands that have a timeout, compare progress between checks, and treat unchanged progress as a stall to act on.`;
+  return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: use the **Requester identifier** for what your profile addresses to your requester; otherwise use the **Spawner identifier** above.\n\n## RP turns (opencode)\n\nEnding your turn is a stop: only a message resumes this session — a reply you await, or the completion notice of a background command you gave a \`timeout\`. Anything else you are waiting on holds your turn: wait with foreground commands that have a timeout, compare progress between checks, and treat unchanged progress as a stall to act on.`;
 }
 
 /** Prefix marking a session title as an RP-managed, reconstructible one. */
@@ -1607,26 +1612,41 @@ function recognizeSession(record, lookup) {
 const LAST_TEXT_EXCERPT_CAP = 200;
 
 /**
- * How many of a session's newest messages `rp_status` reads to locate its
- * newest assistant text. Consecutive tool-only steps each project as their
- * own assistant message, so the page must span a run of them.
+ * How many of a session's newest messages `rp_status` reads first to locate
+ * its newest assistant text. Most sessions speak within this many messages;
+ * consecutive tool-only steps each project as their own assistant message,
+ * so a session in a long run of them needs the deeper page.
  */
-const LAST_TEXT_MESSAGE_LIMIT = 20;
+const LAST_TEXT_PAGE = 20;
 
 /**
- * Extract the newest assistant text from a session's projected messages.
- *
- * Scans the newest-first projection for the first assistant message carrying
- * a non-empty text part and returns that message's last such part, trimmed
- * and truncated to `LAST_TEXT_EXCERPT_CAP`. The timestamp is the message's
- * completion time, or its creation time while it is still in flight — text
- * parts carry no time of their own in the pinned projection.
- *
- * @param {Array<object>} messages As returned by `getSessionMessages`.
- * @returns {{ at: number | undefined, excerpt: string } | undefined} The
- *   newest text, or `undefined` when the page holds none.
+ * The deeper page read when the first holds no text but is full. Bounds the
+ * cost of one status call; a session silent for longer than this reports
+ * how far the search reached rather than a fabricated "never spoke".
  */
-function extractLastText(messages) {
+const LAST_TEXT_DEEP_PAGE = 100;
+
+/**
+ * Extract the newest assistant text from a page of a session's projected
+ * messages.
+ *
+ * Scans the newest-first page for the first assistant message carrying a
+ * non-empty text part and returns that message's last such part, trimmed and
+ * truncated to `LAST_TEXT_EXCERPT_CAP`. The timestamp is the message's
+ * completion time, or its creation time while it is still in flight — text
+ * parts carry no time of their own in the pinned projection. A full page
+ * without text is inconclusive and says so; only a short page proves the
+ * session never spoke.
+ *
+ * @param {Array<object>} messages One page, as returned by
+ *   `getSessionMessages`.
+ * @param {number} [pageLimit] The limit the page was requested with; when
+ *   the page reaches it without text, the result is `{ olderThan: pageLimit }`.
+ * @returns {{ at: number | undefined, excerpt: string } | { olderThan: number } | undefined}
+ *   The newest text, the depth a textless full page was searched to, or
+ *   `undefined` when the exhausted transcript holds none.
+ */
+function extractLastText(messages, pageLimit) {
   for (const message of messages) {
     if (message?.type !== "assistant") {
       continue;
@@ -1647,19 +1667,19 @@ function extractLastText(messages) {
       };
     }
   }
-  return undefined;
+  return pageLimit !== undefined && messages.length >= pageLimit ? { olderThan: pageLimit } : undefined;
 }
 
 /**
- * The later of two timestamps, tolerating absent ones.
+ * The latest of several timestamps, tolerating absent ones.
  *
- * @param {*} a The first timestamp; returned as-is when neither is finite.
- * @param {*} b The second timestamp.
- * @returns {*} The greater finite value, the only finite one, or `a`.
+ * @param {*} first The primary timestamp; returned as-is when none is finite.
+ * @param {...*} rest Further timestamps.
+ * @returns {*} The greatest finite value, or `first`.
  */
-function laterOf(a, b) {
-  const finite = [a, b].filter((value) => Number.isFinite(value));
-  return finite.length > 0 ? Math.max(...finite) : a;
+function latestOf(first, ...rest) {
+  const finite = [first, ...rest].filter((value) => Number.isFinite(value));
+  return finite.length > 0 ? Math.max(...finite) : first;
 }
 
 /**
@@ -1682,19 +1702,21 @@ function laterOf(a, b) {
  *   `currentToolFor`); defaults to none.
  * @param {{
  *   lastEventAtFor?: (sessionID: string) => number | undefined,
+ *   rawProgressAtFor?: (sessionID: string) => number | undefined,
  *   turnsFor?: (sessionID: string) => { turns: number, lastTurn: object } | undefined,
  *   lastSendFor?: (sessionID: string) => { at: number, to: string } | undefined,
- *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | undefined,
+ *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
  * }} [observations] Resolvers for the plugin's own per-session observations
- *   (see `lastSessionEventAt`, `turnsFor`, `lastSendFor`, `extractLastText`);
- *   each defaults to none.
- * @returns {Array<{name: string, sessionID: string, agent: string, model: string, directory: string, updated: *, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, turns: number | undefined, lastSend: object | undefined, lastText: object | undefined}>}
+ *   (see `lastSessionEventAt`, `lastRawSessionProgressAt`, `turnsFor`,
+ *   `lastSendFor`, `extractLastText`); each defaults to none.
+ * @returns {Array<{name: string, run: string, sessionID: string, agent: string, model: string, directory: string, updated: *, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, turns: number | undefined, lastSend: object | undefined, lastText: object | undefined}>}
  *   One row per session record RP recognizes as its own, in `sessionRecords`
  *   order; records RP does not recognize (neither ledger nor `rp:` title)
- *   are omitted. `activity` is the later of the record's `updated` — which
- *   the pinned build moves only when the session receives input — and the
- *   session's last observed progress event, so it also covers tool and model
- *   progress within a turn.
+ *   are omitted. `activity` is the latest of the record's `updated` — which
+ *   the pinned build moves only when the session receives input — the
+ *   session's last observed progress event, and its last raw provider byte
+ *   (a streaming tool call's partial arguments emit no event), so it covers
+ *   tool and model progress within a turn.
  */
 function buildLedgerRows(
   sessionRecords,
@@ -1705,6 +1727,7 @@ function buildLedgerRows(
   currentToolForFn = () => undefined,
   {
     lastEventAtFor = () => undefined,
+    rawProgressAtFor = () => undefined,
     turnsFor: turnsForFn = () => undefined,
     lastSendFor: lastSendForFn = () => undefined,
     lastTextFor = () => undefined,
@@ -1720,12 +1743,13 @@ function buildLedgerRows(
     const turnRecord = turnsForFn(record.id);
     rows.push({
       name: entry.name,
+      run: entry.run,
       sessionID: record.id,
       agent: record.agent,
       model: record.model ? formatModelString(record.model) : record.model,
       directory: record.location?.directory,
       updated,
-      activity: laterOf(updated, lastEventAtFor(record.id)),
+      activity: latestOf(updated, lastEventAtFor(record.id), rawProgressAtFor(record.id)),
       running: activeSessionIDs?.has(record.id),
       pending: pendingCountFor(record.id),
       permissions: permissionsFor(record.id),
@@ -1839,12 +1863,24 @@ async function buildStatusPayload({
           })),
         );
       }
-      const messagesResponse = await readEndpoint(
+      // Newest text: a cheap page first, the deeper one only when the first
+      // is full and textless (a long run of tool-only steps).
+      const firstPage = await readEndpoint(
         "message",
-        `/api/session/${record.id}/message?limit=${LAST_TEXT_MESSAGE_LIMIT}`,
+        `/api/session/${record.id}/message?limit=${LAST_TEXT_PAGE}`,
       );
-      if (messagesResponse) {
-        lastTexts.set(record.id, extractLastText(messagesResponse.body?.data ?? []));
+      if (firstPage) {
+        let lastText = extractLastText(firstPage.body?.data ?? [], LAST_TEXT_PAGE);
+        if (lastText?.olderThan !== undefined) {
+          const deepPage = await readEndpoint(
+            "message",
+            `/api/session/${record.id}/message?limit=${LAST_TEXT_DEEP_PAGE}`,
+          );
+          if (deepPage) {
+            lastText = extractLastText(deepPage.body?.data ?? [], LAST_TEXT_DEEP_PAGE);
+          }
+        }
+        lastTexts.set(record.id, lastText);
       }
     }
   }
@@ -1858,6 +1894,7 @@ async function buildStatusPayload({
     currentToolFor,
     {
       lastEventAtFor: lastSessionEventAt,
+      rawProgressAtFor: (id) => lastRawSessionProgressAt(id)?.lastAt,
       turnsFor,
       lastSendFor,
       lastTextFor: (id) => lastTexts.get(id),
@@ -2532,11 +2569,23 @@ function formatStructuredError(error) {
 const SESSION_TURNS_KEY = Symbol.for("radical-pipelines.opencode.sessionTurns");
 
 /**
- * Record a turn's end for its session from a terminal event.
+ * Event types that end a session's turn, mapped to the outcome a ledger row
+ * reports. Wider than `TERMINAL_EVENT_TYPES`: an interrupt — verified live to
+ * emit `session.execution.interrupted` — ends the turn without being a
+ * failure to announce.
+ */
+const TURN_END_OUTCOMES = new Map([
+  ["session.execution.succeeded", "succeeded"],
+  ["session.execution.failed", "failed"],
+  ["session.execution.interrupted", "interrupted"],
+]);
+
+/**
+ * Record a turn's end for its session from a turn-ending event.
  *
  * Fed by the plugin's event subscription. Every session is tracked — the
  * ledger surfaces only the ones RP recognizes — and entries age out like the
- * other session observations. Non-terminal events are ignored.
+ * other session observations. Other events are ignored.
  *
  * @param {object} event An opencode event.
  * @param {number} [at] Overrides the timestamp; defaults to the event's own
@@ -2544,7 +2593,8 @@ const SESSION_TURNS_KEY = Symbol.for("radical-pipelines.opencode.sessionTurns");
  * @returns {void}
  */
 function recordTurnEnd(event, at) {
-  if (!isTerminalEvent(event)) {
+  const outcome = TURN_END_OUTCOMES.get(event?.type);
+  if (outcome === undefined) {
     return;
   }
   const sessionID = terminalEventSessionID(event);
@@ -2552,7 +2602,6 @@ function recordTurnEnd(event, at) {
     return;
   }
   const endedAt = at ?? (Number.isFinite(event.created) ? event.created : Date.now());
-  const outcome = event.type === "session.execution.failed" ? "failed" : "succeeded";
   const map = getSessionObservationMap(SESSION_TURNS_KEY);
   const previous = map.get(sessionID);
   map.delete(sessionID);
@@ -2564,7 +2613,7 @@ function recordTurnEnd(event, at) {
  * Read a session's turn record.
  *
  * @param {string} sessionID The session to look up.
- * @returns {{ turns: number, lastTurn: { endedAt: number, outcome: "succeeded" | "failed" } } | undefined}
+ * @returns {{ turns: number, lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } } | undefined}
  *   The count of turns observed ending and the newest one, or `undefined`
  *   when none has been observed (e.g. a fresh daemon).
  */
@@ -3280,6 +3329,7 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   pinComparison: "match" | "outside the verified surface" | "not determinable",
  *   ledgerEntries: Array<{
  *     name: string,
+ *     run: string,
  *     sessionID: string,
  *     agent: string,
  *     model: string,
@@ -3290,10 +3340,10 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
- *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" } | undefined,
+ *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
  *     turns: number | undefined,
  *     lastSend: { at: number, to: string } | undefined,
- *     lastText: { at: number | undefined, excerpt: string } | undefined,
+ *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
  *   }>,
  *   errorLog: Array<*>,
  *   loopTickLog?: Array<*>,
@@ -3311,6 +3361,7 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   pin: "match" | "outside the verified surface" | "not determinable",
  *   ledger: Array<{
  *     name: string,
+ *     run: string,
  *     sessionID: string,
  *     agent: string,
  *     model: string,
@@ -3321,10 +3372,10 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
- *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" } | undefined,
+ *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
  *     turns: number | undefined,
  *     lastSend: { at: number, to: string } | undefined,
- *     lastText: { at: number | undefined, excerpt: string } | undefined,
+ *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
  *   }>,
  *   recentErrors: Array<*>,
  *   recentLoopTicks: Array<*>,
@@ -3344,6 +3395,7 @@ function shapeStatus({
     pin: pinComparison,
     ledger: ledgerEntries.map((entry) => ({
       name: entry.name,
+      run: entry.run,
       sessionID: entry.sessionID,
       agent: entry.agent,
       model: entry.model,
