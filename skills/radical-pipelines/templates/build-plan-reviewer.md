@@ -36,4 +36,4 @@ reach the agent verbatim — the profile references them by name.
 
 ## Write your review to
 
-<path, e.g. `…/3-build/build-plan-review-r1-2.md`> — never derive the filename yourself.
+<path, e.g. `…/3-build/build-plan-review-2.md`> — never derive the filename yourself.

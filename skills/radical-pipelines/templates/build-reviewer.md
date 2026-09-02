@@ -37,7 +37,7 @@ reach the agent verbatim.
 
 ## Write your review to
 
-<path, e.g. `…/3-build/build-review-r1-1.md`>
+<path, e.g. `…/3-build/build-review-1.md`>
 
 ## Write the summary to
 

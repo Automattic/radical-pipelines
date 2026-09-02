@@ -4,7 +4,7 @@ The phase's specifics; the machine is `../loop.md`.
 
 ## Artifacts
 
-`2-design-doc/design-doc.md` and `2-design-doc/design-doc-research.md` — produced together, reviewed together (`design-doc-research.md` is the artifact under review; `design-doc.md` is checked for fidelity to it). Reviews land as `2-design-doc/design-doc-review-r<lane>-<iteration>.md`.
+`2-design-doc/design-doc.md` and `2-design-doc/design-doc-research.md` — produced together, reviewed together (`design-doc-research.md` is the artifact under review; `design-doc.md` is checked for fidelity to it). Reviews land in `2-design-doc/` as `design-doc-review-…`, named per the wave naming in `../loop.md`.
 
 Pins: the design artifacts pin `0-intent/intent.md`, `1-spec/spec.md`, and `1-spec/spec-research.md`.
 

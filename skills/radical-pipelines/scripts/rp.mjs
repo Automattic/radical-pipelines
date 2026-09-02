@@ -176,15 +176,15 @@ function cmdCheck(args) {
     // latest iteration per (prefix, lane)
     const latest = new Map();
     for (const r of reviews) {
-      const lane = r.data?.get("lane") ?? "?";
+      const lane = r.data?.get("lane") ?? "—";
       const iter = Number(r.data?.get("iteration") ?? 0);
-      const key = `${r.rel.replace(/-r[^-]*-\d+\.md$/, "")}|${lane}`;
+      const key = `${r.rel.replace(/-(?:r[^-]+-)?\d+\.md$/, "")}|${lane}`;
       if (!latest.has(key) || Number(latest.get(key).data?.get("iteration") ?? 0) < iter) latest.set(key, r);
     }
     for (const r of latest.values()) {
       const d = r.data ?? new Map();
       const verdict = d.get("verdict") ?? "UNSTAMPED";
-      const lane = d.get("lane") ?? "?";
+      const lane = d.get("lane") ?? "—";
       const iter = d.get("iteration") ?? "?";
       const reviewed = Array.isArray(d.get("reviewed")) ? d.get("reviewed") : [];
       const states = reviewed.map((p) => pinState(root, p));

@@ -41,5 +41,5 @@ messages to you are addressed by it.
 
 ## Write your review to
 
-<path, e.g. `…/1-spec/spec-review-r2-4.md`> — the filename encodes your lane and
-iteration; never derive it yourself.
+<path, e.g. `…/1-spec/spec-review-4.md`> — the filename encodes your iteration (and lane, on
+multi-lane waves); never derive it yourself.

@@ -43,5 +43,5 @@ messages to you are addressed by it.
 
 ## Write your review to
 
-<path, e.g. `…/2-design-doc/design-doc-review-r1-3.md`> — the filename encodes your
+<path, e.g. `…/2-design-doc/design-doc-review-3.md`> — the filename encodes your
 lane and iteration; never derive it yourself.

@@ -4,7 +4,7 @@ The phase's specifics; the machine is `../loop.md`.
 
 ## Artifacts
 
-`1-spec/spec.md` and `1-spec/spec-research.md` — produced together, reviewed together (`spec-research.md` is the artifact under review; `spec.md` is checked for fidelity to it). Reviews land as `1-spec/spec-review-r<lane>-<iteration>.md`.
+`1-spec/spec.md` and `1-spec/spec-research.md` — produced together, reviewed together (`spec-research.md` is the artifact under review; `spec.md` is checked for fidelity to it). Reviews land in `1-spec/` as `spec-review-…`, named per the wave naming in `../loop.md`.
 
 ## Profiles
 
