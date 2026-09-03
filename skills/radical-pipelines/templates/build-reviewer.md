@@ -18,6 +18,7 @@
 
 <!-- Fresh -->
 - Plan: <build-plan.md path>
+- Tasks: <one line per task file: path>
 - Design doc: <path>
 - Spec: <path>
 - Task reports: <one line per report: path>

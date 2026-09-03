@@ -9,7 +9,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Claim** — A reviewer's `Verdict: unsatisfiable` with its target, corroborating a producer's `Contradicts-input` disposition. (A labeled normative statement in an artifact is also called a claim.)
 - **Consolidation** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
-- **Done-set** — The tasks whose latest task report has `outcome: completed`.
+- **Done-set** — The tasks whose latest report is `completed` with a fresh pin on the task file.
 - **Episode** — An artifact's review waves since its last approval.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first actionable item `rp check` names: a trigger, a claim, a phase's next step, an audit or valve gate, or completion.
@@ -33,7 +33,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Stale** — The state of a pin whose target's current identity differs from the recorded identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity.
 - **Target** — The `<path>#<id>` clause that a trigger or `unsatisfiable` verdict says must change.
-- **Task report** — An immutable per-attempt worker report recording its outcome, commits, checks, and any failure evidence.
+- **Task report** — An immutable per-attempt worker report, `tasks/T<n>-report-<k>.md`, pinning the task file it executed and recording its outcome, commits, checks, and any failure evidence.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
 - **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a failed task report; adjudicated when the target pins it, resolved when the target is approved carrying the pin or the claim is escalated.
 - **Valve** — The run stop that produces an owner dossier after the convergence threshold, six waves by default, is reached without approval.

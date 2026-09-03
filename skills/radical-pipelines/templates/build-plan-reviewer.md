@@ -20,6 +20,7 @@
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
 - build-plan.md: <path>
+- Tasks: <one line per task file: path>
 - build-plan-research.md: <path>
 - Task reports: <one line per report: path>
 

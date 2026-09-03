@@ -113,15 +113,9 @@ function mirrorBody(body, fm, base, abs) {
   if (outcome) fm.set("outcome", outcome[1]);
   const recurs = [...body.matchAll(/^Prior finding:\s*(\S+#[^,\s]+),\s*resolution failed\s*$/gm)].map((m) => m[1]);
   if (recurs.length) fm.set("recurs", recurs);
-  // A plan's task blocks: `### T<n>: …` with `- **Depends on:** none | T<a>, T<b>`.
-  const tasks = [];
-  for (const block of body.split(/^### (?=T\d+:)/m).slice(1)) {
-    const id = block.match(/^(T\d+):/)[1];
-    const dep = block.match(/^\s*-\s*\*\*Depends on:\*\*\s*(.+)$/m);
-    const deps = dep ? [...dep[1].matchAll(/T\d+/g)].map((m) => m[0]) : [];
-    tasks.push(deps.length ? `${id} <- ${deps.join(",")}` : id);
-  }
-  if (tasks.length) fm.set("tasks", tasks);
+  // A task file's `Depends on:` line: `none`, or task ids.
+  const dep = body.match(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.+)$/m);
+  if (dep) fm.set("depends", [...dep[1].matchAll(/T\d+/g)].map((m) => m[0]));
 }
 
 function cmdStamp(args) {
@@ -270,16 +264,31 @@ function cmdCheck(args) {
   const pinsByPath = new Map(all.filter((d) => Array.isArray(d.data.get("pins"))).map((d) => [d.rel, d.data.get("pins")]));
 
   // Lanes of one artifact in one scope: latest review per declared lane.
-  const laneStates = (prefix, sc) => {
+  // A review is fresh when its reviewed pins are fresh and, when `mustCover` is
+  // given, when it names exactly those files among the reviewed ones it covers.
+  const reviewFresh = (r, mustCover) => {
+    const reviewed = [].concat(r.data.get("reviewed") ?? []);
+    if (!pinsFresh(reviewed)) return false;
+    if (!mustCover) return true;
+    const covered = reviewed.map((p) => pinParts(p)?.path).filter((x) => mustCover.filter(x)).sort();
+    return JSON.stringify(covered) === JSON.stringify([...mustCover.set].sort());
+  };
+  const laneStates = (prefix, sc, mustCover) => {
     const reviews = reviewsOf.get(sc) ?? new Map();
     const declared = lanesFor(prefix) ?? [...new Set([...reviews.values()].filter((r) => r.prefix === prefix).map((r) => r.lane))];
     return declared.map((lane) => {
       const r = reviews.get(`${prefix}|${lane}`);
       return r
-        ? { lane, verdict: r.data.get("verdict") ?? "unstamped", charter: r.data.get("charter") ?? "full scope", fresh: pinsFresh(r.data.get("reviewed")), iter: r.iter, review: r }
+        ? { lane, verdict: r.data.get("verdict") ?? "unstamped", charter: r.data.get("charter") ?? "full scope", fresh: reviewFresh(r, mustCover), iter: r.iter, review: r }
         : { lane, verdict: "none" };
     });
   };
+  // Files a plan review must name: the phase's task files; a phase review: tasks and reports.
+  const taskCover = (phase) => ({ filter: (x) => /\/tasks\/T\d+\.md$/.test(x), set: taskFiles.filter((t) => t.phase === phase).map((t) => t.rel) });
+  const phaseCover = (phase) => ({
+    filter: (x) => x.includes("/tasks/"),
+    set: [...taskFiles.filter((t) => t.phase === phase).map((t) => t.rel), ...all.filter((d) => /^[^/]+\/tasks\/T\d+-report-\d+\.md$/.test(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel)],
+  });
   const approvedBy = (lanes) => lanes.length > 0 && lanes.every((l) => l.verdict === "approved" && l.fresh);
   // A wave is closed when every declared lane reported on the current identities.
   const waveClosed = (lanes) => lanes.length > 0 && lanes.every((l) => l.verdict !== "none" && l.fresh);
@@ -324,13 +333,21 @@ function cmdCheck(args) {
   };
 
   // 1. Triggers: external amendments and failed task reports (the latest attempt).
+  // Tasks are files `<phase>/tasks/T<n>.md`; attempts are `<phase>/tasks/T<n>-report-<k>.md`, pinning the task.
+  const taskFiles = all.filter((d) => /^[^/]+\/tasks\/T\d+\.md$/.test(d.rel)).map((d) => ({
+    rel: d.rel,
+    phase: d.rel.split("/")[0],
+    id: d.name.replace(/\.md$/, ""),
+    deps: [].concat(d.data.get("depends") ?? []),
+  }));
   const tasks = new Map();
-  for (const t of all.filter((d) => /^task-.+-\d+\.md$/.test(d.name) && d.rel.includes("tasks/"))) {
+  for (const t of all.filter((d) => /^[^/]+\/tasks\/T\d+-report-\d+\.md$/.test(d.rel))) {
+    const [, id, k] = t.name.match(/^(T\d+)-report-(\d+)\.md$/);
     const phase = t.rel.split("/")[0];
-    const id = t.data.get("task") ?? t.name.replace(/^task-(.+)-\d+\.md$/, "$1");
-    const attempt = Number(t.data.get("attempt") ?? t.name.match(/-(\d+)\.md$/)[1]);
+    const attempt = Number(t.data.get("attempt") ?? k);
     const key = `${phase}/${id}`;
-    if (!tasks.has(key) || tasks.get(key).attempt < attempt) tasks.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? "unstamped" });
+    if (!tasks.has(key) || tasks.get(key).attempt < attempt)
+      tasks.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? "unstamped", fresh: pinsFresh(t.data.get("pins")) });
   }
   const triggers = [
     ...all.filter((d) => /^0-intent\/\d+-amendment\.md$/.test(d.rel)).map((d) => ({ rel: d.rel, kind: "amendment", target: d.data.get("target") ?? "?" })),
@@ -391,7 +408,7 @@ function cmdCheck(args) {
     const stale = staleOf(pins);
     const missingPins = art.requires.filter((req) => !(pins ?? []).some((p) => pinParts(p)?.path === req));
     const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : missingPins.length ? "incomplete pins" : "fresh";
-    const lanes = laneStates(art.prefix, sc);
+    const lanes = laneStates(art.prefix, sc, art.review ? taskCover(art.phase) : null);
     const { episode, recurs } = episodeOf(art.prefix, sc);
     const approved = approvedBy(lanes);
     const gate = !approved && episode >= valve ? "VALVE" : !approved && episode === audit ? "AUDIT" : null;
@@ -442,33 +459,29 @@ function cmdCheck(args) {
       if (st.state === "fresh" && st.approved) phaseDone(phaseNo);
       continue;
     }
-    // Build and document: tasks from the plan's mirrored task list, then the phase review.
-    const planTasks = [].concat(all.find((d) => d.rel === art.path)?.data.get("tasks") ?? []).map((t) => {
-      const [id, deps] = t.split("<-").map((x) => x.trim());
-      return { id, deps: deps ? deps.split(",").map((x) => x.trim()) : [] };
-    });
+    // Build and document: the phase's task files, their latest reports, then the phase review.
+    const planTasks = taskFiles.filter((t) => t.phase === art.phase).sort((x, y) => Number(x.id.slice(1)) - Number(y.id.slice(1)));
     const phaseTasks = [...tasks.values()].filter((t) => t.phase === art.phase);
-    const done = new Set(phaseTasks.filter((t) => t.outcome === "completed").map((t) => t.id));
-    const open = phaseTasks.filter((t) => t.outcome !== "completed").map((t) => `${t.id}:${t.outcome}`);
-    const next = planTasks.find((t) => !done.has(t.id) && t.deps.every((d) => done.has(d)) && !phaseTasks.some((x) => x.id === t.id && x.outcome === "failed"));
-    const remaining = planTasks.filter((t) => !done.has(t.id)).map((t) => t.id);
-    out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done: [...done], open, next: next?.id ?? null };
-    lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${[...done].join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
+    const latestOf = (id) => phaseTasks.find((t) => t.id === id);
+    const isDone = (id) => {
+      const r = latestOf(id);
+      return !!r && r.outcome === "completed" && r.fresh;
+    };
+    const done = planTasks.filter((t) => isDone(t.id)).map((t) => t.id);
+    const open = phaseTasks.filter((t) => !isDone(t.id)).map((t) => `${t.id}:${t.outcome}${t.outcome === "completed" ? " (stale)" : ""}`);
+    const next = planTasks.find((t) => !isDone(t.id) && t.deps.every(isDone) && latestOf(t.id)?.outcome !== "failed");
+    const remaining = planTasks.filter((t) => !isDone(t.id)).map((t) => t.id);
+    out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null };
+    lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
     if (!planTasks.length) {
-      take(`stamp ${art.path} --mirror (no tasks mirrored)`);
+      take(`no tasks in ${art.phase}/tasks/`);
       stopped = true;
     } else if (remaining.length) {
       take(next ? `task ${art.phase}/${next.id}` : `tasks blocked in ${art.phase}: ${remaining.join(", ")}`);
       stopped = true;
     }
-    // Phase review: pins the plan and every task report; fresh iff those match the current set.
-    const reportSet = phaseTasks.map((t) => t.rel).sort();
-    const rl = laneStates(art.review, "").map((l) => {
-      if (!l.review) return l;
-      const reviewed = [].concat(l.review.data.get("reviewed") ?? []);
-      const reviewedReports = reviewed.map((p) => pinParts(p)?.path).filter((x) => x && x.includes("tasks/")).sort();
-      return { ...l, fresh: pinsFresh(reviewed) && JSON.stringify(reviewedReports) === JSON.stringify(reportSet) };
-    });
+    // Phase review: pins the plan, every task, and every report; fresh iff it names exactly the current ones.
+    const rl = laneStates(art.review, "", phaseCover(art.phase));
     const { episode, recurs } = episodeOf(art.review, "");
     const rApproved = approvedBy(rl);
     const gate = !rApproved && episode >= valve ? "VALVE" : !rApproved && episode === audit ? "AUDIT" : null;
@@ -541,7 +554,7 @@ Usage:
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Charter, Target,
-Origin, Outcome, Prior finding, a plan's task blocks), and head — the commit
+Origin, Outcome, Prior finding, a task's Depends on), and head — the commit
 the stamp observed. Identity is the hash of a file's body: stamping never
 changes it. check reports the frontier: triggers, claims, then phases in order
 up to the target — lanes, artifacts, tasks, phase reviews, audit/valve gates —

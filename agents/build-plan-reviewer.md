@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Spec**, the **Design doc**, `build-plan.md`, `build-plan-research.md`, the **Task reports** so far.
+Materials: the **Spec**, the **Design doc**, `build-plan.md`, its **Tasks**, `build-plan-research.md`, the **Task reports** so far.
 
 1. Read the spec and the design doc; list every requirement, decision, acceptance criterion, and open assumption.
 2. Read `build-plan-research.md` and `build-plan.md`.
@@ -48,7 +48,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every decision and every acceptance criterion is served by a task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
-- **Self-containment** — a worker can execute each block without a design decision; `Type` matches the work; dependencies are real and acyclic.
+- **Self-containment** — a worker can execute each task file without a design decision; `Type` matches the work; dependencies are real and acyclic; the plan's order lists exactly the task files.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity** — `build-plan.md` reflects `build-plan-research.md`; ids are stable; the plan carries no review references, adjudication trails, or superseded text.
 - **Labeling** — every claim the plan rests on is verified with a citation or assumed with a condition; a producer presenting its own experiments as evidence is a finding — except a reproduced task report.

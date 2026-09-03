@@ -27,8 +27,9 @@
 - Design doc: <design-doc.md path>
 - Build summary: <build-summary.md path>; <approving build review path>
 - document-plan.md: <path>
+- Tasks: <one line per task file: path>
 - document-plan-research.md: <path>
 - Task reports: <one line per report: path>
 - Review lanes: <one line per review: lane — path>
 - Amendment: <trigger path>; <origin chain paths>
-- Task report: <report path>; <the task's block in the plan>
+- Task report: <report path>; <its task file path>

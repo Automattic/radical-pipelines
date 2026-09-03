@@ -8,7 +8,7 @@
 
 ## Materials
 
-- Task: <document-plan.md path> — T<n>
+- Task: <tasks/T<n>.md path>
 - Plan: <document-plan.md path>
 - Your previous report: <path>   <!-- re-dispatch only -->
 - Adjudication: <record path — section>   <!-- re-dispatch only -->

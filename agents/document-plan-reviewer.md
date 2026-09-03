@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Spec**, the **Design doc**, the **Build summary**, `document-plan.md`, `document-plan-research.md`, the **Task reports** so far.
+Materials: the **Spec**, the **Design doc**, the **Build summary**, `document-plan.md`, its **Tasks**, `document-plan-research.md`, the **Task reports** so far.
 
 1. Read the spec, the design doc, and the build summary; inspect the shipped code's public surfaces and the project's documentation locations.
 2. Read `document-plan-research.md` and `document-plan.md`.
@@ -48,7 +48,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every shipped observable behavior the spec names and every public surface the code adds or changes is served by a task, or recorded out of scope with a reason; the surface inventory matches the project's documentation as inspected.
-- **Self-containment** — a worker can execute each block without deciding what the software does; `Surface` is a real location; dependencies are real and acyclic.
+- **Self-containment** — a worker can execute each task file without deciding what the software does; `Surface` is a real location; dependencies are real and acyclic; the plan's order lists exactly the task files.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; ids are stable; the plan carries no review references, adjudication trails, or superseded text.
 - **Labeling** — every claim the plan rests on is verified with a citation or assumed; a producer presenting its own experiments as evidence is a finding — except a reproduced task report.

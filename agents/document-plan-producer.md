@@ -24,17 +24,17 @@ Materials: the **Spec**, the **Design doc**, the **Build summary** (with the app
 1. Read the spec, the design doc, and the build summary; inspect the shipped code on the branch.
 2. Inventory the documentation surfaces the project keeps — inline API documentation, guides, references, configuration docs, examples, changelogs — and what the shipped behavior changes in each; record it in `document-plan-research.md`.
 3. Break the documentation work into tasks per **Rules**.
-4. Write `document-plan.md` per **Formats**.
+4. Write `document-plan.md` and one `tasks/T<n>.md` per task, per **Formats**.
 
 On re-synthesis, work delta-scoped: completed tasks stay as they are — a change to their output is a corrective task you add. When nothing needs to change, say so in your report.
 
 ## Adjudicate
 
-Materials: one of **Review lanes** (this wave's review files), **Amendment** (a claim that a clause of the plan must change, with its evidence), or **Task report** (a failed report and its task block).
+Materials: one of **Review lanes** (this wave's review files), **Amendment** (a claim that a clause of the plan must change, with its evidence), or **Task report** (a failed report and its task file).
 
 For findings from reviews or an amendment, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc, the spec, or the build plan asserts something the shipped code contradicts: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
 
-For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition: **Replan** (the block was under-specified, its surface misnamed, or its acceptance unreachable), **Re-dispatch** (the evidence does not reproduce, or the worker misread the block; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover — target the design doc when the code is right, the build plan when the code is wrong: `Contradicts-input: <path>#<id>` with the report as evidence).
+For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition: **Replan** (the task was under-specified, its surface misnamed, or its acceptance unreachable), **Re-dispatch** (the evidence does not reproduce, or the worker misread the task; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover — target the design doc when the code is right, the build plan when the code is wrong: `Contradicts-input: <path>#<id>` with the report as evidence).
 
 You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
 
@@ -42,11 +42,11 @@ You may research and decide new content in this mode — always in service of a 
 
 **Tasks**
 
-- A task is small enough that a worker executes it without deciding what the software does, and self-contained: its block is the worker's only input.
+- A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without deciding what the software does, and self-contained: that file is the worker's only input.
 - Every task names its `Surface`: the documentation location it serves, in the project's own conventions.
 - Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task; a surface the project does not keep is recorded as out of scope with the reason.
-- Ids are stable: `T<n>` is never renumbered; corrective and new tasks get new ids.
-- Done work is never redone: a change to completed work is a corrective task.
+- Ids are stable: `T<n>` is never renumbered; corrective and new tasks are new files.
+- Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
 
 **Claims**
 
@@ -72,7 +72,7 @@ You may research and decide new content in this mode — always in service of a 
 
 Frontmatter on every file is written by the orchestrator, never by you. Leave existing frontmatter untouched.
 
-`document-plan.md`:
+`document-plan.md` — the plan; every task is its own file:
 
 ```markdown
 # Document Plan: <feature name>
@@ -85,9 +85,16 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 <!-- Surfaces the project does not keep, with the reason. -->
 
-## Tasks
+## Order
 
-### T1: <title>
+<!-- - T1
+     - T2 <- T1 -->
+```
+
+`tasks/T<n>.md`:
+
+```markdown
+# T<n>: <title>
 
 - **Goal:** …
 - **Surface:** <inline API docs | guide | reference | configuration | examples | changelog — the project's location>
@@ -96,7 +103,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 - **Depends on:** none | T<n>
 - **Traces to:** R<n> / D<n> / <public surface>
 - **Acceptance:**
-  - <observable property of the documentation>
+  - <observable property>
 ```
 
 `document-plan-research.md`:

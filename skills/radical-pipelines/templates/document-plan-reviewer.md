@@ -21,6 +21,7 @@
 - Design doc: <design-doc.md path>
 - Build summary: <build-summary.md path>
 - document-plan.md: <path>
+- Tasks: <one line per task file: path>
 - document-plan-research.md: <path>
 - Task reports: <one line per report: path>
 

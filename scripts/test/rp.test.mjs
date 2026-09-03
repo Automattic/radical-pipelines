@@ -292,35 +292,17 @@ describe("rp state tooling", () => {
     );
   });
 
-  test("latest task attempts determine the done-set and failed-task triggers", () => {
-    const reports = [
-      ["T1", 1, "failed"],
-      ["T1", 2, "completed"],
-      ["T2", 1, "completed"],
-      ["T2", 2, "failed"],
-    ];
-    for (const [taskId, attempt, outcome] of reports) {
-      const relativePath = `3-build/tasks/task-${taskId}-${attempt}.md`;
-      writePipelineFile(root, relativePath, `# Task report\n\nOutcome: ${outcome}\n`);
-      runRp(
-        root,
-        "stamp",
-        pipelineFile(relativePath),
-        "--set",
-        `task=${taskId}`,
-        "--set",
-        `attempt=${attempt}`,
-        "--mirror",
-      );
+  test("the latest attempt of a task determines the done-set and failed-task triggers", () => {
+    writePipelineFile(root, "3-build/tasks/T1.md", "# T1\n\n- **Depends on:** none\n");
+    writePipelineFile(root, "3-build/tasks/T2.md", "# T2\n\n- **Depends on:** none\n");
+    for (const f of ["T1", "T2"]) runRp(root, "stamp", pipelineFile(`3-build/tasks/${f}.md`), "--mirror");
+    for (const [id, k, outcome] of [["T1", 1, "failed"], ["T1", 2, "completed"], ["T2", 1, "completed"], ["T2", 2, "failed"]]) {
+      writePipelineFile(root, `3-build/tasks/${id}-report-${k}.md`, `# Task report\n\nOutcome: ${outcome}\n`);
+      runRp(root, "stamp", pipelineFile(`3-build/tasks/${id}-report-${k}.md`), "--pin", pipelineFile(`3-build/tasks/${id}.md`), "--set", `attempt=${k}`, "--mirror");
     }
-
     const output = runRp(root, "check", PIPELINE);
-    assert.match(output, /tasks\s+3-build: planned 0\s+done \[T1\]\s+open \[T2:failed\]/);
-    assert.match(
-      output,
-      /trigger\s+3-build\/tasks\/task-T2-2\.md \(failed task T2\) → 3-build\/build-plan\.md\s+PENDING/,
-    );
-    assert.doesNotMatch(output, /failed task T1/);
+    assert.match(output, /trigger\s+3-build\/tasks\/T2-report-2\.md \(failed task T2\) → 3-build\/build-plan\.md\s+PENDING/);
+    assert.match(output, /tasks\s+3-build: planned 2\s+done \[T1\]\s+open \[T2:failed\]/);
   });
 
   test("production lanes are sub-pipelines: lane reviews never approve the root", () => {
@@ -441,12 +423,21 @@ describe("rp state tooling", () => {
     runRp(root, "stamp", pipelineFile("2-design-doc/design-doc.md"), "--pin", pipelineFile("0-intent/intent.md"), "--pin", pipelineFile("1-spec/spec.md"));
     review("2-design-doc/design-doc-review-1.md", "# Review\n\nVerdict: approved\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
     if (upTo < 3) return;
-    writePipelineFile(root, "3-build/build-plan.md", "# Build plan\n\n### T1: first\n\n- **Depends on:** none\n\n### T2: second\n\n- **Depends on:** T1\n");
-    runRp(root, "stamp", pipelineFile("3-build/build-plan.md"), "--pin", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("2-design-doc/design-doc.md"), "--mirror");
-    review("3-build/build-plan-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md"], ["lane=r1", "iteration=1"]);
+    writePipelineFile(root, "3-build/build-plan.md", "# Build plan\n\n## Order\n\n- T1\n- T2 <- T1\n");
+    writePipelineFile(root, "3-build/tasks/T1.md", "# T1: first\n\n- **Depends on:** none\n");
+    writePipelineFile(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1\n");
+    runRp(root, "stamp", pipelineFile("3-build/build-plan.md"), "--pin", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("2-design-doc/design-doc.md"));
+    runRp(root, "stamp", pipelineFile("3-build/tasks/T1.md"), "--mirror");
+    runRp(root, "stamp", pipelineFile("3-build/tasks/T2.md"), "--mirror");
+    review("3-build/build-plan-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/tasks/T1.md", "3-build/tasks/T2.md"], ["lane=r1", "iteration=1"]);
   }
 
-  test("the frontier walks the phases in order and names the next task from the plan's mirrored task list", () => {
+  function report(phase, id, k, outcome) {
+    writePipelineFile(root, `${phase}/tasks/${id}-report-${k}.md`, `# Task report\n\nOutcome: ${outcome}\n`);
+    runRp(root, "stamp", pipelineFile(`${phase}/tasks/${id}-report-${k}.md`), "--pin", pipelineFile(`${phase}/tasks/${id}.md`), "--set", `attempt=${k}`, "--mirror");
+  }
+
+  test("the frontier walks the phases in order and names the next task from the task files", () => {
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier stamp 1-spec\/spec\.md/);
     approveChain(1);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier stamp 2-design-doc\/design-doc\.md/);
@@ -454,29 +445,31 @@ describe("rp state tooling", () => {
     let output = runRp(root, "check", PIPELINE, "--lanes", "r1");
     assert.match(output, /tasks\s+3-build: planned 2\s+done \[\]\s+next T1/);
     assert.match(output, /frontier task 3-build\/T1/);
-    writePipelineFile(root, "3-build/tasks/task-T1-1.md", "# Task report\n\nOutcome: completed\n");
-    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T1-1.md"), "--set", "task=T1", "--set", "attempt=1", "--mirror");
+    report("3-build", "T1", 1, "completed");
     output = runRp(root, "check", PIPELINE, "--lanes", "r1");
     assert.match(output, /next T2/);
     assert.match(output, /frontier task 3-build\/T2/);
+    // A replan of T1 makes its completed report stale: T1 is the next task again.
+    writePipelineFile(root, "3-build/tasks/T1.md", "# T1: first, revised\n\n- **Depends on:** none\n");
+    runRp(root, "stamp", pipelineFile("3-build/tasks/T1.md"), "--mirror");
+    output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /open \[T1:completed \(stale\)\]/);
+    assert.match(output, /build-plan\.md .*r1:approved \(stale\)/);
   });
 
-  test("a phase review pins the plan and every task report, and goes stale when a new report lands", () => {
+  test("a phase review pins the plan, every task, and every report, and goes stale when a new report lands", () => {
     approveChain(3);
-    writePipelineFile(root, "3-build/tasks/task-T1-1.md", "# Task report\n\nOutcome: completed\n");
-    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T1-1.md"), "--set", "task=T1", "--set", "attempt=1", "--mirror");
-    writePipelineFile(root, "3-build/tasks/task-T2-1.md", "# Task report\n\nOutcome: completed\n");
-    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T2-1.md"), "--set", "task=T2", "--set", "attempt=1", "--mirror");
+    report("3-build", "T1", 1, "completed");
+    report("3-build", "T2", 1, "completed");
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier build review/);
-    review("3-build/build-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/tasks/task-T1-1.md", "3-build/tasks/task-T2-1.md"], ["lane=r1", "iteration=1"]);
+    review("3-build/build-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/tasks/T1.md", "3-build/tasks/T2.md", "3-build/tasks/T1-report-1.md", "3-build/tasks/T2-report-1.md"], ["lane=r1", "iteration=1"]);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier missing 3-build\/build-summary\.md/);
     writePipelineFile(root, "3-build/build-summary.md", "# Summary\n");
     let output = runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "3");
     assert.match(output, /complete through phase 3 — target reached/);
     assert.match(output, /frontier complete/);
     // A new attempt of T2 makes the build review stale.
-    writePipelineFile(root, "3-build/tasks/task-T2-2.md", "# Task report\n\nOutcome: completed\n");
-    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T2-2.md"), "--set", "task=T2", "--set", "attempt=2", "--mirror");
+    report("3-build", "T2", 2, "completed");
     output = runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "3");
     assert.match(output, /build\s+review: r1:approved \(stale\)/);
     assert.match(output, /frontier build review/);

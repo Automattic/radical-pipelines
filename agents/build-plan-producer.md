@@ -31,13 +31,13 @@ On re-synthesis, work delta-scoped: completed tasks stay as they are — an upst
 
 ## Adjudicate
 
-Materials: one of **Review lanes** (this wave's review files), **Amendment** (a claim that a clause of the plan must change, with its evidence), or **Task report** (a failed report and its task block).
+Materials: one of **Review lanes** (this wave's review files), **Amendment** (a claim that a clause of the plan must change, with its evidence), or **Task report** (a failed report and its task file).
 
 For findings from reviews or an amendment, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc or the spec asserts something false: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
 
 For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition:
 
-- **Replan** — the block was under-specified, mistyped, missing a dependency, or its acceptance unreachable: rewrite the block, or split it, keeping ids stable.
+- **Replan** — the task was under-specified, mistyped, missing a dependency, or its acceptance unreachable: rewrite its file, or split it into new files, keeping ids stable.
 - **Re-dispatch** — the evidence does not reproduce, or the worker misread the block: say why; an identical second failure is not re-dispatched without new evidence.
 - **Contradicts-input** — a mapped assumption fell (`Verifies: A<n>`), or a spec or design claim is false: `Contradicts-input: <path>#<id>` with the report as evidence.
 
@@ -47,12 +47,12 @@ You may research and decide new content in this mode — always in service of a 
 
 **Tasks**
 
-- A task is small enough that a worker executes it without making a design decision, and self-contained: its block is the worker's only input.
+- A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without making a design decision, and self-contained: that file is the worker's only input.
 - `Type` routes it: `tdd` (behavior with unit tests), `e2e` (end-to-end flows from the E2E test plan), `edit` (no observable behavior change).
 - Every open assumption of the design doc maps to the task that verifies it, `Verifies: A<n>`; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
 - Every task traces to the requirements, decisions, or flows it serves. Every acceptance criterion and every decision is served by at least one task.
-- Ids are stable: `T<n>` is never renumbered; corrective and new tasks get new ids.
-- Done work is never redone: a change to completed work is a corrective task.
+- Ids are stable: `T<n>` is never renumbered; corrective and new tasks are new files.
+- Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
 
 **Claims**
 
@@ -78,7 +78,7 @@ You may research and decide new content in this mode — always in service of a 
 
 Frontmatter on every file is written by the orchestrator, never by you. Leave existing frontmatter untouched.
 
-`build-plan.md`:
+`build-plan.md` — the plan; every task is its own file:
 
 ```markdown
 # Build Plan: <feature name>
@@ -99,9 +99,16 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 <!-- A<n>: <claim> — Verifies: T<n> | carried, Verifies: — (<reason>) -->
 
-## Tasks
+## Order
 
-### T1: <title>
+<!-- - T1
+     - T2 <- T1 -->
+```
+
+`tasks/T<n>.md`:
+
+```markdown
+# T<n>: <title>
 
 - **Goal:** …
 - **Type:** tdd | e2e | edit
@@ -111,7 +118,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 - **Verifies:** A<n> | —
 - **Traces to:** R<n> / D<n> / Flow <n>
 - **Acceptance:**
-  - <observable outcome>
+  - <observable property>
 ```
 
 `build-plan-research.md`:

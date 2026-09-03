@@ -23,6 +23,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
 | `task <phase>/<id>`                                  | That task's worker                                                                                             |
 | `build review` / `document review`                   | The phase's reviewer                                                                                           |
+| `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `missing <summary>`                                  | The phase reviewer wrote no summary: re-dispatch it                                                            |
 | `AUDIT <artifact>`                                   | Audit (below), then continue                                                                                   |
 | `VALVE <artifact>`                                   | The valve (below)                                                                                              |
@@ -43,9 +44,9 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 After every agent commit, before anyone consumes the result:
 
-- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated; a plan gets `--mirror` too.
-- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger. A build or document review: `--reviewed <plan>` and `--reviewed` every task report of the phase.
-- A task report: `rp stamp <report> --set task=<id> --set attempt=<n> --mirror`.
+- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
+- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger. A plan review also `--reviewed` every task; a build or document review `--reviewed` the plan, every task, and every report.
+- A task report: `rp stamp <report> --pin <task> --set attempt=<k> --mirror`.
 
 ## Review waves
 

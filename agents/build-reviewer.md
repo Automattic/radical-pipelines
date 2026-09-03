@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Plan**, the **Design doc**, the **Spec**, every **Task report**, and the **Diff** — the code since the plan landed.
+Materials: the **Plan** and its **Tasks**, the **Design doc**, the **Spec**, every **Task report**, and the **Diff** — the code since the plan landed.
 
 1. Map every commit in the diff to a task through the task reports; a commit no report claims is a finding.
 2. Review the diff per **Rules**; run the tests, the build, and the E2E test plan's flows.
