@@ -20,7 +20,7 @@ Frontmatter holds only pins, mirrors, and landing facts. A mirror copies a decla
 | `pins`      | artifacts                    | list of `<path>@<identity>`                                              |
 | `reviewed`  | reviews                      | list of `<path>@<identity>` — the files the verdict is about             |
 | `verdict`   | reviews                      | `approved` \| `rejected` \| `unsatisfiable`                              |
-| `lane`      | reviews                      | `r1`, `r2`, … or `owner`; always present                                 |
+| `lane`      | reviews                      | the review lane: `r1`, `r2`, … or `owner`; always present                |
 | `iteration` | reviews                      | per-lane counter, starting at 1, never reset                             |
 | `target`    | triggers                     | `<path>#<id>`                                                            |
 | `origin`    | anything born from something | the issue reference; an external source; the trigger a review responds to; a list when several |
@@ -66,11 +66,11 @@ A file pins exactly what it consumed, never its sibling. Downstream pins artifac
 
 ## Owner territory
 
-`0-intent/intent.md` is the only file that carries the owner's words: the issue as written, and every later decision quoted under `## Decisions`. Owner territory is every item of it outside "Assumptions / directions to explore". Records cite the intent; they never hold owner words of their own.
+`0-intent/intent.md` is the only file that carries the owner's words: the issue as written, and every later decision quoted under `## Decisions`. Owner territory is what the work must satisfy: its Goal, Constraints, and Decisions. Records cite the intent; they never hold owner words of their own.
 
 ## The frontier
 
-`rp check <pipeline folder> --lanes <spec>` reports, in this order (`--lanes r1,r2`, or per artifact `spec=r1,r2;build-plan=r1`; an `owner` lane approval satisfies any declaration):
+`rp check <pipeline folder> --lanes <declaration>` reports, in this order (`--lanes r1,r2`, or per artifact `spec=owner;design-doc=r1,r2` — the run policy's lanes, `owner` being the assisted workflow's lane):
 
 1. **Unresolved triggers** → work on their target, before anything else.
 2. **Claims** — a lane's latest verdict is `unsatisfiable` and its `reviewed` pins are fresh (a claim about a changed artifact is moot). Resolved by refutation (a review of the target approved citing it) → work on the claiming artifact with the refutation. Pending (target identity unchanged): target in the intent → a pending owner escalation; target itself the subject of a pending claim → suspended; otherwise → work on the target.

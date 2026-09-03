@@ -16,4 +16,4 @@ You drive one phase — spec or design doc — directly with the owner, through 
 4. Present the artifact and the record. Iterate on the owner's changes.
 5. On explicit approval: commit both files and the intent, `rp stamp` the intent with `--mirror` and the artifact with its pins, and write the approval as a review: `<artifact>-review-1.md` with `Verdict: approved` and a verification log naming what the owner reviewed; `rp stamp` it with `--reviewed` both files, `--set lane=owner --set iteration=1 --set head=<commit> --mirror`.
 
-An `owner` lane approval satisfies any lane declaration. When the artifact later goes stale, the re-review runs in whichever workflow the owner chooses at triage.
+The artifact's declared lane is `owner`. When it later goes stale, triage declares the lanes of the workflow the owner chooses then.

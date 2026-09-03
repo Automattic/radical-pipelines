@@ -22,7 +22,7 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | PR format             | Pull request title and description rules                                                                                               | No       |
 | Guardrails            | Rules agents must satisfy                                                                                                              | No       |
 | Lifecycle hooks       | Instructions run at defined moments                                                                                                    | No       |
-| Policy defaults       | Review lanes and charters per artifact; audit and valve thresholds overriding the loop's defaults                                     | No       |
+| Policy defaults       | Review lanes and charters per artifact; audit and valve thresholds (`policy-defaults.md`)                                              | No       |
 | Agent models          | Model and settings per profile, inside the active tool's section                                                                       | No       |
 
 ## Schema stamp

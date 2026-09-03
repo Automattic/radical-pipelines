@@ -142,12 +142,10 @@ function cmdStamp(args) {
     fm.set(s.slice(0, i), s.slice(i + 1));
   }
   if (args.mirror) mirrorBody(body, fm, base, abs);
-  if (!fm.has("head")) {
-    try {
-      fm.set("head", execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim().slice(0, SHORT));
-    } catch {
-      /* no commits yet: no head to record */
-    }
+  try {
+    fm.set("head", execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim().slice(0, SHORT));
+  } catch {
+    /* no commits yet: no head to record */
   }
   if (!fm.size) die("stamp: nothing to write (use --pin, --reviewed, --set, --mirror)");
 
@@ -245,10 +243,7 @@ function artifactState(abs, doc, prefix, reviews, lanesFor) {
     const r = reviews.get(`${prefix}|${lane}`);
     return r ? { lane, verdict: r.data.get("verdict") ?? "unstamped", fresh: pinsFresh(abs, r.data.get("reviewed")), review: r.rel } : { lane, verdict: "none" };
   });
-  const owner = reviews.get(`${prefix}|owner`);
-  const ownerApproved = !!owner && owner.data.get("verdict") === "approved" && pinsFresh(abs, owner.data.get("reviewed"));
-  if (ownerApproved && !lanes.some((l) => l.lane === "owner")) lanes.push({ lane: "owner", verdict: "approved", fresh: true, review: owner.rel });
-  const approved = ownerApproved || (lanes.length > 0 && lanes.every((l) => l.verdict === "approved" && l.fresh));
+  const approved = lanes.length > 0 && lanes.every((l) => l.verdict === "approved" && l.fresh);
   return { state, stale, lanes, approved };
 }
 
@@ -481,11 +476,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       break;
     default:
       process.stdout.write(
-        `rp — Radical Pipelines state tooling (v3)
+        `rp — Radical Pipelines state tooling
 
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set key=value]... [--mirror] [--force]
-  node rp.mjs check <pipeline-folder> [--lanes r1,r2 | --lanes spec=r1,r2;build-plan=r1] [--target-phase <n>] [--json]
+  node rp.mjs check <pipeline-folder> [--lanes r1,r2 | --lanes spec=owner;design-doc=r1,r2] [--target-phase <n>] [--json]
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Target, Origin,

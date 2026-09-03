@@ -46,7 +46,7 @@ Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the
 
 ### Policy defaults (optional)
 
-Review lanes and their charters per artifact. Audit and valve thresholds when overriding the loop's defaults.
+Review lanes and their charters per artifact, and thresholds, in the blocks `policy-defaults.md` defines.
 
 ### Agent models (optional)
 

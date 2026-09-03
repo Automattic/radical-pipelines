@@ -397,12 +397,13 @@ describe("rp state tooling", () => {
     assert.match(runRp(root, "check", PIPELINE), /counter\s+spec: 1 wave this episode/);
   });
 
-  test("--lanes accepts per-artifact declarations and an owner lane approval satisfies any", () => {
+  test("--lanes declares lanes per artifact; the assisted workflow declares owner", () => {
     review("1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md"], ["lane=owner", "iteration=1"]);
     review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
-    const output = runRp(root, "check", PIPELINE, "--lanes", "spec=r1,r2;design-doc=r1,r2");
+    const output = runRp(root, "check", PIPELINE, "--lanes", "spec=owner;design-doc=r1,r2");
     assert.match(output, /artifact 1-spec\/spec\.md .*owner:approved.*APPROVED/);
     assert.match(output, /artifact 2-design-doc\/design-doc\.md .*r1:approved r2:none\n/);
+    assert.doesNotMatch(runRp(root, "check", PIPELINE, "--lanes", "spec=r1"), /artifact 1-spec\/spec\.md .*APPROVED/);
   });
 
   test("--target-phase reports completion", () => {
@@ -419,7 +420,12 @@ describe("rp state tooling", () => {
     runRp(root, "stamp", pipelineFile("0-intent/intent.md"), "--mirror");
     const text = readFileSync(join(root, pipelineFile("0-intent/intent.md")), "utf8");
     assert.match(text, /origin:\n  - issue 7\n  - starts-from 6-other/);
-    assert.match(text, /head: [0-9a-f]{12}/);
+    const head1 = text.match(/head: ([0-9a-f]{12})/)[1];
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "second");
+    runRp(root, "stamp", pipelineFile("0-intent/intent.md"), "--mirror");
+    const head2 = readFileSync(join(root, pipelineFile("0-intent/intent.md")), "utf8").match(/head: ([0-9a-f]{12})/)[1];
+    assert.notEqual(head2, head1);
   });
 
   test("a claim raised inside a production lane reaches the frontier, and lanes have counters", () => {
