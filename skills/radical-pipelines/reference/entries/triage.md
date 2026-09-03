@@ -25,7 +25,9 @@ Apply the first predicate that holds:
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the main branch                                       |
 
-Several live pipelines match: pick the one whose frontier the request advances; a pipeline stopped by the valve is continued only with new input (an amendment or an escalation answer). ### 4. Confirm the run
+Several live pipelines match: pick the one whose frontier the request advances; a pipeline stopped by the valve is continued only with new input (an amendment or an escalation answer).
+
+### 4. Confirm the run
 
 One message to the owner: the route and why — or, when no predicate decides, the one deciding question — together with the run policy to confirm (workflow, target phase, review lanes and charters per artifact, from the project's policy defaults) and every other question this session still has.
 

@@ -13,7 +13,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 ## Frontmatter
 
-Frontmatter holds only pins, mirrors, and landing facts. A mirror copies a declaration the agent made in the body (`Verdict:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`); a landing fact records where the stamp happened (`head`, `target-identity`).
+Frontmatter holds only pins, mirrors, and landing facts. A mirror copies a declaration the agent made in the body (`Verdict:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`); a landing fact records what the stamp observed (`head`, `target-identity`).
 
 | Key         | Files                        | Value                                                                    |
 | ----------- | ---------------------------- | ------------------------------------------------------------------------ |
@@ -25,7 +25,7 @@ Frontmatter holds only pins, mirrors, and landing facts. A mirror copies a decla
 | `target`    | triggers                     | `<path>#<id>`                                                            |
 | `origin`    | anything born from something | the issue reference; an external source; the trigger a review responds to; a list when several |
 | `recurs`    | reviews                      | mirror of `Prior finding: <review>#<issue>, resolution failed`           |
-| `head`      | reviews                      | the commit the review landed at; the diff base of the next delta review; for build and document reviews, the code reviewed |
+| `head`      | every stamped file           | the commit the stamp observed: the diff base for the next delta review or re-synthesis; for build and document reviews, the code reviewed |
 | `target-identity` | `unsatisfiable` reviews | the target's identity when the verdict landed                          |
 | `task`, `attempt`, `outcome` | task reports | task id; attempt number; `completed` \| `failed`                       |
 
@@ -58,7 +58,7 @@ A file pins exactly what it consumed, never its sibling. Downstream pins artifac
 ## Names
 
 - Pipeline folder: `<pipelines folder root>/<slug>/`; slug from the **Branch naming** convention; a second pipeline for the same issue appends `-2`, `-3`.
-- Branch: the slug; production lanes `<slug>_<phase>-lane-<k>`; review lanes `<slug>_<phase>-review-<lane>`; a post-merge amendment `<slug>_amendment-<n>`.
+- Branch: the slug; production lanes `<slug>_<phase>-lane-<k>`; review lanes `<slug>_<phase>-review-<lane>`, or `<slug>_<phase>-lane-<k>-review-<lane>` inside a production lane; a post-merge amendment `<slug>_amendment-<n>`.
 - Reviews: `<artifact>-review-<iteration>.md` single-lane; `<artifact>-review-<lane>-<iteration>.md` multi-lane. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`. You compute filenames and pass them in the prompt.
 - Task reports: `<phase folder>/tasks/task-<task id>-<attempt>.md`, one per attempt, never overwritten; task ids are per phase.
 - Production lanes: `<phase>/lane-<k>/` holds the lane's artifact, record, and reviews, named as at the root.

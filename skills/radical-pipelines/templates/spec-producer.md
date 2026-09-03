@@ -19,7 +19,7 @@
 <!-- Synthesize -->
 - Intent: <path>
 - Phase folder: <one line per existing file: path>
-- Input changes: <changed input path — diff command or ref range>; <trigger path>   <!-- re-synthesis only -->
+- Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>; <trigger path>   <!-- re-synthesis only -->
 
 <!-- Adjudicate -->
 - Review lanes: <one line per review: lane — path>

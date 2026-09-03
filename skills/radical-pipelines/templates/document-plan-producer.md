@@ -22,7 +22,7 @@
 - Build summary: <build-summary.md path>; <approving build review path>
 - Task reports: <one line per report: path>   <!-- none when empty -->
 - Phase folder: <one line per existing file: path>
-- Input changes: <changed input path — diff command or ref range>; <trigger path>   <!-- re-synthesis only -->
+- Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>; <trigger path>   <!-- re-synthesis only -->
 
 <!-- Adjudicate: exactly one of -->
 - Review lanes: <one line per review: lane — path>

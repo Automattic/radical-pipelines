@@ -29,7 +29,7 @@ flowchart TD
     W --> W4["An unsatisfiable verdict becomes a trigger"]
     K --> K1["Dispatch the next worker in dependency order"]
     R --> R1["Dispatch the phase reviewer"]
-    N --> N1["Inspect recurrence or three waves"]
+    N --> N1["Audit recurrence or three waves"]
     N --> N2["Valve at six waves"]
     T1 --> L["Land the reported work"]
     P2 --> L

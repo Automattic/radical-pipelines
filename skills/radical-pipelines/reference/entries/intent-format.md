@@ -26,7 +26,7 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 A vague idea with only a Title and Goal is complete.
 
-Items are addressed by section and position: `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, counting bullets from 1. An owner answer to an escalation is written under the item it resolves, quoted and attributed `owner`.
+Items are addressed by section and position: `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, counting bullets from 1.
 
 ## Authoring discipline
 

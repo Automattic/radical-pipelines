@@ -18,7 +18,6 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Branch naming         | How a pipeline branch and slug derive from its issue; a valid git ref containing no `_`                                               | Yes      |
 | Pipelines folder root | The root containing pipeline folders; default `.pipelines/`                                                                           | No       |
 | Worktree folder root  | The root containing worktrees                                                                                                         | Yes      |
-| Artifact storage      | The repository `.rp.md` and the pipelines folder are committed to                                                                     | Yes      |
 | Commit format         | Commit message rules                                                                                                                   | No       |
 | PR format             | Pull request title and description rules                                                                                               | No       |
 | Guardrails            | Rules agents must satisfy                                                                                                              | No       |

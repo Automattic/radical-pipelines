@@ -35,7 +35,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
-- A delta review's **Diff** runs from the `head` of the lane's previous review to `HEAD`, over the artifact and its record.
+- A delta review's **Diff** runs from its previous review's `head` to `HEAD`: the artifact and its record for artifact reviews; the code, excluding the pipelines folder, for build and document reviews.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **research request**: spawn a fresh `researcher` with the question and the requester's agent ID; it answers the requester directly. Several independent questions in one message get one researcher each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch; if the environment is genuinely down, stop and tell the owner.
@@ -45,11 +45,11 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 After every agent commit, before anyone consumes the result:
 
 - A produced artifact: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger listed in its materials.
-- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --set head=<commit> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger.
+- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger.
 - A task report: `rp stamp <report> --set task=<id> --set attempt=<n> --mirror`.
 - After a Synthesize with **Input changes** that reports no edit needed: `rp stamp <artifact> --pin ...` with the new identities.
 
-Commit the stamp on the pipeline branch.
+Every stamp records `head`, the commit it observed. Commit the stamp on the branch the work landed on.
 
 ## Review waves
 
@@ -57,19 +57,19 @@ A wave reviews one artifact at one identity.
 
 1. Freeze: no producer works on the artifact until the wave closes.
 2. Single lane: the reviewer runs in the pipeline worktree. Multi-lane: create `<slug>_<phase>-review-<lane>` branches and worktrees at the same commit, one reviewer each, in parallel.
-3. Each reviewer gets its **Charter** and, on a re-review, **Your previous review**, the **Diff** from the identities it reviewed, and the **Adjudication**.
-4. Land: merge lane branches into the pipeline branch (disjoint files, no conflicts), remove lane worktrees and branches, stamp every review.
+3. Each reviewer gets its **Charter** and, on a re-review, **Your previous review**, the **Diff** from its `head`, and the **Adjudication**.
+4. Land: merge the review-lane branches into the branch the wave runs on (disjoint files, no conflicts), remove their worktrees and branches, stamp every review.
 5. Close: any `rejected` → adjudication; every lane `approved` → done; an `unsatisfiable` with no `rejected` → the claim stands, `rp check` routes it. An approval from a lane means nothing in its charter objects.
 
 Waves are atomic: a research request or blocker raised during a wave is served, but no adjudication starts until every lane reported.
 
 ## Production lanes
 
-A production lane is a sub-pipeline of one artifact. Create `<slug>_<phase>-lane-<k>` branches and worktrees at the same commit; each lane's producer writes in `<phase>/lane-<k>/`; everything this file says about an artifact applies inside the lane, and lanes run in parallel. When every lane is approved and fresh: merge the lane branches into the pipeline branch, remove their worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact and record under **Lane candidates**; stamp the root artifact pinning each lane's artifact. Its review wave is a Consolidation review with the **Lane folders**. Later re-syntheses of the root run single-lane.
+A production lane is a sub-pipeline of one artifact. Create `<slug>_<phase>-lane-<k>` branches and worktrees at the same commit; each lane's producer writes in `<phase>/lane-<k>/`; everything this file says about an artifact applies inside the lane — its review waves run on `<slug>_<phase>-lane-<k>-review-<lane>` branches cut from and merged into the lane branch — and lanes run in parallel. After every landing in a lane, merge the lane branch into the pipeline branch (disjoint folders, no conflicts), so `rp check` on the pipeline branch always sees every lane. When every lane is approved and fresh: remove the lane worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact and record under **Lane candidates**; stamp the root artifact pinning each lane's artifact. Its review wave is a Consolidation review with the **Lane folders**. Later re-syntheses of the root run single-lane.
 
 ## Owner escalation
 
-A pending claim targets owner territory. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into the target — `intent.md` under the item it resolves, or the record entry — quoted verbatim and attributed `owner`, citing the claim's path, and commit. When the target is a record entry, also write `0-intent/<n>-amendment.md` targeting that record's artifact, with `Origin: <claim path>` and the answer as its owner statement. The pipeline resumes on the next step.
+A pending claim targets owner territory. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into the target — `intent.md` under the item it resolves, or the record entry — quoted verbatim and attributed `owner`, citing the claim's path, and commit. When the target is a record entry, also write `0-intent/<n>-amendment.md` targeting that record's artifact, with `Origin: <claim path>` and the answer as its owner statement, and `rp stamp` it with `--mirror`. The pipeline resumes on the next step.
 
 ## Audit
 
@@ -79,7 +79,7 @@ A decision point: read the reviews of the episode and the record. Decide one of:
 - **Continue**, when each wave resolves the previous findings and the remaining ones are new.
 - **Stop** as the valve does, when the pair converges on nothing certifiable.
 
-You never write verdicts or open amendments.
+You write no verdict and open no amendment on your own initiative.
 
 ## The valve
 

@@ -26,7 +26,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
 - **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, and its tasks are executed.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
-- **Policy defaults** — The project convention for review lanes and charters per artifact and for inspection and valve thresholds.
+- **Policy defaults** — The project convention for review lanes and charters per artifact and for audit and valve thresholds.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
 - **Researcher** — A fresh, inspection-only agent that answers one focused question with evidence directly to its requester.

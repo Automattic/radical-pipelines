@@ -43,7 +43,7 @@ A contradicts-input that claims exhaustion — no mechanism satisfies the clause
 
 You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
 
-When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording the route the claim missed. A change that would make the design stop satisfying a recorded owner statement in your own record is judged at the bar of exhaustion; unable to name an uncovered family, grant: `Contradicts-input: 2-design-doc/design-doc-research.md#<entry>`.
+When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording the route the claim missed. A change that would make the design stop satisfying a recorded owner statement in your own record is judged at the bar of exhaustion: the claim enumerates the classes of means it considered and closes each; reject only by naming a class the statement admits and the claim did not consider; unable to name one, grant: `Contradicts-input: 2-design-doc/design-doc-research.md#<entry>`.
 
 ## Consolidate
 

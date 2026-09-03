@@ -24,10 +24,6 @@ How the pipeline branch and slug derive from the issue. It must be a valid git r
 
 The root containing one worktree per branch. Suggested: `.worktrees/`. Apply the active tool's location rule.
 
-### Artifact storage (required)
-
-Confirm that `.rp.md`, the pipelines folder, and the worktree root's ignore entry are committed to the project's repository, and record it.
-
 ### Pipelines folder root (optional)
 
 The root containing pipeline folders. Default: `.pipelines/`.
@@ -65,7 +61,7 @@ Before writing, perform any **Setup actions** in `tools/<tool>.md`. Get the owne
 1. Show the proposed changes and get the owner's confirmation. Resolve every required answer before writing a complete file.
 2. Write human-readable `.rp.md` with frontmatter `conventions: 1`, shared fact sections, and a section headed by the active tool's name for its project facts.
 3. With permission, add the worktree folder root to `.gitignore`.
-4. Commit the files to the repository selected for artifacts and report completion.
+4. Commit the files and report completion.
 
 ## Migration
 

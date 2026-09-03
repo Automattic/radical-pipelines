@@ -24,6 +24,7 @@ Migrate from version 0.
 - Status-specific review filenames.
 - Per-phase completion-predicate tables.
 - Blocker instructions for agents.
+- `Artifact storage`: `.rp.md` and the pipelines folder always live in the project's repository.
 
 ### Model tables
 

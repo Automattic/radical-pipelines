@@ -142,6 +142,13 @@ function cmdStamp(args) {
     fm.set(s.slice(0, i), s.slice(i + 1));
   }
   if (args.mirror) mirrorBody(body, fm, base, abs);
+  if (!fm.has("head")) {
+    try {
+      fm.set("head", execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim().slice(0, SHORT));
+    } catch {
+      /* no commits yet: no head to record */
+    }
+  }
   if (!fm.size) die("stamp: nothing to write (use --pin, --reviewed, --set, --mirror)");
 
   writeFileSync(abs, renderFrontmatter(fm, body));
@@ -258,7 +265,9 @@ function cmdCheck(args) {
   const triggers = [];
   for (const a of amendments) triggers.push({ rel: a.rel, kind: "amendment", target: a.data.get("target") ?? "?" });
   for (const t of tasks.values()) if (t.outcome === "failed") triggers.push({ rel: t.rel, kind: `failed task ${t.id}`, target: planOf(t.phase) });
-  for (const r of [...latest.values(), ...latestOf(laneReviews).values()])
+  const laneFoldersAll = [...new Set(laneDocs.map((d) => d.lane))];
+  const laneLatest = laneFoldersAll.flatMap((lf) => [...latestOf(laneReviews.filter((r) => r.lane === lf)).values()]);
+  for (const r of [...latest.values(), ...laneLatest])
     if (r.data.get("verdict") === "unsatisfiable")
       triggers.push({ rel: r.rel, kind: "claim", target: r.data.get("target") ?? "?", targetIdentity: r.data.get("target-identity"), review: r });
 
@@ -313,12 +322,12 @@ function cmdCheck(args) {
     const claimingPaths = Array.isArray(reviewedPins) ? reviewedPins.map((p) => pinParts(p)?.path) : [];
     return { t, targetPath, state, claimingPaths };
   });
-  for (const c of claims) {
-    if (c.state !== "PENDING") continue;
-    const above = claims.find((o) => o !== c && o.state === "PENDING" && o.claimingPaths.includes(c.targetPath));
+  const pendingClaims = claims.filter((c) => c.state === "PENDING");
+  for (const c of pendingClaims) {
+    const above = pendingClaims.find((o) => o !== c && o.claimingPaths.includes(c.targetPath));
     if (above) c.state = `suspended (behind ${above.t.rel})`;
-    else if (c.targetPath.endsWith("0-intent/intent.md")) c.state = "PENDING — owner escalation";
   }
+  for (const c of claims) if (c.state === "PENDING" && c.targetPath.endsWith("0-intent/intent.md")) c.state = "PENDING — owner escalation";
   for (const c of claims) {
     out.claims.push({ review: c.t.rel, target: c.t.target, state: c.state });
     lines.push(`claim    ${c.t.rel} → ${c.t.target}  ${c.state}`);
@@ -395,9 +404,14 @@ function cmdCheck(args) {
     }
   }
 
-  // 4. Counters.
+  // 4. Counters — root artifacts and production lanes.
+  const counterScopes = [];
   for (const [relPath, prefix] of ARTIFACTS) {
-    const rs = reviews.filter((r) => r.name.startsWith(`${prefix}-review-`));
+    counterScopes.push({ label: prefix, rs: reviews.filter((r) => r.name.startsWith(`${prefix}-review-`)) });
+    for (const lf of laneFoldersAll.filter((l) => l.startsWith(`${relPath.split("/")[0]}/`)).sort())
+      counterScopes.push({ label: `${lf}/${prefix}`, rs: laneReviews.filter((r) => r.lane === lf && r.name.startsWith(`${prefix}-review-`)) });
+  }
+  for (const { label: prefix, rs } of counterScopes) {
     if (!rs.length) continue;
     const byLane = new Map();
     for (const r of rs) {
@@ -470,12 +484,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set key=value]... [--mirror] [--force]
-  node rp.mjs check <pipeline-folder> [--lanes r1,r2] [--json]
+  node rp.mjs check <pipeline-folder> [--lanes r1,r2 | --lanes spec=r1,r2;build-plan=r1] [--target-phase <n>] [--json]
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
-scalar keys, and --mirror copies of body declarations (Verdict, Target, Origin,
-Outcome, Prior finding). Identity is the hash of a file's body: stamping never
-changes it. check is descriptive: triggers and their resolution, pending
+scalar keys, --mirror copies of body declarations (Verdict, Target, Origin,
+Outcome, Prior finding), and head — the commit the stamp observed. Identity is
+the hash of a file's body: stamping never changes it. check is descriptive: triggers and their resolution, pending
 claims, per-artifact freshness and approval, the done-set, build review
 freshness, and episode counters. Spec: ../reference/run/state.md
 `,
