@@ -335,6 +335,40 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(output, /failed task T1/);
   });
 
+  test("production lanes are sub-pipelines: lane reviews never approve the root", () => {
+    rmSync(join(root, pipelineFile("1-spec/spec.md")));
+    for (const k of [1, 2]) {
+      writePipelineFile(root, `1-spec/lane-${k}/spec.md`, `# Spec lane ${k}\n`);
+      writePipelineFile(root, `1-spec/lane-${k}/spec-research.md`, `# Record ${k}\n`);
+      runRp(root, "stamp", pipelineFile(`1-spec/lane-${k}/spec.md`), "--pin", pipelineFile("0-intent/intent.md"));
+    }
+    writePipelineFile(root, "1-spec/lane-1/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/lane-1/spec-review-1.md"),
+      "--reviewed", pipelineFile("1-spec/lane-1/spec.md"), "--reviewed", pipelineFile("1-spec/lane-1/spec-research.md"),
+      "--set", "lane=r1", "--set", "iteration=1", "--mirror");
+
+    let output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /lane\s+1-spec\/lane-1\/spec\.md\s+FRESH\s+reviews: r1:approved\s+APPROVED/);
+    assert.match(output, /lane\s+1-spec\/lane-2\/spec\.md\s+FRESH\s+reviews: r1:none/);
+    assert.match(output, /artifact 1-spec\/spec\.md\s+MISSING — lanes in progress/);
+
+    writePipelineFile(root, "1-spec/lane-2/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/lane-2/spec-review-1.md"),
+      "--reviewed", pipelineFile("1-spec/lane-2/spec.md"), "--reviewed", pipelineFile("1-spec/lane-2/spec-research.md"),
+      "--set", "lane=r1", "--set", "iteration=1", "--mirror");
+    output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /artifact 1-spec\/spec\.md\s+MISSING — every lane approved: consolidate/);
+
+    writePipelineFile(root, "1-spec/spec.md", "# Consolidated spec\n");
+    writePipelineFile(root, "1-spec/spec-research.md", "# Consolidated record\n");
+    runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"),
+      "--pin", pipelineFile("1-spec/lane-1/spec.md"), "--pin", pipelineFile("1-spec/lane-2/spec.md"));
+    output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /lane\s+1-spec\/lane-1\/spec\.md\s+closed/);
+    assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH\s+reviews: r1:none\n/);
+    assert.doesNotMatch(output, /artifact 1-spec\/spec\.md.*APPROVED/);
+  });
+
   test("check --json emits the complete state shape", () => {
     const state = JSON.parse(runRp(root, "check", PIPELINE, "--json"));
 

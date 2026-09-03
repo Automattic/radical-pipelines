@@ -20,7 +20,7 @@ As in `1-spec.md`, with these inputs: `0-intent/intent.md`, `1-spec/spec.md`, th
 
 ## Lanes
 
-As in `1-spec.md`, on `<slug>_2-design-doc-lane-<k>` and `2-design-doc/lane-<k>/`.
+As in `1-spec.md`, with `design-doc-producer` and `design-doc-reviewer`.
 
 ## Assumptions
 

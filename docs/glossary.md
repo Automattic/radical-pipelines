@@ -17,7 +17,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Audit** — The orchestrator's decision point on recurrence or, by default, three waves without approval: research request, continue, or stop.
 - **Inspection** — Observing what already exists without creating evidence.
-- **Lane** — An independent production or review path; each review lane applies its own charter and verdict.
+- **Lane** — A production lane is a sub-pipeline of one artifact in `<phase>/lane-<k>/`, consolidated into the root artifact once every lane is approved; a review lane is an independent reviewer of one artifact with its own charter and verdict.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a trigger it responds to.

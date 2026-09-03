@@ -32,3 +32,5 @@ node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --lanes r1,r2
 ```
 
 See the [state specification](../reference/run/state.md).
+
+Production lanes (`<phase>/lane-<k>/`) are reported as sub-pipelines before their root artifact; their reviews never count toward the root, and they are closed once the root exists.

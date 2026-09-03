@@ -37,10 +37,12 @@ Review pins are immutable: a review is about one identity; a changed artifact ge
 | -------------------------------------- | ----------------------------------------------------------------- |
 | `0-intent/intent.md`                   | none; `origin`: the issue reference                               |
 | `0-intent/<n>-amendment.md`            | none; `target`, `origin`                                          |
-| `1-spec/spec.md`                       | `intent.md`; every amendment it absorbed                          |
+| `1-spec/spec.md`                       | `intent.md`; every amendment it absorbed; when consolidated, every `1-spec/lane-<k>/spec.md` |
+| `1-spec/lane-<k>/spec.md`              | `intent.md` — a lane pins what the root artifact would            |
+| lane review                            | `reviewed`: the lane's artifact and record                        |
 | `1-spec/spec-research.md`              | none — sibling of `spec.md`, reviewed with it                     |
 | spec review                            | `reviewed`: `spec.md`, `spec-research.md`                         |
-| `2-design-doc/design-doc.md`           | `intent.md`, `spec.md`; absorbed amendments                       |
+| `2-design-doc/design-doc.md`           | `intent.md`, `spec.md`; absorbed amendments; when consolidated, every `2-design-doc/lane-<k>/design-doc.md` |
 | design-doc review                      | `reviewed`: `design-doc.md`, `design-doc-research.md`             |
 | `3-build/build-plan.md`                | `spec.md`, `design-doc.md`; absorbed amendments and failed task reports |
 | plan review                            | `reviewed`: `build-plan.md`, `build-plan-research.md`             |
@@ -57,8 +59,9 @@ A file pins exactly what it consumed, never its sibling. Downstream pins artifac
 
 - Pipeline folder: `<pipelines folder root>/<slug>/`; slug from the **Branch naming** convention; a second pipeline for the same issue appends `-2`, `-3`.
 - Branch: the slug; production lanes `<slug>_<phase>-lane-<k>`; review lanes `<slug>_<phase>-review-<lane>`; a post-merge amendment `<slug>_amendment-<n>`.
-- Reviews: `<artifact>-review-<iteration>.md` single-lane; `<artifact>-review-<lane>-<iteration>.md` multi-lane; a production lane's reviews live in its `lane-<k>/` folder. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`. You compute filenames and pass them in the prompt.
+- Reviews: `<artifact>-review-<iteration>.md` single-lane; `<artifact>-review-<lane>-<iteration>.md` multi-lane. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`. You compute filenames and pass them in the prompt.
 - Task reports: `<phase folder>/tasks/task-<task id>-<attempt>.md`, one per attempt, never overwritten; task ids are per phase.
+- Production lanes: `<phase>/lane-<k>/` holds the lane's artifact, record, and reviews, named as at the root.
 - Ids inside artifacts are stable: requirements `R<n>`, decisions `D<n>`, assumptions `A<n>`, tasks `T<n>`. Nothing is renumbered; new content gets a new id.
 
 ## Owner territory
@@ -71,7 +74,7 @@ An intent item outside its "Assumptions / directions to explore" section, or a r
 
 1. **Unresolved triggers** → work on their target, before anything else.
 2. **Claims** — a lane's latest verdict is `unsatisfiable` and its `reviewed` pins are fresh (a claim about a changed artifact is moot). Resolved by refutation (a review of the target approved citing it) → work on the claiming artifact with the refutation. Pending (target identity unchanged): target in owner territory → a pending owner escalation; target itself the subject of a pending claim → suspended; otherwise → work on the target. `rp check` flags intent targets; for a record entry, read its attribution.
-3. **Phases 1 → 4**, per artifact: missing → produce; any pin stale → produce with the delta; not approved → review wave, or — when the latest reviews' pins are fresh and one is `rejected` — adjudication. Approved means every declared lane's latest verdict is `approved` with `reviewed` pins matching current identities. In build and document, with the plan approved and fresh: tasks outside the done-set → dispatch; all done → the phase's review (build review, document review), fresh iff `git diff --quiet <head> HEAD -- . ':(exclude)<pipelines folder root>'` succeeds.
+3. **Phases 1 → 4**, per artifact. With production lanes and the root artifact missing: each lane is a sub-pipeline — its own missing / stale / review wave / adjudication, in parallel with the others; every lane approved and fresh → consolidate. Once the root artifact exists, lanes are closed: reported, never dispatched. Then: missing → produce; any pin stale → produce with the delta; not approved → review wave, or — when the latest reviews' pins are fresh and one is `rejected` — adjudication. Approved means every declared lane's latest verdict is `approved` with `reviewed` pins matching current identities. In build and document, with the plan approved and fresh: tasks outside the done-set → dispatch; all done → the phase's review (build review, document review), fresh iff `git diff --quiet <head> HEAD -- . ':(exclude)<pipelines folder root>'` succeeds.
 4. **Complete** through the target phase (`--target-phase <n>`) → close-out.
 
 Counters, read from review frontmatter: **waves this episode** — iterations of an artifact's lanes since their last approval; **`recurs`** — a prior finding whose resolution failed.

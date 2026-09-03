@@ -25,4 +25,4 @@ Turns the intent into testable requirements: what the feature does, observably, 
 
 ## Lanes
 
-Production lanes (policy): each runs `spec-producer` Synthesize on `<slug>_1-spec-lane-<k>` in its own worktree and folder `1-spec/lane-<k>/`, with its reviews in that folder; then `spec-producer` Consolidate on the pipeline branch, then a Consolidation review wave. Single lane: none of this.
+Production lanes (policy) run `spec-producer` Synthesize per `../loop.md` § Production lanes, then `spec-producer` Consolidate and a Consolidation review wave.

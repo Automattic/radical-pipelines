@@ -212,26 +212,34 @@ function cmdCheck(args) {
   const lanesFor = (prefix) => (laneSpec ? laneSpec[prefix] ?? laneSpec["*"] ?? null : null);
 
   const files = walk(abs).sort();
-  const docs = files.map((f) => {
+  const allDocs = files.map((f) => {
     const rel = relative(abs, f);
     const { data } = parseFrontmatter(readFileSync(f, "utf8"));
-    return { rel, name: rel.split("/").pop(), data: data ?? new Map() };
+    const laneMatch = rel.match(/^([^/]+)\/(lane-\d+)\//);
+    return { rel, name: rel.split("/").pop(), data: data ?? new Map(), lane: laneMatch ? `${laneMatch[1]}/${laneMatch[2]}` : null };
   });
+  const docs = allDocs.filter((d) => !d.lane);
+  const laneDocs = allDocs.filter((d) => d.lane);
 
   const reviews = docs.filter((d) => /-review-/.test(d.name));
+  const laneReviews = laneDocs.filter((d) => /-review-/.test(d.name));
   const amendments = docs.filter((d) => /^0-intent\/\d+-amendment\.md$/.test(d.rel));
   const reports = docs.filter((d) => /^task-.+-\d+\.md$/.test(d.name) && d.rel.includes("tasks/"));
 
   // Latest review per artifact-prefix + lane.
-  const latest = new Map();
-  for (const r of reviews) {
-    const lane = r.data.get("lane") ?? "r1";
-    const iter = Number(r.data.get("iteration") ?? 0);
-    const prefix = r.name.replace(/-review-(?:r[^-]+-)?\d+\.md$/, "");
-    const key = `${prefix}|${lane}`;
-    const prev = latest.get(key);
-    if (!prev || Number(prev.data.get("iteration") ?? 0) < iter) latest.set(key, { ...r, lane, iter, prefix });
-  }
+  const latestOf = (rs, scope = "") => {
+    const m = new Map();
+    for (const r of rs) {
+      const lane = r.data.get("lane") ?? "r1";
+      const iter = Number(r.data.get("iteration") ?? 0);
+      const prefix = r.name.replace(/-review-(?:r[^-]+-)?\d+\.md$/, "");
+      const key = `${scope}${prefix}|${lane}`;
+      const prev = m.get(key);
+      if (!prev || Number(prev.data.get("iteration") ?? 0) < iter) m.set(key, { ...r, lane, iter, prefix });
+    }
+    return m;
+  };
+  const latest = latestOf(reviews);
 
   // Latest attempt per task, keyed by phase folder + task id.
   const tasks = new Map();
@@ -250,7 +258,7 @@ function cmdCheck(args) {
   const triggers = [];
   for (const a of amendments) triggers.push({ rel: a.rel, kind: "amendment", target: a.data.get("target") ?? "?" });
   for (const t of tasks.values()) if (t.outcome === "failed") triggers.push({ rel: t.rel, kind: `failed task ${t.id}`, target: planOf(t.phase) });
-  for (const r of latest.values())
+  for (const r of [...latest.values(), ...latestOf(laneReviews).values()])
     if (r.data.get("verdict") === "unsatisfiable")
       triggers.push({ rel: r.rel, kind: "claim", target: r.data.get("target") ?? "?", targetIdentity: r.data.get("target-identity"), review: r });
 
@@ -316,42 +324,58 @@ function cmdCheck(args) {
     lines.push(`claim    ${c.t.rel} → ${c.t.target}  ${c.state}`);
   }
 
-  // 3. Artifacts.
-  for (const [relPath, prefix] of ARTIFACTS) {
-    const absPath = resolve(abs, relPath);
-    const entry = { artifact: relPath };
-    if (!existsSync(absPath)) {
-      entry.state = "missing";
-      out.artifacts.push(entry);
-      lines.push(`artifact ${relPath}  MISSING`);
-      continue;
-    }
-    const doc = docs.find((d) => d.rel === relPath);
+  // 3. Artifacts — production lanes first, as sub-pipelines of the root artifact.
+  out.lanes = [];
+  const artifactState = (doc, relPath, reviewsMap, prefix, scope) => {
     const pins = doc?.data.get("pins");
     const states = Array.isArray(pins) ? pins.map((p) => pinState(abs, p)) : [];
     const stale = states.filter((s) => s.state !== "fresh");
-    entry.state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
-    entry.stale = stale.map((s) => `${s.entry} (${s.state})`);
-
-    const artifactLanes = lanesFor(prefix) ?? [...new Set([...latest.values()].filter((r) => r.prefix === prefix).map((r) => r.lane))];
-    const laneStates = artifactLanes.map((lane) => {
-      const r = latest.get(`${prefix}|${lane}`);
-      if (!r) return { lane, verdict: "none" };
+    const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
+    const lanesDeclared = lanesFor(prefix) ?? [...new Set([...reviewsMap.values()].filter((r) => r.prefix === prefix && r.rel.startsWith(scope)).map((r) => r.lane))];
+    const laneStates = lanesDeclared.map((lane) => {
+      const r = reviewsMap.get(`${prefix}|${lane}`);
+      if (!r || !r.rel.startsWith(scope)) return { lane, verdict: "none" };
       const reviewed = r.data.get("reviewed");
       const fresh = Array.isArray(reviewed) && reviewed.length > 0 && reviewed.every((p) => pinState(abs, p).state === "fresh");
       return { lane, verdict: r.data.get("verdict") ?? "unstamped", fresh, review: r.rel };
     });
-    entry.lanes = laneStates;
-    const ownerLane = latest.get(`${prefix}|owner`);
-    const ownerApproved = ownerLane && ownerLane.data.get("verdict") === "approved" && [].concat(ownerLane.data.get("reviewed") ?? []).every((p) => pinState(abs, p).state === "fresh");
-    entry.approved = ownerApproved || (laneStates.length > 0 && laneStates.every((l) => l.verdict === "approved" && l.fresh));
+    const ownerLane = reviewsMap.get(`${prefix}|owner`);
+    const ownerApproved = ownerLane && ownerLane.rel.startsWith(scope) && ownerLane.data.get("verdict") === "approved" && [].concat(ownerLane.data.get("reviewed") ?? []).every((p) => pinState(abs, p).state === "fresh");
     if (ownerApproved && !laneStates.some((l) => l.lane === "owner")) laneStates.push({ lane: "owner", verdict: "approved", fresh: true, review: ownerLane.rel });
+    const approved = ownerApproved || (laneStates.length > 0 && laneStates.every((l) => l.verdict === "approved" && l.fresh));
+    return { state, stale: stale.map((s) => `${s.entry} (${s.state})`), lanes: laneStates, approved };
+  };
+  const renderLanes = (ls) => (ls.length ? ls.map((l) => `${l.lane}:${l.verdict}${l.verdict !== "none" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
+
+  for (const [relPath, prefix] of ARTIFACTS) {
+    const absPath = resolve(abs, relPath);
+    const entry = { artifact: relPath };
+    const phase = relPath.split("/")[0];
+    const artifactName = relPath.split("/")[1];
+    const laneFolders = [...new Set(laneDocs.filter((d) => d.lane.startsWith(`${phase}/`)).map((d) => d.lane))].sort();
+    const rootExists = existsSync(absPath);
+    let allLanesReady = laneFolders.length > 0;
+    for (const lf of laneFolders) {
+      const laneArtifact = `${lf}/${artifactName}`;
+      const doc = laneDocs.find((d) => d.rel === laneArtifact);
+      const laneReviewsMap = latestOf(laneReviews.filter((r) => r.lane === lf));
+      const st = doc ? artifactState(doc, laneArtifact, laneReviewsMap, prefix, `${lf}/`) : { state: "missing", stale: [], lanes: [], approved: false };
+      const closed = rootExists;
+      out.lanes.push({ lane: lf, artifact: laneArtifact, ...st, closed });
+      if (!(st.approved && st.state === "fresh")) allLanesReady = false;
+      lines.push(`lane     ${laneArtifact}  ${closed ? "closed" : st.state.toUpperCase()}${st.stale?.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${renderLanes(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
+    }
+    if (!rootExists) {
+      entry.state = "missing";
+      if (laneFolders.length) entry.consolidate = allLanesReady;
+      out.artifacts.push(entry);
+      lines.push(`artifact ${relPath}  MISSING${laneFolders.length ? (allLanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}`);
+      continue;
+    }
+    const doc = docs.find((d) => d.rel === relPath);
+    Object.assign(entry, artifactState(doc, relPath, latest, prefix, ""));
     out.artifacts.push(entry);
-    lines.push(
-      `artifact ${relPath}  ${entry.state.toUpperCase()}${entry.stale?.length ? ` — ${entry.stale.join("; ")}` : ""}  reviews: ${
-        laneStates.length ? laneStates.map((l) => `${l.lane}:${l.verdict}${l.verdict !== "none" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none"
-      }${entry.approved ? "  APPROVED" : ""}`,
-    );
+    lines.push(`artifact ${relPath}  ${entry.state.toUpperCase()}${entry.stale?.length ? ` — ${entry.stale.join("; ")}` : ""}  reviews: ${renderLanes(entry.lanes)}${entry.approved ? "  APPROVED" : ""}`);
   }
 
   // Build and document: tasks per phase + the phase review.

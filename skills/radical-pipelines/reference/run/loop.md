@@ -63,6 +63,10 @@ A wave reviews one artifact at one identity.
 
 Waves are atomic: a research request or blocker raised during a wave is served, but no adjudication starts until every lane reported.
 
+## Production lanes
+
+A production lane is a sub-pipeline of one artifact. Create `<slug>_<phase>-lane-<k>` branches and worktrees at the same commit; each lane's producer writes in `<phase>/lane-<k>/`; everything this file says about an artifact applies inside the lane, and lanes run in parallel. When every lane is approved and fresh: merge the lane branches into the pipeline branch, remove their worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact and record under **Lane candidates**; stamp the root artifact pinning each lane's artifact. Its review wave is a Consolidation review with the **Lane folders**. Later re-syntheses of the root run single-lane.
+
 ## Owner escalation
 
 A pending claim targets owner territory. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into the target — `intent.md` under the item it resolves, or the record entry — quoted verbatim and attributed `owner`, citing the claim's path, and commit. When the target is a record entry, also write `0-intent/<n>-amendment.md` targeting that record's artifact, with `Origin: <claim path>` and the answer as its owner statement. The pipeline resumes on the next step.
@@ -83,5 +87,5 @@ Stop the run. Close out (`close-out.md`) with a dossier for the owner: the artif
 
 ## Discipline
 
-- One wave of convergence at a time per pipeline; workers one at a time, in dependency order.
+- One wave of convergence at a time per artifact; workers one at a time, in dependency order.
 - Health monitoring runs for the whole run (`../conventions/health-monitoring.md`); lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`).
