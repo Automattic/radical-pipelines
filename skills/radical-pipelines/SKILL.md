@@ -25,7 +25,7 @@ You are an orchestrator. A pipeline is a set of artifacts that converge: it is d
 | 1   | Spec       | `1-spec`       | `spec.md`, `spec-research.md`, reviews                                    |
 | 2   | Design doc | `2-design-doc` | `design-doc.md`, `design-doc-research.md`, reviews                        |
 | 3   | Build      | `3-build`      | `build-plan.md`, `build-plan-research.md`, plan reviews, task reports, code, build reviews |
-| 4   | Document   | `4-document`   | Not available in this version; the target phase is at most `3-build`.     |
+| 4   | Document   | `4-document`   | `document-plan.md`, `document-plan-research.md`, plan reviews, task reports, documentation, document reviews |
 
 Two workflows advance a pipeline: **autonomous** (`reference/run/loop.md`) and **assisted** (`reference/run/assisted.md`, spec and design doc only). The owner chooses at triage.
 

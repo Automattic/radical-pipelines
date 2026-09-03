@@ -39,5 +39,5 @@ The canonical vocabulary of Radical Pipelines v3.
 - **Valve** — The run stop that produces an owner dossier after the convergence threshold, six waves by default, is reached without approval.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
 - **Wave** — The atomic review of one artifact at one identity by every declared review lane.
-- **Worker** — A fresh build agent that executes one task and writes its task report.
+- **Worker** — A fresh agent that executes one task of a build or document plan and writes its task report.
 - **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.

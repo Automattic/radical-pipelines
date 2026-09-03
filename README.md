@@ -28,7 +28,7 @@ The phases are:
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
 - **Phase 3. Build.** The build plan, the code with the unit and end-to-end tests its tasks call for, behavior verification, plus a summary of what the phase produced.
-- **Phase 4. Document.** Not available in this version; the target phase is at most Build.
+- **Phase 4. Document.** The document plan, both internal and external documentation, plus a summary of what the phase produced.
 
 Planning is not a separate phase: the Build phase begins by committing a plan and getting it approved.
 

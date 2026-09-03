@@ -24,7 +24,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | Wave closed with every lane approved                 | Nothing; the next check moves on                                                                               |
 | Wave closed with an `unsatisfiable` (no rejection)   | Nothing; the next check lists it as a trigger                                                                  |
 | Plan approved and fresh, tasks outside the done-set  | One worker per task, in dependency order, one at a time                                                        |
-| All tasks done, build review missing or stale        | The build reviewer                                                                                             |
+| All tasks done, phase review missing or stale        | The phase's reviewer: `build-reviewer`, `document-reviewer`                                                     |
 | `recurs`, or 3 waves this episode without approval   | Inspection (below), then continue                                                                              |
 | 6 waves this episode without approval                | The valve (below)                                                                                              |
 
@@ -33,7 +33,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists. Never list other pipelines' folders or branches.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
-- `Execution:` in the Seat is `inspection only` for producers, reviewers, and researchers; `full` for workers and the build reviewer.
+- `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **research request**: spawn a fresh `researcher` with the question and the requester's agent ID; it answers the requester directly. Several independent questions in one message get one researcher each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch; if the environment is genuinely down, stop and tell the owner.
@@ -43,7 +43,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 After every agent commit, before anyone consumes the result:
 
 - A produced artifact: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger listed in its materials.
-- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger; `--set head=<commit>` for a build review.
+- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger; `--set head=<commit>` for a build or document review.
 - A task report: `rp stamp <report> --set task=<id> --set attempt=<n> --mirror`.
 - After a Synthesize with **Input changes** that reports no edit needed: `rp stamp <artifact> --pin ...` with the new identities. This is the only time an artifact's pins move without its body moving.
 

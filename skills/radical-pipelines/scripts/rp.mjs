@@ -188,6 +188,11 @@ const ARTIFACTS = [
   ["1-spec/spec.md", "spec"],
   ["2-design-doc/design-doc.md", "design-doc"],
   ["3-build/build-plan.md", "build-plan"],
+  ["4-document/document-plan.md", "document-plan"],
+];
+const PHASE_REVIEWS = [
+  ["3-build", "build"],
+  ["4-document", "document"],
 ];
 
 function cmdCheck(args) {
@@ -221,20 +226,23 @@ function cmdCheck(args) {
     if (!prev || Number(prev.data.get("iteration") ?? 0) < iter) latest.set(key, { ...r, lane, iter, prefix });
   }
 
-  // Latest attempt per task.
+  // Latest attempt per task, keyed by phase folder + task id.
   const tasks = new Map();
   for (const t of reports) {
+    const phase = t.rel.split("/")[0];
     const id = t.data.get("task") ?? t.name.replace(/^task-(.+)-\d+\.md$/, "$1");
     const attempt = Number(t.data.get("attempt") ?? t.name.match(/-(\d+)\.md$/)[1]);
-    const prev = tasks.get(id);
+    const key = `${phase}/${id}`;
+    const prev = tasks.get(key);
     if (!prev || prev.attempt < attempt)
-      tasks.set(id, { rel: t.rel, attempt, outcome: t.data.get("outcome") ?? "unstamped" });
+      tasks.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? "unstamped" });
   }
+  const planOf = (phase) => ARTIFACTS.find(([p]) => p.startsWith(`${phase}/`))?.[0] ?? `${phase}/plan.md`;
 
   // Triggers.
   const triggers = [];
   for (const a of amendments) triggers.push({ rel: a.rel, kind: "amendment", target: a.data.get("target") ?? "?" });
-  for (const [id, t] of tasks) if (t.outcome === "failed") triggers.push({ rel: t.rel, kind: `failed task ${id}`, target: "3-build/build-plan.md" });
+  for (const t of tasks.values()) if (t.outcome === "failed") triggers.push({ rel: t.rel, kind: `failed task ${t.id}`, target: planOf(t.phase) });
   for (const r of latest.values())
     if (r.data.get("verdict") === "unsatisfiable")
       triggers.push({ rel: r.rel, kind: "claim", target: r.data.get("target") ?? "?", targetIdentity: r.data.get("target-identity"), review: r });
@@ -333,19 +341,21 @@ function cmdCheck(args) {
     );
   }
 
-  // Build: tasks + build review.
-  if (tasks.size) {
-    const done = [...tasks.entries()].filter(([, t]) => t.outcome === "completed").map(([id]) => id);
-    const open = [...tasks.entries()].filter(([, t]) => t.outcome !== "completed").map(([id, t]) => `${id}:${t.outcome}`);
-    out.tasks = { done, open };
-    lines.push(`tasks    done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}`);
-  }
-  const buildReviews = [...latest.values()].filter((r) => r.prefix === "build");
-  for (const r of buildReviews) {
-    const head = r.data.get("head");
-    const codeFresh = head ? codeUnchangedSince(root, head, pipelinesRoot) : false;
-    out.buildReview = { review: r.rel, verdict: r.data.get("verdict"), head, codeFresh };
-    lines.push(`build    ${r.rel}  ${r.data.get("verdict") ?? "unstamped"}  ${head ? (codeFresh ? "code unchanged" : "CODE CHANGED since head") : "no head"}`);
+  // Build and document: tasks per phase + the phase review.
+  for (const [phase, prefix] of PHASE_REVIEWS) {
+    const phaseTasks = [...tasks.values()].filter((t) => t.phase === phase);
+    if (phaseTasks.length) {
+      const done = phaseTasks.filter((t) => t.outcome === "completed").map((t) => t.id);
+      const open = phaseTasks.filter((t) => t.outcome !== "completed").map((t) => `${t.id}:${t.outcome}`);
+      out.tasks[phase] = { done, open };
+      lines.push(`tasks    ${phase}: done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}`);
+    }
+    for (const r of [...latest.values()].filter((r) => r.prefix === prefix)) {
+      const head = r.data.get("head");
+      const codeFresh = head ? codeUnchangedSince(root, head, pipelinesRoot) : false;
+      out[`${prefix}Review`] = { review: r.rel, verdict: r.data.get("verdict"), head, codeFresh };
+      lines.push(`${prefix.padEnd(8)} ${r.rel}  ${r.data.get("verdict") ?? "unstamped"}  ${head ? (codeFresh ? "code unchanged" : "CODE CHANGED since head") : "no head"}`);
+    }
   }
 
   // 4. Counters.

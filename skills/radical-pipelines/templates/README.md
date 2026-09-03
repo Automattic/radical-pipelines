@@ -11,4 +11,4 @@ Slots:
 - `Owner statements` — verbatim quotes relayed for this dispatch; omit when none.
 - `Write your review to` / `Write your report to` — the path the orchestrator computed (`../reference/run/state.md` § Names).
 
-`build-worker.md` serves the three worker profiles.
+`build-worker.md` serves the three build worker profiles.

@@ -45,6 +45,10 @@ Review pins are immutable: a review is about one identity; a changed artifact ge
 | plan review                            | `reviewed`: `build-plan.md`, `build-plan-research.md`             |
 | `3-build/tasks/task-<id>-<attempt>.md` | none; `task`, `attempt`, `outcome`; a failed one targets `build-plan.md` |
 | build review                           | `reviewed`: `build-plan.md`; `head`                               |
+| `4-document/document-plan.md`          | `spec.md`, `design-doc.md`, `3-build/build-summary.md`; absorbed amendments and failed task reports |
+| document plan review                   | `reviewed`: `document-plan.md`, `document-plan-research.md`       |
+| `4-document/tasks/task-<id>-<attempt>.md` | none; a failed one targets `document-plan.md`                  |
+| document review                        | `reviewed`: `document-plan.md`; `head`                            |
 
 A file pins exactly what it consumed, never its sibling. Downstream pins artifacts, never records. Every review of an `unsatisfiable`-targeted artifact, and every artifact produced with a trigger among its materials, carries that trigger — as `origin` or as a pin.
 
@@ -52,8 +56,8 @@ A file pins exactly what it consumed, never its sibling. Downstream pins artifac
 
 - Pipeline folder: `<pipelines folder root>/<slug>/`; slug from the **Branch naming** convention; a second pipeline for the same issue appends `-2`, `-3`.
 - Branch: the slug; lanes `<slug>_<phase>-lane-<k>`; a post-merge amendment `<slug>_amendment-<n>`.
-- Reviews: `<artifact>-review-<iteration>.md` single-lane; `<artifact>-review-r<lane>-<iteration>.md` multi-lane. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`. You compute filenames and pass them in the prompt.
-- Task reports: `3-build/tasks/task-<task id>-<attempt>.md`, one per attempt, never overwritten.
+- Reviews: `<artifact>-review-<iteration>.md` single-lane; `<artifact>-review-r<lane>-<iteration>.md` multi-lane. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`. You compute filenames and pass them in the prompt.
+- Task reports: `<phase folder>/tasks/task-<task id>-<attempt>.md`, one per attempt, never overwritten; task ids are per phase.
 - Ids inside artifacts are stable: requirements `R<n>`, decisions `D<n>`, assumptions `A<n>`, tasks `T<n>`. Nothing is renumbered; new content gets a new id.
 
 ## Owner territory
@@ -66,7 +70,7 @@ An intent item outside its "Assumptions / directions to explore" section, or a r
 
 1. **Unresolved triggers** → work on their target, before anything else.
 2. **Claims** — a lane's latest verdict is `unsatisfiable` and its `reviewed` pins are fresh (a claim about a changed artifact is moot). Resolved by refutation (a review of the target approved citing it) → work on the claiming artifact with the refutation. Pending (target identity unchanged): target in owner territory → a pending owner escalation; target itself the subject of a pending claim → suspended; otherwise → work on the target. `rp check` flags intent targets; for a record entry, read its attribution.
-3. **Phases 1 → 3**, per artifact: missing → produce; any pin stale → produce with the delta; not approved → review wave. Approved means every declared lane's latest verdict is `approved` with `reviewed` pins matching current identities. In build, with the plan approved and fresh: tasks outside the done-set → dispatch; all done → build review, fresh iff `git diff --quiet <head> HEAD -- . ':(exclude)<pipelines folder root>'` succeeds.
+3. **Phases 1 → 4**, per artifact: missing → produce; any pin stale → produce with the delta; not approved → review wave. Approved means every declared lane's latest verdict is `approved` with `reviewed` pins matching current identities. In build and document, with the plan approved and fresh: tasks outside the done-set → dispatch; all done → the phase's review (build review, document review), fresh iff `git diff --quiet <head> HEAD -- . ':(exclude)<pipelines folder root>'` succeeds.
 4. **Complete** through the target phase → close-out.
 
 Counters, read from review frontmatter: **waves this episode** — reviews of an artifact since its last approval; **`recurs`** — a prior finding whose resolution failed.

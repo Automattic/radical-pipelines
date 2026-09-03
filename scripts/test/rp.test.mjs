@@ -327,7 +327,7 @@ describe("rp state tooling", () => {
     }
 
     const output = runRp(root, "check", PIPELINE);
-    assert.match(output, /tasks\s+done \[T1\]\s+open \[T2:failed\]/);
+    assert.match(output, /tasks\s+3-build: done \[T1\]\s+open \[T2:failed\]/);
     assert.match(
       output,
       /trigger\s+3-build\/tasks\/task-T2-2\.md \(failed task T2\) → 3-build\/build-plan\.md\s+PENDING/,

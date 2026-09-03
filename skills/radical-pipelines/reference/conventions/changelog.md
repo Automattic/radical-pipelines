@@ -27,7 +27,7 @@ Migrate from version 0.
 
 ### Model tables
 
-Rename the rows of the model table in each tool section — `spec-lead` → `spec-producer`, `design-doc-lead` → `design-doc-producer`, `build-planner` → `build-plan-producer`, `build-writer-<kind>` → `build-worker-<kind>`, `spec-researcher` and `design-doc-researcher` → `researcher`; drop `spec-consolidator`, `design-doc-consolidator`, and the document-phase rows — leaving one row per current profile:
+Rename the rows of the model table in each tool section — `spec-lead` → `spec-producer`, `design-doc-lead` → `design-doc-producer`, `build-planner` → `build-plan-producer`, `build-writer-<kind>` → `build-worker-<kind>`, `document-planner` → `document-plan-producer`, `document-writer` → `document-worker`, `spec-researcher` and `design-doc-researcher` → `researcher`; drop `spec-consolidator` and `design-doc-consolidator` — leaving one row per current profile:
 
 - `spec-producer`
 - `spec-reviewer`
@@ -39,9 +39,13 @@ Rename the rows of the model table in each tool section — `spec-lead` → `spe
 - `build-worker-edit`
 - `build-worker-e2e`
 - `build-reviewer`
+- `document-plan-producer`
+- `document-plan-reviewer`
+- `document-worker`
+- `document-reviewer`
 - `researcher`
 
-Keep one `researcher` row, asking the owner which existing research value to retain when values differ. Drop document-phase rows.
+Keep one `researcher` row, asking the owner which existing research value to retain when values differ.
 
 ### Additions
 
