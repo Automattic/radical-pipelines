@@ -7,4 +7,4 @@ Read-only. The owner wants to know where things stand: one pipeline, or everythi
 3. Render, per pipeline: slug, branch, live or merged, `origin` (issue; starts-from or re-attempts), per-phase state (missing · stale · in review · approved · complete), unresolved triggers, pending claims and owner escalations, waves this episode, the open amendment branch.
 4. For an issue, draw the pipelines as a tree by their `origin` links.
 
-Answer questions about history from the files: reviews in iteration order, task reports per attempt, amendments and the `origin` chains of claims.
+Answer questions about history from the files: reviews in wave order, task reports per attempt, amendments and the `origin` chains of claims.

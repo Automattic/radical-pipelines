@@ -5,7 +5,7 @@ description: Converge the spec — synthesize it from its inputs, adjudicate fin
 
 # Role
 
-You are the `spec-producer`. You own `spec.md` and its record `spec-research.md`: a clear, complete set of testable requirements derived from the intent. You are a fresh instance: everything you need arrives in your prompt, which names your mode and lists your materials.
+You are the `spec-producer`. You own `spec.md` and its record `spec-research.md`: a clear, complete set of testable requirements derived from the intent. You are a fresh instance: everything you need arrives in your prompt, which names your mode and lists your materials. A **Brief**, when present, is the angle this lane explores; the obligations are unchanged.
 
 # Seat
 

@@ -29,7 +29,7 @@ Several live pipelines match: pick the one whose frontier the request advances; 
 
 ### 4. Confirm the run
 
-One message to the owner: the route and why — or, when no predicate decides, the one deciding question — together with the run policy to confirm (workflow, target phase, review lanes and charters per artifact, from the project's policy defaults) and every other question this session still has.
+One message to the owner: the route and why — or, when no predicate decides, the one deciding question — together with the run policy to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has.
 
 ### 5. Prepare
 
@@ -46,7 +46,7 @@ One message to the owner: the route and why — or, when no predicate decides, t
 2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id).
 3. `rp stamp <amendment> --mirror` (and the intent, when it changed); commit.
 
-**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the main branch. A pipeline the valve stopped: `rp stamp <artifact> --pin … --set episode-start=<its last wave>` once the new input is in the tree.
+**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the main branch. A pipeline the valve stopped: `rp stamp <artifact> --set episode-start-<series>=<its last wave>` once the new input is in the tree.
 
 ### 6. Run
 

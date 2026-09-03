@@ -3648,7 +3648,7 @@ const ANY_OUTPUT_SCHEMA = {};
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
+function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, collided = () => new Set() } = {}) {
   return {
     name: "rp_spawn",
     description:
@@ -3670,6 +3670,9 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot } = {}) {
       const agentList = await ctx.agent.list();
       if (!agentExists(agentList.data, agent)) {
         throw new Error(`Unknown agent "${agent}"`);
+      }
+      if (collided().has(`${agent}.md`)) {
+        throw new Error(`Agent "${agent}" is a foreign profile colliding with an RP profile; remove or rename it before spawning`);
       }
       const session = await ctx.session.create({
         agent,
@@ -4262,7 +4265,7 @@ function setup(ctx, deps = {}) {
   };
 
   ctx.tool.transform((tools) => {
-    tools.add(buildSpawnTool(ctx, { resolveRepoRootFn }));
+    tools.add(buildSpawnTool(ctx, { resolveRepoRootFn, collided: () => collidedProfiles }));
     tools.add(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn }));
     tools.add(buildTerminateTool({ env, readServiceRecordOverride, requestFn }));
     tools.add(buildLoopStartTool({ registryPath, tick }));
@@ -4290,6 +4293,7 @@ function setup(ctx, deps = {}) {
   });
 
   const { collisions } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
+  const collidedProfiles = new Set(collisions);
   for (const name of collisions) {
     recordError({ type: "agent.materialize.collision", name });
   }

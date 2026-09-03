@@ -37,7 +37,7 @@ On an agent's completion declaration, call `rp_terminate` with its session ID.
 
 ## Models
 
-Read `provider/model[#variant]` values from `.rp.md`'s `## opencode` section under `Agent models`; pass them verbatim as `model`.
+The `model` of each profile or lane comes from the project's `Agents` convention as a `provider/model[#variant]` string, or as a name `.rp.md`'s `## opencode` section defines; pass the string verbatim as `model`.
 
 ## Setup actions
 

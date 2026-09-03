@@ -8,7 +8,7 @@
 
 ## Write to
 
-<the phase folder — root, or `lane-<k>/` — where your artifact and record land>
+<the phase folder — root, or `<lane>/` — where your artifact and record land>
 
 ## Mode
 
@@ -21,8 +21,7 @@
 <!-- Synthesize -->
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
-- Build plan: <build-plan.md path>
-- Build summary: <build-summary.md path>; <approving build review path>
+- Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path>
 - Task reports: <one line per report: path>   <!-- none when empty -->
 - Phase folder: <one line per existing file: path>
 - Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>   <!-- re-synthesis only -->
@@ -30,7 +29,7 @@
 <!-- Adjudicate: the standing package plus exactly one correction -->
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
-- Build summary: <build-summary.md path>; <approving build review path>
+- Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path>
 - document-plan.md: <path>
 - Tasks: <one line per task file: path>
 - document-plan-research.md: <path>

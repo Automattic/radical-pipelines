@@ -6,9 +6,9 @@
 - Guardrails: <rules | none>
 - Execution: inspection only
 
-## Charter
+## Brief
 
-<full scope | focus>
+<the lane's brief; omit the section for the implicit lane>
 
 ## Mode
 

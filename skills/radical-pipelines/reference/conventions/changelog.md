@@ -28,7 +28,7 @@ Migrate from version 0.
 
 ### Model tables
 
-Rename the rows of the model table in each tool section — `spec-lead` → `spec-producer`, `design-doc-lead` → `design-doc-producer`, `build-planner` → `build-plan-producer`, `build-writer-<kind>` → `build-worker-<kind>`, `document-planner` → `document-plan-producer`, `document-writer` → `document-worker`, `spec-researcher` and `design-doc-researcher` → `researcher`; drop `spec-consolidator` and `design-doc-consolidator` — leaving one row per current profile:
+Move the model table into an `Agents` section — one block per profile — renaming the rows — `spec-lead` → `spec-producer`, `design-doc-lead` → `design-doc-producer`, `build-planner` → `build-plan-producer`, `build-writer-<kind>` → `build-worker-<kind>`, `document-planner` → `document-plan-producer`, `document-writer` → `document-worker`, `spec-researcher` and `design-doc-researcher` → `researcher`; drop `spec-consolidator` and `design-doc-consolidator` — leaving one row per current profile:
 
 - `spec-producer`
 - `spec-reviewer`
@@ -50,5 +50,6 @@ Keep one `researcher` row, asking the owner which existing research value to ret
 
 ### Additions
 
-- `Policy defaults`, optional.
+- `Agents`, optional: model per profile and named lanes (replaces `Agent models`).
+- `Thresholds`, optional.
 - Frontmatter stamp `conventions: 1`.

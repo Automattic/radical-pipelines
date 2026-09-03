@@ -44,13 +44,13 @@ Checks and judgment rules the project's work must satisfy. Offer to inspect the 
 
 Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the owner selects.
 
-### Policy defaults (optional)
+### Agents (optional)
 
-Review lanes and their charters per artifact, and thresholds, in the blocks `policy-defaults.md` defines.
+Models per profile and named lanes, in the blocks `agents.md` defines.
 
-### Agent models (optional)
+### Thresholds (optional)
 
-In the active tool's section, capture `**Default:**` and any `**<profile>:**` overrides, or a profile-by-difficulty table whose tier the owner selects at run start. Use the value form in `tools/<tool>.md`.
+Audit and valve thresholds when overriding `rp check`'s defaults.
 
 ## Tool setup actions
 

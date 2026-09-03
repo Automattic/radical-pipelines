@@ -22,4 +22,4 @@ Launch the bundled loop with `/loop <interval> <tick prompt>`. List loops with `
 
 ## Models
 
-Read model values from `.rp.md`'s `## Claude Code` section under `Agent models`. Pass its aliases or provider-qualified IDs verbatim when spawning.
+The `model` of each profile or lane comes from the project's `Agents` convention; a name it uses that is not a model is defined in `.rp.md`'s `## Claude Code` section. Pass aliases or provider-qualified IDs verbatim when spawning.

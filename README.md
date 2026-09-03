@@ -27,14 +27,14 @@ The phases are:
 - **Phase 0. Intent.** The initial request and any external amendments.
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
-- **Phase 3. Build.** The build plan, the code with the unit and end-to-end tests its tasks call for, behavior verification, plus a summary of what the phase produced.
-- **Phase 4. Document.** The document plan, both internal and external documentation, plus a summary of what the phase produced.
+- **Phase 3. Build.** The build plan and its tasks, the code with the unit and end-to-end tests the tasks call for, and behavior verification.
+- **Phase 4. Document.** The document plan and its tasks, and both internal and external documentation.
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
 In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, and its tasks are executed. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner.
 
-The Spec and Design doc phases can run **multilane**: N production lanes each produce and review a candidate, then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. N=1 — the default — is the plain single flow.
+The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow.
 
 The pipeline is **autonomous by default, assisted when needed.** After triage, an autonomous run proceeds without questions until an owner escalation or the valve. The Spec and Design doc phases can instead run in assisted mode.
 
@@ -167,8 +167,8 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | PR format             | How pull request titles and descriptions are written                                                | No       |
 | Guardrails            | Rules the project's agents must satisfy                                                             | No       |
 | Lifecycle hooks       | Prose instructions run at defined pipeline moments                                                  | No       |
-| Policy defaults       | Review lanes and charters per artifact, plus audit and valve thresholds                             | No       |
-| Agent models          | Model and settings per profile, inside the active tool's section                                    | No       |
+| Agents                | Model per profile and the lanes it adds, with their briefs and materials                             | No       |
+| Thresholds            | Audit and valve thresholds                                                                          | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 

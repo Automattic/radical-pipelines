@@ -5,7 +5,8 @@ One template per profile. The orchestrator builds every prompt from its template
 Slots:
 
 - `Seat` — Worktree, Branch, Commit format, Guardrails (`none` when the project has none), Execution (`inspection only` | `full`).
-- `Charter` — reviewers: `full scope`, or a focus.
+- `Materials` — filtered by the lane's `materials` when it declares them.
+- `Brief` — a named lane's brief, verbatim; omitted for the implicit lane.
 - `Mode`, `Materials` — per profile.
 - `Write to` / `Write your review to` / `Write your report to` — the folder or path the orchestrator computed (`../reference/run/state.md` § Names).
 

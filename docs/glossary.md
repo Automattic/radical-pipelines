@@ -5,18 +5,18 @@ The canonical vocabulary of Radical Pipelines.
 - **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against a target.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
 - **Blocker** — An agent report that its materials are malformed, an input is unreadable, or its environment is broken.
-- **Charter** — A reviewer's assigned focus, which scopes what it verifies but not what it may defeat.
+- **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
 - **Claim** — A reviewer's `Verdict: unsatisfiable` with its target, corroborating a producer's `Contradicts-input` disposition. (A labeled normative statement in an artifact is also called a claim.)
 - **Consolidation** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
-- **Done-set** — The tasks whose latest report is `completed` with a fresh pin on the task file.
-- **Episode** — An artifact's review waves since its last approval.
+- **Done-set** — The tasks whose latest report is `completed` with fresh pins.
+- **Episode** — An artifact's waves since the last wave every lane approved, or since its `episode-start`.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first actionable item `rp check` names: a trigger, a claim, a phase's next step, an audit or valve gate, or completion.
 - **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Audit** — The orchestrator's decision point on recurrence or, by default, three waves without approval: research request, continue, or stop.
 - **Inspection** — Observing what already exists without creating evidence.
-- **Lane** — A production lane is a sub-pipeline of one artifact in `<phase>/lane-<k>/`, consolidated into the root artifact once every lane is approved; a review lane is an independent reviewer of one artifact with its own charter and verdict — `owner` in the assisted workflow.
+- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a trigger it responds to.
@@ -25,19 +25,19 @@ The canonical vocabulary of Radical Pipelines.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
 - **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, and its tasks are executed.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
-- **Policy defaults** — The project convention for review lanes and charters per artifact and for audit and valve thresholds.
+- **Agents** — The project convention configuring each profile's model and named lanes, with their briefs and materials.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
 - **Researcher** — A fresh, inspection-only agent that answers one focused question with evidence directly to its requester.
-- **Reviewer** — An adversarial agent that verifies an artifact's declared chains under a charter, writes a verdict, and never edits the artifact.
+- **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
 - **Stale** — The state of a pin whose target's current identity differs from the recorded identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity.
 - **Target** — The `<path>#<id>` clause that a trigger or `unsatisfiable` verdict says must change.
-- **Task report** — An immutable per-attempt worker report, `tasks/T<n>-report-<k>.md`, pinning the task file it executed and recording its outcome, commits, checks, and any failure evidence.
+- **Task report** — An immutable per-attempt worker report, `tasks/T<n>-report-<k>.md`, naming the task it executed and the tasks it depended on, and recording its outcome, commits, checks, and any failure evidence.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
 - **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a failed task report; adjudicated when the target pins it, resolved when the target is approved carrying the pin or the claim is escalated.
 - **Valve** — The run stop that produces an owner dossier after the convergence threshold, six waves by default, is reached without approval.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
-- **Wave** — The atomic review of one artifact at one identity by every declared review lane.
+- **Wave** — One review of an artifact by every one of its lanes, numbered per artifact; closed when every lane's review is stamped and fresh.
 - **Worker** — A fresh agent that executes one task of a build or document plan and writes its task report.
 - **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.
