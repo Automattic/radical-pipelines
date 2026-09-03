@@ -14,7 +14,7 @@ flowchart TD
     E --> S["Stale artifact"]
     E --> W{"Review-wave state"}
     E --> K["Task outside the done-set"]
-    E --> R["Missing or stale build review"]
+    E --> R["Missing or stale phase review"]
     E --> N{"Convergence counter"}
     T --> T1["Dispatch the target producer in Adjudicate mode"]
     P --> P1{"Claim target status"}
@@ -28,7 +28,7 @@ flowchart TD
     W --> W3["All lanes approved"]
     W --> W4["An unsatisfiable verdict becomes a trigger"]
     K --> K1["Dispatch the next worker in dependency order"]
-    R --> R1["Dispatch the build reviewer"]
+    R --> R1["Dispatch the phase reviewer"]
     N --> N1["Inspect recurrence or three waves"]
     N --> N2["Valve at six waves"]
     T1 --> L["Land the reported work"]
