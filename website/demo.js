@@ -147,12 +147,12 @@
     '3-build/build-plan-review-1.md',
     'src/orchestrator.ts + test',
     '3-build/build-review-1.md',
-    '3-build/build-summary.md',
+    '3-build/tasks/T1-report-1.md',
     '4-document/document-plan.md',
     '4-document/document-plan-review-1.md',
     'README.md, docs/',
     '4-document/document-review-1.md',
-    '4-document/document-summary.md',
+    '4-document/tasks/T1-report-1.md',
   ];
 
   const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
