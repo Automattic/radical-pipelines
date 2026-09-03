@@ -27,9 +27,9 @@
 - build-plan-research.md: <path>
 - Task reports: <one line per report: path>
 
-<!-- Delta -->
+<!-- Delta: the Fresh materials plus -->
 - Your previous review: <path>
-- Diff: <git diff command from the identities you reviewed>
+- Diff: git diff <its head> HEAD -- <artifact path> <record path>
 - Adjudication: <record path — sections>
 
 ## Write your review to

@@ -18,12 +18,12 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Branch naming         | How a pipeline branch and slug derive from its issue; a valid git ref containing no `_`                                               | Yes      |
 | Pipelines folder root | The root containing pipeline folders; default `.pipelines/`                                                                           | No       |
 | Worktree folder root  | The root containing worktrees                                                                                                         | Yes      |
-| Artifact storage      | Whether artifacts live in the project's repository or a separate repository                                                           | Yes      |
+| Artifact storage      | The repository `.rp.md` and the pipelines folder are committed to                                                                     | Yes      |
 | Commit format         | Commit message rules                                                                                                                   | No       |
 | PR format             | Pull request title and description rules                                                                                               | No       |
 | Guardrails            | Rules agents must satisfy                                                                                                              | No       |
 | Lifecycle hooks       | Instructions run at defined moments                                                                                                    | No       |
-| Policy defaults       | Review lanes and charters per artifact; inspection threshold (default 3) and valve threshold (default 6)                              | No       |
+| Policy defaults       | Review lanes and charters per artifact; audit and valve thresholds overriding the loop's defaults                                     | No       |
 | Agent models          | Model and settings per profile, inside the active tool's section                                                                       | No       |
 
 ## Schema stamp

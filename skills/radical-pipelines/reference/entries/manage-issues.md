@@ -4,14 +4,12 @@ This is for **creating or modifying an issue**. Drive a short Q&A directly with 
 
 ## The issue format
 
-The issue is the source of phase-0 intent. Author it using the schema, rendering rules, and discipline in `intent-format.md`. Pipeline creation copies it as-is beneath `intent.md`'s machine-readable `Origin:` lines.
+The issue is the source of phase-0 intent. Author it using the schema, rendering rules, and discipline in `intent-format.md`.
 
 ## Rules
 
-- Load project conventions first (`../conventions/load.md`).
 - Every issue operation — reading, creating, modifying, commenting — goes through **Issues**.
 - Write to the tracker only after the owner approves the rendered draft.
-- Apply `intent-format.md` throughout.
 
 ## Steps
 

@@ -14,6 +14,6 @@ You drive one phase — spec or design doc — directly with the owner, through 
 2. Drive the Q&A. Send research questions to fresh researchers (`../run/loop.md` § Dispatch); record questions, answers, and evidence as they arrive.
 3. Synthesize the artifact from the record. Label every claim verified or assumed.
 4. Present the artifact and the record. Iterate on the owner's changes.
-5. On explicit approval: commit both files, `rp stamp` the artifact with its pins, and write the approval as a review: `<artifact>-review-1.md` with `Verdict: approved`, a verification log naming what the owner reviewed, and `lane: owner`. Stamp it with `--reviewed` both files.
+5. On explicit approval: commit both files, `rp stamp` the artifact with its pins, and write the approval as a review: `<artifact>-review-1.md` with `Verdict: approved` and a verification log naming what the owner reviewed; `rp stamp` it with `--reviewed` both files, `--set lane=owner --set iteration=1 --set head=<commit> --mirror`.
 
-The pipeline is now in the same state as after an autonomous wave. The next phase, or a later amendment, runs in whichever workflow the owner chooses at triage; when the artifact goes stale, the re-review lane is whatever the run policy declares.
+An `owner` lane approval satisfies any lane declaration. When the artifact later goes stale, the re-review runs in whichever workflow the owner chooses at triage.

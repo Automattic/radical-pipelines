@@ -28,10 +28,9 @@
 - Task reports: <one line per report: path>
 - Diff: <git diff <plan landing commit> HEAD -- . ':(exclude)<pipelines folder root>'>
 
-<!-- Delta -->
+<!-- Delta: the Fresh materials plus -->
 - Your previous review: <path>
-- Diff: <git diff <its head> HEAD -- . ':(exclude)<pipelines folder root>'>
-- Task reports: <reports written since>
+- Diff: git diff <its head> HEAD -- . ':(exclude)<pipelines folder root>'
 - Adjudication: <record path — section>   <!-- when a claim was adjudicated -->
 
 ## Write your review to

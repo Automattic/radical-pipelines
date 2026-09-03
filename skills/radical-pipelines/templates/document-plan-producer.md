@@ -30,6 +30,3 @@
 - Refutation: <refuting review path>; <record sections>
 - Task report: <report path>; <task id>
 
-## Owner statements
-
-<verbatim quotes, each attributed owner>

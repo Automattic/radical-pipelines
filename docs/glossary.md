@@ -1,13 +1,13 @@
 # Glossary
 
-The canonical vocabulary of Radical Pipelines v3.
+The canonical vocabulary of Radical Pipelines.
 
 - **Agent ID** — The addressable identifier assigned to an agent instance by the active tool.
 - **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against a target.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
 - **Blocker** — An agent report that its materials are malformed, an input is unreadable, or its environment is broken.
 - **Charter** — A reviewer's assigned focus, which scopes what it verifies but not what it may defeat.
-- **Claim** — A producer's `Contradicts-input: <path>#<id>` disposition, corroborated by a reviewer as `Verdict: unsatisfiable` with that target.
+- **Claim** — A reviewer's `Verdict: unsatisfiable` with its target, corroborating a producer's `Contradicts-input` disposition. (A labeled normative statement in an artifact is also called a claim.)
 - **Consolidation** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
 - **Done-set** — The tasks whose latest task report has `outcome: completed`.
@@ -15,7 +15,8 @@ The canonical vocabulary of Radical Pipelines v3.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first unresolved item in the ordered report from `rp check`.
 - **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
-- **Inspection** — Either observing what already exists without creating evidence, or the orchestrator's decision point on recurrence or, by default, three waves without approval.
+- **Audit** — The orchestrator's decision point on recurrence or, by default, three waves without approval: research request, continue, or stop.
+- **Inspection** — Observing what already exists without creating evidence.
 - **Lane** — An independent production or review path; each review lane applies its own charter and verdict.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.

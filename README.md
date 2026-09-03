@@ -30,9 +30,9 @@ The phases are:
 - **Phase 3. Build.** The build plan, the code with the unit and end-to-end tests its tasks call for, behavior verification, plus a summary of what the phase produced.
 - **Phase 4. Document.** The document plan, both internal and external documentation, plus a summary of what the phase produced.
 
-Planning is not a separate phase: the Build phase begins by committing a plan and getting it approved.
+Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
-In the [v3 model](./docs/glossary.md), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, and its tasks are executed. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner.
+In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, and its tasks are executed. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner.
 
 The Spec and Design doc phases can run **multilane**: N production lanes each produce and review a candidate, then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. N=1 — the default — is the plain single flow.
 
@@ -46,7 +46,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
 - **Compounding quality.** When a pipeline produces a bad result, the correction targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
-- **Consistent assets.** Tests and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
+- **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
 ## Why now

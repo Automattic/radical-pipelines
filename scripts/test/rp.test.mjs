@@ -267,7 +267,7 @@ describe("rp state tooling", () => {
 
     assert.match(
       runRp(root, "check", PIPELINE),
-      /trigger\s+0-intent\/1-amendment\.md .*adjudicated by 1-spec\/spec-review-1\.md/,
+      /trigger\s+0-intent\/1-amendment\.md .*refuted by 1-spec\/spec-review-1\.md/,
     );
   });
 
@@ -338,13 +338,8 @@ describe("rp state tooling", () => {
   test("check --json emits the complete state shape", () => {
     const state = JSON.parse(runRp(root, "check", PIPELINE, "--json"));
 
-    assert.deepEqual(Object.keys(state), [
-      "pipeline",
-      "triggers",
-      "claims",
-      "artifacts",
-      "tasks",
-      "counters",
-    ]);
+    for (const key of ["pipeline", "triggers", "claims", "artifacts", "tasks", "counters", "completeThrough", "complete"]) {
+      assert.ok(key in state, `missing ${key}`);
+    }
   });
 });

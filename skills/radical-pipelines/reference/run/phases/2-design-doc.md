@@ -4,15 +4,15 @@ Decides how the spec is satisfied: architecture, mechanisms, decisions and trade
 
 ## Artifacts
 
-`2-design-doc/design-doc.md`, `2-design-doc/design-doc-research.md`, design-doc reviews. Complete when `design-doc.md` exists, is fresh, and every declared lane approved it.
+`2-design-doc/design-doc.md`, `2-design-doc/design-doc-research.md`, design-doc reviews.
 
 ## Profiles
 
-| Profile               | Modes                                 | Execution       |
-| --------------------- | ------------------------------------- | --------------- |
-| `design-doc-producer` | Synthesize · Adjudicate · Consolidate | inspection only |
-| `design-doc-reviewer` | Fresh · Consolidation · Delta         | inspection only |
-| `researcher`          | —                                     | inspection only |
+| Profile               | Modes                                 |
+| --------------------- | ------------------------------------- |
+| `design-doc-producer` | Synthesize · Adjudicate · Consolidate |
+| `design-doc-reviewer` | Fresh · Consolidation · Delta         |
+| `researcher`          | —                                     |
 
 ## Materials
 
@@ -21,10 +21,6 @@ As in `1-spec.md`, with these inputs: `0-intent/intent.md`, `1-spec/spec.md`, th
 ## Lanes
 
 As in `1-spec.md`, on `<slug>_2-design-doc-lane-<k>` and `2-design-doc/lane-<k>/`.
-
-## Owner territory
-
-Every `owner` attribution in `design-doc-research.md`. A claim whose target is such an entry is an owner escalation, however it was raised.
 
 ## Assumptions
 

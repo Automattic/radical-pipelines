@@ -31,8 +31,8 @@ Materials: the **Task** block, the **Plan** (for the blocks your task depends on
 **Boundary**
 
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
-- `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
-- A block that is incomplete, contradictory, or forces a design decision is a **failed** task: report it with the contradiction as evidence. A failing test or a broken build is work, never a failure to report.
+- `Files` is the planned set, not a hard boundary: touch more when documenting the surface cleanly requires it — never to expand scope.
+- A block that is incomplete, contradictory, or requires deciding what the software does is a **failed** task: report it with the contradiction as evidence. A failing documentation check is work, never a failure to report.
 
 **Evidence**
 

@@ -26,9 +26,7 @@ The root containing one worktree per branch. Suggested: `.worktrees/`. Apply the
 
 ### Artifact storage (required)
 
-Ask whether `.rp.md`, the pipelines folder, and the worktree root's ignore entry may be committed to the project's repository.
-
-If yes, record that repository. If no, collect the separate artifact repository and canonical repository remotes, names, and URLs; whether the artifact repository is public or private; the code-only pull request branch format; and its commit format. The owner confirms remote roles from `git remote -v` and approves any remote changes. Suggested remote names: `origin` for artifacts and `upstream` for the canonical repository. Opening a pull request there requires owner approval.
+Confirm that `.rp.md`, the pipelines folder, and the worktree root's ignore entry are committed to the project's repository, and record it.
 
 ### Pipelines folder root (optional)
 
@@ -52,7 +50,7 @@ Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the
 
 ### Policy defaults (optional)
 
-Review lanes and their charters per artifact. Inspection and valve thresholds when overriding defaults 3 and 6.
+Review lanes and their charters per artifact. Audit and valve thresholds when overriding the loop's defaults.
 
 ### Agent models (optional)
 

@@ -12,7 +12,7 @@ Origin: starts-from <slug>
 Origin: re-attempts <slug>
 ```
 
-The issue line is required. Add either later line when applicable. The canonical reference follows **Issues**. An issue body begins with the title; pipeline creation prepends its origin lines.
+The issue line is required. Add either later line when applicable. The canonical reference follows **Issues**.
 
 ## Schema and rendering
 
@@ -25,6 +25,8 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 - **Assumptions / directions to explore** _(optional)_ — owner hypotheses or proposed directions, labeled open so later research may confirm or overturn them.
 
 A vague idea with only a Title and Goal is complete.
+
+Items are addressed by section and position: `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, counting bullets from 1. An owner answer to an escalation is written under the item it resolves, quoted and attributed `owner`.
 
 ## Authoring discipline
 

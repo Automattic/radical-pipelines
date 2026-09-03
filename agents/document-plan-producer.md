@@ -34,7 +34,7 @@ Materials: one of **Review lanes** (this wave's review files), **Amendment** (a 
 
 For findings from reviews or an amendment, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc, the spec, or the build plan asserts something the shipped code contradicts: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
 
-For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition: **Replan** (the block was under-specified, its surface misnamed, or its acceptance unreachable), **Re-dispatch** (the evidence does not reproduce, or the worker misread the block; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover: `Contradicts-input: <path>#<id>` with the report as evidence).
+For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition: **Replan** (the block was under-specified, its surface misnamed, or its acceptance unreachable), **Re-dispatch** (the evidence does not reproduce, or the worker misread the block; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover — target the design doc when the code is right, the build plan when the code is wrong: `Contradicts-input: <path>#<id>` with the report as evidence).
 
 You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
 
@@ -55,7 +55,7 @@ You may research and decide new content in this mode — always in service of a 
 
 **Record**
 
-- Record as you go. Every entry names its author: the answering agent's ID, or `owner` for relayed owner statements quoted verbatim; entries you author are signed with your agent ID.
+- Record as you go. Every entry names its author: the answering agent's ID, or `owner` for the owner's own words, quoted verbatim; entries you author are signed with your agent ID.
 
 **Research**
 

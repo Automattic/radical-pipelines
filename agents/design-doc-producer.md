@@ -74,7 +74,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - Record as you go, never in a batch at the end.
 - `design-doc.md` keeps the open-assumption register: every `A<n>` — carried from the spec or your own — not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
-- Every entry names its author as it arrived: the answering agent's ID, or `owner` for owner statements relayed to you — quoted verbatim. Entries you author are signed with your agent ID.
+- Every entry names its author: the answering agent's ID, or `owner` for the owner's own words, quoted verbatim. Entries you author are signed with your agent ID.
 - Ids are stable: `D<n>`, `A<n>` are never renumbered.
 
 **Research**

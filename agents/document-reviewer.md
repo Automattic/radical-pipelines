@@ -27,10 +27,10 @@ Materials: the **Plan**, the **Design doc**, the **Spec**, the **Build summary**
 
 ## Delta
 
-Materials: **Your previous review**, the **Diff** since the commit it reviewed, the task reports written since, and the **Adjudication** when a claim was adjudicated.
+Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** when a claim was adjudicated.
 
 1. Confirm how each of your prior findings was resolved by the new commits. A resolution that fails is a finding; write `Prior finding: <review>#<issue>, resolution failed` in it.
-2. Carry forward every logged check whose subject the diff does not touch, marked as reused; re-run the ones it does — the suite always.
+2. Carry forward every logged check whose subject the diff does not touch, marked as reused; re-run the ones it does — the documentation checks always.
 3. Review the new commits through your charter.
 
 Reject only for a must-fix in the diff or a prior finding whose resolution fails; anything else lands in non-blocking findings.

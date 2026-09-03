@@ -30,6 +30,3 @@
 <!-- Consolidate -->
 - Lane candidates: <one line per lane: id — spec.md path, spec-research.md path>
 
-## Owner statements
-
-<verbatim quotes, each attributed owner>

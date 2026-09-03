@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// rp — state tooling for Radical Pipelines v3.
+// rp — state tooling for Radical Pipelines.
 // Zero dependencies. Serves the spec in ../reference/run/state.md; everything
 // it does can be done with bare git. Commands: stamp, check.
 
@@ -105,8 +105,9 @@ function mirrorBody(body, fm, base, abs) {
     const id = fileIdentity(resolve(base, targetPath));
     if (id) fm.set("target-identity", id);
   }
-  const origin = body.match(/^Origin:\s*(.+)$/m);
-  if (origin) fm.set("origin", origin[1].trim());
+  const origins = [...body.matchAll(/^Origin:\s*(.+)$/gm)].map((m) => m[1].trim());
+  if (origins.length === 1) fm.set("origin", origins[0]);
+  else if (origins.length > 1) fm.set("origin", origins);
   const outcome = body.match(/^Outcome:\s*(completed|failed)\s*$/m);
   if (outcome) fm.set("outcome", outcome[1]);
   const recurs = [...body.matchAll(/^Prior finding:\s*(\S+#[^,\s]+),\s*resolution failed\s*$/gm)].map((m) => m[1]);
@@ -202,7 +203,13 @@ function cmdCheck(args) {
   if (!existsSync(abs)) die(`check: no such folder: ${folder}`);
   const pipelineRel = relative(root, abs);
   const pipelinesRoot = pipelineRel.split("/").slice(0, -1).join("/") || ".";
-  const lanes = args.lanes ? args.lanes.split(",") : null;
+  // --lanes r1,r2  or  --lanes spec=r1,r2;build-plan=r1
+  const laneSpec = args.lanes
+    ? args.lanes.includes("=")
+      ? Object.fromEntries(args.lanes.split(";").map((e) => [e.split("=")[0], e.split("=")[1].split(",")]))
+      : { "*": args.lanes.split(",") }
+    : null;
+  const lanesFor = (prefix) => (laneSpec ? laneSpec[prefix] ?? laneSpec["*"] ?? null : null);
 
   const files = walk(abs).sort();
   const docs = files.map((f) => {
@@ -212,7 +219,7 @@ function cmdCheck(args) {
   });
 
   const reviews = docs.filter((d) => /-review-/.test(d.name));
-  const amendments = docs.filter((d) => /(^|\/)0-intent\/(\d+-amendment|amendment-\d+)\.md$/.test(d.rel));
+  const amendments = docs.filter((d) => /^0-intent\/\d+-amendment\.md$/.test(d.rel));
   const reports = docs.filter((d) => /^task-.+-\d+\.md$/.test(d.name) && d.rel.includes("tasks/"));
 
   // Latest review per artifact-prefix + lane.
@@ -255,15 +262,16 @@ function cmdCheck(args) {
 
   const resolvedBy = (trigger) => {
     const targetPath = trigger.target.split("#")[0];
-    for (const [holder, pins] of allPins)
-      if (holder === targetPath || targetPath === holder)
-        for (const p of pins) if (pinParts(p)?.path === trigger.rel) return `pinned by ${holder}`;
+    const pins = allPins.get(targetPath);
+    if (pins) for (const p of pins) if (pinParts(p)?.path === trigger.rel) return `pinned by ${targetPath}`;
     for (const r of latest.values()) {
       const reviewed = r.data.get("reviewed");
       if (!Array.isArray(reviewed)) continue;
       const coversTarget = reviewed.some((p) => pinParts(p)?.path === targetPath);
-      if (coversTarget && r.data.get("origin") === trigger.rel && r.data.get("verdict") === "approved")
-        return `adjudicated by ${r.rel}`;
+      const origins = [].concat(r.data.get("origin") ?? []);
+      const verdict = r.data.get("verdict");
+      if (coversTarget && origins.includes(trigger.rel) && (verdict === "approved" || verdict === "unsatisfiable"))
+        return `${verdict === "approved" ? "refuted" : "escalated"} by ${r.rel}`;
     }
     return null;
   };
@@ -281,8 +289,7 @@ function cmdCheck(args) {
   }
 
   // 2. Claims.
-  for (const t of triggers) {
-    if (t.kind !== "claim") continue;
+  const claims = triggers.filter((t) => t.kind === "claim").map((t) => {
     const targetPath = t.target.split("#")[0];
     const reviewedPins = t.review?.data.get("reviewed");
     const claimFresh = Array.isArray(reviewedPins) && reviewedPins.length > 0 && reviewedPins.every((p) => pinState(abs, p).state === "fresh");
@@ -294,16 +301,19 @@ function cmdCheck(args) {
     if (pinned && !unchanged) state = "superseded (target changed)";
     else if (res) state = `resolved (${res})`;
     else if (!claimFresh) state = "moot (claiming artifact changed)";
-    else {
-      state = !pinned ? "pending (no target-identity)" : "PENDING";
-      if (state === "PENDING") {
-        if (targetPath.endsWith("0-intent/intent.md")) state = "PENDING — owner escalation";
-        if (claimTargets.has(t.rel.split("#")[0])) state = "suspended";
-        claimTargets.add(targetPath);
-      }
-    }
-    out.claims.push({ review: t.rel, target: t.target, state });
-    lines.push(`claim    ${t.rel} → ${t.target}  ${state}`);
+    else state = !pinned ? "pending (no target-identity)" : "PENDING";
+    const claimingPaths = Array.isArray(reviewedPins) ? reviewedPins.map((p) => pinParts(p)?.path) : [];
+    return { t, targetPath, state, claimingPaths };
+  });
+  for (const c of claims) {
+    if (c.state !== "PENDING") continue;
+    const above = claims.find((o) => o !== c && o.state === "PENDING" && o.claimingPaths.includes(c.targetPath));
+    if (above) c.state = `suspended (behind ${above.t.rel})`;
+    else if (c.targetPath.endsWith("0-intent/intent.md")) c.state = "PENDING — owner escalation";
+  }
+  for (const c of claims) {
+    out.claims.push({ review: c.t.rel, target: c.t.target, state: c.state });
+    lines.push(`claim    ${c.t.rel} → ${c.t.target}  ${c.state}`);
   }
 
   // 3. Artifacts.
@@ -323,7 +333,7 @@ function cmdCheck(args) {
     entry.state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
     entry.stale = stale.map((s) => `${s.entry} (${s.state})`);
 
-    const artifactLanes = lanes ?? [...new Set([...latest.values()].filter((r) => r.prefix === prefix).map((r) => r.lane))];
+    const artifactLanes = lanesFor(prefix) ?? [...new Set([...latest.values()].filter((r) => r.prefix === prefix).map((r) => r.lane))];
     const laneStates = artifactLanes.map((lane) => {
       const r = latest.get(`${prefix}|${lane}`);
       if (!r) return { lane, verdict: "none" };
@@ -332,7 +342,10 @@ function cmdCheck(args) {
       return { lane, verdict: r.data.get("verdict") ?? "unstamped", fresh, review: r.rel };
     });
     entry.lanes = laneStates;
-    entry.approved = laneStates.length > 0 && laneStates.every((l) => l.verdict === "approved" && l.fresh);
+    const ownerLane = latest.get(`${prefix}|owner`);
+    const ownerApproved = ownerLane && ownerLane.data.get("verdict") === "approved" && [].concat(ownerLane.data.get("reviewed") ?? []).every((p) => pinState(abs, p).state === "fresh");
+    entry.approved = ownerApproved || (laneStates.length > 0 && laneStates.every((l) => l.verdict === "approved" && l.fresh));
+    if (ownerApproved && !laneStates.some((l) => l.lane === "owner")) laneStates.push({ lane: "owner", verdict: "approved", fresh: true, review: ownerLane.rel });
     out.artifacts.push(entry);
     lines.push(
       `artifact ${relPath}  ${entry.state.toUpperCase()}${entry.stale?.length ? ` — ${entry.stale.join("; ")}` : ""}  reviews: ${
@@ -362,22 +375,46 @@ function cmdCheck(args) {
   for (const [relPath, prefix] of ARTIFACTS) {
     const rs = reviews.filter((r) => r.name.startsWith(`${prefix}-review-`));
     if (!rs.length) continue;
-    const approvedIters = rs.filter((r) => r.data.get("verdict") === "approved").map((r) => Number(r.data.get("iteration") ?? 0));
-    const lastApproved = approvedIters.length ? Math.max(...approvedIters) : 0;
-    const episode = rs.filter((r) => Number(r.data.get("iteration") ?? 0) > lastApproved).length;
+    const byLane = new Map();
+    for (const r of rs) {
+      const lane = r.data.get("lane") ?? "r1";
+      const iter = Number(r.data.get("iteration") ?? 0);
+      const e = byLane.get(lane) ?? { last: 0, approved: 0 };
+      e.last = Math.max(e.last, iter);
+      if (r.data.get("verdict") === "approved") e.approved = Math.max(e.approved, iter);
+      byLane.set(lane, e);
+    }
+    const episode = Math.max(0, ...[...byLane.values()].map((e) => e.last - e.approved));
     const recurs = rs.flatMap((r) => (Array.isArray(r.data.get("recurs")) ? r.data.get("recurs") : []));
     out.counters[prefix] = { episode, recurs };
     if (episode || recurs.length)
       lines.push(`counter  ${prefix}: ${episode} wave${episode === 1 ? "" : "s"} this episode${recurs.length ? `  recurs: ${recurs.join(", ")}` : ""}`);
   }
 
+  // Completion: consecutive complete phases from 1.
+  const phaseComplete = (i) => {
+    const a = out.artifacts[i];
+    if (!a || !a.approved || a.state !== "fresh") return false;
+    const phase = ARTIFACTS[i][0].split("/")[0];
+    const pr = PHASE_REVIEWS.find(([p]) => p === phase);
+    if (!pr) return true;
+    const t = out.tasks[phase];
+    const rv = out[`${pr[1]}Review`];
+    return !!t && t.open.length === 0 && !!rv && rv.verdict === "approved" && rv.codeFresh;
+  };
+  let through = 0;
+  while (through < ARTIFACTS.length && phaseComplete(through)) through++;
+  out.completeThrough = through;
+  out.targetPhase = args.targetPhase;
+  out.complete = through >= args.targetPhase;
+  lines.push(`complete through phase ${through}${out.complete ? " — target reached" : ` (target ${args.targetPhase})`}`);
   process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
 }
 
 // --- cli --------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, force: false, json: false, lanes: null };
+  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, force: false, json: false, lanes: null, targetPhase: 4 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--pin") args.pin.push(argv[++i]);
@@ -387,7 +424,7 @@ function parseArgs(argv) {
     else if (a === "--force") args.force = true;
     else if (a === "--json") args.json = true;
     else if (a === "--lanes") args.lanes = argv[++i];
-    else if (a === "--target-phase") ++i; // reserved
+    else if (a === "--target-phase") args.targetPhase = Number(argv[++i]);
     else args._.push(a);
   }
   return args;

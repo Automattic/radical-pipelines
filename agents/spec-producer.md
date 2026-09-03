@@ -44,7 +44,7 @@ You may research and decide new content in this mode — always in service of a 
 When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it:
 
 - The challenged clause is agent-chosen means → judge on the evidence: adopt — rewrite the clause, preserving every intent item it serves — or refute, recording the route the claim missed.
-- The change would make the spec stop satisfying an intent item or a recorded owner statement → the bar is exhaustion: verify the claim's declared frame covers what the requirement actually admits. Reject only by naming a concrete uncovered family; unable to name one, grant: `Contradicts-input: 0-intent/intent.md#<item>` with the claim's evidence.
+- The change would make the spec stop satisfying an intent item or a recorded owner statement → the bar is exhaustion: the claim enumerates the classes of means it considered and closes each; verify that enumeration covers every class the requirement admits. Reject only by naming a class the requirement admits and the claim did not consider; unable to name one, grant: `Contradicts-input: 0-intent/intent.md#<item>` with the claim's evidence.
 
 ## Consolidate
 
@@ -77,7 +77,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - Record as you go, never in a batch at the end.
 - `spec.md` keeps the open-assumption register: every `A<n>` not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
-- Every entry names its author as it arrived: the answering agent's ID, or `owner` for owner statements relayed to you — quoted verbatim. Entries you author are signed with your agent ID.
+- Every entry names its author: the answering agent's ID, or `owner` for the owner's own words, quoted verbatim. Entries you author are signed with your agent ID.
 - Ids are stable: `R<n>`, `A<n>` are never renumbered; new content gets a new id.
 
 **Research**

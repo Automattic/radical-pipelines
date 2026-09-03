@@ -21,15 +21,13 @@ Apply the first predicate that holds:
 | A pending owner escalation exists and the request answers it                        | Record the answer (`../run/loop.md` § Owner escalation) and continue that pipeline |
 | A live pipeline's intent and amendments already call for this work                  | Continue it                                                               |
 | The request corrects what an existing pipeline's artifacts claim or its code does   | An external amendment on that pipeline                                    |
-| New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `origin` names it         |
-| New intent re-attempting an existing pipeline differently                           | A new pipeline; `origin` names the one it re-attempts                     |
+| New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `Origin: starts-from` names it |
+| New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the main branch                                       |
 
-Several live pipelines match: pick the one whose frontier the request advances; a pipeline stopped by the valve is continued only with new input (an amendment or an escalation answer). When no predicate decides, ask the owner the one deciding question — together with every other question this session still has.
+Several live pipelines match: pick the one whose frontier the request advances; a pipeline stopped by the valve is continued only with new input (an amendment or an escalation answer). ### 4. Confirm the run
 
-### 4. Confirm the run
-
-Collect from the project's policy defaults and confirm with the owner in a single message: workflow (autonomous or assisted), target phase, review lanes and charters per artifact. Announce the route and why.
+One message to the owner: the route and why — or, when no predicate decides, the one deciding question — together with the run policy to confirm (workflow, target phase, review lanes and charters per artifact, from the project's policy defaults) and every other question this session still has.
 
 ### 5. Prepare
 
