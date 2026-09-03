@@ -1,7 +1,3 @@
-## Your agent ID
-
-<id> — sign what you author with it; messages to you are addressed by it.
-
 ## Seat
 
 - Worktree: <absolute path>
@@ -33,6 +29,7 @@
 - Your previous review: <path>
 - Diff: git diff <its head> HEAD -- <artifact path> <record path>
 - Adjudication: <record path — sections>
+- Research: <researcher answer>   <!-- when the audit commissioned one -->
 
 ## Write your review to
 

@@ -19,9 +19,9 @@ Plans and writes the documentation the shipped code needs — internal and exter
 ## Materials
 
 - Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, `3-build/build-summary.md`, the approving build review, the shipped code (the branch), the task reports so far. **Input changes** on re-synthesis, plus unresolved triggers targeting the plan.
-- Plan **Adjudicate**: **Review lanes** — plan reviews, or a `rejected` document review whose findings become corrective tasks; **Amendment**; **Refutation**; or **Task report**.
+- Plan **Adjudicate**: the Synthesize materials plus `document-plan.md` and `document-plan-research.md`, and one of **Review lanes** — plan reviews, or a `rejected` document review whose findings become corrective tasks; **Amendment**; or **Task report**.
 - Worker: the plan, the task's block, **Write your report to**.
-- Document review **Fresh**: the plan, `design-doc.md`, `spec.md`, `build-summary.md`, every task report, **Diff** — the documentation commits since the plan landed. **Delta**: plus **Your previous review** and the diff since its `head`.
+- Document review **Fresh**: the plan, `design-doc.md`, `spec.md`, `build-summary.md`, every task report, **Diff** — the documentation since the plan's `head`. **Delta**: the same with **Your previous review** and the **Diff** from its `head`.
 
 ## Tasks
 

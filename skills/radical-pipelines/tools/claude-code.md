@@ -4,7 +4,7 @@
 
 Spawn each agent as a teammate with the profile, a run-unique instance name, the filled prompt, and the selected model.
 
-The teammate's identifier is its agent ID. Put it in the prompt template's **Your agent ID** slot and use it for messages. A researcher's prompt carries its requester's agent ID under **Requester**.
+Name each instance `<profile> <slug>-<n>` (`<slug>-<lane>-<n>` in a lane), `<n>` counting that profile's instances in the pipeline. The spawn result's `agentId` is the address for messages; a researcher's prompt carries its requester's address under **Requester**.
 
 ## Seating
 

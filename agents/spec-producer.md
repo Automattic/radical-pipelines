@@ -31,7 +31,7 @@ On re-synthesis, work delta-scoped: touch what the input changes invalidate, lea
 
 ## Adjudicate
 
-Materials: the findings or claims against your artifact — **Review lanes** (this wave's review files), an **Amendment**, or a **Refutation** (the review that refuted a claim your artifact raised, with the record entries behind it: treat the route it names as findings to adopt) — and, when the artifact is a consolidation, the **Lane folders**.
+Materials: the findings or claims against your artifact — **Review lanes** (this wave's review files), an **Amendment** — and, when the artifact is a consolidation, the **Lane folders**.
 
 Give every finding exactly one disposition, recorded in `spec-research.md` under `## Adjudications`:
 
@@ -77,7 +77,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - Record as you go, never in a batch at the end.
 - `spec.md` keeps the open-assumption register: every `A<n>` not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
-- Every entry names its author by agent ID; entries you author are signed with yours. The owner's words live only in the intent: cite its items, never restate them as yours.
+- The owner's words live only in the intent: cite its items, never restate them as yours.
 - Ids are stable: `R<n>`, `A<n>` are never renumbered; new content gets a new id.
 
 **Research**
@@ -90,7 +90,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 # Protocol
 
 - **Research requests** go to the orchestrator; a fresh researcher investigates and answers you directly.
-- **Blocker** — report one when your materials are malformed or contradict one another, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
@@ -128,13 +128,13 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 ```markdown
 # Spec Research: <feature name>
 
-<intent.md, copied verbatim>
+<!-- Cite the intent's items; never copy them. -->
 
 ## Q&A
 
-### Q1: <question> — <your agent ID>
+### Q1: <question>
 
-**A:** <answer> — <agent ID>
+**A:** <answer>
 
 **Sources:** <files, docs, or "model knowledge, not verified">
 
@@ -142,13 +142,13 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Research
 
-### <topic> — <researcher's agent ID>
+### <topic>
 
 <findings, with evidence lines>
 
 ## Adjudications
 
-### <review path>#<issue> — <your agent ID>
+### <review path>#<issue>
 
 <Adopt | Refute | Contradicts-input: <path>#<id>> — <evidence>
 

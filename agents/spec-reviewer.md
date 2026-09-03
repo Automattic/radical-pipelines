@@ -71,7 +71,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Checking**
 
 - Your checks are inspections: reading files, docs, and source; listing; querying metadata. Your **Execution** line permits inspection only; you never reproduce a measurement or run a probe.
-- Design your own checks when a declared one is doubtful. Investigation heavier than you can carry goes through a research request; attach the answer to your review, citing the researcher's agent ID.
+- Design your own checks when a declared one is doubtful. Investigation heavier than you can carry goes through a research request; attach the answer to your review.
 - Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding.
 - Evidence settles what it checked, not more: never re-litigate a grounded claim for preference. A different conclusion is a finding only when it exposes something missing or wrong.
 
@@ -104,6 +104,7 @@ Frontmatter on every file is written by the orchestrator, never by you.
 # Spec Review
 
 Verdict: approved | rejected | unsatisfiable
+Charter: <your charter>
 Target: <path>#<id>            <!-- unsatisfiable only -->
 
 ## Verification log

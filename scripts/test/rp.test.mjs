@@ -223,7 +223,7 @@ describe("rp state tooling", () => {
     );
   });
 
-  test("an amendment stays pending until its target pins it", () => {
+  test("an amendment is adjudicated when its target pins it and resolved when the target is approved carrying the pin", () => {
     writeAmendment(root);
 
     assert.match(
@@ -241,34 +241,22 @@ describe("rp state tooling", () => {
 
     assert.match(
       runRp(root, "check", PIPELINE),
-      /trigger\s+0-intent\/1-amendment\.md .*pinned by 1-spec\/spec\.md/,
+      /trigger\s+0-intent\/1-amendment\.md .*adjudicated by 1-spec\/spec\.md, awaiting approval/,
+    );
+
+    writePipelineFile(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/spec-review-1.md"), "--reviewed", pipelineFile("1-spec/spec.md"), "--set", "lane=r1", "--set", "iteration=1", "--mirror");
+    assert.match(
+      runRp(root, "check", PIPELINE, "--lanes", "r1"),
+      /trigger\s+0-intent\/1-amendment\.md .*resolved \(1-spec\/spec\.md approved carrying it\)/,
     );
   });
 
-  test("an approved target review adjudicates its originating amendment", () => {
+  test("a review of the target that cites an amendment without the target pinning it does not resolve it", () => {
     writeAmendment(root);
-    const review = pipelineFile("1-spec/spec-review-1.md");
-    writePipelineFile(root, "1-spec/spec-review-1.md", "# Review\n\nApproved.\n");
-    runRp(
-      root,
-      "stamp",
-      review,
-      "--reviewed",
-      pipelineFile("1-spec/spec.md"),
-      "--set",
-      "lane=r1",
-      "--set",
-      "iteration=1",
-      "--set",
-      "verdict=approved",
-      "--set",
-      "origin=0-intent/1-amendment.md",
-    );
-
-    assert.match(
-      runRp(root, "check", PIPELINE),
-      /trigger\s+0-intent\/1-amendment\.md .*refuted by 1-spec\/spec-review-1\.md/,
-    );
+    writePipelineFile(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/spec-review-1.md"), "--reviewed", pipelineFile("1-spec/spec.md"), "--set", "lane=r1", "--set", "iteration=1", "--set", "origin=0-intent/1-amendment.md", "--mirror");
+    assert.match(runRp(root, "check", PIPELINE), /trigger\s+0-intent\/1-amendment\.md .*PENDING/);
   });
 
   test("an unsatisfiable claim is pending until its target body changes", () => {
@@ -327,7 +315,7 @@ describe("rp state tooling", () => {
     }
 
     const output = runRp(root, "check", PIPELINE);
-    assert.match(output, /tasks\s+3-build: done \[T1\]\s+open \[T2:failed\]/);
+    assert.match(output, /tasks\s+3-build: planned 0\s+done \[T1\]\s+open \[T2:failed\]/);
     assert.match(
       output,
       /trigger\s+3-build\/tasks\/task-T2-2\.md \(failed task T2\) → 3-build\/build-plan\.md\s+PENDING/,
@@ -443,6 +431,93 @@ describe("rp state tooling", () => {
     assert.match(output, /lane\s+1-spec\/lane-1\/spec\.md\s+FRESH\s+reviews: r1:unsatisfiable/);
     assert.match(output, /counter\s+1-spec\/lane-1\/spec: 1 wave this episode/);
     assert.doesNotMatch(output, /counter\s+1-spec\/lane-2\/spec/);
+  });
+
+  function approveChain(upTo) {
+    // spec, design doc, plan: stamped with their required pins and approved by r1.
+    runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"));
+    review("1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md"], ["lane=r1", "iteration=1"]);
+    if (upTo < 2) return;
+    runRp(root, "stamp", pipelineFile("2-design-doc/design-doc.md"), "--pin", pipelineFile("0-intent/intent.md"), "--pin", pipelineFile("1-spec/spec.md"));
+    review("2-design-doc/design-doc-review-1.md", "# Review\n\nVerdict: approved\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
+    if (upTo < 3) return;
+    writePipelineFile(root, "3-build/build-plan.md", "# Build plan\n\n### T1: first\n\n- **Depends on:** none\n\n### T2: second\n\n- **Depends on:** T1\n");
+    runRp(root, "stamp", pipelineFile("3-build/build-plan.md"), "--pin", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("2-design-doc/design-doc.md"), "--mirror");
+    review("3-build/build-plan-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md"], ["lane=r1", "iteration=1"]);
+  }
+
+  test("the frontier walks the phases in order and names the next task from the plan's mirrored task list", () => {
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier stamp 1-spec\/spec\.md/);
+    approveChain(1);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier stamp 2-design-doc\/design-doc\.md/);
+    approveChain(3);
+    let output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /tasks\s+3-build: planned 2\s+done \[\]\s+next T1/);
+    assert.match(output, /frontier task 3-build\/T1/);
+    writePipelineFile(root, "3-build/tasks/task-T1-1.md", "# Task report\n\nOutcome: completed\n");
+    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T1-1.md"), "--set", "task=T1", "--set", "attempt=1", "--mirror");
+    output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /next T2/);
+    assert.match(output, /frontier task 3-build\/T2/);
+  });
+
+  test("a phase review pins the plan and every task report, and goes stale when a new report lands", () => {
+    approveChain(3);
+    writePipelineFile(root, "3-build/tasks/task-T1-1.md", "# Task report\n\nOutcome: completed\n");
+    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T1-1.md"), "--set", "task=T1", "--set", "attempt=1", "--mirror");
+    writePipelineFile(root, "3-build/tasks/task-T2-1.md", "# Task report\n\nOutcome: completed\n");
+    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T2-1.md"), "--set", "task=T2", "--set", "attempt=1", "--mirror");
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier build review/);
+    review("3-build/build-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/tasks/task-T1-1.md", "3-build/tasks/task-T2-1.md"], ["lane=r1", "iteration=1"]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier missing 3-build\/build-summary\.md/);
+    writePipelineFile(root, "3-build/build-summary.md", "# Summary\n");
+    let output = runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "3");
+    assert.match(output, /complete through phase 3 — target reached/);
+    assert.match(output, /frontier complete/);
+    // A new attempt of T2 makes the build review stale.
+    writePipelineFile(root, "3-build/tasks/task-T2-2.md", "# Task report\n\nOutcome: completed\n");
+    runRp(root, "stamp", pipelineFile("3-build/tasks/task-T2-2.md"), "--set", "task=T2", "--set", "attempt=2", "--mirror");
+    output = runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "3");
+    assert.match(output, /build\s+review: r1:approved \(stale\)/);
+    assert.match(output, /frontier build review/);
+  });
+
+  test("completion is a conjunction: an unresolved amendment keeps the pipeline incomplete", () => {
+    approveChain(1);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "1"), /frontier complete/);
+    writeAmendment(root);
+    const output = runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "1");
+    assert.match(output, /frontier trigger 0-intent\/1-amendment\.md/);
+    assert.doesNotMatch(output, /target reached/);
+  });
+
+  test("a claim stands only when its wave closed without a rejection", () => {
+    approveChain(1);
+    runRp(root, "stamp", pipelineFile("2-design-doc/design-doc.md"), "--pin", pipelineFile("0-intent/intent.md"), "--pin", pipelineFile("1-spec/spec.md"));
+    review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "spec=r1;design-doc=r1,r2"), /claim .*wave open/);
+    review("2-design-doc/design-doc-review-r2-1.md", "# Review\n\nVerdict: rejected\n", ["2-design-doc/design-doc.md"], ["lane=r2", "iteration=1"]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "spec=r1;design-doc=r1,r2"), /claim .*held \(a lane rejected/);
+  });
+
+  test("audit and valve are frontier states, and only Goal, Constraints, and Decisions escalate", () => {
+    runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"));
+    for (let i = 1; i <= 3; i++) review(`1-spec/spec-review-${i}.md`, "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md"], ["lane=r1", `iteration=${i}`]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier AUDIT 1-spec\/spec\.md/);
+    for (let i = 4; i <= 6; i++) review(`1-spec/spec-review-${i}.md`, "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md"], ["lane=r1", `iteration=${i}`]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier VALVE 1-spec\/spec\.md/);
+    review("1-spec/spec-review-7.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#context-1\n", ["1-spec/spec.md"], ["lane=r1", "iteration=7"]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /claim .*#context-1\s+PENDING\n/);
+  });
+
+  test("check --ref reads a pipeline from a branch without checking it out", () => {
+    approveChain(1);
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "spec approved");
+    git(root, "branch", "other");
+    writePipelineFile(root, "1-spec/spec.md", "# Spec\n\nChanged on the working tree.\n");
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1", "--ref", "other"), /artifact 1-spec\/spec\.md\s+FRESH\s+reviews: r1:approved\s+APPROVED/);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /r1:approved \(stale\)/);
   });
 
   test("check --json emits the complete state shape", () => {

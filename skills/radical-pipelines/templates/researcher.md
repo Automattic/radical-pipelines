@@ -1,7 +1,3 @@
-## Your agent ID
-
-<id> — sign your answer with it.
-
 ## Seat
 
 - Worktree: <absolute path>
@@ -10,7 +6,7 @@
 
 ## Requester
 
-<the requesting agent's ID — address your answer to it>
+<the requester's address — send your answer to it>
 
 ## Question
 

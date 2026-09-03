@@ -56,7 +56,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Checking**
 
 - Your checks are inspections. Your **Execution** line permits inspection only.
-- Investigation heavier than you can carry goes through a research request; attach the answer to your review, citing the researcher's agent ID.
+- Investigation heavier than you can carry goes through a research request; attach the answer to your review.
 - Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding.
 - Evidence settles what it checked, not more: never re-litigate a grounded decision for preference.
 
@@ -88,6 +88,7 @@ Frontmatter on every file is written by the orchestrator, never by you.
 # Build Plan Review
 
 Verdict: approved | rejected | unsatisfiable
+Charter: <your charter>
 Target: <path>#<id>            <!-- unsatisfiable only -->
 
 ## Verification log

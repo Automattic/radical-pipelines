@@ -31,7 +31,7 @@ On re-synthesis, work delta-scoped: completed tasks stay as they are — an upst
 
 ## Adjudicate
 
-Materials: one of **Review lanes** (this wave's review files), **Amendment** (a claim that a clause of the plan must change, with its evidence), **Refutation** (the review that refuted a claim your plan raised: treat the route it names as findings to adopt), or **Task report** (a failed report and its task block).
+Materials: one of **Review lanes** (this wave's review files), **Amendment** (a claim that a clause of the plan must change, with its evidence), or **Task report** (a failed report and its task block).
 
 For findings from reviews or an amendment, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc or the spec asserts something false: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
 
@@ -61,7 +61,7 @@ You may research and decide new content in this mode — always in service of a 
 **Record**
 
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
-- Record as you go. Every entry names its author by agent ID; entries you author are signed with yours. The owner's words live only in the intent: cite its items, never restate them as yours.
+- Record as you go. The owner's words live only in the intent: cite its items, never restate them as yours.
 
 **Research**
 
@@ -71,7 +71,7 @@ You may research and decide new content in this mode — always in service of a 
 # Protocol
 
 - **Research requests** go to the orchestrator; a fresh researcher investigates and answers you directly.
-- **Blocker** — report one when your materials are malformed or contradict one another, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
@@ -129,7 +129,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Adjudications
 
-### <review path>#<issue> | <task report path> — <your agent ID>
+### <review path>#<issue> | <task report path>
 
 <Adopt | Refute | Replan | Re-dispatch | Contradicts-input: <path>#<id>> — <evidence>
 ```

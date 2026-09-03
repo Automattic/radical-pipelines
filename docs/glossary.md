@@ -2,7 +2,6 @@
 
 The canonical vocabulary of Radical Pipelines.
 
-- **Agent ID** — The addressable identifier assigned to an agent instance by the active tool.
 - **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against a target.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
 - **Blocker** — An agent report that its materials are malformed, an input is unreadable, or its environment is broken.
@@ -13,7 +12,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Done-set** — The tasks whose latest task report has `outcome: completed`.
 - **Episode** — An artifact's review waves since its last approval.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
-- **Frontier** — The first unresolved item in the ordered report from `rp check`.
+- **Frontier** — The first actionable item `rp check` names: a trigger, a claim, a phase's next step, an audit or valve gate, or completion.
 - **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Audit** — The orchestrator's decision point on recurrence or, by default, three waves without approval: research request, continue, or stop.
 - **Inspection** — Observing what already exists without creating evidence.
@@ -36,7 +35,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Target** — The `<path>#<id>` clause that a trigger or `unsatisfiable` verdict says must change.
 - **Task report** — An immutable per-attempt worker report recording its outcome, commits, checks, and any failure evidence.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
-- **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a failed task report.
+- **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a failed task report; adjudicated when the target pins it, resolved when the target is approved carrying the pin or the claim is escalated.
 - **Valve** — The run stop that produces an owner dossier after the convergence threshold, six waves by default, is reached without approval.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
 - **Wave** — The atomic review of one artifact at one identity by every declared review lane.

@@ -1,7 +1,3 @@
-## Your agent ID
-
-<id> — messages to you are addressed by it.
-
 ## Seat
 
 - Worktree: <absolute path>

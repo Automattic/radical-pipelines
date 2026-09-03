@@ -5,28 +5,28 @@ The autonomous workflow. You enter from triage with a pipeline folder, a branch,
 ## One step
 
 1. Run `rp check <pipeline folder> --lanes <declared lanes> --target-phase <n>`.
-2. Take the first item the report lists — triggers, then pending claims, then the phase walk — and dispatch what resolves it (table below).
+2. Dispatch what resolves its `frontier` line (table below).
 3. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches, fire the phase's lifecycle hooks.
 4. Go to 1.
 
 The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and materials of each phase.
 
-| `rp check` reports                                   | Dispatch                                                                                                       |
+| `frontier`                                           | Dispatch                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Unresolved trigger targeting an artifact             | That artifact's producer, mode Adjudicate, with the trigger under **Amendment** (external amendment or claim) or **Task report** |
-| Claim resolved by refutation                         | The claiming artifact's producer, mode Adjudicate, with the refuting review under **Refutation**                |
-| Pending claim targeting the intent                   | Owner escalation (below)                                                                                       |
-| Pending claim, target suspended                      | Nothing; resolve the claim above it first                                                                      |
-| Artifact missing                                     | Its producer, mode Synthesize                                                                                  |
-| Artifact stale                                       | Its producer, mode Synthesize, with **Input changes** — never a re-stamp by you                                |
-| Artifact not approved, no review wave open           | A review wave                                                                                                  |
-| Wave closed with a rejection                         | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks |
-| Wave closed with every lane approved                 | Nothing; the next check moves on                                                                               |
-| Wave closed with an `unsatisfiable` (no rejection)   | Nothing; the next check lists it as a trigger                                                                  |
-| Plan approved and fresh, tasks outside the done-set  | The next task's worker, in dependency order, one at a time                                                     |
-| All tasks done, phase review missing or stale        | The phase's reviewer: `build-reviewer`, `document-reviewer`                                                     |
-| `recurs`, or 3 waves this episode without approval   | Audit (below), then continue                                                                                   |
-| 6 waves this episode without approval                | The valve (below)                                                                                              |
+| `trigger <path> → <target>`                          | The target's producer, mode Adjudicate, with the trigger under **Amendment** (external amendment or claim) or **Task report** |
+| `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
+| `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Amendment**                                     |
+| `synthesize <artifact>`                              | Its producer, mode Synthesize                                                                                  |
+| `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with **Input changes** — never a re-stamp by you                                |
+| `review wave <artifact>`                             | A review wave                                                                                                  |
+| `adjudicate <artifact>`                              | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks. A claim the producer refuted reaches it here too, as the wave that refuted it |
+| `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
+| `task <phase>/<id>`                                  | That task's worker                                                                                             |
+| `build review` / `document review`                   | The phase's reviewer                                                                                           |
+| `missing <summary>`                                  | The phase reviewer wrote no summary: re-dispatch it                                                            |
+| `AUDIT <artifact>`                                   | Audit (below), then continue                                                                                   |
+| `VALVE <artifact>`                                   | The valve (below)                                                                                              |
+| `complete`                                           | Close-out                                                                                                      |
 
 ## Dispatch
 
@@ -36,18 +36,16 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
 - A delta review's **Diff** runs from its previous review's `head` to `HEAD`: the artifact and its record for artifact reviews; the code, excluding the pipelines folder, for build and document reviews.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
-- Serve a **research request**: spawn a fresh `researcher` with the question and the requester's agent ID; it answers the requester directly. Several independent questions in one message get one researcher each.
+- Serve a **research request**: spawn a fresh `researcher` with the question and the requester's address; it answers the requester directly. Several independent questions in one message get one researcher each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch; if the environment is genuinely down, stop and tell the owner.
 
 ## Stamp on landing
 
 After every agent commit, before anyone consumes the result:
 
-- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger listed in its materials.
-- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger.
+- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated; a plan gets `--mirror` too.
+- A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger. A build or document review: `--reviewed <plan>` and `--reviewed` every task report of the phase.
 - A task report: `rp stamp <report> --set task=<id> --set attempt=<n> --mirror`.
-
-Every stamp records `head`, the commit it observed. Commit the stamp on the branch the work landed on.
 
 ## Review waves
 
@@ -57,13 +55,13 @@ A wave reviews one artifact at one identity; one wave at a time per artifact.
 2. Single lane: the reviewer runs in the pipeline worktree. Multi-lane: create `<slug>_<phase>-review-<lane>` branches and worktrees at the same commit, one reviewer each, in parallel.
 3. Each reviewer gets its **Charter** and, on a re-review, **Your previous review**, the **Diff** from its `head`, and the **Adjudication**.
 4. Land: merge the review-lane branches into the branch the wave runs on (disjoint files, no conflicts), remove their worktrees and branches, stamp every review.
-5. Close: any `rejected` → adjudication; every lane `approved` → done; an `unsatisfiable` with no `rejected` → the claim stands, `rp check` routes it. An approval from a lane means nothing in its charter objects.
+5. Close: any `rejected` → adjudication; every lane `approved` → done; an `unsatisfiable` with no `rejected` → the claim stands, `rp check` routes it. An approval from a lane means nothing in its charter objects. The `full scope` lane of a build or document review writes the summary.
 
 Waves are atomic: a research request or blocker raised during a wave is served, but no adjudication starts until every lane reported.
 
 ## Production lanes
 
-A production lane is a sub-pipeline of one artifact. Create `<slug>_<phase>-lane-<k>` branches and worktrees at the same commit; each lane's producer writes in `<phase>/lane-<k>/`; everything this file says about an artifact applies inside the lane — its review waves run on `<slug>_<phase>-lane-<k>-review-<lane>` branches cut from and merged into the lane branch — and lanes run in parallel. After every landing in a lane, merge the lane branch into the pipeline branch (disjoint folders, no conflicts), so `rp check` on the pipeline branch always sees every lane. When every lane is approved and fresh: remove the lane worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact and record under **Lane candidates**; stamp the root artifact pinning each lane's artifact. Its review wave is a Consolidation review with the **Lane folders**. Later re-syntheses of the root run single-lane.
+A production lane is a sub-pipeline of one artifact. Create `<slug>_<phase>-lane-<k>` branches and worktrees at the same commit; each lane's producer writes in `<phase>/lane-<k>/`; everything this file says about an artifact applies inside the lane — its review waves run on `<slug>_<phase>-lane-<k>-review-<lane>` branches cut from and merged into the lane branch — and lanes run in parallel. After every landing in a lane, merge the lane branch into the pipeline branch (disjoint folders, no conflicts), so `rp check` on the pipeline branch always sees every lane; after every landing on the pipeline branch, merge it into each open lane branch, so a changed input reaches the lanes. When every lane is approved and fresh: remove the lane worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact and record under **Lane candidates**; stamp the root artifact pinning each lane's artifact. Its review wave is a Consolidation review with the **Lane folders**. Later re-syntheses of the root run single-lane.
 
 ## Owner escalation
 
@@ -73,7 +71,7 @@ A pending claim targets the intent. Fire `escalation-raised`; pause the pipeline
 
 A decision point: read the reviews of the episode and the record. Decide one of:
 
-- A **research request** to the producer of the next wave, when the loop lacks information the record does not contain.
+- A **research request**, when the loop lacks information the record does not contain: spawn the researcher yourself and pass its answer to the next producer under **Research**.
 - **Continue**, when each wave resolves the previous findings and the remaining ones are new.
 - **Stop** as the valve does, when the pair converges on nothing certifiable.
 
@@ -81,4 +79,4 @@ You write no verdict and open no amendment on your own initiative.
 
 ## The valve
 
-Stop the run. Close out (`close-out.md`) with a dossier for the owner: the artifact, the episode's reviews in order, the pattern (recurring finding, drift, or oscillation), the current state, and the options the record names. Thresholds are the skill's defaults (audit 3, valve 6); the project's policy defaults override them.
+Stop the run. Close out (`close-out.md`) with a dossier for the owner: the artifact, the episode's reviews in order, the pattern (recurring finding, drift, or oscillation), the current state, and the options the record names. Thresholds are `rp check`'s defaults (audit 3, valve 6); the project's policy defaults override them (`--audit`, `--valve`).

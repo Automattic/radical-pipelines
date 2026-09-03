@@ -23,5 +23,5 @@ Each artifact lists its lanes as `<lane> <charter>`. An artifact not listed has 
 
 ## Charters
 
-- `full scope` — everything the reviewer's profile verifies. Every artifact has at least one.
+- `full scope` — everything the reviewer's profile verifies. Every artifact has exactly one; for a build or document review it writes the summary.
 - Any other charter is a focus the reviewer verifies in depth; it scopes what the lane verifies, never what it may defeat.

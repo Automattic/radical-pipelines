@@ -4,7 +4,6 @@ One template per profile. The orchestrator builds every prompt from its template
 
 Slots:
 
-- `Your agent ID` — the addressable identifier per `../tools/<tool>.md`.
 - `Seat` — Worktree, Branch, Commit format, Guardrails (`none` when the project has none), Execution (`inspection only` | `full`).
 - `Charter` — reviewers: `full scope`, or a focus.
 - `Mode`, `Materials` — per profile.

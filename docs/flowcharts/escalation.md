@@ -14,7 +14,7 @@ flowchart TD
     G --> H{"Target in owner territory?"}
     H --> I["Pause the pipeline and assemble the dossier"]
     I --> J["Give the owner the claim, evidence chain, and options"]
-    J --> K["Write the answer verbatim into intent.md or the targeted record, attributed owner"]
+    J --> K["Write the answer into intent.md as a decision; stamp; the cascade re-synthesizes"]
     K --> L["The target identity changes"]
     L --> M["The cascade re-synthesizes stale downstream artifacts"]
     H --> N["Dispatch the target producer in Adjudicate mode"]

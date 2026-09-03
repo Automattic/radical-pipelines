@@ -1,7 +1,3 @@
-## Your agent ID
-
-<id> — sign your record entries with it; messages to you are addressed by it.
-
 ## Seat
 
 - Worktree: <absolute path>
@@ -16,17 +12,23 @@
 
 ## Materials
 
+- Research: <researcher answer>   <!-- when the audit commissioned one; any mode -->
+
 <!-- Synthesize -->
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
 - Build summary: <build-summary.md path>; <approving build review path>
 - Task reports: <one line per report: path>   <!-- none when empty -->
 - Phase folder: <one line per existing file: path>
-- Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>; <trigger path>   <!-- re-synthesis only -->
+- Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>   <!-- re-synthesis only -->
 
-<!-- Adjudicate: exactly one of -->
+<!-- Adjudicate: the standing package plus exactly one correction -->
+- Spec: <spec.md path>
+- Design doc: <design-doc.md path>
+- Build summary: <build-summary.md path>; <approving build review path>
+- document-plan.md: <path>
+- document-plan-research.md: <path>
+- Task reports: <one line per report: path>
 - Review lanes: <one line per review: lane — path>
 - Amendment: <trigger path>; <origin chain paths>
-- Refutation: <refuting review path>; <record sections>
-- Task report: <report path>; <task id>
-
+- Task report: <report path>; <the task's block in the plan>

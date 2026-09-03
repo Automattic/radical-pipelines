@@ -19,9 +19,9 @@ Plans the work as tasks, executes them, verifies the result against the plan, th
 ## Materials
 
 - Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, the approving design-doc reviews, the task reports so far (the done-set is work to build on, never redo). **Input changes** on re-synthesis, plus unresolved triggers targeting the plan.
-- Plan **Adjudicate**: **Review lanes** — plan reviews, or a `rejected` build review whose findings become corrective tasks; **Amendment** — a trigger targeting the plan; **Refutation**; or **Task report** — one failed report and the task's block.
+- Plan **Adjudicate**: the Synthesize materials plus `build-plan.md` and `build-plan-research.md`, and one of **Review lanes** — plan reviews, or a `rejected` build review whose findings become corrective tasks; **Amendment** — a trigger targeting the plan; or **Task report** — one failed report.
 - Worker: the plan, the task's block, **Write your report to**. The worker's `Type` picks the profile: `tdd`, `edit`, `e2e`.
-- Build review **Fresh**: the plan, `design-doc.md`, `spec.md`, every task report, **Diff** — the code commits since the plan landed (`git diff <plan landing commit> HEAD -- . ':(exclude)<pipelines folder root>'`). **Delta**: plus **Your previous review** and the diff since its `head`.
+- Build review **Fresh**: the plan, `design-doc.md`, `spec.md`, every task report, **Diff** — the code since the plan's `head`, excluding the pipelines folder. **Delta**: the same with **Your previous review** and the **Diff** from its `head`.
 
 ## Tasks
 

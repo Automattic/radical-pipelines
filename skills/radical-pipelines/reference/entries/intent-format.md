@@ -49,13 +49,9 @@ Write an external amendment to `0-intent/<n>-amendment.md`:
 Target: <path>#<id>
 Origin: <source>
 
-## Owner statements
-
-> <verbatim quote> — owner
-
 ## Request
 
 <summary>
 ```
 
-Quote the owner's words verbatim and attribute each quote `owner`. Summarize the request under **Request** in your own words and never attribute that summary to the owner. Only quoted owner words are owner territory.
+The owner's words, when the amendment carries any, are a decision in the intent; `Origin:` names it. Summarize the request in your own words.

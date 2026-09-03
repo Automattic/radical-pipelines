@@ -71,6 +71,7 @@ Frontmatter on every file is written by the orchestrator, never by you.
 # Build Review
 
 Verdict: approved | rejected | unsatisfiable
+Charter: <your charter>
 Target: <path>#<id>            <!-- unsatisfiable only -->
 
 ## Verification log

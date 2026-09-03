@@ -7,7 +7,7 @@ Tool mechanics live in the skill. Project facts live in the project files and re
 Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`. Read in this order, from lowest to highest precedence:
 
 1. `tools/<active tool>.md` from the skill: spawn, seat, address, terminate, health-loop, and model mechanics.
-2. `.rp.md` from the main root: its shared sections and the active tool's section. Ignore other tool sections.
+2. `.rp.md` from the main root: its shared sections and the active tool's section — `## <Tool>` inline, or the sidecar `.rp.<tool>.md` it names. Ignore other tools.
 3. `.rp.local.md` from the main root, when present. This git-ignored file overrides matching project facts in memory; unmentioned facts retain their `.rp.md` values.
 
 ## Conventions
@@ -18,12 +18,12 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Branch naming         | How a pipeline branch and slug derive from its issue; a valid git ref containing no `_`                                               | Yes      |
 | Pipelines folder root | The root containing pipeline folders; default `.pipelines/`                                                                           | No       |
 | Worktree folder root  | The root containing worktrees                                                                                                         | Yes      |
-| Commit format         | Commit message rules                                                                                                                   | No       |
+| Commit format         | Commit message rules; absent, an imperative subject line                                                                              | No       |
 | PR format             | Pull request title and description rules                                                                                               | No       |
 | Guardrails            | Rules agents must satisfy                                                                                                              | No       |
 | Lifecycle hooks       | Instructions run at defined moments                                                                                                    | No       |
 | Policy defaults       | Review lanes and charters per artifact; audit and valve thresholds (`policy-defaults.md`)                                              | No       |
-| Agent models          | Model and settings per profile, inside the active tool's section                                                                       | No       |
+| Agent models          | Model and settings per profile, inside the active tool's section; absent, your own model                                              | No       |
 
 ## Schema stamp
 

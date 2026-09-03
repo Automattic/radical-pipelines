@@ -1,7 +1,3 @@
-## Your agent ID
-
-<id> — sign your record entries with it; messages to you are addressed by it.
-
 ## Seat
 
 - Worktree: <absolute path>
@@ -16,17 +12,20 @@
 
 ## Materials
 
+- Research: <researcher answer>   <!-- when the audit commissioned one; any mode -->
+
 <!-- Synthesize -->
 - Intent: <path>
 - Phase folder: <one line per existing file: path>
-- Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>; <trigger path>   <!-- re-synthesis only -->
+- Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>   <!-- re-synthesis only -->
 
-<!-- Adjudicate -->
+<!-- Adjudicate: the standing package plus exactly one correction -->
+- Intent: <path>
+- spec.md: <path>
+- spec-research.md: <path>
 - Review lanes: <one line per review: lane — path>
 - Amendment: <trigger path>; <origin chain: review and record paths>
-- Refutation: <refuting review path>; <record sections>
 - Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
 
-<!-- Consolidate -->
+<!-- Consolidate: the Synthesize materials plus -->
 - Lane candidates: <one line per lane: id — spec.md path, spec-research.md path>
-

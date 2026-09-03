@@ -1,7 +1,3 @@
-## Your agent ID
-
-<id> — sign what you author with it; messages to you are addressed by it.
-
 ## Seat
 
 - Worktree: <absolute path>
@@ -26,11 +22,10 @@
 - Spec: <path>
 - Build summary: <path>
 - Task reports: <one line per report: path>
-- Diff: <git diff <plan landing commit> HEAD -- . ':(exclude)<pipelines folder root>'>
+- Diff: git diff <the plan's head> HEAD -- . ':(exclude)<pipelines folder root>'
 
-<!-- Delta: the Fresh materials plus -->
+<!-- Delta: the Fresh materials, with Diff from the previous review's head, plus -->
 - Your previous review: <path>
-- Diff: git diff <its head> HEAD -- . ':(exclude)<pipelines folder root>'
 - Adjudication: <record path — section>   <!-- when a claim was adjudicated -->
 
 ## Write your review to

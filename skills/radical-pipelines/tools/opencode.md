@@ -13,9 +13,9 @@ Call `rp_spawn` with:
 - `prompt`: filled prompt template.
 - `run`: pipeline branch.
 
-The returned session ID is the agent ID. `directory` fixes its working directory for the session's lifetime. The **Worktree folder root** must be inside the repository; `.worktrees/` qualifies.
+`name` is `<profile> <slug>-<n>` (`<slug>-<lane>-<n>` in a lane), `<n>` counting that profile's instances in the pipeline; the returned session ID is the address for messages. `directory` fixes its working directory for the session's lifetime. The **Worktree folder root** must be inside the repository; `.worktrees/` qualifies.
 
-The plugin appends its messaging and turn protocol, including the spawner's session ID, to every spawned prompt. The protocol directs profile-required messages to the ID under **Requester** or to the spawner. An ended turn stops the session; a message or the completion notice of a background command given a timeout resumes it. Failed turns are announced to the spawner.
+The plugin appends its messaging and turn protocol, including the spawner's session ID, to every spawned prompt. The protocol directs profile-required messages to the address under **Requester** or to the spawner. An ended turn stops the session; a message or the completion notice of a background command given a timeout resumes it. Failed turns are announced to the spawner.
 
 Commands run through non-interactive `$SHELL -c` and source no profile or rc files.
 

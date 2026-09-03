@@ -31,7 +31,7 @@ On re-synthesis, work delta-scoped: touch what the input changes invalidate, lea
 
 ## Adjudicate
 
-Materials: **Review lanes** (this wave's review files), an **Amendment**, or a **Refutation** (the review that refuted a claim your artifact raised, with the record entries behind it: treat the route it names as findings to adopt) — and, for a consolidation, the **Lane folders**.
+Materials: **Review lanes** (this wave's review files), an **Amendment** — and, for a consolidation, the **Lane folders**.
 
 Give every finding exactly one disposition, recorded under `## Adjudications`:
 
@@ -74,7 +74,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - Record as you go, never in a batch at the end.
 - `design-doc.md` keeps the open-assumption register: every `A<n>` — carried from the spec or your own — not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
-- Every entry names its author by agent ID; entries you author are signed with yours. The owner's words live only in the intent: cite its items, never restate them as yours.
+- The owner's words live only in the intent: cite its items, never restate them as yours.
 - Ids are stable: `D<n>`, `A<n>` are never renumbered.
 
 **Research**
@@ -87,7 +87,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 # Protocol
 
 - **Research requests** go to the orchestrator; a fresh researcher investigates and answers you directly.
-- **Blocker** — report one when your materials are malformed or contradict one another, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
@@ -134,9 +134,9 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Q&A
 
-### Q1: <question> — <your agent ID>
+### Q1: <question>
 
-**A:** <answer> — <agent ID>
+**A:** <answer>
 
 **Sources:** …
 
@@ -144,11 +144,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Research
 
-### <topic> — <researcher's agent ID>
+### <topic>
 
 ## Adjudications
 
-### <review path>#<issue> — <your agent ID>
+### <review path>#<issue>
 
 <Adopt | Refute | Contradicts-input: <path>#<id>> — <evidence>
 ```

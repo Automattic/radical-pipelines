@@ -53,5 +53,4 @@ Your answer, sent to the requester:
 
 **Unknown by inspection:** <what only an experiment settles — observation, circumstance>   <!-- when applicable -->
 
-— <your agent ID>
 ```

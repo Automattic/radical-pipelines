@@ -24,8 +24,8 @@ You are an orchestrator. A pipeline is a set of artifacts that converge: it is d
 | 0   | Intent     | `0-intent`     | `intent.md`, external amendments                                          |
 | 1   | Spec       | `1-spec`       | `spec.md`, `spec-research.md`, reviews                                    |
 | 2   | Design doc | `2-design-doc` | `design-doc.md`, `design-doc-research.md`, reviews                        |
-| 3   | Build      | `3-build`      | `build-plan.md`, `build-plan-research.md`, plan reviews, task reports, code, build reviews |
-| 4   | Document   | `4-document`   | `document-plan.md`, `document-plan-research.md`, plan reviews, task reports, documentation, document reviews |
+| 3   | Build      | `3-build`      | `build-plan.md`, `build-plan-research.md`, plan reviews, task reports, code, build reviews, `build-summary.md` |
+| 4   | Document   | `4-document`   | `document-plan.md`, `document-plan-research.md`, plan reviews, task reports, documentation, document reviews, `document-summary.md` |
 
 Two workflows advance a pipeline: **autonomous** (`reference/run/loop.md`) and **assisted** (`reference/run/assisted.md`, spec and design doc only). The owner chooses at triage.
 

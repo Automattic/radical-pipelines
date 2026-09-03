@@ -167,7 +167,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | PR format             | How pull request titles and descriptions are written                                                | No       |
 | Guardrails            | Rules the project's agents must satisfy                                                             | No       |
 | Lifecycle hooks       | Prose instructions run at defined pipeline moments                                                  | No       |
-| Policy defaults       | Review lanes and charters per artifact, plus inspection and valve thresholds                        | No       |
+| Policy defaults       | Review lanes and charters per artifact, plus audit and valve thresholds                             | No       |
 | Agent models          | Model and settings per profile, inside the active tool's section                                    | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
