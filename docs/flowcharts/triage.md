@@ -12,7 +12,7 @@ flowchart TD
     C --> R4["Start a pipeline from an unmerged tip"]
     C --> R5["Start a new re-attempt"]
     C --> R6["Start a new pipeline from main"]
-    R1 --> D["Confirm workflow, target phase, lanes, and charters"]
+    R1 --> D["Confirm workflow, target phase, and lanes"]
     R2 --> D
     R3 --> D
     R4 --> D
