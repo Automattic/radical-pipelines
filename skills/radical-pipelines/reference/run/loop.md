@@ -1,6 +1,6 @@
 # The loop
 
-The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed, thresholds). Read `state.md` once; start health monitoring (`../conventions/health-monitoring.md`). Then repeat until `rp check` reports complete through the target phase, an owner escalation is pending, or the valve stops the run. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`).
+The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed, thresholds). Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until `rp check` reports complete through the target phase, an owner escalation is pending, or the valve stops the run. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
 
 ## One step
 
