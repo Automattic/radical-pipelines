@@ -43,8 +43,8 @@ You may research and decide new content in this mode — always in service of a 
 
 When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it:
 
-- The challenged clause is agent-chosen means → judge on the evidence: adopt — rewrite the clause, preserving every intent item it serves — or refute, recording the route the claim missed.
-- The change would make the spec stop satisfying an intent item → the bar is exhaustion: the claim enumerates the classes of means it considered and closes each; verify that enumeration covers every class the requirement admits. Reject only by naming a class the requirement admits and the claim did not consider; unable to name one, grant: `Contradicts-input: 0-intent/intent.md#<item>` with the claim's evidence.
+- The challenged clause is agent-chosen means → judge on the evidence: adopt — rewrite the clause, preserving every Goal, Constraint, and Decision it serves — or refute, recording the route the claim missed.
+- The change would make the spec stop satisfying a Goal, Constraint, or Decision of the intent → the bar is exhaustion: the claim enumerates the classes of means it considered and closes each; verify that enumeration covers every class the requirement admits. Reject only by naming a class the requirement admits and the claim did not consider; unable to name one, grant: `Contradicts-input: 0-intent/intent.md#<item>` with the claim's evidence.
 
 ## Consolidate
 

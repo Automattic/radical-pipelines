@@ -14,6 +14,6 @@ You drive one phase — spec or design doc — directly with the owner, through 
 2. Drive the Q&A. Send research questions to fresh researchers (`loop.md` § Dispatch); record questions, answers, and evidence as they arrive; write the owner's decisions into `intent.md`.
 3. Synthesize the artifact from the record. Label every claim verified or assumed.
 4. Present the artifact and the record. Iterate on the owner's changes.
-5. On explicit approval: commit both files and the intent, `rp stamp` the intent with `--mirror` and the artifact with its pins, and write the approval as a review: `<artifact>-review-1.md` with `Verdict: approved` and a verification log naming what the owner reviewed; `rp stamp` it with `--reviewed` both files, `--set lane=owner --set iteration=1 --set head=<commit> --mirror`.
+5. On explicit approval: commit both files and the intent, `rp stamp` the intent with `--mirror` and the artifact with its pins, and write the approval as a review: `<artifact>-review-1.md` with `Verdict: approved` and a verification log naming what the owner reviewed; `rp stamp` it with `--reviewed` both files, `--set lane=owner --set iteration=1 --mirror`.
 
 The artifact's declared lane is `owner`. When it later goes stale, triage declares the lanes of the workflow the owner chooses then.
