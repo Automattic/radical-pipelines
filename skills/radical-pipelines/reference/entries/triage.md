@@ -43,7 +43,7 @@ One message to the owner: the route and why — or, when no predicate decides, t
 **An external amendment**
 
 1. Live pipeline: work on its branch. Merged pipeline: branch `<slug>_amendment-<n>` from the main branch. One live amendment branch per pipeline; a second correction waits or joins it.
-2. `0-intent/<n>-amendment.md` per `intent-format.md`: `Target:`, `Origin:` (the PR comment, the CI run, the owner's request), the owner's words quoted verbatim and attributed `owner`, everything else yours.
+2. `0-intent/<n>-amendment.md` per `intent-format.md`: `Target:`, `Origin:` (the PR comment, the CI run, the owner's request), the owner's words quoted verbatim, everything else yours.
 3. Commit; `rp stamp` with `--mirror`.
 
 **Continue**: nothing to prepare.

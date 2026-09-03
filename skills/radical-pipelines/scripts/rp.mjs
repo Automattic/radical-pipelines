@@ -203,6 +203,114 @@ const PHASE_REVIEWS = [
   ["4-document", "document"],
 ];
 
+// A scope is one frontier: the pipeline root, or one production lane
+// (`<phase>/lane-<k>/`). The same computation runs over each.
+
+function readDocs(root, abs) {
+  return walk(abs)
+    .sort()
+    .map((f) => {
+      const rel = relative(abs, f);
+      const { data } = parseFrontmatter(readFileSync(f, "utf8"));
+      const laneMatch = rel.match(/^([^/]+)\/(lane-\d+)\//);
+      return { rel, name: rel.split("/").pop(), data: data ?? new Map(), scope: laneMatch ? `${laneMatch[1]}/${laneMatch[2]}/` : "" };
+    });
+}
+
+// Latest review per artifact prefix and lane within one scope.
+function latestReviews(docs) {
+  const m = new Map();
+  for (const r of docs.filter((d) => /-review-/.test(d.name))) {
+    const lane = r.data.get("lane") ?? "r1";
+    const iter = Number(r.data.get("iteration") ?? 0);
+    const prefix = r.name.replace(/-review-(?:r[^-]+-)?\d+\.md$/, "");
+    const key = `${prefix}|${lane}`;
+    if (!m.has(key) || m.get(key).iter < iter) m.set(key, { ...r, lane, iter, prefix });
+  }
+  return m;
+}
+
+function pinsFresh(abs, pins) {
+  return Array.isArray(pins) && pins.length > 0 && pins.every((p) => pinState(abs, p).state === "fresh");
+}
+
+// Freshness and approval of one artifact from its own scope's reviews.
+function artifactState(abs, doc, prefix, reviews, lanesFor) {
+  const pins = doc?.data.get("pins");
+  const states = Array.isArray(pins) ? pins.map((p) => pinState(abs, p)) : [];
+  const stale = states.filter((x) => x.state !== "fresh").map((x) => `${x.entry} (${x.state})`);
+  const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
+  const declared = lanesFor(prefix) ?? [...new Set([...reviews.values()].filter((r) => r.prefix === prefix).map((r) => r.lane))];
+  const lanes = declared.map((lane) => {
+    const r = reviews.get(`${prefix}|${lane}`);
+    return r ? { lane, verdict: r.data.get("verdict") ?? "unstamped", fresh: pinsFresh(abs, r.data.get("reviewed")), review: r.rel } : { lane, verdict: "none" };
+  });
+  const owner = reviews.get(`${prefix}|owner`);
+  const ownerApproved = !!owner && owner.data.get("verdict") === "approved" && pinsFresh(abs, owner.data.get("reviewed"));
+  if (ownerApproved && !lanes.some((l) => l.lane === "owner")) lanes.push({ lane: "owner", verdict: "approved", fresh: true, review: owner.rel });
+  const approved = ownerApproved || (lanes.length > 0 && lanes.every((l) => l.verdict === "approved" && l.fresh));
+  return { state, stale, lanes, approved };
+}
+
+// Waves since the last approval, per lane, max across lanes; recurring findings.
+function counters(docs, prefix) {
+  const rs = docs.filter((r) => r.name.startsWith(`${prefix}-review-`));
+  if (!rs.length) return null;
+  const byLane = new Map();
+  for (const r of rs) {
+    const lane = r.data.get("lane") ?? "r1";
+    const iter = Number(r.data.get("iteration") ?? 0);
+    const e = byLane.get(lane) ?? { last: 0, approved: 0 };
+    e.last = Math.max(e.last, iter);
+    if (r.data.get("verdict") === "approved") e.approved = Math.max(e.approved, iter);
+    byLane.set(lane, e);
+  }
+  const episode = Math.max(0, ...[...byLane.values()].map((e) => e.last - e.approved));
+  const recurs = rs.flatMap((r) => [].concat(r.data.get("recurs") ?? []));
+  return { episode, recurs };
+}
+
+// The state of one claim (an unsatisfiable review), as a decision table:
+//   target changed            → superseded
+//   target pinned it / a review of the target cites it → resolved
+//   the claiming artifact changed → moot
+//   the target has a pending claim of its own → suspended
+//   the target is the intent  → owner escalation
+//   otherwise                 → pending
+// A trigger (amendment, failed task report, claim) is resolved when its target
+// pins it, or when a review of its target cites it as origin: approved refutes
+// it, unsatisfiable escalates it one layer up.
+function resolutionOf(item, pinsByPath, allLatest) {
+  for (const p of pinsByPath.get(item.targetPath) ?? []) if (pinParts(p)?.path === item.rel) return `pinned by ${item.targetPath}`;
+  for (const r of allLatest) {
+    const covers = [].concat(r.data.get("reviewed") ?? []).some((p) => pinParts(p)?.path === item.targetPath);
+    const cites = [].concat(r.data.get("origin") ?? []).includes(item.rel);
+    const v = r.data.get("verdict");
+    if (covers && cites && (v === "approved" || v === "unsatisfiable")) return `${v === "approved" ? "refuted" : "escalated"} by ${r.rel}`;
+  }
+  return null;
+}
+
+function claimStates(abs, claims, pinsByPath, allLatest) {
+  for (const c of claims) {
+    const current = fileIdentity(resolve(abs, c.targetPath));
+    const unchanged = c.targetIdentity && current && (current.startsWith(c.targetIdentity) || c.targetIdentity.startsWith(current));
+    const res = resolutionOf(c, pinsByPath, allLatest);
+    if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
+    else if (res) c.state = `resolved (${res})`;
+    else if (!c.fresh) c.state = "moot (claiming artifact changed)";
+    else c.state = c.targetIdentity ? "pending" : "pending (no target-identity)";
+  }
+  const pending = claims.filter((c) => c.state === "pending");
+  for (const c of pending) {
+    const above = pending.find((o) => o !== c && o.claiming.includes(c.targetPath));
+    if (above) c.state = `suspended (behind ${above.rel})`;
+  }
+  for (const c of claims) {
+    if (c.state === "pending") c.state = c.targetPath.endsWith("0-intent/intent.md") ? "PENDING — owner escalation" : "PENDING";
+  }
+}
+
 function cmdCheck(args) {
   const root = repoRoot();
   const folder = args._[0] || die("check: missing <pipeline-folder>");
@@ -210,6 +318,7 @@ function cmdCheck(args) {
   if (!existsSync(abs)) die(`check: no such folder: ${folder}`);
   const pipelineRel = relative(root, abs);
   const pipelinesRoot = pipelineRel.split("/").slice(0, -1).join("/") || ".";
+
   // --lanes r1,r2  or  --lanes spec=r1,r2;build-plan=r1
   const laneSpec = args.lanes
     ? args.lanes.includes("=")
@@ -218,176 +327,81 @@ function cmdCheck(args) {
     : null;
   const lanesFor = (prefix) => (laneSpec ? laneSpec[prefix] ?? laneSpec["*"] ?? null : null);
 
-  const files = walk(abs).sort();
-  const allDocs = files.map((f) => {
-    const rel = relative(abs, f);
-    const { data } = parseFrontmatter(readFileSync(f, "utf8"));
-    const laneMatch = rel.match(/^([^/]+)\/(lane-\d+)\//);
-    return { rel, name: rel.split("/").pop(), data: data ?? new Map(), lane: laneMatch ? `${laneMatch[1]}/${laneMatch[2]}` : null };
-  });
-  const docs = allDocs.filter((d) => !d.lane);
-  const laneDocs = allDocs.filter((d) => d.lane);
+  const all = readDocs(root, abs);
+  const scopes = [...new Set(all.map((d) => d.scope))].sort((x, y) => (x === "" ? 1 : y === "" ? -1 : x.localeCompare(y)));
+  const docsOf = (scope) => all.filter((d) => d.scope === scope);
+  const reviewsOf = new Map(scopes.map((sc) => [sc, latestReviews(docsOf(sc))]));
+  const allLatest = [...reviewsOf.values()].flatMap((m) => [...m.values()]);
+  const pinsByPath = new Map(all.filter((d) => Array.isArray(d.data.get("pins"))).map((d) => [d.rel, d.data.get("pins")]));
 
-  const reviews = docs.filter((d) => /-review-/.test(d.name));
-  const laneReviews = laneDocs.filter((d) => /-review-/.test(d.name));
-  const amendments = docs.filter((d) => /^0-intent\/\d+-amendment\.md$/.test(d.rel));
-  const reports = docs.filter((d) => /^task-.+-\d+\.md$/.test(d.name) && d.rel.includes("tasks/"));
+  const out = { pipeline: pipelineRel, triggers: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {} };
+  const lines = [pipelineRel];
 
-  // Latest review per artifact-prefix + lane.
-  const latestOf = (rs, scope = "") => {
-    const m = new Map();
-    for (const r of rs) {
-      const lane = r.data.get("lane") ?? "r1";
-      const iter = Number(r.data.get("iteration") ?? 0);
-      const prefix = r.name.replace(/-review-(?:r[^-]+-)?\d+\.md$/, "");
-      const key = `${scope}${prefix}|${lane}`;
-      const prev = m.get(key);
-      if (!prev || Number(prev.data.get("iteration") ?? 0) < iter) m.set(key, { ...r, lane, iter, prefix });
-    }
-    return m;
-  };
-  const latest = latestOf(reviews);
-
-  // Latest attempt per task, keyed by phase folder + task id.
+  // 1. Triggers: external amendments and failed task reports.
   const tasks = new Map();
-  for (const t of reports) {
+  for (const t of all.filter((d) => /^task-.+-\d+\.md$/.test(d.name) && d.rel.includes("tasks/"))) {
     const phase = t.rel.split("/")[0];
     const id = t.data.get("task") ?? t.name.replace(/^task-(.+)-\d+\.md$/, "$1");
     const attempt = Number(t.data.get("attempt") ?? t.name.match(/-(\d+)\.md$/)[1]);
     const key = `${phase}/${id}`;
-    const prev = tasks.get(key);
-    if (!prev || prev.attempt < attempt)
-      tasks.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? "unstamped" });
+    if (!tasks.has(key) || tasks.get(key).attempt < attempt) tasks.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? "unstamped" });
   }
   const planOf = (phase) => ARTIFACTS.find(([p]) => p.startsWith(`${phase}/`))?.[0] ?? `${phase}/plan.md`;
-
-  // Triggers.
-  const triggers = [];
-  for (const a of amendments) triggers.push({ rel: a.rel, kind: "amendment", target: a.data.get("target") ?? "?" });
-  for (const t of tasks.values()) if (t.outcome === "failed") triggers.push({ rel: t.rel, kind: `failed task ${t.id}`, target: planOf(t.phase) });
-  const laneFoldersAll = [...new Set(laneDocs.map((d) => d.lane))];
-  const laneLatest = laneFoldersAll.flatMap((lf) => [...latestOf(laneReviews.filter((r) => r.lane === lf)).values()]);
-  for (const r of [...latest.values(), ...laneLatest])
-    if (r.data.get("verdict") === "unsatisfiable")
-      triggers.push({ rel: r.rel, kind: "claim", target: r.data.get("target") ?? "?", targetIdentity: r.data.get("target-identity"), review: r });
-
-  const allPins = new Map(); // artifact rel -> pin entries
-  for (const d of docs) {
-    const pins = d.data.get("pins");
-    if (Array.isArray(pins)) allPins.set(d.rel, pins);
-  }
-
-  const resolvedBy = (trigger) => {
-    const targetPath = trigger.target.split("#")[0];
-    const pins = allPins.get(targetPath);
-    if (pins) for (const p of pins) if (pinParts(p)?.path === trigger.rel) return `pinned by ${targetPath}`;
-    for (const r of latest.values()) {
-      const reviewed = r.data.get("reviewed");
-      if (!Array.isArray(reviewed)) continue;
-      const coversTarget = reviewed.some((p) => pinParts(p)?.path === targetPath);
-      const origins = [].concat(r.data.get("origin") ?? []);
-      const verdict = r.data.get("verdict");
-      if (coversTarget && origins.includes(trigger.rel) && (verdict === "approved" || verdict === "unsatisfiable"))
-        return `${verdict === "approved" ? "refuted" : "escalated"} by ${r.rel}`;
-    }
-    return null;
-  };
-
-  const out = { pipeline: pipelineRel, triggers: [], claims: [], artifacts: [], tasks: {}, counters: {} };
-  const lines = [`${pipelineRel}`];
-
-  // 1. Triggers.
-  const claimTargets = new Set();
+  const triggers = [
+    ...all.filter((d) => /^0-intent\/\d+-amendment\.md$/.test(d.rel)).map((a) => ({ rel: a.rel, kind: "amendment", targetPath: (a.data.get("target") ?? "?").split("#")[0], target: a.data.get("target") ?? "?" })),
+    ...[...tasks.values()].filter((t) => t.outcome === "failed").map((t) => ({ rel: t.rel, kind: `failed task ${t.id}`, targetPath: planOf(t.phase), target: planOf(t.phase) })),
+  ];
+  const claims = allLatest
+    .filter((r) => r.data.get("verdict") === "unsatisfiable")
+    .map((r) => ({
+      rel: r.rel,
+      target: r.data.get("target") ?? "?",
+      targetPath: (r.data.get("target") ?? "?").split("#")[0],
+      targetIdentity: r.data.get("target-identity"),
+      fresh: pinsFresh(abs, r.data.get("reviewed")),
+      claiming: [].concat(r.data.get("reviewed") ?? []).map((p) => pinParts(p)?.path),
+    }));
+  claimStates(abs, claims, pinsByPath, allLatest);
   for (const t of triggers) {
-    if (t.kind === "claim") continue; // reported under claims
-    const res = resolvedBy(t);
+    const res = resolutionOf(t, pinsByPath, allLatest);
     out.triggers.push({ path: t.rel, kind: t.kind, target: t.target, resolved: res });
     lines.push(`trigger  ${t.rel} (${t.kind}) → ${t.target}  ${res ?? "PENDING"}`);
   }
 
   // 2. Claims.
-  const claims = triggers.filter((t) => t.kind === "claim").map((t) => {
-    const targetPath = t.target.split("#")[0];
-    const reviewedPins = t.review?.data.get("reviewed");
-    const claimFresh = Array.isArray(reviewedPins) && reviewedPins.length > 0 && reviewedPins.every((p) => pinState(abs, p).state === "fresh");
-    const res = resolvedBy(t);
-    const current = fileIdentity(resolve(abs, targetPath));
-    const pinned = t.targetIdentity;
-    const unchanged = pinned && current && (current.startsWith(pinned) || pinned.startsWith(current));
-    let state;
-    if (pinned && !unchanged) state = "superseded (target changed)";
-    else if (res) state = `resolved (${res})`;
-    else if (!claimFresh) state = "moot (claiming artifact changed)";
-    else state = !pinned ? "pending (no target-identity)" : "PENDING";
-    const claimingPaths = Array.isArray(reviewedPins) ? reviewedPins.map((p) => pinParts(p)?.path) : [];
-    return { t, targetPath, state, claimingPaths };
-  });
-  const pendingClaims = claims.filter((c) => c.state === "PENDING");
-  for (const c of pendingClaims) {
-    const above = pendingClaims.find((o) => o !== c && o.claimingPaths.includes(c.targetPath));
-    if (above) c.state = `suspended (behind ${above.t.rel})`;
-  }
-  for (const c of claims) if (c.state === "PENDING" && c.targetPath.endsWith("0-intent/intent.md")) c.state = "PENDING — owner escalation";
   for (const c of claims) {
-    out.claims.push({ review: c.t.rel, target: c.t.target, state: c.state });
-    lines.push(`claim    ${c.t.rel} → ${c.t.target}  ${c.state}`);
+    out.claims.push({ review: c.rel, target: c.target, state: c.state });
+    lines.push(`claim    ${c.rel} → ${c.target}  ${c.state}`);
   }
 
-  // 3. Artifacts — production lanes first, as sub-pipelines of the root artifact.
-  out.lanes = [];
-  const artifactState = (doc, relPath, reviewsMap, prefix, scope) => {
-    const pins = doc?.data.get("pins");
-    const states = Array.isArray(pins) ? pins.map((p) => pinState(abs, p)) : [];
-    const stale = states.filter((s) => s.state !== "fresh");
-    const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
-    const lanesDeclared = lanesFor(prefix) ?? [...new Set([...reviewsMap.values()].filter((r) => r.prefix === prefix && r.rel.startsWith(scope)).map((r) => r.lane))];
-    const laneStates = lanesDeclared.map((lane) => {
-      const r = reviewsMap.get(`${prefix}|${lane}`);
-      if (!r || !r.rel.startsWith(scope)) return { lane, verdict: "none" };
-      const reviewed = r.data.get("reviewed");
-      const fresh = Array.isArray(reviewed) && reviewed.length > 0 && reviewed.every((p) => pinState(abs, p).state === "fresh");
-      return { lane, verdict: r.data.get("verdict") ?? "unstamped", fresh, review: r.rel };
-    });
-    const ownerLane = reviewsMap.get(`${prefix}|owner`);
-    const ownerApproved = ownerLane && ownerLane.rel.startsWith(scope) && ownerLane.data.get("verdict") === "approved" && [].concat(ownerLane.data.get("reviewed") ?? []).every((p) => pinState(abs, p).state === "fresh");
-    if (ownerApproved && !laneStates.some((l) => l.lane === "owner")) laneStates.push({ lane: "owner", verdict: "approved", fresh: true, review: ownerLane.rel });
-    const approved = ownerApproved || (laneStates.length > 0 && laneStates.every((l) => l.verdict === "approved" && l.fresh));
-    return { state, stale: stale.map((s) => `${s.entry} (${s.state})`), lanes: laneStates, approved };
-  };
-  const renderLanes = (ls) => (ls.length ? ls.map((l) => `${l.lane}:${l.verdict}${l.verdict !== "none" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
-
+  // 3. Artifacts, phase by phase; a phase's production lanes come before its root artifact.
+  const render = (ls) => (ls.length ? ls.map((l) => `${l.lane}:${l.verdict}${l.verdict !== "none" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
   for (const [relPath, prefix] of ARTIFACTS) {
-    const absPath = resolve(abs, relPath);
-    const entry = { artifact: relPath };
     const phase = relPath.split("/")[0];
-    const artifactName = relPath.split("/")[1];
-    const laneFolders = [...new Set(laneDocs.filter((d) => d.lane.startsWith(`${phase}/`)).map((d) => d.lane))].sort();
-    const rootExists = existsSync(absPath);
-    let allLanesReady = laneFolders.length > 0;
-    for (const lf of laneFolders) {
-      const laneArtifact = `${lf}/${artifactName}`;
-      const doc = laneDocs.find((d) => d.rel === laneArtifact);
-      const laneReviewsMap = latestOf(laneReviews.filter((r) => r.lane === lf));
-      const st = doc ? artifactState(doc, laneArtifact, laneReviewsMap, prefix, `${lf}/`) : { state: "missing", stale: [], lanes: [], approved: false };
-      const closed = rootExists;
-      out.lanes.push({ lane: lf, artifact: laneArtifact, ...st, closed });
-      if (!(st.approved && st.state === "fresh")) allLanesReady = false;
-      lines.push(`lane     ${laneArtifact}  ${closed ? "closed" : st.state.toUpperCase()}${st.stale?.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${renderLanes(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
+    const name = relPath.split("/")[1];
+    const rootExists = existsSync(resolve(abs, relPath));
+    const laneScopes = scopes.filter((sc) => sc.startsWith(`${phase}/`));
+    let lanesReady = laneScopes.length > 0;
+    for (const sc of laneScopes) {
+      const doc = all.find((d) => d.rel === `${sc}${name}`);
+      const st = doc ? artifactState(abs, doc, prefix, reviewsOf.get(sc), lanesFor) : { state: "missing", stale: [], lanes: [], approved: false };
+      if (!(st.approved && st.state === "fresh")) lanesReady = false;
+      out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...st, closed: rootExists });
+      lines.push(`lane     ${sc}${name}  ${rootExists ? "closed" : st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
     }
     if (!rootExists) {
-      entry.state = "missing";
-      if (laneFolders.length) entry.consolidate = allLanesReady;
+      const entry = { artifact: relPath, state: "missing" };
+      if (laneScopes.length) entry.consolidate = lanesReady;
       out.artifacts.push(entry);
-      lines.push(`artifact ${relPath}  MISSING${laneFolders.length ? (allLanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}`);
+      lines.push(`artifact ${relPath}  MISSING${laneScopes.length ? (lanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}`);
       continue;
     }
-    const doc = docs.find((d) => d.rel === relPath);
-    Object.assign(entry, artifactState(doc, relPath, latest, prefix, ""));
+    const entry = { artifact: relPath, ...artifactState(abs, all.find((d) => d.rel === relPath), prefix, reviewsOf.get(""), lanesFor) };
     out.artifacts.push(entry);
-    lines.push(`artifact ${relPath}  ${entry.state.toUpperCase()}${entry.stale?.length ? ` — ${entry.stale.join("; ")}` : ""}  reviews: ${renderLanes(entry.lanes)}${entry.approved ? "  APPROVED" : ""}`);
+    lines.push(`artifact ${relPath}  ${entry.state.toUpperCase()}${entry.stale.length ? ` — ${entry.stale.join("; ")}` : ""}  reviews: ${render(entry.lanes)}${entry.approved ? "  APPROVED" : ""}`);
   }
 
-  // Build and document: tasks per phase + the phase review.
+  // Build and document: tasks per phase and the phase review.
   for (const [phase, prefix] of PHASE_REVIEWS) {
     const phaseTasks = [...tasks.values()].filter((t) => t.phase === phase);
     if (phaseTasks.length) {
@@ -396,7 +410,7 @@ function cmdCheck(args) {
       out.tasks[phase] = { done, open };
       lines.push(`tasks    ${phase}: done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}`);
     }
-    for (const r of [...latest.values()].filter((r) => r.prefix === prefix)) {
+    for (const r of [...reviewsOf.get("")?.values() ?? []].filter((r) => r.prefix === prefix)) {
       const head = r.data.get("head");
       const codeFresh = head ? codeUnchangedSince(root, head, pipelinesRoot) : false;
       out[`${prefix}Review`] = { review: r.rel, verdict: r.data.get("verdict"), head, codeFresh };
@@ -404,32 +418,19 @@ function cmdCheck(args) {
     }
   }
 
-  // 4. Counters — root artifacts and production lanes.
-  const counterScopes = [];
+  // 4. Counters, per scope.
   for (const [relPath, prefix] of ARTIFACTS) {
-    counterScopes.push({ label: prefix, rs: reviews.filter((r) => r.name.startsWith(`${prefix}-review-`)) });
-    for (const lf of laneFoldersAll.filter((l) => l.startsWith(`${relPath.split("/")[0]}/`)).sort())
-      counterScopes.push({ label: `${lf}/${prefix}`, rs: laneReviews.filter((r) => r.lane === lf && r.name.startsWith(`${prefix}-review-`)) });
-  }
-  for (const { label: prefix, rs } of counterScopes) {
-    if (!rs.length) continue;
-    const byLane = new Map();
-    for (const r of rs) {
-      const lane = r.data.get("lane") ?? "r1";
-      const iter = Number(r.data.get("iteration") ?? 0);
-      const e = byLane.get(lane) ?? { last: 0, approved: 0 };
-      e.last = Math.max(e.last, iter);
-      if (r.data.get("verdict") === "approved") e.approved = Math.max(e.approved, iter);
-      byLane.set(lane, e);
+    const phase = relPath.split("/")[0];
+    for (const sc of scopes.filter((x) => x === "" || x.startsWith(`${phase}/`))) {
+      const c = counters(docsOf(sc), prefix);
+      if (!c || (!c.episode && !c.recurs.length)) continue;
+      const label = `${sc}${prefix}`;
+      out.counters[label] = c;
+      lines.push(`counter  ${label}: ${c.episode} wave${c.episode === 1 ? "" : "s"} this episode${c.recurs.length ? `  recurs: ${c.recurs.join(", ")}` : ""}`);
     }
-    const episode = Math.max(0, ...[...byLane.values()].map((e) => e.last - e.approved));
-    const recurs = rs.flatMap((r) => (Array.isArray(r.data.get("recurs")) ? r.data.get("recurs") : []));
-    out.counters[prefix] = { episode, recurs };
-    if (episode || recurs.length)
-      lines.push(`counter  ${prefix}: ${episode} wave${episode === 1 ? "" : "s"} this episode${recurs.length ? `  recurs: ${recurs.join(", ")}` : ""}`);
   }
 
-  // Completion: consecutive complete phases from 1.
+  // 5. Completion: consecutive complete phases from 1.
   const phaseComplete = (i) => {
     const a = out.artifacts[i];
     if (!a || !a.approved || a.state !== "fresh") return false;

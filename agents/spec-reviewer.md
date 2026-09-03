@@ -62,7 +62,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every intent goal is served, every constraint honored, every owner assumption dispositioned.
+- **Coverage** — every intent goal is served, every constraint and decision honored, every owner assumption dispositioned.
 - **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding.
 - **Scope** — nothing the record does not ground.
 - **Acceptance criteria** — testable, covering the requirements' edge cases.

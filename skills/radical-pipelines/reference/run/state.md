@@ -66,14 +66,14 @@ A file pins exactly what it consumed, never its sibling. Downstream pins artifac
 
 ## Owner territory
 
-An intent item outside its "Assumptions / directions to explore" section, or a record entry attributed `owner`.
+`0-intent/intent.md` is the only file that carries the owner's words: the issue as written, and every later decision quoted under `## Decisions`. Owner territory is every item of it outside "Assumptions / directions to explore". Records cite the intent; they never hold owner words of their own.
 
 ## The frontier
 
 `rp check <pipeline folder> --lanes <spec>` reports, in this order (`--lanes r1,r2`, or per artifact `spec=r1,r2;build-plan=r1`; an `owner` lane approval satisfies any declaration):
 
 1. **Unresolved triggers** → work on their target, before anything else.
-2. **Claims** — a lane's latest verdict is `unsatisfiable` and its `reviewed` pins are fresh (a claim about a changed artifact is moot). Resolved by refutation (a review of the target approved citing it) → work on the claiming artifact with the refutation. Pending (target identity unchanged): target in owner territory → a pending owner escalation; target itself the subject of a pending claim → suspended; otherwise → work on the target. `rp check` flags intent targets; for a record entry, read its attribution.
+2. **Claims** — a lane's latest verdict is `unsatisfiable` and its `reviewed` pins are fresh (a claim about a changed artifact is moot). Resolved by refutation (a review of the target approved citing it) → work on the claiming artifact with the refutation. Pending (target identity unchanged): target in the intent → a pending owner escalation; target itself the subject of a pending claim → suspended; otherwise → work on the target.
 3. **Phases 1 → 4**, per artifact. With production lanes and the root artifact missing: each lane is a sub-pipeline — its own missing / stale / review wave / adjudication, in parallel with the others; every lane approved and fresh → consolidate. Once the root artifact exists, lanes are closed: reported, never dispatched. Then: missing → produce; any pin stale → produce with the delta; not approved → review wave, or — when the latest reviews' pins are fresh and one is `rejected` — adjudication. Approved means every declared lane's latest verdict is `approved` with `reviewed` pins matching current identities. In build and document, with the plan approved and fresh: tasks outside the done-set → dispatch; all done → the phase's review (build review, document review), fresh iff `git diff --quiet <head> HEAD -- . ':(exclude)<pipelines folder root>'` succeeds.
 4. **Complete** through the target phase (`--target-phase <n>`) → close-out.
 

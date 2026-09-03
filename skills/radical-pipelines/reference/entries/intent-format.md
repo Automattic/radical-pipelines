@@ -26,7 +26,11 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 A vague idea with only a Title and Goal is complete.
 
-Items are addressed by section and position: `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, counting bullets from 1.
+Items are addressed by section and position: `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, `#decision-<n>`, counting bullets from 1.
+
+## Decisions
+
+The intent is the only file that carries the owner's words. Every decision the owner makes after the issue is written — an answer in an assisted session, an answer to an escalation — is appended under `## Decisions` as a numbered bullet: the words quoted verbatim, then what they answer (the question, or the claim's path). Decisions are owner territory; records cite them by id.
 
 ## Authoring discipline
 

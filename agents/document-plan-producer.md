@@ -55,7 +55,7 @@ You may research and decide new content in this mode — always in service of a 
 
 **Record**
 
-- Record as you go. Every entry names its author: the answering agent's ID, or `owner` for the owner's own words, quoted verbatim; entries you author are signed with your agent ID.
+- Record as you go. Every entry names its author by agent ID; entries you author are signed with yours. The owner's words live only in the intent: cite its items, never restate them as yours.
 
 **Research**
 

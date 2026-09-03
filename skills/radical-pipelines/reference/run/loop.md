@@ -1,6 +1,6 @@
 # The loop
 
-The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (lanes and charters per artifact, thresholds). Read `state.md` once. Then repeat until `rp check` reports complete through the target phase, an owner escalation is pending, or the valve stops the run.
+The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (lanes and charters per artifact, thresholds). Read `state.md` once; start health monitoring (`../conventions/health-monitoring.md`). Then repeat until `rp check` reports complete through the target phase, an owner escalation is pending, or the valve stops the run. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`).
 
 ## One step
 
@@ -14,17 +14,16 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `rp check` reports                                   | Dispatch                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Unresolved trigger targeting an artifact             | That artifact's producer, mode Adjudicate, with the trigger under **Amendment** (external amendment or claim) or **Task report** |
-| Build or document review `rejected`                  | The phase's plan producer, mode Adjudicate, with the review under **Review lanes**; findings become corrective tasks         |
 | Claim resolved by refutation                         | The claiming artifact's producer, mode Adjudicate, with the refuting review under **Refutation**                |
-| Pending claim, target in owner territory             | Owner escalation (below)                                                                                       |
+| Pending claim targeting the intent                   | Owner escalation (below)                                                                                       |
 | Pending claim, target suspended                      | Nothing; resolve the claim above it first                                                                      |
 | Artifact missing                                     | Its producer, mode Synthesize                                                                                  |
 | Artifact stale                                       | Its producer, mode Synthesize, with **Input changes** — never a re-stamp by you                                |
 | Artifact not approved, no review wave open           | A review wave                                                                                                  |
-| Wave closed with a rejection                         | The producer, mode Adjudicate, with every lane's review under **Review lanes**                                 |
+| Wave closed with a rejection                         | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks |
 | Wave closed with every lane approved                 | Nothing; the next check moves on                                                                               |
 | Wave closed with an `unsatisfiable` (no rejection)   | Nothing; the next check lists it as a trigger                                                                  |
-| Plan approved and fresh, tasks outside the done-set  | One worker per task, in dependency order, one at a time                                                        |
+| Plan approved and fresh, tasks outside the done-set  | The next task's worker, in dependency order, one at a time                                                     |
 | All tasks done, phase review missing or stale        | The phase's reviewer: `build-reviewer`, `document-reviewer`                                                     |
 | `recurs`, or 3 waves this episode without approval   | Audit (below), then continue                                                                                   |
 | 6 waves this episode without approval                | The valve (below)                                                                                              |
@@ -44,16 +43,15 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 After every agent commit, before anyone consumes the result:
 
-- A produced artifact: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger listed in its materials.
+- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger listed in its materials.
 - A review: `rp stamp <review> --reviewed <artifact> --reviewed <record> --set lane=<lane> --set iteration=<n> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger.
 - A task report: `rp stamp <report> --set task=<id> --set attempt=<n> --mirror`.
-- After a Synthesize with **Input changes** that reports no edit needed: `rp stamp <artifact> --pin ...` with the new identities.
 
 Every stamp records `head`, the commit it observed. Commit the stamp on the branch the work landed on.
 
 ## Review waves
 
-A wave reviews one artifact at one identity.
+A wave reviews one artifact at one identity; one wave at a time per artifact.
 
 1. Freeze: no producer works on the artifact until the wave closes.
 2. Single lane: the reviewer runs in the pipeline worktree. Multi-lane: create `<slug>_<phase>-review-<lane>` branches and worktrees at the same commit, one reviewer each, in parallel.
@@ -69,7 +67,7 @@ A production lane is a sub-pipeline of one artifact. Create `<slug>_<phase>-lane
 
 ## Owner escalation
 
-A pending claim targets owner territory. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into the target — `intent.md` under the item it resolves, or the record entry — quoted verbatim and attributed `owner`, citing the claim's path, and commit. When the target is a record entry, also write `0-intent/<n>-amendment.md` targeting that record's artifact, with `Origin: <claim path>` and the answer as its owner statement, and `rp stamp` it with `--mirror`. The pipeline resumes on the next step.
+A pending claim targets the intent. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into `intent.md` as a decision (`../entries/intent-format.md`), citing the claim's path; commit; `rp stamp` it with `--mirror`. The pipeline resumes on the next step.
 
 ## Audit
 
@@ -84,8 +82,3 @@ You write no verdict and open no amendment on your own initiative.
 ## The valve
 
 Stop the run. Close out (`close-out.md`) with a dossier for the owner: the artifact, the episode's reviews in order, the pattern (recurring finding, drift, or oscillation), the current state, and the options the record names. Thresholds are the skill's defaults (audit 3, valve 6); the project's policy defaults override them.
-
-## Discipline
-
-- One wave of convergence at a time per artifact; workers one at a time, in dependency order.
-- Health monitoring runs for the whole run (`../conventions/health-monitoring.md`); lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`).

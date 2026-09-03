@@ -21,8 +21,8 @@ The canonical vocabulary of Radical Pipelines.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a trigger it responds to.
-- **Owner escalation** — A pipeline pause and evidence dossier caused by a pending claim that targets owner territory.
-- **Owner territory** — An intent item outside “Assumptions / directions to explore,” or a record entry attributed `owner`.
+- **Owner escalation** — A pipeline pause and evidence dossier caused by a pending claim that targets the intent; the owner's answer is written into the intent as a decision.
+- **Owner territory** — Every item of `intent.md` outside “Assumptions / directions to explore,” including its `Decisions`; the intent is the only file that carries the owner's words.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
 - **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, and its tasks are executed.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.

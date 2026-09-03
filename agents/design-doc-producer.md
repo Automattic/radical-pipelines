@@ -43,7 +43,7 @@ A contradicts-input that claims exhaustion — no mechanism satisfies the clause
 
 You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
 
-When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording the route the claim missed. A change that would make the design stop satisfying a recorded owner statement in your own record is judged at the bar of exhaustion: the claim enumerates the classes of means it considered and closes each; reject only by naming a class the statement admits and the claim did not consider; unable to name one, grant: `Contradicts-input: 2-design-doc/design-doc-research.md#<entry>`.
+When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording the route the claim missed. A decision of the intent (`#decision-<n>`) that no mechanism satisfies is a contradiction of the intent: `Contradicts-input: 0-intent/intent.md#decision-<n>`, at the bar of exhaustion — every class of means enumerated and closed.
 
 ## Consolidate
 
@@ -74,7 +74,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - Record as you go, never in a batch at the end.
 - `design-doc.md` keeps the open-assumption register: every `A<n>` — carried from the spec or your own — not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
-- Every entry names its author: the answering agent's ID, or `owner` for the owner's own words, quoted verbatim. Entries you author are signed with your agent ID.
+- Every entry names its author by agent ID; entries you author are signed with yours. The owner's words live only in the intent: cite its items, never restate them as yours.
 - Ids are stable: `D<n>`, `A<n>` are never renumbered.
 
 **Research**
@@ -136,7 +136,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ### Q1: <question> — <your agent ID>
 
-**A:** <answer> — <author>
+**A:** <answer> — <agent ID>
 
 **Sources:** …
 
