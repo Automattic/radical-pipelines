@@ -61,7 +61,7 @@ Outcome: completed | failed
 
 ## Commits
 
-<!-- One line per commit: hash — subject. -->
+<!-- One line per commit you made: hash — subject. Every commit on the branch outside the pipelines folder is claimed here. -->
 
 ## Checks
 

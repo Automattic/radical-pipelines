@@ -48,6 +48,10 @@ Move the model table into an `Agents` section — one block per profile — rena
 
 Keep one `researcher` row, asking the owner which existing research value to retain when values differ.
 
+### Pipelines
+
+Pipelines in the previous layout (`<slug>/base/…`) are closed: discovery reads `<slug>/0-intent/intent.md`, so they are neither live nor continued. Further work on their issue starts a new pipeline.
+
 ### Additions
 
 - `Agents`, optional: model per profile and named lanes (replaces `Agent models`).

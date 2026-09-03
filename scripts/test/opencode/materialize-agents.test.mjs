@@ -109,6 +109,17 @@ describe("materializeAgents", () => {
     );
   });
 
+  test("a manifest entry that names a path is ignored: nothing outside the target directory is ever removed", () => {
+    materializeAgents(sourceDir, targetDir);
+    const victim = join(root, "victim.md");
+    writeFileSync(victim, "keep me");
+    writeFileSync(join(targetDir, ".rp-owned.json"), JSON.stringify(["agent-a.md", "../victim.md"]));
+    rmSync(join(sourceDir, "agent-a.md"));
+    materializeAgents(sourceDir, targetDir);
+    assert.equal(existsSync(victim), true);
+    assert.equal(existsSync(join(targetDir, "agent-a.md")), false);
+  });
+
   test("an RP-owned target whose source profile was retired is removed; foreign files stay", () => {
     materializeAgents(sourceDir, targetDir);
     writeFileSync(join(targetDir, "foreign.md"), "not ours");

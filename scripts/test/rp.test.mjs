@@ -55,8 +55,9 @@ describe("rp state tooling", () => {
   // --- helpers over the model -------------------------------------------------
 
   const SPEC = ["1-spec/spec.md", "1-spec/spec-research.md", "0-intent/intent.md"];
-  const DESIGN = ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md", "0-intent/intent.md", "1-spec/spec.md"];
-  const PLAN_BASE = ["3-build/build-plan.md", "3-build/build-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md"];
+  // A review names the artifact, its record, and everything the artifact pins.
+  const DESIGN = ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md", "0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
+  const PLAN_BASE = ["3-build/build-plan.md", "3-build/build-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md"];
 
   function review(rel, verdict, reviewed, sets = [], extra = "") {
     write(root, rel, `# Review\n\nVerdict: ${verdict}\n${extra}`);
@@ -236,7 +237,7 @@ describe("rp state tooling", () => {
     stampSpec();
     amendment();
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/1-amendment.md"));
-    review("1-spec/spec-review-1.md", "unsatisfiable", [...SPEC, "0-intent/1-amendment.md"], ["origin=0-intent/1-amendment.md"], "Target: 0-intent/intent.md#goal\n");
+    review("1-spec/spec-review-1.md", "unsatisfiable", [...SPEC, "0-intent/1-amendment.md"], [], "Target: 0-intent/intent.md#goal\nOrigin: 0-intent/1-amendment.md\n");
     const output = check(root);
     assert.match(output, /trigger .*resolved \(escalated by 1-spec\/spec-review-1\.md\)/);
     assert.match(output, /claim .*#goal\s+PENDING — owner escalation/);
@@ -246,14 +247,15 @@ describe("rp state tooling", () => {
   test("a claim stands only when its wave closed without a rejection; it is suspended behind its target's own claim", () => {
     stampSpec();
     rp(root, "stamp", P("2-design-doc/design-doc.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec.md"));
+    const DESIGN_NO_APPROVAL = DESIGN.filter((f) => !f.includes("spec-review"));
     review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
-    review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN, [], "Target: 1-spec/spec.md#R1\n");
+    review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN_NO_APPROVAL, [], "Target: 1-spec/spec.md#R1\n");
     let output = check(root);
     assert.match(output, /design-doc-review-1\.md → 1-spec\/spec\.md#R1\s+suspended \(behind 1-spec\/spec-review-1\.md\)/);
     // A second lane still to report keeps a claim open; a rejecting lane holds it.
     output = check(root, "--lanes", "design-doc=a11y");
     assert.match(output, /design-doc-review-1\.md .*wave open/);
-    review("2-design-doc/design-doc-review-a11y-1.md", "rejected", DESIGN);
+    review("2-design-doc/design-doc-review-a11y-1.md", "rejected", DESIGN_NO_APPROVAL);
     assert.match(check(root, "--lanes", "design-doc=a11y"), /design-doc-review-1\.md .*held \(a lane rejected/);
   });
 
@@ -336,8 +338,8 @@ describe("rp state tooling", () => {
     write(root, "4-document/document-plan-research.md", "# Doc research\n");
     write(root, "4-document/tasks/T1.md", "# T1: guide\n\n- **Depends on:** none\n");
     rp(root, "stamp", P("4-document/tasks/T1.md"), "--mirror");
-    rp(root, "stamp", P("4-document/document-plan.md"), "--pin", P("1-spec/spec.md"), "--pin", P("2-design-doc/design-doc.md"), "--pin", P("3-build/build-plan.md"), "--pin", P("1-spec/spec-review-1.md"), "--pin", P("2-design-doc/design-doc-review-1.md"), "--pin", P("3-build/build-plan-review-1.md"));
-    const DOC = ["4-document/document-plan.md", "4-document/document-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"];
+    rp(root, "stamp", P("4-document/document-plan.md"), "--pin", P("1-spec/spec.md"), "--pin", P("2-design-doc/design-doc.md"), "--pin", P("3-build/build-plan.md"), "--pin", P("1-spec/spec-review-1.md"), "--pin", P("2-design-doc/design-doc-review-1.md"), "--pin", P("3-build/build-plan-review-1.md"), "--pin", P("3-build/build-review-1.md"));
+    const DOC = ["4-document/document-plan.md", "4-document/document-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md", "3-build/build-review-1.md"];
     review("4-document/document-plan-review-1.md", "approved", [...DOC, "4-document/tasks/T1.md"]);
     assert.match(check(root), /frontier task 4-document\/T1/);
     write(root, "4-document/tasks/T1-report-1.md", "# Task report\n\nOutcome: completed\n");
@@ -369,15 +371,19 @@ describe("rp state tooling", () => {
     write(root, "1-spec/contrarian/spec.md", "# Spec contrarian\n");
     write(root, "1-spec/contrarian/spec-research.md", "# Record contrarian\n");
     rp(root, "stamp", P("1-spec/contrarian/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"));
-    review("1-spec/contrarian/spec-review-1.md", "approved", ["1-spec/contrarian/spec.md", "1-spec/contrarian/spec-research.md", "0-intent/intent.md"]);
+    review("1-spec/contrarian/spec-review-1.md", "approved", ["1-spec/contrarian/spec.md", "1-spec/contrarian/spec-research.md", "0-intent/intent.md", "1-spec/event-driven/spec.md"]);
     assert.match(check(root, "--lanes", lanes), /artifact 1-spec\/spec\.md\s+MISSING — every lane approved: consolidate/);
     write(root, "1-spec/spec.md", "# Consolidated spec\n");
     write(root, "1-spec/spec-research.md", "# Consolidated record\n");
+    // A root that pins only one lane is not a consolidation: lanes stay open, the root has incomplete pins.
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"));
     output = check(root, "--lanes", lanes);
-    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
+    assert.doesNotMatch(output, /closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+INCOMPLETE PINS/);
-    assert.doesNotMatch(output, /artifact 1-spec\/spec\.md.*APPROVED/);
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--pin", P("1-spec/contrarian/spec.md"), "--pin", P("1-spec/contrarian/spec-research.md"), "--pin", P("1-spec/contrarian/spec-review-1.md"));
+    output = check(root, "--lanes", lanes);
+    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
+    assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH\s+reviews: ·:none/);
   });
 
   test("a claim raised inside a production lane reaches the frontier, and lanes have counters", () => {
@@ -407,6 +413,87 @@ describe("rp state tooling", () => {
     write(root, "1-spec/spec.md", "# Spec\n\nChanged on the working tree.\n");
     assert.match(check(root, "--ref", "other", "--target-phase", "1"), /frontier complete/);
     assert.match(check(root, "--target-phase", "1"), /approved \(stale\)/);
+  });
+
+  test("state cannot be forged: mirrors come from the body, reviewed is immutable, identities are exact", () => {
+    stampSpec();
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--set", "verdict=approved"), /never by --set/);
+    rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((f) => ["--reviewed", P(f)]), "--mirror");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--force"), /immutable/);
+    // A hand-written pin with an empty or short identity is never fresh.
+    write(root, "2-design-doc/design-doc.md", "---\npins:\n  - 0-intent/intent.md@\n  - 1-spec/spec.md@abc\n---\n# Design doc\n");
+    assert.match(check(root), /artifact 2-design-doc\/design-doc\.md\s+STALE/);
+  });
+
+  test("a declared brief fingerprint must match the review's brief", () => {
+    stampSpec();
+    const fp = rp(root, "fingerprint", "Verify security surfaces in depth").trim();
+    review("1-spec/spec-review-1.md", "approved", SPEC);
+    review("1-spec/spec-review-security-1.md", "approved", SPEC, [], "Brief: Verify security surfaces in depth\n");
+    assert.match(check(root, "--lanes", `spec=security@${fp}`, "--target-phase", "1"), /frontier complete/);
+    const other = rp(root, "fingerprint", "Verify accessibility").trim();
+    assert.match(check(root, "--lanes", `spec=security@${other}`, "--target-phase", "1"), /security:approved \(stale\)/);
+  });
+
+  test("a pending claim persists past a later review of the same lane", () => {
+    stampSpec();
+    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
+    review("1-spec/spec-review-2.md", "approved", SPEC);
+    const output = check(root, "--target-phase", "1");
+    assert.match(output, /claim\s+1-spec\/spec-review-1\.md .*PENDING — owner escalation/);
+    assert.doesNotMatch(output, /frontier complete/);
+  });
+
+  test("invalid lane declarations are rejected before any state is computed", () => {
+    assert.throws(() => check(root, "--lanes", "sepc=security"), /unknown artifact/);
+    assert.throws(() => check(root, "--lanes", "spec=|a<missing"), /undeclared lane/);
+    assert.throws(() => check(root, "--lanes", "spec=|a<b,b<a"), /cycle/);
+    assert.throws(() => check(root, "--lanes", "build-plan=|a"), /spec and design doc only/);
+  });
+
+  test("a report without an outcome, a cyclic plan, and non-sequential attempts are flagged, never dispatched", () => {
+    approveChain(3);
+    write(root, "3-build/tasks/T1-report-1.md", "# Task report\n\nno outcome yet\n");
+    rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
+    assert.match(check(root), /frontier stamp 3-build\/tasks\/T1-report-1\.md/);
+    rmSync(join(root, P("3-build/tasks/T1-report-1.md")));
+    report("T1", 2, "completed");
+    assert.match(check(root), /frontier invalid reports: attempts of 3-build\/tasks\/T1 are not 1\.\.n/);
+    rmSync(join(root, P("3-build/tasks/T1-report-2.md")));
+    write(root, "3-build/tasks/T1.md", "# T1\n\n- **Depends on:** T2\n");
+    rp(root, "stamp", P("3-build/tasks/T1.md"), "--mirror");
+    approvePlan(2);
+    assert.match(check(root), /frontier invalid plan: 3-build\/tasks\/T1\.md depends on a cycle/);
+  });
+
+  test("a commit outside the pipelines folder that no task report claims is the frontier", () => {
+    buildDone();
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "pipeline");
+    git(root, "checkout", "--quiet", "-b", "work");
+    writeFileSync(join(root, "src.js"), "console.log(1);\n");
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "hand-made change");
+    const output = check(root, "--target-phase", "3");
+    assert.match(output, /commits\s+unclaimed by any task report/);
+    assert.match(output, /frontier unclaimed commits/);
+    const sha = git(root, "rev-parse", "--short", "HEAD").trim();
+    write(root, "3-build/tasks/T2-report-2.md", `# Task report\n\nOutcome: completed\n\n## Commits\n\n- ${sha} — hand-made change\n`);
+    rp(root, "stamp", P("3-build/tasks/T2-report-2.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
+    assert.doesNotMatch(check(root, "--target-phase", "3"), /unclaimed/);
+  });
+
+  test("CRLF frontmatter is parsed, and symlinked paths are refused", () => {
+    write(root, "1-spec/spec.md", "---\r\nnote: x\r\n---\r\n# Spec\r\n");
+    stampSpec();
+    const text = read(root, "1-spec/spec.md");
+    assert.equal(text.split("---").length, 3);
+    assert.match(text, /note: x/);
+    const victim = join(root, "victim.md");
+    writeFileSync(victim, "# Victim\n");
+    execFileSync("ln", ["-sf", victim, join(root, P("1-spec/link.md"))]);
+    assert.throws(() => rp(root, "stamp", P("1-spec/link.md"), "--mirror"), /symlinked/);
   });
 
   test("check --json carries the state", () => {

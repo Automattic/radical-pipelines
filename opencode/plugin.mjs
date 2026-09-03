@@ -3197,7 +3197,8 @@ function readOwnershipManifest(targetDir) {
   if (!existsSync(manifestPath)) {
     return new Set();
   }
-  return new Set(JSON.parse(readFileSync(manifestPath, "utf8")));
+  // Only plain profile filenames are honored: a manifest entry never names a path.
+  return new Set(JSON.parse(readFileSync(manifestPath, "utf8")).filter((name) => typeof name === "string" && /^[A-Za-z0-9._-]+\.md$/.test(name)));
 }
 
 /**
@@ -3648,7 +3649,7 @@ const ANY_OUTPUT_SCHEMA = {};
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, collided = () => new Set() } = {}) {
+function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, collided = () => new Set(), rpProfiles = () => new Set() } = {}) {
   return {
     name: "rp_spawn",
     description:
@@ -3673,6 +3674,16 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, collided = (
       }
       if (collided().has(`${agent}.md`)) {
         throw new Error(`Agent "${agent}" is a foreign profile colliding with an RP profile; remove or rename it before spawning`);
+      }
+      // A project-local profile of the same name would shadow the sealed RP one.
+      if (rpProfiles().has(`${agent}.md`)) {
+        const repoRoot = resolveRepoRootFn(directory);
+        for (const local of ["agents", "agent"]) {
+          const shadow = repoRoot ? join(repoRoot, ".opencode", local, `${agent}.md`) : null;
+          if (shadow && existsSync(shadow)) {
+            throw new Error(`Agent "${agent}" is shadowed by the project-local profile ${shadow}; remove it before spawning`);
+          }
+        }
       }
       const session = await ctx.session.create({
         agent,
@@ -4265,7 +4276,7 @@ function setup(ctx, deps = {}) {
   };
 
   ctx.tool.transform((tools) => {
-    tools.add(buildSpawnTool(ctx, { resolveRepoRootFn, collided: () => collidedProfiles }));
+    tools.add(buildSpawnTool(ctx, { resolveRepoRootFn, collided: () => collidedProfiles, rpProfiles: () => rpProfileNames }));
     tools.add(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn }));
     tools.add(buildTerminateTool({ env, readServiceRecordOverride, requestFn }));
     tools.add(buildLoopStartTool({ registryPath, tick }));
@@ -4292,8 +4303,9 @@ function setup(ctx, deps = {}) {
     return skills;
   });
 
-  const { collisions } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
+  const { collisions, written } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
   const collidedProfiles = new Set(collisions);
+  const rpProfileNames = new Set([...written, ...collisions]);
   for (const name of collisions) {
     recordError({ type: "agent.materialize.collision", name });
   }

@@ -35,7 +35,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Target** — The `<path>#<id>` clause that a trigger or `unsatisfiable` verdict says must change.
 - **Task report** — An immutable per-attempt worker report, `tasks/T<n>-report-<k>.md`, naming the task it executed and the tasks it depended on, and recording its outcome, commits, checks, and any failure evidence.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
-- **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a failed task report; adjudicated when the target pins it, resolved when the target is approved carrying the pin or the claim is escalated.
+- **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a fresh failed task report; adjudicated when the target pins it, resolved when a wave naming it approves the target or the claim is escalated; a claim persists until resolved, superseded, or moot.
 - **Valve** — The run stop that produces an owner dossier after the convergence threshold, six waves by default, is reached without approval.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
 - **Wave** — One review of an artifact by every one of its lanes, numbered per artifact; closed when every lane's review is stamped and fresh.

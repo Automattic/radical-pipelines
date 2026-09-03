@@ -260,7 +260,7 @@ A tool must provide:
 
 Optional, needed only when the project configures the matching convention:
 
-8. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the **Agent models** convention).
+8. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the `model` of the **Agents** convention).
 
 The rules file documents the tool's mechanics for the conventions — Team spawning, Health monitoring, worktrees — and surfaces any prerequisite the owner must meet before the tool is declared ready.
 

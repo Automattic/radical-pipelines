@@ -106,6 +106,7 @@ Frontmatter on every file is written by the orchestrator, never by you.
 Verdict: approved | rejected | unsatisfiable
 Brief: <your brief, or none>
 Target: <path>#<id>            <!-- unsatisfiable only -->
+Origin: <trigger path>         <!-- when the wave adjudicated a trigger: the Amendment or Task report you judged -->
 
 ## Verification log
 

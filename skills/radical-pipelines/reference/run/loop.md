@@ -28,15 +28,18 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `AUDIT → <action>`                                   | Audit (below), then the action                                                                                 |
 | `VALVE → <action>`                                   | The valve (below)                                                                                              |
 | `… (invalid target)`                                 | Re-dispatch what wrote it: a target is an artifact id or, for a claim, an intent Goal, Constraint, or Decision |
+| `invalid plan: …` / `invalid reports: …`             | The plan producer, mode Adjudicate, with the report `rp check` names                                           |
+| `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
 | `complete`                                           | Close-out                                                                                                      |
 
 ## Dispatch
 
-- Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by the lane's `materials` when it has them. A named lane's **Brief** is its brief verbatim; the implicit lane has none.
+- Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by the lane's `materials` when it has them. A named lane's **Brief** is its brief verbatim; the implicit lane has none. `--lanes` carries each named lane with `rp fingerprint <its brief>`.
+- A producer's materials include, for each input artifact, its current approving reviews — every lane's review of the wave that approved it; the document plan also gets the approving build review.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
-- A delta review's **Diff** runs from its previous review's `head` to `HEAD` over the artifact, its record, and — for a plan — its tasks; its **Adjudication** is every record entry written since. A build or document review's **Diff** is every change on the branch outside the pipelines folder since the branch started; a delta one, since its previous review's `head`.
+- A delta review's **Diff** runs from its previous review's `head` to `HEAD` over the artifact, its record, and — for a plan — its tasks; its **Adjudication** is every record entry written since. A build or document review's **Diff** is every change on the branch outside the pipelines folder since the branch started — its merge-base with the main branch, or the main branch for a `<slug>_<n>` branch; a delta one, since its previous review's `head`.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **research request**: spawn a fresh `researcher` with the question and the requester's address; it answers the requester directly. Several independent questions in one message get one researcher each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch; if the environment is genuinely down, stop and tell the owner.
@@ -46,9 +49,9 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 After every agent commit, before anyone consumes the result:
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
-- A review: `rp stamp <review> --reviewed <each file state.md says it names> --mirror`; add `--set origin=<trigger path>` when the wave adjudicated a trigger. Its filename carries the lane and the wave.
+- A review: `rp stamp <review> --reviewed <each file state.md says it names> --mirror`. Its filename carries the lane and the wave; a review that adjudicated a trigger declares `Origin:` in its body.
 - A task report: `rp stamp <report> --reviewed <its task> --reviewed <each task it depends on> --mirror`.
-- Commit the stamps.
+- Commit the stamps on top of the landing.
 
 ## Review waves
 

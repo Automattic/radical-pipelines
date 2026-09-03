@@ -14,7 +14,7 @@ You drive one phase — spec or design doc — directly with the owner, through 
 2. Drive the Q&A. Send research questions to fresh researchers (`loop.md` § Dispatch); record questions, answers, and evidence as they arrive.
 3. Synthesize the artifact from the record. Label every claim verified or assumed.
 4. Present the artifact and the record. Iterate on the owner's changes.
-5. On explicit approval: append the decisions to `intent.md`; `rp stamp` the intent with `--mirror` and the artifact with its pins; write the approval as the implicit lane's review — the artifact's next `<artifact>-review-<wave>.md`, `Verdict: approved`, `Brief: owner approval`, a verification log naming what the owner reviewed — and `rp stamp` it with `--reviewed` everything `state.md` says it names, `--mirror`; commit everything.
+5. On explicit approval: append the decisions to `intent.md`; commit the intent, the artifact, and the record; `rp stamp` the intent with `--mirror` and the artifact with its pins; write the approval as the implicit lane's review — the artifact's next `<artifact>-review-<wave>.md`, `Verdict: approved`, `Brief: owner approval`, a verification log naming what the owner reviewed — commit it, `rp stamp` it with `--reviewed` everything `state.md` says it names and `--mirror`; commit the stamps.
 6. Run `rp check` and continue as the loop does: `phase-completed`, the next phase or close-out.
 
 When the artifact later goes stale, the workflow the owner chooses at triage reviews it.
