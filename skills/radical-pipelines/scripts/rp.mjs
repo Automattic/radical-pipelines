@@ -29,7 +29,7 @@ function repoRoot() {
 export function parseFrontmatter(raw) {
   const text = raw.replace(/\r\n/g, "\n");
   if (!text.startsWith("---\n")) return { data: null, body: text };
-  const end = text.indexOf("\n---", 4);
+  const end = text.indexOf("\n---", 3);
   if (end === -1) return { data: null, body: text };
   const body = text.slice(text.indexOf("\n", end + 1) + 1);
   const data = new Map();

@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { identity } from "../../skills/radical-pipelines/scripts/rp.mjs";
+import { identity, parseFrontmatter } from "../../skills/radical-pipelines/scripts/rp.mjs";
 
 const RP = fileURLToPath(new URL("../../skills/radical-pipelines/scripts/rp.mjs", import.meta.url));
 const PIPELINE = ".pipelines/demo";
@@ -119,6 +119,20 @@ describe("rp state tooling", () => {
     rp(root, "stamp", P("1-spec/spec.md"), "--set", "note=two");
     assert.equal(identity(read(root, "1-spec/spec.md")), before);
     assert.match(read(root, "1-spec/spec.md"), /pins:\n  - 0-intent\/intent\.md@[0-9a-f]{12}/);
+  });
+
+  test("empty frontmatter preserves a dependency-free task's body identity", () => {
+    const body = "# T1\n\n- **Depends on:** none\n";
+    const expected = execFileSync("git", ["hash-object", "--stdin"], { input: body, encoding: "utf8" }).trim().slice(0, 12);
+    write(root, "3-build/tasks/T1.md", body);
+
+    rp(root, "stamp", P("3-build/tasks/T1.md"), "--mirror");
+
+    const stamped = read(root, "3-build/tasks/T1.md");
+    const parsed = parseFrontmatter(stamped);
+    assert.deepEqual(parsed.data, new Map());
+    assert.equal(parsed.body, body);
+    assert.equal(identity(stamped), expected);
   });
 
   test("a body edit makes a pin stale; a frontmatter edit does not", () => {
