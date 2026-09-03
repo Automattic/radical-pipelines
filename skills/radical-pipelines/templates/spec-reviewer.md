@@ -24,7 +24,7 @@
 <!-- Consolidation: the Fresh materials plus -->
 - Lane folders: <one line per lane: id — folder (spec.md, spec-research.md, approved review)>
 
-<!-- Delta: the Fresh materials plus -->
+<!-- Delta: the Fresh (or Consolidation) materials plus -->
 - Your previous review: <path>
 - Diff: git diff <its head> HEAD -- <artifact path> <record path>
 - Adjudication: <record path — sections>

@@ -6,6 +6,10 @@
 - Guardrails: <rules | none>
 - Execution: inspection only
 
+## Write to
+
+<the phase folder — root, or `lane-<k>/` — where your artifact and record land>
+
 ## Mode
 
 <Synthesize | Adjudicate | Consolidate>

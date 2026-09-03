@@ -19,6 +19,7 @@
 <!-- Fresh -->
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
+- Build plan: <build-plan.md path>
 - Build summary: <build-summary.md path>
 - document-plan.md: <path>
 - Tasks: <one line per task file: path>
@@ -27,7 +28,7 @@
 
 <!-- Delta: the Fresh materials plus -->
 - Your previous review: <path>
-- Diff: git diff <its head> HEAD -- <artifact path> <record path>
+- Diff: git diff <its head> HEAD -- <plan path> <record path> <tasks folder>
 - Adjudication: <record path — sections>
 - Research: <researcher answer>   <!-- when the audit commissioned one -->
 

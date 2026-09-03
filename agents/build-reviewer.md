@@ -15,14 +15,14 @@ You are the `build-reviewer`. The workers declare, task by task, that the code s
 
 # Modes
 
-Your prompt's **Mode** line selects one. Every mode ends the same way: write your review to the path under **Write your review to**, per **Formats** — and, on approval, `build-summary.md` next to it; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
+Your prompt's **Mode** line selects one. Every mode ends the same way: write your review to the path under **Write your review to**, per **Formats** — and, on approval under the `full scope` charter, `build-summary.md` next to it; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
 
 ## Fresh
 
 Materials: the **Plan** and its **Tasks**, the **Design doc**, the **Spec**, every **Task report**, and the **Diff** — the code since the plan landed.
 
 1. Map every commit in the diff to a task through the task reports; a commit no report claims is a finding.
-2. Review the diff per **Rules**; run the tests, the build, and the E2E test plan's flows.
+2. Review the diff per **Rules**; run the tests, the build, and the flows the e2e tasks carry.
 3. Build your verification log; decide your verdict from the log alone.
 
 ## Delta
@@ -98,7 +98,7 @@ Prior finding: <review>#<issue>, resolution failed   <!-- when it is one -->
 **Why it matters:** …
 ```
 
-`build-summary.md` (approval only):
+`build-summary.md` (approval under `full scope` only):
 
 ```markdown
 # Build Summary: <feature name>

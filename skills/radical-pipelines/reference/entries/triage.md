@@ -38,15 +38,15 @@ One message to the owner: the route and why — or, when no predicate decides, t
 1. Slug per the **Branch naming** convention; a second pipeline for the same issue gets `-2`, `-3`.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
 3. `<pipelines folder root>/<slug>/0-intent/intent.md`: the issue body verbatim in the intent format (`intent-format.md`) with `Origin:` lines for the issue and, when stacked or re-attempted, the pipeline it starts from.
-4. Commit; `rp stamp <intent> --mirror`.
+4. `rp stamp <intent> --mirror`; commit.
 
 **An external amendment**
 
 1. Live pipeline: its branch and worktree. Merged pipeline: branch `<slug>_<n>` from the main branch, with a worktree. One live branch per pipeline; a second correction joins it.
 2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id).
-3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed).
+3. `rp stamp <amendment> --mirror` (and the intent, when it changed); commit.
 
-**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the main branch.
+**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the main branch. A pipeline the valve stopped: `rp stamp <artifact> --pin … --set episode-start=<its last wave>` once the new input is in the tree.
 
 ### 6. Run
 

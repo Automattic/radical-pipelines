@@ -9,7 +9,7 @@
 ## Materials
 
 - Task: <tasks/T<n>.md path>
-- Plan: <document-plan.md path>
+- Dependencies: <one line per task file it depends on: path>
 - Your previous report: <path>   <!-- re-dispatch only -->
 - Adjudication: <record path — section>   <!-- re-dispatch only -->
 

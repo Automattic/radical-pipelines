@@ -7,6 +7,6 @@ Slots:
 - `Seat` — Worktree, Branch, Commit format, Guardrails (`none` when the project has none), Execution (`inspection only` | `full`).
 - `Charter` — reviewers: `full scope`, or a focus.
 - `Mode`, `Materials` — per profile.
-- `Write your review to` / `Write your report to` — the path the orchestrator computed (`../reference/run/state.md` § Names).
+- `Write to` / `Write your review to` / `Write your report to` — the folder or path the orchestrator computed (`../reference/run/state.md` § Names).
 
 `build-worker.md` serves the three build worker profiles.

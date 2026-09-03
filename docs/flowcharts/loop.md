@@ -11,6 +11,7 @@ flowchart TD
     E --> T["Unresolved trigger"]
     E --> P["Pending claim"]
     E --> M["Missing artifact"]
+    E --> PL["Production lanes open"]
     E --> S["Stale artifact"]
     E --> W{"Review-wave state"}
     E --> K["Task outside the done-set"]
@@ -22,6 +23,9 @@ flowchart TD
     P1 --> P3["Resolve the higher claim first"]
     P1 --> P4["Owner escalation"]
     M --> M1["Dispatch the producer in Synthesize mode"]
+    PL --> PL1["Each lane: its own frontier, in parallel"]
+    PL1 --> PL2["Every lane approved and fresh: Consolidate, then a Consolidation review"]
+    PL2 --> L
     S --> S1["Dispatch Synthesize with input changes"]
     W --> W1["Dispatch a review wave"]
     W --> W2["Dispatch the producer after rejection"]

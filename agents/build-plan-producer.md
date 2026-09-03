@@ -23,8 +23,7 @@ Materials: the **Spec**, the **Design doc** (with its approving reviews), the **
 
 1. Read the spec and the design doc; list every requirement, every decision, and every open assumption.
 2. Inspect the codebase where the design lands; record what you find in `build-plan-research.md`.
-3. Write the E2E test plan: the spec's acceptance criteria and edge cases as flows.
-4. Break the design into tasks per **Rules**; map every open assumption.
+3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases become flows inside e2e tasks; map every open assumption.
 5. Write `build-plan.md` per **Formats**.
 
 On re-synthesis, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add. When nothing needs to change, say so in your report.
@@ -47,8 +46,8 @@ You may research and decide new content in this mode — always in service of a 
 
 **Tasks**
 
-- A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without making a design decision, and self-contained: that file is the worker's only input.
-- `Type` routes it: `tdd` (behavior with unit tests), `e2e` (end-to-end flows from the E2E test plan), `edit` (no observable behavior change).
+- A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without making a design decision, and self-contained: that file and the tasks it depends on are the worker's only inputs. An e2e task carries the flows it automates.
+- `Type` routes it: `tdd` (behavior with unit tests), `e2e` (end-to-end flows the task carries), `edit` (no observable behavior change).
 - Every open assumption of the design doc maps to the task that verifies it, `Verifies: A<n>`; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
 - Every task traces to the requirements, decisions, or flows it serves. Every acceptance criterion and every decision is served by at least one task.
 - Ids are stable: `T<n>` is never renumbered; corrective and new tasks are new files.
@@ -85,15 +84,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Overview
 
-<!-- What is implemented and in what order; the investigation behind the scope, including searches that came back empty. -->
-
-## E2E test plan
-
-### Flow 1: <title>
-
-- **Steps:** …
-- **Expected:** …
-- **Traces to:** <acceptance criterion / edge case>
+<!-- What is implemented; the investigation behind the scope, including searches that came back empty. -->
 
 ## Assumptions
 
@@ -112,6 +103,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 - **Goal:** …
 - **Type:** tdd | e2e | edit
+- **Flows:** <e2e only — each: Steps, Expected, Traces to>
 - **Files:** …
 - **Changes:** …
 - **Depends on:** none | T<n>

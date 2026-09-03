@@ -20,12 +20,12 @@ Plans the work as tasks, executes them, verifies the result against the plan, th
 
 - Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, the approving design-doc reviews, the task reports so far (the done-set is work to build on, never redo). **Input changes** on re-synthesis, plus unresolved triggers targeting the plan.
 - Plan **Adjudicate**: the Synthesize materials plus `build-plan.md` and `build-plan-research.md`, and one of **Review lanes** — plan reviews, or a `rejected` build review whose findings become corrective tasks; **Amendment** — a trigger targeting the plan; or **Task report** — one failed report.
-- Worker: the **Task** file, the **Plan**, **Write your report to**. The task's `Type` picks the profile: `tdd`, `edit`, `e2e`.
-- Build review **Fresh**: the plan and its tasks, `design-doc.md`, `spec.md`, every report, **Diff** — the code since the plan's `head`, excluding the pipelines folder. **Delta**: the same with **Your previous review** and the **Diff** from its `head`.
+- Worker: the **Task** file, its **Dependencies** (the task files it depends on), **Write your report to**. The task's `Type` picks the profile: `tdd`, `edit`, `e2e`.
+- Build review **Fresh**: the plan and its tasks, `design-doc.md`, `spec.md`, every report, **Diff** — the commits the reports list. **Delta**: the same with **Your previous review**, the **Diff** being the commits landed since it.
 
 ## Tasks
 
-- Every task is a file with `Goal`, `Type`, `Files`, `Changes`, `Depends on`, `Verifies` (assumption ids or `—` with a reason), `Acceptance`; the plan lists the order.
+- Every task is a self-contained file: `Goal`, `Type`, `Files`, `Changes`, `Depends on`, `Verifies` (assumption ids or `—` with a reason), `Acceptance`; an e2e task carries the flows it automates. The plan lists the order.
 - Fresh worker per attempt; the attempt number is the count of that task's reports plus one.
 
 ## Build review

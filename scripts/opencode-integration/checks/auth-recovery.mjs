@@ -62,7 +62,7 @@ export async function run(ctx) {
     const result = await driveToolCall(
       server,
       orchestrator.id,
-      `return await tools.rp_spawn({name:"auth-recovery-respawn", agent:"spec-researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"auth-recovery-run"});`,
+      `return await tools.rp_spawn({name:"auth-recovery-respawn", agent:"researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"auth-recovery-run"});`,
     );
     assert.ok(result.text?.startsWith("ses_"), `expected a fresh session ID, got: ${result.text}`);
   });
@@ -74,7 +74,7 @@ export async function run(ctx) {
       const spawn = await driveToolCall(
         server,
         orchestrator.id,
-        `return await tools.rp_spawn({name:"auth-cause-child", agent:"spec-researcher", model:"stubnoauth/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"auth-recovery-run"});`,
+        `return await tools.rp_spawn({name:"auth-cause-child", agent:"researcher", model:"stubnoauth/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"auth-recovery-run"});`,
       );
       assert.ok(spawn.text?.startsWith("ses_"), `expected a session ID, got: ${spawn.text}`);
       const childID = spawn.text;

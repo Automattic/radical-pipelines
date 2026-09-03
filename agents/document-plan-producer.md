@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 
 ## Synthesize
 
-Materials: the **Spec**, the **Design doc**, the **Build summary** (with the approving build review), the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
+Materials: the **Spec**, the **Design doc**, the **Build plan**, the **Build summary** (with the approving build review), the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
 
 1. Read the spec, the design doc, and the build summary; inspect the shipped code on the branch.
 2. Inventory the documentation surfaces the project keeps — inline API documentation, guides, references, configuration docs, examples, changelogs — and what the shipped behavior changes in each; record it in `document-plan-research.md`.
@@ -42,7 +42,7 @@ You may research and decide new content in this mode — always in service of a 
 
 **Tasks**
 
-- A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without deciding what the software does, and self-contained: that file is the worker's only input.
+- A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without deciding what the software does, and self-contained: that file and the tasks it depends on are the worker's only inputs.
 - Every task names its `Surface`: the documentation location it serves, in the project's own conventions.
 - Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task; a surface the project does not keep is recorded as out of scope with the reason.
 - Ids are stable: `T<n>` is never renumbered; corrective and new tasks are new files.

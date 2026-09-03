@@ -20,12 +20,13 @@
 - Plan: <document-plan.md path>
 - Tasks: <one line per task file: path>
 - Design doc: <path>
+- Build plan: <path>
 - Spec: <path>
 - Build summary: <path>
 - Task reports: <one line per report: path>
-- Diff: git diff <the plan's head> HEAD -- . ':(exclude)<pipelines folder root>'
+- Diff: <the commits the task reports list>
 
-<!-- Delta: the Fresh materials, with Diff from the previous review's head, plus -->
+<!-- Delta: the Fresh materials, Diff being the commits landed since the previous review, plus -->
 - Your previous review: <path>
 - Adjudication: <record path — section>   <!-- when a claim was adjudicated -->
 

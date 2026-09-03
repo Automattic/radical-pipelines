@@ -72,8 +72,11 @@ function makeRepo() {
   git(root, "config", "user.name", "RP Test");
   writePipelineFile(root, "0-intent/intent.md", "# Intent\n\nOriginal intent.\n");
   writePipelineFile(root, "1-spec/spec.md", "# Spec\n\nRequirement R1.\n");
+  writePipelineFile(root, "1-spec/spec-research.md", "# Spec research\n");
   writePipelineFile(root, "2-design-doc/design-doc.md", "# Design doc\n\nDecision D1.\n");
+  writePipelineFile(root, "2-design-doc/design-doc-research.md", "# Design research\n");
   writePipelineFile(root, "3-build/build-plan.md", "# Build plan\n\nTask T1.\n");
+  writePipelineFile(root, "3-build/build-plan-research.md", "# Plan research\n");
   return root;
 }
 
@@ -170,11 +173,11 @@ describe("rp state tooling", () => {
   });
 
   test("stamp --mirror copies review declarations into frontmatter", () => {
-    const review = pipelineFile("1-spec/spec-review-1.md");
+    const review = pipelineFile("1-spec/spec-review-r1-1.md");
     writePipelineFile(
       root,
-      "1-spec/spec-review-1.md",
-      "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\nOutcome: failed\nPrior finding: 1-spec/spec-review-1.md#F1, resolution failed\n",
+      "1-spec/spec-review-r1-1.md",
+      "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\nOutcome: failed\nPrior finding: 1-spec/spec-review-r1-1.md#F1, resolution failed\n",
     );
 
     runRp(
@@ -198,12 +201,12 @@ describe("rp state tooling", () => {
       identity(readFileSync(join(root, pipelineFile("1-spec/spec.md")), "utf8")),
     );
     assert.equal(data.get("outcome"), "failed");
-    assert.deepEqual(data.get("recurs"), ["1-spec/spec-review-1.md#F1"]);
+    assert.deepEqual(data.get("recurs"), ["1-spec/spec-review-r1-1.md#F1"]);
   });
 
   test("review pins cannot be replaced without --force", () => {
-    const review = pipelineFile("1-spec/spec-review-1.md");
-    writePipelineFile(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    const review = pipelineFile("1-spec/spec-review-r1-1.md");
+    writePipelineFile(root, "1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: approved\n");
     runRp(root, "stamp", review, "--reviewed", pipelineFile("1-spec/spec.md"));
 
     assert.throws(
@@ -217,7 +220,7 @@ describe("rp state tooling", () => {
         ),
       (error) => {
         assert.equal(error.status, 1);
-        assert.match(error.stderr, /review pins are immutable/);
+        assert.match(error.stderr, /reviewed pins are immutable/);
         return true;
       },
     );
@@ -241,11 +244,11 @@ describe("rp state tooling", () => {
 
     assert.match(
       runRp(root, "check", PIPELINE),
-      /trigger\s+0-intent\/1-amendment\.md .*adjudicated by 1-spec\/spec\.md, awaiting approval/,
+      /trigger\s+0-intent\/1-amendment\.md .*adjudicated \(by 1-spec\/spec\.md, awaiting approval\)/,
     );
 
-    writePipelineFile(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n");
-    runRp(root, "stamp", pipelineFile("1-spec/spec-review-1.md"), "--reviewed", pipelineFile("1-spec/spec.md"), "--set", "lane=r1", "--set", "iteration=1", "--mirror");
+    writePipelineFile(root, "1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/spec-review-r1-1.md"), "--reviewed", pipelineFile("1-spec/spec.md"), "--reviewed", pipelineFile("1-spec/spec-research.md"), "--set", "lane=r1", "--set", "iteration=1", "--mirror");
     assert.match(
       runRp(root, "check", PIPELINE, "--lanes", "r1"),
       /trigger\s+0-intent\/1-amendment\.md .*resolved \(1-spec\/spec\.md approved carrying it\)/,
@@ -254,16 +257,16 @@ describe("rp state tooling", () => {
 
   test("a review of the target that cites an amendment without the target pinning it does not resolve it", () => {
     writeAmendment(root);
-    writePipelineFile(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n");
-    runRp(root, "stamp", pipelineFile("1-spec/spec-review-1.md"), "--reviewed", pipelineFile("1-spec/spec.md"), "--set", "lane=r1", "--set", "iteration=1", "--set", "origin=0-intent/1-amendment.md", "--mirror");
+    writePipelineFile(root, "1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/spec-review-r1-1.md"), "--reviewed", pipelineFile("1-spec/spec.md"), "--reviewed", pipelineFile("1-spec/spec-research.md"), "--set", "lane=r1", "--set", "iteration=1", "--set", "origin=0-intent/1-amendment.md", "--mirror");
     assert.match(runRp(root, "check", PIPELINE), /trigger\s+0-intent\/1-amendment\.md .*PENDING/);
   });
 
   test("an unsatisfiable claim is pending until its target body changes", () => {
-    const review = pipelineFile("1-spec/spec-review-1.md");
+    const review = pipelineFile("1-spec/spec-review-r1-1.md");
     writePipelineFile(
       root,
-      "1-spec/spec-review-1.md",
+      "1-spec/spec-review-r1-1.md",
       "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n",
     );
     runRp(
@@ -272,6 +275,8 @@ describe("rp state tooling", () => {
       review,
       "--reviewed",
       pipelineFile("1-spec/spec.md"),
+      "--reviewed",
+      pipelineFile("1-spec/spec-research.md"),
       "--set",
       "lane=r1",
       "--set",
@@ -281,14 +286,14 @@ describe("rp state tooling", () => {
 
     assert.match(
       runRp(root, "check", PIPELINE),
-      /claim\s+1-spec\/spec-review-1\.md → 1-spec\/spec\.md#R1\s+PENDING/,
+      /claim\s+1-spec\/spec-review-r1-1.md → 1-spec\/spec\.md#R1\s+PENDING/,
     );
 
     appendFileSync(join(root, pipelineFile("1-spec/spec.md")), "\nChanged requirement.\n");
 
     assert.match(
       runRp(root, "check", PIPELINE),
-      /claim\s+1-spec\/spec-review-1\.md .*superseded \(target changed\)/,
+      /claim\s+1-spec\/spec-review-r1-1.md .*superseded \(target changed\)/,
     );
   });
 
@@ -298,7 +303,7 @@ describe("rp state tooling", () => {
     for (const f of ["T1", "T2"]) runRp(root, "stamp", pipelineFile(`3-build/tasks/${f}.md`), "--mirror");
     for (const [id, k, outcome] of [["T1", 1, "failed"], ["T1", 2, "completed"], ["T2", 1, "completed"], ["T2", 2, "failed"]]) {
       writePipelineFile(root, `3-build/tasks/${id}-report-${k}.md`, `# Task report\n\nOutcome: ${outcome}\n`);
-      runRp(root, "stamp", pipelineFile(`3-build/tasks/${id}-report-${k}.md`), "--pin", pipelineFile(`3-build/tasks/${id}.md`), "--set", `attempt=${k}`, "--mirror");
+      runRp(root, "stamp", pipelineFile(`3-build/tasks/${id}-report-${k}.md`), "--reviewed", pipelineFile(`3-build/tasks/${id}.md`), "--mirror");
     }
     const output = runRp(root, "check", PIPELINE);
     assert.match(output, /trigger\s+3-build\/tasks\/T2-report-2\.md \(failed task T2\) → 3-build\/build-plan\.md\s+PENDING/);
@@ -312,8 +317,8 @@ describe("rp state tooling", () => {
       writePipelineFile(root, `1-spec/lane-${k}/spec-research.md`, `# Record ${k}\n`);
       runRp(root, "stamp", pipelineFile(`1-spec/lane-${k}/spec.md`), "--pin", pipelineFile("0-intent/intent.md"));
     }
-    writePipelineFile(root, "1-spec/lane-1/spec-review-1.md", "# Review\n\nVerdict: approved\n");
-    runRp(root, "stamp", pipelineFile("1-spec/lane-1/spec-review-1.md"),
+    writePipelineFile(root, "1-spec/lane-1/spec-review-r1-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/lane-1/spec-review-r1-1.md"),
       "--reviewed", pipelineFile("1-spec/lane-1/spec.md"), "--reviewed", pipelineFile("1-spec/lane-1/spec-research.md"),
       "--set", "lane=r1", "--set", "iteration=1", "--mirror");
 
@@ -322,8 +327,8 @@ describe("rp state tooling", () => {
     assert.match(output, /lane\s+1-spec\/lane-2\/spec\.md\s+FRESH\s+reviews: r1:none/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+MISSING — lanes in progress/);
 
-    writePipelineFile(root, "1-spec/lane-2/spec-review-1.md", "# Review\n\nVerdict: approved\n");
-    runRp(root, "stamp", pipelineFile("1-spec/lane-2/spec-review-1.md"),
+    writePipelineFile(root, "1-spec/lane-2/spec-review-r1-1.md", "# Review\n\nVerdict: approved\n");
+    runRp(root, "stamp", pipelineFile("1-spec/lane-2/spec-review-r1-1.md"),
       "--reviewed", pipelineFile("1-spec/lane-2/spec.md"), "--reviewed", pipelineFile("1-spec/lane-2/spec-research.md"),
       "--set", "lane=r1", "--set", "iteration=1", "--mirror");
     output = runRp(root, "check", PIPELINE, "--lanes", "r1");
@@ -347,29 +352,29 @@ describe("rp state tooling", () => {
   test("a trigger escalated one layer up (unsatisfiable review with origin) is resolved", () => {
     writePipelineFile(root, "0-intent/1-amendment.md", "# Amendment 1\n\nTarget: 1-spec/spec.md#R1\nOrigin: owner request\n");
     runRp(root, "stamp", pipelineFile("0-intent/1-amendment.md"), "--mirror");
-    review("1-spec/spec-review-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n", ["1-spec/spec.md"], ["lane=r1", "iteration=1", "origin=0-intent/1-amendment.md"]);
+    review("1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", "iteration=1", "origin=0-intent/1-amendment.md"]);
     const output = runRp(root, "check", PIPELINE);
-    assert.match(output, /trigger\s+0-intent\/1-amendment\.md .*escalated by 1-spec\/spec-review-1\.md/);
-    assert.match(output, /claim\s+1-spec\/spec-review-1\.md → 0-intent\/intent\.md#goal\s+PENDING — owner escalation/);
+    assert.match(output, /trigger\s+0-intent\/1-amendment\.md .*escalated by 1-spec\/spec-review-r1-1.md/);
+    assert.match(output, /claim\s+1-spec\/spec-review-r1-1.md → 0-intent\/intent\.md#goal\s+PENDING — owner escalation/);
   });
 
   test("a claim is suspended behind the pending claim of its target, including an owner escalation", () => {
-    review("1-spec/spec-review-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n", ["1-spec/spec.md"], ["lane=r1", "iteration=1"]);
-    review("2-design-doc/design-doc-review-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
+    review("1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", "iteration=1"]);
+    review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n", ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md"], ["lane=r1", "iteration=1"]);
     const output = runRp(root, "check", PIPELINE);
-    assert.match(output, /claim\s+2-design-doc\/design-doc-review-1\.md → 1-spec\/spec\.md#R1\s+suspended \(behind 1-spec\/spec-review-1\.md\)/);
-    assert.match(output, /claim\s+1-spec\/spec-review-1\.md → 0-intent\/intent\.md#goal\s+PENDING — owner escalation/);
+    assert.match(output, /claim\s+2-design-doc\/design-doc-review-r1-1.md → 1-spec\/spec\.md#R1\s+suspended \(behind 1-spec\/spec-review-r1-1.md\)/);
+    assert.match(output, /claim\s+1-spec\/spec-review-r1-1.md → 0-intent\/intent\.md#goal\s+PENDING — owner escalation/);
   });
 
   test("waves this episode count per lane, not reviews", () => {
-    review("1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md"], ["lane=r1", "iteration=1"]);
-    review("1-spec/spec-review-r2-1.md", "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md"], ["lane=r2", "iteration=1"]);
+    review("1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", "iteration=1"]);
+    review("1-spec/spec-review-r2-1.md", "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r2", "iteration=1"]);
     assert.match(runRp(root, "check", PIPELINE), /counter\s+spec: 1 wave this episode/);
   });
 
   test("--lanes declares lanes per artifact; the assisted workflow declares owner", () => {
-    review("1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md"], ["lane=owner", "iteration=1"]);
-    review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
+    review("1-spec/spec-review-owner-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=owner", "iteration=1"]);
+    review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md"], ["lane=r1", "iteration=1"]);
     const output = runRp(root, "check", PIPELINE, "--lanes", "spec=owner;design-doc=r1,r2");
     assert.match(output, /artifact 1-spec\/spec\.md .*owner:approved.*APPROVED/);
     assert.match(output, /artifact 2-design-doc\/design-doc\.md .*r1:approved r2:none\n/);
@@ -378,7 +383,7 @@ describe("rp state tooling", () => {
 
   test("--target-phase reports completion", () => {
     runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"));
-    review("1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md"], ["lane=r1", "iteration=1"]);
+    review("1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", "iteration=1"]);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "1"), /complete through phase 1 — target reached/);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "2"), /complete through phase 1 \(target 2\)/);
   });
@@ -405,11 +410,11 @@ describe("rp state tooling", () => {
       writePipelineFile(root, `1-spec/lane-${k}/spec-research.md`, `# Record ${k}\n`);
       runRp(root, "stamp", pipelineFile(`1-spec/lane-${k}/spec.md`), "--pin", pipelineFile("0-intent/intent.md"));
     }
-    review("1-spec/lane-1/spec-review-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n", ["1-spec/lane-1/spec.md", "1-spec/lane-1/spec-research.md"], ["lane=r1", "iteration=1"]);
-    review("1-spec/lane-2/spec-review-1.md", "# Review\n\nVerdict: rejected\n", ["1-spec/lane-2/spec.md", "1-spec/lane-2/spec-research.md"], ["lane=r1", "iteration=1"]);
-    review("1-spec/lane-2/spec-review-2.md", "# Review\n\nVerdict: approved\n", ["1-spec/lane-2/spec.md", "1-spec/lane-2/spec-research.md"], ["lane=r1", "iteration=2"]);
+    review("1-spec/lane-1/spec-review-r1-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n", ["1-spec/lane-1/spec.md", "1-spec/lane-1/spec-research.md"], ["lane=r1", "iteration=1"]);
+    review("1-spec/lane-2/spec-review-r1-1.md", "# Review\n\nVerdict: rejected\n", ["1-spec/lane-2/spec.md", "1-spec/lane-2/spec-research.md"], ["lane=r1", "iteration=1"]);
+    review("1-spec/lane-2/spec-review-r1-2.md", "# Review\n\nVerdict: approved\n", ["1-spec/lane-2/spec.md", "1-spec/lane-2/spec-research.md"], ["lane=r1", "iteration=2"]);
     const output = runRp(root, "check", PIPELINE, "--lanes", "r1");
-    assert.match(output, /claim\s+1-spec\/lane-1\/spec-review-1\.md → 0-intent\/intent\.md#goal\s+PENDING — owner escalation/);
+    assert.match(output, /claim\s+1-spec\/lane-1\/spec-review-r1-1.md → 0-intent\/intent\.md#goal\s+PENDING — owner escalation/);
     assert.match(output, /lane\s+1-spec\/lane-1\/spec\.md\s+FRESH\s+reviews: r1:unsatisfiable/);
     assert.match(output, /counter\s+1-spec\/lane-1\/spec: 1 wave this episode/);
     assert.doesNotMatch(output, /counter\s+1-spec\/lane-2\/spec/);
@@ -418,10 +423,10 @@ describe("rp state tooling", () => {
   function approveChain(upTo) {
     // spec, design doc, plan: stamped with their required pins and approved by r1.
     runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"));
-    review("1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md"], ["lane=r1", "iteration=1"]);
+    review("1-spec/spec-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", "iteration=1"]);
     if (upTo < 2) return;
     runRp(root, "stamp", pipelineFile("2-design-doc/design-doc.md"), "--pin", pipelineFile("0-intent/intent.md"), "--pin", pipelineFile("1-spec/spec.md"));
-    review("2-design-doc/design-doc-review-1.md", "# Review\n\nVerdict: approved\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
+    review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md"], ["lane=r1", "iteration=1"]);
     if (upTo < 3) return;
     writePipelineFile(root, "3-build/build-plan.md", "# Build plan\n\n## Order\n\n- T1\n- T2 <- T1\n");
     writePipelineFile(root, "3-build/tasks/T1.md", "# T1: first\n\n- **Depends on:** none\n");
@@ -429,12 +434,12 @@ describe("rp state tooling", () => {
     runRp(root, "stamp", pipelineFile("3-build/build-plan.md"), "--pin", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("2-design-doc/design-doc.md"));
     runRp(root, "stamp", pipelineFile("3-build/tasks/T1.md"), "--mirror");
     runRp(root, "stamp", pipelineFile("3-build/tasks/T2.md"), "--mirror");
-    review("3-build/build-plan-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/tasks/T1.md", "3-build/tasks/T2.md"], ["lane=r1", "iteration=1"]);
+    review("3-build/build-plan-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/build-plan-research.md", "3-build/tasks/T1.md", "3-build/tasks/T2.md"], ["lane=r1", "iteration=1"]);
   }
 
   function report(phase, id, k, outcome) {
     writePipelineFile(root, `${phase}/tasks/${id}-report-${k}.md`, `# Task report\n\nOutcome: ${outcome}\n`);
-    runRp(root, "stamp", pipelineFile(`${phase}/tasks/${id}-report-${k}.md`), "--pin", pipelineFile(`${phase}/tasks/${id}.md`), "--set", `attempt=${k}`, "--mirror");
+    runRp(root, "stamp", pipelineFile(`${phase}/tasks/${id}-report-${k}.md`), "--reviewed", pipelineFile(`${phase}/tasks/${id}.md`), "--mirror");
   }
 
   test("the frontier walks the phases in order and names the next task from the task files", () => {
@@ -462,7 +467,7 @@ describe("rp state tooling", () => {
     report("3-build", "T1", 1, "completed");
     report("3-build", "T2", 1, "completed");
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier build review/);
-    review("3-build/build-review-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/tasks/T1.md", "3-build/tasks/T2.md", "3-build/tasks/T1-report-1.md", "3-build/tasks/T2-report-1.md"], ["lane=r1", "iteration=1"]);
+    review("3-build/build-review-r1-1.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/build-plan-research.md", "3-build/tasks/T1.md", "3-build/tasks/T2.md", "3-build/tasks/T1-report-1.md", "3-build/tasks/T2-report-1.md"], ["lane=r1", "iteration=1"]);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier missing 3-build\/build-summary\.md/);
     writePipelineFile(root, "3-build/build-summary.md", "# Summary\n");
     let output = runRp(root, "check", PIPELINE, "--lanes", "r1", "--target-phase", "3");
@@ -487,20 +492,20 @@ describe("rp state tooling", () => {
   test("a claim stands only when its wave closed without a rejection", () => {
     approveChain(1);
     runRp(root, "stamp", pipelineFile("2-design-doc/design-doc.md"), "--pin", pipelineFile("0-intent/intent.md"), "--pin", pipelineFile("1-spec/spec.md"));
-    review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n", ["2-design-doc/design-doc.md"], ["lane=r1", "iteration=1"]);
+    review("2-design-doc/design-doc-review-r1-1.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n", ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md"], ["lane=r1", "iteration=1"]);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "spec=r1;design-doc=r1,r2"), /claim .*wave open/);
-    review("2-design-doc/design-doc-review-r2-1.md", "# Review\n\nVerdict: rejected\n", ["2-design-doc/design-doc.md"], ["lane=r2", "iteration=1"]);
+    review("2-design-doc/design-doc-review-r2-1.md", "# Review\n\nVerdict: rejected\n", ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md"], ["lane=r2", "iteration=1"]);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "spec=r1;design-doc=r1,r2"), /claim .*held \(a lane rejected/);
   });
 
-  test("audit and valve are frontier states, and only Goal, Constraints, and Decisions escalate", () => {
+  test("audit and valve annotate the frontier, and only Goal, Constraints, and Decisions are valid intent targets", () => {
     runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"));
-    for (let i = 1; i <= 3; i++) review(`1-spec/spec-review-${i}.md`, "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md"], ["lane=r1", `iteration=${i}`]);
-    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier AUDIT 1-spec\/spec\.md/);
-    for (let i = 4; i <= 6; i++) review(`1-spec/spec-review-${i}.md`, "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md"], ["lane=r1", `iteration=${i}`]);
-    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier VALVE 1-spec\/spec\.md/);
-    review("1-spec/spec-review-7.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#context-1\n", ["1-spec/spec.md"], ["lane=r1", "iteration=7"]);
-    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /claim .*#context-1\s+PENDING\n/);
+    for (let i = 1; i <= 3; i++) review(`1-spec/spec-review-r1-${i}.md`, "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", `iteration=${i}`]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier AUDIT → adjudicate 1-spec\/spec\.md/);
+    for (let i = 4; i <= 6; i++) review(`1-spec/spec-review-r1-${i}.md`, "# Review\n\nVerdict: rejected\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", `iteration=${i}`]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /frontier VALVE → adjudicate 1-spec\/spec\.md/);
+    review("1-spec/spec-review-r1-7.md", "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#context-1\n", ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", "iteration=7"]);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /claim .*#context-1\s+INVALID TARGET/);
   });
 
   test("check --ref reads a pipeline from a branch without checking it out", () => {
@@ -511,6 +516,44 @@ describe("rp state tooling", () => {
     writePipelineFile(root, "1-spec/spec.md", "# Spec\n\nChanged on the working tree.\n");
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1", "--ref", "other"), /artifact 1-spec\/spec\.md\s+FRESH\s+reviews: r1:approved\s+APPROVED/);
     assert.match(runRp(root, "check", PIPELINE, "--lanes", "r1"), /r1:approved \(stale\)/);
+  });
+
+  test("a failed report blocks its task only until the plan adjudicates it", () => {
+    approveChain(3);
+    report("3-build", "T1", 1, "failed");
+    let output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /frontier trigger 3-build\/tasks\/T1-report-1\.md/);
+    // Re-dispatch: the plan pins the report (adjudicated); T1 is eligible again.
+    runRp(root, "stamp", pipelineFile("3-build/build-plan.md"), "--pin", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("2-design-doc/design-doc.md"), "--pin", pipelineFile("3-build/tasks/T1-report-1.md"));
+    review("3-build/build-plan-review-r1-2.md", "# Review\n\nVerdict: approved\n", ["3-build/build-plan.md", "3-build/build-plan-research.md", "3-build/tasks/T1.md", "3-build/tasks/T2.md"], ["lane=r1", "iteration=2"]);
+    output = runRp(root, "check", PIPELINE, "--lanes", "r1");
+    assert.match(output, /trigger .*T1-report-1\.md .*resolved/);
+    assert.match(output, /frontier task 3-build\/T1/);
+  });
+
+  test("a task report reviews exactly its task and its pins are immutable", () => {
+    approveChain(3);
+    writePipelineFile(root, "3-build/tasks/T1-report-1.md", "# Task report\n\nOutcome: completed\n");
+    assert.throws(() => runRp(root, "stamp", pipelineFile("3-build/tasks/T1-report-1.md"), "--reviewed", pipelineFile("3-build/tasks/T2.md"), "--mirror"), /reviews exactly its task/);
+    runRp(root, "stamp", pipelineFile("3-build/tasks/T1-report-1.md"), "--reviewed", pipelineFile("3-build/tasks/T1.md"), "--mirror");
+    assert.match(readFileSync(join(root, pipelineFile("3-build/tasks/T1-report-1.md")), "utf8"), /attempt: 1/);
+    assert.throws(() => runRp(root, "stamp", pipelineFile("3-build/tasks/T1-report-1.md"), "--reviewed", pipelineFile("3-build/tasks/T1.md")), /immutable/);
+  });
+
+  test("the episode counts waves since every lane approved together; audited and episode-start are landing facts", () => {
+    runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"));
+    const lanes = "spec=r1,r2";
+    // Alternating approvals never approve the artifact: the episode keeps growing.
+    for (let i = 1; i <= 3; i++) {
+      review(`1-spec/spec-review-r1-${i}.md`, `# Review\n\nVerdict: ${i % 2 ? "approved" : "rejected"}\n`, ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r1", `iteration=${i}`]);
+      review(`1-spec/spec-review-r2-${i}.md`, `# Review\n\nVerdict: ${i % 2 ? "rejected" : "approved"}\n`, ["1-spec/spec.md", "1-spec/spec-research.md"], ["lane=r2", `iteration=${i}`]);
+    }
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", lanes), /counter\s+spec: 3 waves this episode/);
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", lanes), /frontier AUDIT → adjudicate/);
+    runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"), "--set", "audited=3");
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", lanes), /frontier adjudicate 1-spec\/spec\.md/);
+    runRp(root, "stamp", pipelineFile("1-spec/spec.md"), "--pin", pipelineFile("0-intent/intent.md"), "--set", "episode-start=3");
+    assert.match(runRp(root, "check", PIPELINE, "--lanes", lanes), /counter\s+spec: 0 waves this episode|frontier adjudicate/);
   });
 
   test("check --json emits the complete state shape", () => {

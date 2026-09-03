@@ -19,7 +19,7 @@ One mode. It ends the same way whatever the outcome: write your report to the pa
 
 ## Execute
 
-Materials: the **Task** file, the **Plan** (for the E2E test plan and the tasks yours depends on), and — on a re-dispatch — **Your previous report** and the **Adjudication**.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a re-dispatch — **Your previous report** and the **Adjudication**.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
 2. Make the change; verify each acceptance criterion by inspection.

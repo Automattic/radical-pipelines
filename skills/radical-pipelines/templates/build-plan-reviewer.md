@@ -26,7 +26,7 @@
 
 <!-- Delta: the Fresh materials plus -->
 - Your previous review: <path>
-- Diff: git diff <its head> HEAD -- <artifact path> <record path>
+- Diff: git diff <its head> HEAD -- <plan path> <record path> <tasks folder>
 - Adjudication: <record path — sections>
 - Research: <researcher answer>   <!-- when the audit commissioned one -->
 

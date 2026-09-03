@@ -18,10 +18,10 @@ Plans and writes the documentation the shipped code needs — internal and exter
 
 ## Materials
 
-- Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, `3-build/build-summary.md`, the approving build review, the shipped code (the branch), the task reports so far. **Input changes** on re-synthesis, plus unresolved triggers targeting the plan.
+- Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, `3-build/build-plan.md`, `3-build/build-summary.md`, the approving build review, the shipped code (the branch), the task reports so far. **Input changes** on re-synthesis, plus unresolved triggers targeting the plan.
 - Plan **Adjudicate**: the Synthesize materials plus `document-plan.md` and `document-plan-research.md`, and one of **Review lanes** — plan reviews, or a `rejected` document review whose findings become corrective tasks; **Amendment**; or **Task report**.
-- Worker: the **Task** file, the **Plan**, **Write your report to**.
-- Document review **Fresh**: the plan and its tasks, `design-doc.md`, `spec.md`, `build-summary.md`, every report, **Diff** — the documentation since the plan's `head`. **Delta**: the same with **Your previous review** and the **Diff** from its `head`.
+- Worker: the **Task** file, its **Dependencies**, **Write your report to**.
+- Document review **Fresh**: the plan and its tasks, `design-doc.md`, `spec.md`, `build-plan.md`, `build-summary.md`, every report, **Diff** — the commits the reports list. **Delta**: the same with **Your previous review**, the **Diff** being the commits landed since it.
 
 ## Tasks
 

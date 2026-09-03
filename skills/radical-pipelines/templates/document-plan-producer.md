@@ -6,6 +6,10 @@
 - Guardrails: <rules | none>
 - Execution: inspection only
 
+## Write to
+
+<the phase folder — root, or `lane-<k>/` — where your artifact and record land>
+
 ## Mode
 
 <Synthesize | Adjudicate>
@@ -17,6 +21,7 @@
 <!-- Synthesize -->
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
+- Build plan: <build-plan.md path>
 - Build summary: <build-summary.md path>; <approving build review path>
 - Task reports: <one line per report: path>   <!-- none when empty -->
 - Phase folder: <one line per existing file: path>
