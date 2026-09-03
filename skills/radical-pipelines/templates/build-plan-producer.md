@@ -26,6 +26,7 @@
 <!-- Adjudicate: exactly one of -->
 - Review lanes: <one line per review: lane — path>
 - Amendment: <trigger path>; <origin chain paths>
+- Refutation: <refuting review path>; <record sections>
 - Task report: <report path>; <task id>
 
 ## Owner statements

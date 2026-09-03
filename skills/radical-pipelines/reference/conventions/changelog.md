@@ -27,7 +27,7 @@ Migrate from version 0.
 
 ### Model tables
 
-Replace the model table in each tool section with one row per current profile:
+Rename the rows of the model table in each tool section — `spec-lead` → `spec-producer`, `design-doc-lead` → `design-doc-producer`, `build-planner` → `build-plan-producer`, `build-writer-<kind>` → `build-worker-<kind>`, `spec-researcher` and `design-doc-researcher` → `researcher`; drop `spec-consolidator`, `design-doc-consolidator`, and the document-phase rows — leaving one row per current profile:
 
 - `spec-producer`
 - `spec-reviewer`

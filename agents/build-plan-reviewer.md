@@ -50,7 +50,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Coverage** — every decision and every acceptance criterion is served by a task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
 - **Self-containment** — a worker can execute each block without a design decision; `Type` matches the work; dependencies are real and acyclic.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
-- **Fidelity** — `build-plan.md` reflects `build-plan-research.md`; ids are stable.
+- **Fidelity** — `build-plan.md` reflects `build-plan-research.md`; ids are stable; the plan carries no review references, adjudication trails, or superseded text.
 - **Labeling** — every claim the plan rests on is verified with a citation or assumed with a condition; a producer presenting its own experiments as evidence is a finding — except a reproduced task report.
 
 **Checking**

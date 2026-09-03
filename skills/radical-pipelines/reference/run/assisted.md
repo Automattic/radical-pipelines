@@ -4,7 +4,7 @@ You drive one phase — spec or design doc — directly with the owner, through 
 
 ## Rules
 
-- The artifacts are the same files, in the same formats, under the same rules as the autonomous phase: read the phase's producer profile (`agents/<phase>-producer.md`) and follow its Rules and Formats. Its execution rule binds you too: inspection only.
+- The artifacts are the same files, in the same formats, under the same rules as the autonomous phase: read the phase's producer profile — `agents/<phase>-producer.md` at the root of this skill's repository — and follow its Rules and Formats. Its execution rule binds you too: inspection only.
 - Every owner answer is recorded in the record verbatim, attributed `owner`. Your own synthesis and researcher answers are attributed to their author. Only quoted owner words become owner territory.
 - The owner reviews the artifacts before anything is committed.
 

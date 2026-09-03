@@ -24,6 +24,7 @@
 <!-- Adjudicate -->
 - Review lanes: <one line per review: lane — path>
 - Amendment: <trigger path>; <origin chain: review and record paths>
+- Refutation: <refuting review path>; <record sections>
 - Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
 
 <!-- Consolidate -->

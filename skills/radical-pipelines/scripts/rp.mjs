@@ -276,14 +276,18 @@ function cmdCheck(args) {
   for (const t of triggers) {
     if (t.kind !== "claim") continue;
     const targetPath = t.target.split("#")[0];
+    const reviewedPins = t.review?.data.get("reviewed");
+    const claimFresh = Array.isArray(reviewedPins) && reviewedPins.length > 0 && reviewedPins.every((p) => pinState(abs, p).state === "fresh");
     const res = resolvedBy(t);
+    const current = fileIdentity(resolve(abs, targetPath));
+    const pinned = t.targetIdentity;
+    const unchanged = pinned && current && (current.startsWith(pinned) || pinned.startsWith(current));
     let state;
-    if (res) state = `resolved (${res})`;
+    if (pinned && !unchanged) state = "superseded (target changed)";
+    else if (res) state = `resolved (${res})`;
+    else if (!claimFresh) state = "moot (claiming artifact changed)";
     else {
-      const current = fileIdentity(resolve(abs, targetPath));
-      const pinned = t.targetIdentity;
-      const unchanged = pinned && current && (current.startsWith(pinned) || pinned.startsWith(current));
-      state = !pinned ? "pending (no target-identity)" : unchanged ? "PENDING" : "superseded (target changed)";
+      state = !pinned ? "pending (no target-identity)" : "PENDING";
       if (state === "PENDING") {
         if (targetPath.endsWith("0-intent/intent.md")) state = "PENDING — owner escalation";
         if (claimTargets.has(t.rel.split("#")[0])) state = "suspended";

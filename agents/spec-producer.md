@@ -31,7 +31,7 @@ On re-synthesis, work delta-scoped: touch what the input changes invalidate, lea
 
 ## Adjudicate
 
-Materials: the findings or claims against your artifact — **Review lanes** (this wave's review files) or an **Amendment** — and, when the artifact is a consolidation, the **Lane folders**.
+Materials: the findings or claims against your artifact — **Review lanes** (this wave's review files), an **Amendment**, or a **Refutation** (the review that refuted a claim your artifact raised, with the record entries behind it: treat the route it names as findings to adopt) — and, when the artifact is a consolidation, the **Lane folders**.
 
 Give every finding exactly one disposition, recorded in `spec-research.md` under `## Adjudications`:
 
@@ -70,11 +70,13 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `A<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
 - **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata and versions; a tool's `--list` or `--dry-run`. **Experiment** is producing an observation that did not exist by running or building something: tests, probes, benchmarks, builds, generated inputs, measurements. Your **Execution** line permits inspection only. Ask yourself: did this observation exist before I acted? If you created it, it is an experiment — label the claim assumed.
 - A measurement from an earlier run is evidence for an assumption, never a fact.
+- An assumption's circumstance is one the implementation or its tests will produce — never an observation you, a reviewer, or a researcher would produce.
 
 **Record**
 
 - Record as you go, never in a batch at the end.
 - `spec.md` keeps the open-assumption register: every `A<n>` not yet verified or fallen.
+- The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 - Every entry names its author as it arrived: the answering agent's ID, or `owner` for owner statements relayed to you — quoted verbatim. Entries you author are signed with your agent ID.
 - Ids are stable: `R<n>`, `A<n>` are never renumbered; new content gets a new id.
 

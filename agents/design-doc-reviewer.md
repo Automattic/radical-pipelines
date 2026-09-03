@@ -65,7 +65,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Coverage** — every requirement is served by a decision; every spec assumption is closed by inspection or carried with its id.
 - **Soundness** — each decision's mechanism can satisfy the requirements it serves given the codebase as inspected; alternatives are real and their rejection reasoned.
 - **Altitude** — the design decides mechanisms, not task breakdowns or code; it restates no requirement.
-- **Fidelity** — `design-doc.md` faithfully reflects `design-doc-research.md`; ids are stable.
+- **Fidelity** — `design-doc.md` faithfully reflects `design-doc-research.md`; ids are stable; the artifact carries no review references, adjudication trails, or superseded text.
 
 **Checking**
 

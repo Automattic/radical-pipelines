@@ -65,7 +65,7 @@ An intent item outside its "Assumptions / directions to explore" section, or a r
 `rp check <pipeline folder>` reports, in this order:
 
 1. **Unresolved triggers** → work on their target, before anything else.
-2. **Pending claims** — a lane's latest verdict is `unsatisfiable` and its target's identity is unchanged. Target in owner territory → a pending owner escalation. Target itself the subject of a pending claim → suspended. Otherwise → work on the target.
+2. **Claims** — a lane's latest verdict is `unsatisfiable` and its `reviewed` pins are fresh (a claim about a changed artifact is moot). Resolved by refutation (a review of the target approved citing it) → work on the claiming artifact with the refutation. Pending (target identity unchanged): target in owner territory → a pending owner escalation; target itself the subject of a pending claim → suspended; otherwise → work on the target. `rp check` flags intent targets; for a record entry, read its attribution.
 3. **Phases 1 → 3**, per artifact: missing → produce; any pin stale → produce with the delta; not approved → review wave. Approved means every declared lane's latest verdict is `approved` with `reviewed` pins matching current identities. In build, with the plan approved and fresh: tasks outside the done-set → dispatch; all done → build review, fresh iff `git diff --quiet <head> HEAD -- . ':(exclude)<pipelines folder root>'` succeeds.
 4. **Complete** through the target phase → close-out.
 

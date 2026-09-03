@@ -66,7 +66,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding.
 - **Scope** — nothing the record does not ground.
 - **Acceptance criteria** — testable, covering the requirements' edge cases.
-- **Fidelity** — `spec.md` faithfully reflects `spec-research.md`; the sections agree with each other; ids are stable.
+- **Fidelity** — `spec.md` faithfully reflects `spec-research.md`; the sections agree with each other; ids are stable; the artifact carries no review references, adjudication trails, or superseded text.
 
 **Checking**
 

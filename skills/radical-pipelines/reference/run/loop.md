@@ -14,6 +14,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `rp check` reports                                   | Dispatch                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Unresolved trigger targeting an artifact             | That artifact's producer, mode Adjudicate, with the trigger under **Amendment** (external amendment or claim) or **Task report** |
+| Claim resolved by refutation                         | The claiming artifact's producer, mode Adjudicate, with the refuting review under **Refutation**                |
 | Pending claim, target in owner territory             | Owner escalation (below)                                                                                       |
 | Pending claim, target suspended                      | Nothing; resolve the claim above it first                                                                      |
 | Artifact missing                                     | Its producer, mode Synthesize                                                                                  |
