@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
@@ -14,6 +15,7 @@ import plugin, {
   buildStatusPayload,
   disarmLoopTimer,
   extractLastText,
+  fetchRequest,
   formatStructuredError,
   getSessionInbox,
   getSessionMessages,
@@ -925,7 +927,89 @@ describe("readServiceRecordFile", () => {
   });
 });
 
-describe("HTTP client over node:http", () => {
+describe("HTTP client", () => {
+  /** Start a local HTTP server on an ephemeral port; returns its base URL and a closer. */
+  function listen(handler) {
+    const server = createServer(handler);
+    return new Promise((resolve) => {
+      server.listen(0, "127.0.0.1", () => {
+        resolve({
+          baseURL: `http://127.0.0.1:${server.address().port}`,
+          close: () => new Promise((done) => server.close(done)),
+          server,
+        });
+      });
+    });
+  }
+
+  test("fetchRequest sends the method, headers, and body, and parses the JSON response", async () => {
+    let received;
+    const { baseURL, close } = await listen((req, res) => {
+      let data = "";
+      req.on("data", (chunk) => {
+        data += chunk;
+      });
+      req.on("end", () => {
+        received = { method: req.method, url: req.url, headers: req.headers, body: data };
+        res.writeHead(201, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ data: { id: "ses_1" } }));
+      });
+    });
+    try {
+      const result = await requestServer(
+        { baseURL, password: "secret" },
+        "POST",
+        "/api/session/ses_1/rename",
+        { title: "rp:run:name" },
+      );
+
+      assert.deepEqual(result, { status: 201, body: { data: { id: "ses_1" } } });
+      assert.equal(received.method, "POST");
+      assert.equal(received.url, "/api/session/ses_1/rename");
+      assert.equal(received.headers.authorization, buildBasicAuthHeader("secret"));
+      assert.equal(received.headers["content-type"], "application/json");
+      assert.equal(received.body, JSON.stringify({ title: "rp:run:name" }));
+    } finally {
+      await close();
+    }
+  });
+
+  test("fetchRequest resolves an empty response body to undefined", async () => {
+    const { baseURL, close } = await listen((req, res) => {
+      res.writeHead(204);
+      res.end();
+    });
+    try {
+      const result = await requestServer({ baseURL, password: "secret" }, "DELETE", "/api/session/ses_1");
+      assert.deepEqual(result, { status: 204, body: undefined });
+    } finally {
+      await close();
+    }
+  });
+
+  test("fetchRequest rejects once the timeout passes without a response, instead of pending forever", async () => {
+    const pending = [];
+    const { baseURL, close, server } = await listen((req, res) => {
+      pending.push(res);
+    });
+    try {
+      let settled = false;
+      const request = fetchRequest(
+        new URL("/api/session/active", baseURL),
+        { method: "GET", headers: {} },
+        50,
+      ).finally(() => {
+        settled = true;
+      });
+      await assert.rejects(request, (error) => error.name === "TimeoutError");
+      assert.equal(settled, true);
+    } finally {
+      for (const res of pending) res.destroy();
+      server.closeAllConnections();
+      await close();
+    }
+  });
+
   test("buildBasicAuthHeader base64-encodes opencode:<password>", () => {
     assert.equal(
       buildBasicAuthHeader("secret"),
@@ -955,7 +1039,7 @@ describe("HTTP client over node:http", () => {
     assert.deepEqual(result, { status: 200, body: { ok: true } });
   });
 
-  test("requestServer JSON-encodes a POST body and uses only the injected request function (no real node:http call)", async () => {
+  test("requestServer JSON-encodes a POST body and uses only the injected request function (no real HTTP call)", async () => {
     const calls = [];
     const requestFn = async (url, init) => {
       calls.push({ url, init });
@@ -973,6 +1057,7 @@ describe("HTTP client over node:http", () => {
     assert.equal(calls[0].init.method, "POST");
     assert.equal(calls[0].init.body, JSON.stringify({ title: "rp:run:name" }));
     assert.equal(calls[0].init.headers["Content-Type"], "application/json");
+    assert.equal(calls[0].init.headers["Content-Length"], Buffer.byteLength(calls[0].init.body));
   });
 });
 
@@ -3276,6 +3361,79 @@ describe("armLoopTimer / disarmLoopTimer", () => {
     assert.ok(replacementCalls > 0, "expected the replacement loop to tick");
     assert.equal(maxActive, 1);
   });
+
+  test("abandons a tick still pending after the deadline, records it, marks it cancelled, and keeps ticking", async () => {
+    globalThis[LOOP_TICK_LOG_KEY] = [];
+    globalThis[ERROR_LOG_KEY] = [];
+    const entry = { id: "loop_timer_test_deadline", interval: 5, targetSession: "ses_target" };
+    const cancellationChecks = [];
+    let calls = 0;
+    let releaseFirst;
+    const firstRelease = new Promise((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    await armLoopTimer(
+      entry,
+      async (_entry, isCancelled) => {
+        calls++;
+        if (calls === 1) {
+          await firstRelease;
+          cancellationChecks.push(isCancelled());
+        }
+      },
+      30,
+    );
+
+    const deadline = Date.now() + 2_000;
+    while (calls < 2 && Date.now() < deadline) {
+      await delay(10);
+    }
+    assert.ok(calls >= 2, "the loop must re-arm after abandoning the hung tick");
+    assert.ok(
+      globalThis[LOOP_TICK_LOG_KEY].some(
+        (tick) => tick.loopID === entry.id && tick.targetSession === "ses_target" && tick.outcome === "timeout",
+      ),
+      `expected a timeout tick, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
+    );
+    assert.ok(
+      globalThis[ERROR_LOG_KEY].some(
+        (error) => error.type === "loop.tick.timeout" && error.loopID === entry.id && error.timeoutMs === 30,
+      ),
+      `expected a loop.tick.timeout error, got: ${JSON.stringify(globalThis[ERROR_LOG_KEY])}`,
+    );
+
+    releaseFirst();
+    await delay(10);
+    assert.deepEqual(cancellationChecks, [true], "the abandoned tick must see itself cancelled");
+
+    await disarmLoopTimer(entry.id);
+  });
+
+  test("disarm resolves after the deadline even when the in-flight tick never settles", async () => {
+    globalThis[LOOP_TICK_LOG_KEY] = [];
+    globalThis[ERROR_LOG_KEY] = [];
+    const entry = { id: "loop_timer_test_hung", interval: 5 };
+    let started;
+    const startedPromise = new Promise((resolve) => {
+      started = resolve;
+    });
+
+    await armLoopTimer(
+      entry,
+      () => {
+        started();
+        return new Promise(() => {});
+      },
+      40,
+    );
+    await startedPromise;
+
+    const disarmStartedAt = Date.now();
+    await disarmLoopTimer(entry.id);
+    assert.ok(Date.now() - disarmStartedAt < 1_000, "disarm must be bounded by the tick deadline");
+    assert.equal(globalThis[LOOP_TIMERS_KEY].has(entry.id), false);
+  });
 });
 
 describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", () => {
@@ -3412,7 +3570,65 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     await tools.get("rp_loop_cancel").execute({ id: loopID }, {});
   });
 
-  test("waits for an in-flight tick even when deleting the registry entry fails", async () => {
+  test("returns while a tick is still in flight; the abandoned tick sees the cancellation and injects nothing", async () => {
+    globalThis[LOOP_TICK_LOG_KEY] = [];
+    const dataHome = freshDir();
+    const { ctx, tools, sessions } = createFakeCtx();
+    sessions.set("ses_caller", { id: "ses_caller" });
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return { id: "msg_probe" };
+    };
+    let readStarted;
+    let releaseRead;
+    const readStartedPromise = new Promise((resolve) => {
+      readStarted = resolve;
+    });
+    const readResponse = new Promise((resolve) => {
+      releaseRead = resolve;
+    });
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: {
+          XDG_DATA_HOME: dataHome,
+          RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999",
+          OPENCODE_PASSWORD: "pw",
+        },
+        readServiceRecord: () => null,
+        requestFn: async (url) => {
+          if (url.pathname === "/api/session/active") {
+            readStarted();
+            return readResponse;
+          }
+          return { status: 200, body: { data: [] } };
+        },
+      }),
+    );
+
+    const startResult = await tools.get("rp_loop_start").execute(
+      { interval: 5, prompt: "check status" },
+      { sessionID: "ses_caller" },
+    );
+    const loopID = startResult.output.id;
+    await readStartedPromise;
+
+    const result = await tools.get("rp_loop_cancel").execute({ id: loopID }, {});
+    assert.deepEqual(result.output, { cancelled: true });
+    assert.deepEqual((await tools.get("rp_loop_list").execute({}, {})).output, []);
+
+    releaseRead({ status: 200, body: { data: {} } });
+    await clearAllLoopTimers();
+    assert.equal(promptCalls.length, 0, "a tick abandoned by cancel must not inject");
+    assert.ok(
+      globalThis[LOOP_TICK_LOG_KEY].some((tick) => tick.loopID === loopID && tick.outcome === "cancelled"),
+      `expected the abandoned tick to record itself cancelled, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
+    );
+  });
+
+  test("disarms the loop and rejects without waiting for the in-flight tick when deleting the registry entry fails", async () => {
     const dataHome = freshDir();
     const { ctx, tools, sessions } = createFakeCtx();
     sessions.set("ses_caller", { id: "ses_caller" });
@@ -3450,22 +3666,10 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     await readStartedPromise;
     writeFileSync(resolveLoopRegistryPath({ XDG_DATA_HOME: dataHome }), "{");
 
-    let settled = false;
-    const cancellation = tools.get("rp_loop_cancel").execute({ id: loopID }, {});
-    cancellation.then(
-      () => {
-        settled = true;
-      },
-      () => {
-        settled = true;
-      },
-    );
-    const rejected = assert.rejects(cancellation, SyntaxError);
-    await delay(10);
-    assert.equal(settled, false, "cancellation must await the in-flight tick before rejecting");
+    await assert.rejects(tools.get("rp_loop_cancel").execute({ id: loopID }, {}), SyntaxError);
+    assert.equal(globalThis[LOOP_TIMERS_KEY].get(loopID).cancelled, true, "the loop must be disarmed");
 
     releaseRead({ status: 200, body: { data: {} } });
-    await rejected;
   });
 });
 
