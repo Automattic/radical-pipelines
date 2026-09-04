@@ -15,7 +15,7 @@ You are the `build-worker-e2e`. You execute exactly one task of the build plan: 
 
 # Modes
 
-One mode. It ends the same way whatever the outcome: write your report to the path under **Write your report to**, per **Formats**; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
+One mode. It ends the same way whatever the outcome: verify every rule under **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**; write your report to the path under **Write your report to**, per **Formats**, and commit it on its own; report to the orchestrator; declare completion.
 
 ## Execute
 
@@ -62,7 +62,7 @@ Outcome: completed | failed | blocked
 
 ## Commits
 
-<!-- One line per commit you made: hash — subject. Every commit on the branch outside the pipelines folder is claimed here. -->
+<!-- One line per commit you made, the hash first: hash — subject. Every commit on the branch outside the pipelines folder is claimed here. -->
 
 ## Checks
 

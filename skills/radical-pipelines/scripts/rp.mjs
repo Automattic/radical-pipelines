@@ -108,10 +108,11 @@ export function projectBody(body, rel = "") {
   // A task file's `Depends on:` line: `none`, or task ids.
   const dep = body.match(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.+)$/m);
   if (dep) p.set("depends", [...dep[1].matchAll(/T\d+/g)].map((m) => m[0]));
-  // A task report's `## Commits` section: one commit hash per line.
-  const commits = body.match(/^## Commits\s*\n([\s\S]*?)(?=^## |\s*$)/m);
+  // A task report's `## Commits` section, up to the next heading: every line that starts with a
+  // commit hash — after a bullet or a backtick — whatever follows it.
+  const commits = body.match(/^## Commits[^\S\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   if (commits) {
-    const hashes = [...commits[1].matchAll(/^\s*(?:-\s*)?([0-9a-f]{7,40})\b/gm)].map((m) => m[1]);
+    const hashes = [...commits[1].matchAll(/^[^\S\n]*(?:[-*][^\S\n]*)?`?([0-9a-f]{7,40})\b/gm)].map((m) => m[1]);
     if (hashes.length) p.set("commits", hashes);
   }
   const report = rel.match(REPORT);
@@ -201,6 +202,14 @@ function cmdStamp(args) {
     fm.set(key, s.slice(i + 1));
   }
   if (args.mirror) mirrorBody(body, fm, base, rel);
+  // A report names commits that already exist.
+  for (const h of [].concat(fm.get("commits") ?? [])) {
+    try {
+      execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, stdio: "ignore" });
+    } catch {
+      die(`stamp: ## Commits names a commit that does not exist: ${h}`);
+    }
+  }
   const report = rel.match(REPORT);
   if (report) {
     // A report reviews its task and the tasks it depends on; its attempt is its filename's.

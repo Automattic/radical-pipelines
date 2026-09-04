@@ -564,6 +564,25 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(check(root, "--target-phase", "3"), /unclaimed/);
   });
 
+  test("a report's Commits section is mirrored whole, whatever the line format, and names only commits that exist", () => {
+    approveChain(3);
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "pipeline");
+    const shas = [];
+    for (const [i, subject] of ["first", "second", "third"].entries()) {
+      writeFileSync(join(root, `src${i}.js`), `${i}\n`);
+      git(root, "add", "-A");
+      git(root, "commit", "--quiet", "-m", subject);
+      shas.push(git(root, "rev-parse", "--short=10", "HEAD").trim());
+    }
+    write(root, "3-build/tasks/T1-report-1.md", `# Task report\n\nOutcome: completed\n\n## Commits\n\n- ${shas[0]} — first\n\`${shas[1]}\` second, in backticks\n${shas[2]} third, plain\n\n## Checks\n\n- 1234567 is not a commit: prose stays prose\n`);
+    rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
+    assert.match(read(root, "3-build/tasks/T1-report-1.md"), new RegExp(`commits:\\n  - ${shas[0]}\\n  - ${shas[1]}\\n  - ${shas[2]}\\n`));
+    assert.doesNotMatch(check(root, "--target-phase", "3"), /unclaimed/);
+    write(root, "3-build/tasks/T2-report-1.md", "# Task report\n\nOutcome: completed\n\n## Commits\n\n- 0badc0ffee1 — never made\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror"), /names a commit that does not exist: 0badc0ffee1/);
+  });
+
   test("CRLF frontmatter is parsed, and symlinked paths are refused", () => {
     write(root, "1-spec/spec.md", "---\r\nnote: x\r\n---\r\n# Spec\r\n");
     stampSpec();

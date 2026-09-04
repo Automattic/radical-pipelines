@@ -30,13 +30,13 @@ Frontmatter holds only pins, mirrors, and landing facts. A mirror copies a decla
 | `origin`    | anything born from something | the issue reference; an external source; the trigger a review responds to; a list when several |
 | `recurs`    | reviews                      | mirror of `Prior finding: <review>#<issue>, resolution failed`           |
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
-| `commits`   | task reports                 | mirror of `## Commits` — the commits the attempt made                    |
+| `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists |
 | `head`      | files with pins              | the commit a stamp with pins observed: the diff base for the next delta review or re-synthesis |
 | `attempt`, `outcome` | task reports        | the attempt, from the filename; `completed` \| `failed` \| `blocked`     |
 | `audited-<series>` | artifacts             | the wave an audit covered, per review series (`spec`, `build-plan`, `build`, …) |
 | `episode-start-<series>` | artifacts       | the wave a new episode starts at, after the valve or new input           |
 
-A stamp follows the commit of what it stamps and is committed on top of it, on the branch the work landed on. Every commit on the branch outside the pipelines folder is claimed by a task report.
+A stamp follows the commit of what it stamps and is committed on top of it, on the branch the work landed on. Every commit on the branch outside the pipelines folder is claimed by a task report, which lands in a commit of its own after the commits it names.
 
 ## Pins by file
 
