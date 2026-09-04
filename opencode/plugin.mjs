@@ -165,6 +165,248 @@ function resolveCurrentSpawn(name) {
 }
 
 /**
+ * `globalThis` key backing the process-wide record of session parentage.
+ * Shares the re-import rationale of `LEDGER_KEY`.
+ */
+const SESSION_PARENTAGE_KEY = Symbol.for("radical-pipelines.opencode.sessionParentage");
+
+/**
+ * Fetch the process-wide parentage record, creating it on first use.
+ *
+ * @returns {Map<string, boolean>} Session ID to whether opencode created it
+ *   as the child of another session. Absence means unobserved, which is not
+ *   the same as unparented (see `resolveToolAccess`).
+ */
+function getSessionParentage() {
+  if (!globalThis[SESSION_PARENTAGE_KEY]) {
+    globalThis[SESSION_PARENTAGE_KEY] = new Map();
+  }
+  return globalThis[SESSION_PARENTAGE_KEY];
+}
+
+/**
+ * `globalThis` key backing the in-flight parentage reads, so concurrent
+ * callers asking about one session share a single answer.
+ */
+const SESSION_PARENTAGE_PENDING_KEY = Symbol.for("radical-pipelines.opencode.sessionParentagePending");
+
+/**
+ * Fetch the in-flight parentage reads, creating the map on first use.
+ *
+ * @returns {Map<string, {answer: Promise<boolean | undefined>}>} Session ID
+ *   to the read currently answering for it. The wrapper object, not the
+ *   promise, is the identity a deletion invalidates.
+ */
+function getPendingParentage() {
+  if (!globalThis[SESSION_PARENTAGE_PENDING_KEY]) {
+    globalThis[SESSION_PARENTAGE_PENDING_KEY] = new Map();
+  }
+  return globalThis[SESSION_PARENTAGE_PENDING_KEY];
+}
+
+/**
+ * `globalThis` key backing the insertion-ordered set of remembered root
+ * sessions — the cached half of the parentage record. Shares the re-import
+ * rationale of `LEDGER_KEY`.
+ */
+const SESSION_ROOTS_KEY = Symbol.for("radical-pipelines.opencode.sessionRoots");
+
+/**
+ * Fetch the remembered root sessions, creating the set on first use.
+ *
+ * @returns {Set<string>} Root session IDs in insertion order, so the oldest
+ *   is evicted first without scanning the parentage record.
+ */
+function getRootSessions() {
+  if (!globalThis[SESSION_ROOTS_KEY]) {
+    globalThis[SESSION_ROOTS_KEY] = new Set();
+  }
+  return globalThis[SESSION_ROOTS_KEY];
+}
+
+/**
+ * How many root sessions are cached before the oldest is dropped.
+ *
+ * The parentage record holds two kinds of fact, and they are retained by
+ * different rules because they are not the same kind of thing:
+ *
+ * - A **root** entry is a cache. Losing one costs a single read, so their
+ *   number is what this bounds.
+ * - A **subagent** entry is the access boundary itself. Dropping one and
+ *   then failing to read its replacement answer grants that subagent every
+ *   tool — reachable in practice, not in theory — so a subagent is held
+ *   until its deletion is observed, and no count releases it.
+ *
+ * Bounding the record as a whole would collapse that distinction and let
+ * the unbounded population starve the bounded one: subagents alone would
+ * fill the budget and leave nothing cached. opencode reclaims a subagent
+ * when its *parent* is deleted rather than when its task returns, so the
+ * subagents of a terminated agent are reclaimed while those of a session
+ * that is never deleted accumulate.
+ */
+const ROOT_SESSION_CACHE_CAP = 4096;
+
+/**
+ * Remember one session's parentage, bounding what is retained.
+ *
+ * @param {string} sessionID The session to record.
+ * @param {boolean} child Whether opencode created it under a parent.
+ * @returns {void}
+ */
+function recordParentage(sessionID, child) {
+  const parentage = getSessionParentage();
+  const roots = getRootSessions();
+  parentage.delete(sessionID);
+  roots.delete(sessionID);
+  parentage.set(sessionID, child);
+  if (!child) {
+    roots.add(sessionID);
+  }
+  while (roots.size > ROOT_SESSION_CACHE_CAP) {
+    const oldest = roots.values().next().value;
+    roots.delete(oldest);
+    parentage.delete(oldest);
+  }
+}
+
+/**
+ * Remember a session's parentage, as reported by `session.created`.
+ *
+ * A session opencode creates with a `parentID` is a subagent: another
+ * session delegated to it inside its own turn, and it delivers its result by
+ * returning, not by addressing anyone. `resolveToolAccess` needs that fact.
+ *
+ * A creation *without* a `parentID` is recorded too — it is positive
+ * evidence of a root session, and recording it spares that session the
+ * lookup its absence would otherwise cost.
+ *
+ * A fork is not a child: opencode emits `session.forked` for one and records
+ * its lineage as a fork of its origin, leaving parentage null. Reading only
+ * `session.created` therefore leaves a forked orchestrator a root session.
+ *
+ * @param {{type?: string, data?: {sessionID?: string, parentID?: string}}} event
+ *   An opencode event.
+ * @returns {void}
+ */
+function recordSessionParent(event) {
+  const sessionID = event?.data?.sessionID;
+  if (typeof sessionID !== "string") {
+    return;
+  }
+  if (event.type === "session.created") {
+    recordParentage(sessionID, typeof event.data.parentID === "string");
+    return;
+  }
+  // A deleted session's ID answers for nothing, and a daemon that kept every
+  // one it ever saw would grow for as long as it runs.
+  if (event.type === "session.deleted") {
+    getSessionParentage().delete(sessionID);
+    getRootSessions().delete(sessionID);
+    // Also drop any read still in flight for it: that read began before the
+    // deletion and would otherwise reinsert the session it just answered
+    // for. `rp_terminate` produces exactly that ordering.
+    getPendingParentage().delete(sessionID);
+  }
+}
+
+/**
+ * The one RP tool a spawned agent needs: its profile requires it to message
+ * its requester and the orchestrator, and nothing else.
+ */
+const AGENT_TOOL = "rp_send";
+
+/**
+ * Decide which RP tools a calling session may use.
+ *
+ * Three callers exist, told apart by two facts a caller cannot forge — the
+ * parentage opencode reports for the session, and the ledger RP writes when
+ * it spawns:
+ *
+ * - A **subagent** gets none. It returns its result to whoever delegated to
+ *   it, which is the contract it was created under; reaching past that to
+ *   address a session by ID is not part of its work.
+ * - A **spawned agent** gets `rp_send` alone. Driving a run — spawning,
+ *   terminating, health loops, answering permission asks — belongs to the
+ *   session that spawned it.
+ * - **Anything else** — the orchestrator, which nothing spawned, and the
+ *   owner's own session — gets all of them.
+ *
+ * Parentage is normally already known from the event stream, but an event
+ * can be missed: the subscription replays no history, and it resubscribes
+ * after a dropped stream rather than recovering what fell in the gap. An
+ * unobserved session is therefore *asked about* rather than assumed
+ * unparented — otherwise a subagent born in that gap, or one whose first
+ * tool call outran its own creation event, would silently hold every tool.
+ * The answer is remembered, so a session is asked about at most once.
+ *
+ * Only an unanswerable question opens the boundary. Any read that fails to
+ * answer counts — an unreachable server, and equally one that replies 500 or
+ * 404 — after which an unobserved caller is treated as a root session,
+ * because refusing every caller RP cannot classify would stop the
+ * orchestrator too.
+ *
+ * The ledger lives in daemon memory, so after a restart a spawned agent
+ * reads as unledgered and widens into the last case until it is spawned
+ * again. That relaxes a least-privilege boundary, never the subagent one.
+ *
+ * @param {string} sessionID The calling session's authoritative ID, as
+ *   opencode supplies it to a tool's `execute`.
+ * @param {{ readParentage: (sessionID: string) => Promise<boolean | undefined> }} deps
+ *   `readParentage` answers whether an unobserved session has a parent, or
+ *   `undefined` when it cannot be determined.
+ * @returns {Promise<"none" | "send-only" | "full">} The caller's access.
+ */
+async function resolveToolAccess(sessionID, { readParentage }) {
+  let child = getSessionParentage().get(sessionID);
+  if (child === undefined) {
+    // One read answers every caller waiting on the same session: separate
+    // reads could disagree — an unreadable one beside a successful one —
+    // and hand the same caller a different verdict depending on which it
+    // happened to hold.
+    const pending = getPendingParentage();
+    let inFlight = pending.get(sessionID);
+    if (!inFlight) {
+      inFlight = {};
+      inFlight.answer = (async () => {
+        try {
+          return await readParentage(sessionID);
+        } catch {
+          return undefined;
+        }
+      })();
+      pending.set(sessionID, inFlight);
+    }
+    const read = await inFlight.answer;
+    // The read stands only if nothing invalidated it while it was open. A
+    // deletion drops it from the pending map, and its answer — about a
+    // session that no longer exists — is then discarded rather than
+    // remembered.
+    const current = pending.get(sessionID) === inFlight;
+    if (current) {
+      pending.delete(sessionID);
+    }
+    // An event that landed while the read was in flight is authoritative:
+    // the read answers only for a session still unaccounted for.
+    child = getSessionParentage().get(sessionID);
+    if (child === undefined && read !== undefined) {
+      // An invalidated read is still the truthful answer for the caller
+      // holding it — it is only unfit to be *remembered*, having been
+      // overtaken by the deletion of the session it describes. Classifying
+      // from it anyway is what keeps an invalidated read from resolving to
+      // the widest access by default.
+      if (current) {
+        recordParentage(sessionID, read);
+      }
+      child = read;
+    }
+  }
+  if (child) {
+    return "none";
+  }
+  return lookupSpawn(sessionID) ? "send-only" : "full";
+}
+
+/**
  * Check whether an agent name is one opencode currently recognizes.
  *
  * `rp_spawn` calls this against `ctx.agent.list()` before creating a session,
@@ -209,6 +451,24 @@ function isSessionNotFoundError(error) {
     SESSION_NOT_FOUND_TAGS.has(error?.name) ||
     SESSION_NOT_FOUND_TAGS.has(error?._tag)
   );
+}
+
+/**
+ * Build the error a non-2xx read of a *session-addressed* endpoint throws.
+ *
+ * The status travels on the error so a caller can tell a target that no
+ * longer exists from a transport failure it should keep retrying (see
+ * `isSessionNotFoundError`). The message stays the request line, which is
+ * what the bounded error log surfaces.
+ *
+ * @param {string} request The request line, e.g. `"GET /api/session/x/inbox"`.
+ * @param {number} status The HTTP status the server answered with.
+ * @returns {Error} The error to throw, carrying `status`.
+ */
+function sessionReadError(request, status) {
+  const error = new Error(`${request} returned ${status}`);
+  error.status = status;
+  return error;
 }
 
 /**
@@ -916,6 +1176,14 @@ async function runLoopTick(
       }
     }
   } catch (error) {
+    // A target that no longer exists is terminal, not transient: no later
+    // tick can find it again, so the loop reports it once and its owner
+    // retires it (see `setup`) instead of failing on every interval forever.
+    if (isSessionNotFoundError(error)) {
+      const missing = { outcome: "target-missing" };
+      onOutcome(missing);
+      return missing;
+    }
     const failure = { outcome: "failed", error: String(error) };
     onOutcome(failure);
     throw error;
@@ -1473,13 +1741,40 @@ async function getSessionUpdatedAt(server, sessionID, requestFn) {
     requestFn,
   );
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`GET /api/session/${sessionID} returned ${response.status}`);
+    throw sessionReadError(`GET /api/session/${sessionID}`, response.status);
   }
   const updated = response.body?.data?.time?.updated;
   if (!Number.isFinite(updated)) {
     throw new Error(`GET /api/session/${sessionID} response is missing time.updated`);
   }
   return updated;
+}
+
+/**
+ * Read whether a session was created as the child of another.
+ *
+ * The durable answer to the question `session.created` normally answers,
+ * for the sessions whose event was never seen (see `resolveToolAccess`).
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session ID to read.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<boolean>} `true` when the stored session names a parent.
+ * @throws {Error} On a non-2xx response, carrying its status.
+ */
+async function readSessionParentage(server, sessionID, requestFn) {
+  const response = await requestServer(
+    server,
+    "GET",
+    `/api/session/${sessionID}`,
+    undefined,
+    requestFn,
+  );
+  if (response.status < 200 || response.status >= 300) {
+    throw sessionReadError(`GET /api/session/${sessionID}`, response.status);
+  }
+  return typeof response.body?.data?.parentID === "string";
 }
 
 /**
@@ -1499,7 +1794,7 @@ async function getSessionUpdatedAt(server, sessionID, requestFn) {
 async function getSessionInbox(server, sessionID, requestFn) {
   const response = await requestServer(server, "GET", `/api/session/${sessionID}/inbox`, undefined, requestFn);
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`GET /api/session/${sessionID}/inbox returned ${response.status}`);
+    throw sessionReadError(`GET /api/session/${sessionID}/inbox`, response.status);
   }
   return response.body?.data ?? [];
 }
@@ -1530,7 +1825,7 @@ async function getSessionMessages(server, sessionID, requestFn) {
     requestFn,
   );
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`GET /api/session/${sessionID}/message returned ${response.status}`);
+    throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
   }
   return response.body?.data ?? [];
 }
@@ -3613,6 +3908,48 @@ function toToolResult(value) {
 }
 
 /**
+ * Wrap an RP tool so a caller that may not use it is turned away.
+ *
+ * opencode builds its tool registry once per process, before any session
+ * calls into it, so which tools exist cannot vary by caller (see
+ * `resolveToolAccess` for who the callers are). The decision therefore
+ * belongs at the call, where the caller's own session ID is available and
+ * unspoofable.
+ *
+ * The refusal is a returned result rather than a thrown error: the caller is
+ * a model, and it needs to read what to do instead — otherwise it retries
+ * the same call, or invents a way around it.
+ *
+ * @param {{name: string, execute: Function}} tool The tool descriptor to wrap.
+ * @param {{ readParentage: (sessionID: string) => Promise<boolean | undefined> }} deps
+ *   Forwarded to `resolveToolAccess`.
+ * @returns {object} The same descriptor with a guarded `execute`.
+ */
+function guardTool(tool, { readParentage }) {
+  return {
+    ...tool,
+    async execute(input, toolCtx) {
+      const access = await resolveToolAccess(toolCtx.sessionID, { readParentage });
+      if (access === "none") {
+        return toToolResult({
+          status: 403,
+          error: "SubagentNotPermitted",
+          message: `${tool.name} is not available to a subagent. Return your findings to the session that delegated this task, which is what it is waiting for.`,
+        });
+      }
+      if (access === "send-only" && tool.name !== AGENT_TOOL) {
+        return toToolResult({
+          status: 403,
+          error: "AgentNotPermitted",
+          message: `${tool.name} is not available to a spawned agent. Use ${AGENT_TOOL} to reach your requester or the orchestrator.`,
+        });
+      }
+      return tool.execute(input, toolCtx);
+    },
+  };
+}
+
+/**
  * The output schema every RP tool declares.
  *
  * opencode only carries a tool's `output` back to its caller when the tool
@@ -4234,6 +4571,20 @@ async function setup(ctx, deps = {}) {
           at: tickEntry.at,
         });
       }
+      if (outcome.outcome === "target-missing") {
+        // Disarm before the registry write, as `rp_loop_cancel` does: a
+        // registry that cannot be read or written must still stop the timer,
+        // or the loop keeps ticking on a target that is gone.
+        void disarmLoopTimer(entry.id);
+        deleteLoopEntry(registryPath, entry.id);
+        recordError({
+          type: "loop.retired",
+          loopID: entry.id,
+          targetSession: entry.targetSession,
+          reason: "target session no longer exists",
+          at: tickEntry.at,
+        });
+      }
     };
 
     try {
@@ -4264,21 +4615,45 @@ async function setup(ctx, deps = {}) {
     }
   };
 
+  // Answers `resolveToolAccess` for a caller whose `session.created` was
+  // never seen. Any read that does not answer — an unreachable server, but
+  // equally one that replies 500 or 404 — leaves the question unanswered
+  // rather than answering it wrongly.
+  const readParentage = async (sessionID) => {
+    try {
+      const server = resolveServer({ env, readServiceRecord: readServiceRecordOverride });
+      if (!server) {
+        return undefined;
+      }
+      return await readSessionParentage(server, sessionID, requestFn);
+    } catch (error) {
+      recordError({
+        type: "session.parentage.unreadable",
+        sessionID,
+        error: String(error),
+        at: Date.now(),
+      });
+      return undefined;
+    }
+  };
+
   // Registration is a promise that opencode resolves to a disposable, and
   // `setup` is what the plugin API waits on before treating this location as
   // live — so awaiting it is what keeps a session from being served a tool
   // catalogue that RP has not finished contributing to yet.
   await ctx.tool.transform((tools) => {
-    tools.add(asDirectTool(buildSpawnTool(ctx, { resolveRepoRootFn })));
-    tools.add(asDirectTool(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
-    tools.add(asDirectTool(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
-    tools.add(asDirectTool(buildLoopStartTool({ registryPath, tick })));
-    tools.add(asDirectTool(buildLoopListTool(registryPath)));
-    tools.add(asDirectTool(buildLoopCancelTool(registryPath)));
-    tools.add(
-      asDirectTool(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })),
-    );
-    tools.add(asDirectTool(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
+    // Direct invocability and who may invoke are separate properties of a
+    // registration: the guard decides the caller, `asDirectTool` decides the
+    // shape opencode publishes.
+    const guard = (tool) => asDirectTool(guardTool(tool, { readParentage }));
+    tools.add(guard(buildSpawnTool(ctx, { resolveRepoRootFn })));
+    tools.add(guard(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
+    tools.add(guard(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
+    tools.add(guard(buildLoopStartTool({ registryPath, tick })));
+    tools.add(guard(buildLoopListTool(registryPath)));
+    tools.add(guard(buildLoopCancelTool(registryPath)));
+    tools.add(guard(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })));
+    tools.add(guard(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
     return tools;
   });
 
@@ -4311,6 +4686,7 @@ async function setup(ctx, deps = {}) {
       ctx,
       async (event) => {
         recordSessionEventActivity(event);
+        recordSessionParent(event);
         onToolEvent(event);
         recordTurnEnd(event);
         await onPermissionAsked(event, {
@@ -4401,6 +4777,7 @@ export {
   getSessionInbox,
   getSessionMessages,
   getSessionUpdatedAt,
+  guardTool,
   interruptSession,
   isDeadStreamMessage,
   isSessionActive,
@@ -4425,12 +4802,14 @@ export {
   readPackageVersion,
   readPinManifest,
   readServiceRecordFile,
+  readSessionParentage,
   readSkillDirectory,
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
   recordSend,
   recordSessionEventActivity,
+  recordSessionParent,
   recordSpawn,
   recordTargetInterrupt,
   recordTurnEnd,
@@ -4444,7 +4823,9 @@ export {
   resolveRepoRoot,
   resolveRunningBuild,
   resolveServer,
+  resolveToolAccess,
   runLoopTick,
+  sessionReadError,
   setup,
   shapeStatus,
   superviseEvents,
