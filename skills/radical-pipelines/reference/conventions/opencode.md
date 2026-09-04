@@ -11,7 +11,7 @@ The block below is the canonical content for `.rp.md`.
 
 ### Team spawning
 
-Spawn each agent with `rp_spawn`, passing the run-unique instance name, the RP profile name, a `provider/model[#variant]` string, the absolute worktree path to seat the session in, the initial prompt, and the run branch. The session's working directory is fixed for its lifetime. The result's session ID is the identifier for addressing messages to it. Message an agent with `rp_send`. `rp_spawn` appends the opencode messaging and turn protocol and the spawner's session ID to every initial prompt; it directs agents to route each message by its profile-named recipient — the **Requester identifier** for the requester, the spawner for everything else — and to hold their turn for anything no message will resume them for: an ended turn is a stop, and only a reply or the completion notice of a background command given a `timeout` resumes the session. A failed turn is announced to the spawner unless the session was successfully terminated. On an agent's completion declaration, call `rp_terminate` with its session ID. The `rp_*` tools answer the session driving the run; a spawned agent reaches `rp_send` alone, and a subagent returns its result to the session that delegated to it.
+Spawn each agent with `rp_spawn`, passing the run-unique instance name, the RP profile name, a `provider/model[#variant]` string, the absolute worktree path to seat the session in, the initial prompt, and the run branch. The session's working directory is fixed for its lifetime. The result's session ID is the identifier for addressing messages to it. Message an agent with `rp_send`. `rp_spawn` appends the opencode messaging and turn protocol and the spawner's session ID to every initial prompt; it directs agents to route each message by its profile-named recipient — the **Requester identifier** for the requester, the spawner for everything else — and to hold their turn for anything no message will resume them for: an ended turn is a stop, and only a reply or the completion notice of a background command given a `timeout` resumes the session. A failed turn is announced to the spawner unless the session was successfully terminated. On an agent's completion declaration, call `rp_terminate` with its session ID. A spawned agent reaches `rp_send` alone.
 
 Sessions run commands in a non-interactive `$SHELL -c` that sources no profile or rc files; shell functions defined there exist only when the command initializes them itself.
 
@@ -20,8 +20,8 @@ A read outside a session's worktree raises a permission request that blocks the 
 ### Health monitoring
 
 - **Start:** `rp_loop_start` with the interval and the monitor prompt from `reference/health-monitoring.md`; target defaults to the calling session. Ticks fire when idle and steer after two intervals without activity.
-- **List active loops:** `rp_loop_list`.
-- **Cancel:** `rp_loop_cancel` with the loop id. A loop retires itself when its target session no longer exists.
+- **List active loops:** `rp_loop_list`. A loop retires itself when its target session no longer exists.
+- **Cancel:** `rp_loop_cancel` with the loop id.
 - **Status:** `rp_status` reports each spawned session's `run`, running state, current tool, pending permission requests, and recent health-loop ticks, plus its `activity` (latest input, tool, or model progress; `updated` moves only on input), `lastTurn` and `turns`, `lastSend` (last message and recipient), and `lastText` (newest assistant text, or `olderThan` the messages searched). `lastTurn`, `turns`, and `lastSend` live in the daemon's memory: absent after a restart until observed again. A session with a pending request is blocked awaiting adjudication, not stalled.
 ```
 

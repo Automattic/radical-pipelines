@@ -193,8 +193,9 @@ const SESSION_PARENTAGE_PENDING_KEY = Symbol.for("radical-pipelines.opencode.ses
 /**
  * Fetch the in-flight parentage reads, creating the map on first use.
  *
- * @returns {Map<string, Promise<boolean | undefined>>} Session ID to the
- *   read currently answering for it.
+ * @returns {Map<string, {answer: Promise<boolean | undefined>}>} Session ID
+ *   to the read currently answering for it. The wrapper object, not the
+ *   promise, is the identity a deletion invalidates.
  */
 function getPendingParentage() {
   if (!globalThis[SESSION_PARENTAGE_PENDING_KEY]) {
@@ -204,19 +205,38 @@ function getPendingParentage() {
 }
 
 /**
+ * `globalThis` key backing the insertion-ordered set of remembered root
+ * sessions — the evictable half of the parentage record.
+ */
+const SESSION_ROOTS_KEY = Symbol.for("radical-pipelines.opencode.sessionRoots");
+
+/**
+ * Fetch the remembered root sessions, creating the set on first use.
+ *
+ * @returns {Set<string>} Root session IDs in insertion order, so the oldest
+ *   is evicted first without scanning the parentage record.
+ */
+function getRootSessions() {
+  if (!globalThis[SESSION_ROOTS_KEY]) {
+    globalThis[SESSION_ROOTS_KEY] = new Set();
+  }
+  return globalThis[SESSION_ROOTS_KEY];
+}
+
+/**
  * Cap past which remembered *root* sessions are evicted, oldest first.
  *
- * Deletion normally reclaims an entry; this is the backstop for the events
- * that never arrive, so that a long-lived daemon does not remember every
- * session it ever saw.
+ * Only a root entry is evictable. A root entry is a cache: losing it costs
+ * one read. A subagent entry is the boundary itself — evicting one and then
+ * failing to read its replacement answer grants that subagent every tool,
+ * which is reachable in practice rather than in theory: with more live
+ * sessions than this cap, a real subagent regained the full set.
  *
- * Only a root entry is evictable. A root entry is a cache: losing it costs a
- * read. A subagent entry is the boundary itself — evicting one and then
- * failing to read its replacement answer grants the subagent everything,
- * which is reachable in practice, not theory: with more live sessions than
- * this cap, a real subagent regained the full tool set. So subagents are
- * held until their deletion is observed, and what is retained is bounded by
- * the subagents alive at once rather than by this number.
+ * So this bounds root entries only. Subagent entries are held until their
+ * deletion is observed, and opencode reclaims a subagent when its *parent*
+ * is deleted, not when its task returns — so the subagents of a terminated
+ * agent are reclaimed, while those of a session that is never deleted are
+ * not. That residue grows with the subagents such sessions create.
  */
 const SESSION_PARENTAGE_CAP = 4096;
 
@@ -229,18 +249,23 @@ const SESSION_PARENTAGE_CAP = 4096;
  */
 function recordParentage(sessionID, child) {
   const parentage = getSessionParentage();
+  const roots = getRootSessions();
   parentage.delete(sessionID);
+  roots.delete(sessionID);
   parentage.set(sessionID, child);
-  if (parentage.size <= SESSION_PARENTAGE_CAP) {
-    return;
+  if (!child) {
+    roots.add(sessionID);
   }
-  for (const [id, isChild] of parentage) {
-    if (parentage.size <= SESSION_PARENTAGE_CAP) {
+  while (parentage.size > SESSION_PARENTAGE_CAP) {
+    // The oldest evictable entry, reached directly: a record saturated with
+    // subagents has nothing to give up, and must not pay a full scan on
+    // every session it observes to discover that.
+    const oldest = roots.values().next();
+    if (oldest.done) {
       return;
     }
-    if (!isChild && id !== sessionID) {
-      parentage.delete(id);
-    }
+    roots.delete(oldest.value);
+    parentage.delete(oldest.value);
   }
 }
 
@@ -276,6 +301,7 @@ function recordSessionParent(event) {
   // one it ever saw would grow for as long as it runs.
   if (event.type === "session.deleted") {
     getSessionParentage().delete(sessionID);
+    getRootSessions().delete(sessionID);
     // Also drop any read still in flight for it: that read began before the
     // deletion and would otherwise reinsert the session it just answered
     // for. `rp_terminate` produces exactly that ordering.
@@ -360,8 +386,15 @@ async function resolveToolAccess(sessionID, { readParentage }) {
     // An event that landed while the read was in flight is authoritative:
     // the read answers only for a session still unaccounted for.
     child = getSessionParentage().get(sessionID);
-    if (current && child === undefined && read !== undefined) {
-      recordParentage(sessionID, read);
+    if (child === undefined && read !== undefined) {
+      // An invalidated read is still the truthful answer for the caller
+      // holding it — it is only unfit to be *remembered*, having been
+      // overtaken by the deletion of the session it describes. Classifying
+      // from it anyway is what keeps an invalidated read from resolving to
+      // the widest access by default.
+      if (current) {
+        recordParentage(sessionID, read);
+      }
       child = read;
     }
   }

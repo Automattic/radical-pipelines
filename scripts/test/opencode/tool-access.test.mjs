@@ -297,8 +297,6 @@ describe("guardTool", () => {
   });
 });
 
-// Last: this suite overflows the shared parentage record, evicting what the
-// suites above remembered.
 describe("parentage retention", () => {
   test("retention is bounded, and an evicted session is asked about again rather than assumed", async () => {
     recordSessionParent({
@@ -352,5 +350,21 @@ describe("parentage retention", () => {
       ["ses_deleted_midread"],
       "the stale read must not have been remembered for the deleted session",
     );
+  });
+
+  test("a read invalidated by a deletion still answers the caller holding it, rather than widening to full", async () => {
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+
+    const pending = resolveToolAccess("ses_deleted_verdict", { readParentage: async () => held });
+    recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_deleted_verdict" } });
+    // A later caller re-creates the pending slot, so the first read is no
+    // longer the tracked one when it settles.
+    void resolveToolAccess("ses_deleted_verdict", { readParentage: () => new Promise(() => {}) });
+    release(true);
+
+    assert.equal(await pending, "none");
   });
 });
