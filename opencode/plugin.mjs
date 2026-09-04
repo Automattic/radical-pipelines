@@ -204,12 +204,19 @@ function getPendingParentage() {
 }
 
 /**
- * Cap on remembered parentage, evicting oldest-first past it.
+ * Cap past which remembered *root* sessions are evicted, oldest first.
  *
  * Deletion normally reclaims an entry; this is the backstop for the events
- * that never arrive. Eviction costs correctness nothing — an evicted session
- * is asked about again — so the cap only has to keep a daemon's memory from
- * tracking every session it ever saw.
+ * that never arrive, so that a long-lived daemon does not remember every
+ * session it ever saw.
+ *
+ * Only a root entry is evictable. A root entry is a cache: losing it costs a
+ * read. A subagent entry is the boundary itself — evicting one and then
+ * failing to read its replacement answer grants the subagent everything,
+ * which is reachable in practice, not theory: with more live sessions than
+ * this cap, a real subagent regained the full tool set. So subagents are
+ * held until their deletion is observed, and what is retained is bounded by
+ * the subagents alive at once rather than by this number.
  */
 const SESSION_PARENTAGE_CAP = 4096;
 
@@ -224,12 +231,16 @@ function recordParentage(sessionID, child) {
   const parentage = getSessionParentage();
   parentage.delete(sessionID);
   parentage.set(sessionID, child);
-  while (parentage.size > SESSION_PARENTAGE_CAP) {
-    const oldest = parentage.keys().next();
-    if (oldest.done) {
+  if (parentage.size <= SESSION_PARENTAGE_CAP) {
+    return;
+  }
+  for (const [id, isChild] of parentage) {
+    if (parentage.size <= SESSION_PARENTAGE_CAP) {
       return;
     }
-    parentage.delete(oldest.value);
+    if (!isChild && id !== sessionID) {
+      parentage.delete(id);
+    }
   }
 }
 
@@ -265,6 +276,10 @@ function recordSessionParent(event) {
   // one it ever saw would grow for as long as it runs.
   if (event.type === "session.deleted") {
     getSessionParentage().delete(sessionID);
+    // Also drop any read still in flight for it: that read began before the
+    // deletion and would otherwise reinsert the session it just answered
+    // for. `rp_terminate` produces exactly that ordering.
+    getPendingParentage().delete(sessionID);
   }
 }
 
@@ -323,22 +338,29 @@ async function resolveToolAccess(sessionID, { readParentage }) {
     const pending = getPendingParentage();
     let inFlight = pending.get(sessionID);
     if (!inFlight) {
-      inFlight = (async () => {
+      inFlight = {};
+      inFlight.answer = (async () => {
         try {
           return await readParentage(sessionID);
         } catch {
           return undefined;
-        } finally {
-          pending.delete(sessionID);
         }
       })();
       pending.set(sessionID, inFlight);
     }
-    const read = await inFlight;
+    const read = await inFlight.answer;
+    // The read stands only if nothing invalidated it while it was open. A
+    // deletion drops it from the pending map, and its answer — about a
+    // session that no longer exists — is then discarded rather than
+    // remembered.
+    const current = pending.get(sessionID) === inFlight;
+    if (current) {
+      pending.delete(sessionID);
+    }
     // An event that landed while the read was in flight is authoritative:
     // the read answers only for a session still unaccounted for.
     child = getSessionParentage().get(sessionID);
-    if (child === undefined && read !== undefined) {
+    if (current && child === undefined && read !== undefined) {
       recordParentage(sessionID, read);
       child = read;
     }

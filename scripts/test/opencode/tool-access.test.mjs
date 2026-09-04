@@ -311,12 +311,46 @@ describe("parentage retention", () => {
       recordSessionParent({ type: "session.created", data: { sessionID: `ses_overflow_${index}` } });
     }
 
+    assert.equal(
+      await resolveToolAccess("ses_evicted_first", neverAsked),
+      "none",
+      "a subagent must survive the cap: evicting one and then failing to read its replacement grants it everything",
+    );
+
+    const asked = asks(false);
+    assert.equal(await resolveToolAccess("ses_overflow_0", asked.deps), "full");
+    assert.deepEqual(asked.calls, ["ses_overflow_0"], "root entries are the evictable ones");
+  });
+
+  test("a subagent survives the cap even when the replacement read is unanswerable", async () => {
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_evicted_child", parentID: "ses_evicted_parent" },
+    });
+    for (let index = 0; index <= 4096; index++) {
+      recordSessionParent({ type: "session.created", data: { sessionID: `ses_flood_${index}` } });
+    }
+
+    assert.equal(await resolveToolAccess("ses_evicted_child", asks(undefined).deps), "none");
+  });
+
+  test("a deletion discards the answer of a read already in flight for it", async () => {
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+
+    const pending = resolveToolAccess("ses_deleted_midread", { readParentage: async () => held });
+    recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_deleted_midread" } });
+    release(false);
+    await pending;
+
     const asked = asks(true);
-    assert.equal(await resolveToolAccess("ses_evicted_first", asked.deps), "none");
+    assert.equal(await resolveToolAccess("ses_deleted_midread", asked.deps), "none");
     assert.deepEqual(
       asked.calls,
-      ["ses_evicted_first"],
-      "an entry evicted by the cap must be re-read, never assumed unparented",
+      ["ses_deleted_midread"],
+      "the stale read must not have been remembered for the deleted session",
     );
   });
 });
