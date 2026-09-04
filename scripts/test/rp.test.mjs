@@ -318,7 +318,7 @@ describe("rp state tooling", () => {
     report("T1", 1, "completed");
     report("T2", 1, "completed", ["T1"]);
     assert.match(read(root, "3-build/tasks/T2-report-1.md"), /attempt: 1/);
-    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--force"), /immutable/);
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md")), /immutable/);
     write(root, "3-build/tasks/T1.md", "# T1: revised\n\n- **Depends on:** none\n");
     rp(root, "stamp", P("3-build/tasks/T1.md"), "--mirror");
     const output = check(root);
@@ -459,7 +459,7 @@ describe("rp state tooling", () => {
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--set", "verdict=approved"), /never by --set/);
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((f) => ["--reviewed", P(f)]), "--mirror");
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--force"), /immutable/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md")), /immutable/);
     // A hand-written pin with an empty or short identity is never fresh.
     write(root, "2-design-doc/design-doc.md", "---\npins:\n  - 0-intent/intent.md@\n  - 1-spec/spec.md@abc\n---\n# Design doc\n");
     assert.match(check(root), /artifact 2-design-doc\/design-doc\.md\s+STALE/);
@@ -711,6 +711,19 @@ describe("rp state tooling", () => {
     output = check(root, "--ref", "demo", "--target-phase", "1");
     assert.match(output, /symlink\s+1-spec\/loop\n/);
     assert.match(output, /frontier symlink 1-spec\/link\.md/);
+  });
+
+  test("the CLI validates its inputs and fails aloud: no gate is silently disabled, no option silently ignored", () => {
+    stampSpec();
+    approveSpec();
+    for (const bad of ["0", "5", "abc", "1.5", "-1"]) assert.throws(() => check(root, "--target-phase", bad), /--target-phase expects an integer from 1 to 4/);
+    for (const flag of ["--audit", "--valve"]) {
+      for (const bad of ["0", "x", "2.5"]) assert.throws(() => check(root, flag, bad), new RegExp(`${flag} expects an integer from 1`));
+      assert.throws(() => check(root, flag), new RegExp(`${flag} expects a value`));
+    }
+    assert.throws(() => check(root, "--force"), /unknown option: --force/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin"), /--pin expects a value/);
+    assert.match(check(root, "--target-phase", "1", "--audit", "2", "--valve", "3"), /frontier complete/);
   });
 
   test("check --json carries the state", () => {

@@ -827,23 +827,32 @@ function cmdCheck(args) {
 // --- cli --------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: 4, ref: null, base: null, audit: null, valve: null };
+  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: ARTIFACTS.length, ref: null, base: null, audit: null, valve: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--pin") args.pin.push(argv[++i]);
-    else if (a === "--reviewed") args.reviewed.push(argv[++i]);
-    else if (a === "--set") args.set.push(argv[++i]);
+    // Every option is validated here: an unknown one, a missing value, or a value out of range is an error.
+    const value = () => (i + 1 < argv.length ? argv[++i] : die(`${a} expects a value`));
+    const integer = (min, max) => {
+      const raw = value();
+      const n = Number(raw);
+      if (!/^\d+$/.test(raw) || n < min || n > max) die(`${a} expects an integer from ${min} to ${max}, got: ${raw}`);
+      return n;
+    };
+    if (a === "--pin") args.pin.push(value());
+    else if (a === "--reviewed") args.reviewed.push(value());
+    else if (a === "--set") args.set.push(value());
     else if (a === "--mirror") args.mirror = true;
     else if (a === "--json") args.json = true;
-    else if (a === "--lanes") args.lanes = argv[++i];
-    else if (a === "--target-phase") args.targetPhase = Number(argv[++i]);
-    else if (a === "--ref") args.ref = argv[++i];
-    else if (a === "--base") args.base = argv[++i];
-    else if (a === "--brief") args.brief = argv[++i];
-    else if (a === "--materials") args.materials = argv[++i];
-    else if (a === "--after") args.after = argv[++i];
-    else if (a === "--audit") args.audit = Number(argv[++i]);
-    else if (a === "--valve") args.valve = Number(argv[++i]);
+    else if (a === "--lanes") args.lanes = value();
+    else if (a === "--target-phase") args.targetPhase = integer(1, ARTIFACTS.length);
+    else if (a === "--ref") args.ref = value();
+    else if (a === "--base") args.base = value();
+    else if (a === "--brief") args.brief = value();
+    else if (a === "--materials") args.materials = value();
+    else if (a === "--after") args.after = value();
+    else if (a === "--audit") args.audit = integer(1, Number.MAX_SAFE_INTEGER);
+    else if (a === "--valve") args.valve = integer(1, Number.MAX_SAFE_INTEGER);
+    else if (a.startsWith("--")) die(`unknown option: ${a}`);
     else args._.push(a);
   }
   return args;
