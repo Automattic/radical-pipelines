@@ -23,6 +23,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `adjudicate <artifact>`                              | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks. A claim the producer refuted reaches it here too, as the wave that refuted it |
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
 | `task <phase>/<id>`                                  | That task's worker                                                                                             |
+| `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is restored (§ Dispatch)                                 |
 | `build review` / `document review`                   | The phase's reviewer                                                                                           |
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `AUDIT → <action>`                                   | Audit (below), then the action                                                                                 |
@@ -42,7 +43,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - A delta review's **Diff** runs from its previous review's `head` to `HEAD` over the artifact, its record, and — for a plan — its tasks; its **Adjudication** is every record entry written since. A build or document review's **Diff** is every change on the branch outside the pipelines folder since the branch started — its merge-base with the main branch, or the main branch for a `<slug>_<n>` branch; a delta one, since its previous review's `head`.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **research request**: spawn a fresh `researcher` with the question and the requester's address; it answers the requester directly. Several independent questions in one message get one researcher each.
-- A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch; if the environment is genuinely down, stop and tell the owner.
+- A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
 
 ## Stamp on landing
 

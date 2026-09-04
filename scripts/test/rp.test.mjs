@@ -337,6 +337,21 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(output, /trigger .*T1-report-2/);
   });
 
+  test("a blocked report is never a trigger: its task stays pending for the orchestrator until a later attempt lands", () => {
+    approveChain(3);
+    report("T1", 1, "blocked");
+    assert.match(read(root, "3-build/tasks/T1-report-1.md"), /outcome: blocked/);
+    let output = check(root);
+    assert.doesNotMatch(output, /trigger/);
+    assert.match(output, /open \[T1:blocked\]/);
+    assert.match(output, /frontier blocked 3-build\/T1/);
+    assert.equal(JSON.parse(check(root, "--json")).tasks["3-build"].blocked, "T1");
+    report("T1", 2, "completed");
+    output = check(root);
+    assert.match(output, /done \[T1\]/);
+    assert.match(output, /frontier task 3-build\/T2/);
+  });
+
   test("a phase review names the plan package, its inputs, every task and report, and goes stale when a report lands", () => {
     buildDone();
     assert.match(check(root, "--target-phase", "3"), /build\s+review: ·:approved\s+APPROVED[\s\S]*frontier complete/);

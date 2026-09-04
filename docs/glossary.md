@@ -4,7 +4,7 @@ The canonical vocabulary of Radical Pipelines.
 
 - **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against a target.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
-- **Blocker** — An agent report that its materials are malformed, an input is unreadable, or its environment is broken.
+- **Blocker** — An agent report, before it writes anything, that its materials are malformed, an input is unreadable, or its environment is broken.
 - **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
 - **Claim** — A reviewer's `Verdict: unsatisfiable` with its target, corroborating a producer's `Contradicts-input` disposition. (A labeled normative statement in an artifact is also called a claim.)
 - **Consolidation** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
@@ -20,6 +20,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a trigger it responds to.
+- **Outcome** — A task report's conclusion: `completed`; `failed`, the product observed and contradicting the task with reproducible evidence; `blocked`, the product not observed and the report naming what prevented it — unlike a blocker, which precedes any work.
 - **Owner escalation** — A pipeline pause and evidence dossier caused by a pending claim that targets the intent; the owner's answer is written into the intent as a decision.
 - **Owner territory** — The intent's Goal, Constraints, and Decisions — what the work must satisfy; the intent is the only file that carries the owner's words.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.

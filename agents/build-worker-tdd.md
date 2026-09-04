@@ -19,12 +19,12 @@ One mode. It ends the same way whatever the outcome: write your report to the pa
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a re-dispatch — **Your previous report** and the **Adjudication**.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication**.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
 2. For each acceptance criterion: write a failing test that asserts it, make it pass with the smallest change, refactor with the tests green.
 3. Run the project's test suite and build.
-4. Outcome **completed** when every acceptance criterion is covered by a passing test and the suite is green. Outcome **failed** when a criterion cannot be met as specified — record the evidence.
+4. Outcome **completed** when every acceptance criterion is covered by a passing test and the suite is green. Outcome **failed** when a criterion cannot be met as specified — record the evidence. Outcome **blocked** when you could not observe the product's behavior — record what prevented it.
 
 # Rules
 
@@ -48,7 +48,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 # Protocol
 
-- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — before your first write, report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
@@ -58,7 +58,7 @@ Frontmatter on the report is written by the orchestrator, never by you.
 ```markdown
 # Task report: T<n>, attempt <k>
 
-Outcome: completed | failed
+Outcome: completed | failed | blocked
 
 ## Commits
 
@@ -70,5 +70,5 @@ Outcome: completed | failed
 
 ## Evidence
 
-<!-- Failed only: command, observed output, the criterion violated, the assumption that fell (A<n>) if any. -->
+<!-- Failed: command, observed output, the criterion violated, the assumption that fell (A<n>) if any. Blocked: what kept you from observing the product. -->
 ```

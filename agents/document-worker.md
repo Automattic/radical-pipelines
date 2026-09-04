@@ -19,12 +19,12 @@ One mode. It ends the same way whatever the outcome: write your report to the pa
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a re-dispatch — **Your previous report** and the **Adjudication**.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication**.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
 2. Read the code the documentation describes; write the documentation on the named surface, in the project's documentation conventions.
 3. Verify each acceptance criterion by inspection; run the project's documentation checks and build where they exist.
-4. Outcome **completed** when every criterion holds and the checks pass. Outcome **failed** when a criterion cannot be met, or when the code contradicts what the task says to document — record the evidence: the code location and the clause it contradicts.
+4. Outcome **completed** when every criterion holds and the checks pass. Outcome **failed** when a criterion cannot be met, or when the code contradicts what the task says to document — record the evidence: the code location and the clause it contradicts. Outcome **blocked** when you could not observe the software's behavior — record what prevented it.
 
 # Rules
 
@@ -47,7 +47,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 # Protocol
 
-- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — before your first write, report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
@@ -57,7 +57,7 @@ Frontmatter on the report is written by the orchestrator, never by you.
 ```markdown
 # Task report: T<n>, attempt <k>
 
-Outcome: completed | failed
+Outcome: completed | failed | blocked
 
 ## Commits
 
@@ -69,5 +69,5 @@ Outcome: completed | failed
 
 ## Evidence
 
-<!-- Failed only: command or code location, observed content, the criterion or clause contradicted. -->
+<!-- Failed: command or code location, observed content, the criterion or clause contradicted. Blocked: what kept you from observing the software. -->
 ```

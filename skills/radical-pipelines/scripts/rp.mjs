@@ -121,7 +121,7 @@ function mirrorBody(body, fm, base, abs) {
   const origins = [...body.matchAll(/^Origin:\s*(.+)$/gm)].map((m) => m[1].trim());
   if (origins.length === 1) fm.set("origin", origins[0]);
   else if (origins.length > 1) fm.set("origin", origins);
-  const outcome = body.match(/^Outcome:\s*(completed|failed)\s*$/m);
+  const outcome = body.match(/^Outcome:\s*(completed|failed|blocked)\s*$/m);
   if (outcome) fm.set("outcome", outcome[1]);
   const recurs = [...body.matchAll(/^Prior finding:\s*(\S+#[^,\s]+),\s*resolution failed\s*$/gm)].map((m) => m[1]);
   if (recurs.length) fm.set("recurs", recurs);
@@ -613,10 +613,16 @@ function cmdCheck(args) {
       const r = latestOf(id);
       return !!r && r.outcome === "completed" && r.fresh;
     };
-    const blocked = (id) => {
+    // A fresh failed report holds its task until the plan adjudicates it (pins it).
+    const held = (id) => {
       const r = latestOf(id);
       if (!r || r.outcome !== "failed" || !r.fresh) return false;
       return !(pinsByPath.get(art.path) ?? []).some((p) => pinParts(p)?.path === r.rel);
+    };
+    // A fresh blocked report leaves its task pending: the environment, not the plan, is what changes before the next attempt.
+    const blockedBy = (id) => {
+      const r = latestOf(id);
+      return !!r && r.outcome === "blocked" && r.fresh;
     };
     const done = planTasks.filter((t) => isDone(t.id)).map((t) => t.id);
     const open = phaseReports.filter((t) => !isDone(t.id)).map((t) => `${t.id}:${t.outcome}${t.outcome === "completed" ? " (stale)" : ""}`);
@@ -638,9 +644,9 @@ function cmdCheck(args) {
       };
       return planTasks.find((t) => visit(t.id, new Set()))?.id ?? null;
     })();
-    const next = planTasks.find((t) => !isDone(t.id) && t.deps.every(isDone) && !blocked(t.id));
+    const next = planTasks.find((t) => !isDone(t.id) && t.deps.every(isDone) && !held(t.id));
     const remaining = planTasks.filter((t) => !isDone(t.id)).map((t) => t.id);
-    out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null };
+    out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null, blocked: next && blockedBy(next.id) ? next.id : null };
     lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
     if (!planTasks.length) {
       take(`no tasks in ${art.phase}/tasks/`);
@@ -655,7 +661,7 @@ function cmdCheck(args) {
       take(`stamp ${unstampedReport.rel}`);
       stopped = true;
     } else if (remaining.length) {
-      take(next ? `task ${art.phase}/${next.id}` : `tasks blocked in ${art.phase}: ${remaining.join(", ")}`);
+      take(next ? `${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}` : `tasks held in ${art.phase}: ${remaining.join(", ")}`);
       stopped = true;
     }
     // Phase review: names the plan, its record, its inputs, every task, and every report.
@@ -754,7 +760,8 @@ Usage:
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Brief, Target,
-Origin, Outcome, Prior finding, a task's Depends on), and head — the commit
+Origin, Outcome — completed | failed | blocked — Prior finding, a task's
+Depends on, a report's Commits), and head — the commit
 a stamp with pins observed. Identity is the hash of a file's body: stamping never
 changes it. check reports the frontier: triggers, claims, then phases in order
 up to the target — production lanes, artifacts, tasks, phase reviews,
