@@ -58,12 +58,12 @@ describe("opencode/pin.json", () => {
 
   test("pins cli to the exact confirmed build", () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.equal(pin.cli, "0.0.0-dev-17711");
+    assert.equal(pin.cli, "0.0.0-dev-19093");
   });
 
   test("pins plugin to the exact confirmed version", () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.equal(pin.plugin, "0.0.0-dev-17711");
+    assert.equal(pin.plugin, "0.0.0-dev-19093");
   });
 
   test("declares cli and plugin as independent fields (no shared or derived field)", () => {
