@@ -510,14 +510,62 @@ describe("rp state tooling", () => {
     assert.match(check(root), /frontier stamp 3-build\/tasks\/T2\.md/);
   });
 
-  test("a declared brief fingerprint must match the review's brief", () => {
+  test("a lane's identity is its whole declaration: the fingerprint covers id, brief, materials, and after", () => {
+    const fp = (...args) => rp(root, "fingerprint", ...args).trim();
+    const base = fp("security", "--brief", "Verify security surfaces in depth");
+    assert.match(base, /^[0-9a-f]{12}$/);
+    assert.equal(fp("security", "--brief", "  Verify security surfaces in depth "), base);
+    assert.notEqual(fp("a11y", "--brief", "Verify security surfaces in depth"), base);
+    assert.notEqual(fp("security", "--brief", "Verify accessibility"), base);
+    assert.notEqual(fp("security", "--brief", "Verify security surfaces in depth", "--materials", "intent,diff"), base);
+    assert.notEqual(fp("security", "--brief", "Verify security surfaces in depth", "--after", "event-driven"), base);
+    assert.throws(() => rp(root, "fingerprint"), /missing <lane id>/);
+  });
+
+  test("a declared fingerprint must match the `lane` a review or lane artifact was stamped with", () => {
     stampSpec();
-    const fp = rp(root, "fingerprint", "Verify security surfaces in depth").trim();
+    const fp = rp(root, "fingerprint", "security", "--brief", "Verify security surfaces in depth").trim();
     review("1-spec/spec-review-1.md", "approved", SPEC);
-    review("1-spec/spec-review-security-1.md", "approved", SPEC, [], "Brief: Verify security surfaces in depth\n");
+    review("1-spec/spec-review-security-1.md", "approved", SPEC, [`lane=${fp}`], "Brief: Verify security surfaces in depth\n");
     assert.match(check(root, "--lanes", `spec=security@${fp}`, "--target-phase", "1"), /frontier complete/);
-    const other = rp(root, "fingerprint", "Verify accessibility").trim();
+    const other = rp(root, "fingerprint", "security", "--brief", "Verify accessibility").trim();
     assert.match(check(root, "--lanes", `spec=security@${other}`, "--target-phase", "1"), /security:approved \(stale\)/);
+    // A review stamped without `lane` never satisfies a declared fingerprint.
+    review("1-spec/spec-review-security-2.md", "approved", SPEC);
+    review("1-spec/spec-review-2.md", "approved", SPEC);
+    assert.match(check(root, "--lanes", `spec=security@${fp}`, "--target-phase", "1"), /security:approved \(stale\)/);
+    // Production lanes alike: the lane artifact carries the fingerprint it was produced under.
+    for (const f of ["1-spec/spec.md", "1-spec/spec-review-security-1.md", "1-spec/spec-review-security-2.md"]) rmSync(join(root, P(f)));
+    const pfp = rp(root, "fingerprint", "a", "--brief", "Explore an event-driven design").trim();
+    write(root, "1-spec/a/spec.md", "# Spec a\n");
+    write(root, "1-spec/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"));
+    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    const lanes = `spec=|a@${pfp}`;
+    let output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+STALE — lane declaration/);
+    assert.match(output, /frontier re-synthesize 1-spec\/a\/spec\.md/);
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--set", `lane=${pfp}`);
+    output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+FRESH\s+reviews: ·:approved\s+APPROVED/);
+    assert.match(output, /frontier consolidate 1-spec\/spec\.md/);
+  });
+
+  test("a lane the declaration lacks is a defect, never an implicit lane; reserved names are refused", () => {
+    stampSpec();
+    approveSpec();
+    write(root, "1-spec/rogue/spec.md", "# Rogue\n");
+    let output = check(root, "--target-phase", "1");
+    assert.match(output, /lane\s+1-spec\/rogue\/\s+UNDECLARED/);
+    assert.match(output, /frontier undeclared lane 1-spec\/rogue\//);
+    rmSync(join(root, P("1-spec/rogue")), { recursive: true });
+    // An undeclared review lane neither opens a wave nor counts toward it.
+    review("1-spec/spec-review-extra-2.md", "rejected", SPEC);
+    output = check(root, "--target-phase", "1");
+    assert.match(output, /frontier undeclared lane 1-spec\/spec-review-extra-2\.md/);
+    assert.match(output, /reviews: ·:approved\s+APPROVED/);
+    assert.throws(() => check(root, "--lanes", "spec=|tasks"), /reserved name/);
+    assert.throws(() => check(root, "--lanes", "spec=tasks"), /reserved name/);
   });
 
   test("a claim is pending only while it is its lane's latest verdict; a held claim ends with the wave that approved", () => {
