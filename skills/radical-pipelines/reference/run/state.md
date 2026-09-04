@@ -66,7 +66,7 @@ A file pins exactly what it consumed, never its sibling record.
 - Reviews: `<artifact>-review-<wave>.md` for the implicit lane, `<artifact>-review-<lane>-<wave>.md` for a named lane. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`. You compute filenames and pass them in the prompt. A reviewer that adjudicates a trigger writes `Origin: <trigger path>` in its review.
 - Production lanes: `<phase>/<lane>/` holds the lane's artifact, record, and reviews, named as at the root.
 - Tasks: `<phase>/tasks/T<n>.md`, one file per task, self-contained — an e2e task carries its flows, a task naming `Verifies: A<n>` carries the assumption's condition; reports `<phase>/tasks/T<n>-report-<k>.md`, one per attempt, never overwritten. A plan is `<plan>.md` — overview, assumptions, order — plus its tasks folder.
-- Ids inside artifacts are stable: requirements `R<n>`, decisions `D<n>`, assumptions `A<n>`, tasks `T<n>`; intent items `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, `#decision-<n>`. Nothing is renumbered; new content gets a new id.
+- Ids inside artifacts are stable: requirements `R<n>`, decisions `D<n>`, assumptions `A<n>`, tasks `T<n>`; intent items `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, `#decision-<n>`. Nothing is renumbered or reused; new content gets the next id — a plan produced anew continues the numbering.
 
 ## Owner territory
 

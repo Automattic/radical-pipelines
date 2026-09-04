@@ -30,7 +30,7 @@ Items are addressed by section and position: `#goal`, `#constraint-<n>`, `#conte
 
 ## Decisions
 
-The intent is the only file that carries the owner's words. The issue's sections are never edited after creation; every decision the owner makes afterwards — an answer in an assisted session, an answer to an escalation — is appended under `## Decisions` as a numbered bullet: the words quoted verbatim, then what they answer (the question, or the claim's path). Records cite decisions by id.
+The intent is the only file that carries the owner's words. The issue's sections are never edited after creation; every decision the owner makes afterwards — a direction at triage, an answer in an assisted session, an answer to an escalation — is appended under `## Decisions` as a numbered bullet: the words quoted verbatim, then what they answer (the run, the question, or the claim's path). Records cite decisions by id.
 
 ## Authoring discipline
 

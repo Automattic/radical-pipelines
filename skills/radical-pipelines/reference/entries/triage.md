@@ -50,4 +50,4 @@ One message to the owner: the route and why — or, when no predicate decides, t
 
 ### 6. Run
 
-Fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+Quote every direction the owner gave this session — the run policy as confirmed (the `--lanes` declaration, target phase, thresholds) and any other instruction for the run — as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
