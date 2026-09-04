@@ -9,12 +9,26 @@ import {
   resolveToolAccess,
 } from "../../../opencode/plugin.mjs";
 
-/** A `readParentage` that fails the test if the boundary consults it. */
-const neverAsked = {
-  readParentage: () => {
-    throw new Error("parentage was already observed; it must not be read again");
-  },
-};
+/**
+ * A `readParentage` that answers nothing and records being consulted.
+ *
+ * Non-consultation is asserted by observing this, never by throwing from
+ * the stub: the boundary swallows a failed read by design and falls back to
+ * root access, so a throwing stub would leave every "full" expectation
+ * passing whether or not the answer was already known.
+ */
+function unconsulted() {
+  const calls = [];
+  return {
+    calls,
+    deps: {
+      readParentage: async (sessionID) => {
+        calls.push(sessionID);
+        return undefined;
+      },
+    },
+  };
+}
 
 /** A `readParentage` that answers, and counts how often it was asked. */
 function asks(answer) {
@@ -56,7 +70,9 @@ describe("recordSessionParent / resolveToolAccess", () => {
       data: { sessionID: "ses_access_child", parentID: "ses_access_worker" },
     });
 
-    assert.equal(await resolveToolAccess("ses_access_child", neverAsked), "none");
+    const probe = unconsulted();
+    assert.equal(await resolveToolAccess("ses_access_child", probe.deps), "none");
+    assert.deepEqual(probe.calls, []);
   });
 
   test("a session created without a parent is a root session, and is never asked about again", async () => {
@@ -65,7 +81,9 @@ describe("recordSessionParent / resolveToolAccess", () => {
       data: { sessionID: "ses_access_rootlevel" },
     });
 
-    assert.equal(await resolveToolAccess("ses_access_rootlevel", neverAsked), "full");
+    const probe = unconsulted();
+    assert.equal(await resolveToolAccess("ses_access_rootlevel", probe.deps), "full");
+    assert.deepEqual(probe.calls, [], "a recorded root must be answered without a read");
   });
 
   test("a spawned agent is limited to sending", async () => {
@@ -76,7 +94,9 @@ describe("recordSessionParent / resolveToolAccess", () => {
     });
     recordSessionParent({ type: "session.created", data: { sessionID: "ses_access_agent" } });
 
-    assert.equal(await resolveToolAccess("ses_access_agent", neverAsked), "send-only");
+    const probe = unconsulted();
+    assert.equal(await resolveToolAccess("ses_access_agent", probe.deps), "send-only");
+    assert.deepEqual(probe.calls, []);
   });
 
   test("parentage is read only from session.created", async () => {
@@ -103,7 +123,9 @@ describe("recordSessionParent / resolveToolAccess", () => {
       data: { sessionID: "ses_access_both", parentID: "ses_access_worker" },
     });
 
-    assert.equal(await resolveToolAccess("ses_access_both", neverAsked), "none");
+    const probe = unconsulted();
+    assert.equal(await resolveToolAccess("ses_access_both", probe.deps), "none");
+    assert.deepEqual(probe.calls, []);
   });
 
   test("a session whose creation event was missed is asked about rather than assumed unparented", async () => {
@@ -187,7 +209,9 @@ describe("resolveToolAccess under concurrency and session lifetime", () => {
     release(undefined);
 
     assert.equal(await pending, "none", "the unreadable read must not overrule the event");
-    assert.equal(await resolveToolAccess("ses_race_event", neverAsked), "none");
+    const settled = unconsulted();
+    assert.equal(await resolveToolAccess("ses_race_event", settled.deps), "none");
+    assert.deepEqual(settled.calls, []);
   });
 
   test("a deleted session is forgotten, so its ID answers for nothing later", async () => {
@@ -195,7 +219,9 @@ describe("resolveToolAccess under concurrency and session lifetime", () => {
       type: "session.created",
       data: { sessionID: "ses_lifetime_gone", parentID: "ses_lifetime_parent" },
     });
-    assert.equal(await resolveToolAccess("ses_lifetime_gone", neverAsked), "none");
+    const probe = unconsulted();
+    assert.equal(await resolveToolAccess("ses_lifetime_gone", probe.deps), "none");
+    assert.deepEqual(probe.calls, []);
 
     recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_lifetime_gone" } });
 
@@ -243,7 +269,7 @@ describe("guardTool", () => {
 
     for (const name of ["rp_send", "rp_spawn", "rp_status", "rp_loop_list"]) {
       const { tool, calls } = spyTool(name);
-      const result = await guardTool(tool, neverAsked).execute({}, { sessionID: "ses_guard_child" });
+      const result = await guardTool(tool, unconsulted().deps).execute({}, { sessionID: "ses_guard_child" });
 
       assert.equal(result.output.status, 403);
       assert.equal(result.output.error, "SubagentNotPermitted");
@@ -261,12 +287,12 @@ describe("guardTool", () => {
     recordSessionParent({ type: "session.created", data: { sessionID: "ses_guard_agent" } });
 
     const send = spyTool("rp_send");
-    const sent = await guardTool(send.tool, neverAsked).execute({ to: "x" }, { sessionID: "ses_guard_agent" });
+    const sent = await guardTool(send.tool, unconsulted().deps).execute({ to: "x" }, { sessionID: "ses_guard_agent" });
     assert.equal(sent.output, "ran");
     assert.deepEqual(send.calls, [{ input: { to: "x" }, sessionID: "ses_guard_agent" }]);
 
     const spawn = spyTool("rp_spawn");
-    const refused = await guardTool(spawn.tool, neverAsked).execute({}, { sessionID: "ses_guard_agent" });
+    const refused = await guardTool(spawn.tool, unconsulted().deps).execute({}, { sessionID: "ses_guard_agent" });
     assert.equal(refused.output.status, 403);
     assert.equal(refused.output.error, "AgentNotPermitted");
     assert.match(refused.output.message, /rp_send/);
@@ -278,7 +304,7 @@ describe("guardTool", () => {
 
     for (const name of ["rp_send", "rp_spawn", "rp_status", "rp_terminate"]) {
       const { tool, calls } = spyTool(name);
-      const result = await guardTool(tool, neverAsked).execute({ a: 1 }, { sessionID: "ses_guard_owner" });
+      const result = await guardTool(tool, unconsulted().deps).execute({ a: 1 }, { sessionID: "ses_guard_owner" });
 
       assert.equal(result.output, "ran");
       assert.equal(calls.length, 1);
@@ -287,7 +313,7 @@ describe("guardTool", () => {
 
   test("the wrapper preserves every field of the descriptor opencode registers", () => {
     const { tool } = spyTool("rp_status");
-    const guarded = guardTool(tool, neverAsked);
+    const guarded = guardTool(tool, unconsulted().deps);
 
     assert.equal(guarded.name, tool.name);
     assert.equal(guarded.description, tool.description);
@@ -303,17 +329,21 @@ describe("parentage retention", () => {
       type: "session.created",
       data: { sessionID: "ses_evicted_first", parentID: "ses_evicted_parent" },
     });
-    assert.equal(await resolveToolAccess("ses_evicted_first", neverAsked), "none");
+    const recorded = unconsulted();
+    assert.equal(await resolveToolAccess("ses_evicted_first", recorded.deps), "none");
+    assert.deepEqual(recorded.calls, []);
 
     for (let index = 0; index <= 4096; index++) {
       recordSessionParent({ type: "session.created", data: { sessionID: `ses_overflow_${index}` } });
     }
 
+    const probe = unconsulted();
     assert.equal(
-      await resolveToolAccess("ses_evicted_first", neverAsked),
+      await resolveToolAccess("ses_evicted_first", probe.deps),
       "none",
       "a subagent must survive the cap: evicting one and then failing to read its replacement grants it everything",
     );
+    assert.deepEqual(probe.calls, [], "a retained subagent is answered without a read");
 
     const asked = asks(false);
     assert.equal(await resolveToolAccess("ses_overflow_0", asked.deps), "full");
@@ -331,7 +361,9 @@ describe("parentage retention", () => {
 
     // Retention is per population: a held subagent cannot consume the budget
     // that keeps a root cached, so the root is answered without a read.
-    assert.equal(await resolveToolAccess("ses_saturated_root", neverAsked), "full");
+    const probe = unconsulted();
+    assert.equal(await resolveToolAccess("ses_saturated_root", probe.deps), "full");
+    assert.deepEqual(probe.calls, [], "a cached root must be answered without a read");
   });
 
   test("a subagent survives the cap even when the replacement read is unanswerable", async () => {
