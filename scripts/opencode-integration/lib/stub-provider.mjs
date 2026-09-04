@@ -4,17 +4,20 @@
  * Serves `GET /v1/models` and `POST /v1/chat/completions` (streaming SSE) so
  * every core-flow turn runs at zero cost, fully offline.
  *
- * opencode exposes plugin-registered (`jsonSchema`-based) tools to a model
- * not as individually callable functions, but wrapped behind a single
- * "Code Mode" `execute` tool: the model writes a snippet of restricted
- * JavaScript that calls `tools.<name>(input)`, and `execute`'s arguments
- * carry that snippet as a `code` string — verified live against the pinned
- * build. To drive `rp_spawn`/`rp_send`/`rp_terminate`/`rp_loop_*`/`rp_status`
- * deterministically from a scripted "model", this stub recognizes a directive
- * embedded in the driving prompt's text — `__RP_CODE__:<code>:__END__` — and, on a match it
- * has not already answered, emits a tool_call for `execute` running exactly
- * that code. Any other turn (no directive, or a directive already answered
- * once) gets a fixed plain-text reply, ending the turn normally.
+ * RP's tools are registered as directly invocable (`codemode: false`), so
+ * opencode lists them in the request's own `tools` array and the model calls
+ * them by name. To drive `rp_spawn`/`rp_send`/`rp_terminate`/`rp_loop_*`/
+ * `rp_status` deterministically from a scripted "model", this stub recognizes
+ * a directive embedded in the driving prompt's text —
+ * `__RP_NATIVE_TOOL__:<base64 {name, args, nonce}>:__END__` — and, on a match
+ * it has not already answered, emits a tool_call for exactly that tool.
+ *
+ * A tool reachable only through Code Mode is driven instead by
+ * `__RP_CODE__:<code>:__END__`, which emits a call to opencode's `execute`
+ * wrapper running that restricted-JS snippet.
+ *
+ * Any other turn (no directive, or a directive already answered once) gets a
+ * fixed plain-text reply, ending the turn normally.
  */
 
 import http from "node:http";
@@ -58,15 +61,29 @@ const STALL_RE = /__RP_STALL__:(\d+)(?:,(\d+))?:__END__/;
 
 /**
  * Directive embedded in a driving prompt's text —
- * `__RP_NATIVE_TOOL__:<json {name, args}>:__END__` — that forces a native
- * (non-Code-Mode) tool_call for one of opencode's own built-in tools (e.g.
- * `webfetch`), which are listed directly in the request's `tools` array and
- * called by name, unlike plugin-registered tools (see `DIRECTIVE_RE`). The
- * whole `{name, args}` pair is carried as one JSON blob rather than
- * colon-delimited fields: a tool name and a URL both routinely contain
- * colons, which broke a naive `name:args` split.
+ * `__RP_NATIVE_TOOL__:<base64 {name, args, nonce}>:__END__` — that forces a
+ * tool_call for a directly invocable tool, named in the request's own `tools`
+ * array: RP's own tools and opencode's built-ins alike.
+ *
+ * The `{name, args, nonce}` triple is carried as one base64 blob rather than
+ * as delimited fields or raw JSON. A tool name and a URL both routinely
+ * contain colons, which broke a naive `name:args` split; and an argument may
+ * itself carry a directive meant to fire later rather than now (a health
+ * loop's monitor prompt, say), whose own `:__END__` would otherwise terminate
+ * this match early. base64's alphabet contains no colon or underscore, so no
+ * argument can close the directive it travels in.
  */
-const NATIVE_TOOL_RE = /__RP_NATIVE_TOOL__:([\s\S]*?):__END__/;
+const NATIVE_TOOL_RE = /__RP_NATIVE_TOOL__:([A-Za-z0-9+/=]*):__END__/;
+
+/**
+ * Decode a native directive's base64 payload.
+ *
+ * @param {string} payload The directive's captured base64 blob.
+ * @returns {{ name: string, args: object, nonce: string | undefined }}
+ */
+function decodeNativeDirective(payload) {
+  return JSON.parse(Buffer.from(payload, "base64").toString("utf8"));
+}
 
 /** API key the sandbox uses to trigger a deterministic HTTP 401. */
 export const INVALID_AUTH_KEY = "rp-invalid-auth-key";
@@ -115,11 +132,13 @@ function lastUserText(messages) {
  * Start the stub provider.
  *
  * @param {{ port: number }} options
- * @returns {{ server: import("node:http").Server, close: () => Promise<void> }}
+ * @returns {{ server: import("node:http").Server, offeredToolNames: () => Set<string>, close: () => Promise<void> }}
+ *   `offeredToolNames` reports every tool name offered to the stub so far;
  *   `close` stops listening and resolves once fully closed.
  */
 export function startStubProvider({ port }) {
   const firedDirectives = new Set();
+  const offeredToolNames = new Set();
 
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -182,12 +201,17 @@ export function startStubProvider({ port }) {
       const offered = new Set(
         (parsed.tools ?? []).map((tool) => tool.function?.name ?? tool.name),
       );
+      for (const name of offered) {
+        offeredToolNames.add(name);
+      }
 
       const match = offered.has("execute") ? text.match(DIRECTIVE_RE) : null;
       const alreadyAnswered = match && firedDirectives.has(match[0]);
       const nativeCandidate = text.match(NATIVE_TOOL_RE);
       const nativeMatch =
-        nativeCandidate && offered.has(JSON.parse(nativeCandidate[1]).name) ? nativeCandidate : null;
+        nativeCandidate && offered.has(decodeNativeDirective(nativeCandidate[1]).name)
+          ? nativeCandidate
+          : null;
       const nativeAlreadyAnswered = nativeMatch && firedDirectives.has(nativeMatch[0]);
 
       // Held open only for the agent turn, for the same reason: stalling the
@@ -290,7 +314,7 @@ export function startStubProvider({ port }) {
 
       if (nativeMatch && !nativeAlreadyAnswered) {
         firedDirectives.add(nativeMatch[0]);
-        const { name: toolName, args } = JSON.parse(nativeMatch[1]);
+        const { name: toolName, args, nonce } = decodeNativeDirective(nativeMatch[1]);
         res.write(
           sseChunk(parsed.model ?? "stub-model", {
             role: "assistant",
@@ -298,7 +322,11 @@ export function startStubProvider({ port }) {
             tool_calls: [
               {
                 index: 0,
-                id: `call_${firedDirectives.size}`,
+                // The call id becomes the tool part's `id`, which is how a
+                // check correlates a result with the call it drove — two
+                // calls to the same tool with identical arguments are
+                // otherwise indistinguishable in the transcript.
+                id: nonce ? `call_${nonce}` : `call_${firedDirectives.size}`,
                 type: "function",
                 function: { name: toolName, arguments: JSON.stringify(args) },
               },
@@ -339,6 +367,11 @@ export function startStubProvider({ port }) {
     server.listen(port, "127.0.0.1", () => {
       resolve({
         server,
+        // Every tool name this stub has been offered across all requests —
+        // the model's own view of the catalogue, and so the evidence of
+        // which tools are callable by name rather than only through Code
+        // Mode's `execute` wrapper.
+        offeredToolNames: () => new Set(offeredToolNames),
         close: () => new Promise((r) => server.close(() => r())),
       });
     });
@@ -364,15 +397,25 @@ export function directivePrompt(code, nonce) {
 }
 
 /**
- * Build a driving prompt that forces a native (non-Code-Mode) tool_call for
- * one of opencode's own built-in tools.
+ * Build a driving prompt that forces a tool_call for a directly invocable
+ * tool — RP's own tools, or one of opencode's built-ins.
  *
- * @param {string} toolName e.g. `"webfetch"`.
+ * A per-call `nonce` keeps every directive's exact text unique, so the stub's
+ * already-answered dedup never mistakes two calls carrying identical
+ * arguments for a repeat of the same one, and becomes the emitted call's id
+ * so the result can be correlated back (see `NATIVE_TOOL_RE`).
+ *
+ * @param {string} toolName e.g. `"rp_status"` or `"webfetch"`.
  * @param {object} args The tool's arguments (JSON-serialized verbatim).
+ * @param {string} [nonce] A value unique to this call.
  * @returns {string} The prompt text to post as the driving session's input.
  */
-export function nativeToolPrompt(toolName, args) {
-  return `__RP_NATIVE_TOOL__:${JSON.stringify({ name: toolName, args })}:__END__`;
+export function nativeToolPrompt(toolName, args, nonce) {
+  const payload = Buffer.from(
+    JSON.stringify({ name: toolName, args, nonce }),
+    "utf8",
+  ).toString("base64");
+  return `__RP_NATIVE_TOOL__:${payload}:__END__`;
 }
 
 /**

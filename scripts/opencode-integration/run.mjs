@@ -62,6 +62,7 @@ async function main() {
   const results = [];
   const ctx = {
     server: { baseURL, password },
+    stub,
     serveChild,
     sandboxDir,
     projectDir,

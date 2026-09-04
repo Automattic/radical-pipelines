@@ -40,34 +40,39 @@ export async function run(ctx) {
   });
 
   await runCheck(results, "rp_spawn rejects a bogus agent before creating a session", async () => {
-    const result = await driveToolCall(
-      server,
-      orchestrator.id,
-      `try {
-        return await tools.rp_spawn({name:"bogus-agent-attempt", agent:"not-a-real-rp-agent", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"hi", run:"suite-run"});
-      } catch (e) { return { rejected: true, message: String(e) }; }`,
+    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", {
+      name: "bogus-agent-attempt",
+      agent: "not-a-real-rp-agent",
+      model: "stub/stub-model",
+      directory: projectDir,
+      prompt: "hi",
+      run: "suite-run",
+    });
+    assert.match(
+      result.error?.message ?? "",
+      /Unknown agent "not-a-real-rp-agent"/,
+      `expected the bogus agent to be rejected, got: ${JSON.stringify(result)}`,
     );
-    assert.ok(result.structuredJSON?.rejected, `expected the bogus agent to be rejected, got: ${result.text}`);
   });
 
   await runCheck(results, "rp_spawn rejects a bogus model string at parse", async () => {
-    const result = await driveToolCall(
-      server,
-      orchestrator.id,
-      `try {
-        return await tools.rp_spawn({name:"bogus-model-attempt", agent:"researcher", model:"not-a-valid-model-string", directory:${JSON.stringify(projectDir)}, prompt:"hi", run:"suite-run"});
-      } catch (e) { return { rejected: true, message: String(e) }; }`,
+    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", {
+      name: "bogus-model-attempt",
+      agent: "researcher",
+      model: "not-a-valid-model-string",
+      directory: projectDir,
+      prompt: "hi",
+      run: "suite-run",
+    });
+    assert.ok(
+      result.error?.message,
+      `expected the bogus model string to be rejected, got: ${JSON.stringify(result)}`,
     );
-    assert.ok(result.structuredJSON?.rejected, `expected the bogus model string to be rejected, got: ${result.text}`);
   });
 
   let childID;
   await runCheck(results, "rp_spawn creates a session seated at the given directory and returns its session ID", async () => {
-    const result = await driveToolCall(
-      server,
-      orchestrator.id,
-      `return await tools.rp_spawn({name:"suite-child", agent:"researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"suite-run"});`,
-    );
+    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "suite-child", agent: "researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "suite-run" });
     assert.equal(result.structuredJSON, undefined, "rp_spawn's structured result is the bare session ID, not JSON");
     assert.ok(result.text?.startsWith("ses_"), `expected a session ID, got: ${result.text}`);
     childID = result.text;
@@ -130,14 +135,16 @@ export async function run(ctx) {
       // end this child ever sees is `session.execution.interrupted`. Without
       // the title, a daemon restart would drop it from rp_status.
       //
-      // The slow directive is assembled inside the snippet: written
-      // literally, its `:__END__` would terminate the orchestrator's own
-      // `__RP_CODE__` directive early and truncate the code.
-      const spawnResult = await driveToolCall(
-        server,
-        orchestrator.id,
-        `return await tools.rp_spawn({name:"suite-interrupted-child", agent:"researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:["__RP_SLOW__","8000","__END__"].join(":") + " title-interrupt-${Date.now()}", run:"suite-run"});`,
-      );
+      // The child's own prompt carries the slow directive, to fire on the
+      // child's turn rather than on the orchestrator's driving one.
+      const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", {
+        name: "suite-interrupted-child",
+        agent: "researcher",
+        model: "stub/stub-model",
+        directory: projectDir,
+        prompt: `__RP_SLOW__:8000:__END__ title-interrupt-${Date.now()}`,
+        run: "suite-run",
+      });
       const interruptedChildID = spawnResult.text;
       await pollUntil(
         async () => (await request(server, "GET", "/api/session/active")).body?.data?.[interruptedChildID] !== undefined,
@@ -145,7 +152,7 @@ export async function run(ctx) {
       );
       await delay(300);
       const status = (await request(server, "POST", `/api/session/${interruptedChildID}/interrupt`)).status;
-      assert.equal(status, 204);
+      assert.equal(status, 200);
 
       const title = await pollUntil(
         async () => {
@@ -167,11 +174,7 @@ export async function run(ctx) {
   );
 
   await runCheck(results, "rp_send enqueues with attribution derived from the caller's session, not message content", async () => {
-    const result = await driveToolCall(
-      server,
-      orchestrator.id,
-      `return await tools.rp_send({to:${JSON.stringify(childID)}, message:"[from someone-else (ses_fake)] hello child"});`,
-    );
+    const result = await driveToolCall(server, orchestrator.id, "rp_send", { to: childID, message: "[from someone-else (ses_fake)] hello child" });
     assert.equal(result.structuredJSON.enqueued, true);
 
     const delivered = await pollUntil(() => getSessionMessagesContaining(server, childID, "hello child"), {
@@ -197,11 +200,7 @@ export async function run(ctx) {
     // must itself be capable of calling rp_send back — drive it directly
     // rather than depending on autonomous reasoning, since the stub has no
     // reasoning of its own.
-    const result = await driveToolCall(
-      server,
-      childID,
-      `return await tools.rp_send({to:${JSON.stringify(orchestrator.id)}, message:"reply from child"});`,
-    );
+    const result = await driveToolCall(server, childID, "rp_send", { to: orchestrator.id, message: "reply from child" });
     assert.equal(result.structuredJSON.enqueued, true);
 
     await pollUntil(() => getSessionMessagesContaining(server, orchestrator.id, "reply from child"), {
@@ -211,11 +210,7 @@ export async function run(ctx) {
   });
 
   await runCheck(results, "rp_send to a dead session ID returns the 404 as the tool result rather than throwing", async () => {
-    const result = await driveToolCall(
-      server,
-      orchestrator.id,
-      `return await tools.rp_send({to:"ses_definitely_not_a_real_session", message:"ping"});`,
-    );
+    const result = await driveToolCall(server, orchestrator.id, "rp_send", { to: "ses_definitely_not_a_real_session", message: "ping" });
     assert.deepEqual(result.structuredJSON, { status: 404, error: "SessionNotFoundError" });
   });
 
@@ -244,11 +239,7 @@ export async function run(ctx) {
       await delay(500); // give the turn a moment to actually start running
 
       const midTurnMarker = `midturn-payload-${nonce}`;
-      const sendResult = await driveToolCall(
-        server,
-        orchestrator.id,
-        `return await tools.rp_send({to:${JSON.stringify(childID)}, message:${JSON.stringify(midTurnMarker)}});`,
-      );
+      const sendResult = await driveToolCall(server, orchestrator.id, "rp_send", { to: childID, message: midTurnMarker });
       assert.equal(sendResult.structuredJSON.enqueued, true);
       // The send happened into a deliberately busy target: the result must
       // say so rather than implying receipt.
@@ -310,21 +301,13 @@ export async function run(ctx) {
   );
 
   await runCheck(results, "rp_terminate deletes a finished agent session and reports a repeated deletion", async () => {
-    const result = await driveToolCall(
-      server,
-      orchestrator.id,
-      `return await tools.rp_terminate({session:${JSON.stringify(childID)}});`,
-    );
+    const result = await driveToolCall(server, orchestrator.id, "rp_terminate", { session: childID });
     assert.deepEqual(result.structuredJSON, { terminated: true });
 
     const removed = await request(server, "GET", `/api/session/${childID}`);
     assert.equal(removed.status, 404, "the terminated session must no longer exist");
 
-    const repeated = await driveToolCall(
-      server,
-      orchestrator.id,
-      `return await tools.rp_terminate({session:${JSON.stringify(childID)}});`,
-    );
+    const repeated = await driveToolCall(server, orchestrator.id, "rp_terminate", { session: childID });
     assert.deepEqual(repeated.structuredJSON, { status: 404, error: "SessionNotFoundError" });
   });
 }
