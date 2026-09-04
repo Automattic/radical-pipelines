@@ -3,10 +3,32 @@ import { describe, test } from "node:test";
 
 import {
   guardTool,
+  readSessionParentage,
   recordSessionParent,
   recordSpawn,
   resolveToolAccess,
 } from "../../../opencode/plugin.mjs";
+
+/** A `readParentage` that fails the test if the boundary consults it. */
+const neverAsked = {
+  readParentage: () => {
+    throw new Error("parentage was already observed; it must not be read again");
+  },
+};
+
+/** A `readParentage` that answers, and counts how often it was asked. */
+function asks(answer) {
+  const calls = [];
+  return {
+    calls,
+    deps: {
+      readParentage: async (sessionID) => {
+        calls.push(sessionID);
+        return answer;
+      },
+    },
+  };
+}
 
 /** Build a tool descriptor that records every call it is allowed to make. */
 function spyTool(name) {
@@ -17,6 +39,8 @@ function spyTool(name) {
       name,
       description: `${name} description`,
       input: { type: "object", properties: {} },
+      output: { type: "object" },
+      options: { permission: "rp" },
       async execute(input, toolCtx) {
         calls.push({ input, sessionID: toolCtx.sessionID });
         return { output: "ran", content: [{ type: "text", text: "ran" }] };
@@ -26,39 +50,36 @@ function spyTool(name) {
 }
 
 describe("recordSessionParent / resolveToolAccess", () => {
-  test("a session created with a parent is a subagent and reaches no RP tool", () => {
+  test("a session created with a parent is a subagent and reaches no RP tool", async () => {
     recordSessionParent({
       type: "session.created",
       data: { sessionID: "ses_access_child", parentID: "ses_access_worker" },
     });
 
-    assert.equal(resolveToolAccess("ses_access_child"), "none");
+    assert.equal(await resolveToolAccess("ses_access_child", neverAsked), "none");
   });
 
-  test("a session created without a parent is not a subagent", () => {
+  test("a session created without a parent is a root session, and is never asked about again", async () => {
     recordSessionParent({
       type: "session.created",
       data: { sessionID: "ses_access_rootlevel" },
     });
 
-    assert.equal(resolveToolAccess("ses_access_rootlevel"), "full");
+    assert.equal(await resolveToolAccess("ses_access_rootlevel", neverAsked), "full");
   });
 
-  test("a spawned agent is limited to sending", () => {
+  test("a spawned agent is limited to sending", async () => {
     recordSpawn("ses_access_agent", {
       name: "build-worker-tdd 1",
       run: "144-opencode-support",
       spawner: "ses_access_orchestrator",
     });
+    recordSessionParent({ type: "session.created", data: { sessionID: "ses_access_agent" } });
 
-    assert.equal(resolveToolAccess("ses_access_agent"), "send-only");
+    assert.equal(await resolveToolAccess("ses_access_agent", neverAsked), "send-only");
   });
 
-  test("a session nothing spawned and nothing parented — the orchestrator, the owner — reaches everything", () => {
-    assert.equal(resolveToolAccess("ses_access_unknown"), "full");
-  });
-
-  test("parentage is read only from session.created, and only when a parent is named", () => {
+  test("parentage is read only from session.created", async () => {
     recordSessionParent({
       type: "session.updated",
       data: { sessionID: "ses_access_other_event", parentID: "ses_access_worker" },
@@ -66,10 +87,12 @@ describe("recordSessionParent / resolveToolAccess", () => {
     recordSessionParent({ type: "session.created", data: {} });
     recordSessionParent(undefined);
 
-    assert.equal(resolveToolAccess("ses_access_other_event"), "full");
+    const asked = asks(false);
+    assert.equal(await resolveToolAccess("ses_access_other_event", asked.deps), "full");
+    assert.deepEqual(asked.calls, ["ses_access_other_event"]);
   });
 
-  test("a subagent of a spawned agent stays a subagent: parentage outranks the ledger", () => {
+  test("a subagent of a spawned agent stays a subagent: parentage outranks the ledger", async () => {
     recordSpawn("ses_access_both", {
       name: "build-worker-tdd 2",
       run: "144-opencode-support",
@@ -80,7 +103,61 @@ describe("recordSessionParent / resolveToolAccess", () => {
       data: { sessionID: "ses_access_both", parentID: "ses_access_worker" },
     });
 
-    assert.equal(resolveToolAccess("ses_access_both"), "none");
+    assert.equal(await resolveToolAccess("ses_access_both", neverAsked), "none");
+  });
+
+  test("a session whose creation event was missed is asked about rather than assumed unparented", async () => {
+    const asked = asks(true);
+
+    assert.equal(await resolveToolAccess("ses_access_missed", asked.deps), "none");
+    assert.deepEqual(asked.calls, ["ses_access_missed"]);
+  });
+
+  test("the answer is remembered, so a session is asked about at most once", async () => {
+    const asked = asks(true);
+
+    await resolveToolAccess("ses_access_asked_once", asked.deps);
+    await resolveToolAccess("ses_access_asked_once", asked.deps);
+    await resolveToolAccess("ses_access_asked_once", asked.deps);
+
+    assert.deepEqual(asked.calls, ["ses_access_asked_once"]);
+  });
+
+  test("an unanswerable question leaves the caller a root session, and is retried next call", async () => {
+    const asked = asks(undefined);
+
+    assert.equal(await resolveToolAccess("ses_access_unreadable", asked.deps), "full");
+    assert.equal(await resolveToolAccess("ses_access_unreadable", asked.deps), "full");
+    assert.deepEqual(asked.calls, ["ses_access_unreadable", "ses_access_unreadable"]);
+  });
+});
+
+describe("readSessionParentage", () => {
+  const server = { baseURL: "http://x", password: "y" };
+
+  test("reports the parentage the stored session carries", async () => {
+    assert.equal(
+      await readSessionParentage(server, "ses_read_child", async () => ({
+        status: 200,
+        body: { data: { id: "ses_read_child", parentID: "ses_read_parent" } },
+      })),
+      true,
+    );
+
+    assert.equal(
+      await readSessionParentage(server, "ses_read_root", async () => ({
+        status: 200,
+        body: { data: { id: "ses_read_root" } },
+      })),
+      false,
+    );
+  });
+
+  test("a non-2xx read throws, carrying its status", async () => {
+    await assert.rejects(
+      readSessionParentage(server, "ses_read_gone", async () => ({ status: 404, body: undefined })),
+      (error) => error.status === 404,
+    );
   });
 });
 
@@ -93,7 +170,7 @@ describe("guardTool", () => {
 
     for (const name of ["rp_send", "rp_spawn", "rp_status", "rp_loop_list"]) {
       const { tool, calls } = spyTool(name);
-      const result = await guardTool(tool).execute({}, { sessionID: "ses_guard_child" });
+      const result = await guardTool(tool, neverAsked).execute({}, { sessionID: "ses_guard_child" });
 
       assert.equal(result.output.status, 403);
       assert.equal(result.output.error, "SubagentNotPermitted");
@@ -108,14 +185,15 @@ describe("guardTool", () => {
       run: "144-opencode-support",
       spawner: "ses_guard_orchestrator",
     });
+    recordSessionParent({ type: "session.created", data: { sessionID: "ses_guard_agent" } });
 
     const send = spyTool("rp_send");
-    const sent = await guardTool(send.tool).execute({ to: "x" }, { sessionID: "ses_guard_agent" });
+    const sent = await guardTool(send.tool, neverAsked).execute({ to: "x" }, { sessionID: "ses_guard_agent" });
     assert.equal(sent.output, "ran");
     assert.deepEqual(send.calls, [{ input: { to: "x" }, sessionID: "ses_guard_agent" }]);
 
     const spawn = spyTool("rp_spawn");
-    const refused = await guardTool(spawn.tool).execute({}, { sessionID: "ses_guard_agent" });
+    const refused = await guardTool(spawn.tool, neverAsked).execute({}, { sessionID: "ses_guard_agent" });
     assert.equal(refused.output.status, 403);
     assert.equal(refused.output.error, "AgentNotPermitted");
     assert.match(refused.output.message, /rp_send/);
@@ -123,21 +201,25 @@ describe("guardTool", () => {
   });
 
   test("an unspawned, unparented session reaches every tool", async () => {
+    recordSessionParent({ type: "session.created", data: { sessionID: "ses_guard_owner" } });
+
     for (const name of ["rp_send", "rp_spawn", "rp_status", "rp_terminate"]) {
       const { tool, calls } = spyTool(name);
-      const result = await guardTool(tool).execute({ a: 1 }, { sessionID: "ses_guard_orchestrator_2" });
+      const result = await guardTool(tool, neverAsked).execute({ a: 1 }, { sessionID: "ses_guard_owner" });
 
       assert.equal(result.output, "ran");
       assert.equal(calls.length, 1);
     }
   });
 
-  test("the wrapper preserves the descriptor opencode registers", () => {
+  test("the wrapper preserves every field of the descriptor opencode registers", () => {
     const { tool } = spyTool("rp_status");
-    const guarded = guardTool(tool);
+    const guarded = guardTool(tool, neverAsked);
 
     assert.equal(guarded.name, tool.name);
     assert.equal(guarded.description, tool.description);
     assert.deepEqual(guarded.input, tool.input);
+    assert.deepEqual(guarded.output, tool.output);
+    assert.deepEqual(guarded.options, tool.options);
   });
 });

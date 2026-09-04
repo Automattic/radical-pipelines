@@ -165,23 +165,23 @@ function resolveCurrentSpawn(name) {
 }
 
 /**
- * `globalThis` key backing the process-wide set of sessions opencode created
- * as the child of another session. Shares the re-import rationale of
- * `LEDGER_KEY`.
+ * `globalThis` key backing the process-wide record of session parentage.
+ * Shares the re-import rationale of `LEDGER_KEY`.
  */
-const CHILD_SESSION_KEY = Symbol.for("radical-pipelines.opencode.childSessions");
+const SESSION_PARENTAGE_KEY = Symbol.for("radical-pipelines.opencode.sessionParentage");
 
 /**
- * Fetch the process-wide child-session set, creating it on first use.
+ * Fetch the process-wide parentage record, creating it on first use.
  *
- * @returns {Set<string>} The session IDs observed being created with a
- *   parent.
+ * @returns {Map<string, boolean>} Session ID to whether opencode created it
+ *   as the child of another session. Absence means unobserved, which is not
+ *   the same as unparented (see `resolveToolAccess`).
  */
-function getChildSessions() {
-  if (!globalThis[CHILD_SESSION_KEY]) {
-    globalThis[CHILD_SESSION_KEY] = new Set();
+function getSessionParentage() {
+  if (!globalThis[SESSION_PARENTAGE_KEY]) {
+    globalThis[SESSION_PARENTAGE_KEY] = new Map();
   }
-  return globalThis[CHILD_SESSION_KEY];
+  return globalThis[SESSION_PARENTAGE_KEY];
 }
 
 /**
@@ -191,9 +191,13 @@ function getChildSessions() {
  * session delegated to it inside its own turn, and it delivers its result by
  * returning, not by addressing anyone. `resolveToolAccess` needs that fact.
  *
- * The event subscription replays no history, so a session created before
- * this process started leaves no record here and reads as unparented — the
- * behaviour that already applies to every session today.
+ * A creation *without* a `parentID` is recorded too — it is positive
+ * evidence of a root session, and recording it spares that session the
+ * lookup its absence would otherwise cost.
+ *
+ * A fork is not a child: opencode emits `session.forked` for one and records
+ * its lineage as a fork of its origin, leaving parentage null. Reading only
+ * `session.created` therefore leaves a forked orchestrator a root session.
  *
  * @param {{type?: string, data?: {sessionID?: string, parentID?: string}}} event
  *   An opencode event.
@@ -204,8 +208,8 @@ function recordSessionParent(event) {
     return;
   }
   const { sessionID, parentID } = event.data ?? {};
-  if (typeof sessionID === "string" && typeof parentID === "string") {
-    getChildSessions().add(sessionID);
+  if (typeof sessionID === "string") {
+    getSessionParentage().set(sessionID, typeof parentID === "string");
   }
 }
 
@@ -219,8 +223,8 @@ const AGENT_TOOL = "rp_send";
  * Decide which RP tools a calling session may use.
  *
  * Three callers exist, told apart by two facts a caller cannot forge — the
- * parentage opencode reports at creation, and the ledger RP writes when it
- * spawns:
+ * parentage opencode reports for the session, and the ledger RP writes when
+ * it spawns:
  *
  * - A **subagent** gets none. It returns its result to whoever delegated to
  *   it, which is the contract it was created under; reaching past that to
@@ -231,18 +235,39 @@ const AGENT_TOOL = "rp_send";
  * - **Anything else** — the orchestrator, which nothing spawned, and the
  *   owner's own session — gets all of them.
  *
+ * Parentage is normally already known from the event stream, but an event
+ * can be missed: the subscription replays no history, and it resubscribes
+ * after a dropped stream rather than recovering what fell in the gap. An
+ * unobserved session is therefore *asked about* rather than assumed
+ * unparented — otherwise a subagent born in that gap, or one whose first
+ * tool call outran its own creation event, would silently hold every tool.
+ * The answer is remembered, so a session is asked about at most once.
+ *
+ * Only an unanswerable question opens the boundary: when no server can be
+ * reached, an unobserved caller is treated as a root session, because
+ * refusing every caller RP cannot classify would stop the orchestrator too.
+ *
  * The ledger lives in daemon memory, so after a restart a spawned agent
  * reads as unledgered and widens into the last case until it is spawned
- * again. That relaxes a least-privilege boundary; it never relaxes the
- * subagent one, because a subagent does not outlive the process that
- * created it.
+ * again. That relaxes a least-privilege boundary, never the subagent one.
  *
  * @param {string} sessionID The calling session's authoritative ID, as
  *   opencode supplies it to a tool's `execute`.
- * @returns {"none" | "send-only" | "full"} The caller's access.
+ * @param {{ readParentage: (sessionID: string) => Promise<boolean | undefined> }} deps
+ *   `readParentage` answers whether an unobserved session has a parent, or
+ *   `undefined` when it cannot be determined.
+ * @returns {Promise<"none" | "send-only" | "full">} The caller's access.
  */
-function resolveToolAccess(sessionID) {
-  if (getChildSessions().has(sessionID)) {
+async function resolveToolAccess(sessionID, { readParentage }) {
+  const parentage = getSessionParentage();
+  let child = parentage.get(sessionID);
+  if (child === undefined) {
+    child = await readParentage(sessionID);
+    if (child !== undefined) {
+      parentage.set(sessionID, child);
+    }
+  }
+  if (child) {
     return "none";
   }
   return lookupSpawn(sessionID) ? "send-only" : "full";
@@ -1590,6 +1615,33 @@ async function getSessionUpdatedAt(server, sessionID, requestFn) {
     throw new Error(`GET /api/session/${sessionID} response is missing time.updated`);
   }
   return updated;
+}
+
+/**
+ * Read whether a session was created as the child of another.
+ *
+ * The durable answer to the question `session.created` normally answers,
+ * for the sessions whose event was never seen (see `resolveToolAccess`).
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session ID to read.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<boolean>} `true` when the stored session names a parent.
+ * @throws {Error} On a non-2xx response, carrying its status.
+ */
+async function readSessionParentage(server, sessionID, requestFn) {
+  const response = await requestServer(
+    server,
+    "GET",
+    `/api/session/${sessionID}`,
+    undefined,
+    requestFn,
+  );
+  if (response.status < 200 || response.status >= 300) {
+    throw sessionReadError(`GET /api/session/${sessionID}`, response.status);
+  }
+  return typeof response.body?.data?.parentID === "string";
 }
 
 /**
@@ -3736,13 +3788,15 @@ function toToolResult(value) {
  * the same call, or invents a way around it.
  *
  * @param {{name: string, execute: Function}} tool The tool descriptor to wrap.
+ * @param {{ readParentage: (sessionID: string) => Promise<boolean | undefined> }} deps
+ *   Forwarded to `resolveToolAccess`.
  * @returns {object} The same descriptor with a guarded `execute`.
  */
-function guardTool(tool) {
+function guardTool(tool, { readParentage }) {
   return {
     ...tool,
     async execute(input, toolCtx) {
-      const access = resolveToolAccess(toolCtx.sessionID);
+      const access = await resolveToolAccess(toolCtx.sessionID, { readParentage });
       if (access === "none") {
         return toToolResult({
           status: 403,
@@ -4369,8 +4423,11 @@ function setup(ctx, deps = {}) {
         });
       }
       if (outcome.outcome === "target-missing") {
+        // Disarm before the registry write, as `rp_loop_cancel` does: a
+        // registry that cannot be read or written must still stop the timer,
+        // or the loop keeps ticking on a target that is gone.
+        void disarmLoopTimer(entry.id);
         deleteLoopEntry(registryPath, entry.id);
-        disarmLoopTimer(entry.id);
         recordError({
           type: "loop.retired",
           loopID: entry.id,
@@ -4409,15 +4466,37 @@ function setup(ctx, deps = {}) {
     }
   };
 
+  // Answers `resolveToolAccess` for a caller whose `session.created` was
+  // never seen. A server that cannot be reached leaves the question
+  // unanswered rather than answering it wrongly.
+  const readParentage = async (sessionID) => {
+    try {
+      const server = resolveServer({ env, readServiceRecord: readServiceRecordOverride });
+      if (!server) {
+        return undefined;
+      }
+      return await readSessionParentage(server, sessionID, requestFn);
+    } catch (error) {
+      recordError({
+        type: "session.parentage.unreadable",
+        sessionID,
+        error: String(error),
+        at: Date.now(),
+      });
+      return undefined;
+    }
+  };
+
   ctx.tool.transform((tools) => {
-    tools.add(guardTool(buildSpawnTool(ctx, { resolveRepoRootFn })));
-    tools.add(guardTool(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
-    tools.add(guardTool(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
-    tools.add(guardTool(buildLoopStartTool({ registryPath, tick })));
-    tools.add(guardTool(buildLoopListTool(registryPath)));
-    tools.add(guardTool(buildLoopCancelTool(registryPath)));
-    tools.add(guardTool(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })));
-    tools.add(guardTool(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
+    const guard = (tool) => guardTool(tool, { readParentage });
+    tools.add(guard(buildSpawnTool(ctx, { resolveRepoRootFn })));
+    tools.add(guard(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
+    tools.add(guard(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
+    tools.add(guard(buildLoopStartTool({ registryPath, tick })));
+    tools.add(guard(buildLoopListTool(registryPath)));
+    tools.add(guard(buildLoopCancelTool(registryPath)));
+    tools.add(guard(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })));
+    tools.add(guard(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
     return tools;
   });
 
@@ -4565,6 +4644,7 @@ export {
   readPackageVersion,
   readPinManifest,
   readServiceRecordFile,
+  readSessionParentage,
   readSkillDirectory,
   recordGenerationID,
   recordRawResponseStart,

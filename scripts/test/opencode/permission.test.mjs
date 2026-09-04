@@ -12,6 +12,7 @@ import {
   onPermissionAsked,
   onToolEvent,
   parsePermissionAsked,
+  recordSessionParent,
   recordSpawn,
   redirectTargets,
   replyToPermission,
@@ -20,6 +21,13 @@ import {
   toToolResult,
   toolTarget,
 } from "../../../opencode/plugin.mjs";
+
+// The owner's session: opencode announces every session it creates, so
+// registering ses_owner as a root session is what the running daemon does
+// before any tool call reaches the access boundary.
+for (const id of ["ses_owner", "ses_caller"]) {
+  recordSessionParent({ type: "session.created", data: { sessionID: id } });
+}
 
 /** Well-known globalThis symbols the module keys its singletons under. */
 const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");

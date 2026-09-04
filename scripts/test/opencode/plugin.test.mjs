@@ -39,6 +39,7 @@ import plugin, {
   recordSend,
   recordSessionEventActivity,
   readServiceRecordFile,
+  recordSessionParent,
   recordSpawn,
   recordTurnEnd,
   requestServer,
@@ -56,6 +57,13 @@ import plugin, {
   toToolResult,
   turnsFor,
 } from "../../../opencode/plugin.mjs";
+
+// The owner's session: opencode announces every session it creates, so
+// registering ses_owner as a root session is what the running daemon does
+// before any tool call reaches the access boundary.
+for (const id of ["ses_owner", "ses_caller"]) {
+  recordSessionParent({ type: "session.created", data: { sessionID: id } });
+}
 
 /** Well-known globalThis symbols the module keys its singletons under. */
 const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
@@ -3664,6 +3672,64 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     assert.ok(
       globalThis[LOOP_TICK_LOG_KEY].some((tick) => tick.loopID === loopID && tick.outcome === "cancelled"),
       `expected the abandoned tick to record itself cancelled, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
+    );
+  });
+
+  test("a tick that finds its target gone retires the loop: entry removed, timer disarmed, retirement recorded once", async () => {
+    const dataHome = freshDir();
+    const { ctx, tools, sessions } = createFakeCtx();
+    sessions.set("ses_caller", { id: "ses_caller" });
+    globalThis[ERROR_LOG_KEY] = [];
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return { id: "msg_probe" };
+    };
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: {
+          XDG_DATA_HOME: dataHome,
+          RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999",
+          OPENCODE_PASSWORD: "pw",
+        },
+        readServiceRecord: () => null,
+        requestFn: async (url) => {
+          // The target is not in the active set, and every session-addressed
+          // read of it answers 404: the session no longer exists.
+          if (url.pathname === "/api/session/active") {
+            return { status: 200, body: { data: {} } };
+          }
+          return { status: 404, body: { _tag: "SessionNotFoundError" } };
+        },
+      }),
+    );
+
+    const startResult = await tools.get("rp_loop_start").execute(
+      { interval: 5, prompt: "check status" },
+      { sessionID: "ses_caller" },
+    );
+    const loopID = startResult.output.id;
+
+    await delay(120);
+
+    assert.deepEqual(
+      (await tools.get("rp_loop_list").execute({}, { sessionID: "ses_caller" })).output,
+      [],
+      "a retired loop leaves no registry entry",
+    );
+    const retirements = globalThis[ERROR_LOG_KEY].filter((entry) => entry.type === "loop.retired");
+    assert.equal(retirements.length, 1, `expected exactly one retirement, got ${JSON.stringify(retirements)}`);
+    assert.equal(retirements[0].loopID, loopID);
+    assert.equal(promptCalls.length, 0, "a loop whose target is gone must not inject");
+
+    const ticksAtRetirement = globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length;
+    await delay(60);
+    assert.equal(
+      globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length,
+      ticksAtRetirement,
+      "a retired loop stops ticking",
     );
   });
 
