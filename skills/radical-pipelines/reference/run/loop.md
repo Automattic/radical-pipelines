@@ -32,7 +32,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `invalid plan: …` / `invalid reports: …`             | The plan producer, mode Adjudicate, with the report `rp check` names                                           |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
-| `undeclared lane <path>`                             | The tree holds a lane the run policy lacks: stop and tell the owner                                            |
+| `undeclared lane <path>` / `symlink <path>`          | The tree holds a lane the run policy lacks, or a symlink: stop and tell the owner                              |
 | `complete`                                           | Close-out                                                                                                      |
 
 ## Dispatch

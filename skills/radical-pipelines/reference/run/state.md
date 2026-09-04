@@ -4,7 +4,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 ## Terms
 
-- **Identity** — the hash of a file's body: `git hash-object --stdin` of everything below the frontmatter, or of the whole file when it has none.
+- **Identity** — the hash of a file's body: `git hash-object --stdin` of every byte below the frontmatter, or of the whole file when it has none. The pipeline folder holds files and folders only: a symlink is a defect.
 - **Pin** — a frontmatter line recording the identity of an input the file consumed: `<path>@<identity>`, path relative to the pipeline folder. Only you write pins, through `rp stamp`.
 - **Stale** — a pin whose target's current identity differs from the pinned one.
 - **Lane** — one instance of a role on one artifact. Every reviewer has an implicit lane with no id; the project may declare named review lanes and named production lanes (`../conventions/agents.md`). A named lane's identity is its whole declaration — id, brief, materials, `after` — as one **fingerprint**: a lane artifact or review stamped with another is stale; a lane folder or review the declaration lacks is a defect, never a lane.
@@ -76,7 +76,7 @@ A file pins exactly what it consumed, never its sibling record.
 
 `rp check <pipeline folder> --base <base branch> --lanes <declaration> --target-phase <n>` reports every phase up to the target and names the **frontier** — the first item of:
 
-1. **A contradiction** — a file whose mirrors differ from its body → stamp it; a lane the declaration lacks → stop and tell the owner.
+1. **A contradiction** — a file whose mirrors differ from its body → stamp it; a lane the declaration lacks, or a symlink → stop and tell the owner.
 2. **A pending trigger** targeting a phase within the target → work on its target. A trigger with an invalid target → re-dispatch what wrote it.
 3. **A pending claim** — an `unsatisfiable` verdict that is its lane's latest, whose wave closed with no `rejected` lane, whose `reviewed` pins are fresh, whose target is unchanged and within the target phase. Target in owner territory → owner escalation. Target itself the subject of a pending claim → suspended, resolve that one first. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
 4. **Per phase, in order** — declared production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / adjudication; a lane waits while a lane it comes `after` is unapproved; every lane approved and fresh → consolidate; lanes are closed once the root pins every lane's artifact, record, and approving reviews); then the root artifact: missing → produce; stale → produce with the delta; unstamped or incomplete pins → stamp what its producer consumed; an unstamped review → stamp it; an invalid one → its reviewer finishes it; not approved → a review wave, or an adjudication when the wave closed with a rejection — annotated **AUDIT** when the episode reaches the audit threshold and no audit covered this wave, **VALVE** at the valve threshold. Approved means every lane approved the current wave with fresh pins. In build and document, with the plan approved and fresh: an unstamped report of any attempt → stamp it; an invalid one → its worker finishes it; the next task — the lowest-numbered task whose dependencies are done and which is neither done nor held by an unadjudicated failure — as `blocked <phase>/T<n>` when its latest report is fresh and `blocked`; all done → the phase review; approved → the phase is complete.

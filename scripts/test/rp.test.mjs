@@ -678,16 +678,39 @@ describe("rp state tooling", () => {
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror"), /names a commit that does not exist: 0badc0ffee1/);
   });
 
-  test("CRLF frontmatter is parsed, and symlinked paths are refused", () => {
-    write(root, "1-spec/spec.md", "---\r\nnote: x\r\n---\r\n# Spec\r\n");
+  test("identity is the body's exact bytes as git hashes them: CRLF is never normalized; only delimiter lines tolerate a \\r", () => {
+    const gitHash = (text) => execFileSync("git", ["hash-object", "--stdin"], { input: text, encoding: "utf8" }).trim().slice(0, 12);
+    write(root, "1-spec/spec.md", "# Spec\r\n");
+    assert.equal(identity(read(root, "1-spec/spec.md")), gitHash("# Spec\r\n"));
+    assert.notEqual(identity("# Spec\r\n"), identity("# Spec\n"));
     stampSpec();
     const text = read(root, "1-spec/spec.md");
-    assert.equal(text.split("---").length, 3);
-    assert.match(text, /note: x/);
+    assert.match(text, /^---\npins:\n[\s\S]*---\n# Spec\r\n$/);
+    assert.equal(identity(text), gitHash("# Spec\r\n"));
+    // Delimiter lines may carry a \r; the closing one may end the file.
+    assert.equal(identity("---\r\nnote: x\r\n---\r\n# Spec\r\n"), gitHash("# Spec\r\n"));
+    assert.deepEqual(parseFrontmatter("---\nnote: x\n---"), { data: new Map([["note", "x"]]), body: "" });
+    assert.deepEqual(parseFrontmatter("---\n---\nbody\n"), { data: new Map(), body: "body\n" });
+  });
+
+  test("the pipeline tree holds no symlinks: stamp refuses them, check reports them without following", () => {
+    stampSpec();
+    approveSpec();
     const victim = join(root, "victim.md");
     writeFileSync(victim, "# Victim\n");
     execFileSync("ln", ["-sf", victim, join(root, P("1-spec/link.md"))]);
     assert.throws(() => rp(root, "stamp", P("1-spec/link.md"), "--mirror"), /symlinked/);
+    // A cyclic folder symlink never aborts the walk.
+    execFileSync("ln", ["-s", "..", join(root, P("1-spec/loop"))]);
+    let output = check(root, "--target-phase", "1");
+    assert.match(output, /symlink\s+1-spec\/link\.md\n/);
+    assert.match(output, /symlink\s+1-spec\/loop\n/);
+    assert.match(output, /frontier symlink 1-spec\/link\.md/);
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "with symlinks");
+    output = check(root, "--ref", "demo", "--target-phase", "1");
+    assert.match(output, /symlink\s+1-spec\/loop\n/);
+    assert.match(output, /frontier symlink 1-spec\/link\.md/);
   });
 
   test("check --json carries the state", () => {

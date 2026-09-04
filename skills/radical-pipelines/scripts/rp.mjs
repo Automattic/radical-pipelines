@@ -4,7 +4,7 @@
 // it does can be done with bare git. Commands: stamp, check.
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
@@ -26,15 +26,18 @@ function repoRoot() {
 
 // --- frontmatter (subset: scalars and lists of strings) ---------------------
 
+// The body is every byte after the closing delimiter line, exactly as git hashes it: nothing is
+// normalized. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
 export function parseFrontmatter(raw) {
-  const text = raw.replace(/\r\n/g, "\n");
-  if (!text.startsWith("---\n")) return { data: null, body: text };
-  const end = text.indexOf("\n---", 3);
-  if (end === -1) return { data: null, body: text };
-  const body = text.slice(text.indexOf("\n", end + 1) + 1);
+  const open = raw.match(/^---\r?\n/);
+  if (!open) return { data: null, body: raw };
+  const rest = raw.slice(open[0].length);
+  const close = rest.match(/(?:^|\n)---\r?(?:\n|$)/);
+  if (!close) return { data: null, body: raw };
+  const body = rest.slice(close.index + close[0].length);
   const data = new Map();
   let currentList = null;
-  for (const line of text.slice(4, end).split("\n")) {
+  for (const line of rest.slice(0, close.index).split("\n")) {
     if (!line.trim()) continue;
     const item = line.match(/^\s+-\s+(.*)$/);
     if (item && currentList) {
@@ -241,12 +244,18 @@ function pinParts(entry) {
   return at === -1 ? null : { path: entry.slice(0, at), sha: entry.slice(at + 1) };
 }
 
+// The pipeline tree holds files and folders only: a symlink is never followed, it is reported.
 function walk(dir) {
-  const out = [];
+  const out = { files: [], symlinks: [] };
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
-    if (statSync(p).isDirectory()) out.push(...walk(p));
-    else if (name.endsWith(".md")) out.push(p);
+    const st = lstatSync(p);
+    if (st.isSymbolicLink()) out.symlinks.push(p);
+    else if (st.isDirectory()) {
+      const sub = walk(p);
+      out.files.push(...sub.files);
+      out.symlinks.push(...sub.symlinks);
+    } else if (name.endsWith(".md")) out.files.push(p);
   }
   return out;
 }
@@ -255,17 +264,23 @@ function walk(dir) {
 function treeReader(root, abs, ref) {
   const pipelineRel = relative(root, abs);
   if (!ref) {
+    const tree = walk(abs);
     return {
-      list: () => walk(abs).map((f) => relative(abs, f)),
+      list: () => tree.files.map((f) => relative(abs, f)),
+      symlinks: () => tree.symlinks.map((f) => relative(abs, f)),
       read: (rel) => (existsSync(join(abs, rel)) ? readFileSync(join(abs, rel), "utf8") : null),
     };
   }
+  const entries = execFileSync("git", ["ls-tree", "-r", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => {
+      const [meta, path] = l.split("\t");
+      return { mode: meta.split(" ")[0], rel: path.slice(pipelineRel.length + 1) };
+    });
   return {
-    list: () =>
-      execFileSync("git", ["ls-tree", "-r", "--name-only", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
-        .split("\n")
-        .filter((l) => l.endsWith(".md"))
-        .map((l) => l.slice(pipelineRel.length + 1)),
+    list: () => entries.filter((e) => e.mode !== "120000" && e.rel.endsWith(".md")).map((e) => e.rel),
+    symlinks: () => entries.filter((e) => e.mode === "120000").map((e) => e.rel),
     read: (rel) => {
       try {
         return execFileSync("git", ["show", `${ref}:${pipelineRel}/${rel}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -527,6 +542,11 @@ function cmdCheck(args) {
     out.contradictions.push({ path, lane: "undeclared" });
     lines.push(`lane     ${path}  UNDECLARED`);
     take(`undeclared lane ${path}`);
+  }
+  for (const path of tree.symlinks()) {
+    out.contradictions.push({ path, symlink: true });
+    lines.push(`symlink  ${path}`);
+    take(`symlink ${path}`);
   }
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath === "0-intent/intent.md" || phaseOfTarget(targetPath) <= args.targetPhase;
