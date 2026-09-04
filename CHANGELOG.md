@@ -1,5 +1,17 @@
 # @automattic/radical-pipelines
 
+## 0.16.0
+
+### Minor Changes
+
+- [#277](https://github.com/Automattic/radical-pipelines/pull/277) [`dcfcfaf`](https://github.com/Automattic/radical-pipelines/commit/dcfcfaf7d24ee3663d8b013004634dc16cb8ad6f) Thanks [@luisherranz](https://github.com/luisherranz)! - Add liveness facts to each `rp_status` ledger row — `run`, `activity` (the latest of `updated`, which the pinned opencode build moves only when the session receives input, the session's last observed tool or model progress event, and its last raw provider byte), `lastTurn` (succeeded, failed, or interrupted) and `turns`, `lastSend`, and `lastText` (the newest assistant text, or how deep a textless transcript was searched) — so an orchestrator can tell a working, a waiting, and a stopped agent apart; per-session status reads now cover only the sessions RP recognizes. The protocol `rp_spawn` appends now also tells each agent that an ended turn is a stop only a message resumes — a reply it awaits, or the completion notice of a background command it gave a `timeout` — and to hold its turn for anything else, waiting with foreground commands that have a timeout and comparing progress between checks
+
+- [#283](https://github.com/Automattic/radical-pipelines/pull/283) [`df0c64a`](https://github.com/Automattic/radical-pipelines/commit/df0c64abd367a9bcdb42ba9f6ed88a0367be8bbb) Thanks [@luisherranz](https://github.com/luisherranz)! - Register every RP tool as directly invocable on opencode, so an agent calls `rp_spawn`, `rp_send`, `rp_terminate`, `rp_loop_start`, `rp_loop_list`, `rp_loop_cancel`, `rp_status`, and `rp_permission_reply` by name. opencode routes a registered tool by its `options.codemode` and defaults to Code Mode, so tools that declared no option were reachable only inside the `execute` wrapper; each one now declares the direct form, as opencode's own built-in tools do. `setup` also awaits its tool and skill registrations — each returns a promise opencode resolves to a disposable, and `setup` is what the plugin API waits on before treating a location as live, so returning early could serve a session a catalogue RP had not finished contributing to. The pin moves to opencode build `0.0.0-dev-19093`
+
+### Patch Changes
+
+- [#280](https://github.com/Automattic/radical-pipelines/pull/280) [`80bb7f6`](https://github.com/Automattic/radical-pipelines/commit/80bb7f6da70dec3b24b6e2d16955be67b3efdea9) Thanks [@luisherranz](https://github.com/luisherranz)! - Bound opencode health-loop server requests and ticks so one unanswered request cannot stop a loop or wedge `rp_loop_cancel`
+
 ## 0.15.0
 
 ### Minor Changes
