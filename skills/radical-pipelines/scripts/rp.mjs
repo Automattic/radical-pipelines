@@ -83,7 +83,48 @@ function fileIdentity(abs) {
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
-const MIRRORS = new Set(["verdict", "brief", "target", "target-identity", "origin", "outcome", "recurs", "depends", "attempt", "commits"]);
+const REPORT = /^([^/]+)\/tasks\/(T\d+)-report-(\d+)\.md$/;
+// Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
+const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
+// Landing facts the stamp itself observes; with pins and mirrors, never written by --set.
+const OBSERVED = new Set(["pins", "reviewed", "head", "target-identity"]);
+
+// The projection of a body: every declaration in its fixed form, keyed as the frontmatter mirrors it.
+export function projectBody(body, rel = "") {
+  const p = new Map();
+  const verdict = body.match(/^Verdict:\s*(approved|rejected|unsatisfiable)\s*$/m);
+  if (verdict) p.set("verdict", verdict[1]);
+  const brief = body.match(/^Brief:\s*(.+)$/m);
+  if (brief) p.set("brief", brief[1].trim());
+  const target = body.match(/^Target:\s*(\S+)\s*$/m);
+  if (target) p.set("target", target[1]);
+  const origins = [...body.matchAll(/^Origin:\s*(.+)$/gm)].map((m) => m[1].trim());
+  if (origins.length === 1) p.set("origin", origins[0]);
+  else if (origins.length > 1) p.set("origin", origins);
+  const outcome = body.match(/^Outcome:\s*(completed|failed|blocked)\s*$/m);
+  if (outcome) p.set("outcome", outcome[1]);
+  const recurs = [...body.matchAll(/^Prior finding:\s*(\S+#[^,\s]+),\s*resolution failed\s*$/gm)].map((m) => m[1]);
+  if (recurs.length) p.set("recurs", recurs);
+  // A task file's `Depends on:` line: `none`, or task ids.
+  const dep = body.match(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.+)$/m);
+  if (dep) p.set("depends", [...dep[1].matchAll(/T\d+/g)].map((m) => m[0]));
+  // A task report's `## Commits` section: one commit hash per line.
+  const commits = body.match(/^## Commits\s*\n([\s\S]*?)(?=^## |\s*$)/m);
+  if (commits) {
+    const hashes = [...commits[1].matchAll(/^\s*(?:-\s*)?([0-9a-f]{7,40})\b/gm)].map((m) => m[1]);
+    if (hashes.length) p.set("commits", hashes);
+  }
+  const report = rel.match(REPORT);
+  if (report) p.set("attempt", report[3]);
+  return p;
+}
+
+// The mirrors whose frontmatter value differs from the body's projection.
+export function mirrorDrift(data, body, rel) {
+  const p = projectBody(body, rel);
+  const norm = (v) => JSON.stringify(v === undefined ? [] : [].concat(v));
+  return MIRRORS.filter((k) => norm(p.get(k)) !== norm(data.get(k)));
+}
 
 // A path the orchestrator may stamp: inside the repository, inside a pipeline folder, not through a symlink.
 function containedPath(root, abs) {
@@ -107,36 +148,20 @@ function pipelineFolder(root, file) {
 
 // --- stamp ------------------------------------------------------------------
 
-function mirrorBody(body, fm, base, abs) {
-  const verdict = body.match(/^Verdict:\s*(approved|rejected|unsatisfiable)\s*$/m);
-  if (verdict) fm.set("verdict", verdict[1]);
-  const brief = body.match(/^Brief:\s*(.+)$/m);
-  if (brief) fm.set("brief", brief[1].trim());
-  const target = body.match(/^Target:\s*(\S+)\s*$/m);
-  if (target) {
-    fm.set("target", target[1]);
-    const id = fileIdentity(resolve(base, target[1].split("#")[0]));
+// Replace every mirror with the body's projection. `target-identity` is what the stamp observed
+// when the target landed: it is kept while the target stays the same.
+function mirrorBody(body, fm, base, rel) {
+  const p = projectBody(body, rel);
+  const previousTarget = fm.get("target");
+  for (const k of MIRRORS) fm.delete(k);
+  for (const [k, v] of p) fm.set(k, v);
+  if (!p.has("target")) fm.delete("target-identity");
+  else if (p.get("target") !== previousTarget || !fm.has("target-identity")) {
+    const id = fileIdentity(resolve(base, p.get("target").split("#")[0]));
     if (id) fm.set("target-identity", id);
-  }
-  const origins = [...body.matchAll(/^Origin:\s*(.+)$/gm)].map((m) => m[1].trim());
-  if (origins.length === 1) fm.set("origin", origins[0]);
-  else if (origins.length > 1) fm.set("origin", origins);
-  const outcome = body.match(/^Outcome:\s*(completed|failed|blocked)\s*$/m);
-  if (outcome) fm.set("outcome", outcome[1]);
-  const recurs = [...body.matchAll(/^Prior finding:\s*(\S+#[^,\s]+),\s*resolution failed\s*$/gm)].map((m) => m[1]);
-  if (recurs.length) fm.set("recurs", recurs);
-  // A task file's `Depends on:` line: `none`, or task ids.
-  const dep = body.match(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.+)$/m);
-  if (dep) fm.set("depends", [...dep[1].matchAll(/T\d+/g)].map((m) => m[0]));
-  // A task report's `## Commits` section: one commit hash per line.
-  const commits = body.match(/^## Commits\s*\n([\s\S]*?)(?=^## |\s*$)/m);
-  if (commits) {
-    const hashes = [...commits[1].matchAll(/^\s*(?:-\s*)?([0-9a-f]{7,40})\b/gm)].map((m) => m[1]);
-    if (hashes.length) fm.set("commits", hashes);
+    else fm.delete("target-identity");
   }
 }
-
-const REPORT = /^([^/]+)\/tasks\/(T\d+)-report-(\d+)\.md$/;
 
 function cmdStamp(args) {
   const root = repoRoot();
@@ -172,10 +197,10 @@ function cmdStamp(args) {
     const i = s.indexOf("=");
     if (i < 1) die(`stamp: --set expects key=value, got: ${s}`);
     const key = s.slice(0, i);
-    if (MIRRORS.has(key) || key === "pins" || key === "reviewed" || key === "head") die(`stamp: ${key} is written from the body or by the stamp itself, never by --set`);
+    if (MIRRORS.includes(key) || OBSERVED.has(key)) die(`stamp: ${key} is written from the body or by the stamp itself, never by --set`);
     fm.set(key, s.slice(i + 1));
   }
-  if (args.mirror) mirrorBody(body, fm, base, abs);
+  if (args.mirror) mirrorBody(body, fm, base, rel);
   const report = rel.match(REPORT);
   if (report) {
     // A report reviews its task and the tasks it depends on; its attempt is its filename's.
@@ -310,6 +335,8 @@ function cmdCheck(args) {
   const valve = args.valve ?? VALVE;
 
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
+  // A file whose mirrors differ from its body's projection contradicts the tree: none of its
+  // mirrors is read until it is stamped again.
   const texts = new Map();
   const all = tree
     .list()
@@ -317,10 +344,13 @@ function cmdCheck(args) {
     .map((rel) => {
       const text = tree.read(rel) ?? "";
       texts.set(rel, text);
-      const { data } = parseFrontmatter(text);
+      const { data: parsed, body } = parseFrontmatter(text);
+      const data = parsed ?? new Map();
+      const drift = mirrorDrift(data, body, rel);
+      if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
-      return { rel, name: rel.split("/").pop(), data: data ?? new Map(), scope };
+      return { rel, name: rel.split("/").pop(), data, scope, drift };
     });
   const identityOf = (rel) => (texts.has(rel) ? identity(texts.get(rel)) : null);
   const pinFresh = (entry) => {
@@ -356,7 +386,7 @@ function cmdCheck(args) {
     const key = `${phase}/${id}`;
     const attempt = Number(k);
     if (!reports.has(key) || reports.get(key).attempt < attempt)
-      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? "unstamped", fresh: pinsFresh(t.data.get("reviewed")), stamped: t.data.has("reviewed") });
+      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: pinsFresh(t.data.get("reviewed")) });
   }
   const reportFilesOf = (phase) => all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
 
@@ -395,7 +425,7 @@ function cmdCheck(args) {
       const briefMatches = brief === null || identity(r.data.get("brief") ?? "") === brief;
       return {
         lane,
-        verdict: r.data.has("reviewed") ? (r.data.get("verdict") ?? "unstamped") : "unstamped",
+        verdict: !r.data.has("reviewed") ? "unstamped" : (r.data.get("verdict") ?? "invalid"),
         brief: r.data.get("brief") ?? "",
         fresh: reviewFresh(r, prefix, sc) && briefMatches,
         wave: r.wave,
@@ -405,9 +435,14 @@ function cmdCheck(args) {
     });
   };
   const approvedBy = (lanes) => lanes.length > 0 && lanes.every((l) => l.verdict === "approved" && l.fresh && l.current);
+  const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
   // A wave is closed when every declared lane has a stamped, fresh review in the current wave.
-  const waveClosed = (lanes) => lanes.length > 0 && lanes.every((l) => l.verdict !== "none" && l.verdict !== "unstamped" && l.fresh && l.current);
-  const unstampedReview = (lanes) => lanes.find((l) => l.verdict === "unstamped")?.review?.rel;
+  const waveClosed = (lanes) => lanes.length > 0 && lanes.every((l) => VERDICTS.has(l.verdict) && l.fresh && l.current);
+  // A review landed without its pins is stamped; one stamped without a verdict is invalid.
+  const unstampedReview = (lanes) => {
+    const l = lanes.find((l) => l.verdict === "unstamped" || l.verdict === "invalid");
+    return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no Verdict line`);
+  };
 
   // Waves since every declared lane approved together, or since `episode-start-<prefix>`.
   const episodeOf = (prefix, sc, artifactDoc) => {
@@ -430,12 +465,19 @@ function cmdCheck(args) {
     return null;
   };
 
-  const out = { pipeline: pipelineRel, ref, triggers: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {}, frontier: null };
+  const out = { pipeline: pipelineRel, ref, contradictions: [], triggers: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {}, frontier: null };
   const lines = [ref ? `${pipelineRel} @ ${args.ref} (${ref.slice(0, SHORT)})` : pipelineRel];
   let frontier = null;
   const take = (item) => {
     if (!frontier) frontier = item;
   };
+
+  // 0. Contradictions: mirrors that no longer project their body.
+  for (const d of all.filter((d) => d.drift.length)) {
+    out.contradictions.push({ path: d.rel, mirrors: d.drift });
+    lines.push(`mirror   ${d.rel}  differs from the body: ${d.drift.join(", ")}`);
+    take(`stamp ${d.rel}`);
+  }
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath === "0-intent/intent.md" || phaseOfTarget(targetPath) <= args.targetPhase;
 
@@ -549,7 +591,7 @@ function cmdCheck(args) {
     return { state, stale, missingPins, lanes, approved, episode: e.episode, recurs: e.recurs, gate };
   };
   const nextFor = (path, st) =>
-    st.state === "stale" ? `re-synthesize ${path}` : st.state !== "fresh" ? `stamp ${path}` : unstampedReview(st.lanes) ? `stamp ${unstampedReview(st.lanes)}` : waveClosed(st.lanes) ? `adjudicate ${path}` : `review wave ${path}`;
+    st.state === "stale" ? `re-synthesize ${path}` : st.state !== "fresh" ? `stamp ${path}` : (unstampedReview(st.lanes) ?? (waveClosed(st.lanes) ? `adjudicate ${path}` : `review wave ${path}`));
   let through = 0;
   let stopped = false;
   const phaseDone = (phaseNo) => {
@@ -626,9 +668,11 @@ function cmdCheck(args) {
     };
     const done = planTasks.filter((t) => isDone(t.id)).map((t) => t.id);
     const open = phaseReports.filter((t) => !isDone(t.id)).map((t) => `${t.id}:${t.outcome}${t.outcome === "completed" ? " (stale)" : ""}`);
-    const unstampedReport = phaseReports.find((t) => !t.stamped || t.outcome === "unstamped");
+    // Every attempt is a report: landed without its pins it is stamped; stamped without an outcome it is invalid.
+    const reportDocs = all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${art.phase}/`));
+    const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no Outcome line` : null)).find(Boolean);
     const attempts = new Map();
-    for (const d of all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${art.phase}/`))) {
+    for (const d of reportDocs) {
       const [, , id, k] = d.rel.match(REPORT);
       attempts.set(id, [...(attempts.get(id) ?? []), Number(k)].sort((x, y) => x - y));
     }
@@ -657,8 +701,8 @@ function cmdCheck(args) {
     } else if (gappy) {
       take(`invalid reports: attempts of ${art.phase}/tasks/${gappy[0]} are not 1..n`);
       stopped = true;
-    } else if (unstampedReport) {
-      take(`stamp ${unstampedReport.rel}`);
+    } else if (badReport) {
+      take(badReport);
       stopped = true;
     } else if (remaining.length) {
       take(next ? `${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}` : `tasks held in ${art.phase}: ${remaining.join(", ")}`);
@@ -673,7 +717,7 @@ function cmdCheck(args) {
     if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
     lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}${gate ? `  ${gate}` : ""}`);
     if (!rApproved) {
-      take(`${gate ? `${gate} → ` : ""}${unstampedReview(rl) ? `stamp ${unstampedReview(rl)}` : waveClosed(rl) ? `adjudicate ${art.path} (${art.review} review)` : `${art.review} review`}`);
+      take(`${gate ? `${gate} → ` : ""}${unstampedReview(rl) ?? (waveClosed(rl) ? `adjudicate ${art.path} (${art.review} review)` : `${art.review} review`)}`);
       stopped = true;
     } else {
       phaseDone(phaseNo);

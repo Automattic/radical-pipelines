@@ -40,6 +40,7 @@ function initRepo() {
   write(root, "2-design-doc/design-doc-research.md", "# Design research\n");
   write(root, "3-build/build-plan.md", "# Build plan\n\n## Order\n\n- T1\n- T2 <- T1\n");
   write(root, "3-build/build-plan-research.md", "# Plan research\n");
+  rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
   return root;
 }
 
@@ -455,6 +456,56 @@ describe("rp state tooling", () => {
     assert.match(check(root), /artifact 2-design-doc\/design-doc\.md\s+STALE/);
   });
 
+  test("mirrors are the body's projection: a declaration the body lost never survives in the frontmatter", () => {
+    stampSpec();
+    approveSpec();
+    assert.match(check(root, "--target-phase", "1"), /frontier complete/);
+    // The verdict is deleted from the body; the frontmatter still says approved.
+    const stamped = read(root, "1-spec/spec-review-1.md");
+    write(root, "1-spec/spec-review-1.md", stamped.replace(/^Verdict: approved\n/m, ""));
+    let output = check(root, "--target-phase", "1");
+    assert.match(output, /mirror\s+1-spec\/spec-review-1\.md\s+differs from the body: verdict/);
+    assert.doesNotMatch(output, /APPROVED|frontier complete/);
+    assert.match(output, /frontier stamp 1-spec\/spec-review-1\.md/);
+    // Re-mirroring a stamped file is legitimate: reviewed stays, the mirror set is recomputed whole.
+    rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
+    const text = read(root, "1-spec/spec-review-1.md");
+    assert.doesNotMatch(text, /verdict:/);
+    assert.match(text, /reviewed:/);
+    output = check(root, "--target-phase", "1");
+    assert.doesNotMatch(output, /mirror\s/);
+    assert.match(output, /frontier INVALID REVIEW 1-spec\/spec-review-1\.md: no Verdict line/);
+    // A claim keeps the target identity it landed with while its target is the same.
+    review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
+    const landed = read(root, "1-spec/spec-review-2.md").match(/target-identity: ([0-9a-f]{12})/)[1];
+    appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged.\n");
+    rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
+    assert.equal(read(root, "1-spec/spec-review-2.md").match(/target-identity: ([0-9a-f]{12})/)[1], landed);
+    write(root, "1-spec/spec-review-2.md", read(root, "1-spec/spec-review-2.md").replace(/^Target:.*\n/m, ""));
+    rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
+    assert.doesNotMatch(read(root, "1-spec/spec-review-2.md"), /target/);
+  });
+
+  test("every attempt is validated: a report without an outcome is invalid until its body declares one and is re-mirrored", () => {
+    approveChain(3);
+    write(root, "3-build/tasks/T1-report-1.md", "# Task report\n\nno outcome yet\n");
+    rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
+    report("T1", 2, "completed");
+    let output = check(root);
+    assert.match(output, /frontier INVALID REPORT 3-build\/tasks\/T1-report-1\.md: no Outcome line/);
+    appendFileSync(join(root, P("3-build/tasks/T1-report-1.md")), "\nOutcome: blocked\n");
+    output = check(root);
+    assert.match(output, /mirror\s+3-build\/tasks\/T1-report-1\.md\s+differs from the body: outcome/);
+    assert.match(output, /frontier stamp 3-build\/tasks\/T1-report-1\.md/);
+    rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--mirror");
+    output = check(root);
+    assert.match(output, /done \[T1\]/);
+    assert.match(output, /frontier task 3-build\/T2/);
+    // An unstamped task file is a contradiction too: its dependencies are declared in the body.
+    write(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1\n");
+    assert.match(check(root), /frontier stamp 3-build\/tasks\/T2\.md/);
+  });
+
   test("a declared brief fingerprint must match the review's brief", () => {
     stampSpec();
     const fp = rp(root, "fingerprint", "Verify security surfaces in depth").trim();
@@ -485,7 +536,7 @@ describe("rp state tooling", () => {
     approveChain(3);
     write(root, "3-build/tasks/T1-report-1.md", "# Task report\n\nno outcome yet\n");
     rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
-    assert.match(check(root), /frontier stamp 3-build\/tasks\/T1-report-1\.md/);
+    assert.match(check(root), /frontier INVALID REPORT 3-build\/tasks\/T1-report-1\.md: no Outcome line/);
     rmSync(join(root, P("3-build/tasks/T1-report-1.md")));
     report("T1", 2, "completed");
     assert.match(check(root), /frontier invalid reports: attempts of 3-build\/tasks\/T1 are not 1\.\.n/);

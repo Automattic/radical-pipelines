@@ -17,7 +17,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
 | `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Amendment**                                     |
 | `synthesize <artifact>`                              | Its producer, mode Synthesize                                                                                  |
-| `stamp <file>`                                       | You landed it without its pins: stamp what its producer, reviewer, or worker consumed                          |
+| `stamp <file>`                                       | Its pins are missing, or its mirrors no longer project its body: § Stamp on landing                            |
 | `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with **Input changes** — never a re-stamp by you                                |
 | `review wave <artifact>`                             | A review wave                                                                                                  |
 | `adjudicate <artifact>`                              | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks. A claim the producer refuted reaches it here too, as the wave that refuted it |
@@ -29,6 +29,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `AUDIT → <action>`                                   | Audit (below), then the action                                                                                 |
 | `VALVE → <action>`                                   | The valve (below)                                                                                              |
 | `… (invalid target)`                                 | Re-dispatch what wrote it: a target is an artifact id or, for a claim, an intent Goal, Constraint, or Decision |
+| `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `invalid plan: …` / `invalid reports: …`             | The plan producer, mode Adjudicate, with the report `rp check` names                                           |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
 | `complete`                                           | Close-out                                                                                                      |
