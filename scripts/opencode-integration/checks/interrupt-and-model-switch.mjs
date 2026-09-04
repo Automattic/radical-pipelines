@@ -40,7 +40,7 @@ export async function run(ctx) {
     assert.ok(activeBeforeInterrupt.has(session.id), "expected the session to be reported running before interrupt");
 
     const status = await interrupt(server, session.id);
-    assert.equal(status, 204);
+    assert.equal(status, 200);
 
     await waitForIdle(server, session.id, { timeoutMs: 5_000 });
     const activeAfterInterrupt = await getActiveSessionIDs(server);
@@ -64,7 +64,7 @@ export async function run(ctx) {
     );
 
     // The session keeps working normally on the next turn after the switch.
-    const result = await driveToolCall(server, session.id, `return await tools.rp_status({});`);
+    const result = await driveToolCall(server, session.id, "rp_status");
     assert.ok(result.text, "expected the session to still run turns normally after a model switch");
   });
 }
