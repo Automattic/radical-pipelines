@@ -185,6 +185,55 @@ function getSessionParentage() {
 }
 
 /**
+ * `globalThis` key backing the in-flight parentage reads, so concurrent
+ * callers asking about one session share a single answer.
+ */
+const SESSION_PARENTAGE_PENDING_KEY = Symbol.for("radical-pipelines.opencode.sessionParentagePending");
+
+/**
+ * Fetch the in-flight parentage reads, creating the map on first use.
+ *
+ * @returns {Map<string, Promise<boolean | undefined>>} Session ID to the
+ *   read currently answering for it.
+ */
+function getPendingParentage() {
+  if (!globalThis[SESSION_PARENTAGE_PENDING_KEY]) {
+    globalThis[SESSION_PARENTAGE_PENDING_KEY] = new Map();
+  }
+  return globalThis[SESSION_PARENTAGE_PENDING_KEY];
+}
+
+/**
+ * Cap on remembered parentage, evicting oldest-first past it.
+ *
+ * Deletion normally reclaims an entry; this is the backstop for the events
+ * that never arrive. Eviction costs correctness nothing — an evicted session
+ * is asked about again — so the cap only has to keep a daemon's memory from
+ * tracking every session it ever saw.
+ */
+const SESSION_PARENTAGE_CAP = 4096;
+
+/**
+ * Remember one session's parentage, bounding what is retained.
+ *
+ * @param {string} sessionID The session to record.
+ * @param {boolean} child Whether opencode created it under a parent.
+ * @returns {void}
+ */
+function recordParentage(sessionID, child) {
+  const parentage = getSessionParentage();
+  parentage.delete(sessionID);
+  parentage.set(sessionID, child);
+  while (parentage.size > SESSION_PARENTAGE_CAP) {
+    const oldest = parentage.keys().next();
+    if (oldest.done) {
+      return;
+    }
+    parentage.delete(oldest.value);
+  }
+}
+
+/**
  * Remember a session's parentage, as reported by `session.created`.
  *
  * A session opencode creates with a `parentID` is a subagent: another
@@ -204,12 +253,18 @@ function getSessionParentage() {
  * @returns {void}
  */
 function recordSessionParent(event) {
-  if (event?.type !== "session.created") {
+  const sessionID = event?.data?.sessionID;
+  if (typeof sessionID !== "string") {
     return;
   }
-  const { sessionID, parentID } = event.data ?? {};
-  if (typeof sessionID === "string") {
-    getSessionParentage().set(sessionID, typeof parentID === "string");
+  if (event.type === "session.created") {
+    recordParentage(sessionID, typeof event.data.parentID === "string");
+    return;
+  }
+  // A deleted session's ID answers for nothing, and a daemon that kept every
+  // one it ever saw would grow for as long as it runs.
+  if (event.type === "session.deleted") {
+    getSessionParentage().delete(sessionID);
   }
 }
 
@@ -259,12 +314,33 @@ const AGENT_TOOL = "rp_send";
  * @returns {Promise<"none" | "send-only" | "full">} The caller's access.
  */
 async function resolveToolAccess(sessionID, { readParentage }) {
-  const parentage = getSessionParentage();
-  let child = parentage.get(sessionID);
+  let child = getSessionParentage().get(sessionID);
   if (child === undefined) {
-    child = await readParentage(sessionID);
-    if (child !== undefined) {
-      parentage.set(sessionID, child);
+    // One read answers every caller waiting on the same session: separate
+    // reads could disagree — an unreadable one beside a successful one —
+    // and hand the same caller a different verdict depending on which it
+    // happened to hold.
+    const pending = getPendingParentage();
+    let inFlight = pending.get(sessionID);
+    if (!inFlight) {
+      inFlight = (async () => {
+        try {
+          return await readParentage(sessionID);
+        } catch {
+          return undefined;
+        } finally {
+          pending.delete(sessionID);
+        }
+      })();
+      pending.set(sessionID, inFlight);
+    }
+    const read = await inFlight;
+    // An event that landed while the read was in flight is authoritative:
+    // the read answers only for a session still unaccounted for.
+    child = getSessionParentage().get(sessionID);
+    if (child === undefined && read !== undefined) {
+      recordParentage(sessionID, read);
+      child = read;
     }
   }
   if (child) {

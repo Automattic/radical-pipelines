@@ -132,6 +132,79 @@ describe("recordSessionParent / resolveToolAccess", () => {
   });
 });
 
+describe("resolveToolAccess under concurrency and session lifetime", () => {
+  test("concurrent first calls share one read rather than issuing one each", async () => {
+    const calls = [];
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+    const deps = {
+      readParentage: async (sessionID) => {
+        calls.push(sessionID);
+        return held;
+      },
+    };
+
+    const waiting = Promise.all(
+      Array.from({ length: 25 }, () => resolveToolAccess("ses_race_shared", deps)),
+    );
+    release(true);
+
+    assert.deepEqual(await waiting, Array.from({ length: 25 }, () => "none"));
+    assert.deepEqual(calls, ["ses_race_shared"], "one cold session must cost one read");
+  });
+
+  test("every concurrent caller reaches the same verdict, so none is left holding a weaker one", async () => {
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+    const deps = { readParentage: async () => held };
+
+    const waiting = Promise.all([
+      resolveToolAccess("ses_race_agreement", deps),
+      resolveToolAccess("ses_race_agreement", deps),
+      resolveToolAccess("ses_race_agreement", deps),
+    ]);
+    release(true);
+
+    assert.deepEqual(await waiting, ["none", "none", "none"]);
+  });
+
+  test("a creation event landing while a read is unanswered outranks the read", async () => {
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+    const deps = { readParentage: async () => held };
+
+    const pending = resolveToolAccess("ses_race_event", deps);
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_race_event", parentID: "ses_race_parent" },
+    });
+    release(undefined);
+
+    assert.equal(await pending, "none", "the unreadable read must not overrule the event");
+    assert.equal(await resolveToolAccess("ses_race_event", neverAsked), "none");
+  });
+
+  test("a deleted session is forgotten, so its ID answers for nothing later", async () => {
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_lifetime_gone", parentID: "ses_lifetime_parent" },
+    });
+    assert.equal(await resolveToolAccess("ses_lifetime_gone", neverAsked), "none");
+
+    recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_lifetime_gone" } });
+
+    const asked = asks(false);
+    assert.equal(await resolveToolAccess("ses_lifetime_gone", asked.deps), "full");
+    assert.deepEqual(asked.calls, ["ses_lifetime_gone"], "a forgotten session is asked about again");
+  });
+});
+
 describe("readSessionParentage", () => {
   const server = { baseURL: "http://x", password: "y" };
 
@@ -221,5 +294,29 @@ describe("guardTool", () => {
     assert.deepEqual(guarded.input, tool.input);
     assert.deepEqual(guarded.output, tool.output);
     assert.deepEqual(guarded.options, tool.options);
+  });
+});
+
+// Last: this suite overflows the shared parentage record, evicting what the
+// suites above remembered.
+describe("parentage retention", () => {
+  test("retention is bounded, and an evicted session is asked about again rather than assumed", async () => {
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_evicted_first", parentID: "ses_evicted_parent" },
+    });
+    assert.equal(await resolveToolAccess("ses_evicted_first", neverAsked), "none");
+
+    for (let index = 0; index <= 4096; index++) {
+      recordSessionParent({ type: "session.created", data: { sessionID: `ses_overflow_${index}` } });
+    }
+
+    const asked = asks(true);
+    assert.equal(await resolveToolAccess("ses_evicted_first", asked.deps), "none");
+    assert.deepEqual(
+      asked.calls,
+      ["ses_evicted_first"],
+      "an entry evicted by the cap must be re-read, never assumed unparented",
+    );
   });
 });
