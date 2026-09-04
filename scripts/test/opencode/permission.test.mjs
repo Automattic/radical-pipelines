@@ -647,22 +647,22 @@ describe("wired through setup", () => {
     });
 
     const tool = tools.get("rp_permission_reply");
-    const ok = await tool.execute({ session: "ses_1", request: "per_1", reply: "once" });
+    const ok = await tool.execute({ session: "ses_1", request: "per_1", reply: "once" }, { sessionID: "ses_owner" });
     assert.deepEqual(ok, toToolResult({ replied: true }));
     assert.equal(requests[0].url.pathname, "/api/session/ses_1/permission/per_1/reply");
     assert.deepEqual(JSON.parse(requests[0].init.body), { reply: "once" });
 
     status = 404;
-    const missing = await tool.execute({ session: "ses_1", request: "per_gone", reply: "reject" });
+    const missing = await tool.execute({ session: "ses_1", request: "per_gone", reply: "reject" }, { sessionID: "ses_owner" });
     assert.deepEqual(missing, toToolResult({ status: 404, error: "PermissionNotFoundError" }));
 
     status = 500;
-    const failed = await tool.execute({ session: "ses_1", request: "per_1", reply: "once" });
+    const failed = await tool.execute({ session: "ses_1", request: "per_1", reply: "once" }, { sessionID: "ses_owner" });
     assert.deepEqual(failed, toToolResult({ status: 500, error: "PermissionReplyFailed" }));
 
     delete globalThis[SETUP_ONCE_KEY];
     const unreachable = createUnreachableReplyTool();
-    const result = await unreachable.execute({ session: "s", request: "r", reply: "once" });
+    const result = await unreachable.execute({ session: "s", request: "r", reply: "once" }, { sessionID: "ses_owner" });
     assert.deepEqual(result, toToolResult({ error: "server unreachable" }));
   });
 });

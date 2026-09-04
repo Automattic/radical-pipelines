@@ -47,6 +47,7 @@ import plugin, {
   resolveRunningBuild,
   resolveServer,
   runLoopTick,
+  sessionReadError,
   setup,
   superviseEvents,
   terminalEventError,
@@ -495,20 +496,20 @@ describe("rp_terminate", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    assert.deepEqual(await tool.execute({ session: "ses_finished" }), toToolResult({ terminated: true }));
+    assert.deepEqual(await tool.execute({ session: "ses_finished" }, { sessionID: "ses_owner" }), toToolResult({ terminated: true }));
     assert.equal(requests[0].url.pathname, "/api/session/ses_finished");
     assert.equal(requests[0].init.method, "DELETE");
     assert.equal(requests[0].init.body, undefined);
 
     status = 404;
     assert.deepEqual(
-      await tool.execute({ session: "ses_missing" }),
+      await tool.execute({ session: "ses_missing" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 404, error: "SessionNotFoundError" }),
     );
 
     status = 500;
     assert.deepEqual(
-      await tool.execute({ session: "ses_finished" }),
+      await tool.execute({ session: "ses_finished" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
   });
@@ -518,7 +519,7 @@ describe("rp_terminate", () => {
     setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
 
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_finished" }),
+      await tools.get("rp_terminate").execute({ session: "ses_finished" }, { sessionID: "ses_owner" }),
       toToolResult({ error: "server unreachable" }),
     );
   });
@@ -1679,6 +1680,44 @@ describe("runLoopTick", () => {
 
     assert.deepEqual(result, { outcome: "no-server" });
     assert.deepEqual(outcomes, [result]);
+  });
+
+  test("a target that no longer exists reports target-missing once instead of throwing every interval", async () => {
+    const outcomes = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => {
+        throw sessionReadError("GET /api/session/ses_target/inbox", 404);
+      },
+      getMessages: async () => [],
+      injectPrompt: () => {
+        throw new Error("must not inject into a target that does not exist");
+      },
+      onOutcome: (outcome) => outcomes.push(outcome),
+    });
+
+    assert.deepEqual(result, { outcome: "target-missing" });
+    assert.deepEqual(outcomes, [result]);
+  });
+
+  test("a read that fails for any other reason still surfaces as a thrown failure", async () => {
+    const outcomes = [];
+    await assert.rejects(
+      runLoopTick(entry, {
+        server: { baseURL: "http://x", password: "y" },
+        isSessionActive: async () => false,
+        getInbox: async () => {
+          throw sessionReadError("GET /api/session/ses_target/inbox", 503);
+        },
+        getMessages: async () => [],
+        injectPrompt: async () => {},
+        onOutcome: (outcome) => outcomes.push(outcome),
+      }),
+      /503/,
+    );
+
+    assert.deepEqual(outcomes, [{ outcome: "failed", error: "Error: GET /api/session/ses_target/inbox returned 503" }]);
   });
 
   test("a target updated no more than two intervals ago records busy with its last activity", async () => {
@@ -3675,7 +3714,7 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
 
 /** Run `rp_terminate` for a session, for tests that start two concurrently. */
 function tool_execute(tools, session) {
-  return tools.get("rp_terminate").execute({ session });
+  return tools.get("rp_terminate").execute({ session }, { sessionID: "ses_owner" });
 }
 
 describe("terminal-event listener", () => {
@@ -3774,7 +3813,7 @@ describe("terminal-event listener", () => {
     );
     globalThis[ERROR_LOG_KEY] = [];
 
-    await tools.get("rp_terminate").execute({ session: "ses_child_term" });
+    await tools.get("rp_terminate").execute({ session: "ses_child_term" }, { sessionID: "ses_owner" });
     await delay(10);
 
     assert.deepEqual(promptCalls, [], "a deliberate shutdown must not be announced as a failure");
@@ -3819,11 +3858,11 @@ describe("terminal-event listener", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    await tool.execute({ session: "ses_child_twice" });
+    await tool.execute({ session: "ses_child_twice" }, { sessionID: "ses_owner" });
 
     status = 500;
     assert.deepEqual(
-      await tool.execute({ session: "ses_child_twice" }),
+      await tool.execute({ session: "ses_child_twice" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
 
@@ -3890,7 +3929,7 @@ describe("terminal-event listener", () => {
 
       await tools
         .get("rp_terminate")
-        .execute({ session: "ses_child_held" })
+        .execute({ session: "ses_child_held" }, { sessionID: "ses_owner" })
         .catch(() => undefined);
       await delay(10);
 
@@ -3959,7 +3998,7 @@ describe("terminal-event listener", () => {
 
     // The rejecting report must not become this tool's outcome.
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_child_iso" }),
+      await tools.get("rp_terminate").execute({ session: "ses_child_iso" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
     await delay(10);
@@ -4257,9 +4296,9 @@ describe("terminal-event listener", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    const failing = tool.execute({ session: "ses_child_adopt" });
+    const failing = tool.execute({ session: "ses_child_adopt" }, { sessionID: "ses_owner" });
     await delay(30); // reach the blocked report inside the first release
-    const succeeding = tool.execute({ session: "ses_child_adopt" });
+    const succeeding = tool.execute({ session: "ses_child_adopt" }, { sessionID: "ses_owner" });
     await delay(30); // the second attempt's event is admitted mid-release
 
     firstReport.open();
@@ -4319,7 +4358,7 @@ describe("terminal-event listener", () => {
     );
 
     await assert.rejects(
-      () => tools.get("rp_terminate").execute({ session: "ses_child_mask" }),
+      () => tools.get("rp_terminate").execute({ session: "ses_child_mask" }, { sessionID: "ses_owner" }),
       /socket hang up/,
       "the caller must see why the delete failed, not why a report did",
     );
@@ -4370,8 +4409,8 @@ describe("terminal-event listener", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    const introducer = tool.execute({ session: "ses_child_race" });
-    const follower = tool.execute({ session: "ses_child_race" });
+    const introducer = tool.execute({ session: "ses_child_race" }, { sessionID: "ses_owner" });
+    const follower = tool.execute({ session: "ses_child_race" }, { sessionID: "ses_owner" });
     await delay(5); // both attempts in flight
 
     first.open();
@@ -4409,7 +4448,7 @@ describe("terminal-event listener", () => {
     );
 
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_never_existed" }),
+      await tools.get("rp_terminate").execute({ session: "ses_never_existed" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 404, error: "SessionNotFoundError" }),
     );
     assert.equal(
@@ -4446,7 +4485,7 @@ describe("terminal-event listener", () => {
     );
 
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_child_alive" }),
+      await tools.get("rp_terminate").execute({ session: "ses_child_alive" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
 

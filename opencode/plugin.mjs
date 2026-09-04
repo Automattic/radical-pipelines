@@ -165,6 +165,90 @@ function resolveCurrentSpawn(name) {
 }
 
 /**
+ * `globalThis` key backing the process-wide set of sessions opencode created
+ * as the child of another session. Shares the re-import rationale of
+ * `LEDGER_KEY`.
+ */
+const CHILD_SESSION_KEY = Symbol.for("radical-pipelines.opencode.childSessions");
+
+/**
+ * Fetch the process-wide child-session set, creating it on first use.
+ *
+ * @returns {Set<string>} The session IDs observed being created with a
+ *   parent.
+ */
+function getChildSessions() {
+  if (!globalThis[CHILD_SESSION_KEY]) {
+    globalThis[CHILD_SESSION_KEY] = new Set();
+  }
+  return globalThis[CHILD_SESSION_KEY];
+}
+
+/**
+ * Remember a session's parentage, as reported by `session.created`.
+ *
+ * A session opencode creates with a `parentID` is a subagent: another
+ * session delegated to it inside its own turn, and it delivers its result by
+ * returning, not by addressing anyone. `resolveToolAccess` needs that fact.
+ *
+ * The event subscription replays no history, so a session created before
+ * this process started leaves no record here and reads as unparented — the
+ * behaviour that already applies to every session today.
+ *
+ * @param {{type?: string, data?: {sessionID?: string, parentID?: string}}} event
+ *   An opencode event.
+ * @returns {void}
+ */
+function recordSessionParent(event) {
+  if (event?.type !== "session.created") {
+    return;
+  }
+  const { sessionID, parentID } = event.data ?? {};
+  if (typeof sessionID === "string" && typeof parentID === "string") {
+    getChildSessions().add(sessionID);
+  }
+}
+
+/**
+ * The one RP tool a spawned agent needs: its profile requires it to message
+ * its requester and the orchestrator, and nothing else.
+ */
+const AGENT_TOOL = "rp_send";
+
+/**
+ * Decide which RP tools a calling session may use.
+ *
+ * Three callers exist, told apart by two facts a caller cannot forge — the
+ * parentage opencode reports at creation, and the ledger RP writes when it
+ * spawns:
+ *
+ * - A **subagent** gets none. It returns its result to whoever delegated to
+ *   it, which is the contract it was created under; reaching past that to
+ *   address a session by ID is not part of its work.
+ * - A **spawned agent** gets `rp_send` alone. Driving a run — spawning,
+ *   terminating, health loops, answering permission asks — belongs to the
+ *   session that spawned it.
+ * - **Anything else** — the orchestrator, which nothing spawned, and the
+ *   owner's own session — gets all of them.
+ *
+ * The ledger lives in daemon memory, so after a restart a spawned agent
+ * reads as unledgered and widens into the last case until it is spawned
+ * again. That relaxes a least-privilege boundary; it never relaxes the
+ * subagent one, because a subagent does not outlive the process that
+ * created it.
+ *
+ * @param {string} sessionID The calling session's authoritative ID, as
+ *   opencode supplies it to a tool's `execute`.
+ * @returns {"none" | "send-only" | "full"} The caller's access.
+ */
+function resolveToolAccess(sessionID) {
+  if (getChildSessions().has(sessionID)) {
+    return "none";
+  }
+  return lookupSpawn(sessionID) ? "send-only" : "full";
+}
+
+/**
  * Check whether an agent name is one opencode currently recognizes.
  *
  * `rp_spawn` calls this against `ctx.agent.list()` before creating a session,
@@ -209,6 +293,24 @@ function isSessionNotFoundError(error) {
     SESSION_NOT_FOUND_TAGS.has(error?.name) ||
     SESSION_NOT_FOUND_TAGS.has(error?._tag)
   );
+}
+
+/**
+ * Build the error a non-2xx read of a *session-addressed* endpoint throws.
+ *
+ * The status travels on the error so a caller can tell a target that no
+ * longer exists from a transport failure it should keep retrying (see
+ * `isSessionNotFoundError`). The message stays the request line, which is
+ * what the bounded error log surfaces.
+ *
+ * @param {string} request The request line, e.g. `"GET /api/session/x/inbox"`.
+ * @param {number} status The HTTP status the server answered with.
+ * @returns {Error} The error to throw, carrying `status`.
+ */
+function sessionReadError(request, status) {
+  const error = new Error(`${request} returned ${status}`);
+  error.status = status;
+  return error;
 }
 
 /**
@@ -916,6 +1018,14 @@ async function runLoopTick(
       }
     }
   } catch (error) {
+    // A target that no longer exists is terminal, not transient: no later
+    // tick can find it again, so the loop reports it once and its owner
+    // retires it (see `setup`) instead of failing on every interval forever.
+    if (isSessionNotFoundError(error)) {
+      const missing = { outcome: "target-missing" };
+      onOutcome(missing);
+      return missing;
+    }
     const failure = { outcome: "failed", error: String(error) };
     onOutcome(failure);
     throw error;
@@ -1473,7 +1583,7 @@ async function getSessionUpdatedAt(server, sessionID, requestFn) {
     requestFn,
   );
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`GET /api/session/${sessionID} returned ${response.status}`);
+    throw sessionReadError(`GET /api/session/${sessionID}`, response.status);
   }
   const updated = response.body?.data?.time?.updated;
   if (!Number.isFinite(updated)) {
@@ -1499,7 +1609,7 @@ async function getSessionUpdatedAt(server, sessionID, requestFn) {
 async function getSessionInbox(server, sessionID, requestFn) {
   const response = await requestServer(server, "GET", `/api/session/${sessionID}/inbox`, undefined, requestFn);
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`GET /api/session/${sessionID}/inbox returned ${response.status}`);
+    throw sessionReadError(`GET /api/session/${sessionID}/inbox`, response.status);
   }
   return response.body?.data ?? [];
 }
@@ -1530,7 +1640,7 @@ async function getSessionMessages(server, sessionID, requestFn) {
     requestFn,
   );
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`GET /api/session/${sessionID}/message returned ${response.status}`);
+    throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
   }
   return response.body?.data ?? [];
 }
@@ -3613,6 +3723,46 @@ function toToolResult(value) {
 }
 
 /**
+ * Wrap an RP tool so a caller that may not use it is turned away.
+ *
+ * opencode builds its tool registry once per process, before any session
+ * calls into it, so which tools exist cannot vary by caller (see
+ * `resolveToolAccess` for who the callers are). The decision therefore
+ * belongs at the call, where the caller's own session ID is available and
+ * unspoofable.
+ *
+ * The refusal is a returned result rather than a thrown error: the caller is
+ * a model, and it needs to read what to do instead — otherwise it retries
+ * the same call, or invents a way around it.
+ *
+ * @param {{name: string, execute: Function}} tool The tool descriptor to wrap.
+ * @returns {object} The same descriptor with a guarded `execute`.
+ */
+function guardTool(tool) {
+  return {
+    ...tool,
+    async execute(input, toolCtx) {
+      const access = resolveToolAccess(toolCtx.sessionID);
+      if (access === "none") {
+        return toToolResult({
+          status: 403,
+          error: "SubagentNotPermitted",
+          message: `${tool.name} is not available to a subagent. Return your findings to the session that delegated this task, which is what it is waiting for.`,
+        });
+      }
+      if (access === "send-only" && tool.name !== AGENT_TOOL) {
+        return toToolResult({
+          status: 403,
+          error: "AgentNotPermitted",
+          message: `${tool.name} is not available to a spawned agent. Use ${AGENT_TOOL} to reach your requester or the orchestrator.`,
+        });
+      }
+      return tool.execute(input, toolCtx);
+    },
+  };
+}
+
+/**
  * The output schema every RP tool declares.
  *
  * opencode only carries a tool's `output` back to its caller when the tool
@@ -4218,6 +4368,17 @@ function setup(ctx, deps = {}) {
           at: tickEntry.at,
         });
       }
+      if (outcome.outcome === "target-missing") {
+        deleteLoopEntry(registryPath, entry.id);
+        disarmLoopTimer(entry.id);
+        recordError({
+          type: "loop.retired",
+          loopID: entry.id,
+          targetSession: entry.targetSession,
+          reason: "target session no longer exists",
+          at: tickEntry.at,
+        });
+      }
     };
 
     try {
@@ -4249,14 +4410,14 @@ function setup(ctx, deps = {}) {
   };
 
   ctx.tool.transform((tools) => {
-    tools.add(buildSpawnTool(ctx, { resolveRepoRootFn }));
-    tools.add(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn }));
-    tools.add(buildTerminateTool({ env, readServiceRecordOverride, requestFn }));
-    tools.add(buildLoopStartTool({ registryPath, tick }));
-    tools.add(buildLoopListTool(registryPath));
-    tools.add(buildLoopCancelTool(registryPath));
-    tools.add(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }));
-    tools.add(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn }));
+    tools.add(guardTool(buildSpawnTool(ctx, { resolveRepoRootFn })));
+    tools.add(guardTool(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
+    tools.add(guardTool(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
+    tools.add(guardTool(buildLoopStartTool({ registryPath, tick })));
+    tools.add(guardTool(buildLoopListTool(registryPath)));
+    tools.add(guardTool(buildLoopCancelTool(registryPath)));
+    tools.add(guardTool(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })));
+    tools.add(guardTool(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
     return tools;
   });
 
@@ -4289,6 +4450,7 @@ function setup(ctx, deps = {}) {
       ctx,
       async (event) => {
         recordSessionEventActivity(event);
+        recordSessionParent(event);
         onToolEvent(event);
         recordTurnEnd(event);
         await onPermissionAsked(event, {
@@ -4378,6 +4540,7 @@ export {
   getSessionInbox,
   getSessionMessages,
   getSessionUpdatedAt,
+  guardTool,
   interruptSession,
   isDeadStreamMessage,
   isSessionActive,
@@ -4408,6 +4571,7 @@ export {
   recordRawSessionProgress,
   recordSend,
   recordSessionEventActivity,
+  recordSessionParent,
   recordSpawn,
   recordTargetInterrupt,
   recordTurnEnd,
@@ -4421,7 +4585,9 @@ export {
   resolveRepoRoot,
   resolveRunningBuild,
   resolveServer,
+  resolveToolAccess,
   runLoopTick,
+  sessionReadError,
   setup,
   shapeStatus,
   superviseEvents,
