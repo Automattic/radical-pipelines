@@ -489,6 +489,69 @@ describe("rp_spawn", () => {
   });
 });
 
+describe("the access boundary is wired into what setup registers", () => {
+  afterEach(clearAllLoopTimers);
+
+  // Guarding the descriptors and registering them are separate steps, and a
+  // registration that forgot the guard would leave every tool open to every
+  // caller while each tool still behaved correctly in isolation. These drive
+  // the tools opencode is actually handed.
+  const registerTools = () => {
+    const { ctx, tools } = createFakeCtx();
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { XDG_DATA_HOME: freshDir(), RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async () => ({ status: 200, body: { data: {} } }),
+      }),
+    );
+    return tools;
+  };
+
+  test("every registered tool refuses a subagent", async () => {
+    const tools = registerTools();
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_wired_child", parentID: "ses_wired_parent" },
+    });
+
+    for (const name of [
+      "rp_send",
+      "rp_spawn",
+      "rp_terminate",
+      "rp_status",
+      "rp_loop_start",
+      "rp_loop_list",
+      "rp_loop_cancel",
+      "rp_permission_reply",
+    ]) {
+      const result = await tools.get(name).execute({}, { sessionID: "ses_wired_child" });
+      assert.equal(result.output.error, "SubagentNotPermitted", `${name} must refuse a subagent`);
+    }
+  });
+
+  test("every registered tool but rp_send refuses a spawned agent", async () => {
+    const tools = registerTools();
+    recordSpawn("ses_wired_agent", {
+      name: "build-worker-tdd wired",
+      run: "144-opencode-support",
+      spawner: "ses_wired_orchestrator",
+    });
+    recordSessionParent({ type: "session.created", data: { sessionID: "ses_wired_agent" } });
+
+    for (const name of ["rp_spawn", "rp_status", "rp_loop_list", "rp_permission_reply"]) {
+      const result = await tools.get(name).execute({}, { sessionID: "ses_wired_agent" });
+      assert.equal(result.output.error, "AgentNotPermitted", `${name} must refuse a spawned agent`);
+    }
+
+    const sent = await tools
+      .get("rp_loop_list")
+      .execute({}, { sessionID: "ses_owner" });
+    assert.ok(Array.isArray(sent.output), "a root session still reaches the tool it registered");
+  });
+});
+
 describe("rp_terminate", () => {
   afterEach(clearAllLoopTimers);
 

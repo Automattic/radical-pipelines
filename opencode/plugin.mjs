@@ -339,9 +339,11 @@ const AGENT_TOOL = "rp_send";
  * tool call outran its own creation event, would silently hold every tool.
  * The answer is remembered, so a session is asked about at most once.
  *
- * Only an unanswerable question opens the boundary: when no server can be
- * reached, an unobserved caller is treated as a root session, because
- * refusing every caller RP cannot classify would stop the orchestrator too.
+ * Only an unanswerable question opens the boundary. Any read that fails to
+ * answer counts — an unreachable server, and equally one that replies 500 or
+ * 404 — after which an unobserved caller is treated as a root session,
+ * because refusing every caller RP cannot classify would stop the
+ * orchestrator too.
  *
  * The ledger lives in daemon memory, so after a restart a spawned agent
  * reads as unledgered and widens into the last case until it is spawned
@@ -4614,8 +4616,9 @@ async function setup(ctx, deps = {}) {
   };
 
   // Answers `resolveToolAccess` for a caller whose `session.created` was
-  // never seen. A server that cannot be reached leaves the question
-  // unanswered rather than answering it wrongly.
+  // never seen. Any read that does not answer — an unreachable server, but
+  // equally one that replies 500 or 404 — leaves the question unanswered
+  // rather than answering it wrongly.
   const readParentage = async (sessionID) => {
     try {
       const server = resolveServer({ env, readServiceRecord: readServiceRecordOverride });
