@@ -3616,14 +3616,29 @@ function toToolResult(value) {
  * The output schema every RP tool declares.
  *
  * opencode only carries a tool's `output` back to its caller when the tool
- * declares an output schema — Code Mode, which is how an agent reaches these
- * tools, returns that `output` and nothing else, so a tool without one
- * resolves to `null` however much it computed. RP's tools return whatever
- * shape their operation produced (a bare session ID, a status payload, a
- * loop registry listing), so the declared schema is the permissive one that
- * accepts any JSON value rather than a per-tool shape.
+ * declares an output schema, so a tool without one resolves to `null` however
+ * much it computed. RP's tools return whatever shape their operation produced
+ * (a bare session ID, a status payload, a loop registry listing), so the
+ * declared schema is the permissive one that accepts any JSON value rather
+ * than a per-tool shape.
  */
 const ANY_OUTPUT_SCHEMA = {};
+
+/**
+ * Mark a tool descriptor as directly invocable.
+ *
+ * opencode splits a registered tool by its `options.codemode`: only
+ * `codemode: false` reaches the model as a tool of its own, while every other
+ * tool is reachable solely inside the `execute` Code Mode wrapper. RP's tools
+ * coordinate a run and must be callable in their own right, so each one
+ * declares the direct form — as opencode's own built-in tools do.
+ *
+ * @param {object} tool The tool descriptor to register.
+ * @returns {object} The same descriptor, marked for direct invocation.
+ */
+function asDirectTool(tool) {
+  return { ...tool, options: { ...tool.options, codemode: false } };
+}
 
 /**
  * Build the `rp_spawn` tool descriptor.
@@ -4179,13 +4194,14 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  *   `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
  *   `resolveRepoRootFn` reaches `rp_spawn`; `exists` reaches the permission
  *   mediator's redirect check.
- * @returns {() => Promise<void>} This location's cleanup: disposes its own
+ * @returns {Promise<() => Promise<void>>} Resolves once this location's tools
+ *   and skills are registered, to the location's cleanup: disposes its own
  *   raw-liveness hook, and — when the last live location releases the
  *   shared resources — closes the supervised event subscription, disarms
  *   every loop timer, and clears the once-guard so a reloaded plugin
  *   re-arms.
  */
-function setup(ctx, deps = {}) {
+async function setup(ctx, deps = {}) {
   const {
     env = process.env,
     readServiceRecord: readServiceRecordOverride,
@@ -4248,15 +4264,21 @@ function setup(ctx, deps = {}) {
     }
   };
 
-  ctx.tool.transform((tools) => {
-    tools.add(buildSpawnTool(ctx, { resolveRepoRootFn }));
-    tools.add(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn }));
-    tools.add(buildTerminateTool({ env, readServiceRecordOverride, requestFn }));
-    tools.add(buildLoopStartTool({ registryPath, tick }));
-    tools.add(buildLoopListTool(registryPath));
-    tools.add(buildLoopCancelTool(registryPath));
-    tools.add(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }));
-    tools.add(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn }));
+  // Registration is a promise that opencode resolves to a disposable, and
+  // `setup` is what the plugin API waits on before treating this location as
+  // live — so awaiting it is what keeps a session from being served a tool
+  // catalogue that RP has not finished contributing to yet.
+  await ctx.tool.transform((tools) => {
+    tools.add(asDirectTool(buildSpawnTool(ctx, { resolveRepoRootFn })));
+    tools.add(asDirectTool(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
+    tools.add(asDirectTool(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
+    tools.add(asDirectTool(buildLoopStartTool({ registryPath, tick })));
+    tools.add(asDirectTool(buildLoopListTool(registryPath)));
+    tools.add(asDirectTool(buildLoopCancelTool(registryPath)));
+    tools.add(
+      asDirectTool(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })),
+    );
+    tools.add(asDirectTool(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
     return tools;
   });
 
@@ -4265,7 +4287,7 @@ function setup(ctx, deps = {}) {
   // `add`. Probing the draft keeps one plugin working on both, rather than
   // dying with "sources.source is not a function" on whichever build the
   // owner happens to run.
-  ctx.skill.transform((skills) => {
+  await ctx.skill.transform((skills) => {
     if (typeof skills.source === "function") {
       skills.source({ type: "directory", path: SKILLS_SOURCE_DIR });
       return skills;
@@ -4360,6 +4382,7 @@ export {
   appendSpawnProtocol,
   appendToErrorLog,
   armLoopTimer,
+  asDirectTool,
   buildBasicAuthHeader,
   buildLedgerRows,
   buildStatusPayload,

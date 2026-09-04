@@ -245,10 +245,10 @@ describe("default export", () => {
 describe("setup: tool and skill registration", () => {
   afterEach(clearAllLoopTimers);
 
-  test("registers exactly the eight named tools and the packaged skills", () => {
+  test("registers exactly the eight named tools, each directly invocable, and the packaged skills", async () => {
     const { ctx, tools, addedSkills } = createFakeCtx();
 
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
 
     assert.deepEqual(
       [...tools.keys()].sort(),
@@ -263,6 +263,11 @@ describe("setup: tool and skill registration", () => {
         "rp_terminate",
       ],
     );
+    // opencode exposes only `codemode: false` tools to the model directly;
+    // every other tool is reachable solely inside the Code Mode wrapper.
+    for (const [name, tool] of tools) {
+      assert.equal(tool.options?.codemode, false, `${name} must be registered as directly invocable`);
+    }
     assert.deepEqual(
       addedSkills.map((skill) => skill.id),
       ["radical-pipelines"],
@@ -274,10 +279,10 @@ describe("setup: tool and skill registration", () => {
     assert.ok(skill.content.startsWith("# Radical Pipelines"));
   });
 
-  test("falls back to the directory source on builds whose draft still offers it", () => {
+  test("falls back to the directory source on builds whose draft still offers it", async () => {
     const { ctx, addedSkills, skillSources } = createFakeCtx({ legacySkillDraft: true });
 
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
 
     assert.equal(addedSkills.length, 0);
     assert.equal(skillSources.length, 1);
@@ -285,14 +290,14 @@ describe("setup: tool and skill registration", () => {
     assert.ok(skillSources[0].path.endsWith("skills"));
   });
 
-  test("calling setup twice subscribes to events exactly once", () => {
+  test("calling setup twice subscribes to events exactly once", async () => {
     delete globalThis[SETUP_ONCE_KEY];
 
     const first = createFakeCtx();
     const second = createFakeCtx();
 
-    setup(first.ctx, isolatedDeps({ env: {} }));
-    setup(second.ctx, isolatedDeps({ env: {} }));
+    await setup(first.ctx, isolatedDeps({ env: {} }));
+    await setup(second.ctx, isolatedDeps({ env: {} }));
 
     assert.equal(first.subscribeCalls + second.subscribeCalls, 1);
   });
@@ -301,8 +306,8 @@ describe("setup: tool and skill registration", () => {
     delete globalThis[SETUP_ONCE_KEY];
 
     const first = createFakeCtx();
-    const cleanup = setup(first.ctx, isolatedDeps({ env: {} }));
-    assert.equal(typeof cleanup, "function", "the plugin API expects setup to return its cleanup");
+    const cleanup = await setup(first.ctx, isolatedDeps({ env: {} }));
+    assert.equal(typeof cleanup, "function", "the plugin API expects setup to resolve to its cleanup");
     assert.ok(globalThis[SETUP_ONCE_KEY], "the once-guard must be armed after setup");
 
     await cleanup();
@@ -311,7 +316,7 @@ describe("setup: tool and skill registration", () => {
 
     // A reloaded plugin's setup must be able to re-arm the observers.
     const second = createFakeCtx();
-    const secondCleanup = setup(second.ctx, isolatedDeps({ env: {} }));
+    const secondCleanup = await setup(second.ctx, isolatedDeps({ env: {} }));
     assert.equal(second.subscribeCalls, 1, "a post-cleanup setup must resubscribe");
     await secondCleanup();
   });
@@ -321,8 +326,8 @@ describe("setup: tool and skill registration", () => {
 
     const first = createFakeCtx();
     const second = createFakeCtx();
-    const firstCleanup = setup(first.ctx, isolatedDeps({ env: {} }));
-    const secondCleanup = setup(second.ctx, isolatedDeps({ env: {} }));
+    const firstCleanup = await setup(first.ctx, isolatedDeps({ env: {} }));
+    const secondCleanup = await setup(second.ctx, isolatedDeps({ env: {} }));
 
     // The hook is location-scoped: the once-guard must not swallow the
     // second location's registration.
@@ -354,7 +359,7 @@ describe("setup: tool and skill registration", () => {
     writeFileSync(join(targetDir, "spec-lead.md"), "# foreign spec-lead, not RP-owned\n");
 
     const { ctx, tools } = createFakeCtx();
-    setup(ctx, {
+    await setup(ctx, {
       env: {},
       agentsSourceDir: sourceDir,
       agentsTargetDir: targetDir,
@@ -3703,7 +3708,7 @@ describe("terminal-event listener", () => {
       return args;
     };
 
-    setup(
+    await setup(
       ctx,
       isolatedDeps({ env: {}, readServiceRecord: () => null }),
     );

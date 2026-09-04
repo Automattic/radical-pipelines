@@ -40,15 +40,11 @@ export async function run(ctx) {
   let loopID;
 
   await runCheck(results, "rp_loop_start records a loop targeting the requested session", async () => {
-    const result = await driveToolCall(
-      server,
-      controller.id,
-      `return await tools.rp_loop_start({interval: 1000, prompt: ${JSON.stringify(marker)}, target_session: ${JSON.stringify(target.id)}});`,
-    );
+    const result = await driveToolCall(server, controller.id, "rp_loop_start", { interval: 1000, prompt: marker, target_session: target.id });
     assert.ok(result.structuredJSON?.id, `expected rp_loop_start to return { id }, got: ${result.text}`);
     loopID = result.structuredJSON.id;
 
-    const listResult = await driveToolCall(server, controller.id, `return await tools.rp_loop_list({});`);
+    const listResult = await driveToolCall(server, controller.id, "rp_loop_list");
     const entries = JSON.parse(listResult.text);
     const entry = entries.find((e) => e.id === loopID);
     assert.ok(entry, `expected rp_loop_list to include ${loopID}`);
@@ -105,14 +101,14 @@ export async function run(ctx) {
   });
 
   await runCheck(results, "rp_loop_cancel stops further ticks, while rp_status retains their outcomes", async () => {
-    const cancelResult = await driveToolCall(server, controller.id, `return await tools.rp_loop_cancel({id: ${JSON.stringify(loopID)}});`);
+    const cancelResult = await driveToolCall(server, controller.id, "rp_loop_cancel", { id: loopID });
     assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
 
-    const listResult = await driveToolCall(server, controller.id, `return await tools.rp_loop_list({});`);
+    const listResult = await driveToolCall(server, controller.id, "rp_loop_list");
     const entries = JSON.parse(listResult.text);
     assert.ok(!entries.some((e) => e.id === loopID), "expected the cancelled loop to be gone from rp_loop_list");
 
-    const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+    const statusResult = await driveToolCall(server, controller.id, "rp_status");
     const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter((tick) => tick.loopID === loopID);
     assert.ok(
       ticks.some((tick) => tick.outcome === "busy" && typeof tick.lastActivity === "number"),
@@ -124,7 +120,7 @@ export async function run(ctx) {
     );
 
     await delay(2_200);
-    const statusAfter = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+    const statusAfter = await driveToolCall(server, controller.id, "rp_status");
     const ticksAfter = (statusAfter.structuredJSON?.recentLoopTicks ?? []).filter(
       (tick) => tick.loopID === loopID,
     );
@@ -143,11 +139,7 @@ export async function run(ctx) {
         model: { providerID: "stubnoauth", id: "stub-model" },
       });
       const backoffMarker = "suite-health-loop-backoff-ping";
-      const startResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_start({interval: 700, prompt: ${JSON.stringify(backoffMarker)}, target_session: ${JSON.stringify(failing.id)}});`,
-      );
+      const startResult = await driveToolCall(server, controller.id, "rp_loop_start", { interval: 700, prompt: backoffMarker, target_session: failing.id });
       const backoffLoopID = startResult.structuredJSON.id;
 
       try {
@@ -156,7 +148,7 @@ export async function run(ctx) {
         // inject -> fail -> classify -> skip -> re-inject -> fail -> escalate.
         const ticks = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const statusResult = await driveToolCall(server, controller.id, "rp_status");
             const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
               (tick) => tick.loopID === backoffLoopID,
             );
@@ -184,11 +176,7 @@ export async function run(ctx) {
         );
 
       } finally {
-        await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(backoffLoopID)}});`,
-        ).catch(() => {});
+        await driveToolCall(server, controller.id, "rp_loop_cancel", { id: backoffLoopID }).catch(() => {});
       }
     },
   );
@@ -206,18 +194,14 @@ export async function run(ctx) {
         model: { providerID: "missing-provider", id: "missing-model" },
       });
       const recordlessMarker = "suite-health-loop-no-record-ping";
-      const startResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_start({interval: 500, prompt: ${JSON.stringify(recordlessMarker)}, target_session: ${JSON.stringify(recordless.id)}});`,
-      );
+      const startResult = await driveToolCall(server, controller.id, "rp_loop_start", { interval: 500, prompt: recordlessMarker, target_session: recordless.id });
       const recordlessLoopID = startResult.structuredJSON.id;
 
       try {
 
         const ticks = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const statusResult = await driveToolCall(server, controller.id, "rp_status");
             const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
               (tick) => tick.loopID === recordlessLoopID,
             );
@@ -242,11 +226,7 @@ export async function run(ctx) {
         );
 
       } finally {
-        await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(recordlessLoopID)}});`,
-        ).catch(() => {});
+        await driveToolCall(server, controller.id, "rp_loop_cancel", { id: recordlessLoopID }).catch(() => {});
       }
     },
   );
@@ -263,22 +243,22 @@ export async function run(ctx) {
         directory: ctx.projectDir,
         model: { providerID: "stubnoauth", id: "stub-model" },
       });
-      // The monitor prompt must carry the stub's slow directive, but its
-      // delimiters cannot appear contiguously in this driving prompt — the
-      // stub's own code-directive parser would terminate at the embedded
-      // ":__END__". Assemble it inside the Code Mode snippet instead.
-      const startResult = await driveToolCall(
-        server,
-        controller.id,
-        `const p = ["__RP_SLOW__", ":1500:", "__EN" + "D__", " // suite-health-loop-slow-fail-ping"].join(""); return await tools.rp_loop_start({interval: 600, prompt: p, target_session: ${JSON.stringify(slowFailing.id)}});`,
-      );
+      // The monitor prompt carries the stub's slow directive, meant to fire
+      // on each injected tick rather than on this driving turn. The driving
+      // directive base64-encodes its arguments, so this one travels intact
+      // instead of closing the directive carrying it.
+      const startResult = await driveToolCall(server, controller.id, "rp_loop_start", {
+        interval: 600,
+        prompt: "__RP_SLOW__:1500:__END__ // suite-health-loop-slow-fail-ping",
+        target_session: slowFailing.id,
+      });
       const slowLoopID = startResult.structuredJSON.id;
 
       try {
 
         const ticks = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const statusResult = await driveToolCall(server, controller.id, "rp_status");
             const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
               (tick) => tick.loopID === slowLoopID,
             );
@@ -298,11 +278,7 @@ export async function run(ctx) {
         );
 
       } finally {
-        await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(slowLoopID)}});`,
-        ).catch(() => {});
+        await driveToolCall(server, controller.id, "rp_loop_cancel", { id: slowLoopID }).catch(() => {});
       }
     },
   );
@@ -326,18 +302,14 @@ export async function run(ctx) {
       assert.ok(parked, "expected the queue copy to park in the inbox behind the running turn");
       assert.equal(parked.delivery, "queue");
 
-      const startResult = await driveToolCall(
-        server,
-        controller.id,
-        `return await tools.rp_loop_start({interval: 800, prompt: ${JSON.stringify(promoMarker)}, target_session: ${JSON.stringify(promoTarget.id)}});`,
-      );
+      const startResult = await driveToolCall(server, controller.id, "rp_loop_start", { interval: 800, prompt: promoMarker, target_session: promoTarget.id });
       const promoLoopID = startResult.structuredJSON.id;
 
       try {
 
         const promotedTick = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const statusResult = await driveToolCall(server, controller.id, "rp_status");
             return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
               (tick) => tick.loopID === promoLoopID && tick.outcome === "promoted",
             );
@@ -355,11 +327,7 @@ export async function run(ctx) {
         assert.equal(promoted[0].id, parked.id, "the promoted item must keep the parked item's inbox ID");
         assert.equal(promoted[0].delivery, "steer");
 
-        const cancelResult = await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(promoLoopID)}});`,
-        );
+        const cancelResult = await driveToolCall(server, controller.id, "rp_loop_cancel", { id: promoLoopID });
         assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
 
         // The promoted copy delivers exactly once.
@@ -375,11 +343,7 @@ export async function run(ctx) {
         );
         assert.equal(deliveries.length, 1, `expected a single delivery, got ${deliveries.length}`);
       } finally {
-        await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(promoLoopID)}});`,
-        ).catch(() => {});
+        await driveToolCall(server, controller.id, "rp_loop_cancel", { id: promoLoopID }).catch(() => {});
       }
     },
   );
@@ -415,17 +379,13 @@ export async function run(ctx) {
         const parkedCopy = (await getInbox(server, hung.id)).find((item) => item.payload?.text === deadMarker);
         assert.ok(parkedCopy, "expected the queue copy to park behind the hung turn");
 
-        const startResult = await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_start({interval: 800, prompt: ${JSON.stringify(deadMarker)}, target_session: ${JSON.stringify(hung.id)}});`,
-        );
+        const startResult = await driveToolCall(server, controller.id, "rp_loop_start", { interval: 800, prompt: deadMarker, target_session: hung.id });
         deadLoopID = startResult.structuredJSON.id;
 
         let observedTicks = [];
         const interruptedTick = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const statusResult = await driveToolCall(server, controller.id, "rp_status");
             observedTicks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
               (tick) => tick.loopID === deadLoopID,
             );
@@ -461,19 +421,11 @@ export async function run(ctx) {
           { timeoutMs: 15_000, label: "the freed target to return to idle" },
         );
 
-        const cancelResult = await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
-        );
+        const cancelResult = await driveToolCall(server, controller.id, "rp_loop_cancel", { id: deadLoopID });
         assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
       } finally {
         if (deadLoopID) {
-          await driveToolCall(
-            server,
-            controller.id,
-            `return await tools.rp_loop_cancel({id: ${JSON.stringify(deadLoopID)}});`,
-          ).catch(() => {});
+          await driveToolCall(server, controller.id, "rp_loop_cancel", { id: deadLoopID }).catch(() => {});
         }
         // A failed assertion must not leave the stalled execution running.
         await interrupt(server, hung.id).catch(() => {});
@@ -507,18 +459,14 @@ export async function run(ctx) {
           { timeoutMs: 5_000, label: "the trickling target to become active" },
         );
 
-        const startResult = await driveToolCall(
-          server,
-          controller.id,
-          `return await tools.rp_loop_start({interval: 600, prompt: ${JSON.stringify(trickleMarker)}, target_session: ${JSON.stringify(trickling.id)}});`,
-        );
+        const startResult = await driveToolCall(server, controller.id, "rp_loop_start", { interval: 600, prompt: trickleMarker, target_session: trickling.id });
         trickleLoopID = startResult.structuredJSON.id;
 
         // The suspicion must actually engage (the stream looks dead to the
         // projection) or this check proves nothing.
         await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+            const statusResult = await driveToolCall(server, controller.id, "rp_status");
             return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
               (tick) => tick.loopID === trickleLoopID && tick.reason === "dead-stream-suspected",
             );
@@ -541,7 +489,7 @@ export async function run(ctx) {
         );
         assert.ok(finished.finish, "the trickled tool call must complete as a normal turn");
 
-        const statusResult = await driveToolCall(server, controller.id, `return await tools.rp_status({});`);
+        const statusResult = await driveToolCall(server, controller.id, "rp_status");
         const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
           (tick) => tick.loopID === trickleLoopID,
         );
@@ -562,11 +510,7 @@ export async function run(ctx) {
 
       } finally {
         if (trickleLoopID) {
-          await driveToolCall(
-            server,
-            controller.id,
-            `return await tools.rp_loop_cancel({id: ${JSON.stringify(trickleLoopID)}});`,
-          ).catch(() => {});
+          await driveToolCall(server, controller.id, "rp_loop_cancel", { id: trickleLoopID }).catch(() => {});
         }
         // Idle interruption is a no-op; a failed assertion must not leave
         // the trickling execution running.
@@ -584,11 +528,7 @@ export async function run(ctx) {
     async () => {
       const survivor = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
       const survivorMarker = "suite-health-loop-survivor-ping";
-      const startResult = await driveToolCall(
-        server,
-        survivor.id,
-        `return await tools.rp_loop_start({interval: 100000, prompt: ${JSON.stringify(survivorMarker)}});`,
-      );
+      const startResult = await driveToolCall(server, survivor.id, "rp_loop_start", { interval: 100000, prompt: survivorMarker });
       const survivorLoopID = startResult.structuredJSON.id;
 
       // Restart `serve`: same XDG dirs (same on-disk registry + session DB),
@@ -609,21 +549,17 @@ export async function run(ctx) {
       // registered loop (setup()'s registry-driven re-arm).
       const freshSession = await createSession(server, { agent: "build", directory: ctx.projectDir, model: STUB_MODEL });
 
-      const listResult = await driveToolCall(server, freshSession.id, `return await tools.rp_loop_list({});`);
+      const listResult = await driveToolCall(server, freshSession.id, "rp_loop_list");
       const entries = JSON.parse(listResult.text);
       assert.ok(
         entries.some((e) => e.id === survivorLoopID),
         `expected the leftover loop ${survivorLoopID} to survive the restart`,
       );
 
-      const cancelResult = await driveToolCall(
-        server,
-        freshSession.id,
-        `return await tools.rp_loop_cancel({id: ${JSON.stringify(survivorLoopID)}});`,
-      );
+      const cancelResult = await driveToolCall(server, freshSession.id, "rp_loop_cancel", { id: survivorLoopID });
       assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
 
-      const listAfterCancel = await driveToolCall(server, freshSession.id, `return await tools.rp_loop_list({});`);
+      const listAfterCancel = await driveToolCall(server, freshSession.id, "rp_loop_list");
       const entriesAfterCancel = JSON.parse(listAfterCancel.text);
       assert.ok(!entriesAfterCancel.some((e) => e.id === survivorLoopID), "expected the leftover loop to be gone after cancel");
     },

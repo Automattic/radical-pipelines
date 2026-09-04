@@ -19,11 +19,11 @@ const PACKAGE_JSON_PATH = join(REPO_ROOT, "package.json");
 /**
  * Run every check in this group.
  *
- * @param {{ server: object, projectDir: string, xdgConfigHome: string, results: Array }} ctx
+ * @param {{ server: object, stub: object, projectDir: string, xdgConfigHome: string, results: Array }} ctx
  * @returns {Promise<void>}
  */
 export async function run(ctx) {
-  const { server, projectDir, xdgConfigHome, results } = ctx;
+  const { server, stub, projectDir, xdgConfigHome, results } = ctx;
   const materializedAgentsDir = join(xdgConfigHome, "opencode", "agents");
 
   await runCheck(results, "collision safety: pre-existing foreign file at an agent path is left untouched", async () => {
@@ -127,13 +127,43 @@ export async function run(ctx) {
         directory: projectDir,
         model: { providerID: "stub", id: "stub-model" },
       });
-      const result = await driveToolCall(server, session.id, `return await tools.rp_status({});`);
+      const result = await driveToolCall(server, session.id, "rp_status");
       const status = JSON.parse(result.text);
       assert.ok(
         status.recentErrors.some(
           (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
         ),
         `expected rp_status's recentErrors to report the spec-lead.md collision, got: ${JSON.stringify(status.recentErrors)}`,
+      );
+    },
+  );
+
+  await runCheck(
+    results,
+    "every RP tool is offered to the model by name, not only through Code Mode's execute wrapper",
+    async () => {
+      // opencode routes a registered tool by its `options.codemode`: only
+      // `codemode: false` reaches the model as a tool of its own. Every
+      // check above drove its tool through the offered-name gate, so this
+      // asserts the whole set at once — the regression that silently moved
+      // all eight behind `execute` is invisible to a suite that only ever
+      // calls them one at a time.
+      const offered = stub.offeredToolNames();
+      const expected = [
+        "rp_loop_cancel",
+        "rp_loop_list",
+        "rp_loop_start",
+        "rp_permission_reply",
+        "rp_send",
+        "rp_spawn",
+        "rp_status",
+        "rp_terminate",
+      ];
+      const missing = expected.filter((name) => !offered.has(name));
+      assert.deepEqual(
+        missing,
+        [],
+        `expected every RP tool to be offered directly; missing: ${JSON.stringify(missing)}`,
       );
     },
   );

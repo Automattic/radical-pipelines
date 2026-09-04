@@ -32,7 +32,11 @@ import { fileURLToPath } from "node:url";
 import { INVALID_AUTH_KEY } from "./stub-provider.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const PLUGIN_ENTRY = join(REPO_ROOT, "opencode", "plugin.mjs");
+// A configured plugin path must be a directory opencode resolves to an
+// `index.js` entrypoint; a plain file path is dropped with "configured plugin
+// path must be a directory", which would leave this suite exercising a
+// sandbox the plugin never loaded into.
+const PLUGIN_ENTRY = join(REPO_ROOT, "opencode");
 const PIN_MANIFEST_PATH = join(REPO_ROOT, "opencode", "pin.json");
 
 /** Fixed local port the sandbox's `serve` process listens on. */

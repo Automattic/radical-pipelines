@@ -46,7 +46,7 @@ export async function run(ctx) {
 
   await runCheck(results, "rp_status reports the plugin version and a pin comparison", async () => {
     const session = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
-    const result = await driveToolCall(server, session.id, `return await tools.rp_status({});`);
+    const result = await driveToolCall(server, session.id, "rp_status");
     const status = JSON.parse(result.text);
 
     const pkgVersion = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")).version;
@@ -64,18 +64,14 @@ export async function run(ctx) {
 
   await runCheck(results, "rp_status's ledger reflects a spawned session recognized via its durable title", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
-    const spawnResult = await driveToolCall(
-      server,
-      orchestrator.id,
-      `return await tools.rp_spawn({name:"status-check-child", agent:"spec-researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"status-check-run"});`,
-    );
+    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "status-check-child", agent: "spec-researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "status-check-run" });
     const childID = spawnResult.text;
 
     // Wait for the child's first turn so the durable rp: title is asserted
     // (rp_status recognizes restart-surviving sessions via that title).
     await pollForTitle(server, childID, "rp:status-check-run:status-check-child");
 
-    const statusResult = await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`);
+    const statusResult = await driveToolCall(server, orchestrator.id, "rp_status");
     const status = JSON.parse(statusResult.text);
     const row = status.ledger.find((r) => r.sessionID === childID);
     assert.ok(row, `expected rp_status's ledger to include the spawned child ${childID}`);
@@ -86,18 +82,14 @@ export async function run(ctx) {
 
   await runCheck(results, "rp_status's ledger row carries the child's liveness facts: activity, last turn, newest text, last send", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
-    const spawnResult = await driveToolCall(
-      server,
-      orchestrator.id,
-      `return await tools.rp_spawn({name:"liveness-check-child", agent:"spec-researcher", model:"stub/stub-model", directory:${JSON.stringify(projectDir)}, prompt:"say hello", run:"liveness-check-run"});`,
-    );
+    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "liveness-check-child", agent: "spec-researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "liveness-check-run" });
     const childID = spawnResult.text;
     await pollForTitle(server, childID, "rp:liveness-check-run:liveness-check-child");
     // The child's plain first turn has ended (the title is asserted on its
     // first terminal event); it has messaged nobody yet.
     await waitForIdle(server, childID);
 
-    const idle = JSON.parse((await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`)).text);
+    const idle = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status")).text);
     const idleRow = idle.ledger.find((r) => r.sessionID === childID);
     assert.ok(idleRow, `expected rp_status's ledger to include the spawned child ${childID}`);
     assert.equal(idleRow.run, "liveness-check-run", "the row names its run, so an orchestrator can filter the ledger to its own");
@@ -114,10 +106,10 @@ export async function run(ctx) {
     assert.equal(idleRow.lastSend, undefined, "a child that has messaged nobody carries no lastSend");
 
     // The child reports to its spawner: the row records the admitted send.
-    await driveToolCall(server, childID, `return await tools.rp_send({to:${JSON.stringify(orchestrator.id)}, message:"Completion declared."});`);
+    await driveToolCall(server, childID, "rp_send", { to: orchestrator.id, message: "Completion declared." });
     await waitForIdle(server, childID);
 
-    const reported = JSON.parse((await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`)).text);
+    const reported = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status")).text);
     const reportedRow = reported.ledger.find((r) => r.sessionID === childID);
     assert.equal(reportedRow.lastSend?.to, orchestrator.id, `expected lastSend to name the spawner, got: ${JSON.stringify(reportedRow.lastSend)}`);
     assert.ok(Number.isFinite(reportedRow.lastSend.at));
@@ -128,11 +120,11 @@ export async function run(ctx) {
     const slowTurn = prompt(server, childID, slowPrompt(6_000, `liveness-interrupt-${Date.now()}`), { delivery: "steer" });
     await pollUntil(async () => (await getActiveSessionIDs(server)).has(childID), { label: "the child to start its slow turn" });
     await delay(300);
-    assert.equal(await interrupt(server, childID), 204);
+    assert.equal(await interrupt(server, childID), 200);
     await slowTurn.catch(() => {});
     await waitForIdle(server, childID);
 
-    const interrupted = JSON.parse((await driveToolCall(server, orchestrator.id, `return await tools.rp_status({});`)).text);
+    const interrupted = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status")).text);
     const interruptedRow = interrupted.ledger.find((r) => r.sessionID === childID);
     assert.equal(interruptedRow.lastTurn?.outcome, "interrupted", `expected an interrupted last turn, got: ${JSON.stringify(interruptedRow.lastTurn)}`);
     assert.equal(interruptedRow.turns, reportedRow.turns + 1);

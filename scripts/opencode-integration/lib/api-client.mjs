@@ -10,7 +10,7 @@
 
 import http from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
-import { directivePrompt } from "./stub-provider.mjs";
+import { nativeToolPrompt } from "./stub-provider.mjs";
 
 /**
  * Issue one authenticated HTTP request against the sandbox's `serve`
@@ -270,23 +270,25 @@ export async function pollUntil(fn, { timeoutMs = 20_000, intervalMs = 300, labe
 }
 
 /**
- * Find, within a session's messages, the Code Mode `execute` tool-call
- * result whose input code carries the given nonce, once it has completed
- * (`state.content` populated).
+ * Find, within a session's messages, the settled result of the tool call the
+ * given nonce drove — the part whose id the stub derived from that nonce.
  *
  * @param {Array<object>} messages As returned by `getMessages`.
- * @param {string} nonce The nonce embedded via `directivePrompt`.
- * @returns {{ text: string, structuredJSON: * } | undefined} `text` is the
- *   tool result's raw rendered text (see the plugin's `toToolResult`);
- *   `structuredJSON` is `JSON.parse(text)` when `text` parses as JSON, else
- *   `undefined` (the tool returned a bare string, rendered verbatim).
+ * @param {string} nonce The nonce embedded via `nativeToolPrompt`.
+ * @returns {{ text: string|undefined, structuredJSON: *, error: {message: string}|undefined } | undefined}
+ *   `undefined` while the call is still in flight. On success `text` is the
+ *   tool result's raw rendered text (see the plugin's `toToolResult`) and
+ *   `structuredJSON` is `JSON.parse(text)` when it parses, else `undefined`
+ *   (the tool returned a bare string, rendered verbatim). A tool that threw
+ *   settles with `error` instead of `text`.
  */
 function findToolResult(messages, nonce) {
   for (const message of messages) {
     for (const part of message.content ?? []) {
-      if (part.type !== "tool") continue;
-      const input = part.state?.input;
-      if (!input || typeof input.code !== "string" || !input.code.includes(nonce)) continue;
+      if (part.type !== "tool" || part.id !== `call_${nonce}`) continue;
+      if (part.state?.status === "error") {
+        return { text: undefined, structuredJSON: undefined, error: part.state.error };
+      }
       const content = part.state?.content;
       // An in-progress tool call reports `content: []` (present but empty)
       // before it completes — verified live — so an empty array must be
@@ -299,32 +301,32 @@ function findToolResult(messages, nonce) {
       } catch {
         structuredJSON = undefined;
       }
-      return { text, structuredJSON };
+      return { text, structuredJSON, error: undefined };
     }
   }
   return undefined;
 }
 
 /**
- * Drive one Code Mode tool call deterministically: post a directive prompt
- * forcing the stub to emit an `execute` call running `code`, then wait for
- * it to complete.
+ * Drive one tool call deterministically: post a directive prompt forcing the
+ * stub to emit a call to `name` with `args`, then wait for it to settle.
  *
  * @param {{baseURL:string,password:string}} server
  * @param {string} sessionID The session to drive (its model must be the
  *   stub provider's for the directive to be recognized).
- * @param {string} code Restricted-JS snippet, e.g.
- *   `return await tools.rp_status({});`.
+ * @param {string} name The tool to call, e.g. `"rp_status"`.
+ * @param {object} [args] The tool's arguments.
  * @param {{ timeoutMs?: number }} [options]
- * @returns {Promise<{ text: string, structuredJSON: * }>} The tool result
- *   (see `findToolResult`).
+ * @returns {Promise<{ text: string|undefined, structuredJSON: *, error: {message: string}|undefined }>}
+ *   The settled result (see `findToolResult`). A tool that threw resolves
+ *   with `error` rather than rejecting, so a check can assert on the failure.
  */
-export async function driveToolCall(server, sessionID, code, { timeoutMs } = {}) {
+export async function driveToolCall(server, sessionID, name, args = {}, { timeoutMs } = {}) {
   const nonce = `n${Date.now()}${Math.random().toString(36).slice(2)}`;
-  await prompt(server, sessionID, directivePrompt(code, nonce));
+  await prompt(server, sessionID, nativeToolPrompt(name, args, nonce));
   return pollMessages(server, sessionID, (messages) => findToolResult(messages, nonce), {
     timeoutMs,
-    label: `Code Mode tool call to complete: ${code}`,
+    label: `tool call to complete: ${name}`,
   });
 }
 
