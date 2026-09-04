@@ -520,13 +520,20 @@ describe("rp state tooling", () => {
     assert.match(check(root, "--lanes", `spec=security@${other}`, "--target-phase", "1"), /security:approved \(stale\)/);
   });
 
-  test("a pending claim persists past a later review of the same lane", () => {
+  test("a claim is pending only while it is its lane's latest verdict; a held claim ends with the wave that approved", () => {
     stampSpec();
+    const lanes = "spec=b";
     review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
+    review("1-spec/spec-review-b-1.md", "rejected", SPEC);
+    let output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.match(output, /claim\s+1-spec\/spec-review-1\.md .*held \(a lane rejected/);
+    assert.match(output, /frontier adjudicate 1-spec\/spec\.md/);
     review("1-spec/spec-review-2.md", "approved", SPEC);
-    const output = check(root, "--target-phase", "1");
-    assert.match(output, /claim\s+1-spec\/spec-review-1\.md .*PENDING — owner escalation/);
-    assert.doesNotMatch(output, /frontier complete/);
+    review("1-spec/spec-review-b-2.md", "approved", SPEC);
+    output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.match(output, /claim\s+1-spec\/spec-review-1\.md .*superseded \(its lane reviewed again\)/);
+    assert.doesNotMatch(output, /PENDING|held|wave open/);
+    assert.match(output, /frontier complete/);
   });
 
   test("invalid lane declarations are rejected before any state is computed", () => {

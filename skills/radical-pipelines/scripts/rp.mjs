@@ -548,8 +548,10 @@ function cmdCheck(args) {
   for (const sc of scopes)
     for (const r of reviewsOf(sc)) {
       if (r.data.get("verdict") !== "unsatisfiable") continue;
+      // A claim is its lane's verdict: the lane's latest review is the one that stands.
       const lanes = laneStates(r.prefix, sc);
       const mine = lanes.find((l) => l.review?.rel === r.rel);
+      const later = reviewsOf(sc).some((x) => x.prefix === r.prefix && x.lane === r.lane && x.wave > r.wave);
       const c = {
         rel: r.rel,
         target: r.data.get("target") ?? "?",
@@ -557,14 +559,15 @@ function cmdCheck(args) {
         targetIdentity: r.data.get("target-identity"),
         fresh: mine ? mine.fresh : reviewFresh(r, r.prefix, sc),
         claiming: [].concat(r.data.get("reviewed") ?? []).map((p) => pinParts(p)?.path),
-        waveOpen: mine ? !waveClosed(lanes) : false,
-        rejected: mine ? lanes.some((l) => l.verdict === "rejected") : false,
+        waveOpen: !waveClosed(lanes),
+        rejected: lanes.some((l) => l.verdict === "rejected"),
       };
       const cur = identityOf(c.targetPath);
       const unchanged = c.targetIdentity && cur && cur === c.targetIdentity;
       const res = TARGET_ID.test(c.target) ? resolutionOf(c) : { state: "invalid target" };
       if (res.state === "invalid target") c.state = `INVALID TARGET (${c.target})`;
       else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
+      else if (later) c.state = "superseded (its lane reviewed again)";
       else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
       else if (!c.fresh) c.state = "moot (claiming artifact changed)";
       else if (c.waveOpen) c.state = "wave open";
