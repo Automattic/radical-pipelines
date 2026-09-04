@@ -206,7 +206,8 @@ function getPendingParentage() {
 
 /**
  * `globalThis` key backing the insertion-ordered set of remembered root
- * sessions — the evictable half of the parentage record.
+ * sessions — the cached half of the parentage record. Shares the re-import
+ * rationale of `LEDGER_KEY`.
  */
 const SESSION_ROOTS_KEY = Symbol.for("radical-pipelines.opencode.sessionRoots");
 
@@ -224,21 +225,26 @@ function getRootSessions() {
 }
 
 /**
- * Cap past which remembered *root* sessions are evicted, oldest first.
+ * How many root sessions are cached before the oldest is dropped.
  *
- * Only a root entry is evictable. A root entry is a cache: losing it costs
- * one read. A subagent entry is the boundary itself — evicting one and then
- * failing to read its replacement answer grants that subagent every tool,
- * which is reachable in practice rather than in theory: with more live
- * sessions than this cap, a real subagent regained the full set.
+ * The parentage record holds two kinds of fact, and they are retained by
+ * different rules because they are not the same kind of thing:
  *
- * So this bounds root entries only. Subagent entries are held until their
- * deletion is observed, and opencode reclaims a subagent when its *parent*
- * is deleted, not when its task returns — so the subagents of a terminated
- * agent are reclaimed, while those of a session that is never deleted are
- * not. That residue grows with the subagents such sessions create.
+ * - A **root** entry is a cache. Losing one costs a single read, so their
+ *   number is what this bounds.
+ * - A **subagent** entry is the access boundary itself. Dropping one and
+ *   then failing to read its replacement answer grants that subagent every
+ *   tool — reachable in practice, not in theory — so a subagent is held
+ *   until its deletion is observed, and no count releases it.
+ *
+ * Bounding the record as a whole would collapse that distinction and let
+ * the unbounded population starve the bounded one: subagents alone would
+ * fill the budget and leave nothing cached. opencode reclaims a subagent
+ * when its *parent* is deleted rather than when its task returns, so the
+ * subagents of a terminated agent are reclaimed while those of a session
+ * that is never deleted accumulate.
  */
-const SESSION_PARENTAGE_CAP = 4096;
+const ROOT_SESSION_CACHE_CAP = 4096;
 
 /**
  * Remember one session's parentage, bounding what is retained.
@@ -256,16 +262,10 @@ function recordParentage(sessionID, child) {
   if (!child) {
     roots.add(sessionID);
   }
-  while (parentage.size > SESSION_PARENTAGE_CAP) {
-    // The oldest evictable entry, reached directly: a record saturated with
-    // subagents has nothing to give up, and must not pay a full scan on
-    // every session it observes to discover that.
-    const oldest = roots.values().next();
-    if (oldest.done) {
-      return;
-    }
-    roots.delete(oldest.value);
-    parentage.delete(oldest.value);
+  while (roots.size > ROOT_SESSION_CACHE_CAP) {
+    const oldest = roots.values().next().value;
+    roots.delete(oldest);
+    parentage.delete(oldest);
   }
 }
 

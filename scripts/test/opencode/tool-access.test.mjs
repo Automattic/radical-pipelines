@@ -320,6 +320,20 @@ describe("parentage retention", () => {
     assert.deepEqual(asked.calls, ["ses_overflow_0"], "root entries are the evictable ones");
   });
 
+  test("subagents saturating the record do not starve the root cache", async () => {
+    for (let index = 0; index <= 5000; index++) {
+      recordSessionParent({
+        type: "session.created",
+        data: { sessionID: `ses_saturate_${index}`, parentID: "ses_saturate_parent" },
+      });
+    }
+    recordSessionParent({ type: "session.created", data: { sessionID: "ses_saturated_root" } });
+
+    // Retention is per population: a held subagent cannot consume the budget
+    // that keeps a root cached, so the root is answered without a read.
+    assert.equal(await resolveToolAccess("ses_saturated_root", neverAsked), "full");
+  });
+
   test("a subagent survives the cap even when the replacement read is unanswerable", async () => {
     recordSessionParent({
       type: "session.created",
