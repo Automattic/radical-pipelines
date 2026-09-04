@@ -664,8 +664,10 @@ function cmdCheck(args) {
       return !!doc && (() => { const st = artifactState(doc, art, sc, [], laneOf(sc).fingerprint); return st.approved && st.state === "fresh"; })();
     };
     const laneReviewPaths = (sc) => laneStates(art.prefix, sc).map((l) => l.review?.rel).filter(Boolean);
+    // A consolidated root pins every lane's artifact, record, and approving reviews; only then are the lanes closed.
+    const lanePins = (sc) => [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...laneReviewPaths(sc)];
     const rootPins = (pinsByPath.get(art.path) ?? []).map((p) => pinParts(p)?.path);
-    const consolidated = rootExists && laneScopes.length > 0 && laneScopes.every((sc) => laneApproved(sc) && rootPins.includes(`${sc}${name}`) && laneReviewPaths(sc).every((r) => rootPins.includes(r)));
+    const consolidated = rootExists && laneScopes.length > 0 && laneScopes.every((sc) => laneApproved(sc) && lanePins(sc).every((p) => rootPins.includes(p)));
     let lanesReady = laneScopes.length > 0;
     for (const sc of laneScopes) {
       const { after, fingerprint } = laneOf(sc);
@@ -687,9 +689,7 @@ function cmdCheck(args) {
       stopped = true;
       continue;
     }
-    // A consolidated root pins every lane's artifact, record, and approving reviews.
-    const laneRequires = laneScopes.flatMap((sc) => [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...laneReviewPaths(sc)]);
-    const st = artifactState(all.find((d) => d.rel === art.path), art, "", laneRequires);
+    const st = artifactState(all.find((d) => d.rel === art.path), art, "", laneScopes.flatMap(lanePins));
     out.artifacts.push({ artifact: art.path, ...st, lanes: st.lanes.map(({ review, ...x }) => x) });
     if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
     lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${st.missingPins.length ? ` — missing pins: ${st.missingPins.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${st.gate ? `  ${st.gate}` : ""}`);

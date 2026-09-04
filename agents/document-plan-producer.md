@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 
 ## Synthesize
 
-Materials: the **Spec**, the **Design doc**, the **Build plan** with its tasks and reports and the approving build review, the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
+Materials: the **Spec**, the **Design doc**, the **Build plan** with its tasks and reports — each with its approving reviews — and the approving build review, the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
 
 1. Read the spec, the design doc, and the build plan with its reports; inspect the shipped code on the branch.
 2. Inventory the documentation surfaces the project keeps — inline API documentation, guides, references, configuration docs, examples, changelogs — and what the shipped behavior changes in each; record it in `document-plan-research.md`.

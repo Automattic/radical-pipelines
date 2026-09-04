@@ -48,7 +48,7 @@ When the materials carry an **Amendment** — a claim that a clause of your arti
 
 ## Consolidate
 
-Materials: the **Lane candidates** — each lane's `spec.md` and `spec-research.md`.
+Materials: the **Lane candidates** — each lane's `spec.md`, `spec-research.md`, and approving reviews.
 
 Produce the single canonical `spec.md` and `spec-research.md`:
 

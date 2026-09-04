@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 
 ## Synthesize
 
-Materials: the **Spec**, the **Design doc** (with its approving reviews), the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
+Materials: the **Spec** and the **Design doc**, with their approving reviews, the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
 
 1. Read the spec and the design doc; list every requirement, every decision, and every open assumption.
 2. Inspect the codebase where the design lands; record what you find in `build-plan-research.md`.

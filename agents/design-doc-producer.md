@@ -47,7 +47,7 @@ When the materials carry an **Amendment** — a claim that a clause of your arti
 
 ## Consolidate
 
-Materials: the **Lane candidates** — each lane's `design-doc.md` and `design-doc-research.md`.
+Materials: the **Lane candidates** — each lane's `design-doc.md`, `design-doc-research.md`, and approving reviews.
 
 1. Merge, preserving provenance: the record states what each lane covered.
 2. Arbitrate divergences with the evidence in the lane records. When the evidence does not discriminate, choose and record that both options were equally grounded.

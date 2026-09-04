@@ -414,6 +414,11 @@ describe("rp state tooling", () => {
     output = check(root, "--lanes", lanes);
     assert.doesNotMatch(output, /closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+INCOMPLETE PINS/);
+    // Nor is one that pins every lane's artifact and approving review but skips a record.
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--pin", P("1-spec/contrarian/spec.md"), "--pin", P("1-spec/contrarian/spec-review-1.md"));
+    output = check(root, "--lanes", lanes);
+    assert.doesNotMatch(output, /closed/);
+    assert.match(output, /INCOMPLETE PINS — missing pins: 1-spec\/contrarian\/spec-research\.md/);
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--pin", P("1-spec/contrarian/spec.md"), "--pin", P("1-spec/contrarian/spec-research.md"), "--pin", P("1-spec/contrarian/spec-review-1.md"));
     output = check(root, "--lanes", lanes);
     assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);

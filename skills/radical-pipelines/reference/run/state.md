@@ -48,16 +48,16 @@ A file pins exactly what it consumed, never its sibling record.
 | -------------------------------------- | ---------------------------------------------------------------------------- |
 | `0-intent/intent.md`                   | none; `origin`: the issue reference                                          |
 | `0-intent/<n>-amendment.md`            | none; `target`, `origin`                                                     |
-| `1-spec/spec.md`                       | `intent.md`; every trigger it adjudicated; when consolidated, every lane's `spec.md` and record |
+| `1-spec/spec.md`                       | `intent.md`; every trigger it adjudicated; when consolidated, every lane's `spec.md`, record, and approving reviews |
 | `1-spec/<lane>/spec.md`                | what the root artifact would, plus the artifacts of the lanes it comes `after` |
 | `2-design-doc/design-doc.md`           | `intent.md`, `spec.md`, an approving spec review; triggers; lanes when consolidated |
 | `3-build/build-plan.md`                | `spec.md`, `design-doc.md`, their approving reviews; triggers                |
 | `3-build/tasks/T<n>.md`                | none; `depends`                                                              |
 | `3-build/tasks/T<n>-report-<k>.md`     | `reviewed`: the task it executed and the tasks it depends on; `outcome`; a failed one targets `build-plan.md` |
-| `4-document/document-plan.md`          | `spec.md`, `design-doc.md`, `build-plan.md`, their approving reviews; triggers |
+| `4-document/document-plan.md`          | `spec.md`, `design-doc.md`, `build-plan.md`, their approving reviews, the approving build review; triggers |
 | document tasks and reports             | as in build                                                                  |
 
-**What a review names** (`reviewed`): its artifact, its record, and everything the artifact pins — its inputs, their approving reviews, the triggers it adjudicated, its lane inputs; a plan review, every task too; a build or document review, the plan's package, every task, and every report. A review whose pins are stale, that names less or more, or whose `lane` differs from the declared fingerprint, is stale. An artifact consumes an input with its **current approval**: every lane's review of the wave that approved it. The document plan also pins the build review.
+**What a review names** (`reviewed`): its artifact, its record, and everything the artifact pins — its inputs, their approving reviews, the triggers it adjudicated, its lane inputs; a plan review, every task too; a build or document review, the plan's package, every task, and every report. A review whose pins are stale, that names less or more, or whose `lane` differs from the declared fingerprint, is stale. An artifact consumes an input with its **current approval**: every lane's review of the wave that approved it.
 
 ## Names
 

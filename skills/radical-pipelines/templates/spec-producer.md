@@ -37,4 +37,4 @@
 - Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
 
 <!-- Consolidate: the Synthesize materials plus -->
-- Lane candidates: <one line per lane: id — spec.md path, spec-research.md path>
+- Lane candidates: <one line per lane: id — spec.md path, spec-research.md path, approving review paths>
