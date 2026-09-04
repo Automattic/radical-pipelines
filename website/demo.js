@@ -72,23 +72,25 @@
     {
       phase: 'phase 3',
       task: 'build-worker-tdd',
-      reads: ['build-plan.md'],
-      writes: ['src/orchestrator.ts (+218)', 'src/orchestrator.test.ts (+162)', 'tasks/T1-report-1.md'],
+      reads: ['tasks/T1.md'],
+      writes: ['src/orchestrator.ts (+218)', 'src/orchestrator.test.ts (+162)'],
       runMs: 1900,
       sec: 412,
       tokens: '64.1k',
-      treeIdx: [9],
+      treeIdx: [9, 11],
       bash: ['npm test', 'git commit -m "Add orchestrator (build-worker-tdd)"'],
+      // The report names the commits above and lands in a commit of its own.
+      then: { writes: ['tasks/T1-report-1.md'], bash: ['git commit -m "Report T1 attempt 1 (build-worker-tdd)"'] },
     },
     {
       phase: 'phase 3',
       task: 'build-reviewer',
-      reads: ['src/orchestrator.ts', 'build-plan.md'],
+      reads: ['src/orchestrator.ts', 'tasks/T1-report-1.md', 'build-plan.md'],
       writes: ['build-review-1.md'],
       runMs: 1100,
       sec: 96,
       tokens: '14.3k',
-      treeIdx: [10, 11],
+      treeIdx: [10],
       verdict: 'approved',
     },
     {
@@ -115,22 +117,24 @@
     {
       phase: 'phase 4',
       task: 'document-worker',
-      reads: ['document-plan.md', 'README.md'],
-      writes: ['README.md (updated)', 'docs/orchestrator.md', 'tasks/T1-report-1.md'],
+      reads: ['tasks/T1.md', 'README.md'],
+      writes: ['README.md (updated)', 'docs/orchestrator.md'],
       runMs: 1200,
       sec: 89,
       tokens: '8.7k',
-      treeIdx: [14],
+      treeIdx: [14, 16],
+      bash: ['git commit -m "Document the orchestrator (document-worker)"'],
+      then: { writes: ['tasks/T1-report-1.md'], bash: ['git commit -m "Report T1 attempt 1 (document-worker)"'] },
     },
     {
       phase: 'phase 4',
       task: 'document-reviewer',
-      reads: ['README.md', 'docs/orchestrator.md'],
+      reads: ['README.md', 'docs/orchestrator.md', 'tasks/T1-report-1.md'],
       writes: ['document-review-1.md'],
       runMs: 800,
       sec: 31,
       tokens: '4.9k',
-      treeIdx: [15, 16],
+      treeIdx: [15],
       verdict: 'approved',
     },
   ];
@@ -154,6 +158,7 @@
     '4-document/document-review-1.md',
     '4-document/tasks/T1-report-1.md',
   ];
+  // Tree indices: a worker commits its work, then its report; the phase review comes after both.
 
   const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -232,13 +237,18 @@
     for (const w of p.writes) {
       line(logEl, 'cc-sub done', '  ⎿  Wrote ' + w);
     }
-    if (p.bash) {
-      for (const b of p.bash) {
+    const runBash = async (cmds) => {
+      for (const b of cmds) {
         const lb = line(logEl, 'cc-sub bash', '');
         await spinFor(lb, 350, '  $ ' + b);
         lb.textContent = '  ⎿  $ ' + b;
         lb.className = 'cc-sub done';
       }
+    };
+    if (p.bash) await runBash(p.bash);
+    if (p.then) {
+      for (const w of p.then.writes) line(logEl, 'cc-sub done', '  ⎿  Wrote ' + w);
+      await runBash(p.then.bash);
     }
     if (p.verdict) {
       line(logEl, 'cc-sub verdict', '  ⎿  Verdict: ' + p.verdict);

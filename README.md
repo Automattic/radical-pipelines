@@ -32,7 +32,7 @@ The phases are:
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
-In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, and its tasks are executed. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner.
+In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, and every commit the pipeline made outside its folder is claimed by a task report. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner. A task report ends `completed`, `failed` — the product observed and contradicting the task, with reproducible evidence — or `blocked`: the product not observed, the report naming what prevented it, for the orchestrator to restore before the next attempt.
 
 The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow.
 
@@ -173,7 +173,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
-Agents reserve blockers for malformed materials, unreadable inputs, and broken environments.
+Agents reserve blockers for malformed materials, unreadable inputs, and broken environments found before their first write; a worker that cannot observe the product mid-task reports a `blocked` outcome instead.
 
 ## Changelog and versioning
 
