@@ -4,7 +4,7 @@ The autonomous workflow. You enter from triage with a pipeline folder, a branch,
 
 ## One step
 
-1. Run `rp check <pipeline folder> --lanes <declared lanes> --target-phase <n>`.
+1. Run `rp check <pipeline folder> --base <base branch> --lanes <declared lanes> --target-phase <n>`.
 2. Dispatch what resolves its `frontier` line (table below).
 3. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches, fire the phase's lifecycle hooks.
 4. Go to 1.
@@ -41,7 +41,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
-- A delta review's **Diff** runs from its previous review's `head` to `HEAD` over the artifact, its record, and — for a plan — its tasks; its **Adjudication** is every record entry written since. A build or document review's **Diff** is every change on the branch outside the pipelines folder since the branch started — its merge-base with the main branch, or the main branch for a `<slug>_<n>` branch; a delta one, since its previous review's `head`.
+- A delta review's **Diff** runs from its previous review's `head` to `HEAD` over the artifact, its record, and — for a plan — its tasks; its **Adjudication** is every record entry written since. A build or document review's **Diff** is every change on the branch outside the pipelines folder since its base; a delta one, since its previous review's `head`.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **research request**: spawn a fresh `researcher` with the question and the requester's address; it answers the requester directly. Several independent questions in one message get one researcher each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.

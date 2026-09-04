@@ -162,6 +162,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Issues                | Issue storage, operations, and the canonical issue reference                                       | Yes      |
 | Branch naming         | How a pipeline branch name and slug derive from its issue                                           | Yes      |
 | Pipelines folder root | Where pipeline folders live                                                                        | No       |
+| Artifact storage      | Whether artifacts live in the project's repository or a fork, and the artifact base branch          | No       |
 | Worktree folder root  | Where worktrees live                                                                                | Yes      |
 | Commit format         | How agents write commits                                                                            | No       |
 | PR format             | How pull request titles and descriptions are written                                                | No       |

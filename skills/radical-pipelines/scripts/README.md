@@ -21,14 +21,15 @@ node skills/radical-pipelines/scripts/rp.mjs stamp .pipelines/demo/1-spec/spec.m
 ## `check`
 
 ```text
-node rp.mjs check <pipeline-folder> [--lanes <r1,r2>] [--json]
+node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--json]
 ```
 
+- `--base` names the artifact base branch: the pipeline's own commits — those a task report must claim — follow its merge-base with the inspected ref. The branch the intent `starts-from` prevails when it declares one; otherwise `--base` is required. A base that does not resolve is an error.
 - `--lanes` declares review lanes.
 - `--json` emits machine-readable state.
 
 ```sh
-node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --lanes r1,r2
+node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main --lanes "spec=r1,r2"
 ```
 
 See the [state specification](../reference/run/state.md).

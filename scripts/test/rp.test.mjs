@@ -26,11 +26,12 @@ const read = (root, rel) => readFileSync(join(root, P(rel)), "utf8");
 function rp(root, ...args) {
   return execFileSync(process.execPath, [RP, ...args], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
-const check = (root, ...args) => rp(root, "check", PIPELINE, ...args);
+// The artifact base branch is `main`; the pipeline branch, `demo`, is cut from it.
+const check = (root, ...args) => rp(root, "check", PIPELINE, "--base", "main", ...args);
 
 function initRepo() {
   const root = mkdtempSync(join(tmpdir(), "rp-test-"));
-  git(root, "init", "--quiet");
+  git(root, "init", "--quiet", "--initial-branch=main");
   git(root, "config", "user.email", "rp-test@example.com");
   git(root, "config", "user.name", "RP Test");
   write(root, "0-intent/intent.md", "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal intent.\n");
@@ -41,6 +42,9 @@ function initRepo() {
   write(root, "3-build/build-plan.md", "# Build plan\n\n## Order\n\n- T1\n- T2 <- T1\n");
   write(root, "3-build/build-plan-research.md", "# Plan research\n");
   rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
+  git(root, "add", "-A");
+  git(root, "commit", "--quiet", "-m", "intent");
+  git(root, "checkout", "--quiet", "-b", "demo");
   return root;
 }
 
@@ -551,7 +555,6 @@ describe("rp state tooling", () => {
     buildDone();
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "pipeline");
-    git(root, "checkout", "--quiet", "-b", "work");
     writeFileSync(join(root, "src.js"), "console.log(1);\n");
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "hand-made change");
@@ -562,6 +565,38 @@ describe("rp state tooling", () => {
     write(root, "3-build/tasks/T2-report-2.md", `# Task report\n\nOutcome: completed\n\n## Commits\n\n- ${sha} — hand-made change\n`);
     rp(root, "stamp", P("3-build/tasks/T2-report-2.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
     assert.doesNotMatch(check(root, "--target-phase", "3"), /unclaimed/);
+  });
+
+  test("a pipeline's own commits follow its base: the starts-from branch when the intent declares one, else --base; an unresolvable base is an error", () => {
+    buildDone();
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "pipeline");
+    writeFileSync(join(root, "lib.js"), "1\n");
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "work of demo");
+    assert.match(check(root, "--target-phase", "3"), /frontier unclaimed commits/);
+    // A stacked pipeline starts from demo's tip: demo's commits are not its own.
+    const S = ".pipelines/stacked";
+    git(root, "checkout", "--quiet", "-b", "stacked");
+    mkdirSync(join(root, S, "0-intent"), { recursive: true });
+    writeFileSync(join(root, S, "0-intent/intent.md"), "Origin: issue 8\nOrigin: starts-from demo\n\n# Intent\n\n## Goal\n\nStacked.\n");
+    rp(root, "stamp", `${S}/0-intent/intent.md`, "--mirror");
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "stacked intent");
+    assert.doesNotMatch(rp(root, "check", S, "--target-phase", "1"), /unclaimed/);
+    writeFileSync(join(root, "more.js"), "2\n");
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "work of stacked");
+    const sha = git(root, "rev-parse", "--short=7", "HEAD").trim();
+    const own = new RegExp(`unclaimed by any task report: ${sha}\\n`);
+    assert.match(rp(root, "check", S, "--target-phase", "1"), own);
+    assert.match(rp(root, "check", S, "--base", "main", "--target-phase", "1"), own);
+    assert.match(rp(root, "check", S, "--base", "main", "--ref", "stacked", "--target-phase", "1"), own);
+    // Without starts-from, --base is required and must resolve; a starts-from branch must too.
+    assert.throws(() => rp(root, "check", PIPELINE, "--target-phase", "3"), /--base <ref> is required/);
+    assert.throws(() => rp(root, "check", PIPELINE, "--base", "nope", "--target-phase", "3"), /--base does not resolve: nope/);
+    git(root, "branch", "-D", "demo");
+    assert.throws(() => rp(root, "check", S, "--base", "main", "--target-phase", "1"), /the starts-from branch does not resolve: demo/);
   });
 
   test("a report's Commits section is mirrored whole, whatever the line format, and names only commits that exist", () => {

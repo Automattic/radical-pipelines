@@ -24,7 +24,6 @@ Migrate from version 0.
 - Status-specific review filenames.
 - Per-phase completion-predicate tables.
 - Blocker instructions for agents.
-- `Artifact storage`: `.rp.md` and the pipelines folder always live in the project's repository.
 
 ### Model tables
 
@@ -56,4 +55,5 @@ Pipelines in the previous layout (`<slug>/base/…`) are closed: discovery reads
 
 - `Agents`, optional: model per profile and named lanes (replaces `Agent models`).
 - `Thresholds`, optional.
+- `Artifact storage`, now optional, gains the artifact base branch.
 - Frontmatter stamp `conventions: 1`.

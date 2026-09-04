@@ -17,6 +17,7 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Issues                | Issue trackers; read, create, modify, and comment operations; the canonical issue-reference format for `Origin:` lines              | Yes      |
 | Branch naming         | How a pipeline branch and slug derive from its issue; a valid git ref containing no `_`                                               | Yes      |
 | Pipelines folder root | The root containing pipeline folders; default `.pipelines/`                                                                           | No       |
+| Artifact storage      | Whether `.rp.md` and the pipelines folder live in the project's repository (`artifacts-in-repo`, the default) or a fork (`artifacts-in-fork`), and the artifact base branch: the branch pipelines start from and count their own commits after — the repository's main branch, or the fork's base branch, declared | No       |
 | Worktree folder root  | The root containing worktrees                                                                                                         | Yes      |
 | Commit format         | Commit message rules; absent, an imperative subject line                                                                              | No       |
 | PR format             | Pull request title and description rules                                                                                               | No       |

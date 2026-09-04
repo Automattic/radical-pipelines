@@ -335,7 +335,14 @@ function cmdCheck(args) {
   const abs = resolve(root, folder);
   if (!args.ref && !existsSync(abs)) die(`check: no such folder: ${folder}`);
   const pipelineRel = relative(root, abs);
-  const ref = args.ref ? execFileSync("git", ["rev-parse", "--verify", `${args.ref}^{commit}`], { cwd: root, encoding: "utf8" }).trim() : null;
+  const rev = (r, what) => {
+    try {
+      return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${r}^{commit}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    } catch {
+      die(`check: ${what} does not resolve: ${r}`);
+    }
+  };
+  const ref = args.ref ? rev(args.ref, "--ref") : null;
   const tree = treeReader(root, abs, ref);
   const decl = parseLanes(args.lanes);
   const reviewLanesOf = (prefix) => [{ id: "", brief: null }, ...(decl[prefix]?.review ?? [])];
@@ -361,6 +368,18 @@ function cmdCheck(args) {
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
       return { rel, name: rel.split("/").pop(), data, scope, drift };
     });
+  // The pipeline's own commits follow its base: the merge-base of the inspected ref with the branch
+  // its intent `starts-from`, else with the artifact base branch (`--base`).
+  const tip = ref ?? rev("HEAD", "HEAD");
+  const startsFrom = [].concat(all.find((d) => d.rel === "0-intent/intent.md")?.data.get("origin") ?? []).map((o) => o.match(/^starts-from\s+(\S+)$/)?.[1]).find(Boolean);
+  const baseRef = startsFrom ? rev(startsFrom, "the starts-from branch") : args.base ? rev(args.base, "--base") : die("check: --base <ref> is required — the artifact base branch — unless the intent declares starts-from");
+  let base;
+  try {
+    base = execFileSync("git", ["merge-base", baseRef, tip], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    die(`check: no merge-base between ${startsFrom ?? args.base} and ${args.ref ?? "HEAD"}`);
+  }
+
   const identityOf = (rel) => (texts.has(rel) ? identity(texts.get(rel)) : null);
   const pinFresh = (entry) => {
     const p = pinParts(entry);
@@ -733,25 +752,16 @@ function cmdCheck(args) {
     }
   }
 
-  // Every commit on the branch outside the pipelines folder is claimed by a task report.
-  if (!ref) {
-    try {
-      const mainRef = ["main", "trunk", "master"].find((b) => { try { execFileSync("git", ["rev-parse", "--verify", `${b}^{commit}`], { cwd: root, stdio: "ignore" }); return true; } catch { return false; } });
-      if (mainRef) {
-        const base = execFileSync("git", ["merge-base", mainRef, "HEAD"], { cwd: root, encoding: "utf8" }).trim();
-        const pipelinesRoot = pipelineRel.split("/").slice(0, -1).join("/") || ".";
-        const onBranch = execFileSync("git", ["log", "--format=%H", `${base}..HEAD`, "--", ".", `:(exclude)${pipelinesRoot}`], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
-        const claimed = all.filter((d) => REPORT.test(d.rel)).flatMap((d) => [].concat(d.data.get("commits") ?? []));
-        const unclaimed = onBranch.filter((h) => !claimed.some((c) => h.startsWith(c)));
-        if (unclaimed.length) {
-          out.unclaimedCommits = unclaimed;
-          lines.push(`commits  unclaimed by any task report: ${unclaimed.map((h) => h.slice(0, 7)).join(", ")}`);
-          take(`unclaimed commits: ${unclaimed.map((h) => h.slice(0, 7)).join(", ")}`);
-        }
-      }
-    } catch {
-      /* no main branch or no commits: nothing to compare */
-    }
+  // Every commit after the base outside the pipelines folder is claimed by a task report.
+  const pipelinesRoot = pipelineRel.split("/").slice(0, -1).join("/") || ".";
+  const onBranch = execFileSync("git", ["log", "--format=%H", `${base}..${tip}`, "--", ".", `:(exclude)${pipelinesRoot}`], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+  const claimed = all.filter((d) => REPORT.test(d.rel)).flatMap((d) => [].concat(d.data.get("commits") ?? []));
+  const unclaimed = onBranch.filter((h) => !claimed.some((c) => h.startsWith(c)));
+  out.base = base.slice(0, SHORT);
+  out.unclaimedCommits = unclaimed;
+  if (unclaimed.length) {
+    lines.push(`commits  unclaimed by any task report: ${unclaimed.map((h) => h.slice(0, 7)).join(", ")}`);
+    take(`unclaimed commits: ${unclaimed.map((h) => h.slice(0, 7)).join(", ")}`);
   }
 
   // 4. Counters and completion.
@@ -771,7 +781,7 @@ function cmdCheck(args) {
 // --- cli --------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: 4, ref: null, audit: null, valve: null };
+  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: 4, ref: null, base: null, audit: null, valve: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--pin") args.pin.push(argv[++i]);
@@ -782,6 +792,7 @@ function parseArgs(argv) {
     else if (a === "--lanes") args.lanes = argv[++i];
     else if (a === "--target-phase") args.targetPhase = Number(argv[++i]);
     else if (a === "--ref") args.ref = argv[++i];
+    else if (a === "--base") args.base = argv[++i];
     else if (a === "--audit") args.audit = Number(argv[++i]);
     else if (a === "--valve") args.valve = Number(argv[++i]);
     else args._.push(a);
@@ -809,7 +820,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set key=value]... [--mirror]
   node rp.mjs fingerprint <text>
-  node rp.mjs check <pipeline-folder> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--audit 3] [--valve 6] [--json]
+  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--audit 3] [--valve 6] [--json]
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Brief, Target,
@@ -818,9 +829,12 @@ Depends on, a report's Commits), and head — the commit
 a stamp with pins observed. Identity is the hash of a file's body: stamping never
 changes it. check reports the frontier: triggers, claims, then phases in order
 up to the target — production lanes, artifacts, tasks, phase reviews,
-audit/valve gates — and completion. --lanes declares, per artifact, the named
-review lanes (the implicit lane always exists) and, after |, the production
-lanes with their after-dependencies (<, joined by +). Spec: ../reference/run/state.md
+audit/valve gates — and completion. --base names the artifact base branch: the
+pipeline's own commits follow its merge-base with the inspected ref, or with the
+branch the intent starts-from when it declares one. --lanes declares, per
+artifact, the named review lanes (the implicit lane always exists) and, after |,
+the production lanes with their after-dependencies (<, joined by +).
+Spec: ../reference/run/state.md
 `,
       );
   }

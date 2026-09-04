@@ -23,7 +23,7 @@ Apply the first predicate that holds:
 | The request corrects what an existing pipeline's artifacts claim or its code does   | An external amendment on that pipeline                                    |
 | New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `Origin: starts-from` names it |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
-| New intent                                                                          | A new pipeline from the main branch                                       |
+| New intent                                                                          | A new pipeline from the base branch                                       |
 
 Several live pipelines match: pick the one whose frontier the request advances; a pipeline stopped by the valve is continued only with new input (an amendment or an escalation answer).
 
@@ -42,11 +42,11 @@ One message to the owner: the route and why — or, when no predicate decides, t
 
 **An external amendment**
 
-1. Live pipeline: its branch and worktree. Merged pipeline: branch `<slug>_<n>` from the main branch, with a worktree. One live branch per pipeline; a second correction joins it.
+1. Live pipeline: its branch and worktree. Merged pipeline: branch `<slug>_<n>` from the base branch, with a worktree. One live branch per pipeline; a second correction joins it.
 2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id).
 3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed); commit the stamps.
 
-**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the main branch. A pipeline the valve stopped: `rp stamp <artifact> --set episode-start-<series>=<its last wave>` once the new input is in the tree.
+**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the base branch. A pipeline the valve stopped: `rp stamp <artifact> --set episode-start-<series>=<its last wave>` once the new input is in the tree.
 
 ### 6. Run
 
