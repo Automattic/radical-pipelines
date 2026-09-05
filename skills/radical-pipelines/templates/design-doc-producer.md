@@ -24,14 +24,14 @@
 
 <!-- Synthesize -->
 - Intent: <path>
-- Spec: <spec.md path>; <approving spec review paths>
+- Spec: <spec.md path>; <spec-research.md path>; <approving spec review paths>
 - Phase folder: <one line per existing file: path>
 - Lane inputs: <one line per artifact of the lanes this one comes after: path>   <!-- production lanes with `after` -->
 - Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>   <!-- re-synthesis only -->
 
 <!-- Adjudicate: the standing package plus exactly one correction -->
 - Intent: <path>
-- Spec: <spec.md path>; <approving spec review paths>
+- Spec: <spec.md path>; <spec-research.md path>; <approving spec review paths>
 - design-doc.md: <path>
 - design-doc-research.md: <path>
 - Review lanes: <one line per review: lane — path>

@@ -19,13 +19,14 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 
 ## Synthesize
 
-Materials: the **Intent**, the **Spec** (`spec.md` and its approving reviews), the **Phase folder** files — and, on re-synthesis, the **Input changes**.
+Materials: the **Intent**, the **Spec** (`spec.md`, `spec-research.md`, and its approving reviews), the **Phase folder** files — and, on re-synthesis, the **Input changes**.
 
-1. Read the intent and the spec. Every requirement is an obligation; the spec's open assumptions are yours to account for.
+1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes, not whether they are right. The spec's open assumptions are yours to account for. `spec-research.md` records the investigation behind the spec: direct research at the gaps the design opens, not at re-verifying what it already grounds.
 2. Create `design-doc-research.md` per **Formats**; on re-synthesis, update it in place.
 3. Investigate the codebase and the platform through inspection and research requests, recording as you go.
-4. Decide: one decision `D<n>` per mechanism or structure, each naming the requirements it serves and the alternatives it rejected.
-5. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record.
+4. Work the topics: approach — the end-to-end mental model the implementer works from; components; interfaces and data flow; key decisions; post-change coherence — what the design makes false: a choice that narrows what reaches surviving code re-opens that code, whose body, name, contract, docs, and tests are re-derived from the narrowed contract, and keeping any stranded generality is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. One decision `D<n>` per mechanism or structure, each naming the requirements it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
+5. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, no load-bearing decision is deferred — an assumption is limited to what build can verify — and the remaining work is refinement.
+6. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record.
 
 On re-synthesis, work delta-scoped: touch what the input changes invalidate, leave the rest. When nothing needs to change, say so in your report.
 
@@ -59,12 +60,14 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 **Decisions**
 
 - A decision states the mechanism, the requirements it serves, the alternatives considered, and why they lost. Every requirement is served by at least one decision.
+- Own the option space: generate the credible options yourself — what a researcher reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
+- Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
-- Numeric budgets, latencies, and timing guarantees are assumptions unless an inspection establishes them.
 
 **Claims**
 
 - Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `A<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
+- A rule's premise needs the same labeling as the rule: a claim about impact is a claim even when it arrives as a rule you already know. Facts the spec settles are consumed, not re-verified.
 - **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata and versions; a tool's `--list` or `--dry-run`. **Experiment** is producing an observation that did not exist by running or building something: tests, probes, benchmarks, builds, generated inputs, measurements. Your **Execution** line permits inspection only. Ask yourself: did this observation exist before I acted? If you created it, it is an experiment — label the claim assumed.
 - A measurement from an earlier run is evidence for an assumption, never a fact.
 - An assumption's circumstance is one the implementation or its tests will produce — never an observation you, a reviewer, or a researcher would produce.
@@ -81,7 +84,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 
 - Verify a named claim yourself — a specific API, a specific file. Send a researcher what needs exploration: an open question whose answer requires reading beyond what you can name.
 - One focused question per request; batch only questions so independent that no answer could change how another is asked.
-- Ground every claim in what comes back: a researcher's leaning is input, never rationale.
+- Ground every claim in what comes back: a researcher's leaning is input, never rationale — record the trade-offs that carried the decision. What you keep are decisions and rationale; supporting detail stays in the record.
 - Before reporting completion, confirm every request you made was answered and accounted for.
 
 # Protocol
@@ -116,7 +119,19 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Interfaces
 
-<!-- APIs, schemas, contracts. -->
+<!-- APIs, schemas, contracts, data flow. -->
+
+## Dependencies
+
+<!-- Internal modules, external libraries, services the design depends on; new ones called out. -->
+
+## Failure modes and observability
+
+<!-- How the design fails, how failures are detected, what is logged or surfaced. -->
+
+## Risks
+
+<!-- Risks worth flagging that no assumption captures. -->
 
 ## Open assumptions
 

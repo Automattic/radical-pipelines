@@ -18,7 +18,7 @@
 
 <!-- Fresh -->
 - Intent: <path>
-- Spec: <spec.md path>
+- Spec: <spec.md path>; <spec-research.md path>
 - design-doc.md: <path>
 - design-doc-research.md: <path>
 
