@@ -12,6 +12,8 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 `git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, its pending claims and owner escalations, its open amendment branch.
 
+When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait.
+
 ### 3. Route
 
 Apply the first predicate that holds:

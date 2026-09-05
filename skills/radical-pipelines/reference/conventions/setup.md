@@ -10,7 +10,7 @@ Tell the owner what exists and what is missing. Offer setup. If declined, stop a
 
 ## Fresh setup
 
-Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only; use `tools/<tool>.md` for mechanics.
+Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only; use `tools/<tool>.md` for mechanics. When the skill ships no `tools/<tool>.md` for the active tool, interview its mechanics too — how to spawn, seat, address, and terminate an agent, and how to start and cancel the health loop — and record them in the tool section.
 
 ### Issues (required)
 
