@@ -31,7 +31,7 @@ Frontmatter holds only pins, mirrors, and landing facts. A mirror copies a decla
 | `origin`    | anything born from something | the issue reference; an external source; the trigger a review responds to; a list when several |
 | `recurs`    | reviews                      | mirror of `Prior finding: <review>#<issue>, resolution failed`           |
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
-| `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists |
+| `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists and is stored as its full hash, whatever length the body wrote |
 | `head`      | files with pins              | the commit a stamp with pins observed: the diff base for the next delta review or re-synthesis |
 | `lane`      | a named lane's artifact and reviews | the fingerprint of the declaration the agent was dispatched under                 |
 | `attempt`, `outcome` | task reports        | the attempt, from the filename; `completed` \| `failed` \| `blocked`     |

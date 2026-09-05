@@ -11,7 +11,7 @@ node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set <key=va
 - `--pin` records the inputs an artifact consumed; the set replaces the previous one.
 - `--reviewed` records what a review or task report names; immutable — a changed review is a new file. A task report must name exactly its task and the tasks it depends on.
 - `--set` writes a landing fact (`audited-<series>`, `episode-start-<series>`, `lane`). Pins, mirrors, `head`, and `target-identity` are never written by `--set`.
-- `--mirror` rewrites every mirror from the body's declarations — `Verdict:`, `Brief:`, `Target:`, `Origin:`, `Outcome:` (`completed` | `failed` | `blocked`), `Prior finding:`, `Depends on:`, a report's `## Commits` — replacing the previous set: a declaration the body lost leaves the frontmatter. It may run again on a stamped file. Every commit `## Commits` names must exist.
+- `--mirror` rewrites every mirror from the body's declarations — `Verdict:`, `Brief:`, `Target:`, `Origin:`, `Outcome:` (`completed` | `failed` | `blocked`), `Prior finding:`, `Depends on:`, a report's `## Commits` — replacing the previous set: a declaration the body lost leaves the frontmatter. It may run again on a stamped file. Every commit `## Commits` names must exist and resolve unambiguously; it is stored as its full hash. Frontmatter lists are read in block form and in inline form (`key: [a, b]`); the stamp writes block form.
 - `head`, the commit the stamp observed, is recorded only when the stamp carries `--pin` or `--reviewed`.
 - Identity is the hash of the body, byte for byte: stamping never changes it. Symlinked paths are refused.
 

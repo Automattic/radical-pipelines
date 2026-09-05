@@ -672,10 +672,18 @@ describe("rp state tooling", () => {
     }
     write(root, "3-build/tasks/T1-report-1.md", `# Task report\n\nOutcome: completed\n\n## Commits\n\n- ${shas[0]} — first\n\`${shas[1]}\` second, in backticks\n${shas[2]} third, plain\n\n## Checks\n\n- 1234567 is not a commit: prose stays prose\n`);
     rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
-    assert.match(read(root, "3-build/tasks/T1-report-1.md"), new RegExp(`commits:\\n  - ${shas[0]}\\n  - ${shas[1]}\\n  - ${shas[2]}\\n`));
+    // Short hashes in the body are stored canonical: the full hash.
+    const full = shas.map((s) => git(root, "rev-parse", s).trim());
+    assert.match(read(root, "3-build/tasks/T1-report-1.md"), new RegExp(`commits:\\n  - ${full[0]}\\n  - ${full[1]}\\n  - ${full[2]}\\n`));
     assert.doesNotMatch(check(root, "--target-phase", "3"), /unclaimed/);
     write(root, "3-build/tasks/T2-report-1.md", "# Task report\n\nOutcome: completed\n\n## Commits\n\n- 0badc0ffee1 — never made\n");
-    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror"), /names a commit that does not exist: 0badc0ffee1/);
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror"), /names a commit that does not exist or is ambiguous: 0badc0ffee1/);
+  });
+
+  test("frontmatter lists are read in block and inline form; an empty inline list is empty", () => {
+    assert.deepEqual(parseFrontmatter("---\ncommits: [abc1234, def5678]\n---\n").data.get("commits"), ["abc1234", "def5678"]);
+    assert.deepEqual(parseFrontmatter("---\ncommits: []\n---\n").data.get("commits"), []);
+    assert.deepEqual(parseFrontmatter("---\ncommits:\n  - abc1234\n---\n").data.get("commits"), ["abc1234"]);
   });
 
   test("identity is the body's exact bytes as git hashes them: CRLF is never normalized; only delimiter lines tolerate a \\r", () => {

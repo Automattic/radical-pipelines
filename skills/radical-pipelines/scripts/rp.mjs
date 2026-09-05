@@ -49,6 +49,10 @@ export function parseFrontmatter(raw) {
     if (kv[2] === "") {
       data.set(kv[1], []);
       currentList = kv[1];
+    } else if (/^\[.*\]$/.test(kv[2].trim())) {
+      // Inline flow list: `key: [a, b]`, `key: []`.
+      data.set(kv[1], kv[2].trim().slice(1, -1).split(",").map((x) => x.trim()).filter(Boolean));
+      currentList = null;
     } else {
       data.set(kv[1], kv[2].trim());
       currentList = null;
@@ -127,7 +131,13 @@ export function projectBody(body, rel = "") {
 export function mirrorDrift(data, body, rel) {
   const p = projectBody(body, rel);
   const norm = (v) => JSON.stringify(v === undefined ? [] : [].concat(v));
-  return MIRRORS.filter((k) => norm(p.get(k)) !== norm(data.get(k)));
+  // Commits are stored canonical; the body may name them short. A body hash matches by prefix.
+  const commitsMatch = () => {
+    const bodyHashes = [].concat(p.get("commits") ?? []);
+    const stored = [].concat(data.get("commits") ?? []);
+    return bodyHashes.length === stored.length && bodyHashes.every((h, i) => stored[i].startsWith(h));
+  };
+  return MIRRORS.filter((k) => (k === "commits" ? !commitsMatch() : norm(p.get(k)) !== norm(data.get(k))));
 }
 
 // A path the orchestrator may stamp: inside the repository, inside a pipeline folder, not through a symlink.
@@ -205,13 +215,16 @@ function cmdStamp(args) {
     fm.set(key, s.slice(i + 1));
   }
   if (args.mirror) mirrorBody(body, fm, base, rel);
-  // A report names commits that already exist.
-  for (const h of [].concat(fm.get("commits") ?? [])) {
-    try {
-      execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, stdio: "ignore" });
-    } catch {
-      die(`stamp: ## Commits names a commit that does not exist: ${h}`);
-    }
+  // A report names commits that already exist; they are stored canonical (full hash).
+  if (fm.has("commits")) {
+    const canonical = [].concat(fm.get("commits") ?? []).map((h) => {
+      try {
+        return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, encoding: "utf8" }).trim();
+      } catch {
+        die(`stamp: ## Commits names a commit that does not exist or is ambiguous: ${h}`);
+      }
+    });
+    fm.set("commits", canonical);
   }
   const report = rel.match(REPORT);
   if (report) {
