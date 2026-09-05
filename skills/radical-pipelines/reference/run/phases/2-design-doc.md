@@ -16,7 +16,7 @@ Decides how the spec is satisfied: architecture, mechanisms, decisions and trade
 
 ## Materials
 
-As in `1-spec.md`, with these inputs: `0-intent/intent.md`, `1-spec/spec.md`, the approving spec reviews (they carry the verification log and non-blocking findings), and the phase folder's files. **Input changes** lists the changed inputs and their diffs plus every unresolved trigger targeting `design-doc.md`.
+As in `1-spec.md`, with these inputs: `0-intent/intent.md`, `1-spec/spec.md`, `1-spec/spec-research.md`, the approving spec reviews (they carry the verification log and non-blocking findings), and the phase folder's files. **Input changes** lists the changed inputs and their diffs plus every unresolved trigger targeting `design-doc.md`.
 
 ## Lanes
 
