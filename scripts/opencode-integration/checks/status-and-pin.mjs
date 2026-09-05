@@ -64,7 +64,7 @@ export async function run(ctx) {
 
   await runCheck(results, "rp_status's ledger reflects a spawned session recognized via its durable title", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
-    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "status-check-child", agent: "spec-researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "status-check-run" });
+    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "status-check-child", agent: "researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "status-check-run" });
     const childID = spawnResult.text;
 
     // Wait for the child's first turn so the durable rp: title is asserted
@@ -76,13 +76,13 @@ export async function run(ctx) {
     const row = status.ledger.find((r) => r.sessionID === childID);
     assert.ok(row, `expected rp_status's ledger to include the spawned child ${childID}`);
     assert.equal(row.name, "status-check-child");
-    assert.equal(row.agent, "spec-researcher");
+    assert.equal(row.agent, "researcher");
     assert.equal(row.directory, projectDir);
   });
 
   await runCheck(results, "rp_status's ledger row carries the child's liveness facts: activity, last turn, newest text, last send", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
-    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "liveness-check-child", agent: "spec-researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "liveness-check-run" });
+    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "liveness-check-child", agent: "researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "liveness-check-run" });
     const childID = spawnResult.text;
     await pollForTitle(server, childID, "rp:liveness-check-run:liveness-check-child");
     // The child's plain first turn has ended (the title is asserted on its

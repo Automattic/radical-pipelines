@@ -8,7 +8,7 @@
   const phases = [
     {
       phase: 'phase 1',
-      task: 'spec-lead',
+      task: 'spec-producer',
       reads: ['intent.md'],
       writes: ['spec-research.md', 'spec.md'],
       runMs: 2000,
@@ -20,7 +20,7 @@
       phase: 'phase 1',
       task: 'spec-reviewer',
       reads: ['intent.md', 'spec-research.md', 'spec.md'],
-      writes: ['spec-review-approved.md'],
+      writes: ['spec-review-1.md'],
       runMs: 1100,
       sec: 41,
       tokens: '7.8k',
@@ -29,7 +29,7 @@
     },
     {
       phase: 'phase 2',
-      task: 'design-doc-lead',
+      task: 'design-doc-producer',
       reads: ['spec.md', 'spec-research.md'],
       writes: ['design-doc-research.md', 'design-doc.md'],
       runMs: 2000,
@@ -41,7 +41,7 @@
       phase: 'phase 2',
       task: 'design-doc-reviewer',
       reads: ['spec.md', 'spec-research.md', 'design-doc-research.md', 'design-doc.md'],
-      writes: ['design-doc-review-approved.md'],
+      writes: ['design-doc-review-1.md'],
       runMs: 1000,
       sec: 47,
       tokens: '9.2k',
@@ -50,9 +50,9 @@
     },
     {
       phase: 'phase 3',
-      task: 'build-planner',
+      task: 'build-plan-producer',
       reads: ['spec.md', 'design-doc.md'],
-      writes: ['build-plan.md'],
+      writes: ['build-plan.md', 'tasks/T1.md', 'tasks/T2.md'],
       runMs: 1300,
       sec: 74,
       tokens: '11.7k',
@@ -62,7 +62,7 @@
       phase: 'phase 3',
       task: 'build-plan-reviewer',
       reads: ['build-plan.md', 'design-doc.md'],
-      writes: ['build-plan-review-approved.md'],
+      writes: ['build-plan-review-1.md'],
       runMs: 900,
       sec: 38,
       tokens: '6.4k',
@@ -71,31 +71,33 @@
     },
     {
       phase: 'phase 3',
-      task: 'build-writer-tdd',
-      reads: ['build-plan.md'],
+      task: 'build-worker-tdd',
+      reads: ['tasks/T1.md'],
       writes: ['src/orchestrator.ts (+218)', 'src/orchestrator.test.ts (+162)'],
       runMs: 1900,
       sec: 412,
       tokens: '64.1k',
-      treeIdx: [9],
-      bash: ['npm test', 'git commit -m "Add orchestrator (build-writer-tdd)"'],
+      treeIdx: [9, 11],
+      bash: ['npm test', 'git commit -m "Add orchestrator (build-worker-tdd)"'],
+      // The report names the commits above and lands in a commit of its own.
+      then: { writes: ['tasks/T1-report-1.md'], bash: ['git commit -m "Report T1 attempt 1 (build-worker-tdd)"'] },
     },
     {
       phase: 'phase 3',
       task: 'build-reviewer',
-      reads: ['src/orchestrator.ts', 'build-plan.md'],
-      writes: ['build-review-approved.md', 'build-summary.md'],
+      reads: ['src/orchestrator.ts', 'tasks/T1-report-1.md', 'build-plan.md'],
+      writes: ['build-review-1.md'],
       runMs: 1100,
       sec: 96,
       tokens: '14.3k',
-      treeIdx: [10, 11],
+      treeIdx: [10],
       verdict: 'approved',
     },
     {
       phase: 'phase 4',
-      task: 'document-planner',
-      reads: ['build-summary.md', 'spec.md'],
-      writes: ['document-plan.md'],
+      task: 'document-plan-producer',
+      reads: ['tasks/T1-report-1.md', 'spec.md'],
+      writes: ['document-plan.md', 'tasks/T1.md'],
       runMs: 1100,
       sec: 61,
       tokens: '9.4k',
@@ -104,8 +106,8 @@
     {
       phase: 'phase 4',
       task: 'document-plan-reviewer',
-      reads: ['document-plan.md', 'build-summary.md'],
-      writes: ['document-plan-review-approved.md'],
+      reads: ['document-plan.md', 'tasks/T1-report-1.md'],
+      writes: ['document-plan-review-1.md'],
       runMs: 850,
       sec: 33,
       tokens: '5.6k',
@@ -114,23 +116,25 @@
     },
     {
       phase: 'phase 4',
-      task: 'document-writer',
-      reads: ['document-plan.md', 'README.md'],
+      task: 'document-worker',
+      reads: ['tasks/T1.md', 'README.md'],
       writes: ['README.md (updated)', 'docs/orchestrator.md'],
       runMs: 1200,
       sec: 89,
       tokens: '8.7k',
-      treeIdx: [14],
+      treeIdx: [14, 16],
+      bash: ['git commit -m "Document the orchestrator (document-worker)"'],
+      then: { writes: ['tasks/T1-report-1.md'], bash: ['git commit -m "Report T1 attempt 1 (document-worker)"'] },
     },
     {
       phase: 'phase 4',
       task: 'document-reviewer',
-      reads: ['README.md', 'docs/orchestrator.md'],
-      writes: ['document-review-approved.md', 'document-summary.md'],
+      reads: ['README.md', 'docs/orchestrator.md', 'tasks/T1-report-1.md'],
+      writes: ['document-review-1.md'],
       runMs: 800,
       sec: 31,
       tokens: '4.9k',
-      treeIdx: [15, 16],
+      treeIdx: [15],
       verdict: 'approved',
     },
   ];
@@ -139,21 +143,22 @@
     '0-intent/intent.md',
     '1-spec/spec-research.md',
     '1-spec/spec.md',
-    '1-spec/spec-review-approved.md',
+    '1-spec/spec-review-1.md',
     '2-design-doc/design-doc-research.md',
     '2-design-doc/design-doc.md',
-    '2-design-doc/design-doc-review-approved.md',
+    '2-design-doc/design-doc-review-1.md',
     '3-build/build-plan.md',
-    '3-build/build-plan-review-approved.md',
+    '3-build/build-plan-review-1.md',
     'src/orchestrator.ts + test',
-    '3-build/build-review-approved.md',
-    '3-build/build-summary.md',
+    '3-build/build-review-1.md',
+    '3-build/tasks/T1-report-1.md',
     '4-document/document-plan.md',
-    '4-document/document-plan-review-approved.md',
+    '4-document/document-plan-review-1.md',
     'README.md, docs/',
-    '4-document/document-review-approved.md',
-    '4-document/document-summary.md',
+    '4-document/document-review-1.md',
+    '4-document/tasks/T1-report-1.md',
   ];
+  // Tree indices: a worker commits its work, then its report; the phase review comes after both.
 
   const spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
@@ -232,13 +237,18 @@
     for (const w of p.writes) {
       line(logEl, 'cc-sub done', '  ⎿  Wrote ' + w);
     }
-    if (p.bash) {
-      for (const b of p.bash) {
+    const runBash = async (cmds) => {
+      for (const b of cmds) {
         const lb = line(logEl, 'cc-sub bash', '');
         await spinFor(lb, 350, '  $ ' + b);
         lb.textContent = '  ⎿  $ ' + b;
         lb.className = 'cc-sub done';
       }
+    };
+    if (p.bash) await runBash(p.bash);
+    if (p.then) {
+      for (const w of p.then.writes) line(logEl, 'cc-sub done', '  ⎿  Wrote ' + w);
+      await runBash(p.then.bash);
     }
     if (p.verdict) {
       line(logEl, 'cc-sub verdict', '  ⎿  Verdict: ' + p.verdict);

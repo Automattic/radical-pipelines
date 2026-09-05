@@ -382,7 +382,7 @@ describe("rp_spawn", () => {
 
   test("rejects an agent not in ctx.agent.list() before any session.create", async () => {
     const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-lead"] });
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
 
     await assert.rejects(() =>
       tools.get("rp_spawn").execute(
@@ -402,7 +402,7 @@ describe("rp_spawn", () => {
 
   test("on a valid agent, creates the session seated at directory, records the ledger entry with spawner = toolCtx.sessionID plus the seat and its repo root, and returns the created session ID", async () => {
     const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-reviewer"] });
-    setup(ctx, isolatedDeps({ env: {}, resolveRepoRootFn: (directory) => `${directory}-repo-root` }));
+    await setup(ctx, isolatedDeps({ env: {}, resolveRepoRootFn: (directory) => `${directory}-repo-root` }));
 
     let initialPrompt;
     const originalPrompt = ctx.session.prompt.bind(ctx.session);
@@ -448,8 +448,8 @@ describe("rp_spawn", () => {
     assert.ok(initialPrompt.text.startsWith("begin the review\n\n## RP messaging (opencode)"));
     assert.match(initialPrompt.text, /\*\*Spawner identifier:\*\* ses_orchestrator/);
     assert.match(initialPrompt.text, /`rp_send`/);
-    assert.match(initialPrompt.text, /Requester identifier.*otherwise.*Spawner identifier/s);
-    assert.match(initialPrompt.text, /for what your profile addresses to your requester/);
+    assert.match(initialPrompt.text, /\*\*Requester\*\*.*\*\*Spawner identifier\*\*/s);
+    assert.match(initialPrompt.text, /what your profile sends to its requester/);
   });
 
   test("the appended protocol tells the agent an ended turn is a stop and to hold its turn while work is outstanding", () => {
@@ -520,7 +520,7 @@ describe("rp_terminate", () => {
 
   test("reports an unreachable server without issuing a request", async () => {
     const { ctx, tools } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
 
     assert.deepEqual(
       await tools.get("rp_terminate").execute({ session: "ses_finished" }),
@@ -534,7 +534,7 @@ describe("rp_send", () => {
 
   test("exposes no delivery control and ignores one smuggled into the arguments", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender", { id: "ses_sender" });
     sessions.set("ses_receiver", { id: "ses_receiver" });
 
@@ -559,7 +559,7 @@ describe("rp_send", () => {
 
   test("delivers to the sender's own spawner with steer", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_worker", { id: "ses_worker" });
     sessions.set("ses_its_spawner", { id: "ses_its_spawner" });
     // The commonest direction there is: an agent reporting to whoever spawned
@@ -592,7 +592,7 @@ describe("rp_send", () => {
 
   test("delivers agent-to-agent with steer, not only to and from the orchestrator", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_researcher", { id: "ses_researcher" });
     sessions.set("ses_requester", { id: "ses_requester" });
     // Both ends are RP spawns: the requester/researcher pair, not the spawner.
@@ -621,7 +621,7 @@ describe("rp_send", () => {
 
   test("delivers with steer and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender", { id: "ses_sender" });
     sessions.set("ses_receiver", { id: "ses_receiver" });
     recordSpawn("ses_sender", {
@@ -752,7 +752,7 @@ describe("rp_send", () => {
 
   test("returns the 404 for a dead target as the tool result rather than throwing", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender2", { id: "ses_sender2" });
     recordSpawn("ses_sender2", {
       name: "spec-lead",
@@ -770,7 +770,7 @@ describe("rp_send", () => {
 
   test("records the sender's admitted send with its recipient, and nothing for a rejected one", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender_rec", { id: "ses_sender_rec" });
     sessions.set("ses_its_spawner_rec", { id: "ses_its_spawner_rec" });
     recordSpawn("ses_sender_rec", {
@@ -4560,7 +4560,7 @@ describe("terminal-event listener", () => {
       spawner: "ses_spawner_success_log",
     });
 
-    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
     pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_success_log" } });
     await delay(10);
 
@@ -4585,7 +4585,7 @@ describe("terminal-event listener", () => {
       return args;
     };
 
-    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
 
     const structuredError = {
       type: "provider.auth",

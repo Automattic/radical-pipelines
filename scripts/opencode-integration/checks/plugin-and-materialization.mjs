@@ -31,7 +31,7 @@ export async function run(ctx) {
     // triggered by the sandbox's first session — created just below) — a
     // foreign, non-RP-owned file at a would-be materialized filename.
     mkdirSync(materializedAgentsDir, { recursive: true });
-    ctx.foreignAgentPath = join(materializedAgentsDir, "spec-lead.md");
+    ctx.foreignAgentPath = join(materializedAgentsDir, "spec-producer.md");
     ctx.foreignAgentContent = "a foreign, hand-authored agent profile\n";
     writeFileSync(ctx.foreignAgentPath, ctx.foreignAgentContent);
   });
@@ -82,7 +82,7 @@ export async function run(ctx) {
   await runCheck(results, "agent materialization: every source *.md profile is available by its filename-derived id", async () => {
     const sourceNames = readdirSync(AGENTS_SOURCE_DIR).filter((name) => name.endsWith(".md"));
     assert.ok(sourceNames.length > 0, "expected at least one source agent profile");
-    const expectedIDs = sourceNames.map((name) => name.replace(/\.md$/, "")).filter((id) => id !== "spec-lead");
+    const expectedIDs = sourceNames.map((name) => name.replace(/\.md$/, "")).filter((id) => id !== "spec-producer");
 
     const agents = await pollUntil(
       async () => {
@@ -95,14 +95,14 @@ export async function run(ctx) {
     const agentIDs = new Set(agents.map((a) => a.id));
 
     for (const id of expectedIDs) {
-      // "spec-lead" collided with the foreign file seeded above; it must NOT
+      // "spec-producer" collided with the foreign file seeded above; it must NOT
       // have been materialized (see the collision-safety check below).
       assert.ok(agentIDs.has(id), `expected agent "${id}" to be recognized; got: ${JSON.stringify([...agentIDs])}`);
     }
   });
 
   await runCheck(results, "agent materialization: materialized bytes match the source profile exactly", async () => {
-    const fileName = "spec-researcher.md";
+    const fileName = "researcher.md";
     const sourceBytes = readFileSync(join(AGENTS_SOURCE_DIR, fileName), "utf8");
     const materializedPath = join(materializedAgentsDir, fileName);
     await pollUntil(async () => existsSync(materializedPath), {
@@ -120,7 +120,7 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "collision reporting: the seeded spec-lead.md collision is observable via rp_status's recentErrors",
+    "collision reporting: the seeded spec-producer.md collision is observable via rp_status's recentErrors",
     async () => {
       const session = await createSession(server, {
         agent: "build",
@@ -131,9 +131,9 @@ export async function run(ctx) {
       const status = JSON.parse(result.text);
       assert.ok(
         status.recentErrors.some(
-          (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
+          (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-producer.md",
         ),
-        `expected rp_status's recentErrors to report the spec-lead.md collision, got: ${JSON.stringify(status.recentErrors)}`,
+        `expected rp_status's recentErrors to report the spec-producer.md collision, got: ${JSON.stringify(status.recentErrors)}`,
       );
     },
   );

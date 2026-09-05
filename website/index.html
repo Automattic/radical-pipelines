@@ -105,7 +105,7 @@
             </div>
             <ul class="hero-stats">
               <li><strong>5</strong><span>phases</span></li>
-              <li><strong>17</strong><span>agents shipped</span></li>
+              <li><strong>15</strong><span>agent profiles</span></li>
               <li><strong>2</strong><span>CLIs supported</span></li>
             </ul>
           </div>
@@ -113,22 +113,22 @@
             <div class="term-card">
               <div class="card-header">
                 <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
-                <span class="card-title">~/repo/.pipelines/1234-fix-checkout/base</span>
+                <span class="card-title">~/repo/.pipelines/1234-fix-checkout</span>
               </div>
               <pre class="term-body"><span class="cmd">$ find . -type f</span>
 <span class="file done">./0-intent/intent.md</span>
 <span class="file done">./1-spec/spec-research.md</span>
 <span class="file done">./1-spec/spec.md</span>
-<span class="file done">./1-spec/spec-review-approved.md</span>
+<span class="file done">./1-spec/spec-review-1.md</span>
 <span class="file done">./2-design-doc/design-doc-research.md</span>
 <span class="file done">./2-design-doc/design-doc.md</span>
-<span class="file done">./2-design-doc/design-doc-review-approved.md</span>
+<span class="file done">./2-design-doc/design-doc-review-1.md</span>
 <span class="file active">./3-build/build-plan.md</span>
 <span class="cmd2">$ git log --oneline .</span>
-<span class="log">a1b2c3d  Add build plan (build-planner)</span>
+<span class="log">a1b2c3d  Add build plan (build-plan-producer)</span>
 <span class="log">e4f5g6h  Add design doc review (design-doc-reviewer)</span>
-<span class="log">i7j8k9l  Add design doc (design-doc-lead)</span>
-<span class="log">m0n1o2p  Add spec (spec-lead)</span>
+<span class="log">i7j8k9l  Add design doc (design-doc-producer)</span>
+<span class="log">m0n1o2p  Add spec (spec-producer)</span>
 <span class="log dim">…</span></pre>
             </div>
           </aside>
@@ -219,7 +219,7 @@
             <div class="term-card big">
               <div class="card-header">
                 <span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span>
-                <span class="card-title">.pipelines/1234-fix-checkout/base/</span>
+                <span class="card-title">.pipelines/1234-fix-checkout/</span>
               </div>
               <pre class="term-body" id="live-tree"></pre>
             </div>
@@ -228,7 +228,7 @@
           <p class="caption center">
             Reconstructed log of a real pipeline run, sped up. Every phase pairs
             its producing agents with an adversarial reviewer; both commit their artifacts
-            (<code>spec.md</code>, <code>spec-review-approved.md</code>, …) so
+            (<code>spec.md</code>, <code>spec-review-1.md</code>, …) so
             the team can see what got pushed back on and why.
             <a class="caption-link" href="https://github.com/Automattic/radical-pipelines#claude-code-plugin-install" target="_blank" rel="noopener">Run it yourself →</a>
           </p>

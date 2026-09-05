@@ -1,42 +1,42 @@
-# Load Conventions
+# Load project conventions
 
-Project-specific conventions are stored in the `.rp.md` file.
+Tool mechanics live in the skill. Project facts live in the project files and reach agents only through filled prompt slots.
+
+## Sources
+
+Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`. Read in this order, from lowest to highest precedence:
+
+1. `tools/<active tool>.md` from the skill: spawn, seat, address, terminate, health-loop, and model mechanics. The skill ships `tools/claude-code.md` and `tools/opencode.md`; for another tool, the project supplies those mechanics in its tool section of `.rp.md`, and setup asks for them.
+2. `.rp.md` from the main root: its shared sections and the active tool's section — `## <Tool>` inline, or the sidecar `.rp.<tool>.md` it names. Ignore other tools. A tool section written for a different tool than the active one counts as absent: offer setup for the active tool.
+3. `.rp.local.md` from the main root, when present. This git-ignored file overrides matching project facts in memory; unmentioned facts retain their `.rp.md` values.
 
 ## Conventions
 
-| Convention             | What it covers                                                                             | Required? |
-| ---------------------- | ------------------------------------------------------------------------------------------ | --------- |
-| Branch name base       | Produces the `<branch-base>`: deterministic from the issue, a valid git ref, no `_`        | Yes       |
-| Pipeline family folder | Produces the family's single folder: deterministic from the issue                          | Yes       |
-| Issues                 | Where the project tracks issues and how to read, comment on, and update them               | Yes       |
-| Worktree root          | Where worktrees live                                                                       | Yes       |
-| Commit format          | How to write commits                                                                       | No        |
-| PR format              | How to write the pipeline's PR title and description                                       | No        |
-| Team spawning          | How to spawn, address, seat, and terminate agents                                           | Yes       |
-| Agent models           | Which model/settings each spawned agent runs on                                            | No        |
-| Health monitoring      | How to launch and cancel the recurring run-health loop                                     | Yes       |
-| Guardrails             | The rules the project's agents must satisfy                                          | No        |
-| Lifecycle hooks        | Prose instructions the orchestrator runs at defined pipeline moments                       | No        |
-| Artifact storage       | Whether `.rp.md` and the pipeline family folder live in the project's repository or a fork | Yes       |
+| Convention            | What it covers                                                                                                                        | Required |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Issues                | Issue trackers; read, create, modify, and comment operations; the canonical issue-reference format for `Origin:` lines              | Yes      |
+| Branch naming         | How a pipeline branch and slug derive from its issue; a valid git ref containing no `_`                                               | Yes      |
+| Pipelines folder root | The root containing pipeline folders; default `.pipelines/`                                                                           | No       |
+| Artifact storage      | Whether `.rp.md` and the pipelines folder live in the project's repository (`artifacts-in-repo`, the default) or a fork (`artifacts-in-fork`), and the artifact base branch: the branch pipelines start from and count their own commits after — the repository's main branch, or the fork's base branch, declared | No       |
+| Worktree folder root  | The root containing worktrees                                                                                                         | Yes      |
+| Commit format         | Commit message rules; absent, an imperative subject line                                                                              | No       |
+| PR format             | Pull request title and description rules                                                                                               | No       |
+| Guardrails            | Rules agents must satisfy                                                                                                              | No       |
+| Lifecycle hooks       | Instructions run at defined moments                                                                                                    | No       |
+| Agents                | Model per profile and the lanes it adds, with their briefs and materials (`agents.md`)                                                 | No       |
+| Thresholds            | Audit and valve thresholds overriding `rp check`'s defaults                                                                           | No       |
+| Health monitoring     | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                          | No       |
 
-## Missing conventions
+## Schema stamp
 
-A convention that lives in a per-tool section counts as present only when that section's tool matches the active tool, determined as in `setup.md` step 1.
+The `.rp.md` frontmatter line `conventions: <N>` records the schema version. The current version is 1.
 
-If all required conventions are available, continue to the `## Local overrides` step below.
+- Equal: check completeness.
+- Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.
+- Newer: stop and tell the owner to update the skill.
 
-If one or more required conventions are missing, do not proceed with the pipeline. Read `setup.md`, explain what is missing — naming any tool mismatch (the committed per-tool section targets `<tool>`; running under `<active tool>` requires setup for it) — and offer to run the setup flow.
+## Completeness
 
-If the owner declines setup, cancels, or leaves required answers unresolved, stop and clearly explain what is still missing.
+Check the merged project facts. When a required row is missing, offer setup. If the owner declines, stop and explain what is missing.
 
-## Local overrides
-
-A developer may place a git-ignored `.rp.local.md` alongside the committed `.rp.md` to override conventions for their own working copy.
-
-When you are inside a worktree, resolve the main root with `dirname(git rev-parse --git-common-dir)` and read it from there, since the git-ignored file is never copied into the worktree.
-
-After the committed conventions pass the required-completeness check, merge the local file over them in memory: where it names a convention its value wins, where it is silent the committed value is inherited.
-
-## Lifecycle hooks
-
-Read `../lifecycle-hooks.md` — the workflows fire its hooks at defined moments.
+Finally, read `lifecycle-hooks.md`.

@@ -1,54 +1,43 @@
 ---
 name: radical-pipelines
-description: Run an autonomous software engineering pipeline that takes an issue through five sequential phases (Intent → Spec → Design doc → Build → Document), each producing inspectable artifacts. Use when the user wants to work on an issue or run a pipeline.
+description: Run an autonomous software engineering pipeline that takes an issue through sequential phases (Intent → Spec → Design doc → Build → Document), each producing inspectable artifacts that converge through adversarial review and self-correct through amendments. Use when the user wants to work on an issue, correct a pipeline, or inspect pipelines.
 ---
 
 # Radical Pipelines
 
 ## Overview
 
-You are an orchestrator that works on software engineering issues by running them through a pipeline of defined phases.
+You are an orchestrator. A pipeline is a set of artifacts that converge: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, and its tasks are executed. Your loop is always the same — take the first item of the frontier and dispatch the agent that resolves it.
 
 ## Rules
 
 - Humans only talk with you, never with the other agents.
-- Each phase produces concrete, inspectable artifacts that humans can review, revise, and relaunch from if needed.
-
-## Workflows
-
-You can move forward the pipelines through the different phases in two modes: autonomous and assisted. The owner chooses the mode at the start of each run.
-
-### The autonomous workflow
-
-- You orchestrate teams of agents to do each phase's work; you do not produce the artifacts yourself.
-- Once the autonomous workflow starts, it runs each phase end-to-end without further questions until it reaches the target phase agreed with the owner.
-
-### The assisted workflow
-
-- You drive a single phase directly with the owner, typically through Q&A and research, and synthesize the artifacts yourself. No team of agents are spawned.
-- The owner reviews and explicitly approves the artifacts before anything is committed.
+- You never produce artifacts in the autonomous workflow; agents do. You compute state, dispatch, stamp, and merge. You read artifacts and exercise judgment only at decision points: triage, audit, owner escalation.
+- State lives in the working tree. `reference/run/state.md` defines it; `scripts/rp.mjs` computes it, and its `check` is the only source of the frontier: when the tree contradicts it or it names something you cannot dispatch, stop and report a defect in the skill. Run policy is the only thing you carry in conversation.
+- Finish all reading and scanning before asking the owner anything; collect every question and ask once. Once work is dispatched, you ask nothing until an owner escalation or the valve stops the run.
+- Every agent instance is fresh and sealed: it sees its profile and the prompt you build from its template, nothing else.
 
 ## Phases
 
-| #   | Phase      | Subfolder      | Produces                                                                                            |
-| --- | ---------- | -------------- | --------------------------------------------------------------------------------------------------- |
-| 0   | Intent     | `0-intent`     | The input                                                                                           |
-| 1   | Spec       | `1-spec`       | Requirements, acceptance criteria, out-of-scope                                                     |
-| 2   | Design doc | `2-design-doc` | Architecture, API design, technical decisions, trade-offs                                           |
-| 3   | Build      | `3-build`      | The build plan, code changes with the tests their tasks call for, behavior verification, and a build summary |
-| 4   | Document   | `4-document`   | The document plan, documentation (both internal and external), and a document summary               |
+| #   | Phase      | Folder         | Artifacts                                                                 |
+| --- | ---------- | -------------- | ------------------------------------------------------------------------- |
+| 0   | Intent     | `0-intent`     | `intent.md`, external amendments                                          |
+| 1   | Spec       | `1-spec`       | `spec.md`, `spec-research.md`, reviews                                    |
+| 2   | Design doc | `2-design-doc` | `design-doc.md`, `design-doc-research.md`, reviews                        |
+| 3   | Build      | `3-build`      | `build-plan.md` with its tasks, `build-plan-research.md`, plan reviews, task reports, code, build reviews |
+| 4   | Document   | `4-document`   | `document-plan.md` with its tasks, `document-plan-research.md`, plan reviews, task reports, documentation, document reviews |
+
+Two workflows advance a pipeline: **autonomous** (`reference/run/loop.md`) and **assisted** (`reference/run/assisted.md`, spec and design doc only). The owner chooses at triage.
 
 ## Project conventions
 
-This skill is generic; each project supplies its own conventions that you must load and verify before doing any workflow.
-
-Load them now by reading `reference/conventions/load.md`.
+Each project supplies its conventions in `.rp.md`. Load them now: read `reference/conventions/load.md`.
 
 ## Entry points
 
-At session start, pick an entry point from the table below.
-
-| When the owner wants to... | Read                            |
-| -------------------------- | ------------------------------- |
-| Work on an issue           | `reference/work-on-an-issue.md` |
-| Manage issues              | `reference/manage-issues.md`    |
+| When the owner wants to...                                          | Read                                   |
+| ------------------------------------------------------------------- | -------------------------------------- |
+| Create or modify an issue                                           | `reference/entries/manage-issues.md`   |
+| Inspect pipelines: status, history, what is pending                 | `reference/entries/report.md`          |
+| Work: an issue, PR feedback, a CI failure, a bug, a correction      | `reference/entries/triage.md`          |
+| Merge a pipeline's pull request                                     | `reference/run/close-out.md` § Merge   |

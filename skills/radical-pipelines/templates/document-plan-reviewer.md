@@ -1,0 +1,36 @@
+## Seat
+
+- Worktree: <absolute path>
+- Branch: <branch>
+- Commit format: <convention>
+- Guardrails: <rules | none>
+- Execution: inspection only
+
+## Brief
+
+<the lane's brief; omit the section for the implicit lane>
+
+## Mode
+
+<Fresh | Delta>
+
+## Materials
+
+<!-- Fresh -->
+- Spec: <spec.md path>
+- Design doc: <design-doc.md path>
+- Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path>
+- document-plan.md: <path>
+- Tasks: <one line per task file: path>
+- document-plan-research.md: <path>
+- Task reports: <one line per report: path>
+
+<!-- Delta: the Fresh materials plus -->
+- Your previous review: <path>
+- Diff: git diff <its head> HEAD -- <plan path> <record path> <tasks folder>
+- Adjudication: <record path — sections>
+- Research: <researcher answer>   <!-- when the audit commissioned one -->
+
+## Write your review to
+
+<path>
