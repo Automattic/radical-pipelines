@@ -23,7 +23,7 @@ Commands run through non-interactive `$SHELL -c` and source no profile or rc fil
 
 Send a directed message with `rp_send` to the agent's session ID. Its result reports admission and observed target state, not receipt.
 
-A pending permission request blocks the agent. Answer it with `rp_permission_reply`: `once` allows it; `reject` refuses it and may carry corrective feedback. A blocked agent is not stalled.
+A read outside a session's worktree raises a permission request; the plugin redirects reads that resolve inside the worktree without asking. A pending request blocks the agent and is announced to the spawner. Answer it with `rp_permission_reply`: `once` allows it; `reject` refuses it and may carry corrective feedback. A blocked agent is not stalled.
 
 ## Termination
 
