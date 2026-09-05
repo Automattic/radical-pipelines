@@ -22,7 +22,7 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication**.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
-2. For each flow the task carries: automate its steps and expected outcome as an end-to-end test in the project's e2e convention; make it pass against the current code.
+2. For each flow the task carries: automate its steps and expected outcome as an end-to-end test in the project's e2e convention; make it pass against the current code. The behavior exists by the time you run, so there is no red phase — but a test that passes without exercising the flow is worthless: confirm it genuinely drives the behavior.
 3. Run the project's test suite and build.
 4. Outcome **completed** when every named flow has a passing end-to-end test and the suite is green. Outcome **failed** when a flow cannot pass as specified — the code or the flow contradicts it; record the evidence. Outcome **blocked** when you could not observe the product's behavior — record what prevented it.
 
@@ -38,6 +38,10 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 - A failed report carries what anyone can reproduce: the command, the observed output, the criterion it violates, and — when an assumption is named in `Verifies` — which one fell.
 - Your **Execution** line permits everything: tests, builds, probes. Evidence you produced is the reason this phase exists.
+
+**Guardrails**
+
+- An unsatisfied rule is work: fix the underlying issue. Never bypass a rule's check — no `--no-verify`, no skip, no commented-out check — and never commit around a failure as pre-existing or environmental: a failing test your work never touched is not thereby ambient; a regression is a previously-passing test that now fails.
 
 **Code**
 

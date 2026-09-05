@@ -39,9 +39,14 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - A failed report carries what anyone can reproduce: the command, the observed output, the criterion it violates, and — when an assumption is named in `Verifies` — which one fell.
 - Your **Execution** line permits everything: tests, builds, probes. Evidence you produced is the reason this phase exists.
 
+**Guardrails**
+
+- An unsatisfied rule is work: fix the underlying issue. Never bypass a rule's check — no `--no-verify`, no skip, no commented-out check — and never commit around a failure as pre-existing or environmental: a failing test your work never touched is not thereby ambient; a regression is a previously-passing test that now fails.
+
 **Code**
 
-- Update the inline documentation of every symbol you add or modify; host-project documentation belongs to a later phase.
+- Update the inline documentation of every symbol you add or modify — functions, classes, methods, properties, getters, constants, types, interfaces — per the project's inline-documentation convention: description, parameters, return values, examples as appropriate; object properties individually, not just the container. Host-project documentation belongs to a later phase.
+- When the task involves UI, follow the project's UI conventions: components, design tokens, styling, i18n, accessibility, fonts.
 - Write about the software itself: nothing you produce references a task, requirement, criterion, or artifact.
 - No speculative code: no abstractions for hypothetical futures, no handling for impossible cases.
 - Follow the project's patterns, naming, code style, and testing style.
