@@ -22,9 +22,9 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 Materials: the **Spec** and the **Design doc**, with their approving reviews, the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
 
 1. Read the spec and the design doc; list every requirement, every decision, and every open assumption.
-2. Inspect the codebase where the design lands; record what you find in `build-plan-research.md`.
-3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases become flows inside e2e tasks; map every open assumption.
-5. Write `build-plan.md` per **Formats**.
+2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.
+3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases with behavior to test become flows inside e2e tasks; map every open assumption.
+4. Write `build-plan.md` and the task files per **Formats**.
 
 On re-synthesis, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add. When nothing needs to change, say so in your report.
 
@@ -47,7 +47,11 @@ You may research and decide new content in this mode — always in service of a 
 **Tasks**
 
 - A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without making a design decision, and self-contained: that file and the tasks it depends on are the worker's only inputs. An e2e task carries the flows it automates.
-- `Type` routes it: `tdd` (behavior with unit tests), `e2e` (end-to-end flows the task carries), `edit` (no observable behavior change).
+- `Type` routes it to its worker. `tdd` — a change with behavior to test, proven by new unit tests derived from its Acceptance. `e2e` — realizes the flows it carries over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, never the behavior under test. `edit` — a change with no behavior to test: a docblock correction, a dead-code deletion, a behavior-preserving mechanical refactor; verified by inspection and the guardrails.
+- Every task has one or more acceptance criteria — observable, verifiable, scoped to the task — stating what must be true when it is done: they translate the acceptance criterion the task traces to into task-level checks, describe what, not how it is verified, and never contradict it. Even a trivial task has one.
+- Name exact files: real paths from the codebase, never "the auth module".
+- Describe the change; never write the implementation. Which unit tests a `tdd` task writes stays the worker's choice.
+- The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope. Documentation is the document phase's; no documentation tasks.
 - Every open assumption of the design doc maps to the task that verifies it, `Verifies: A<n>` with the assumption's observation and circumstance copied into the task; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
 - Every task traces to the requirements, decisions, or flows it serves. Every acceptance criterion and every decision is served by at least one task.
 - Ids are stable: `T<n>` is never renumbered; corrective and new tasks are new files.
