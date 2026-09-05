@@ -6,18 +6,29 @@ Report a failed instruction to the owner and continue. An instruction marked **b
 
 ## Hook points
 
-| Hook                | Moment                                                                                                    |
-| ------------------- | --------------------------------------------------------------------------------------------------------- |
-| `run-started`       | Work on a pipeline begins, before dispatch                                                               |
-| `phase-completed`   | A phase becomes complete, before the next dispatch                                                       |
-| `escalation-raised` | A pending owner escalation is surfaced                                                                   |
-| `run-ended`         | The run stops: target phase complete, owner escalation pending, valve, owner cancellation, or failure   |
-| `before-opening-pr` | A pull request is about to be opened                                                                     |
-| `after-opening-pr`  | The pull request exists                                                                                  |
-| `before-merging-pr` | A pull request is about to be merged                                                                     |
-| `after-merging-pr`  | The pull request is merged                                                                               |
+| Hook                           | Moment                                                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `before-creating-pipeline`     | A pipeline is about to be created, before any step                                                      |
+| `after-creating-pipeline`      | The pipeline exists: branch, worktree, pipeline folder, and committed intent                             |
+| `run-started`                  | Work on a pipeline begins — created, continued, or amended — before dispatch                            |
+| `before-creating-branch`       | A pipeline branch or lane branch is about to be created                                                 |
+| `after-creating-branch`        | A pipeline branch or lane branch is created                                                             |
+| `before-creating-worktree`     | A worktree is about to be created or recreated — the pipeline's or a lane's                             |
+| `after-creating-worktree`      | A worktree is created or recreated                                                                      |
+| `phase-started`                | Work on a phase begins or resumes                                                                       |
+| `phase-completed`              | A phase becomes complete, phase 0 included, before the next dispatch                                    |
+| `before-merging-lanes`         | Lane branches are about to be merged into the pipeline branch                                           |
+| `after-merging-lanes`          | Lane branches are merged into the pipeline branch                                                       |
+| `escalation-raised`            | A pending owner escalation is surfaced                                                                  |
+| `run-ended`                    | The run stops: target phase complete, owner escalation pending, valve, owner cancellation, or failure   |
+| `before-opening-pr`            | The owner asks to open a pull request, before any work                                                  |
+| `after-opening-pr`             | The pull request exists                                                                                 |
+| `before-merging-pr`            | The owner asks to merge the pull request, before any work                                               |
+| `after-merging-pr`             | The pull request is merged — by the orchestrator, or by the owner who reports it                        |
+| `before-closing-without-merge` | The owner asks to close the pipeline without merging                                                    |
+| `after-closing-without-merge`  | The pipeline is closed without merging                                                                  |
 
-A `before-`/`after-` pair brackets its action. A blocking failure in a `before-` hook stops that action.
+A `before-`/`after-` pair brackets its action. A blocking failure in a `before-` hook stops that action. The closure pairs bracket the actions the owner invokes on a pipeline (`../run/close-out.md`).
 
 ## Format
 

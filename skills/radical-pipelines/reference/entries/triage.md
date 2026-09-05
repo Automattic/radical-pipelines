@@ -37,8 +37,10 @@ One message to the owner: the route and why — or, when no predicate decides, t
 
 1. Slug per the **Branch naming** convention; a second pipeline for the same issue gets `-2`, `-3`.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
-3. `<pipelines folder root>/<slug>/0-intent/intent.md`: the issue body verbatim in the intent format (`intent-format.md`) with `Origin:` lines for the issue and, when stacked or re-attempted, the pipeline it starts from.
+3. `<pipelines folder root>/<slug>/0-intent/intent.md` in the intent format (`intent-format.md`), with `Origin:` lines for the issue and, when stacked or re-attempted, the pipeline it starts from. An issue already in the intent format is copied verbatim. Otherwise synthesize it: the issue body, the owner's comments quoted as decisions, cross-referenced issues and the external links the intent needs to be self-contained, attachments downloaded beside it; show the owner the draft and write it on approval.
 4. Commit; `rp stamp <intent> --mirror`; commit the stamp.
+
+Every branch and worktree you create — the pipeline's here, a lane's later — fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.
 
 **An external amendment**
 
