@@ -18,7 +18,7 @@ On the agent's completion declaration, send a shutdown request to its identifier
 
 ## Health loop
 
-Launch the bundled loop with `/loop <interval> <tick prompt>`. List loops with `CronList`; cancel one with `CronDelete` and its task ID.
+Launch the bundled loop with `/loop <interval> <tick prompt>`, appending each agent's worktree path and the seating rule: a message restarts its target in the sender's shell working directory, so `cd` into an agent's worktree before messaging or restarting it, then `cd` back. List loops with `CronList`; cancel one with `CronDelete` and its task ID.
 
 ## Models
 

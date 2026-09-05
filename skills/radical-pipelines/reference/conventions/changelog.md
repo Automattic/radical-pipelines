@@ -18,7 +18,7 @@ Migrate from version 0.
 
 ### Removals
 
-- The `.rp.md` sections defining agent spawn, address, seat, and termination mechanics, and `Health monitoring`. The active `tools/<tool>.md` owns them.
+- The `.rp.md` sections defining agent spawn, address, seat, and termination mechanics, and the health-loop start and cancel commands. The active `tools/<tool>.md` owns them; `Health monitoring` keeps only the interval and stall-threshold overrides.
 - Run-layout descriptions.
 - The former branch grammar beyond the issue-derived slug.
 - Status-specific review filenames.
