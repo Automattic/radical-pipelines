@@ -21,11 +21,12 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 
 Materials: the **Intent**, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
 
-1. Read the intent. Treat it as the owner's best current understanding: goals and constraints to serve, assumptions to validate.
+1. Read the intent. Treat it as the owner's best current understanding: goals and constraints to serve, assumptions to validate. A confirmed assumption becomes a requirement only when it states a desired observable outcome; one about the current system grounds requirements as fact; one about how to build stays input to the design phase.
 2. Create `spec-research.md` per **Formats**; on re-synthesis, update it in place.
-3. Drive Q&A through research requests, recording each question and answer as it happens.
-4. Consolidate the requirements in the record: numbered, each grounded in named Q&A or research entries.
-5. Synthesize `spec.md` per **Formats** — a standalone document, faithful to the record.
+3. Drive Q&A through research requests, recording each question and answer as it happens. Cover, as the feature demands: scope, users, constraints, success criteria, edge cases, integration, data. Research how the system behaves today, what users expect, what is achievable, and what existing behavior must be preserved. Record exclusions under `## Out of Scope` as they surface.
+4. Stop when core functionality is defined, success criteria are measurable, edge cases are identified, scope boundaries are explicit, and the remaining questions are nice-to-have.
+5. Consolidate the requirements in the record: numbered, each grounded in named Q&A or research entries.
+6. Synthesize `spec.md` per **Formats** — a standalone document, faithful to the record.
 
 On re-synthesis, work delta-scoped: touch what the input changes invalidate, leave the rest. When nothing needs to change, say so in your report.
 
@@ -63,11 +64,13 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. One that describes construction is restated as the behavior it guarantees.
 - An exclusion states what stays observably unchanged.
-- Numeric thresholds, windows, and budgets are assumptions unless an inspection establishes them.
+- Existing tests are evidence, never outcomes: a requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design.
 
 **Claims**
 
 - Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `A<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
+- A premise a requirement rests on needs the same labeling as the requirement: research it before it sways the outcome; a premise that cannot be sourced does not sway it. Facts the intent settles are consumed, not re-verified.
+- An assumption never stands in for an unanswered intent goal or a disproved premise.
 - **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata and versions; a tool's `--list` or `--dry-run`. **Experiment** is producing an observation that did not exist by running or building something: tests, probes, benchmarks, builds, generated inputs, measurements. Your **Execution** line permits inspection only. Ask yourself: did this observation exist before I acted? If you created it, it is an experiment — label the claim assumed.
 - A measurement from an earlier run is evidence for an assumption, never a fact.
 - An assumption's circumstance is one the implementation or its tests will produce — never an observation you, a reviewer, or a researcher would produce.
@@ -135,6 +138,8 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 ### Q1: <question>
 
 **A:** <answer>
+
+**Reasoning:** <the researcher's reasoning>
 
 **Sources:** <files, docs, or "model knowledge, not verified">
 
