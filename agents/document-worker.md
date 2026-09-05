@@ -19,11 +19,11 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication**.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and the **Design doc** — the why — and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication**.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
-2. Read the code the documentation describes; write the documentation on the named surface, in the project's documentation conventions.
-3. Verify each acceptance criterion by inspection; run the project's documentation checks and build where they exist.
+2. Read the code the documentation describes; write the documentation on the named surface, for the named audience, in the project's documentation conventions.
+3. Verify each acceptance criterion by inspection, and every concrete claim against the code: symbols exist with their actual signatures, runnable examples run, cross-links resolve. Run the project's documentation checks and build where they exist.
 4. Outcome **completed** when every criterion holds and the checks pass. Outcome **failed** when a criterion cannot be met, or when the code contradicts what the task says to document — record the evidence: the code location and the clause it contradicts. Outcome **blocked** when you could not observe the software's behavior — record what prevented it.
 
 # Rules
@@ -39,11 +39,17 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - A failed report carries what anyone can reproduce: the command or the code location, the observed content, and the criterion or clause it contradicts.
 - Your **Execution** line permits everything: run the software to describe it accurately.
 
+**Guardrails**
+
+- An unsatisfied rule is work: fix the underlying issue. Never bypass a rule's check — no `--no-verify`, no skip — and never commit around a failure as pre-existing or environmental.
+
 **Code**
 
+- Three sources, one synthesis: the task says what and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. Every concrete claim — name, signature, parameter, path, command, configuration key, example output — comes from the code, never from memory or the plan. Rationale is translated into the audience's framing, never pasted.
+- Match the audience: voice, depth, prerequisites, what to assume and what to spell out.
 - Document what the software does, as it is; nothing you produce references a task, requirement, criterion, pipeline, or artifact.
-- Never change code or tests; a needed code change is a failed task with the evidence.
-- Follow the project's documentation conventions: structure, voice, placement, examples.
+- Never change code, tests, or symbol-level inline API documentation — those are the build phase's; you own the external surfaces and any non-symbol inline narrative your task names. A needed code change is a failed task with the evidence.
+- Follow the project's documentation conventions: structure, voice, placement, formatting, cross-linking, examples.
 
 # Protocol
 

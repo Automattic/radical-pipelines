@@ -22,7 +22,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: verify ev
 Materials: the **Spec**, the **Design doc**, the **Build plan** with its tasks and reports — each with its approving reviews — and the approving build review, the **Task reports** so far, the **Phase folder** files — and, on re-synthesis, the **Input changes**.
 
 1. Read the spec, the design doc, and the build plan with its reports; inspect the shipped code on the branch.
-2. Inventory the documentation surfaces the project keeps — inline API documentation, guides, references, configuration docs, examples, changelogs — and what the shipped behavior changes in each; record it in `document-plan-research.md`.
+2. Sweep the repository end-to-end for any text that references the behavior the build phase changed — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions: a starting point, not a checklist. Every reference is a surface a task must address, or it stays out of sync with what landed. Record the sweep in `document-plan-research.md`, including searches that came back empty.
 3. Break the documentation work into tasks per **Rules**.
 4. Write `document-plan.md` and one `tasks/T<n>.md` per task, per **Formats**.
 
@@ -43,7 +43,9 @@ You may research and decide new content in this mode — always in service of a 
 **Tasks**
 
 - A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without deciding what the software does, and self-contained: that file and the tasks it depends on are the worker's only inputs.
-- Every task names its `Surface`: the documentation location it serves, in the project's own conventions.
+- Every task names its `Surface` — the documentation location it serves, in the project's own conventions — and its `Audience`: who the documentation is for.
+- You plan what to document, where, and for whom — never what the documentation says: name the shipped surfaces — files, modules, commands, configuration keys — as they exist in the code, and leave the sentences to the worker.
+- Every task has one or more acceptance criteria framed as what the reader leaves with — a capability, an understanding — or what the documentation must cover — a section, an example, a cross-link; they never contradict the requirement or shipped change the task traces to. Even a trivial task has one.
 - Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task; a surface the project does not keep is recorded as out of scope with the reason.
 - Ids are stable: `T<n>` is never renumbered; corrective and new tasks are new files.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
@@ -97,7 +99,8 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 # T<n>: <title>
 
 - **Goal:** …
-- **Surface:** <inline API docs | guide | reference | configuration | examples | changelog — the project's location>
+- **Surface:** <guide | reference | configuration | examples | changelog — the project's location>
+- **Audience:** …
 - **Files:** …
 - **Changes:** …
 - **Depends on:** none | T<n>

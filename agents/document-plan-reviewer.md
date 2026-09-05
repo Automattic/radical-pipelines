@@ -47,8 +47,11 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every shipped observable behavior the spec names and every public surface the code adds or changes is served by a task, or recorded out of scope with a reason; the surface inventory matches the project's documentation as inspected.
-- **Self-containment** — a worker can execute each task file without deciding what the software does; `Surface` is a real location; dependencies are real and acyclic; the plan's order lists exactly the task files.
+- **Coverage** — every shipped observable behavior the spec names and every public surface the code adds or changes is served by a task, or recorded out of scope with a reason. Sweep the repository yourself: any text that references the changed behavior — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions — that the plan would leave out of sync is a finding.
+- **What, where, for whom** — each task names its surface and a concrete audience without prescribing the documentation's wording; a task that dictates sentences the worker should draw from the code is a finding.
+- **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.
+- **Per-task acceptance** — every task has acceptance criteria framed as what the reader leaves with or what the documentation must cover; missing, vague, or contradictory acceptance is a finding.
+- **Self-containment** — a worker can execute each task file without deciding what the software does; a task combining unrelated surfaces or audiences is a finding; dependencies are real and acyclic; the plan's order lists exactly the task files.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; ids are stable; the plan carries no review references, adjudication trails, or superseded text.
 - **Labeling** — every claim the plan rests on is verified with a citation or assumed; a producer presenting its own experiments as evidence is a finding — except a reproduced task report.
@@ -57,7 +60,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - Your checks are inspections. Your **Execution** line permits inspection only.
 - Investigation heavier than you can carry goes through a research request; attach the answer to your review.
-- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding.
+- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the inputs the artifact started from.
 - Evidence settles what it checked, not more: never re-litigate a grounded decision for preference.
 
 **Adjudication audit**
@@ -67,8 +70,9 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Findings**
 
-- Be specific: name the task, the decision or requirement, the gap.
-- Report a defect class once; never manufacture findings.
+- Be specific: name the task, the surface, the gap.
+- Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real issues, approve when the plan survives your checks.
+- You review the plan only: never rewrite it, and the documentation's wording is not your concern.
 
 # Protocol
 
