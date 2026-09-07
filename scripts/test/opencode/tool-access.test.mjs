@@ -378,6 +378,29 @@ describe("parentage retention", () => {
     assert.equal(await resolveToolAccess("ses_evicted_child", asks(undefined).deps), "none");
   });
 
+  test("a deletion does not unclassify the subagent already waiting on a read", async () => {
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+
+    // Cold call first, so the classification arrives while the read is open.
+    const pending = resolveToolAccess("ses_deleted_observed", { readParentage: async () => held });
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_deleted_observed", parentID: "ses_deleted_observed_parent" },
+    });
+    recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_deleted_observed" } });
+    // Its own session is gone by now, so the store answers nothing.
+    release(undefined);
+
+    assert.equal(
+      await pending,
+      "none",
+      "a session being destroyed mid-call must not widen on its way out",
+    );
+  });
+
   test("a deletion discards the answer of a read already in flight for it", async () => {
     let release;
     const held = new Promise((resolve) => {

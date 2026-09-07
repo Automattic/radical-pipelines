@@ -300,6 +300,14 @@ function recordSessionParent(event) {
   // A deleted session's ID answers for nothing, and a daemon that kept every
   // one it ever saw would grow for as long as it runs.
   if (event.type === "session.deleted") {
+    const inFlight = getPendingParentage().get(sessionID);
+    if (inFlight) {
+      // Deletion retires the memo for callers still to come; it does not
+      // unclassify the one already waiting on this read. Hand that caller
+      // what the record knew, or its own read will come back 404 — the
+      // session is gone — and a subagent would widen on the way out.
+      inFlight.lastKnown = getSessionParentage().get(sessionID);
+    }
     getSessionParentage().delete(sessionID);
     getRootSessions().delete(sessionID);
     // Also drop any read still in flight for it: that read began before the
@@ -388,16 +396,20 @@ async function resolveToolAccess(sessionID, { readParentage }) {
     // An event that landed while the read was in flight is authoritative:
     // the read answers only for a session still unaccounted for.
     child = getSessionParentage().get(sessionID);
-    if (child === undefined && read !== undefined) {
-      // An invalidated read is still the truthful answer for the caller
-      // holding it — it is only unfit to be *remembered*, having been
-      // overtaken by the deletion of the session it describes. Classifying
-      // from it anyway is what keeps an invalidated read from resolving to
-      // the widest access by default.
-      if (current) {
-        recordParentage(sessionID, read);
+    if (child === undefined) {
+      // The read, or — when a deletion emptied the record while the read was
+      // open — what the record knew before it went. Both are unfit to be
+      // *remembered* once invalidated, having been overtaken by the deletion
+      // of the session they describe, and both remain true of the caller
+      // holding them. Classifying from them is what keeps a session being
+      // destroyed mid-call from widening on its way out.
+      const answer = read ?? inFlight.lastKnown;
+      if (answer !== undefined) {
+        if (current) {
+          recordParentage(sessionID, answer);
+        }
+        child = answer;
       }
-      child = read;
     }
   }
   if (child) {
