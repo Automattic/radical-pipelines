@@ -54,7 +54,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 ## Stamp on landing
 
-After every agent commit, before anyone consumes the result — and before the agent is terminated: repair `INVALID FRONTMATTER` by re-stamping; send `INVALID LINE` to the body's author to fix and report again.
+After every agent commit, before anyone consumes the result — and before the agent is terminated: repair `INVALID FRONTMATTER`, then re-stamp; send `INVALID LINE` to the body's author to fix and report again.
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. The document plan pins every build task and report. Each task file of a plan: `rp stamp <task> --mirror`.
 - A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a trigger declares `Origin:` in its body.
