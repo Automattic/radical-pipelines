@@ -31,16 +31,18 @@ Several live pipelines match: pick the one whose frontier the request advances.
 
 ### 4. Confirm the run
 
-One message to the owner: the route and why — or, when no predicate decides, the one deciding question — together with the run policy to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has.
+Ask the target phase in plain language without exposing phase numbers. In one message, give the route and why — or, when no predicate decides, the one deciding question — together with the full run policy to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm the run plan until the owner confirms it.
 
 ### 5. Prepare
+
+Address every worktree by absolute path and run its Git commands through `git -C <worktree>`. Before branching from a tracked artifact base branch, fetch its remote and fast-forward the local branch to its upstream.
 
 **A new pipeline**
 
 1. Slug per the **Branch naming** convention; a second pipeline for the same issue gets `-2`, `-3`.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
 3. `<pipelines folder root>/<slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `Origin: starts-from` records the starting branch and `Origin: re-attempts` the prior pipeline slug.
-4. Commit; `rp stamp <intent> --mirror`; commit the stamp.
+4. Commit following the **Commit format** convention; `rp stamp <intent> --mirror`; commit the stamp in that format.
 
 Every branch and worktree you create — the pipeline's here, a lane's later — fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.
 
