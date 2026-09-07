@@ -23,7 +23,7 @@
 - document-plan.md: <path>
 - Tasks: <one line per task file: path>
 - document-plan-research.md: <path>
-- Task reports: <one line per report: path>
+- Task report context: <one line per report: path>
 - Pinned inputs: <one line per file pinned by document-plan.md: path>   <!-- current approving input reviews, adjudicated triggers, production-lane inputs -->
 - Amendment: <trigger path>; <origin chain paths>   <!-- when this wave judges one -->
 - Task report: <report path>; <its task file path>   <!-- when this wave judges one -->

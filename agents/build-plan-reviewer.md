@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Optional **Research** supplements any m
 
 ## Fresh
 
-Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, the **Task reports**, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present.
+Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, the **Task report context**, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present.
 
 1. Read the spec and the design doc; list every requirement, decision, acceptance criterion, and open assumption.
 2. Read `build-plan-research.md` and `build-plan.md`.

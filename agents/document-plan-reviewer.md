@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Optional **Research** supplements any m
 
 ## Fresh
 
-Materials: `document-plan.md`, its **Tasks**, `document-plan-research.md`, the **Task reports**, and its **Pinned inputs** — the **Spec**, **Design doc**, and **Build plan** package with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present.
+Materials: `document-plan.md`, its **Tasks**, `document-plan-research.md`, the **Task report context**, and its **Pinned inputs** — the **Spec**, **Design doc**, and **Build plan** package with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present.
 
 1. Read the spec, the design doc, and the build plan with its reports; inspect the shipped code's public surfaces and the project's documentation locations.
 2. Read `document-plan-research.md` and `document-plan.md`.
