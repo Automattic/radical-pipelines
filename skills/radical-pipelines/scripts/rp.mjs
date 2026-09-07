@@ -464,7 +464,9 @@ function treeReader(root, abs, ref) {
     .split("\0")
     .filter(Boolean)
     .map((l) => {
-      const [meta, path] = l.split("\t");
+      const tab = l.indexOf("\t");
+      const meta = l.slice(0, tab);
+      const path = l.slice(tab + 1);
       return { mode: meta.split(" ")[0], rel: path.slice(pipelineRel.length + 1) };
     });
   const regular = new Set(entries.filter((e) => /^100\d{3}$/.test(e.mode)).map((e) => e.rel));

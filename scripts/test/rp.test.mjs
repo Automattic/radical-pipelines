@@ -241,11 +241,12 @@ describe("rp state tooling", () => {
     assert.match(check(root, "--ref", "pinned-context", "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
   });
 
-  test("ref reads preserve non-ASCII paths", () => {
+  test("ref reads preserve non-ASCII paths and tabs", () => {
     writeFileSync(join(root, P("0-intent/café.txt")), "context\n");
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/café.txt"));
+    writeFileSync(join(root, P("0-intent/with\ttab.txt")), "context\n");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/café.txt"), "--pin", P("0-intent/with\ttab.txt"));
     git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "pin non-ASCII context");
+    git(root, "commit", "--quiet", "-m", "pin path context");
     assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
     assert.match(check(root, "--ref", "HEAD", "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
   });
