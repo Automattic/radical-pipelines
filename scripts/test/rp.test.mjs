@@ -301,6 +301,17 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(out, /AUDIT|VALVE/);
   });
 
+  test("a historical approved wave stays valid after the artifact changes", () => {
+    stampSpec();
+    approveSpec();
+    appendFileSync(join(root, P("1-spec/spec.md")), "\nRequirement R2.\n");
+    stampSpec();
+    review("1-spec/spec-review-2.md", "rejected", SPEC);
+    const state = JSON.parse(check(root, "--target-phase", "1", "--json"));
+    assert.equal(state.counters.spec.episode, 1);
+    assert.equal(state.frontier, "adjudicate 1-spec/spec.md");
+  });
+
   test("an unstamped review is the frontier, never a new wave", () => {
     stampSpec();
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n");

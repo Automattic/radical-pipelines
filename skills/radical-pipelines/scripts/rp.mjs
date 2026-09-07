@@ -755,11 +755,9 @@ function cmdCheck(args) {
   const reviewFresh = (r, prefix, sc) => {
     return samePackage(pinPackage(r.data.get("reviewed")), currentPackage(schemaOf(prefix, sc, r.lane)));
   };
-  const completeReviewPackage = (prefix, sc) => {
+  const validReviewPackage = (prefix, sc, packageMap) => {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
-    const artifactPath = inScope(sc, art.path);
-    const consumed = pinPackage(all.find((d) => d.rel === artifactPath)?.data.get("pins"));
-    return new Map(schemaOf(prefix, sc).map((path) => [path, consumed?.get(path) ?? identityOf(path)]));
+    return [inScope(sc, art.path), inScope(sc, art.record), ...art.requires].every((path) => packageMap.has(path));
   };
   const waveState = (prefix, sc, wave) => {
     if (!wave) return null;
@@ -770,7 +768,7 @@ function cmdCheck(args) {
     const packages = reviews.map((r) => pinPackage(r.data.get("reviewed")));
     if (packages.some((p) => !p)) return null;
     const full = packages[0];
-    if (!samePackage(full, completeReviewPackage(prefix, sc))) return null;
+    if (!validReviewPackage(prefix, sc, full)) return null;
     for (let i = 1; i < packages.length; i++) {
       const paths = materialPaths(prefix, sc, lanes[i].id);
       const expected = paths === null ? full : new Map(paths.map((path) => [path, full.get(path)]));
