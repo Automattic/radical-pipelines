@@ -49,7 +49,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Every public symbol added or modified is documented per the project's inline-documentation convention; every change follows the project's coding, testing, build, and commit conventions.
 - Any task output, including commit messages, references the software only, never a specific task, requirement, flow, acceptance criterion, or artifact. Pipeline artifacts are exempt.
 - Evaluate every rule under **Guardrails** against the code; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: the only evidence that makes a failure ambient is reproducing the identical failure on the diff's base; a failing test the diff never touched is not thereby ambient — a regression is a previously-passing test that now fails. Even with that reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
-- A hedge on a load-bearing claim in a report — likely, should, probably — is an unresolved risk: verify and close it, reject it, or accept it as a residual with a stated justification. A deferred risk names what will verify it later and why deferral is safe.
+- A hedge on a load-bearing claim in a report — likely, should, probably — is an unlabeled assumption. Every pending load-bearing claim gets `A<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 
 **Contradictions**
 

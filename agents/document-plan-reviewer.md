@@ -57,7 +57,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Scope** — the plan stays within the spec and design doc.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; its sections agree; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two workers would produce documentation of the same scope and shape.
-- **Labeling** — every claim the plan rests on is verified with a citation or assumed; a producer presenting its own experiments as evidence is a finding — except a reproduced task report. Before approval, each unresolved risk is verified and closed, rejected, or accepted with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
+- **Labeling** — every load-bearing claim is verified with a citation or assumed with `A<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own experiments as evidence is a finding — except a reproduced task report.
 - **Minimal artifacts** — every "none" the plan claims — no risks, no alternatives, no affected areas — rests on a recorded sweep that came back empty.
 
 **Checking**

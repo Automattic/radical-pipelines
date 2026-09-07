@@ -56,7 +56,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Scope** — the plan stays within the spec and the design doc; a task that adds functionality, redesigns, or prescribes which unit tests to write, or that produces or updates documentation, is a finding.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity and clarity** — `build-plan.md` reflects `build-plan-research.md`; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two workers executing the plan independently would produce the same changes in the same order.
-- **Labeling** — every claim the plan rests on is verified with a citation or assumed with a condition; a hedge on a load-bearing claim — likely, should, probably — is an unlabeled assumption; a producer presenting its own experiments as evidence is a finding — except a reproduced task report. Before approval, each unresolved risk is verified and closed, rejected, or accepted with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
+- **Labeling** — every load-bearing claim is verified with a citation or assumed with `A<n>` and its verification condition; a hedge is an unlabeled assumption; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own experiments as evidence is a finding — except a reproduced task report.
 - **Minimal artifacts** — every "none" the plan claims — no risks, no alternatives, no affected areas — rests on a recorded sweep that came back empty.
 
 **Checking**

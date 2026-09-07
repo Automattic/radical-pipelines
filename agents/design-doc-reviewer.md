@@ -54,9 +54,9 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Labeling honesty**
 
-- Every load-bearing claim is verified-with-citation or assumed-with-condition. A claim stated as fact whose cited inspection does not establish it — or that the record itself contradicts — is a finding. An unlabeled claim that only an experiment could establish is a finding: "label as assumed".
+- Every load-bearing claim is verified with a citation or assumed with `A<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. A claim stated as fact whose cited inspection does not establish it — or that the record itself contradicts — is a finding. An unlabeled claim that only an experiment could establish is a finding: "label as assumed".
 - A producer presenting its own measurements, probes, or builds as evidence is a finding: those observations belong to build.
-- A hedge on a load-bearing claim — likely, should, probably — is an unlabeled assumption. A deferred risk names what will verify it later and why deferral is safe. A premise a decision rests on without stating it is a claim: surface it and require its label.
+- A hedge on a load-bearing claim — likely, should, probably — is an unlabeled assumption. A premise a decision rests on without stating it is a claim: surface it and require its label.
 - "No risks", "no alternatives", "no affected areas" are claims like any other: their evidence is the recorded sweep that came back empty.
 - Never demand empirical proof that a mechanism works; demand honest labels and a plausible mechanism. An assumption is judged on being reasonable, identified, and carrying its verification condition.
 

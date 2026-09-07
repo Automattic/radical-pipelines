@@ -15,6 +15,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 - **Done-set** — the tasks whose latest report has `outcome: completed` and fresh `reviewed` pins.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start and merge. **Base** — the commit a pipeline's own commits follow: the merge-base of its branch with the branch its intent `starts-from`, else with the base branch, passed as `--base`.
 - **Episode** — an artifact's waves since the last wave every lane approved; a counter `rp check` reports, never a gate.
+- **Assumption** — every pending load-bearing claim, labeled `assumed` with stable `A<n>` and its verification condition. Questions and risks that depend on it cite that id. Accepting a consequence leaves its verification pending.
 
 ## Frontmatter
 

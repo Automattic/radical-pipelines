@@ -26,7 +26,7 @@ Additional materials: conditional **Lane inputs** — each consumed lane's artif
 3. Investigate the codebase and platform through inspection and research requests routed through the orchestrator, recording each answer's reasoning and sources.
 4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: a choice that narrows what reaches surviving code re-opens that code, whose body, name, contract, docs, and tests are re-derived from the narrowed contract, and keeping any stranded generality is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `D<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
 5. After each answer, decide whether to work another topic, request more research, or synthesize.
-6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, no load-bearing decision is deferred — a deferred question is limited to what build can verify, names what will verify it, and explains why deferral is safe — and the remaining work is refinement.
+6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, and the remaining work is refinement.
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
 8. In your report, declare the design doc ready for review.
 
@@ -66,7 +66,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 **Decisions**
 
 - A decision states the mechanism, the requirements or acceptance criteria it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision or component.
-- Decide from evidence, not assumption: research every open question before choosing. An assumption records what build must verify; it does not choose among mechanisms.
+- Decide from evidence: research every open question before choosing. Every pending load-bearing claim is assumed with `A<n>` and its verification condition; questions and risks that depend on it cite that id. Accepting a consequence leaves the assumption open.
 - Own the option space: generate the credible options yourself — what a researcher reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
 - Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
@@ -141,7 +141,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Risks
 
-<!-- Risks worth flagging that no assumption captures. -->
+<!-- Accepted consequences and trade-offs; cite the A<n> they depend on. -->
 
 ## Open assumptions
 
@@ -188,11 +188,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Open Questions
 
-<!-- Each names what will verify it and why deferral is safe. -->
+<!-- Questions that depend on a pending claim cite its A<n>. -->
 
 ## Risks
 
-<!-- Risks worth flagging. -->
+<!-- Consequences and trade-offs; cite the A<n> they depend on. -->
 
 ## Adjudications
 

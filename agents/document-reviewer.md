@@ -51,7 +51,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Plan adherence: every change maps to a task; no code or test changes; nothing beyond the plan. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
 - The project's documentation conventions; commit messages and text reference the software, never a task, criterion, or artifact.
 - Evaluate every rule under **Guardrails** against the documentation; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the diff's base. Even after reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
-- A hedge on a load-bearing claim — likely, should, probably, assume — is an unresolved risk. Before approval, verify and close it, reject it, or accept it with a stated justification; a risk deferred to a later phase names what will verify it there and why deferral is safe.
+- A hedge on a load-bearing claim — likely, should, probably, assume — is an unlabeled assumption. Every pending load-bearing claim gets `A<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 - A minimal artifact is legitimate only when the record shows the investigation that came back empty; every "none" — no risks, no alternatives, no affected areas — names that sweep.
 
 **Contradictions**
