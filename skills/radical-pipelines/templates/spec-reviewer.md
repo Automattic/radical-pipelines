@@ -16,19 +16,22 @@
 
 ## Materials
 
-<!-- Fresh -->
-- Intent: <path>
+<!-- Standing: every mode -->
 - spec.md: <path>
 - spec-research.md: <path>
+- Pinned inputs: <one line per file spec.md pins: intent, adjudicated triggers, lane inputs, consolidation candidates>
+- Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
+- Amendment: <trigger path>   <!-- when this wave adjudicates an amendment -->
+- Task report: <trigger path>   <!-- when this wave adjudicates a failed task report -->
 
-<!-- Consolidation: the Fresh materials plus -->
+<!-- Consolidation: additions -->
 - Lane folders: <one line per lane: id — folder (spec.md, spec-research.md, approved review)>
 
-<!-- Delta: the Fresh (or Consolidation) materials plus -->
+<!-- Delta: additions; retain Lane folders for a consolidation -->
+- Rejected review history: <one line per rejected review: path>
 - Your previous review: <path>
 - Diff: git diff <its head> HEAD -- <artifact path> <record path>
 - Adjudication: <record path — sections>
-- Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
 
 ## Write your review to
 

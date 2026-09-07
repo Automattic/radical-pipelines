@@ -2,6 +2,8 @@
 
 - Worktree: <absolute path>
 - Branch: <branch>
+- Commit format: <convention>
+- Guardrails: <rules | none>
 - Execution: inspection only
 
 ## Requester
@@ -19,3 +21,7 @@
 ## Files
 
 <paths the requester points at>   <!-- omit when none -->
+
+## Write findings to
+
+<path>   <!-- omit when no findings file was requested -->
