@@ -106,7 +106,9 @@ Origin: <trigger path>
 
 <!-- Rejected only. Omit otherwise. -->
 
-### Issue 1: <title> — T<n> | plan gap
+### Issue 1: <title> — T<n>
+
+<!-- Plan gap: `Issue 1: <title> — plan gap`. -->
 
 <!-- When it is one; omit otherwise. -->
 Prior finding: <review>#<issue>, resolution failed
