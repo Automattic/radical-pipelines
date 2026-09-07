@@ -397,13 +397,14 @@ async function resolveToolAccess(sessionID, { readParentage }) {
     // the read answers only for a session still unaccounted for.
     child = getSessionParentage().get(sessionID);
     if (child === undefined) {
-      // The read, or — when a deletion emptied the record while the read was
-      // open — what the record knew before it went. Both are unfit to be
-      // *remembered* once invalidated, having been overtaken by the deletion
-      // of the session they describe, and both remain true of the caller
-      // holding them. Classifying from them is what keeps a session being
-      // destroyed mid-call from widening on its way out.
-      const answer = read ?? inFlight.lastKnown;
+      // What the record knew when a deletion emptied it mid-read, else the
+      // read — the same order as above, the event's word ahead of the read's.
+      // Either is unfit to be *remembered* once invalidated, having been
+      // overtaken by the deletion of the session it describes, and either
+      // remains true of the caller holding it. Classifying from it is what
+      // keeps a session being destroyed mid-call from widening on its way
+      // out.
+      const answer = inFlight.lastKnown ?? read;
       if (answer !== undefined) {
         if (current) {
           recordParentage(sessionID, answer);

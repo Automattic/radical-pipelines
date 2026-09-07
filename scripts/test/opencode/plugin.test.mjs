@@ -531,36 +531,62 @@ describe("the access boundary is wired into what setup registers", () => {
     }
   });
 
-  test("a caller whose creation event was never seen is read from the durable store, and refused on its answer", async () => {
-    // The session is cold: no `session.created` was ever recorded for it, so
-    // the only route to a verdict is the durable read `setup` wires in. Unit
-    // tests of `resolveToolAccess` inject that reader, so this is the only
-    // place the wiring itself is exercised.
-    const { ctx, tools } = createFakeCtx();
-    const reads = [];
-    setup(
-      ctx,
-      isolatedDeps({
-        env: { XDG_DATA_HOME: freshDir(), RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
-        readServiceRecord: () => null,
-        requestFn: async (url) => {
-          reads.push(url.pathname);
-          if (url.pathname === "/api/session/ses_wired_unobserved") {
-            return { status: 200, body: { data: { id: "ses_wired_unobserved", parentID: "ses_wired_delegator" } } };
-          }
-          return { status: 200, body: { data: {} } };
-        },
+  // The durable read `setup` wires in reaches the server the way every other
+  // RP tool does, and the installed daemon takes the service-record route
+  // while the `serve`/harness process takes the env one. A wiring covered on
+  // one route only would leave the other free to be disconnected.
+  const serverRoutes = [
+    {
+      route: "the service record a running daemon writes",
+      sessionID: "ses_wired_unobserved_record",
+      env: {},
+      readServiceRecord: () => ({
+        url: "http://127.0.0.1:9999",
+        password: "pw",
+        version: "0.0.0-next-1",
+        pid: process.pid,
       }),
-    );
+    },
+    {
+      route: "the env overrides a serve process carries",
+      sessionID: "ses_wired_unobserved_env",
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null,
+    },
+  ];
 
-    const result = await tools.get("rp_loop_list").execute({}, { sessionID: "ses_wired_unobserved" });
+  for (const { route, sessionID, env, readServiceRecord } of serverRoutes) {
+    test(`a caller whose creation event was never seen is read from the durable store over ${route}, and refused on its answer`, async () => {
+      // The session is cold: no `session.created` was ever recorded for it, so
+      // the only route to a verdict is the durable read `setup` wires in. Unit
+      // tests of `resolveToolAccess` inject that reader, so this is the only
+      // place the wiring itself is exercised.
+      const { ctx, tools } = createFakeCtx();
+      const reads = [];
+      setup(
+        ctx,
+        isolatedDeps({
+          env: { XDG_DATA_HOME: freshDir(), ...env },
+          readServiceRecord,
+          requestFn: async (url) => {
+            reads.push(url.pathname);
+            if (url.pathname === `/api/session/${sessionID}`) {
+              return { status: 200, body: { data: { id: sessionID, parentID: "ses_wired_delegator" } } };
+            }
+            return { status: 200, body: { data: {} } };
+          },
+        }),
+      );
 
-    assert.equal(result.output.error, "SubagentNotPermitted");
-    assert.ok(
-      reads.includes("/api/session/ses_wired_unobserved"),
-      `expected the durable store to be read for an unobserved caller, saw: ${JSON.stringify(reads)}`,
-    );
-  });
+      const result = await tools.get("rp_loop_list").execute({}, { sessionID });
+
+      assert.equal(result.output.error, "SubagentNotPermitted");
+      assert.ok(
+        reads.includes(`/api/session/${sessionID}`),
+        `expected the durable store to be read for an unobserved caller, saw: ${JSON.stringify(reads)}`,
+      );
+    });
+  }
 
   test("every registered tool but rp_send refuses a spawned agent", async () => {
     const tools = registerTools();

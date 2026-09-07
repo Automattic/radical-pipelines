@@ -401,6 +401,29 @@ describe("parentage retention", () => {
     );
   });
 
+  test("the parentage the record held at the deletion outranks the read that settles after it", async () => {
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+
+    const pending = resolveToolAccess("ses_deleted_contradicted", { readParentage: async () => held });
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_deleted_contradicted", parentID: "ses_deleted_contradicted_parent" },
+    });
+    recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_deleted_contradicted" } });
+    // The read opened before either event and answers last; the events are
+    // what classified this session.
+    release(false);
+
+    assert.equal(
+      await pending,
+      "none",
+      "an event that landed while the read was in flight must not be overruled by the read",
+    );
+  });
+
   test("a deletion discards the answer of a read already in flight for it", async () => {
     let release;
     const held = new Promise((resolve) => {
