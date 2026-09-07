@@ -82,7 +82,11 @@ async function clearAllLoopTimers() {
  * `agent`, `session`, `event`).
  */
 function createFakeCtx({
-  agents = ["spec-lead", "spec-reviewer", "build-writer-tdd"],
+  agents = [
+    "radical-pipelines/spec-reviewer",
+    "radical-pipelines/researcher",
+    "radical-pipelines/build-worker-tdd",
+  ],
   legacySkillDraft = false,
 } = {}) {
   const tools = new Map();
@@ -229,7 +233,6 @@ function createFakeCtx({
 /** Options that keep every `setup()` call in this file off the real home dir. */
 function isolatedDeps(overrides = {}) {
   return {
-    agentsSourceDir: freshDir(),
     agentsTargetDir: freshDir(),
     ...overrides,
   };
@@ -350,42 +353,17 @@ describe("setup: tool and skill registration", () => {
     assert.equal(first.hookDisposals, 1);
     assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "the last location's cleanup tears down the shared resources");
   });
-
-  test("a materialization collision with a pre-existing foreign agent file is surfaced via rp_status's recentErrors", async () => {
-    globalThis[ERROR_LOG_KEY] = [];
-    const sourceDir = freshDir();
-    const targetDir = freshDir();
-    writeFileSync(join(sourceDir, "spec-lead.md"), "# RP spec-lead\n");
-    writeFileSync(join(targetDir, "spec-lead.md"), "# foreign spec-lead, not RP-owned\n");
-
-    const { ctx, tools } = createFakeCtx();
-    await setup(ctx, {
-      env: {},
-      agentsSourceDir: sourceDir,
-      agentsTargetDir: targetDir,
-      readServiceRecord: () => null,
-      readCliVersion: () => null,
-    });
-
-    const result = (await tools.get("rp_status").execute({}, {})).output;
-    assert.ok(
-      result.recentErrors.some(
-        (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
-      ),
-      `expected a materialize-collision entry for spec-lead.md, got: ${JSON.stringify(result.recentErrors)}`,
-    );
-  });
 });
 
 describe("rp_spawn", () => {
   afterEach(clearAllLoopTimers);
 
-  test("rejects an agent not in ctx.agent.list() before any session.create", async () => {
-    const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-lead"] });
+  test("rejects a name that is not an RP profile before any session.create", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
     await setup(ctx, isolatedDeps({ env: {} }));
 
-    await assert.rejects(() =>
-      tools.get("rp_spawn").execute(
+    await assert.rejects(
+      () => tools.get("rp_spawn").execute(
         {
           name: "spec-reviewer-1",
           agent: "not-a-real-agent",
@@ -396,12 +374,13 @@ describe("rp_spawn", () => {
         },
         { sessionID: "ses_orchestrator" },
       ),
+      /Unknown RP agent "not-a-real-agent"/,
     );
     assert.equal(sessions.size, 0);
   });
 
-  test("on a valid agent, creates the session seated at directory, records the ledger entry with spawner = toolCtx.sessionID plus the seat and its repo root, and returns the created session ID", async () => {
-    const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-reviewer"] });
+  test("resolves a plain RP profile name to its namespaced agent ID, seats it, records it, and returns its session ID", async () => {
+    const { ctx, tools, sessions } = createFakeCtx({ agents: ["radical-pipelines/spec-reviewer"] });
     await setup(ctx, isolatedDeps({ env: {}, resolveRepoRootFn: (directory) => `${directory}-repo-root` }));
 
     let initialPrompt;
@@ -428,7 +407,7 @@ describe("rp_spawn", () => {
     assert.equal(typeof sessionID, "string");
     const created = sessions.get(sessionID);
     assert.ok(created);
-    assert.equal(created.agent, "spec-reviewer");
+    assert.equal(created.agent, "radical-pipelines/spec-reviewer");
     assert.deepEqual(created.model, {
       providerID: "anthropic",
       id: "claude-3-opus",
@@ -4735,7 +4714,7 @@ describe("buildLedgerRows", () => {
       [
         {
           id: "ses_ledger_1",
-          agent: "spec-lead",
+          agent: "radical-pipelines/spec-lead",
           model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
           location: { directory: "/repo/worktree" },
           time: { updated: 123 },
@@ -4863,7 +4842,7 @@ describe("buildLedgerRows", () => {
       [
         {
           id: "ses_after_restart",
-          agent: "spec-lead",
+          agent: "radical-pipelines/spec-lead",
           model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
           location: { directory: "/repo" },
           time: { updated: 1 },
@@ -4877,6 +4856,7 @@ describe("buildLedgerRows", () => {
 
     assert.equal(rows.length, 1);
     assert.equal(rows[0].name, "spec-lead-2");
+    assert.equal(rows[0].agent, "spec-lead");
   });
 });
 

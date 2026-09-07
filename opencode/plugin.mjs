@@ -166,7 +166,7 @@ function resolveCurrentSpawn(name) {
 }
 
 /**
- * Check whether an agent name is one opencode currently recognizes.
+ * Check whether an agent ID is one opencode currently recognizes.
  *
  * `rp_spawn` calls this against `ctx.agent.list()` before creating a session,
  * since `session.create` itself does not validate the agent name — an unknown
@@ -175,12 +175,12 @@ function resolveCurrentSpawn(name) {
  * @param {Array<string | { name: string }>} agentList The list opencode
  *   returns from `ctx.agent.list()` — entries may be plain agent-id strings
  *   or objects carrying a `name` field, so both shapes are accepted.
- * @param {string} agentName The agent name to check for.
- * @returns {boolean} `true` when `agentName` appears in `agentList`.
+ * @param {string} agentID The agent ID to check for.
+ * @returns {boolean} `true` when `agentID` appears in `agentList`.
  */
-function agentExists(agentList, agentName) {
+function agentExists(agentList, agentID) {
   return agentList.some((entry) =>
-    typeof entry === "string" ? entry === agentName : entry?.name === agentName,
+    typeof entry === "string" ? entry === agentID : entry?.name === agentID,
   );
 }
 
@@ -1790,7 +1790,7 @@ function buildLedgerRows(
       name: entry.name,
       run: entry.run,
       sessionID: record.id,
-      agent: record.agent,
+      agent: displayAgentName(record.agent),
       model: record.model ? formatModelString(record.model) : record.model,
       directory: record.location?.directory,
       updated,
@@ -3173,51 +3173,33 @@ const DEFAULT_AGENTS_SOURCE_DIR = fileURLToPath(
   new URL("../agents", import.meta.url),
 );
 
-/**
- * Filename of the ownership manifest `materializeAgents` writes into the
- * target agents directory.
- *
- * Records which filenames in the target were materialized by RP, as opposed
- * to pre-existing, foreign agents of the same name, so a later materialize
- * knows which target files it may safely overwrite.
- */
-const OWNERSHIP_MANIFEST_NAME = ".rp-owned.json";
+/** Directory name and agent-id prefix RP owns under opencode's global agents directory. */
+const RP_AGENT_NAMESPACE = "radical-pipelines";
 
 /**
- * Read the set of filenames recorded as RP-owned in a target agents
- * directory.
+ * Resolve a plain RP profile name to its opencode agent ID.
  *
- * @param {string} targetDir Absolute path to the target agents directory.
- * @returns {Set<string>} The recorded RP-owned filenames, or an empty set
- *   when the directory has no manifest yet (e.g. it was never materialized
- *   into before).
+ * @param {string} profile Plain RP profile name.
+ * @returns {string} The namespaced opencode agent ID.
  */
-function readOwnershipManifest(targetDir) {
-  const manifestPath = join(targetDir, OWNERSHIP_MANIFEST_NAME);
-  if (!existsSync(manifestPath)) {
-    return new Set();
-  }
-  // Only plain profile filenames are honored: a manifest entry never names a path.
-  return new Set(JSON.parse(readFileSync(manifestPath, "utf8")).filter((name) => typeof name === "string" && /^[A-Za-z0-9._-]+\.md$/.test(name)));
+function rpAgentID(profile) {
+  return `${RP_AGENT_NAMESPACE}/${profile}`;
 }
 
 /**
- * Persist the set of RP-owned filenames to a target agents directory's
- * ownership manifest, replacing whatever was recorded before.
+ * Render RP's namespaced opencode agent ID as its plain profile name.
  *
- * @param {string} targetDir Absolute path to the target agents directory.
- * @param {Set<string>} owned The complete set of RP-owned filenames.
- * @returns {void}
+ * @param {string} agentID An opencode agent ID.
+ * @returns {string} The plain RP profile name, or the unchanged ID for an
+ *   agent outside RP's namespace.
  */
-function writeOwnershipManifest(targetDir, owned) {
-  writeFileSync(
-    join(targetDir, OWNERSHIP_MANIFEST_NAME),
-    JSON.stringify([...owned].sort(), null, 2),
-  );
+function displayAgentName(agentID) {
+  const prefix = `${RP_AGENT_NAMESPACE}/`;
+  return agentID.startsWith(prefix) ? agentID.slice(prefix.length) : agentID;
 }
 
 /**
- * Resolve the directory opencode's global agents live under.
+ * Resolve RP's directory under opencode's global agents folder.
  *
  * Mirrors `resolveLoopRegistryPath`/`resolveServiceRecordDir`: opencode
  * itself resolves its global config directory from `XDG_CONFIG_HOME` when
@@ -3227,78 +3209,50 @@ function writeOwnershipManifest(targetDir, owned) {
  *
  * @param {Record<string, string | undefined>} [env] Environment to read
  *   `XDG_CONFIG_HOME` from. Defaults to the real process environment.
- * @returns {string} `$XDG_CONFIG_HOME/opencode/agents` when `XDG_CONFIG_HOME`
- *   is set, else `~/.config/opencode/agents`.
+ * @returns {string} `$XDG_CONFIG_HOME/opencode/agents/radical-pipelines` when
+ *   `XDG_CONFIG_HOME` is set, else
+ *   `~/.config/opencode/agents/radical-pipelines`.
  */
 function resolveAgentsTargetDir(env = process.env) {
   const configHome = env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  return join(configHome, "opencode", "agents");
+  return join(configHome, "opencode", "agents", RP_AGENT_NAMESPACE);
 }
 
 /**
- * Materialize RP's agent profiles into opencode's global agents directory.
+ * Materialize RP's agent profiles into its opencode agents directory.
  *
  * Copies every `*.md` profile from `sourceDir` into `targetDir` byte for
  * byte — including the extra `name:` frontmatter key the profiles carry,
- * which opencode ignores since the filename governs the agent id. The copy
- * is idempotent and ownership-aware, tracked via a manifest written into
- * `targetDir`:
- *  - a target filename recorded as RP-owned (from a previous materialize) is
- *    always overwritten with the current source bytes;
- *  - a target filename that already exists but is *not* recorded as
- *    RP-owned — a foreign file of the same name — is left untouched and
- *    reported as a collision instead of being clobbered;
- *  - every filename written is (re)recorded as RP-owned;
- *  - an RP-owned target whose source profile no longer exists is removed, so
- *    retired profiles never linger in the registry.
+ * which opencode ignores since the path below `agents/` governs the agent
+ * id. `targetDir` is replaced whole on every call.
  *
  * @param {string} [sourceDir] Absolute path to the directory of source agent
  *   profiles. Defaults to `../agents` resolved relative to this module (the
  *   repository's `agents/` directory at runtime).
- * @param {string} [targetDir] Absolute path to the target agents directory.
- *   Defaults to opencode's global agents directory (see `resolveAgentsTargetDir`).
- * @returns {{ written: string[], collisions: string[], removed: string[] }}
- *   `written` lists the source filenames copied into `targetDir` this run;
- *   `collisions` lists filenames that already existed under `targetDir` as
- *   foreign (non-RP-owned) files, and so were left unmodified; `removed` lists
- *   RP-owned targets deleted because their source profile is gone.
+ * @param {string} [targetDir] Absolute path to RP's target agents directory.
+ *   Defaults to its folder under opencode's global agents directory (see
+ *   `resolveAgentsTargetDir`).
+ * @returns {{ written: string[] }} `written` lists the source filenames
+ *   copied into `targetDir` this run.
  */
 function materializeAgents(
   sourceDir = DEFAULT_AGENTS_SOURCE_DIR,
   targetDir = resolveAgentsTargetDir(),
 ) {
+  rmSync(targetDir, { recursive: true, force: true });
   mkdirSync(targetDir, { recursive: true });
 
-  const owned = readOwnershipManifest(targetDir);
   const written = [];
-  const collisions = [];
 
   const profiles = readdirSync(sourceDir).filter((name) =>
     name.endsWith(".md"),
   );
   for (const name of profiles) {
-    const targetPath = join(targetDir, name);
-    if (existsSync(targetPath) && !owned.has(name)) {
-      collisions.push(name);
-      continue;
-    }
-    copyFileSync(join(sourceDir, name), targetPath);
-    owned.add(name);
+    copyFileSync(join(sourceDir, name), join(targetDir, name));
     written.push(name);
   }
 
-  const removed = [];
-  const current = new Set(profiles);
-  for (const name of [...owned]) {
-    if (current.has(name)) continue;
-    rmSync(join(targetDir, name), { force: true });
-    owned.delete(name);
-    removed.push(name);
-  }
-
-  writeOwnershipManifest(targetDir, owned);
-
-  return { written, collisions, removed };
+  return { written };
 }
 
 /**
@@ -3664,7 +3618,7 @@ function asDirectTool(tool) {
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, collided = () => new Set(), rpProfiles = () => new Set() } = {}) {
+function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles = new Set() } = {}) {
   return {
     name: "rp_spawn",
     description:
@@ -3683,25 +3637,16 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, collided = (
       required: ["name", "agent", "model", "directory", "prompt", "run"],
     },
     async execute({ name, agent, model, directory, prompt, run }, toolCtx) {
+      if (!rpProfiles.has(agent)) {
+        throw new Error(`Unknown RP agent "${agent}"`);
+      }
+      const agentID = rpAgentID(agent);
       const agentList = await ctx.agent.list();
-      if (!agentExists(agentList.data, agent)) {
-        throw new Error(`Unknown agent "${agent}"`);
-      }
-      if (collided().has(`${agent}.md`)) {
-        throw new Error(`Agent "${agent}" is a foreign profile colliding with an RP profile; remove or rename it before spawning`);
-      }
-      // A project-local profile of the same name would shadow the sealed RP one.
-      if (rpProfiles().has(`${agent}.md`)) {
-        const repoRoot = resolveRepoRootFn(directory);
-        for (const local of ["agents", "agent"]) {
-          const shadow = repoRoot ? join(repoRoot, ".opencode", local, `${agent}.md`) : null;
-          if (shadow && existsSync(shadow)) {
-            throw new Error(`Agent "${agent}" is shadowed by the project-local profile ${shadow}; remove it before spawning`);
-          }
-        }
+      if (!agentExists(agentList.data, agentID)) {
+        throw new Error(`Unknown agent "${agentID}"`);
       }
       const session = await ctx.session.create({
-        agent,
+        agent: agentID,
         model: parseModelString(model),
         location: { directory },
       });
@@ -4199,9 +4144,8 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  * every call (opencode re-runs `setup` once per directory scope); guards the
  * terminal-event listener's subscription and the loop registry's re-arm
  * behind `SETUP_ONCE_KEY` so they run exactly once per daemon process.
- * Materializes the agent profiles on every call, recording any collision
- * with a pre-existing, non-RP-owned agent file to the bounded error log
- * (observable via `rp_status`'s `recentErrors`) rather than dropping it.
+ * Materializes the agent profiles on every call, replacing RP's agents
+ * directory whole.
  *
  * @param {object} ctx The plugin context opencode supplies: `ctx.tool`,
  *   `ctx.skill`, `ctx.agent`, `ctx.session`, `ctx.event`.
@@ -4291,12 +4235,15 @@ async function setup(ctx, deps = {}) {
     }
   };
 
+  const { written } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
+  const rpProfiles = new Set(written.map((name) => basename(name, ".md")));
+
   // Registration is a promise that opencode resolves to a disposable, and
   // `setup` is what the plugin API waits on before treating this location as
   // live — so awaiting it is what keeps a session from being served a tool
   // catalogue that RP has not finished contributing to yet.
   await ctx.tool.transform((tools) => {
-    tools.add(asDirectTool(buildSpawnTool(ctx, { resolveRepoRootFn, collided: () => collidedProfiles, rpProfiles: () => rpProfileNames })));
+    tools.add(asDirectTool(buildSpawnTool(ctx, { resolveRepoRootFn, rpProfiles })));
     tools.add(asDirectTool(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
     tools.add(asDirectTool(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
     tools.add(asDirectTool(buildLoopStartTool({ registryPath, tick })));
@@ -4324,13 +4271,6 @@ async function setup(ctx, deps = {}) {
     }
     return skills;
   });
-
-  const { collisions, written } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
-  const collidedProfiles = new Set(collisions);
-  const rpProfileNames = new Set([...written, ...collisions]);
-  for (const name of collisions) {
-    recordError({ type: "agent.materialize.collision", name });
-  }
 
   let shared = globalThis[SETUP_ONCE_KEY];
   if (!shared || shared === true) {

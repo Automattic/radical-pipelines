@@ -12,4 +12,4 @@ Profiles are rewritten on one schema (Role, Seat, Modes, Rules, Protocol, Format
 
 Conventions: `.rp.md` carries a `conventions` schema stamp with a migration changelog; tool mechanics move into the skill's `tools/` files, with a project-supplied fallback for other tools; `Agents` replaces `Agent models`, configuring each profile's model and named lanes; `Artifact storage` keeps `artifacts-in-repo` and `artifacts-in-fork` and names the artifact base branch, which `rp check --base` takes; `Health monitoring` keeps its recovery budget and escalation payload; lifecycle hooks cover pipeline, branch, worktree, phase, lane, run, and closure moments.
 
-The opencode plugin removes retired profiles when it materializes agents and refuses to spawn a foreign profile colliding with an RP one.
+The opencode plugin regenerates its namespaced agent-profile folder and spawns RP profiles from their plain names.
