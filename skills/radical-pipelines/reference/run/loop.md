@@ -1,10 +1,10 @@
 # The loop
 
-The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed). Address worktree files by absolute path and every Git operation through `git -C <worktree>`. Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until the frontier is `complete` or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
+The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed). Address worktree files by absolute path. Pass every `rp` command the worktree's pipeline file or folder path; it derives the repository from that argument and needs no `cd`. Run every Git operation through `git -C <worktree>`. Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until the frontier is `complete` or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
 
 ## One step
 
-1. Run `rp check <pipeline folder> --base <base branch> --lanes <declared lanes> --target-phase <n>`.
+1. Run `rp check <worktree's absolute pipeline folder> --base <base branch> --lanes <declared lanes> --target-phase <n>`.
 2. Dispatch what resolves its `frontier` line (table below).
 3. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches (`before-`/`after-merging-lanes`), fire `phase-completed` when a phase becomes complete, then give the owner a one-line report naming the phase, its artifacts, and anything worth surfacing. `phase-started` fires the first time a step dispatches into a phase, and again when work on it resumes.
 4. Go to 1.
