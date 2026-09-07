@@ -40,4 +40,4 @@ Each project supplies its conventions in `.rp.md`. Load them now: read `referenc
 | Create or modify an issue                                           | `reference/entries/manage-issues.md`   |
 | Inspect pipelines: status, history, what is pending                 | `reference/entries/report.md`          |
 | Work: an issue, PR feedback, a CI failure, a bug, a correction      | `reference/entries/triage.md`          |
-| Merge a pipeline's pull request                                     | `reference/run/close-out.md` § Merge   |
+| Open, merge, or close a pipeline's pull request                     | `reference/run/close-out.md` § Closure actions |

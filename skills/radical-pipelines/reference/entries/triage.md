@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 `git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, its pending claims and owner escalations, its open amendment branch.
 
-When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait.
+When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies cannot be reported, proceeds without comment.
 
 ### 3. Route
 
@@ -23,7 +23,7 @@ Apply the first predicate that holds:
 | A pending owner escalation exists and the request answers it                        | Record the answer (`../run/loop.md` § Owner escalation) and continue that pipeline |
 | A live pipeline's intent and amendments already call for this work                  | Continue it                                                               |
 | The request corrects what an existing pipeline's artifacts claim or its code does   | An external amendment on that pipeline                                    |
-| New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `Origin: starts-from` names it |
+| New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `Origin: starts-from` names that branch |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
@@ -39,7 +39,7 @@ One message to the owner: the route and why — or, when no predicate decides, t
 
 1. Slug per the **Branch naming** convention; a second pipeline for the same issue gets `-2`, `-3`.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
-3. `<pipelines folder root>/<slug>/0-intent/intent.md` in the intent format (`intent-format.md`), with `Origin:` lines for the issue and, when stacked or re-attempted, the pipeline it starts from. An issue already in the intent format is copied verbatim. Otherwise synthesize it: the issue body, the owner's comments quoted as decisions, cross-referenced issues and the external links the intent needs to be self-contained, attachments downloaded beside it; show the owner the draft and write it on approval.
+3. `<pipelines folder root>/<slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `Origin: starts-from` records the starting branch and `Origin: re-attempts` the prior pipeline slug.
 4. Commit; `rp stamp <intent> --mirror`; commit the stamp.
 
 Every branch and worktree you create — the pipeline's here, a lane's later — fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.

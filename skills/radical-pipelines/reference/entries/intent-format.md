@@ -8,11 +8,20 @@ At the top of `0-intent/intent.md`, before the title, write these plain machine-
 
 ```text
 Origin: issue <canonical reference>
-Origin: starts-from <slug>
+Origin: starts-from <branch>
 Origin: re-attempts <slug>
 ```
 
 The issue line is required. Add either later line when applicable. The canonical reference follows **Issues**.
+
+## Synthesis from an issue
+
+Read the body, every comment, cross-reference, external link, and attachment. When the body already follows this format and nothing else exists — no comments, references, links, or attachments — add the Origin lines and copy the body verbatim. Otherwise:
+
+1. Follow references one level. Report unreadable links in the draft.
+2. Fold every comment and linked page's substance into the latest agreed state; label unsettled proposals from any participant as Assumptions.
+3. Download referenced assets beside `intent.md` and use relative paths.
+4. Make phase 0 self-contained, show the owner the rendered draft, and write it on approval.
 
 ## Schema and rendering
 

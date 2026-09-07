@@ -43,4 +43,4 @@ When the owner merged it themselves and reports it, fire `after-merging-pr` and 
 
 ### Close without merging
 
-Fire `before-closing-without-merge`, then `after-closing-without-merge`, and report the outcome. The pipeline's branch and artifacts remain.
+Fire `before-closing-without-merge`, then `after-closing-without-merge`, and report the outcome. The pipeline's branches and artifacts remain.
