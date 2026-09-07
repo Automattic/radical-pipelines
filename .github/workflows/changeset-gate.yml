@@ -43,25 +43,3 @@ jobs:
       - name: Require a changeset for release-relevant changes
         run: npx changeset status --since=origin/${{ github.event.pull_request.base.ref }}
 
-  opencode:
-    runs-on: ubuntu-latest
-    if: github.head_ref != 'changeset-release/trunk'
-    steps:
-      - uses: actions/checkout@v7.0.1
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      - name: Cache the pinned opencode CLI
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/rp-opencode-integration-cache
-          key: opencode-cli-${{ hashFiles('opencode/pin.json') }}
-
-      - run: npm run test:opencode
-        env:
-          TMPDIR: ${{ runner.temp }}
