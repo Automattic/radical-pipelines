@@ -4,11 +4,12 @@ This chart mirrors the claim and owner-escalation path in [`reference/run/loop.m
 
 ```mermaid
 flowchart TD
-    A["Producer records Contradicts-input with a target"] --> B["Run a review wave"]
-    B --> C["Wait for every lane and close the wave"]
+    START{"Contradiction source"} -->|Producer records Contradicts-input| A["Run a review wave"]
+    START -->|Reviewer writes unsatisfiable| C
+    A --> C["Wait for every lane and close the wave"]
     C --> D{"Closed-wave result"}
     D -->|Any rejected| E["Producer adjudicates every lane"]
-    E --> B
+    E --> A
     D -->|Every approved| F{"Review names a claim as Origin?"}
     F -->|Yes| RESOLVED["The claim is resolved"]
     F -->|No| APPROVED["The artifact is approved"]
@@ -21,10 +22,10 @@ flowchart TD
     H -->|No| N["Dispatch the target producer: Adjudicate"]
     N --> O{"Producer disposition"}
     O -->|Adopt| P["Change the target"]
-    O -->|Refute| Q["Record the refutation"]
+    O -->|Refute| Q["Record the refutation; review names the claim as Origin"]
     O -->|Contradicts input| R["Name the higher target"]
     P --> CHANGED
-    Q --> B
-    R --> B
+    Q --> A
+    R --> A
     CHANGED --> CASCADE["Re-synthesize stale downstream artifacts"]
 ```

@@ -7,7 +7,7 @@ flowchart TD
     A["Resolve the main root worktree-aware"] --> B["Load the active tool file"]
     B --> C["Read .rp.md and its active tool section"]
     C --> G["Merge .rp.local.md overrides"]
-    G --> D{"Tool mechanics available from the skill or active section?"}
+    G --> D{"Required active-tool section present?"}
     D -->|No| E["Offer setup for the active tool"]
     E --> F{"Owner accepts setup?"}
     F -->|No| STOP["Stop and report what is missing"]
