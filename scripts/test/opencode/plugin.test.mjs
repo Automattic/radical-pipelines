@@ -39,6 +39,7 @@ import plugin, {
   recordSend,
   recordSessionEventActivity,
   readServiceRecordFile,
+  recordSessionParent,
   recordSpawn,
   recordTurnEnd,
   requestServer,
@@ -47,6 +48,7 @@ import plugin, {
   resolveRunningBuild,
   resolveServer,
   runLoopTick,
+  sessionReadError,
   setup,
   superviseEvents,
   terminalEventError,
@@ -55,6 +57,13 @@ import plugin, {
   toToolResult,
   turnsFor,
 } from "../../../opencode/plugin.mjs";
+
+// The owner's session: opencode announces every session it creates, so
+// registering ses_owner as a root session is what the running daemon does
+// before any tool call reaches the access boundary.
+for (const id of ["ses_owner", "ses_caller"]) {
+  recordSessionParent({ type: "session.created", data: { sessionID: id } });
+}
 
 /** Well-known globalThis symbols the module keys its singletons under. */
 const SETUP_ONCE_KEY = Symbol.for("radical-pipelines.opencode.setupOnce");
@@ -480,6 +489,126 @@ describe("rp_spawn", () => {
   });
 });
 
+describe("the access boundary is wired into what setup registers", () => {
+  afterEach(clearAllLoopTimers);
+
+  // Guarding the descriptors and registering them are separate steps, and a
+  // registration that forgot the guard would leave every tool open to every
+  // caller while each tool still behaved correctly in isolation. These drive
+  // the tools opencode is actually handed.
+  const registerTools = () => {
+    const { ctx, tools } = createFakeCtx();
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { XDG_DATA_HOME: freshDir(), RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async () => ({ status: 200, body: { data: {} } }),
+      }),
+    );
+    return tools;
+  };
+
+  test("every registered tool refuses a subagent", async () => {
+    const tools = registerTools();
+    recordSessionParent({
+      type: "session.created",
+      data: { sessionID: "ses_wired_child", parentID: "ses_wired_parent" },
+    });
+
+    for (const name of [
+      "rp_send",
+      "rp_spawn",
+      "rp_terminate",
+      "rp_status",
+      "rp_loop_start",
+      "rp_loop_list",
+      "rp_loop_cancel",
+      "rp_permission_reply",
+    ]) {
+      const result = await tools.get(name).execute({}, { sessionID: "ses_wired_child" });
+      assert.equal(result.output.error, "SubagentNotPermitted", `${name} must refuse a subagent`);
+    }
+  });
+
+  // The durable read `setup` wires in reaches the server the way every other
+  // RP tool does, and the installed daemon takes the service-record route
+  // while the `serve`/harness process takes the env one. A wiring covered on
+  // one route only would leave the other free to be disconnected.
+  const serverRoutes = [
+    {
+      route: "the service record a running daemon writes",
+      sessionID: "ses_wired_unobserved_record",
+      env: {},
+      readServiceRecord: () => ({
+        url: "http://127.0.0.1:9999",
+        password: "pw",
+        version: "0.0.0-next-1",
+        pid: process.pid,
+      }),
+    },
+    {
+      route: "the env overrides a serve process carries",
+      sessionID: "ses_wired_unobserved_env",
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null,
+    },
+  ];
+
+  for (const { route, sessionID, env, readServiceRecord } of serverRoutes) {
+    test(`a caller whose creation event was never seen is read from the durable store over ${route}, and refused on its answer`, async () => {
+      // The session is cold: no `session.created` was ever recorded for it, so
+      // the only route to a verdict is the durable read `setup` wires in. Unit
+      // tests of `resolveToolAccess` inject that reader, so this is the only
+      // place the wiring itself is exercised.
+      const { ctx, tools } = createFakeCtx();
+      const reads = [];
+      setup(
+        ctx,
+        isolatedDeps({
+          env: { XDG_DATA_HOME: freshDir(), ...env },
+          readServiceRecord,
+          requestFn: async (url) => {
+            reads.push(url.pathname);
+            if (url.pathname === `/api/session/${sessionID}`) {
+              return { status: 200, body: { data: { id: sessionID, parentID: "ses_wired_delegator" } } };
+            }
+            return { status: 200, body: { data: {} } };
+          },
+        }),
+      );
+
+      const result = await tools.get("rp_loop_list").execute({}, { sessionID });
+
+      assert.equal(result.output.error, "SubagentNotPermitted");
+      assert.ok(
+        reads.includes(`/api/session/${sessionID}`),
+        `expected the durable store to be read for an unobserved caller, saw: ${JSON.stringify(reads)}`,
+      );
+    });
+  }
+
+  test("every registered tool but rp_send refuses a spawned agent", async () => {
+    const tools = registerTools();
+    recordSpawn("ses_wired_agent", {
+      name: "build-worker-tdd wired",
+      run: "144-opencode-support",
+      spawner: "ses_wired_orchestrator",
+    });
+    recordSessionParent({ type: "session.created", data: { sessionID: "ses_wired_agent" } });
+
+    for (const name of ["rp_spawn", "rp_status", "rp_loop_list", "rp_permission_reply"]) {
+      const result = await tools.get(name).execute({}, { sessionID: "ses_wired_agent" });
+      assert.equal(result.output.error, "AgentNotPermitted", `${name} must refuse a spawned agent`);
+    }
+
+    const sent = await tools
+      .get("rp_loop_list")
+      .execute({}, { sessionID: "ses_owner" });
+    assert.ok(Array.isArray(sent.output), "a root session still reaches the tool it registered");
+  });
+});
+
 describe("rp_terminate", () => {
   afterEach(clearAllLoopTimers);
 
@@ -500,20 +629,20 @@ describe("rp_terminate", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    assert.deepEqual(await tool.execute({ session: "ses_finished" }), toToolResult({ terminated: true }));
+    assert.deepEqual(await tool.execute({ session: "ses_finished" }, { sessionID: "ses_owner" }), toToolResult({ terminated: true }));
     assert.equal(requests[0].url.pathname, "/api/session/ses_finished");
     assert.equal(requests[0].init.method, "DELETE");
     assert.equal(requests[0].init.body, undefined);
 
     status = 404;
     assert.deepEqual(
-      await tool.execute({ session: "ses_missing" }),
+      await tool.execute({ session: "ses_missing" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 404, error: "SessionNotFoundError" }),
     );
 
     status = 500;
     assert.deepEqual(
-      await tool.execute({ session: "ses_finished" }),
+      await tool.execute({ session: "ses_finished" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
   });
@@ -523,7 +652,7 @@ describe("rp_terminate", () => {
     setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
 
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_finished" }),
+      await tools.get("rp_terminate").execute({ session: "ses_finished" }, { sessionID: "ses_owner" }),
       toToolResult({ error: "server unreachable" }),
     );
   });
@@ -1684,6 +1813,44 @@ describe("runLoopTick", () => {
 
     assert.deepEqual(result, { outcome: "no-server" });
     assert.deepEqual(outcomes, [result]);
+  });
+
+  test("a target that no longer exists reports target-missing once instead of throwing every interval", async () => {
+    const outcomes = [];
+    const result = await runLoopTick(entry, {
+      server: { baseURL: "http://x", password: "y" },
+      isSessionActive: async () => false,
+      getInbox: async () => {
+        throw sessionReadError("GET /api/session/ses_target/inbox", 404);
+      },
+      getMessages: async () => [],
+      injectPrompt: () => {
+        throw new Error("must not inject into a target that does not exist");
+      },
+      onOutcome: (outcome) => outcomes.push(outcome),
+    });
+
+    assert.deepEqual(result, { outcome: "target-missing" });
+    assert.deepEqual(outcomes, [result]);
+  });
+
+  test("a read that fails for any other reason still surfaces as a thrown failure", async () => {
+    const outcomes = [];
+    await assert.rejects(
+      runLoopTick(entry, {
+        server: { baseURL: "http://x", password: "y" },
+        isSessionActive: async () => false,
+        getInbox: async () => {
+          throw sessionReadError("GET /api/session/ses_target/inbox", 503);
+        },
+        getMessages: async () => [],
+        injectPrompt: async () => {},
+        onOutcome: (outcome) => outcomes.push(outcome),
+      }),
+      /503/,
+    );
+
+    assert.deepEqual(outcomes, [{ outcome: "failed", error: "Error: GET /api/session/ses_target/inbox returned 503" }]);
   });
 
   test("a target updated no more than two intervals ago records busy with its last activity", async () => {
@@ -3633,6 +3800,64 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     );
   });
 
+  test("a tick that finds its target gone retires the loop: entry removed, timer disarmed, retirement recorded once", async () => {
+    const dataHome = freshDir();
+    const { ctx, tools, sessions } = createFakeCtx();
+    sessions.set("ses_caller", { id: "ses_caller" });
+    globalThis[ERROR_LOG_KEY] = [];
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return { id: "msg_probe" };
+    };
+
+    setup(
+      ctx,
+      isolatedDeps({
+        env: {
+          XDG_DATA_HOME: dataHome,
+          RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999",
+          OPENCODE_PASSWORD: "pw",
+        },
+        readServiceRecord: () => null,
+        requestFn: async (url) => {
+          // The target is not in the active set, and every session-addressed
+          // read of it answers 404: the session no longer exists.
+          if (url.pathname === "/api/session/active") {
+            return { status: 200, body: { data: {} } };
+          }
+          return { status: 404, body: { _tag: "SessionNotFoundError" } };
+        },
+      }),
+    );
+
+    const startResult = await tools.get("rp_loop_start").execute(
+      { interval: 5, prompt: "check status" },
+      { sessionID: "ses_caller" },
+    );
+    const loopID = startResult.output.id;
+
+    await delay(120);
+
+    assert.deepEqual(
+      (await tools.get("rp_loop_list").execute({}, { sessionID: "ses_caller" })).output,
+      [],
+      "a retired loop leaves no registry entry",
+    );
+    const retirements = globalThis[ERROR_LOG_KEY].filter((entry) => entry.type === "loop.retired");
+    assert.equal(retirements.length, 1, `expected exactly one retirement, got ${JSON.stringify(retirements)}`);
+    assert.equal(retirements[0].loopID, loopID);
+    assert.equal(promptCalls.length, 0, "a loop whose target is gone must not inject");
+
+    const ticksAtRetirement = globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length;
+    await delay(60);
+    assert.equal(
+      globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length,
+      ticksAtRetirement,
+      "a retired loop stops ticking",
+    );
+  });
+
   test("disarms the loop and rejects without waiting for the in-flight tick when deleting the registry entry fails", async () => {
     const dataHome = freshDir();
     const { ctx, tools, sessions } = createFakeCtx();
@@ -3680,7 +3905,7 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
 
 /** Run `rp_terminate` for a session, for tests that start two concurrently. */
 function tool_execute(tools, session) {
-  return tools.get("rp_terminate").execute({ session });
+  return tools.get("rp_terminate").execute({ session }, { sessionID: "ses_owner" });
 }
 
 describe("terminal-event listener", () => {
@@ -3779,7 +4004,7 @@ describe("terminal-event listener", () => {
     );
     globalThis[ERROR_LOG_KEY] = [];
 
-    await tools.get("rp_terminate").execute({ session: "ses_child_term" });
+    await tools.get("rp_terminate").execute({ session: "ses_child_term" }, { sessionID: "ses_owner" });
     await delay(10);
 
     assert.deepEqual(promptCalls, [], "a deliberate shutdown must not be announced as a failure");
@@ -3824,11 +4049,11 @@ describe("terminal-event listener", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    await tool.execute({ session: "ses_child_twice" });
+    await tool.execute({ session: "ses_child_twice" }, { sessionID: "ses_owner" });
 
     status = 500;
     assert.deepEqual(
-      await tool.execute({ session: "ses_child_twice" }),
+      await tool.execute({ session: "ses_child_twice" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
 
@@ -3895,7 +4120,7 @@ describe("terminal-event listener", () => {
 
       await tools
         .get("rp_terminate")
-        .execute({ session: "ses_child_held" })
+        .execute({ session: "ses_child_held" }, { sessionID: "ses_owner" })
         .catch(() => undefined);
       await delay(10);
 
@@ -3964,7 +4189,7 @@ describe("terminal-event listener", () => {
 
     // The rejecting report must not become this tool's outcome.
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_child_iso" }),
+      await tools.get("rp_terminate").execute({ session: "ses_child_iso" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
     await delay(10);
@@ -4262,9 +4487,9 @@ describe("terminal-event listener", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    const failing = tool.execute({ session: "ses_child_adopt" });
+    const failing = tool.execute({ session: "ses_child_adopt" }, { sessionID: "ses_owner" });
     await delay(30); // reach the blocked report inside the first release
-    const succeeding = tool.execute({ session: "ses_child_adopt" });
+    const succeeding = tool.execute({ session: "ses_child_adopt" }, { sessionID: "ses_owner" });
     await delay(30); // the second attempt's event is admitted mid-release
 
     firstReport.open();
@@ -4324,7 +4549,7 @@ describe("terminal-event listener", () => {
     );
 
     await assert.rejects(
-      () => tools.get("rp_terminate").execute({ session: "ses_child_mask" }),
+      () => tools.get("rp_terminate").execute({ session: "ses_child_mask" }, { sessionID: "ses_owner" }),
       /socket hang up/,
       "the caller must see why the delete failed, not why a report did",
     );
@@ -4375,8 +4600,8 @@ describe("terminal-event listener", () => {
     );
 
     const tool = tools.get("rp_terminate");
-    const introducer = tool.execute({ session: "ses_child_race" });
-    const follower = tool.execute({ session: "ses_child_race" });
+    const introducer = tool.execute({ session: "ses_child_race" }, { sessionID: "ses_owner" });
+    const follower = tool.execute({ session: "ses_child_race" }, { sessionID: "ses_owner" });
     await delay(5); // both attempts in flight
 
     first.open();
@@ -4414,7 +4639,7 @@ describe("terminal-event listener", () => {
     );
 
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_never_existed" }),
+      await tools.get("rp_terminate").execute({ session: "ses_never_existed" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 404, error: "SessionNotFoundError" }),
     );
     assert.equal(
@@ -4451,7 +4676,7 @@ describe("terminal-event listener", () => {
     );
 
     assert.deepEqual(
-      await tools.get("rp_terminate").execute({ session: "ses_child_alive" }),
+      await tools.get("rp_terminate").execute({ session: "ses_child_alive" }, { sessionID: "ses_owner" }),
       toToolResult({ status: 500, error: "SessionTerminationFailed" }),
     );
 

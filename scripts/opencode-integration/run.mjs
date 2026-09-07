@@ -26,6 +26,7 @@ import { startStubProvider } from "./lib/stub-provider.mjs";
 import * as pluginAndMaterialization from "./checks/plugin-and-materialization.mjs";
 import * as spawnAndMessaging from "./checks/spawn-and-messaging.mjs";
 import * as healthLoop from "./checks/health-loop.mjs";
+import * as toolAccess from "./checks/tool-access.mjs";
 import * as statusAndPin from "./checks/status-and-pin.mjs";
 import * as interruptAndModelSwitch from "./checks/interrupt-and-model-switch.mjs";
 import * as authRecovery from "./checks/auth-recovery.mjs";
@@ -37,6 +38,7 @@ const CORE_CHECK_GROUPS = [
   ["Plugin load, skill registration, agent materialization", pluginAndMaterialization],
   ["Spawn, seat, ledger, title, messaging, termination", spawnAndMessaging],
   ["Health loop", healthLoop],
+  ["Tool access tiers", toolAccess],
   ["Status and pin comparison", statusAndPin],
   ["Interrupt and model switch", interruptAndModelSwitch],
   ["Auth-error recovery", authRecovery],
