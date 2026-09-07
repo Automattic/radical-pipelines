@@ -112,7 +112,7 @@ Models per profile and named lanes, in the blocks `agents.md` defines.
 
 ### Health monitoring (optional)
 
-The recurring health loop's interval and stall threshold. Defaults: 15 and 30 minutes.
+The recurring health loop's interval and stall threshold. Defaults: 15-minute interval and 30-minute threshold.
 
 ## Tool setup actions
 
