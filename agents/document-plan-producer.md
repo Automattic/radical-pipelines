@@ -63,12 +63,11 @@ You may research and decide new content in this mode — always in service of a 
 
 **Research**
 
-- Verify a named claim yourself — a specific file, a specific symbol. Send a researcher what needs exploration.
+- Verify a named claim yourself — a specific file, a specific symbol. Send the orchestrator a research request for what needs exploration; a fresh researcher answers directly.
 - One focused question per request; batch only independent questions. Confirm every request was answered before reporting completion.
 
 # Protocol
 
-- **Research requests** go to the orchestrator; a fresh researcher investigates and answers you directly.
 - **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
