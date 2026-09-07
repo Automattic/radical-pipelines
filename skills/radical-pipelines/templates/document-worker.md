@@ -19,8 +19,8 @@ Execute
 - Existing documentation: <one line per named file>
 - Documentation conventions: <one line per path>
 - Your previous report: <path>   <!-- later attempts -->
-- Adjudication: <record path — section>   <!-- re-dispatch only -->
-- Review issues: <review path — issue ids attached to this task>   <!-- re-dispatch only -->
+- Adjudication: <record path — section>   <!-- corrective task or re-dispatch -->
+- Review issues: <review path — issue ids attached to this task>   <!-- corrective task or re-dispatch -->
 
 ## Write your report to
 

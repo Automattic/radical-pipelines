@@ -19,7 +19,7 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and **Design doc** — the why — the named **Existing documentation**, the project's **Documentation conventions**, and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication** and every **Review issue** attached to the task.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and **Design doc** — the why — the named **Existing documentation**, and the project's **Documentation conventions**; when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
 
 1. Read the task file. Its `Goal`, `Surface`, `Audience`, `Sections`, `Changes`, and `Acceptance` are the boundary of your work.
 2. Read the spec's requirements, acceptance criteria, and user-facing rationale; read the design doc's architecture and decisions at the depth the task needs.
@@ -36,7 +36,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when documenting the surface cleanly requires it — never to expand scope.
 - A task that requires deciding what the software does is incomplete.
-- On re-dispatch, resolve or explicitly answer every review issue attached to your task.
+- Resolve or explicitly answer every **Review issue** supplied with your task.
 - A **failed** report means the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. A **blocked** report means the product was not observed.
 - A failing documentation check is work.
 
