@@ -12,7 +12,8 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Claim** — An `unsatisfiable` review verdict with its target. A producer's `Contradicts-input` disposition is one source. A labeled normative statement in an artifact is also called a claim.
 - **Closure action** — A moment the owner invokes on a pipeline — opening or merging its pull request, both performed by the orchestrator, or closing without merging — bracketed by lifecycle hooks. Beyond those steps, work lives in hooks or with the owner.
 - **Completion predicate** — The file and approval state that marks a phase complete, evaluated from the working tree.
-- **Consolidation** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
+- **Consolidate** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
+- **Consolidation** — A reviewer mode that audits the consolidated artifact against its lane folders, reusing approved checks where their claims and provenance are unchanged.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.

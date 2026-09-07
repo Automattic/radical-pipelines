@@ -18,11 +18,12 @@ flowchart TD
     C -->|consolidate artifact| CON["Dispatch producer: Consolidate"]
     C -->|task| TASK["Dispatch its worker"]
     C -->|blocked task| BLOCKED["Restore what the report names; dispatch its worker"]
-    C -->|build or document review| PR["Dispatch the phase reviewer"]
+    C -->|build or document review| PR["Run the review-wave procedure with the phase reviewer"]
     C -->|no task files| NOTASK["Re-dispatch the plan producer"]
     C -->|invalid target| TARGET["Re-dispatch the file's author"]
     C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]
-    C -->|INVALID FRONTMATTER or LINE| MALFORMED["Have the file's author fix it"]
+    C -->|INVALID FRONTMATTER| FRONTMATTER["Orchestrator re-stamps the file"]
+    C -->|INVALID LINE| LINE["Have the file's author fix it"]
     C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Adjudicate"]
     C -->|invalid report attempts| INVALIDREPORTS["Rename reports in landing order; repair their mirrors"]
     C -->|tasks held| HELD["Dispatch the plan producer: Adjudicate with failed reports"]
@@ -43,7 +44,8 @@ flowchart TD
     NOTASK --> LAND
     TARGET --> LAND
     ATTEMPT --> LAND
-    MALFORMED --> LAND
+    FRONTMATTER --> A
+    LINE --> LAND
     INVALIDPLAN --> LAND
     HELD --> LAND
     AWAITING --> LAND
