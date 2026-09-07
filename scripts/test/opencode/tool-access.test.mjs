@@ -401,28 +401,45 @@ describe("parentage retention", () => {
     );
   });
 
-  test("the parentage the record held at the deletion outranks the read that settles after it", async () => {
-    let release;
-    const held = new Promise((resolve) => {
-      release = resolve;
-    });
+  // One rule, both verdicts: whatever the record held when the deletion
+  // emptied it outranks a read settling afterwards, so a read contradicting
+  // either half of it must lose.
+  for (const { verdict, sessionID, parentID, read, access } of [
+    {
+      verdict: "child",
+      sessionID: "ses_deleted_contradicted_child",
+      parentID: "ses_deleted_contradicted_parent",
+      read: false,
+      access: "none",
+    },
+    {
+      verdict: "root",
+      sessionID: "ses_deleted_contradicted_root",
+      parentID: undefined,
+      read: true,
+      access: "full",
+    },
+  ]) {
+    test(`a record that called the session a ${verdict} at the deletion outranks the read that settles after it`, async () => {
+      let release;
+      const held = new Promise((resolve) => {
+        release = resolve;
+      });
 
-    const pending = resolveToolAccess("ses_deleted_contradicted", { readParentage: async () => held });
-    recordSessionParent({
-      type: "session.created",
-      data: { sessionID: "ses_deleted_contradicted", parentID: "ses_deleted_contradicted_parent" },
-    });
-    recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_deleted_contradicted" } });
-    // The read opened before either event and answers last; the events are
-    // what classified this session.
-    release(false);
+      const pending = resolveToolAccess(sessionID, { readParentage: async () => held });
+      recordSessionParent({ type: "session.created", data: { sessionID, parentID } });
+      recordSessionParent({ type: "session.deleted", data: { sessionID } });
+      // The read opened before either event and answers last; the events are
+      // what classified this session.
+      release(read);
 
-    assert.equal(
-      await pending,
-      "none",
-      "an event that landed while the read was in flight must not be overruled by the read",
-    );
-  });
+      assert.equal(
+        await pending,
+        access,
+        "an event that landed while the read was in flight must not be overruled by the read",
+      );
+    });
+  }
 
   test("a deletion discards the answer of a read already in flight for it", async () => {
     let release;
