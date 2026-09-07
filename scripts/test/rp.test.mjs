@@ -781,7 +781,6 @@ describe("rp state tooling", () => {
     approveChain(3);
     write(root, "3-build/tasks/T1-report-1.md", "# Task report\n\nno outcome yet\n");
     rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
-    report("T1", 2, "completed");
     let output = check(root);
     assert.match(output, /frontier INVALID REPORT 3-build\/tasks\/T1-report-1\.md: no Outcome line/);
     appendFileSync(join(root, P("3-build/tasks/T1-report-1.md")), "\nOutcome: blocked\n");
@@ -789,6 +788,7 @@ describe("rp state tooling", () => {
     assert.match(output, /mirror\s+3-build\/tasks\/T1-report-1\.md\s+differs from the body: outcome/);
     assert.match(output, /frontier stamp 3-build\/tasks\/T1-report-1\.md/);
     rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--mirror");
+    report("T1", 2, "completed");
     output = check(root);
     assert.match(output, /done \[T1\]/);
     assert.match(output, /frontier task 3-build\/T2/);
@@ -927,6 +927,16 @@ describe("rp state tooling", () => {
     rp(root, "stamp", P("3-build/tasks/T1.md"), "--mirror");
     approvePlan(2);
     assert.match(check(root), /frontier invalid plan: 3-build\/tasks\/T1\.md depends on a cycle/);
+  });
+
+  test("attempt numbering counts landed reports, not draft filenames", () => {
+    write(root, "3-build/tasks/T1.md", "# T1\n\n- **Depends on:** none\n");
+    rp(root, "stamp", P("3-build/tasks/T1.md"), "--mirror");
+    for (const attempt of [1, 2]) write(root, `3-build/tasks/T1-report-${attempt}.md`, `# Report ${attempt}\n\nOutcome: blocked\n`);
+    rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
+    rp(root, "stamp", P("3-build/tasks/T1-report-2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
+    assert.equal(parseFrontmatter(read(root, "3-build/tasks/T1-report-1.md")).data.get("attempt"), "1");
+    assert.equal(parseFrontmatter(read(root, "3-build/tasks/T1-report-2.md")).data.get("attempt"), "2");
   });
 
   test("a commit outside the pipelines folder that no task report claims is the frontier", () => {

@@ -403,10 +403,16 @@ function cmdStamp(args) {
     }
     if (report) {
       const prior = readdirSync(join(base, report[1], "tasks"))
-        .map((name) => name.match(new RegExp(`^${report[2]}-report-(\\d+)\\.md$`)))
-        .filter(Boolean)
-        .map((match) => Number(match[1]))
-        .filter((attempt) => attempt !== Number(report[3]));
+        .map((name) => ({ name, match: name.match(new RegExp(`^${report[2]}-report-(\\d+)\\.md$`)) }))
+        .filter(({ match }) => match && Number(match[1]) !== Number(report[3]))
+        .filter(({ name, match }) => {
+          const priorRel = `${report[1]}/tasks/${name}`;
+          const parsed = parseFrontmatter(readFileSync(join(base, priorRel), "utf8"));
+          const reviewed = parsed.data?.get("reviewed");
+          const parts = Array.isArray(reviewed) ? reviewed.map(pinParts) : [];
+          return !parsed.error && parts.length > 0 && parts.every((p) => p && IDENTITY.test(p.sha)) && new Set(parts.map((p) => p.path)).size === parts.length && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && IDENTITY.test(parsed.data.get("head")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
+        })
+        .map(({ match }) => Number(match[1]));
       const next = Math.max(0, ...prior) + 1;
       if (Number(report[3]) !== next) die(`stamp: INVALID REPORT ${rel}: expected attempt ${next}`);
     }
