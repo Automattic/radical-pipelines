@@ -239,6 +239,15 @@ describe("rp state tooling", () => {
     assert.match(check(root, "--ref", "pinned-context", "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
   });
 
+  test("ref reads preserve non-ASCII paths", () => {
+    writeFileSync(join(root, P("0-intent/café.txt")), "context\n");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/café.txt"));
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "pin non-ASCII context");
+    assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
+    assert.match(check(root, "--ref", "HEAD", "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
+  });
+
   // --- reviews, waves, inputs --------------------------------------------------
 
   test("a review names its artifact, its record, and the artifact's inputs; a changed input stales the approval", () => {
@@ -289,6 +298,7 @@ describe("rp state tooling", () => {
   test("a review counts only in its artifact's phase and lane scope", () => {
     stampSpec();
     review("2-design-doc/spec-review-1.md", "approved", SPEC);
+    review("1-spec/archive/old/spec-review-1.md", "approved", SPEC);
     const output = check(root, "--target-phase", "1");
     assert.doesNotMatch(output, /artifact 1-spec\/spec\.md[\s\S]*APPROVED/);
     assert.match(output, /frontier review wave 1-spec\/spec\.md/);
@@ -954,7 +964,8 @@ describe("rp state tooling", () => {
       ["Outcome: done", /Outcome: expected completed \| failed \| blocked/],
       ["Target: 1-spec\/spec.md", /Target: expected <path>#<id>/],
       ["Prior finding: 1-spec\/spec-review-1.md#Issue-1 resolved", /Prior finding: expected <review>#<issue>, resolution failed/],
-      ["Origin: owner request", /Origin: expected a path or source reference/],
+      ["Origin: owner request", /Origin: expected issue <reference>, a source declaration, or a path/],
+      ["Origin: PROJECT-42", /Origin: expected issue <reference>, a source declaration, or a path/],
       ["Brief:", /Brief: expected text/],
     ];
     for (const [line, error] of cases) {
@@ -965,6 +976,10 @@ describe("rp state tooling", () => {
     write(root, "1-spec/bad.md", "# Good\n\nVerdict: approved\nOutcome: failed\nTarget: 1-spec/spec.md#R1\nPrior finding: 1-spec/spec-review-1.md#Issue-1, resolution failed\nOrigin: decision-1\nOrigin: 0-intent/1-amendment.md\nBrief: focused\n");
     rp(root, "stamp", P("1-spec/bad.md"), "--mirror");
     assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID LINE/);
+
+    write(root, "0-intent/intent.md", "Origin: issue PROJECT-42 canonical reference\n\n# Intent\n\n## Goal\n\nOriginal.\n");
+    rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
+    assert.equal(parseFrontmatter(read(root, "0-intent/intent.md")).data.get("origin"), "issue PROJECT-42 canonical reference");
   });
 
   test("fixed lines stay on one line and singleton declarations occur once", () => {
@@ -991,10 +1006,14 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(out, /differs from the body/);
   });
 
-  test("frontmatter delimiters inside fenced code are ordinary body text", () => {
+  test("frontmatter delimiters and fixed lines inside fenced code are ordinary body text", () => {
     approveChain(1);
     write(root, "1-spec/example.md", "# Example\n\n```yaml\n---\nkey: value\n---\n```\n");
-    assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID FRONTMATTER 1-spec\/example\.md/);
+    write(root, "1-spec/long-fence.md", "# Example\n\n````markdown\n```\n---\nkey: value\n---\nOutcome: success\n```\n````\n");
+    write(root, "1-spec/tilde-fence.md", "# Example\n\n~~~yaml\n---\nOutcome: success\n---\n~~~\n");
+    const output = check(root, "--target-phase", "1");
+    assert.doesNotMatch(output, /INVALID FRONTMATTER 1-spec\/(?:example|long-fence|tilde-fence)\.md/);
+    assert.doesNotMatch(output, /INVALID LINE 1-spec\/(?:long-fence|tilde-fence)\.md/);
   });
 
   test("identity equals git's blob hash of the body, computed without git", () => {
@@ -1065,6 +1084,8 @@ describe("rp state tooling", () => {
     output = check(root, "--ref", "demo", "--target-phase", "1");
     assert.match(output, /symlink\s+1-spec\/loop\n/);
     assert.match(output, /frontier symlink 1-spec\/link\.md/);
+    execFileSync("ln", ["-s", "1-spec", join(root, PIPELINE, "alias")]);
+    assert.throws(() => rp(root, "stamp", P("alias/spec.md"), "--mirror"), /symlinked/);
   });
 
   test("the CLI validates its inputs and fails aloud: no gate is silently disabled, no option silently ignored", () => {
@@ -1077,6 +1098,7 @@ describe("rp state tooling", () => {
     assert.throws(() => rp(root, "fingerprint", "security", "extra"), /unexpected positional argument/);
     assert.throws(() => rp(root, "check", PIPELINE, "extra", "--base", "main"), /unexpected positional argument/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin"), /--pin expects a value/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=111111111111", "--set", "lane=222222222222"), /--set may appear only once/);
     const invalid = ".pipelines/bad_name";
     mkdirSync(join(root, invalid, "0-intent"), { recursive: true });
     writeFileSync(join(root, invalid, "0-intent/intent.md"), "# Intent\n");

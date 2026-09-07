@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -19,17 +19,21 @@ function die(msg) {
 
 function repositoryFor(argument) {
   const requested = resolve(process.cwd(), argument);
-  const finalSymlink = existsSync(requested) && lstatSync(requested).isSymbolicLink();
-  const abs = finalSymlink ? join(realpathSync(dirname(requested)), basename(requested)) : existsSync(requested) ? realpathSync(requested) : requested;
-  let at = existsSync(abs) && lstatSync(abs).isDirectory() ? abs : dirname(abs);
+  let at = existsSync(requested) && lstatSync(requested).isDirectory() ? requested : dirname(requested);
   while (!existsSync(at)) {
     const parent = dirname(at);
     if (parent === at) break;
     at = parent;
   }
   try {
-    const root = execFileSync("git", ["-C", at, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
-    return { root, abs: existsSync(abs) ? abs : resolve(realpathSync(at), relative(at, abs)) };
+    execFileSync("git", ["-C", at, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+    let root = at;
+    while (!existsSync(join(root, ".git"))) {
+      const parent = dirname(root);
+      if (parent === root) die(`cannot locate a git repository for: ${argument}`);
+      root = parent;
+    }
+    return { root, abs: requested };
   } catch {
     die(`cannot locate a git repository for: ${argument}`);
   }
@@ -200,11 +204,33 @@ const REPORT = /^([^/]+)\/tasks\/(T\d+)-report-(\d+)\.md$/;
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
 const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
 
+// Keep line positions while hiding Markdown fenced code from structural readers.
+function outsideFences(text) {
+  let fence = null;
+  return text
+    .split("\n")
+    .map((line) => {
+      if (fence) {
+        const close = line.match(/^ {0,3}(`+|~+)[\t ]*\r?$/);
+        if (close && close[1][0] === fence.character && close[1].length >= fence.length) fence = null;
+        return "";
+      }
+      const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if (open && (open[1][0] === "~" || !open[2].includes("`"))) {
+        fence = { character: open[1][0], length: open[1].length };
+        return "";
+      }
+      return line;
+    })
+    .join("\n");
+}
+
 // The projection of a body: every declaration in its fixed form, keyed as the frontmatter mirrors it.
 export function projectBody(body, rel = "") {
+  const structural = outsideFences(body);
   const p = new Map();
   const malformed = (message) => p.set("malformed", [...(p.get("malformed") ?? []), message]);
-  const fixed = (name) => [...body.matchAll(new RegExp(`^${name}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
+  const fixed = (name) => [...structural.matchAll(new RegExp(`^${name}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
   const singleton = (name, key, accept, expectation) => {
     const lines = fixed(name);
     if (lines.length > 1) malformed(`${name}: repeated singleton declaration`);
@@ -216,11 +242,11 @@ export function projectBody(body, rel = "") {
   singleton("Verdict", "verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
   singleton("Brief", "brief", Boolean, "text");
   singleton("Target", "target", (value) => /^[^#\s]+#[^#\s]+$/.test(value), "<path>#<id>");
-  const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S+$/.test(value) || /^decision-\d+$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
+  const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value) || /^decision-\d+$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
   const origins = [];
   for (const value of fixed("Origin")) {
     if (originValid(value)) origins.push(value);
-    else malformed(`Origin: expected a path or source reference, got: ${value}`);
+    else malformed(`Origin: expected issue <reference>, a source declaration, or a path, got: ${value}`);
   }
   if (origins.length === 1) p.set("origin", origins[0]);
   else if (origins.length > 1) p.set("origin", origins);
@@ -234,7 +260,7 @@ export function projectBody(body, rel = "") {
   if (recurs.length) p.set("recurs", recurs);
   // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
   // separated by commas — nothing else on the line. Anything else is malformed, never mined.
-  const dependencies = [...body.matchAll(/^[^\S\n]*(?:-[^\S\n]*)?\*?\*?Depends on:\*?\*?[^\S\n]*(.*)$/gm)];
+  const dependencies = [...structural.matchAll(/^[^\S\n]*(?:-[^\S\n]*)?\*?\*?Depends on:\*?\*?[^\S\n]*(.*)$/gm)];
   for (const dep of dependencies) {
     const value = dep[1].trim();
     if (/^none$/i.test(value)) p.set("depends", []);
@@ -246,7 +272,7 @@ export function projectBody(body, rel = "") {
   }
   // A task report's `## Commits` section, up to the next heading: every line that starts with a
   // commit hash — after a bullet or a backtick — whatever follows it.
-  const commits = body.match(/^## Commits[^\S\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
+  const commits = structural.match(/^## Commits[^\S\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   if (commits) {
     const hashes = [...commits[1].matchAll(/^[^\S\n]*(?:[-*][^\S\n]*)?`?([0-9a-f]{7,40})\b/gm)].map((m) => m[1]);
     if (hashes.length) p.set("commits", hashes);
@@ -269,12 +295,16 @@ export function mirrorDrift(data, body, rel) {
   return MIRRORS.filter((k) => (k === "commits" ? !commitsMatch() : norm(p.get(k)) !== norm(data.get(k))));
 }
 
-// A path the orchestrator may stamp: inside the repository, inside a pipeline folder, not through a symlink.
-function containedPath(root, abs) {
-  const real = realpathSync(abs);
-  if (real !== abs) die(`stamp: refusing a symlinked path: ${relative(root, abs)}`);
-  if (!real.startsWith(root + "/")) die(`stamp: outside the repository: ${relative(root, abs)}`);
-  return real;
+// A command path: lexically inside the repository, with no symlinked component.
+function containedPath(command, root, abs) {
+  const rel = relative(root, abs);
+  if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) die(`${command}: outside the repository: ${rel}`);
+  let current = root;
+  for (const part of rel.split(sep)) {
+    current = join(current, part);
+    if (existsSync(current) && lstatSync(current).isSymbolicLink()) die(`${command}: refusing a symlinked path: ${rel}`);
+  }
+  return abs;
 }
 
 // The pipeline folder is the nearest ancestor of `file` that contains `0-intent`.
@@ -311,7 +341,7 @@ function cmdStamp(args) {
   const file = args._[0] || die("stamp: missing <file>");
   const { root, abs } = repositoryFor(file);
   if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
-  containedPath(root, abs);
+  containedPath("stamp", root, abs);
 
   const parsedFrontmatter = parseFrontmatter(readFileSync(abs, "utf8"));
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
@@ -322,7 +352,7 @@ function cmdStamp(args) {
 
   const pinList = (paths) =>
     paths.map((p) => {
-      const target = containedPath(root, resolve(root, p));
+      const target = containedPath("stamp", root, resolve(root, p));
       if (!target.startsWith(base + "/")) die(`stamp: a pin stays inside the pipeline folder: ${p}`);
       const sha = fileIdentity(target) ?? die(`stamp: cannot pin missing file: ${p}`);
       return `${relative(base, target)}@${sha}`;
@@ -422,8 +452,8 @@ function treeReader(root, abs, ref) {
       },
     };
   }
-  const entries = execFileSync("git", ["ls-tree", "-r", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
-    .split("\n")
+  const entries = execFileSync("git", ["ls-tree", "-rz", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
+    .split("\0")
     .filter(Boolean)
     .map((l) => {
       const [meta, path] = l.split("\t");
@@ -545,6 +575,7 @@ function cmdFingerprint(args) {
 function cmdCheck(args) {
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const { root, abs } = repositoryFor(folder);
+  containedPath("check", root, abs);
   const pipelineName = basename(abs);
   if (!/^[^/_]+$/.test(pipelineName)) die(`check: pipeline folder name must be one segment without / or _: ${pipelineName || folder}`);
   if (!args.ref && !existsSync(abs)) die(`check: no such folder: ${folder}`);
@@ -567,19 +598,6 @@ function cmdCheck(args) {
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
   // A file whose mirrors differ from its body's projection contradicts the tree: none of its
   // mirrors is read until it is stamped again.
-  const outsideFences = (text) => {
-    let fenced = false;
-    return text
-      .split("\n")
-      .map((line) => {
-        if (/^\s*```/.test(line)) {
-          fenced = !fenced;
-          return "";
-        }
-        return fenced ? "" : line;
-      })
-      .join("\n");
-  };
   const texts = new Map();
   const all = tree
     .list()
@@ -632,7 +650,7 @@ function cmdCheck(args) {
       const mm = r.name.match(/^(.+?)-review-(?:(.+)-)?(\d+)\.md$/);
       if (!mm || !PREFIXES.has(mm[1])) continue;
       const artifact = ARTIFACTS.find((a) => a.prefix === mm[1] || a.review === mm[1]);
-      if (r.rel.split("/")[0] !== artifact.phase) continue;
+      if (r.rel !== `${sc || `${artifact.phase}/`}${r.name}`) continue;
       m.push({ ...r, prefix: mm[1], lane: mm[2] ?? "", wave: Number(mm[3]) });
     }
     return m;
@@ -1145,7 +1163,7 @@ function parseArgs(command, argv) {
       return n;
     };
     if (a.startsWith("--") && !COMMAND_OPTIONS[command].has(a)) die(`${command}: option ${a} is not allowed`);
-    if (a.startsWith("--") && !["--pin", "--reviewed", "--set"].includes(a) && used.has(a)) die(`${command}: ${a} may appear only once`);
+    if (a.startsWith("--") && !["--pin", "--reviewed"].includes(a) && used.has(a)) die(`${command}: ${a} may appear only once`);
     if (a.startsWith("--")) used.add(a);
     if (a === "--pin") args.pin.push(value());
     else if (a === "--reviewed") args.reviewed.push(value());

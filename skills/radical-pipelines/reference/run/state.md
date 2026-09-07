@@ -18,7 +18,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 ## Frontmatter
 
-Frontmatter holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration the agent made in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or what you did (`lane`). `--mirror` rewrites every mirror from the body and may repair a stamped file without repeating `--reviewed`; a task report's dependency schema is checked only on its initial stamp. `reviewed` is supplied only on the initial stamp; a changed review is a new file. `--set` accepts only `lane`. `rp check` reads frontmatter and identities, and recomputes every mirror from the body: a file whose mirrors differ is stamped again before anything reads them; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
+Frontmatter holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration outside Markdown code fences in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or what you did (`lane`). `--mirror` rewrites every mirror from the body and may repair a stamped file without repeating `--reviewed`; a task report's dependency schema is checked only on its initial stamp. `reviewed` is supplied only on the initial stamp; a changed review is a new file. `--set` accepts only `lane`. `rp check` reads frontmatter and identities, and recomputes every mirror from the body: a file whose mirrors differ is stamped again before anything reads them; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
 
 | Key         | Files                        | Value                                                                    |
 | ----------- | ---------------------------- | ------------------------------------------------------------------------ |
@@ -28,7 +28,7 @@ Frontmatter holds only pins, mirrors, and landing facts. Its syntax and field ty
 | `brief`     | reviews                      | the lane's brief, as the review declares it                              |
 | `target`    | triggers                     | `<path>#<id>`                                                            |
 | `target-identity` | `unsatisfiable` reviews | the target's identity when the verdict landed                           |
-| `origin`    | anything born from something | the issue reference; an external source; the trigger a review responds to; a list when several |
+| `origin`    | anything born from something | `issue <canonical reference>`; an external source; the trigger a review responds to; a list when several |
 | `recurs`    | reviews                      | mirror of `Prior finding: <review>#<issue>, resolution failed`           |
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
 | `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists and is stored as its full hash, whatever length the body wrote |
@@ -44,7 +44,7 @@ A file pins exactly what it consumed, never its sibling record. A later phase ne
 
 | File                                   | Pins                                                                         |
 | -------------------------------------- | ---------------------------------------------------------------------------- |
-| `0-intent/intent.md`                   | none; `origin`: the issue reference                                          |
+| `0-intent/intent.md`                   | none; `origin`: `issue <canonical reference>`                                |
 | `0-intent/<n>-amendment.md`            | none; `target`, `origin`                                                     |
 | `1-spec/spec.md`                       | `intent.md`; every trigger it adjudicated; when consolidated, every lane's `spec.md`, record, and approving reviews |
 | spec or design production-lane artifact | what its root artifact would, plus each `after` lane's artifact, record, and approving reviews |
