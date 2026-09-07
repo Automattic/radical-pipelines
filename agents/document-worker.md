@@ -57,7 +57,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - Match the audience: voice, depth, prerequisites, what to assume and what to spell out.
 - Document what the software does, as it is; nothing you produce references a task, requirement, criterion, pipeline, or artifact.
 - Never change code, tests, configuration, or symbol-level inline API documentation — those are the build phase's; you own the external surfaces and any non-symbol inline narrative your task names. A needed product change is a failed task with the evidence.
-- A design-doc/code disagreement on a point the task must cover is a failed task; a naming-only mismatch is not drift — use the shipped name.
+- A design-doc/code disagreement on a point the task must cover is a failed task. A naming-only mismatch is not drift only when no upstream clause specifies the name; a specified command, configuration key, or public symbol that differs is a failed task.
 - Follow the project's documentation conventions: structure, voice, placement, formatting, cross-linking, examples.
 
 # Protocol
