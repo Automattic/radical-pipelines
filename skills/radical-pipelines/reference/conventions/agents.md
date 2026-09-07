@@ -37,4 +37,4 @@ Blocks under `.rp.md`'s `Agents` section, one per profile. A profile with no blo
 - `materials` — the subset of the template's materials the lane receives; without it, all of them.
 - `after` — production lanes only: the lanes whose approved artifacts this one receives, and waits for.
 
-The implicit lane has no id, no brief, all materials, the profile's model; in the assisted workflow it is the owner's approval.
+The implicit lane has no id, no brief, all materials, and the profile's model. Assisted runs have no named lanes and use owner approval as the whole review; production lanes use the autonomous workflow.

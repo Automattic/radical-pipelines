@@ -18,7 +18,7 @@ Where issues live; how to read the body and comments, create, modify, and commen
 
 ### Branch naming (required)
 
-How the pipeline branch and slug derive from the issue. It must be a valid git ref, contain no `_`, and distinguish issues. Suggested: `<issue-id>-<short-description>`.
+How the pipeline branch and slug derive from the issue. The branch must be a valid git ref containing no `_`. The slug must be one path segment containing no `/` or `_`. Both distinguish issues. Suggested: `<issue-id>-<short-description>`.
 
 ### Worktree folder root (required)
 
