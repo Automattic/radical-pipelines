@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -34,31 +34,53 @@ export function parseFrontmatter(raw) {
   if (!open) return { data: null, body: raw };
   const rest = raw.slice(open[0].length);
   const close = rest.match(/(?:^|\n)---\r?(?:\n|$)/);
-  if (!close) return { data: null, body: raw };
+  if (!close) return { data: null, body: raw, error: "missing closing --- delimiter" };
   const body = rest.slice(close.index + close[0].length);
   const data = new Map();
+  const errors = [];
   let currentList = null;
-  for (const line of rest.slice(0, close.index).split("\n")) {
+  for (const rawLine of rest.slice(0, close.index).split("\n")) {
+    const line = rawLine.replace(/\r$/, "");
     if (!line.trim()) continue;
     const item = line.match(/^\s+-\s+(.*)$/);
     if (item && currentList) {
-      data.get(currentList).push(item[1].trim());
+      const value = item[1].trim();
+      if (value) data.get(currentList).push(value);
+      else errors.push(`empty list item under ${currentList}`);
       continue;
     }
     const kv = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/);
-    if (!kv) continue;
+    if (!kv) {
+      errors.push(`malformed line: ${line}`);
+      continue;
+    }
+    if (data.has(kv[1])) {
+      errors.push(`duplicate field: ${kv[1]}`);
+      continue;
+    }
     if (kv[2] === "") {
       data.set(kv[1], []);
       currentList = kv[1];
     } else if (/^\[.*\]$/.test(kv[2].trim())) {
       // Inline flow list: `key: [a, b]`, `key: []`.
-      data.set(kv[1], kv[2].trim().slice(1, -1).split(",").map((x) => x.trim()).filter(Boolean));
+      const inner = kv[2].trim().slice(1, -1);
+      const values = inner ? inner.split(",").map((x) => x.trim()) : [];
+      if (values.some((x) => !x)) errors.push(`empty list item under ${kv[1]}`);
+      data.set(kv[1], values);
       currentList = null;
     } else {
       data.set(kv[1], kv[2].trim());
       currentList = null;
     }
   }
+  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits"]);
+  const scalars = new Set(["verdict", "brief", "target", "target-identity", "outcome", "head", "lane", "attempt"]);
+  for (const [key, value] of data) {
+    if (lists.has(key) && !Array.isArray(value)) errors.push(`${key} must be a list`);
+    if (scalars.has(key) && Array.isArray(value)) errors.push(`${key} must be a scalar`);
+    if (key === "origin" && Array.isArray(value) && value.length === 0) errors.push("origin must be a scalar or non-empty list");
+  }
+  if (errors.length) return { data: null, body, error: errors.join("; ") };
   return { data, body };
 }
 
@@ -100,25 +122,18 @@ const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "d
 export function projectBody(body, rel = "") {
   const p = new Map();
   const malformed = (message) => p.set("malformed", [...(p.get("malformed") ?? []), message]);
-  const fixed = (name) => [...body.matchAll(new RegExp(`^${name}:\\s*(.*)$`, "gm"))].map((m) => m[1].trim());
-  const oneOf = (name, key, values) => {
+  const fixed = (name) => [...body.matchAll(new RegExp(`^${name}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
+  const singleton = (name, key, accept, expectation) => {
     const lines = fixed(name);
+    if (lines.length > 1) malformed(`${name}: repeated singleton declaration`);
     for (const value of lines) {
-      if (values.includes(value)) p.set(key, value);
-      else malformed(`${name}: expected ${values.join(" | ")}, got: ${value}`);
+      if (accept(value)) p.set(key, value);
+      else malformed(`${name}: expected ${expectation}, got: ${value}`);
     }
   };
-  oneOf("Verdict", "verdict", ["approved", "rejected", "unsatisfiable"]);
-  const briefs = fixed("Brief");
-  for (const value of briefs) {
-    if (value) p.set("brief", value);
-    else malformed("Brief: expected text, got:");
-  }
-  const targets = fixed("Target");
-  for (const value of targets) {
-    if (/^[^#\s]+#[^#\s]+$/.test(value)) p.set("target", value);
-    else malformed(`Target: expected <path>#<id>, got: ${value}`);
-  }
+  singleton("Verdict", "verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
+  singleton("Brief", "brief", Boolean, "text");
+  singleton("Target", "target", (value) => /^[^#\s]+#[^#\s]+$/.test(value), "<path>#<id>");
   const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S+$/.test(value) || /^decision-\d+$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
   const origins = [];
   for (const value of fixed("Origin")) {
@@ -127,7 +142,7 @@ export function projectBody(body, rel = "") {
   }
   if (origins.length === 1) p.set("origin", origins[0]);
   else if (origins.length > 1) p.set("origin", origins);
-  oneOf("Outcome", "outcome", ["completed", "failed", "blocked"]);
+  singleton("Outcome", "outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
   const recurs = [];
   for (const value of fixed("Prior finding")) {
     const match = value.match(/^(\S+#[^,\s]+),\s*resolution failed$/);
@@ -217,7 +232,9 @@ function cmdStamp(args) {
   if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
   containedPath(root, abs);
 
-  const { data, body } = parseFrontmatter(readFileSync(abs, "utf8"));
+  const parsedFrontmatter = parseFrontmatter(readFileSync(abs, "utf8"));
+  if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
+  const { data, body } = parsedFrontmatter;
   const fm = data ?? new Map();
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
@@ -263,13 +280,15 @@ function cmdStamp(args) {
   }
   const report = rel.match(REPORT);
   if (report) {
-    // A report reviews its task and the tasks it depends on; its attempt is its filename's.
-    const task = `${report[1]}/tasks/${report[2]}.md`;
-    const taskText = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
-    const deps = [].concat(parseFrontmatter(taskText).data?.get("depends") ?? []).map((d) => `${report[1]}/tasks/${d}.md`);
-    const named = [].concat(fm.get("reviewed") ?? []).map((p) => p.split("@")[0]).sort();
-    const expected = [task, ...deps].sort();
-    if (JSON.stringify(named) !== JSON.stringify(expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${expected.join(" --reviewed ")}`);
+    // The reviewed schema is checked when immutable pins first land. A mirror repair preserves it.
+    if (args.reviewed.length) {
+      const task = `${report[1]}/tasks/${report[2]}.md`;
+      const taskText = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
+      const deps = [].concat(parseFrontmatter(taskText).data?.get("depends") ?? []).map((d) => `${report[1]}/tasks/${d}.md`);
+      const named = [].concat(fm.get("reviewed") ?? []).map((p) => p.split("@")[0]).sort();
+      const expected = [task, ...deps].sort();
+      if (JSON.stringify(named) !== JSON.stringify(expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${expected.join(" --reviewed ")}`);
+    }
     fm.set("attempt", report[3]);
   }
   if (consumed) {
@@ -346,9 +365,9 @@ const ARTIFACTS = [
   { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
   { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
 ];
-const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-\d+|decision-\d+)|(?:1-spec\/spec|2-design-doc\/design-doc|3-build\/build-plan|4-document\/document-plan)\.md#\S+)$/;
+const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#R[1-9]\d*|2-design-doc\/design-doc\.md#D[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
-// `--lanes spec=security,a11y|event-driven,contrarian<event-driven;build=fresh`:
+// `--lanes spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven`:
 // per artifact, the named review lanes (the implicit lane is always present)
 // and, after `|`, the production lanes with their `after` dependencies.
 // A lane is `<id>[@<fingerprint>]`; a production lane may add `<dep+dep`.
@@ -362,12 +381,14 @@ function parseLanes(text) {
     if (afterParts.length > 2) die(`check: invalid lane declaration "${x}" in --lanes`);
     const [head, after = ""] = afterParts;
     if (!production && afterParts.length > 1) die(`check: review lane "${head}" cannot declare after dependencies`);
+    if (production && afterParts.length > 1 && !after.trim()) die(`check: lane "${head}" has an empty after dependency list`);
     const fingerprintParts = head.split("@");
     if (fingerprintParts.length > 2) die(`check: invalid lane declaration "${x}" in --lanes`);
     const [id, fingerprint = null] = fingerprintParts;
     if (!LANE_ID.test(id)) die(`check: invalid lane id "${id}" in --lanes`);
     if (RESERVED_LANE_IDS.has(id)) die(`check: "${id}" is a reserved name, not a lane id`);
-    if (fingerprint !== null && !IDENTITY.test(fingerprint)) die(`check: invalid fingerprint for lane "${id}"`);
+    if (fingerprint === null) die(`check: named lane "${id}" requires a fingerprint`);
+    if (!IDENTITY.test(fingerprint)) die(`check: invalid fingerprint for lane "${id}"`);
     const deps = after ? after.split("+").map((y) => y.trim()) : [];
     if (deps.some((dep) => !LANE_ID.test(dep))) die(`check: invalid after dependency for lane "${id}"`);
     if (new Set(deps).size !== deps.length) die(`check: duplicate after dependency for lane "${id}"`);
@@ -422,6 +443,8 @@ function cmdCheck(args) {
   const root = repoRoot();
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const abs = resolve(root, folder);
+  const pipelineName = basename(abs);
+  if (!/^[^/_]+$/.test(pipelineName)) die(`check: pipeline folder name must be one segment without / or _: ${pipelineName || folder}`);
   if (!args.ref && !existsSync(abs)) die(`check: no such folder: ${folder}`);
   const pipelineRel = relative(root, abs);
   const rev = (r, what) => {
@@ -449,21 +472,22 @@ function cmdCheck(args) {
     .map((rel) => {
       const text = tree.read(rel) ?? "";
       texts.set(rel, text);
-      const { data: parsed, body } = parseFrontmatter(text);
+      const { data: parsed, body, error: frontmatterError } = parseFrontmatter(text);
       const data = parsed ?? new Map();
       // A `---` block that does not start at byte 0 is not frontmatter: the file is malformed, not drifted.
       const strayBlock = !parsed && /\n---\r?\n[\s\S]*?\n---\r?(\n|$)/.test(text);
-      const drift = strayBlock ? [] : mirrorDrift(data, body, rel);
+      const drift = strayBlock || frontmatterError ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
-      return { rel, name: rel.split("/").pop(), data, scope, drift, strayBlock, malformed: projectBody(body, rel).get("malformed") ?? [] };
+      return { rel, name: rel.split("/").pop(), data, scope, drift, strayBlock, frontmatterError, malformed: projectBody(body, rel).get("malformed") ?? [] };
     });
   // The pipeline's own commits follow its base: the merge-base of the inspected ref with the branch
   // its intent `starts-from`, else with the artifact base branch (`--base`).
   const tip = ref ?? rev("HEAD", "HEAD");
   const startsFrom = [].concat(all.find((d) => d.rel === "0-intent/intent.md")?.data.get("origin") ?? []).map((o) => o.match(/^starts-from\s+(\S+)$/)?.[1]).find(Boolean);
-  const baseRef = startsFrom ? rev(startsFrom, "the starts-from branch") : args.base ? rev(args.base, "--base") : die("check: --base <ref> is required — the artifact base branch — unless the intent declares starts-from");
+  const invalidFrontmatter = all.some((d) => d.strayBlock || d.frontmatterError);
+  const baseRef = startsFrom ? rev(startsFrom, "the starts-from branch") : args.base ? rev(args.base, "--base") : invalidFrontmatter ? tip : die("check: --base <ref> is required — the artifact base branch — unless the intent declares starts-from");
   let base;
   try {
     base = execFileSync("git", ["merge-base", baseRef, tip], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
@@ -598,6 +622,11 @@ function cmdCheck(args) {
     lines.push(`INVALID FRONTMATTER ${d.rel}: a --- block that does not start at byte 0`);
     take(`INVALID FRONTMATTER ${d.rel}`);
   }
+  for (const d of all.filter((d) => d.frontmatterError)) {
+    out.contradictions.push({ path: d.rel, invalid: d.frontmatterError });
+    lines.push(`INVALID FRONTMATTER ${d.rel}: ${d.frontmatterError}`);
+    take(`INVALID FRONTMATTER ${d.rel}`);
+  }
   for (const d of all.filter((d) => d.malformed.length)) {
     out.contradictions.push({ path: d.rel, invalid: d.malformed });
     lines.push(`INVALID LINE ${d.rel}: ${d.malformed.join("; ")}`);
@@ -620,6 +649,22 @@ function cmdCheck(args) {
   }
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath === "0-intent/intent.md" || phaseOfTarget(targetPath) <= args.targetPhase;
+  const sectionItems = (body, heading) => {
+    const section = body.match(new RegExp(`^## ${heading}[^\\S\\n]*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mi"))?.[1] ?? "";
+    return [...section.matchAll(/^\s*(?:[-*+]|\d+[.)])\s+/gm)].length;
+  };
+  const targetExists = (target) => {
+    if (!TARGET_ID.test(target)) return false;
+    const [path, item] = target.split("#");
+    const body = parseFrontmatter(texts.get(path) ?? "").body;
+    if (path === "0-intent/intent.md") {
+      if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(body);
+      const m = item.match(/^(constraint|decision)-(\d+)$/);
+      return !!m && sectionItems(body, `${m[1]}s?`) >= Number(m[2]);
+    }
+    if (/^T\d+$/.test(item)) return texts.has(`${path.split("/")[0]}/tasks/${item}.md`);
+    return new RegExp(`(?:^|[^A-Za-z0-9])${item}(?=$|[^A-Za-z0-9])`).test(body);
+  };
 
   // pending → adjudicated (the target pins it) → resolved (the target approved
   // carrying the pin), or resolved by escalation (a closed wave of the target
@@ -644,7 +689,7 @@ function cmdCheck(args) {
   ].map((t) => ({ ...t, targetPath: t.target.split("#")[0] }));
   let unresolvedInScope = false;
   for (const t of triggers) {
-    const valid = t.kind === "amendment" ? TARGET_ID.test(t.target) && t.targetPath !== "0-intent/intent.md" : true;
+    const valid = t.kind === "amendment" ? targetExists(t.target) && t.targetPath !== "0-intent/intent.md" : true;
     const res = valid ? resolutionOf(t) : { state: "invalid target", detail: t.target };
     const scoped = inScopePhase(t.targetPath);
     const label = res.state === "pending" ? (scoped ? "PENDING" : "pending, beyond the target phase") : res.state === "invalid target" ? `INVALID TARGET (${res.detail})` : `${res.state}${res.detail ? ` (${res.detail})` : ""}`;
@@ -676,10 +721,10 @@ function cmdCheck(args) {
       };
       const cur = identityOf(c.targetPath);
       const unchanged = c.targetIdentity && cur && cur === c.targetIdentity;
-      const res = TARGET_ID.test(c.target) ? resolutionOf(c) : { state: "invalid target" };
-      if (res.state === "invalid target") c.state = `INVALID TARGET (${c.target})`;
+      const res = targetExists(c.target) ? resolutionOf(c) : { state: "invalid target" };
+      if (later) c.state = "superseded (its lane reviewed again)";
+      else if (res.state === "invalid target") c.state = `INVALID TARGET (${c.target})`;
       else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
-      else if (later) c.state = "superseded (its lane reviewed again)";
       else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
       else if (!c.fresh) c.state = "moot (claiming artifact changed)";
       else if (c.waveOpen) c.state = "wave open";
@@ -753,11 +798,20 @@ function cmdCheck(args) {
       const doc = all.find((d) => d.rel === `${sc}${name}`);
       return !!doc && (() => { const st = artifactState(doc, art, sc, [], laneOf(sc).fingerprint); return st.approved && st.state === "fresh"; })();
     };
-    const laneReviewPaths = (sc) => laneStates(art.prefix, sc).map((l) => l.review?.rel).filter(Boolean);
-    // A consolidated root pins every lane's artifact, record, and approving reviews; only then are the lanes closed.
-    const lanePins = (sc) => [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...laneReviewPaths(sc)];
+    const approvingWave = (sc) => {
+      const rs = reviewsOf(sc).filter((r) => r.prefix === art.prefix);
+      const lanes = reviewLanesOf(art.prefix);
+      const waves = [...new Set(rs.map((r) => r.wave))].sort((a, b) => b - a);
+      for (const wave of waves) {
+        const complete = lanes.map(({ id, fingerprint }) => rs.find((r) => r.wave === wave && r.lane === id && r.data.get("verdict") === "approved" && r.data.has("reviewed") && laneMatches(r, fingerprint)));
+        if (complete.every(Boolean)) return complete.map((r) => r.rel);
+      }
+      return [];
+    };
+    // Closure records one complete approving wave and persists after that wave becomes stale.
+    const lanePins = (sc) => [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...approvingWave(sc)];
     const rootPins = (pinsByPath.get(art.path) ?? []).map((p) => pinParts(p)?.path);
-    const consolidated = rootExists && laneScopes.length > 0 && laneScopes.every((sc) => lanePins(sc).every((p) => rootPins.includes(p)));
+    const consolidated = rootExists && laneScopes.length > 0 && laneScopes.every((sc) => approvingWave(sc).length === reviewLanesOf(art.prefix).length && lanePins(sc).every((p) => rootPins.includes(p)));
     let lanesReady = laneScopes.length > 0;
     for (const sc of laneScopes) {
       const { after, fingerprint } = laneOf(sc);
@@ -946,21 +1000,22 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set lane=<fingerprint>] [--mirror]
   node rp.mjs fingerprint <lane id> [--brief <text>] [--materials <a,b>] [--after <lane+lane>]
-  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--json]
+  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh@<fingerprint>"] [--target-phase <n>] [--ref <branch>] [--json]
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Brief, Target,
 Origin, Outcome — completed | failed | blocked — Prior finding, a task's
 Depends on, a report's Commits), and head — the commit
-a stamp with pins observed. Identity is the hash of a file's body: stamping never
+a stamp with pins observed. Identity is the first 12 hexadecimal characters of
+git's blob hash of every body byte: stamping never
 changes it. check reports the frontier: triggers, claims, then phases in order
 up to the target — production lanes, artifacts, tasks, phase reviews,
 and completion. --base names the artifact base branch: the
 pipeline's own commits follow its merge-base with the inspected ref, or with the
 branch the intent starts-from when it declares one. --lanes declares, per
 artifact, the named review lanes (the implicit lane always exists) and, after |,
-the production lanes with their after-dependencies (<, joined by +); each lane
-may carry the fingerprint of its whole declaration (fingerprint), which the
+the production lanes with their after-dependencies (<, joined by +); each named
+lane carries the fingerprint of its whole declaration (fingerprint), which the
 lane's artifact and reviews must carry as \`lane\`, set at their stamp.
 Spec: ../reference/run/state.md
 `,
