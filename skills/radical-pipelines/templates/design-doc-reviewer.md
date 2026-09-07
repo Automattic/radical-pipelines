@@ -19,7 +19,8 @@
 <!-- Standing: every mode -->
 - design-doc.md: <path>
 - design-doc-research.md: <path>
-- Pinned inputs: <one line per file design-doc.md pins: intent, spec.md, spec-research.md, current approving spec reviews, adjudicated triggers, lane inputs, consolidation candidates>
+- Spec record: <spec-research.md path>
+- Pinned inputs: <one line per file design-doc.md pins: intent, spec.md, current approving spec reviews, adjudicated triggers, lane inputs, consolidation candidates>
 - Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
 - Amendment: <trigger path>   <!-- when this wave adjudicates an amendment -->
 - Task report: <trigger path>   <!-- when this wave adjudicates a failed task report -->
