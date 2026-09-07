@@ -462,7 +462,7 @@ describe("rp state tooling", () => {
     assert.match(output, /build-plan\.md .*approved \(stale\)/);
   });
 
-  test("a task report mirror repair preserves the dependency schema from its initial stamp", () => {
+  test("a later task report stamp preserves its recorded package", () => {
     approveChain(3);
     report("T1", 1, "completed");
     report("T2", 1, "completed", ["T1"]);

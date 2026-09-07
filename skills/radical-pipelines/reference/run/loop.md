@@ -59,7 +59,7 @@ After every agent commit, before anyone consumes the result — and before the a
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. The document plan pins every build task and report. Each task file of a plan: `rp stamp <task> --mirror`.
 - A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a trigger declares `Origin:` in its body.
-- A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. A mirror repair uses `rp stamp <report> --mirror`.
+- A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. Later stamps preserve that package.
 - A named lane's artifact or review: `--set lane=<the lane's fingerprint>` too.
 - Commit the stamps on top of the landing.
 

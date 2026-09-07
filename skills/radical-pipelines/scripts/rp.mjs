@@ -349,6 +349,7 @@ function cmdStamp(args) {
   const fm = data ?? new Map();
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
+  const report = rel.match(REPORT);
 
   const pinList = (paths) =>
     paths.map((p) => {
@@ -366,6 +367,14 @@ function cmdStamp(args) {
   if (args.reviewed.length) {
     if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
     fm.set("reviewed", pinList(args.reviewed));
+    if (report) {
+      const task = `${report[1]}/tasks/${report[2]}.md`;
+      const taskText = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
+      const deps = [].concat(parseFrontmatter(taskText).data?.get("depends") ?? []).map((d) => `${report[1]}/tasks/${d}.md`);
+      const named = fm.get("reviewed").map((p) => p.split("@")[0]).sort();
+      const expected = [task, ...deps].sort();
+      if (JSON.stringify(named) !== JSON.stringify(expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${expected.join(" --reviewed ")}`);
+    }
     consumed = true;
   }
   for (const s of args.set) {
@@ -389,17 +398,7 @@ function cmdStamp(args) {
     });
     fm.set("commits", canonical);
   }
-  const report = rel.match(REPORT);
   if (report) {
-    // The reviewed schema is checked when immutable pins first land. A mirror repair preserves it.
-    if (args.reviewed.length) {
-      const task = `${report[1]}/tasks/${report[2]}.md`;
-      const taskText = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
-      const deps = [].concat(parseFrontmatter(taskText).data?.get("depends") ?? []).map((d) => `${report[1]}/tasks/${d}.md`);
-      const named = [].concat(fm.get("reviewed") ?? []).map((p) => p.split("@")[0]).sort();
-      const expected = [task, ...deps].sort();
-      if (JSON.stringify(named) !== JSON.stringify(expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${expected.join(" --reviewed ")}`);
-    }
     fm.set("attempt", report[3]);
   }
   if (consumed) {
