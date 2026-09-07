@@ -26,13 +26,13 @@ Blocks under `.rp.md`'s `Agents` section, one per profile. A profile with no blo
 - model: <model>
 - lane fresh:
   - brief: Review as a reader of the pull request would — what it does, whether it holds.
-  - materials: intent, diff
+  - materials: plan, diff
 ```
 
 ## Fields
 
 - `model` — what to spawn the profile on. A lane inherits the profile's unless it names its own.
-- `lane <id>` — a named lane; `<id>` is a valid path and ref segment. A reviewer's named lanes review **in addition to** its implicit lane. A producer's named lanes **replace** its root synthesis: each produces in `<phase>/<id>/`, and the root artifact is their consolidation.
+- `lane <id>` — a named lane; `<id>` contains lowercase letters, digits, and hyphens, and is not `tasks`. A reviewer's named lanes review **in addition to** its implicit lane. Named production lanes apply only to spec and design-doc producers and **replace** root synthesis: each produces in `<phase>/<id>/`, and the root artifact is their consolidation.
 - `brief` — the lane's angle: for a reviewer, what it verifies (without a brief, everything its profile covers); for a producer, what it explores. Reaches the agent verbatim under **Brief**.
 - `materials` — the subset of the template's materials the lane receives; without it, all of them.
 - `after` — production lanes only: the lanes whose approved artifacts this one receives, and waits for.

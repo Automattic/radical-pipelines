@@ -54,5 +54,5 @@ Pipelines in the previous layout (`<slug>/base/…`) are closed: discovery reads
 ### Additions
 
 - `Agents`, optional: model per profile and named lanes (replaces `Agent models`).
-- `Artifact storage`, now optional, gains the artifact base branch.
+- `Artifact storage`, required, gains the artifact base branch.
 - Frontmatter stamp `conventions: 1`.

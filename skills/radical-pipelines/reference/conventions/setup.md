@@ -28,7 +28,7 @@ The root containing one worktree per branch. Suggested: `.worktrees/`. Apply the
 
 The root containing pipeline folders. Default: `.pipelines/`.
 
-### Artifact storage (optional)
+### Artifact storage (required)
 
 How this project stores Radical Pipelines artifacts.
 
@@ -109,6 +109,10 @@ Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the
 ### Agents (optional)
 
 Models per profile and named lanes, in the blocks `agents.md` defines.
+
+### Health monitoring (optional)
+
+The recurring health loop's interval and stall threshold. Defaults: 15 and 30 minutes.
 
 ## Tool setup actions
 

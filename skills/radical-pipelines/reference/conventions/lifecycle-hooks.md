@@ -1,6 +1,6 @@
 # Lifecycle hooks
 
-At each configured moment in either workflow, run the project's prose instructions with the pipeline and phase context. Include the route at `run-started` and the cause at `run-ended`.
+At each configured moment in either workflow, run the project's prose instructions with the pipeline, run, and phase context. Include the route at `run-started` and the cause at `run-ended`.
 
 Report a failed instruction to the owner and continue. An instruction marked **blocking** stops the run through normal close-out; `run-ended` still fires.
 
@@ -17,8 +17,8 @@ Report a failed instruction to the owner and continue. An instruction marked **b
 | `after-creating-worktree`      | A worktree is created or recreated                                                                      |
 | `phase-started`                | Work on a phase begins or resumes                                                                       |
 | `phase-completed`              | A phase becomes complete, phase 0 included, before the next dispatch                                    |
-| `before-merging-lanes`         | Lane branches are about to be merged into the pipeline branch                                           |
-| `after-merging-lanes`          | Lane branches are merged into the pipeline branch                                                       |
+| `before-merging-lanes`         | Lane branches are about to be merged into the branch their work belongs to                              |
+| `after-merging-lanes`          | Lane branches are merged into the branch their work belongs to                                          |
 | `escalation-raised`            | A pending owner escalation is surfaced                                                                  |
 | `run-ended`                    | The run stops: target phase complete, owner escalation pending, owner cancellation, or failure           |
 | `before-opening-pr`            | The owner asks to open a pull request, before any work                                                  |

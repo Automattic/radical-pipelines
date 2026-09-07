@@ -11,7 +11,7 @@ Health tick for pipeline <slug> on branch <branch>, worktree <path>: run `refere
 ## Each tick
 
 1. **Pending permission requests** — answer each using the active tool's procedure.
-2. **Stalled agents** — an agent with undeclared completion has no commit, file write, tool output, or message for the threshold.
+2. **Stalled agents** — an agent with undeclared completion has no commit, file write, or tool output for the threshold.
 3. **Dead agents** — a session is gone, its turn failed, or it remains silent after a status request.
 4. **Failed messages** — an inter-agent message errored or was never delivered.
 5. **Login or API-key errors** — an agent or the orchestrator hit a provider authentication failure.
@@ -20,7 +20,7 @@ Health tick for pipeline <slug> on branch <branch>, worktree <path>: run `refere
 
 ## Recovery
 
-Each issue gets two recovery attempts before escalation; a success resets the budget for that issue.
+Each issue occurrence gets two recovery attempts before escalation; a success resets that occurrence's budget. The budget is per occurrence, not per session.
 
 | Issue                 | First                                                                 | Second                                   |
 | --------------------- | --------------------------------------------------------------------- | ---------------------------------------- |
