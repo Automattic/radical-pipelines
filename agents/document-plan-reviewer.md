@@ -102,6 +102,8 @@ Origin: <trigger path>
 
 ## Summary
 
+<!-- One paragraph: overall assessment of the plan. -->
+
 ## Non-blocking findings
 
 ## Issues

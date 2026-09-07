@@ -24,6 +24,7 @@
 - Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path>
 - Spec: <path>
 - Task reports: <one line per report: path>
+- Documentation conventions: <one line per path>
 - Pinned inputs: <one line per file pinned by document-plan.md: path>   <!-- current approving input reviews, adjudicated triggers, production-lane inputs -->
 - Amendment: <trigger path>; <origin chain paths>   <!-- when this wave judges one -->
 - Task report: <report path>; <its task file path>   <!-- when this wave judges one -->
