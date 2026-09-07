@@ -57,7 +57,7 @@ Produce the single canonical `spec.md` and `spec-research.md`:
 1. Treat every lane candidate folder as a read-only input.
 2. Merge into one standalone canonical spec and record. Include a contribution only one lane made unless the evidence refutes it; explicitly disposition every other contribution. Each inherited or dispositioned item names its lane.
 3. Keep the union of the lanes' edge cases, open questions, and risks, and their rejected options with the reasons for rejection.
-4. Arbitrate divergences with the evidence in the lane records. When the evidence does not discriminate, choose and record that both options were equally grounded.
+4. Arbitrate divergences with the evidence in the lane records and the intent, including which Goal, Constraint, or Decision each option serves. When the evidence does not discriminate, choose and record that both options were equally grounded.
 5. Commit the canonical spec and record together.
 6. Report every divergence and how it was resolved.
 

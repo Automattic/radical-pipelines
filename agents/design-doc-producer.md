@@ -55,7 +55,7 @@ Additional materials: the **Phase folder** files and **Lane candidates** — eac
 1. Treat every lane candidate folder as a read-only input.
 2. Merge into one standalone canonical design doc and record. Include a contribution only one lane made unless the evidence refutes it; explicitly disposition every other contribution. Each inherited or dispositioned item names its lane.
 3. Keep the union of the lanes' open questions and risks, and their rejected options with the reasons for rejection.
-4. Arbitrate divergences with the evidence in the lane records. When the evidence does not discriminate, choose and record that both options were equally grounded.
+4. Arbitrate divergences with the evidence in the lane records and the spec, including which requirement or acceptance criterion each option serves. When the evidence does not discriminate, choose and record that both options were equally grounded.
 5. Commit the canonical design doc and record together.
 6. Report every divergence and how it was resolved.
 
