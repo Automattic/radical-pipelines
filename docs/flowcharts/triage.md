@@ -4,16 +4,16 @@ This chart mirrors [`reference/entries/triage.md`](../../skills/radical-pipeline
 
 ```mermaid
 flowchart TD
-    A["Normalize the request into an issue"] --> B{"Declared dependencies?"}
-    B -->|No| SCAN["Scan every matching live and merged pipeline"]
+    A["Normalize the request into an issue"] --> SCAN["Scan every matching live and merged pipeline"]
+    SCAN --> B{"Declared dependencies?"}
+    B -->|No| MANY{"Several live pipelines match?"}
     B -->|Yes| C{"Dependencies reportable?"}
-    C -->|No| SCAN
+    C -->|No| MANY
     C -->|Yes| D{"Any dependency open?"}
-    D -->|No| SCAN
+    D -->|No| MANY
     D -->|Yes| E{"Owner chooses"}
     E -->|Wait| WAIT["Wait"]
-    E -->|Proceed| SCAN
-    SCAN --> MANY{"Several live pipelines match?"}
+    E -->|Proceed| MANY
     MANY -->|Yes| PICK["Pick the one whose frontier the request advances"]
     MANY -->|No| ROUTE{"Apply the first matching route"}
     PICK --> ROUTE
@@ -23,9 +23,9 @@ flowchart TD
     ROUTE --> R4["Start a pipeline from an unmerged tip"]
     ROUTE --> R5["Start a new re-attempt"]
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
-    ROUTE -->|No predicate decides| QUESTION["Ask the one deciding question"]
-    QUESTION --> ROUTE
-    R1 --> CONFIRM["Confirm route, workflow, target phase, lanes, and all questions"]
+    ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
+    QUESTION --> CONFIRM["Ask once: route or deciding question, workflow, target phase, lanes, and remaining questions"]
+    R1 --> CONFIRM
     R2 --> CONFIRM
     R3 --> CONFIRM
     R4 --> CONFIRM

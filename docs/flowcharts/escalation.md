@@ -24,8 +24,10 @@ flowchart TD
     O -->|Adopt| P["Change the target"]
     O -->|Refute| Q["Record the refutation; review names the claim as Origin"]
     O -->|Contradicts input| R["Name the higher target"]
-    P --> CHANGED
+    P --> S["Stamp the target with the claim pin"]
+    S --> A
     Q --> A
     R --> A
+    RESOLVED --> CASCADE
     CHANGED --> CASCADE["Re-synthesize stale downstream artifacts"]
 ```
