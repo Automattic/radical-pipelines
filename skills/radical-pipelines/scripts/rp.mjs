@@ -375,6 +375,15 @@ function cmdStamp(args) {
       const expected = [task, ...deps].sort();
       if (JSON.stringify(named) !== JSON.stringify(expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${expected.join(" --reviewed ")}`);
     }
+    if (report) {
+      const prior = readdirSync(join(base, report[1], "tasks"))
+        .map((name) => name.match(new RegExp(`^${report[2]}-report-(\\d+)\\.md$`)))
+        .filter(Boolean)
+        .map((match) => Number(match[1]))
+        .filter((attempt) => attempt !== Number(report[3]));
+      const next = Math.max(0, ...prior) + 1;
+      if (Number(report[3]) !== next) die(`stamp: INVALID REPORT ${rel}: expected attempt ${next}`);
+    }
     consumed = true;
   }
   for (const s of args.set) {
@@ -1059,12 +1068,6 @@ function cmdCheck(args) {
     // Every attempt is a report: landed without its pins it is stamped; stamped without an outcome it is invalid.
     const reportDocs = all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${art.phase}/`));
     const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no Outcome line` : null)).find(Boolean);
-    const attempts = new Map();
-    for (const d of reportDocs) {
-      const [, , id, k] = d.rel.match(REPORT);
-      attempts.set(id, [...(attempts.get(id) ?? []), Number(k)].sort((x, y) => x - y));
-    }
-    const gappy = [...attempts.entries()].find(([, ks]) => ks.some((k, i) => k !== i + 1));
     const cyclic = (() => {
       const byId = new Map(planTasks.map((t) => [t.id, t]));
       const seen = new Set();
@@ -1085,9 +1088,6 @@ function cmdCheck(args) {
       stopped = true;
     } else if (cyclic) {
       take(`invalid plan: ${art.phase}/tasks/${cyclic}.md depends on a cycle or a missing task`);
-      stopped = true;
-    } else if (gappy) {
-      take(`invalid reports: attempts of ${art.phase}/tasks/${gappy[0]} are not 1..n`);
       stopped = true;
     } else if (badReport) {
       take(badReport);

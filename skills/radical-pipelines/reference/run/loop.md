@@ -31,7 +31,6 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
 | `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
 | `invalid plan: …`                                    | The plan producer, mode Adjudicate                                                                             |
-| `invalid reports: attempts of <phase>/tasks/<id> are not 1..n` | Rename that task's reports to `1..n` in landing order; re-stamp each with `--mirror`                            |
 | `tasks held in <phase>: …`                           | The plan producer, mode Adjudicate, with the held failed reports                                               |
 | `triggers or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                  |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |

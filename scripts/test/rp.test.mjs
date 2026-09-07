@@ -855,14 +855,13 @@ describe("rp state tooling", () => {
     assert.throws(() => check(root, "--lanes", `spec=security@${FPS.security}|review-security@${FPS.a}`), /same auxiliary branch/);
   });
 
-  test("a report without an outcome, a cyclic plan, and non-sequential attempts are flagged, never dispatched", () => {
+  test("an unfinished report and cyclic plan are flagged; an invalid attempt is rejected before publication", () => {
     approveChain(3);
     write(root, "3-build/tasks/T1-report-1.md", "# Task report\n\nno outcome yet\n");
     rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
     assert.match(check(root), /frontier INVALID REPORT 3-build\/tasks\/T1-report-1\.md: no Outcome line/);
     rmSync(join(root, P("3-build/tasks/T1-report-1.md")));
-    report("T1", 2, "completed");
-    assert.match(check(root), /frontier invalid reports: attempts of 3-build\/tasks\/T1 are not 1\.\.n/);
+    assert.throws(() => report("T1", 2, "completed"), /INVALID REPORT .*expected attempt 1/);
     rmSync(join(root, P("3-build/tasks/T1-report-2.md")));
     write(root, "3-build/tasks/T1.md", "# T1\n\n- **Depends on:** T2\n");
     rp(root, "stamp", P("3-build/tasks/T1.md"), "--mirror");
