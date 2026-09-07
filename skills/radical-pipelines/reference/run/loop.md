@@ -1,6 +1,6 @@
 # The loop
 
-The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed, thresholds). Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until `rp check` reports complete through the target phase, an owner escalation is pending, or an audit stops the run. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
+The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed). Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until `rp check` reports complete through the target phase or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
 
 ## One step
 
@@ -26,7 +26,6 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is restored (§ Dispatch)                                 |
 | `build review` / `document review`                   | The phase's reviewer                                                                                           |
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
-| `AUDIT (recurs: …) → <action>`                       | Audit (below), then the action                                                                                 |
 | `… (invalid target)`                                 | Re-dispatch what wrote it: a target is an artifact id or, for a claim, an intent Goal, Constraint, or Decision |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `invalid plan: …` / `invalid reports: …`             | The plan producer, mode Adjudicate, with the report `rp check` names                                           |
@@ -75,13 +74,5 @@ A production lane, declared in `../conventions/agents.md`, is a sub-pipeline of 
 ## Owner escalation
 
 A pending claim targets the intent. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into `intent.md` as a decision (`../entries/intent-format.md`), citing the claim's path; `rp stamp` it with `--mirror`; commit. The pipeline resumes on the next step.
-
-## Audit
-
-Every `audit` waves of an episode without approval — `rp check`'s default is 3; the project's **Thresholds** override it (`--audit`) — the frontier is annotated `AUDIT (recurs: …)`: the findings that recurred unresolved in the episode, or `none`. A decision point: read the reviews of the episode and the record. Then `rp stamp <artifact> --set audited-<series>=<wave>` (`spec`, `build-plan`, `build`, …), and decide one of:
-
-- A **research request**, when the loop lacks information the record does not contain: spawn the researcher yourself and pass its answer to the next producer under **Research**.
-- **Continue**, when each wave resolves the previous findings and the remaining ones are new — however many waves that takes.
-- **Stop**, only for a pattern you can name: a finding that recurs unresolved across waves, or one that oscillates — resolved, then reopened. Close out (`close-out.md`) with a dossier for the owner: the artifact, the episode's reviews in order, the pattern, the current state, and the options the record names. When the owner's answer reopens the artifact, triage stamps it with `--set episode-start-<series>=<wave>`.
 
 You write no verdict and open no amendment on your own initiative.

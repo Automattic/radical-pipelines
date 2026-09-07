@@ -6,7 +6,6 @@ The canonical vocabulary of Radical Pipelines.
 - **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against a target.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: the branch pipelines start from, merge into, and count their own commits after.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
-- **Audit** — The orchestrator's decision point on recurrence or, by default, three waves without approval: research request, continue, or stop.
 - **Base** — The commit a pipeline's own commits follow: the merge-base of its branch with the branch its intent `starts-from`, else with the artifact base branch (`rp check --base`).
 - **Blocker** — An agent report, before it writes anything, that its materials are malformed, an input is unreadable, or its environment is broken.
 - **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
@@ -15,9 +14,9 @@ The canonical vocabulary of Radical Pipelines.
 - **Consolidation** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
-- **Episode** — An artifact's waves since the last wave every lane approved, or since its `episode-start`.
+- **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
-- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a trigger, a claim, a phase's next step, an audit gate, an unclaimed commit, or completion.
+- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a trigger, a claim, a phase's next step, an unclaimed commit, or completion.
 - **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.

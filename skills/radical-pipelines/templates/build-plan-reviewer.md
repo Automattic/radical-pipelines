@@ -28,7 +28,7 @@
 - Your previous review: <path>
 - Diff: git diff <its head> HEAD -- <plan path> <record path> <tasks folder>
 - Adjudication: <record path — sections>
-- Research: <researcher answer>   <!-- when the audit commissioned one -->
+- Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
 
 ## Write your review to
 

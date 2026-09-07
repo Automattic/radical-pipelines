@@ -20,7 +20,7 @@
 
 ## Materials
 
-- Research: <researcher answer>   <!-- when the audit commissioned one; any mode -->
+- Research: <researcher answer>   <!-- when a research request preceded this dispatch; any mode -->
 
 <!-- Synthesize -->
 - Intent: <path>

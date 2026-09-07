@@ -20,7 +20,7 @@ Report a failed instruction to the owner and continue. An instruction marked **b
 | `before-merging-lanes`         | Lane branches are about to be merged into the pipeline branch                                           |
 | `after-merging-lanes`          | Lane branches are merged into the pipeline branch                                                       |
 | `escalation-raised`            | A pending owner escalation is surfaced                                                                  |
-| `run-ended`                    | The run stops: target phase complete, owner escalation pending, audit stop, owner cancellation, or failure |
+| `run-ended`                    | The run stops: target phase complete, owner escalation pending, owner cancellation, or failure           |
 | `before-opening-pr`            | The owner asks to open a pull request, before any work                                                  |
 | `after-opening-pr`             | The pull request exists                                                                                 |
 | `before-merging-pr`            | The owner asks to merge the pull request, before any work                                               |

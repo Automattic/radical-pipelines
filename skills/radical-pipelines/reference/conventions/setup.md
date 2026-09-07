@@ -110,10 +110,6 @@ Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the
 
 Models per profile and named lanes, in the blocks `agents.md` defines.
 
-### Thresholds (optional)
-
-The audit cadence (`audit: <waves>`) when overriding `rp check`'s default of 3.
-
 ## Tool setup actions
 
 Before writing, perform any **Setup actions** in `tools/<tool>.md`. Get the owner's confirmation before an action writes files.

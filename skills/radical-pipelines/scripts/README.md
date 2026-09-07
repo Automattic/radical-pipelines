@@ -10,7 +10,7 @@ node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set <key=va
 
 - `--pin` records the inputs an artifact consumed; the set replaces the previous one.
 - `--reviewed` records what a review or task report names; immutable — a changed review is a new file. A task report must name exactly its task and the tasks it depends on.
-- `--set` writes a landing fact (`audited-<series>`, `episode-start-<series>`, `lane`). Pins, mirrors, `head`, and `target-identity` are never written by `--set`.
+- `--set` writes a landing fact (`lane`). Pins, mirrors, `head`, and `target-identity` are never written by `--set`.
 - `--mirror` rewrites every mirror from the body's declarations — `Verdict:`, `Brief:`, `Target:`, `Origin:`, `Outcome:` (`completed` | `failed` | `blocked`), `Prior finding:`, `Depends on:`, a report's `## Commits` — replacing the previous set: a declaration the body lost leaves the frontmatter. It may run again on a stamped file. Every commit `## Commits` names must exist and resolve unambiguously; it is stored as its full hash. Frontmatter lists are read in block form and in inline form (`key: [a, b]`); the stamp writes block form. A fixed line (`Depends on:` and the others `--mirror` copies) is mirrored whole in its field's grammar or rejected as `INVALID <field>`: prose on the line is never mined. Identities are hashes of the body — what `git hash-object --stdin` prints for the bytes below the frontmatter — computed in process, never git objects: a pin that matches nothing is stale, not broken.
 - `head`, the commit the stamp observed, is recorded only when the stamp carries `--pin` or `--reviewed`.
 - Identity is the hash of the body, byte for byte: stamping never changes it. Symlinked paths are refused.
@@ -30,14 +30,13 @@ The identity of a lane's whole declaration, for `--lanes`. A named lane's artifa
 ## `check`
 
 ```text
-node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--target-phase <n>] [--ref <ref>] [--audit <n>] [--json]
+node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--target-phase <n>] [--ref <ref>] [--json]
 ```
 
 - `--base` names the artifact base branch: the pipeline's own commits — those a task report must claim — follow its merge-base with the inspected ref. The branch the intent `starts-from` prevails when it declares one; otherwise `--base` is required. A base that does not resolve is an error.
 - `--lanes` declares, per artifact, the named review lanes and, after `|`, the production lanes with their `after` dependencies: `"spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh"`. A fingerprint, when given, must match the `lane` its reviews or lane artifact were stamped with. A lane folder or review the declaration lacks is reported, never treated as a lane; `tasks` is reserved.
 - `--target-phase <n>` is an integer from 1 (spec) to 4 (document); default 4. The report ends with `complete through phase <m>` against it.
 - `--ref` reads the pipeline from a commit instead of the working tree; the commit range is the same.
-- `--audit` is a positive integer: every that many waves of an episode without approval, the frontier is annotated `AUDIT (recurs: …)` (default 3).
 - `--json` emits machine-readable state.
 - Any other value, a missing value, or an unknown option is an error.
 

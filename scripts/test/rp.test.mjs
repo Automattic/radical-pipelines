@@ -177,7 +177,7 @@ describe("rp state tooling", () => {
     const head1 = read(root, "1-spec/spec.md").match(/head: ([0-9a-f]{12})/)[1];
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "two");
-    rp(root, "stamp", P("1-spec/spec.md"), "--set", "audited-spec=1");
+    rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=abc123def456");
     assert.equal(read(root, "1-spec/spec.md").match(/head: ([0-9a-f]{12})/)[1], head1);
     stampSpec();
     assert.notEqual(read(root, "1-spec/spec.md").match(/head: ([0-9a-f]{12})/)[1], head1);
@@ -211,19 +211,17 @@ describe("rp state tooling", () => {
     assert.match(check(root, "--lanes", lanes, "--target-phase", "1"), /APPROVED[\s\S]*frontier complete/);
   });
 
-  test("the episode counts waves since every lane approved together; audited and episode-start are namespaced per series", () => {
+  test("the episode counts waves since every lane approved together; it is a counter, never a gate", () => {
     stampSpec();
     const lanes = "spec=security";
     for (let w = 1; w <= 3; w++) {
       review(`1-spec/spec-review-${w}.md`, w % 2 ? "approved" : "rejected", SPEC);
       review(`1-spec/spec-review-security-${w}.md`, w % 2 ? "rejected" : "approved", SPEC);
     }
-    assert.match(check(root, "--lanes", lanes), /counter\s+spec: 3 waves this episode/);
-    assert.match(check(root, "--lanes", lanes), /frontier AUDIT \(recurs: none\) → adjudicate 1-spec\/spec\.md/);
-    rp(root, "stamp", P("1-spec/spec.md"), "--set", "audited-spec=3");
-    assert.match(check(root, "--lanes", lanes), /frontier adjudicate 1-spec\/spec\.md/);
-    rp(root, "stamp", P("1-spec/spec.md"), "--set", "episode-start-spec=3");
-    assert.match(check(root, "--lanes", lanes), /counter\s+spec: 0 waves|frontier adjudicate/);
+    const out = check(root, "--lanes", lanes);
+    assert.match(out, /counter\s+spec: 3 waves this episode/);
+    assert.match(out, /frontier adjudicate 1-spec\/spec\.md/);
+    assert.doesNotMatch(out, /AUDIT|VALVE/);
   });
 
   test("an unstamped review is the frontier, never a new wave", () => {
@@ -750,13 +748,9 @@ describe("rp state tooling", () => {
     stampSpec();
     approveSpec();
     for (const bad of ["0", "5", "abc", "1.5", "-1"]) assert.throws(() => check(root, "--target-phase", bad), /--target-phase expects an integer from 1 to 4/);
-    for (const flag of ["--audit"]) {
-      for (const bad of ["0", "x", "2.5"]) assert.throws(() => check(root, flag, bad), new RegExp(`${flag} expects an integer from 1`));
-      assert.throws(() => check(root, flag), new RegExp(`${flag} expects a value`));
-    }
     assert.throws(() => check(root, "--force"), /unknown option: --force/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin"), /--pin expects a value/);
-    assert.match(check(root, "--target-phase", "1", "--audit", "2"), /frontier complete/);
+    assert.match(check(root, "--target-phase", "1"), /frontier complete/);
   });
 
   test("check --json carries the state", () => {

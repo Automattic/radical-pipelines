@@ -36,7 +36,7 @@ In this model (see the [glossary](./docs/glossary.md)), a pipeline is a convergi
 
 The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow.
 
-The pipeline is **autonomous by default, assisted when needed.** After triage, an autonomous run proceeds without questions until an owner escalation or an audit stop. The Spec and Design doc phases can instead run in assisted mode.
+The pipeline is **autonomous by default, assisted when needed.** After triage, an autonomous run proceeds without questions until an owner escalation. The Spec and Design doc phases can instead run in assisted mode.
 
 It is **inspectable.** Every phase produces artifacts your team can review before the final PR.
 
@@ -170,7 +170,6 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Guardrails            | Rules the project's agents must satisfy                                                             | No       |
 | Lifecycle hooks       | Prose instructions run at defined pipeline moments                                                  | No       |
 | Agents                | Model per profile and the lanes it adds, with their briefs and materials                             | No       |
-| Thresholds            | The audit cadence                                                                                   | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 

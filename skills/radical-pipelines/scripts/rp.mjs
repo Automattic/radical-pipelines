@@ -324,7 +324,6 @@ const ARTIFACTS = [
   { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
 ];
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-\d+|decision-\d+)|(?:1-spec\/spec|2-design-doc\/design-doc|3-build\/build-plan|4-document\/document-plan)\.md#\S+)$/;
-const AUDIT = 3;
 
 // `--lanes spec=security,a11y|event-driven,contrarian<event-driven;build=fresh`:
 // per artifact, the named review lanes (the implicit lane is always present)
@@ -395,7 +394,6 @@ function cmdCheck(args) {
   const productionLanesOf = (prefix) => decl[prefix]?.production ?? [];
   // A stamped file carries the fingerprint of the lane it was dispatched under; a declared fingerprint must match it.
   const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
-  const audit = args.audit ?? AUDIT;
 
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
   // A file whose mirrors differ from its body's projection contradicts the tree: none of its
@@ -529,7 +527,7 @@ function cmdCheck(args) {
     return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no Verdict line`);
   };
 
-  // Waves since every declared lane approved together, or since `episode-start-<prefix>`.
+  // Waves since every declared lane approved together — a counter for the owner, never a gate.
   const episodeOf = (prefix, sc, artifactDoc) => {
     const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
     const lanes = reviewLanesOf(prefix).map((l) => l.id);
@@ -537,19 +535,10 @@ function cmdCheck(args) {
     const last = waves.length ? Math.max(...waves) : 0;
     const approvedAll = (w) => lanes.every((lane) => rs.some((r) => r.lane === lane && r.wave === w && r.data.get("verdict") === "approved"));
     const lastApproved = Math.max(0, ...waves.filter(approvedAll));
-    const start = Math.max(lastApproved, Number(artifactDoc?.data.get(`episode-start-${prefix}`) ?? 0));
+    const start = lastApproved;
     const episode = Math.max(0, last - start);
     const recurs = rs.filter((r) => r.wave > start).flatMap((r) => [].concat(r.data.get("recurs") ?? []));
-    const audited = Number(artifactDoc?.data.get(`audited-${prefix}`) ?? 0) >= last;
-    return { episode, recurs, audited, last };
-  };
-  // The audit: every `audit` waves of an episode without approval — 3, 6, 9, … by default — the
-  // orchestrator reads the episode and decides; `audited-<series>` records the wave it covered.
-  // The annotation carries the episode's recurring findings, the fact that decision rests on.
-  const gateOf = (e, approved, closed) => {
-    if (approved || !closed) return null;
-    if (e.episode > 0 && e.episode % audit === 0 && !e.audited) return `AUDIT (recurs: ${e.recurs.length ? e.recurs.join(", ") : "none"})`;
-    return null;
+    return { episode, recurs, last };
   };
 
   const out = { pipeline: pipelineRel, ref, contradictions: [], triggers: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {}, frontier: null };
@@ -699,8 +688,7 @@ function cmdCheck(args) {
     const lanes = laneStates(art.prefix, sc);
     const e = episodeOf(art.prefix, sc, doc);
     const approved = approvedBy(lanes);
-    const gate = gateOf(e, approved, waveClosed(lanes));
-    return { state, stale, missingPins, lanes, approved, episode: e.episode, recurs: e.recurs, gate };
+    return { state, stale, missingPins, lanes, approved, episode: e.episode, recurs: e.recurs };
   };
   const nextFor = (path, st) =>
     st.state === "stale" ? `re-synthesize ${path}` : st.state !== "fresh" ? `stamp ${path}` : (unstampedReview(st.lanes) ?? (waveClosed(st.lanes) ? `adjudicate ${path}` : `review wave ${path}`));
@@ -731,12 +719,12 @@ function cmdCheck(args) {
       const { after, fingerprint } = laneOf(sc);
       const waiting = after.filter((dep) => !laneApproved(`${art.phase}/${dep}/`));
       const doc = all.find((d) => d.rel === `${sc}${name}`);
-      const st = doc ? artifactState(doc, art, sc, after.map((dep) => `${art.phase}/${dep}/${name}`), fingerprint) : { state: "missing", stale: [], missingPins: [], lanes: [], approved: false, episode: 0, recurs: [], gate: null };
+      const st = doc ? artifactState(doc, art, sc, after.map((dep) => `${art.phase}/${dep}/${name}`), fingerprint) : { state: "missing", stale: [], missingPins: [], lanes: [], approved: false, episode: 0, recurs: [] };
       const ok = st.approved && st.state === "fresh";
       if (!ok) lanesReady = false;
       out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...st, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed: consolidated });
-      lines.push(`lane     ${sc}${name}  ${consolidated ? "closed" : st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${st.gate ? `  ${st.gate}` : ""}`);
-      if (!consolidated && !ok && !waiting.length) take(`${st.gate ? `${st.gate} → ` : ""}${st.state === "missing" ? `synthesize ${sc}${name}` : nextFor(`${sc}${name}`, st)}`);
+      lines.push(`lane     ${sc}${name}  ${consolidated ? "closed" : st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
+      if (!consolidated && !ok && !waiting.length) take(`${st.state === "missing" ? `synthesize ${sc}${name}` : nextFor(`${sc}${name}`, st)}`);
       if (st.episode || st.recurs.length) out.counters[`${sc}${art.prefix}`] = { episode: st.episode, recurs: st.recurs };
     }
     if (!rootExists) {
@@ -750,9 +738,9 @@ function cmdCheck(args) {
     const st = artifactState(all.find((d) => d.rel === art.path), art, "", laneScopes.flatMap(lanePins));
     out.artifacts.push({ artifact: art.path, ...st, lanes: st.lanes.map(({ review, ...x }) => x) });
     if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
-    lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${st.missingPins.length ? ` — missing pins: ${st.missingPins.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${st.gate ? `  ${st.gate}` : ""}`);
+    lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${st.missingPins.length ? ` — missing pins: ${st.missingPins.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
     if (st.state !== "fresh" || !st.approved) {
-      take(`${st.gate ? `${st.gate} → ` : ""}${nextFor(art.path, st)}`);
+      take(nextFor(art.path, st));
       stopped = true;
     }
     if (!art.review) {
@@ -824,12 +812,11 @@ function cmdCheck(args) {
     const rl = laneStates(art.review, "");
     const e = episodeOf(art.review, "", all.find((d) => d.rel === art.path));
     const rApproved = approvedBy(rl);
-    const gate = gateOf(e, rApproved, waveClosed(rl));
-    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => x), approved: rApproved, episode: e.episode, recurs: e.recurs, gate };
+    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => x), approved: rApproved, episode: e.episode, recurs: e.recurs };
     if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
-    lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}${gate ? `  ${gate}` : ""}`);
+    lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
     if (!rApproved) {
-      take(`${gate ? `${gate} → ` : ""}${unstampedReview(rl) ?? (waveClosed(rl) ? `adjudicate ${art.path} (${art.review} review)` : `${art.review} review`)}`);
+      take(`${unstampedReview(rl) ?? (waveClosed(rl) ? `adjudicate ${art.path} (${art.review} review)` : `${art.review} review`)}`);
       stopped = true;
     } else {
       phaseDone(phaseNo);
@@ -865,7 +852,7 @@ function cmdCheck(args) {
 // --- cli --------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: ARTIFACTS.length, ref: null, base: null, audit: null };
+  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: ARTIFACTS.length, ref: null, base: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     // Every option is validated here: an unknown one, a missing value, or a value out of range is an error.
@@ -888,7 +875,6 @@ function parseArgs(argv) {
     else if (a === "--brief") args.brief = value();
     else if (a === "--materials") args.materials = value();
     else if (a === "--after") args.after = value();
-    else if (a === "--audit") args.audit = integer(1, Number.MAX_SAFE_INTEGER);
     else if (a.startsWith("--")) die(`unknown option: ${a}`);
     else args._.push(a);
   }
@@ -915,7 +901,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set key=value]... [--mirror]
   node rp.mjs fingerprint <lane id> [--brief <text>] [--materials <a,b>] [--after <lane+lane>]
-  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--audit 3] [--json]
+  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--json]
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Brief, Target,
@@ -924,7 +910,7 @@ Depends on, a report's Commits), and head — the commit
 a stamp with pins observed. Identity is the hash of a file's body: stamping never
 changes it. check reports the frontier: triggers, claims, then phases in order
 up to the target — production lanes, artifacts, tasks, phase reviews,
-the audit gate — and completion. --base names the artifact base branch: the
+and completion. --base names the artifact base branch: the
 pipeline's own commits follow its merge-base with the inspected ref, or with the
 branch the intent starts-from when it declares one. --lanes declares, per
 artifact, the named review lanes (the implicit lane always exists) and, after |,
