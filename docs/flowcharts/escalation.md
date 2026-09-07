@@ -10,7 +10,7 @@ flowchart TD
     C --> D{"Closed-wave result"}
     D -->|Any rejected| E["Producer adjudicates every lane"]
     E --> A
-    D -->|Every approved| F{"Review names the claim as Origin and target pins it?"}
+    D -->|Every approved| F{"Target pins the claim and this wave covers that target?"}
     F -->|Yes| RESOLVED["The claim is resolved"]
     F -->|No| APPROVED["The artifact is approved"]
     D -->|Unsatisfiable and no rejection| G["Pending claim"]
@@ -22,8 +22,8 @@ flowchart TD
     H -->|No| N["Dispatch the target producer: Adjudicate"]
     N --> O{"Producer disposition"}
     O -->|Adopt| P["Change the target"]
-    O -->|Refute| Q["Record the refutation; review names the claim as Origin"]
-    O -->|Contradicts input| R["Name the higher target"]
+    O -->|Refute| Q["Record the refutation"]
+    O -->|Contradicts input| R["Name the higher target; unsatisfiable review cites the claim as Origin"]
     P --> S["Stamp the target with the claim pin"]
     Q --> S
     R --> S
