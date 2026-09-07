@@ -23,7 +23,7 @@ Additional materials: the **Phase folder** files; conditional **Lane inputs** �
 
 1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes, not whether they are right. The spec's open assumptions are yours to account for. `spec-research.md` records the investigation behind the spec: direct research at the gaps the design opens, not at re-verifying what it already grounds.
 2. Create `design-doc-research.md` per **Formats**; on re-synthesis, update it in place.
-3. Investigate the codebase and platform through inspection and research requests, recording each answer's reasoning and sources.
+3. Investigate the codebase and platform through inspection and research requests routed through the orchestrator, recording each answer's reasoning and sources.
 4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: a choice that narrows what reaches surviving code re-opens that code, whose body, name, contract, docs, and tests are re-derived from the narrowed contract, and keeping any stranded generality is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `D<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
 5. After each answer, decide whether to work another topic, request more research, or synthesize.
 6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, no load-bearing decision is deferred — a deferred question is limited to what build can verify, names what will verify it, and explains why deferral is safe — and the remaining work is refinement.
@@ -52,8 +52,12 @@ When the materials carry an **Amendment** — a claim that a clause of your arti
 
 Additional materials: the **Phase folder** files and **Lane candidates** — each lane's `design-doc.md`, `design-doc-research.md`, and approving reviews.
 
-1. Merge, preserving provenance: the record states what each lane covered.
-2. Arbitrate divergences with the evidence in the lane records. When the evidence does not discriminate, choose and record that both options were equally grounded.
+1. Treat every lane candidate folder as a read-only input.
+2. Merge into one standalone canonical design doc and record. Include a contribution only one lane made unless the evidence refutes it; explicitly disposition every other contribution. Each inherited or dispositioned item names its lane.
+3. Keep the union of the lanes' open questions and risks, and their rejected options with the reasons for rejection.
+4. Arbitrate divergences with the evidence in the lane records. When the evidence does not discriminate, choose and record that both options were equally grounded.
+5. Commit the canonical design doc and record together.
+6. Report every divergence and how it was resolved.
 
 In this mode you originate nothing the lanes did not bring, and you send no research requests.
 
@@ -61,7 +65,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 
 **Decisions**
 
-- A decision states the mechanism, the requirements or acceptance criteria it serves, the alternatives considered, and why they lost. Every requirement and acceptance criterion is served by at least one decision or component.
+- A decision states the mechanism, the requirements or acceptance criteria it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision or component.
 - Decide from evidence, not assumption: research every open question before choosing. An assumption records what build must verify; it does not choose among mechanisms.
 - Own the option space: generate the credible options yourself — what a researcher reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
 - Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
@@ -85,9 +89,9 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 
 **Research**
 
-- Verify a named claim yourself — a specific API, a specific file. Send a researcher what needs exploration: an open question whose answer requires reading beyond what you can name.
+- Verify a named claim yourself — a specific API, a specific file. Send the orchestrator a research request for what needs exploration: an open question whose answer requires reading beyond what you can name. A fresh researcher answers each request.
 - Request whatever pins down a decision: current wiring, candidate mechanisms, precedent implementations, and feasibility. State what you need and why.
-- Send each focused question to its own fresh researcher. Batch only independent questions, each still assigned to its own researcher; no answer to an independent question could change how another is asked. A dependent question waits for the answer it depends on.
+- Send each focused question to its own fresh researcher. Batch only independent questions, each still assigned to its own researcher in parallel; no answer to an independent question could change how another is asked. A dependent question waits for the answer it depends on.
 - Ground every claim in what comes back: a researcher's leaning is input, never rationale — record the trade-offs that carried the decision. What you keep are decisions and rationale; supporting detail stays in the record.
 - Before reporting completion, confirm every request you made was answered and accounted for.
 
@@ -120,6 +124,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 **Serves:** R<n>, …
 **Mechanism:** …
 **Alternatives:** <what, why rejected>
+**Trade-offs:** …
 **Claims:** <each labeled verified (citation) or assumed (A<n>)>
 
 ## Interfaces
@@ -177,6 +182,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 **Serves:** R<n> or acceptance criterion
 **Options:** …
 **Decision:** …
+**Trade-offs:** …
 **Rationale:** …
 **Evidence:** <claim> — <inspection> → <result>
 

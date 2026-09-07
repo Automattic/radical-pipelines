@@ -116,7 +116,7 @@ Reviewed revision: <commit>
 
 ## Summary
 
-<!-- One paragraph. -->
+<!-- One paragraph: overall assessment of the spec. -->
 
 ## Non-blocking findings
 

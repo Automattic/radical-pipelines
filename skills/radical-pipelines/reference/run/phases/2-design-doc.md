@@ -16,7 +16,7 @@ Decides how the spec is satisfied: architecture, mechanisms, decisions and trade
 
 ## Materials
 
-Use the mode packages in `1-spec.md`, substituting `design-doc.md` and `design-doc-research.md` for the artifact and record. Their standing upstream inputs are `0-intent/intent.md`, `1-spec/spec.md`, `1-spec/spec-research.md`, and current approving spec reviews. Synthesis includes conditional **Lane inputs**; adjudicating a consolidation includes **Lane folders**. **Input changes** lists every changed input with its diff and every unresolved trigger targeting `design-doc.md`.
+Use the mode packages in `1-spec.md`, substituting `design-doc.md` and `design-doc-research.md` for the artifact and record. Their standing upstream inputs are `0-intent/intent.md`, `1-spec/spec.md`, `1-spec/spec-research.md`, and current approving spec reviews. Synthesis includes conditional **Lane inputs**; consolidation receives read-only **Lane candidates**; adjudicating a consolidation includes **Lane folders**. **Input changes** lists every changed input with its diff and every unresolved trigger targeting `design-doc.md`.
 
 A design-doc review receives the artifact, its record, and every file the artifact pins — the intent, spec, current approving spec reviews, adjudicated triggers, lane inputs, and consolidation candidates. A wave adjudicating a trigger also receives its **Amendment** or **Task report**.
 

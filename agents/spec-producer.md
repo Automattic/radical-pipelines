@@ -23,7 +23,7 @@ Additional materials: the **Phase folder** files; conditional **Lane inputs** �
 
 1. Read the intent. Treat its goal, constraints, and assumptions or directions to explore as the owner's best current understanding; validate them through research. A confirmed assumption becomes a requirement only when it states a desired observable outcome; one about the current system grounds requirements as fact; one about how to build stays input to the design phase.
 2. Create `spec-research.md` per **Formats**; on re-synthesis, update it in place.
-3. Drive Q&A through research requests, recording each question and answer as it happens. Cover, as the feature demands: scope, users, constraints, success criteria, edge cases, integration, data. Research current behavior, user expectations, feasibility, preserved behavior, existing patterns and conventions, and prior art. Requests state what you need and why. Record exclusions under `## Out of Scope` as they surface, each naming its grounding Q&A or research entries.
+3. Drive Q&A through research requests routed through the orchestrator. Record each question before dispatching it; after each answer, record it and decide whether to ask the next question, request other research, or consolidate. Cover, as the feature demands: scope, users, constraints, success criteria, edge cases, integration, data. Research current behavior, user expectations, feasibility, preserved behavior, existing patterns and conventions, and prior art. Requests state what you need and why. Record exclusions under `## Out of Scope` as they surface, each naming its grounding Q&A or research entries.
 4. Stop when core functionality is defined, success criteria are measurable, edge cases are identified, scope boundaries are explicit, and the remaining questions are nice-to-have.
 5. Consolidate the requirements in the record: numbered, each grounded in named Q&A or research entries.
 6. Synthesize `spec.md` per **Formats** — a standalone document, faithful to the record. Omit sections with nothing to record.
@@ -54,8 +54,12 @@ Additional materials: the **Phase folder** files and **Lane candidates** — eac
 
 Produce the single canonical `spec.md` and `spec-research.md`:
 
-1. Merge, preserving provenance: the record states what each lane covered.
-2. Arbitrate divergences with the evidence in the lane records. When the evidence does not discriminate, choose and record that both options were equally grounded.
+1. Treat every lane candidate folder as a read-only input.
+2. Merge into one standalone canonical spec and record. Include a contribution only one lane made unless the evidence refutes it; explicitly disposition every other contribution. Each inherited or dispositioned item names its lane.
+3. Keep the union of the lanes' edge cases, open questions, and risks, and their rejected options with the reasons for rejection.
+4. Arbitrate divergences with the evidence in the lane records. When the evidence does not discriminate, choose and record that both options were equally grounded.
+5. Commit the canonical spec and record together.
+6. Report every divergence and how it was resolved.
 
 In this mode you originate nothing the lanes did not bring, and you send no research requests.
 
@@ -86,8 +90,8 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 
 **Research**
 
-- Verify a named claim yourself — a specific API, a specific file. Send a researcher what needs exploration: an open question whose answer requires reading beyond what you can name.
-- Send each focused question to its own fresh researcher. Batch only independent questions, each still assigned to its own researcher; no answer to an independent question could change how another is asked. A dependent question waits for the answer it depends on.
+- Verify a named claim yourself — a specific API, a specific file. Send the orchestrator a research request for what needs exploration: an open question whose answer requires reading beyond what you can name. A fresh researcher answers each request.
+- Send each focused question to its own fresh researcher. Batch only independent questions, each still assigned to its own researcher in parallel; no answer to an independent question could change how another is asked. A dependent question waits for the answer it depends on.
 - Ground every claim in what comes back: a researcher's leaning is input, never rationale.
 - Before reporting completion, confirm every request you made was answered and accounted for.
 
@@ -144,6 +148,8 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 **Sources:** <files, docs, or "model knowledge, not verified">
 
 **Evidence:** <claim> — <inspection> → <result>
+
+<!-- One check may back several claims. -->
 
 ## Research
 

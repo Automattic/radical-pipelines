@@ -42,4 +42,4 @@
 
 <!-- Consolidate: additions -->
 - Phase folder: <one line per existing file: path>
-- Lane candidates: <one line per lane: id — design-doc.md path, design-doc-research.md path, approving review paths>
+- Lane candidates: <one line per lane: id — read-only folder; design-doc.md path, design-doc-research.md path, approving review paths>

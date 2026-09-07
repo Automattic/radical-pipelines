@@ -115,6 +115,8 @@ Reviewed revision: <commit>
 
 ## Summary
 
+<!-- One paragraph: overall assessment of the design. -->
+
 ## Non-blocking findings
 
 <!-- Approved only. Omit otherwise. -->
