@@ -24,21 +24,19 @@
 
 <!-- Standing: every mode -->
 - Intent: <path>
+- Phase folder: <one line per existing file: path>
 - spec.md: <path>
 - spec-research.md: <path>
 
 <!-- Synthesize: additions -->
-- Phase folder: <one line per existing file: path>
 - Lane inputs: <one line per consumed lane: artifact path; record path; approving review paths>   <!-- production lanes with `after` -->
 - Input changes: <one line per changed input: path — git diff <this artifact's head> HEAD -- <input>; one line per unresolved trigger targeting spec.md: path>   <!-- re-synthesis only -->
 
 <!-- Adjudicate: additions; exactly one correction -->
-- Phase folder: <one line per existing file: path>
 - Review lanes: <one line per review: lane — path>
 - Amendment: <trigger path>; <origin chain: review and record paths>
 - Task report: <trigger path>; <origin chain: review and record paths>
 - Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
 
 <!-- Consolidate: additions -->
-- Phase folder: <one line per existing file: path>
 - Lane candidates: <one line per lane: id — read-only folder; spec.md path, spec-research.md path, approving review paths>
