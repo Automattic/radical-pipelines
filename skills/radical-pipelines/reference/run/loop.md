@@ -1,12 +1,12 @@
 # The loop
 
-The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed). Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until the frontier is `complete` or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
+The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed). Address worktree files by absolute path and every Git operation through `git -C <worktree>`. Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until the frontier is `complete` or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
 
 ## One step
 
 1. Run `rp check <pipeline folder> --base <base branch> --lanes <declared lanes> --target-phase <n>`.
 2. Dispatch what resolves its `frontier` line (table below).
-3. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches (`before-`/`after-merging-lanes`), fire `phase-completed` when a phase becomes complete. `phase-started` fires the first time a step dispatches into a phase, and again when work on it resumes.
+3. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches (`before-`/`after-merging-lanes`), fire `phase-completed` when a phase becomes complete, then give the owner a one-line report naming the phase, its artifacts, and anything worth surfacing. `phase-started` fires the first time a step dispatches into a phase, and again when work on it resumes.
 4. Go to 1.
 
 The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and materials of each phase.
@@ -43,6 +43,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 ## Dispatch
 
 - Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by the lane's `materials` when it has them. A named lane's **Brief** is its brief verbatim; the implicit lane has none. `--lanes` carries each named lane with its fingerprint (`state.md` § The frontier).
+- Every message to an agent names what it must do next.
 - A producer's materials include, for each input artifact, its current approving reviews — every lane's review of the wave that approved it; the document plan also gets the approving build review. A newer approval makes a consumer stale and provides **Input changes** for re-synthesis.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.

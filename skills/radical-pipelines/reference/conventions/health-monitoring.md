@@ -10,6 +10,8 @@ Health tick for pipeline <slug> on branch <branch>, worktree <path>: run `refere
 
 ## Each tick
 
+Inspect the run and lane worktrees, available agent logs, and messaging state.
+
 1. **Pending permission requests** — answer each using the active tool's procedure.
 2. **Stalled agents** — an agent with undeclared completion has no commit, file write, or tool output for the threshold.
 3. **Dead agents** — a session is gone, its turn failed, or it remains silent after a status request.
