@@ -531,6 +531,37 @@ describe("the access boundary is wired into what setup registers", () => {
     }
   });
 
+  test("a caller whose creation event was never seen is read from the durable store, and refused on its answer", async () => {
+    // The session is cold: no `session.created` was ever recorded for it, so
+    // the only route to a verdict is the durable read `setup` wires in. Unit
+    // tests of `resolveToolAccess` inject that reader, so this is the only
+    // place the wiring itself is exercised.
+    const { ctx, tools } = createFakeCtx();
+    const reads = [];
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { XDG_DATA_HOME: freshDir(), RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        requestFn: async (url) => {
+          reads.push(url.pathname);
+          if (url.pathname === "/api/session/ses_wired_unobserved") {
+            return { status: 200, body: { data: { id: "ses_wired_unobserved", parentID: "ses_wired_delegator" } } };
+          }
+          return { status: 200, body: { data: {} } };
+        },
+      }),
+    );
+
+    const result = await tools.get("rp_loop_list").execute({}, { sessionID: "ses_wired_unobserved" });
+
+    assert.equal(result.output.error, "SubagentNotPermitted");
+    assert.ok(
+      reads.includes("/api/session/ses_wired_unobserved"),
+      `expected the durable store to be read for an unobserved caller, saw: ${JSON.stringify(reads)}`,
+    );
+  });
+
   test("every registered tool but rp_send refuses a spawned agent", async () => {
     const tools = registerTools();
     recordSpawn("ses_wired_agent", {
