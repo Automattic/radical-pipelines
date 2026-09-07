@@ -4,6 +4,7 @@
 // it does can be done with bare git. Commands: stamp, check.
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -77,11 +78,12 @@ function renderFrontmatter(data, body) {
 
 // --- identity: hash of the body only ----------------------------------------
 
+// Computed in process as git computes a blob hash — `sha1("blob <bytes>\0" + bytes)` — so it
+// equals `git hash-object --stdin` of the body, byte for byte, without spawning anything.
 export function identity(text) {
   const { body } = parseFrontmatter(text);
-  return execFileSync("git", ["hash-object", "--stdin"], { input: body, encoding: "utf8" })
-    .trim()
-    .slice(0, SHORT);
+  const bytes = Buffer.from(body, "utf8");
+  return createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex").slice(0, SHORT);
 }
 
 function fileIdentity(abs) {
@@ -112,9 +114,18 @@ export function projectBody(body, rel = "") {
   if (outcome) p.set("outcome", outcome[1]);
   const recurs = [...body.matchAll(/^Prior finding:\s*(\S+#[^,\s]+),\s*resolution failed\s*$/gm)].map((m) => m[1]);
   if (recurs.length) p.set("recurs", recurs);
-  // A task file's `Depends on:` line: `none`, or task ids.
-  const dep = body.match(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.+)$/m);
-  if (dep) p.set("depends", [...dep[1].matchAll(/T\d+/g)].map((m) => m[0]));
+  // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
+  // separated by commas — nothing else on the line. Anything else is malformed, never mined.
+  const dep = body.match(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.*)$/m);
+  if (dep) {
+    const value = dep[1].trim();
+    if (/^none$/i.test(value)) p.set("depends", []);
+    else if (/^T\d+(\s*,\s*T\d+)*$/.test(value)) {
+      const ids = value.split(",").map((x) => x.trim());
+      if (new Set(ids).size !== ids.length) p.set("malformed", [...(p.get("malformed") ?? []), `Depends on: duplicate ids: ${value}`]);
+      else p.set("depends", ids);
+    } else p.set("malformed", [...(p.get("malformed") ?? []), `Depends on: expected none or task ids, got: ${value}`]);
+  }
   // A task report's `## Commits` section, up to the next heading: every line that starts with a
   // commit hash — after a bullet or a backtick — whatever follows it.
   const commits = body.match(/^## Commits[^\S\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
@@ -166,6 +177,7 @@ function pipelineFolder(root, file) {
 // when the target landed: it is kept while the target stays the same.
 function mirrorBody(body, fm, base, rel) {
   const p = projectBody(body, rel);
+  if (p.has("malformed")) die(`stamp: INVALID ${p.get("malformed").join("; ")} — a fixed line is mirrored whole or not at all; its author fixes it`);
   const previousTarget = fm.get("target");
   for (const k of MIRRORS) fm.delete(k);
   for (const [k, v] of p) fm.set(k, v);
@@ -399,11 +411,13 @@ function cmdCheck(args) {
       texts.set(rel, text);
       const { data: parsed, body } = parseFrontmatter(text);
       const data = parsed ?? new Map();
-      const drift = mirrorDrift(data, body, rel);
+      // A `---` block that does not start at byte 0 is not frontmatter: the file is malformed, not drifted.
+      const strayBlock = !parsed && /\n---\r?\n[\s\S]*?\n---\r?(\n|$)/.test(text);
+      const drift = strayBlock ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
-      return { rel, name: rel.split("/").pop(), data, scope, drift };
+      return { rel, name: rel.split("/").pop(), data, scope, drift, strayBlock, malformed: projectBody(body, rel).get("malformed") ?? [] };
     });
   // The pipeline's own commits follow its base: the merge-base of the inspected ref with the branch
   // its intent `starts-from`, else with the artifact base branch (`--base`).
@@ -545,7 +559,18 @@ function cmdCheck(args) {
     if (!frontier) frontier = item;
   };
 
-  // 0. Contradictions: mirrors that no longer project their body; lanes the declaration lacks.
+  // 0. Contradictions: malformed files (their author fixes them); mirrors that no longer project
+  // their body; lanes the declaration lacks.
+  for (const d of all.filter((d) => d.strayBlock)) {
+    out.contradictions.push({ path: d.rel, invalid: "frontmatter not at byte 0" });
+    lines.push(`INVALID FRONTMATTER ${d.rel}: a --- block that does not start at byte 0`);
+    take(`INVALID FRONTMATTER ${d.rel}`);
+  }
+  for (const d of all.filter((d) => d.malformed.length)) {
+    out.contradictions.push({ path: d.rel, invalid: d.malformed });
+    lines.push(`INVALID LINE ${d.rel}: ${d.malformed.join("; ")}`);
+    take(`INVALID LINE ${d.rel}`);
+  }
   for (const d of all.filter((d) => d.drift.length)) {
     out.contradictions.push({ path: d.rel, mirrors: d.drift });
     lines.push(`mirror   ${d.rel}  differs from the body: ${d.drift.join(", ")}`);

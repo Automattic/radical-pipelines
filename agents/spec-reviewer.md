@@ -80,7 +80,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Adjudication audit**
 
-- An adoption that works around an input clause the record itself refutes is a must-fix: the disposition must be contradicts-input.
+- An adoption that works around an input clause the record itself refutes is a finding: name the clause and the record entry that refutes it.
 - A contradicts-input disposition within what you verify: corroborate only after its evidence survives your checks and you can name no live route; defeat it by rejecting with the route named.
 
 **Findings**

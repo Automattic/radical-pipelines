@@ -659,6 +659,31 @@ describe("rp state tooling", () => {
     assert.throws(() => rp(root, "check", S, "--base", "main", "--target-phase", "1"), /the starts-from branch does not resolve: demo/);
   });
 
+  test("a fixed line is mirrored whole or not at all: prose after Depends on is INVALID, never mined", () => {
+    approveChain(3);
+    write(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1, T3 (T1's fence work is shipped; T3 …)\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror"), /INVALID Depends on: expected none or task ids/);
+    write(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1, T1\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror"), /INVALID Depends on: duplicate ids/);
+    assert.match(check(root, "--target-phase", "3"), /INVALID LINE 3-build\/tasks\/T2.md: Depends on: duplicate ids/);
+    write(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1\n");
+    rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror");
+    assert.doesNotMatch(check(root, "--target-phase", "3"), /INVALID LINE/);
+  });
+
+  test("a --- block that does not start at byte 0 is INVALID FRONTMATTER, not mirror drift", () => {
+    approveChain(1);
+    write(root, "1-spec/spec-research.md", "# Spec Research\n\n---\norigin: nothing\n---\n\nBody.\n");
+    const out = check(root, "--target-phase", "1");
+    assert.match(out, /INVALID FRONTMATTER 1-spec\/spec-research.md/);
+    assert.doesNotMatch(out, /differs from the body/);
+  });
+
+  test("identity equals git's blob hash of the body, computed without git", () => {
+    const gitHash = (text) => execFileSync("git", ["hash-object", "--stdin"], { input: text, encoding: "utf8" }).trim().slice(0, 12);
+    for (const body of ["", "x", "# Spec\n", "ñ — unicode\n", "a\r\nb"]) assert.equal(identity(`---\npins:\n  - a@b\n---\n${body}`), gitHash(body));
+  });
+
   test("a report's Commits section is mirrored whole, whatever the line format, and names only commits that exist", () => {
     approveChain(3);
     git(root, "add", "-A");

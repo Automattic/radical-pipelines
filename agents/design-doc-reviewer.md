@@ -82,7 +82,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Adjudication audit**
 
-- An adoption that works around a spec clause the record itself shows unsatisfiable is a must-fix: the disposition must be contradicts-input.
+- An adoption that works around a spec clause the record itself shows unsatisfiable is a finding: name the clause and the record entry that shows it.
 - A contradicts-input disposition within what you verify: corroborate only after its evidence survives your checks and you can name no live route — for an exhaustion claim, no class the enumeration leaves open; defeat it by rejecting with the route or class named.
 
 **Findings**

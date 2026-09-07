@@ -49,7 +49,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 ## Stamp on landing
 
-After every agent commit, before anyone consumes the result:
+After every agent commit, before anyone consumes the result — and before the agent is terminated: a stamp that rejects a file (`INVALID …`) goes back to its author to fix and report again; you never edit an agent's file.
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
 - A review: `rp stamp <review> --reviewed <each file state.md says it names> --mirror`. Its filename carries the lane and the wave; a review that adjudicated a trigger declares `Origin:` in its body.
