@@ -9,9 +9,8 @@ flowchart TD
     C --> H{"Version stamp status"}
     H -->|No .rp.md| I["Offer Fresh setup"]
     H -->|Older or absent stamp| J["Offer Migration"]
-    H -->|conventions: 1| G["Merge .rp.local.md overrides"]
+    H -->|conventions: 1| D{"Required active-tool section present?"}
     H -->|Newer than 1| L["Stop and update the skill"]
-    G --> D{"Required active-tool section present?"}
     D -->|No| E["Offer setup for the active tool"]
     E --> F{"Owner accepts setup?"}
     F -->|No| STOP["Stop and report what is missing"]
@@ -27,6 +26,7 @@ flowchart TD
     N --> O{"Owner accepts setup?"}
     O -->|No| STOP
     O -->|Yes| SETUP
-    K -->|Yes| P["Load lifecycle hooks"]
+    K -->|Yes| G["Merge .rp.local.md overrides"]
+    G --> P["Load lifecycle hooks"]
     P --> Q["Continue"]
 ```
