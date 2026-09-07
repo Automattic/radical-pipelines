@@ -199,6 +199,10 @@ describe("rp state tooling", () => {
       ["---\npins:\n  - 0-intent/intent.md@abc\n# no close\n", /missing closing --- delimiter/],
       ["---\npins:\nnot yaml\n---\n# Spec\n", /malformed line: not yaml/],
       ["---\npins: one\n---\n# Spec\n", /pins must be a list/],
+      ["---\nhead: [unterminated\n---\n# Spec\n", /malformed inline list under head/],
+      ["---\npins:\n  - 0-intent\/intent.md@abc\n    - nested\n---\n# Spec\n", /malformed list item/],
+      ["---\npins: [[nested]]\n---\n# Spec\n", /list item under pins must be a scalar/],
+      ["---\npins:\n  - path: nested\n---\n# Spec\n", /list item under pins must be a scalar/],
     ];
     for (const [text, reason] of cases) {
       write(root, "1-spec/spec.md", text);
@@ -297,6 +301,7 @@ describe("rp state tooling", () => {
     review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN_NO_APPROVAL, [], "Target: 1-spec/spec.md#R1\n");
     let output = check(root);
     assert.match(output, /design-doc-review-1\.md → 1-spec\/spec\.md#R1\s+suspended \(behind 1-spec\/spec-review-1\.md\)/);
+    assert.match(output, /frontier claim 1-spec\/spec-review-1\.md → 0-intent\/intent\.md#goal \(owner escalation\)/);
     // A second lane still to report keeps a claim open; a rejecting lane holds it.
     output = check(root, "--lanes", `design-doc=a11y@${FPS.a11y}`);
     assert.match(output, /design-doc-review-1\.md .*wave open/);
@@ -313,6 +318,16 @@ describe("rp state tooling", () => {
     assert.match(check(root), /INVALID TARGET/);
     amendment("0-intent/intent.md#goal");
     assert.match(check(root), /trigger .*INVALID TARGET/);
+  });
+
+  test("a changed target supersedes a stamped claim before removed target ids are validated", () => {
+    stampSpec();
+    approveSpec();
+    stampDesign();
+    review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN, [], "Target: 1-spec/spec.md#R1\n");
+    write(root, "1-spec/spec.md", "# Spec\n\nRequirement R2 replaces the target.\n");
+    assert.match(check(root), /design-doc-review-1\.md .*superseded \(target changed\)/);
+    assert.doesNotMatch(check(root), /claim .*design-doc-review-1\.md .*INVALID TARGET/);
   });
 
   test("a later lane verdict supersedes an older claim before its invalid target is routed", () => {
@@ -337,6 +352,34 @@ describe("rp state tooling", () => {
     assert.match(check(root), /claim .*constraint-2\s+INVALID TARGET/);
     review("1-spec/spec-review-3.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-0\n");
     assert.match(check(root), /claim .*constraint-0\s+INVALID TARGET/);
+  });
+
+  test("spec and design assumptions are valid targets when their A ids exist", () => {
+    write(root, "1-spec/spec.md", "# Spec\n\nRequirement R1. Assumption A1.\n");
+    write(root, "2-design-doc/design-doc.md", "# Design doc\n\nDecision D1. Assumption A1.\n");
+    stampSpec();
+    approveSpec();
+    amendment("1-spec/spec.md#A1");
+    let output = check(root);
+    assert.match(output, /trigger .*spec\.md#A1\s+PENDING/);
+    assert.doesNotMatch(output, /spec\.md#A1\s+INVALID TARGET/);
+    write(root, "0-intent/1-amendment.md", "# Amendment 1\n\nTarget: 2-design-doc/design-doc.md#A1\nOrigin: decision-1\n");
+    rp(root, "stamp", P("0-intent/1-amendment.md"), "--mirror");
+    output = check(root);
+    assert.match(output, /trigger .*design-doc\.md#A1\s+PENDING/);
+    assert.doesNotMatch(output, /design-doc\.md#A1\s+INVALID TARGET/);
+  });
+
+  test("a downstream artifact becomes stale when an input has a newer current approval", () => {
+    stampSpec();
+    approveSpec();
+    stampDesign();
+    approveDesign();
+    approveSpec(2);
+    const output = check(root, "--target-phase", "2");
+    assert.match(output, /artifact 2-design-doc\/design-doc\.md\s+STALE — approval changed: 1-spec\/spec-review-2\.md/);
+    assert.match(output, /frontier re-synthesize 2-design-doc\/design-doc\.md/);
+    assert.doesNotMatch(output, /design-doc\.md\s+INCOMPLETE PINS/);
   });
 
   test("triggers and claims beyond the target phase are reported, not the frontier", () => {
@@ -479,7 +522,10 @@ describe("rp state tooling", () => {
     write(root, "1-spec/contrarian/spec.md", "# Spec contrarian\n");
     write(root, "1-spec/contrarian/spec-research.md", "# Record contrarian\n");
     rp(root, "stamp", P("1-spec/contrarian/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--set", `lane=${FPS.contrarian}`);
-    review("1-spec/contrarian/spec-review-1.md", "approved", ["1-spec/contrarian/spec.md", "1-spec/contrarian/spec-research.md", "0-intent/intent.md", "1-spec/event-driven/spec.md"]);
+    output = check(root, "--lanes", lanes);
+    assert.match(output, /lane\s+1-spec\/contrarian\/spec\.md\s+INCOMPLETE PINS — missing pins: 1-spec\/event-driven\/spec-research\.md, 1-spec\/event-driven\/spec-review-1\.md/);
+    rp(root, "stamp", P("1-spec/contrarian/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--set", `lane=${FPS.contrarian}`);
+    review("1-spec/contrarian/spec-review-1.md", "approved", ["1-spec/contrarian/spec.md", "1-spec/contrarian/spec-research.md", "0-intent/intent.md", "1-spec/event-driven/spec.md", "1-spec/event-driven/spec-research.md", "1-spec/event-driven/spec-review-1.md"]);
     assert.match(check(root, "--lanes", lanes), /artifact 1-spec\/spec\.md\s+MISSING — every lane approved: consolidate/);
     write(root, "1-spec/spec.md", "# Consolidated spec\n");
     write(root, "1-spec/spec-research.md", "# Consolidated record\n");
@@ -512,8 +558,12 @@ describe("rp state tooling", () => {
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/a/spec.md"), "--pin", P("1-spec/a/spec-research.md"));
     let output = check(root, "--lanes", lanes, "--target-phase", "1");
     assert.doesNotMatch(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
-    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md"]);
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/a/spec.md"), "--pin", P("1-spec/a/spec-research.md"), "--pin", P("1-spec/a/spec-review-1.md"));
+    output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.doesNotMatch(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
+    review("1-spec/a/spec-review-2.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/a/spec.md"), "--pin", P("1-spec/a/spec-research.md"), "--pin", P("1-spec/a/spec-review-2.md"));
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged upstream.\n");
     output = check(root, "--lanes", lanes, "--target-phase", "1");
     assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
@@ -891,7 +941,11 @@ describe("rp state tooling", () => {
     stampSpec();
     approveSpec();
     for (const bad of ["0", "5", "abc", "1.5", "-1"]) assert.throws(() => check(root, "--target-phase", bad), /--target-phase expects an integer from 1 to 4/);
-    assert.throws(() => check(root, "--force"), /unknown option: --force/);
+    assert.throws(() => check(root, "--force"), /option --force is not allowed/);
+    assert.throws(() => check(root, "--set", "verdict=garbage"), /check: option --set is not allowed/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--json"), /stamp: option --json is not allowed/);
+    assert.throws(() => rp(root, "fingerprint", "security", "extra"), /unexpected positional argument/);
+    assert.throws(() => rp(root, "check", PIPELINE, "extra", "--base", "main"), /unexpected positional argument/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin"), /--pin expects a value/);
     const invalid = ".pipelines/bad_name";
     mkdirSync(join(root, invalid, "0-intent"), { recursive: true });

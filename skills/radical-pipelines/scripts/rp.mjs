@@ -38,15 +38,21 @@ export function parseFrontmatter(raw) {
   const body = rest.slice(close.index + close[0].length);
   const data = new Map();
   const errors = [];
+  const collectionValue = (value) => /^[\[{]/.test(value) || /[\]}]$/.test(value) || /^-\s/.test(value) || /^[^:]+:\s/.test(value);
   let currentList = null;
   for (const rawLine of rest.slice(0, close.index).split("\n")) {
     const line = rawLine.replace(/\r$/, "");
     if (!line.trim()) continue;
-    const item = line.match(/^\s+-\s+(.*)$/);
+    const item = line.match(/^  -\s+(.*)$/);
     if (item && currentList) {
       const value = item[1].trim();
-      if (value) data.get(currentList).push(value);
+      if (collectionValue(value)) errors.push(`list item under ${currentList} must be a scalar`);
+      else if (value) data.get(currentList).push(value);
       else errors.push(`empty list item under ${currentList}`);
+      continue;
+    }
+    if (/^\s+-/.test(line)) {
+      errors.push(`malformed list item: ${line}`);
       continue;
     }
     const kv = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/);
@@ -61,12 +67,22 @@ export function parseFrontmatter(raw) {
     if (kv[2] === "") {
       data.set(kv[1], []);
       currentList = kv[1];
-    } else if (/^\[.*\]$/.test(kv[2].trim())) {
+    } else if (kv[2].trim().startsWith("[")) {
       // Inline flow list: `key: [a, b]`, `key: []`.
-      const inner = kv[2].trim().slice(1, -1);
+      const flow = kv[2].trim();
+      if (!flow.endsWith("]")) {
+        errors.push(`malformed inline list under ${kv[1]}`);
+        currentList = null;
+        continue;
+      }
+      const inner = flow.slice(1, -1);
       const values = inner ? inner.split(",").map((x) => x.trim()) : [];
       if (values.some((x) => !x)) errors.push(`empty list item under ${kv[1]}`);
+      if (values.some(collectionValue)) errors.push(`list item under ${kv[1]} must be a scalar`);
       data.set(kv[1], values);
+      currentList = null;
+    } else if (collectionValue(kv[2].trim())) {
+      errors.push(`unsupported collection under ${kv[1]}`);
       currentList = null;
     } else {
       data.set(kv[1], kv[2].trim());
@@ -365,12 +381,12 @@ const ARTIFACTS = [
   { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
   { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
 ];
-const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#R[1-9]\d*|2-design-doc\/design-doc\.md#D[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
+const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
 // `--lanes spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven`:
 // per artifact, the named review lanes (the implicit lane is always present)
 // and, after `|`, the production lanes with their `after` dependencies.
-// A lane is `<id>[@<fingerprint>]`; a production lane may add `<dep+dep`.
+// A lane is `<id>@<fingerprint>`; a production lane may add `<dep+dep`.
 const RESERVED_LANE_IDS = new Set(["tasks"]);
 function parseLanes(text) {
   const decl = {};
@@ -519,6 +535,10 @@ function cmdCheck(args) {
   };
   const declaredReview = (r) => reviewLanesOf(r.prefix).some((l) => l.id === r.lane);
   const reviewsOf = (sc) => allReviewsOf(sc).filter(declaredReview);
+  const reviewByPath = (rel) => {
+    const doc = all.find((d) => d.rel === rel);
+    return doc ? allReviewsOf(doc.scope).find((r) => r.rel === rel) : null;
+  };
   // Lane scopes are the declared production lanes; a folder the declaration lacks is a defect, never a lane.
   const scopes = [...new Set(all.map((d) => d.scope))];
   const declaredScopes = new Set(ARTIFACTS.flatMap((a) => productionLanesOf(a.prefix).map((l) => `${a.phase}/${l.id}/`)));
@@ -715,7 +735,6 @@ function cmdCheck(args) {
         targetPath: (r.data.get("target") ?? "?").split("#")[0],
         targetIdentity: r.data.get("target-identity"),
         fresh: mine ? mine.fresh : reviewFresh(r, r.prefix, sc),
-        claiming: [].concat(r.data.get("reviewed") ?? []).map((p) => pinParts(p)?.path),
         waveOpen: !waveClosed(lanes),
         rejected: lanes.some((l) => l.verdict === "rejected"),
       };
@@ -723,19 +742,21 @@ function cmdCheck(args) {
       const unchanged = c.targetIdentity && cur && cur === c.targetIdentity;
       const res = targetExists(c.target) ? resolutionOf(c) : { state: "invalid target" };
       if (later) c.state = "superseded (its lane reviewed again)";
-      else if (res.state === "invalid target") c.state = `INVALID TARGET (${c.target})`;
       else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
+      else if (res.state === "invalid target") c.state = `INVALID TARGET (${c.target})`;
       else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
       else if (!c.fresh) c.state = "moot (claiming artifact changed)";
       else if (c.waveOpen) c.state = "wave open";
       else if (c.rejected) c.state = "held (a lane rejected; adjudicate first)";
       else if (res.state === "adjudicated") c.state = `adjudicated (${res.detail})`;
       else c.state = c.targetIdentity ? "pending" : "pending (no target-identity)";
+      const source = ARTIFACTS.find((a) => a.prefix === r.prefix || a.review === r.prefix);
+      c.claimArtifactPath = source ? inScope(sc, source.path) : null;
       claims.push(c);
     }
   const pending = claims.filter((c) => c.state === "pending");
   for (const c of pending) {
-    const above = pending.find((o) => o !== c && o.claiming.includes(c.targetPath));
+    const above = pending.find((o) => o !== c && o.claimArtifactPath === c.targetPath);
     if (above) c.state = `suspended (behind ${above.rel})`;
   }
   const ownerTerritory = (target) => /^0-intent\/intent\.md#(goal|constraint-\d+|decision-\d+)$/.test(target);
@@ -763,14 +784,27 @@ function cmdCheck(args) {
       if (!inputArt) continue;
       const lanes = laneStates(inputArt.prefix, "");
       if (!approvedBy(lanes)) continue;
-      for (const l of lanes) if (!(pins ?? []).some((p) => pinParts(p)?.path === l.review.rel)) missingPins.push(`the approving review ${l.review.rel}`);
+      for (const l of lanes) if (!(pins ?? []).some((p) => pinParts(p)?.path === l.review.rel)) missingPins.push(l.review.rel);
     }
     if (art.requiresReview) {
       const lanes = laneStates(art.requiresReview, "");
       if (approvedBy(lanes)) {
-        for (const l of lanes) if (!(pins ?? []).some((p) => pinParts(p)?.path === l.review.rel)) missingPins.push(`the approving review ${l.review.rel}`);
+        for (const l of lanes) if (!(pins ?? []).some((p) => pinParts(p)?.path === l.review.rel)) missingPins.push(l.review.rel);
       } else {
         missingPins.push(`an approved ${art.requiresReview} review`);
+      }
+    }
+    // A pin to an earlier approving review means the artifact consumed a prior current approval:
+    // the artifact is stale, rather than incompletely stamped.
+    for (let i = missingPins.length - 1; i >= 0; i--) {
+      const requiredReview = reviewByPath(missingPins[i]);
+      if (!requiredReview) continue;
+      const prior = allReviewsOf(requiredReview.scope).some(
+        (r) => r.prefix === requiredReview.prefix && r.lane === requiredReview.lane && r.data.get("verdict") === "approved" && (pins ?? []).some((p) => pinParts(p)?.path === r.rel),
+      );
+      if (prior) {
+        stale.push(`approval changed: ${missingPins[i]}`);
+        missingPins.splice(i, 1);
       }
     }
     const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : missingPins.length ? "incomplete pins" : "fresh";
@@ -803,7 +837,13 @@ function cmdCheck(args) {
       const lanes = reviewLanesOf(art.prefix);
       const waves = [...new Set(rs.map((r) => r.wave))].sort((a, b) => b - a);
       for (const wave of waves) {
-        const complete = lanes.map(({ id, fingerprint }) => rs.find((r) => r.wave === wave && r.lane === id && r.data.get("verdict") === "approved" && r.data.get("reviewed")?.length > 0 && laneMatches(r, fingerprint)));
+        const complete = lanes.map(({ id, fingerprint }) =>
+          rs.find((r) => {
+            if (r.wave !== wave || r.lane !== id || r.data.get("verdict") !== "approved" || !laneMatches(r, fingerprint)) return false;
+            const named = [].concat(r.data.get("reviewed") ?? []).map((p) => pinParts(p)?.path).sort();
+            return JSON.stringify(named) === JSON.stringify([...schemaOf(art.prefix, sc)].sort());
+          }),
+        );
         if (complete.every(Boolean)) return complete.map((r) => r.rel);
       }
       return [];
@@ -817,11 +857,11 @@ function cmdCheck(args) {
       const { after, fingerprint } = laneOf(sc);
       const waiting = after.filter((dep) => !laneApproved(`${art.phase}/${dep}/`));
       const doc = all.find((d) => d.rel === `${sc}${name}`);
-      const st = doc ? artifactState(doc, art, sc, after.map((dep) => `${art.phase}/${dep}/${name}`), fingerprint) : { state: "missing", stale: [], missingPins: [], lanes: [], approved: false, episode: 0, recurs: [] };
+      const st = doc ? artifactState(doc, art, sc, after.flatMap((dep) => lanePins(`${art.phase}/${dep}/`)), fingerprint) : { state: "missing", stale: [], missingPins: [], lanes: [], approved: false, episode: 0, recurs: [] };
       const ok = st.approved && st.state === "fresh";
       if (!ok) lanesReady = false;
       out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...st, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed: consolidated });
-      lines.push(`lane     ${sc}${name}  ${consolidated ? "closed" : st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
+      lines.push(`lane     ${sc}${name}  ${consolidated ? "closed" : st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${st.missingPins.length ? ` — missing pins: ${st.missingPins.join(", ")}` : ""}${waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
       if (!consolidated && !ok && !waiting.length) take(`${st.state === "missing" ? `synthesize ${sc}${name}` : nextFor(`${sc}${name}`, st)}`);
       if (st.episode || st.recurs.length) out.counters[`${sc}${art.prefix}`] = { episode: st.episode, recurs: st.recurs };
     }
@@ -950,8 +990,15 @@ function cmdCheck(args) {
 
 // --- cli --------------------------------------------------------------------
 
-function parseArgs(argv) {
+const COMMAND_OPTIONS = {
+  stamp: new Set(["--pin", "--reviewed", "--set", "--mirror"]),
+  check: new Set(["--json", "--lanes", "--target-phase", "--ref", "--base"]),
+  fingerprint: new Set(["--brief", "--materials", "--after"]),
+};
+
+function parseArgs(command, argv) {
   const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: ARTIFACTS.length, ref: null, base: null };
+  const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     // Every option is validated here: an unknown one, a missing value, or a value out of range is an error.
@@ -962,6 +1009,9 @@ function parseArgs(argv) {
       if (!/^\d+$/.test(raw) || n < min || n > max) die(`${a} expects an integer from ${min} to ${max}, got: ${raw}`);
       return n;
     };
+    if (a.startsWith("--") && !COMMAND_OPTIONS[command].has(a)) die(`${command}: option ${a} is not allowed`);
+    if (a.startsWith("--") && !["--pin", "--reviewed", "--set"].includes(a) && used.has(a)) die(`${command}: ${a} may appear only once`);
+    if (a.startsWith("--")) used.add(a);
     if (a === "--pin") args.pin.push(value());
     else if (a === "--reviewed") args.reviewed.push(value());
     else if (a === "--set") args.set.push(value());
@@ -977,25 +1027,15 @@ function parseArgs(argv) {
     else if (a.startsWith("--")) die(`unknown option: ${a}`);
     else args._.push(a);
   }
+  if (args._.length > 1) die(`${command}: unexpected positional argument: ${args._[1]}`);
   return args;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const [cmd, ...rest] = process.argv.slice(2);
-  const args = parseArgs(rest);
-  switch (cmd) {
-    case "stamp":
-      cmdStamp(args);
-      break;
-    case "check":
-      cmdCheck(args);
-      break;
-    case "fingerprint":
-      cmdFingerprint(args);
-      break;
-    default:
-      process.stdout.write(
-        `rp — Radical Pipelines state tooling
+  const help = () =>
+    process.stdout.write(
+      `rp — Radical Pipelines state tooling
 
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set lane=<fingerprint>] [--mirror]
@@ -1019,6 +1059,23 @@ lane carries the fingerprint of its whole declaration (fingerprint), which the
 lane's artifact and reviews must carry as \`lane\`, set at their stamp.
 Spec: ../reference/run/state.md
 `,
-      );
+    );
+  if (!cmd || cmd === "--help" || cmd === "-h") {
+    help();
+  } else if (!COMMAND_OPTIONS[cmd]) {
+    die(`unknown command: ${cmd}`);
+  } else {
+    const args = parseArgs(cmd, rest);
+  switch (cmd) {
+    case "stamp":
+      cmdStamp(args);
+      break;
+    case "check":
+      cmdCheck(args);
+      break;
+    case "fingerprint":
+      cmdFingerprint(args);
+      break;
+  }
   }
 }
