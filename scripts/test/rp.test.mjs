@@ -440,6 +440,14 @@ describe("rp state tooling", () => {
     assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+STALE — package identities: 1-spec\/tasks\/T9\.md/);
   });
 
+  test("an artifact cannot consume its sibling record", () => {
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec-research.md")), /never pins its sibling record/);
+    stampSpec();
+    const forged = read(root, "1-spec/spec.md").replace(/^head:/m, `  - 1-spec/spec-research.md@${identity(read(root, "1-spec/spec-research.md"))}\nhead:`);
+    write(root, "1-spec/spec.md", forged);
+    assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+STALE — package members/);
+  });
+
   test("triggers and claims beyond the target phase are reported, not the frontier", () => {
     stampSpec();
     approveSpec();

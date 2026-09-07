@@ -376,6 +376,9 @@ function cmdStamp(args) {
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
   const report = rel.match(REPORT);
+  const relParts = rel.split("/");
+  const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
+  const siblingRecord = artifact ? `${relParts.slice(0, -1).join("/")}/${basename(artifact.record)}` : null;
 
   const pinList = (paths) =>
     paths.map((p) => {
@@ -387,7 +390,9 @@ function cmdStamp(args) {
 
   let consumed = false;
   if (args.pin.length) {
-    fm.set("pins", pinList(args.pin));
+    const pins = pinList(args.pin);
+    if (pins.some((pin) => pinParts(pin)?.path === siblingRecord)) die(`stamp: an artifact never pins its sibling record: ${siblingRecord}`);
+    fm.set("pins", pins);
     consumed = true;
   }
   if (args.reviewed.length) {
@@ -975,7 +980,9 @@ function cmdCheck(args) {
       else requirementsReady = false;
     }
     const recorded = pinPackage(pins);
-    const requiredPackage = currentPackage([...required, ...(recorded?.keys() ?? [])]);
+    const siblingRecord = inScope(sc, art.record);
+    const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== siblingRecord);
+    const requiredPackage = currentPackage([...required, ...retained]);
     for (const [path, sha] of extraPackage) requiredPackage.set(path, sha);
     const diff = packageDiff(recorded, requiredPackage);
     const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
