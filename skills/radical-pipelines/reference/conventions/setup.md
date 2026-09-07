@@ -8,9 +8,11 @@ Enter from `load.md`:
 
 Tell the owner what exists and what is missing. Offer setup. If declined, stop and list the missing facts.
 
+Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, addressing, termination, health-loop, and model mechanics it fixes.
+
 ## Fresh setup
 
-Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only. When the skill ships `tools/<tool>.md`, tell the owner which spawn, seating, addressing, termination, health-loop, and model mechanics it fixes. Otherwise interview those mechanics and record them in the tool section.
+Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only. When the skill ships no `tools/<tool>.md`, interview its mechanics and record them in the tool section.
 
 ### Issues (required)
 
