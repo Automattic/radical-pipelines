@@ -127,8 +127,9 @@ Keep `.rp.md` to the conventions above. Include other discovered facts or instru
 1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
 2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
 3. On the artifact base branch, write human-readable `.rp.md` with frontmatter `conventions: 1`, shared fact sections, and a section headed by the active tool's name for its project facts.
-4. With permission, append the worktree folder root entry to `.gitignore` and co-commit it with `.rp.md` on that branch. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
-5. Report whether `.rp.md` was created or updated and whether setup is complete.
+4. With permission, append the worktree folder root entry to `.gitignore`.
+5. Commit the approved `.rp.md` on that branch, co-committing `.gitignore` when changed. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
+6. Report whether `.rp.md` was created or updated and whether setup is complete.
 
 ## Migration
 
