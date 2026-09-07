@@ -27,12 +27,12 @@
 - Pinned inputs: <one line per file pinned by document-plan.md: path>   <!-- current approving input reviews, adjudicated triggers, production-lane inputs -->
 - Amendment: <trigger path>; <origin chain paths>   <!-- when this wave judges one -->
 - Task report: <report path>; <its task file path>   <!-- when this wave judges one -->
+- Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
 
 <!-- Delta: the Fresh materials plus -->
 - Your previous review: <path>
-- Diff: git diff <its head> HEAD -- <plan path> <record path> <tasks folder>
+- Diff: git diff <its head> HEAD -- <every named material path>
 - Adjudication: <record path — sections>
-- Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
 
 ## Write your review to
 

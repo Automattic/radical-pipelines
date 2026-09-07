@@ -29,13 +29,13 @@ The Diff is the phase's whole work, not only the work named by the latest report
 
 ## Delta
 
-Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since.
+Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since. The **Diff** spans every named material changed since **Your previous review**'s `head`: artifact, record, **Tasks**, **Task reports**, and **Pinned inputs**, as applicable.
 
 1. Confirm how each of your prior findings was resolved by the new commits. A resolution that fails is a finding; write `Prior finding: <review>#<issue>, resolution failed` in it.
-2. Carry forward every logged check whose subject the diff does not touch, marked as reused; re-run the ones it does — the documentation checks always.
+2. Carry forward every logged check whose subject and backing inputs are unchanged, marked as reused; re-run the others, including checks backed by a changed input when the artifact is unchanged — the documentation checks always.
 3. Review the new commits.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails; anything else lands in non-blocking findings. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance criterion unmet, or leaves a guardrail unsatisfied.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance criterion unmet, or leaves a guardrail unsatisfied.
 
 # Rules
 

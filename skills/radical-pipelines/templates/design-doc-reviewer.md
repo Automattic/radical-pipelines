@@ -19,7 +19,7 @@
 <!-- Standing: every mode -->
 - design-doc.md: <path>
 - design-doc-research.md: <path>
-- Pinned inputs: <one line per file design-doc.md pins: intent, spec.md, current approving spec reviews, adjudicated triggers, lane inputs, consolidation candidates>
+- Pinned inputs: <one line per file design-doc.md pins: intent, spec.md, spec-research.md, current approving spec reviews, adjudicated triggers, lane inputs, consolidation candidates>
 - Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
 - Amendment: <trigger path>   <!-- when this wave adjudicates an amendment -->
 - Task report: <trigger path>   <!-- when this wave adjudicates a failed task report -->
@@ -30,7 +30,7 @@
 <!-- Delta: additions; retain Lane folders for a consolidation -->
 - Rejected review history: <one line per rejected review: path>
 - Your previous review: <path>
-- Diff: git diff <its head> HEAD -- <artifact path> <record path>
+- Diff: git diff <its head> HEAD -- <every named material path>
 - Adjudication: <record path — sections>
 
 ## Write your review to
