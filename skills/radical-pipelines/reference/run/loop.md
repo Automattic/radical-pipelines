@@ -24,7 +24,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
 | `task <phase>/<id>`                                  | That task's worker                                                                                             |
 | `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is restored (§ Dispatch)                                 |
-| `build review` / `document review`                   | The phase's reviewer                                                                                           |
+| `build review` / `document review`                   | A review wave of the phase's reviewer                                                                          |
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `… (invalid target)`                                 | Re-dispatch what wrote it: a target is an artifact id or, for a claim, an intent Goal, Constraint, or Decision |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
@@ -46,7 +46,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
-- A delta review's **Diff** runs from its previous review's `head` to `HEAD` over the artifact, its record, and — for a plan — its tasks; its **Adjudication** is every record entry written since. A build or document review's **Diff** is every change on the branch outside the pipelines folder since its base; a delta one, since its previous review's `head`.
+- A build or document review's fresh **Diff** is every change on the branch outside the pipelines folder since its base.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **research request**: spawn a fresh `researcher` with the question and the requester's address; it answers the requester directly. Several independent questions in one message get one researcher each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
@@ -60,6 +60,10 @@ After every agent commit, before anyone consumes the result — and before the a
 - A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. A mirror repair uses `rp stamp <report> --mirror`.
 - A named lane's artifact or review: `--set lane=<the lane's fingerprint>` too.
 - Commit the stamps on top of the landing.
+
+## Delta materials
+
+A Delta review receives **Your previous review**, **Adjudication** — every record entry written since — and the **Diff** from that review's `head` to `HEAD` over everything the review names: artifact, record, tasks, reports, and pinned inputs. Build and document Diffs also cover branch changes outside the pipelines folder. When only an input changed, the reviewer reruns the checks that input supports.
 
 ## Review waves
 
