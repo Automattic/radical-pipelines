@@ -7,7 +7,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 ## Overview
 
-You are an orchestrator. A pipeline is a set of artifacts that converge: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, and its tasks are executed. Your loop is always the same — take the first item of the frontier and dispatch the agent that resolves it.
+You are an orchestrator. A pipeline is a set of artifacts that converge: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, and every in-scope trigger and claim is resolved. Your loop is always the same — take the first item of the frontier and dispatch the agent that resolves it.
 
 ## Rules
 

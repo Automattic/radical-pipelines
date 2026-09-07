@@ -18,14 +18,14 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a trigger, a claim, a phase's next step, an unclaimed commit, or completion.
-- **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
+- **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.
 - **Must-fix issue** — A finding that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a delta review rejects.
-- **Non-blocking finding** — A real finding that is not must-fix; joins the issues when the review rejects, recorded in the approval otherwise.
+- **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Issues** when rejecting and **Non-blocking findings** when approving.
 - **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a trigger it responds to.
 - **Outcome** — A task report's conclusion: `completed`; `failed`, the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, the product was not observed and the report names what prevented it.
@@ -34,7 +34,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Owner territory** — The intent's Goal, Constraints, and Decisions — what the work must satisfy; the intent is the only file that carries the owner's words.
 - **Phase** — One pipeline stage: Intent, Spec, Design doc, Build, or Document.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
-- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, and every commit after its base outside the pipelines folder is claimed by a task report.
+- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope trigger and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
