@@ -4,24 +4,29 @@ This chart mirrors [`reference/conventions/load.md`](../../skills/radical-pipeli
 
 ```mermaid
 flowchart TD
-    A["Resolve the main repository root"] --> B["Load the active tool file"]
-    B --> C["Merge .rp.md and its active tool section"]
-    C --> D["Merge .rp.local.md overrides"]
-    D --> E{"Version stamp status"}
-    E --> F["No .rp.md"]
-    E --> G["Older or unstamped .rp.md"]
-    E --> H["conventions: 1"]
-    E --> I["Newer than 1"]
-    F --> J["Fresh setup"]
-    G --> K["Migrate conventions"]
-    H --> L{"Required conventions complete?"}
-    K --> M["Write confirmed conventions"]
-    L --> N["Complete"]
-    L --> O["Complete missing conventions in setup"]
+    A["Resolve the main root worktree-aware"] --> B["Load the active tool file"]
+    B --> C["Read .rp.md and its active tool section"]
+    C --> G["Merge .rp.local.md overrides"]
+    G --> D{"Tool mechanics available from the skill or active section?"}
+    D -->|No| E["Offer setup for the active tool"]
+    E --> F{"Owner accepts setup?"}
+    F -->|No| STOP["Stop and report what is missing"]
+    F -->|Yes| SETUP["Run setup"]
+    SETUP --> WRITE["Write confirmed conventions"]
+    WRITE --> C
+    D -->|Yes| H{"Version stamp status"}
+    H -->|No .rp.md| I["Offer Fresh setup"]
+    H -->|Older or absent stamp| J["Offer Migration"]
+    H -->|conventions: 1| K{"Required conventions complete?"}
+    H -->|Newer than 1| L["Stop and update the skill"]
+    I --> M{"Owner accepts setup?"}
     J --> M
-    O --> M
-    M --> P["Load lifecycle hooks"]
-    N --> P
+    M -->|No| STOP
+    M -->|Yes| SETUP
+    K -->|No| N["Offer setup for missing conventions"]
+    N --> O{"Owner accepts setup?"}
+    O -->|No| STOP
+    O -->|Yes| SETUP
+    K -->|Yes| P["Load lifecycle hooks"]
     P --> Q["Continue"]
-    I --> R["Stop and update the skill"]
 ```

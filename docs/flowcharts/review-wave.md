@@ -5,15 +5,14 @@ This chart mirrors the review-wave procedure in [`reference/run/loop.md`](../../
 ```mermaid
 flowchart TD
     A["Freeze the artifact at one identity"] --> B["Seed every declared lane at the same commit"]
-    B --> C["Run reviewers in parallel"]
-    C --> D["Wait for every lane"]
-    D --> E["Land reviews, merge lanes, and stamp"]
-    E --> F{"Closed-wave result"}
-    F --> G["Any rejected"]
-    F --> H["Every lane approved"]
-    F --> I["Unsatisfiable with no rejection"]
-    G --> J["Dispatch the producer to adjudicate all lanes"]
-    H --> K["Artifact approved"]
-    I --> L["The claim stands"]
-    L --> M["Expose the verdict as a trigger"]
+    B --> C["Prepare Brief and, for a re-review, previous review, Diff, and Adjudication"]
+    C --> D["Run reviewers in parallel"]
+    D --> E["Serve research requests or blockers; wait for every lane"]
+    E --> L["Merge review lanes into the wave branch"]
+    L --> M["Remove lane worktrees and branches; stamp every review"]
+    M --> F{"Closed-wave result"}
+    F -->|Any rejected| G["Dispatch the producer to adjudicate every lane"]
+    F -->|Every approved| H["Artifact approved"]
+    F -->|Unsatisfiable and no rejection| I["The claim stands"]
+    I --> J["Expose the verdict as a trigger"]
 ```

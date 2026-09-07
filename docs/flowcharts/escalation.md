@@ -4,26 +4,27 @@ This chart mirrors the claim and owner-escalation path in [`reference/run/loop.m
 
 ```mermaid
 flowchart TD
-    A["Producer records Contradicts-input with a target"] --> B["Reviewer checks the disposition and evidence"]
-    B --> C{"Reviewer verdict"}
-    C --> D["Defeated: rejected with a live route"]
-    C --> E["Corroborated: unsatisfiable with the target"]
-    D --> F["Producer adjudicates the rejection"]
-    F --> B
-    E --> G["Pending claim"]
+    A["Producer records Contradicts-input with a target"] --> B["Run a review wave"]
+    B --> C["Wait for every lane and close the wave"]
+    C --> D{"Closed-wave result"}
+    D -->|Any rejected| E["Producer adjudicates every lane"]
+    E --> B
+    D -->|Every approved| F{"Review names a claim as Origin?"}
+    F -->|Yes| RESOLVED["The claim is resolved"]
+    F -->|No| APPROVED["The artifact is approved"]
+    D -->|Unsatisfiable and no rejection| G["Pending claim"]
     G --> H{"Target in owner territory?"}
-    H --> I["Pause the pipeline and assemble the dossier"]
+    H -->|Yes| I["Pause the pipeline and assemble the dossier"]
     I --> J["Give the owner the claim, evidence chain, and options"]
-    J --> K["Write the answer into intent.md as a decision; stamp; the cascade re-synthesizes"]
-    K --> L["The target identity changes"]
-    L --> M["The cascade re-synthesizes stale downstream artifacts"]
-    H --> N["Dispatch the target producer in Adjudicate mode"]
+    J --> K["Write the answer into intent.md as a decision; stamp and commit"]
+    K --> CHANGED["The target identity changes"]
+    H -->|No| N["Dispatch the target producer: Adjudicate"]
     N --> O{"Producer disposition"}
-    O --> P["Adopt and change the target"]
-    O --> Q["Refute in the target record"]
-    O --> R["Climb with a new Contradicts-input target"]
-    P --> L
-    Q --> S["A review with the trigger as origin approves"]
-    S --> T["The claim is resolved"]
+    O -->|Adopt| P["Change the target"]
+    O -->|Refute| Q["Record the refutation"]
+    O -->|Contradicts input| R["Name the higher target"]
+    P --> CHANGED
+    Q --> B
     R --> B
+    CHANGED --> CASCADE["Re-synthesize stale downstream artifacts"]
 ```

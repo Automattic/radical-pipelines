@@ -14,7 +14,8 @@ flowchart TD
     G --> H{"Create a new issue?"}
     H --> I["Search for related issues"]
     H --> K["Render the draft"]
-    I --> J["Owner chooses duplicate, modify, or link"]
+    I --> IA["Annotate matches with discovered pipelines and state"]
+    IA --> J["Owner chooses to proceed, modify an existing issue, or link"]
     J --> K
     K --> L{"Owner approves?"}
     L --> M["Revise the draft"]
