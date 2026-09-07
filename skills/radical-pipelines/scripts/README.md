@@ -34,11 +34,11 @@ node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--targ
 ```
 
 - `--base` names the artifact base branch: the pipeline's own commits — those a task report must claim — follow its merge-base with the inspected ref. The branch the intent `starts-from` prevails when it declares one; otherwise `--base` is required. A base that does not resolve is an error.
-- `--lanes` declares, per artifact, the named review lanes and, after `|`, production lanes with their `after` dependencies: `"spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh@<fingerprint>"`. Components and delimiters are exact; artifacts and lane ids appear once. Every named lane requires a fingerprint matching the stamped `lane`. A lane folder or review the declaration lacks is reported; `tasks` is reserved.
+- `--lanes` declares, per artifact, the named review lanes and, after `|`, production lanes with their `after` dependencies: `"spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh@<fingerprint>"`. Components and delimiters are exact; artifacts and lane ids appear once. Every named lane is `<id>@<fingerprint>`, matching the stamped `lane`. A lane folder or review the declaration lacks is reported; `tasks` is reserved.
 - `--target-phase <n>` is an integer from 1 (spec) to 4 (document); default 4. The report ends with `complete through phase <m>` against it.
 - `--ref` reads the pipeline from a commit instead of the working tree; the commit range is the same.
 - `--json` emits machine-readable state.
-- Any other value, a missing value, or an unknown option is an error.
+- Each command accepts only its documented options and one positional argument. Any other value, missing value, duplicate single option, or unknown option is an error.
 
 ```sh
 node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main --lanes "spec=security@b01a76f7504a" --target-phase 3

@@ -6,7 +6,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 - **Identity** — the first 12 hexadecimal characters of the git blob hash of every body byte: those below the frontmatter, or the whole file when it has none. The pipeline folder holds files and folders only: a symlink is a defect.
 - **Pin** — a frontmatter line recording the identity of an input the file consumed: `<path>@<identity>`, path relative to the pipeline folder. Only you write pins, through `rp stamp`.
-- **Stale** — a pin whose target's current identity differs from the pinned one.
+- **Stale** — a pin whose target's current identity differs from the pinned one, or an artifact that pins an input's former approval.
 - **Lane** — one instance of a role on one artifact. Every reviewer has an implicit lane with no id; the project may declare named review lanes and named production lanes (`../conventions/agents.md`). A named lane's identity is its whole declaration — id, brief, materials, `after` — as one **fingerprint**: a lane artifact or review stamped with another is stale; a lane folder or review the declaration lacks is a defect, never a lane.
 - **Wave** — one review of an artifact by every one of its lanes; numbered per artifact, shared by its lanes. A wave is closed when every lane's review of it is stamped and fresh.
 - **Verdict** — a review's conclusion: `approved`, `rejected`, or `unsatisfiable`. An `unsatisfiable` verdict names a `target`: `<path>#<id>`.
@@ -47,7 +47,7 @@ A file pins exactly what it consumed, never its sibling record. Records are neve
 | `0-intent/intent.md`                   | none; `origin`: the issue reference                                          |
 | `0-intent/<n>-amendment.md`            | none; `target`, `origin`                                                     |
 | `1-spec/spec.md`                       | `intent.md`; every trigger it adjudicated; when consolidated, every lane's `spec.md`, record, and approving reviews |
-| `1-spec/<lane>/spec.md`                | what the root artifact would, plus the artifacts of the lanes it comes `after` |
+| spec or design production-lane artifact | what its root artifact would, plus each `after` lane's artifact, record, and approving reviews |
 | `2-design-doc/design-doc.md`           | `intent.md`, `spec.md`, an approving spec review; triggers; lanes when consolidated |
 | `3-build/build-plan.md`                | `spec.md`, `design-doc.md`, their approving reviews; triggers                |
 | `3-build/tasks/T<n>.md`                | none; `depends`                                                              |
@@ -55,12 +55,12 @@ A file pins exactly what it consumed, never its sibling record. Records are neve
 | `4-document/document-plan.md`          | `spec.md`, `design-doc.md`, `build-plan.md`, their approving reviews, every build task and report, the approving build review; triggers |
 | document tasks and reports             | as in build                                                                  |
 
-**What a review names** (`reviewed`): its artifact, its record, and everything the artifact pins — its inputs, their approving reviews, the triggers it adjudicated, its lane inputs; a plan review, every task too; a build or document review, the plan's package, every task, and every report. A review whose pins are stale, that names less or more, or whose `lane` differs from the declared fingerprint, is stale. An artifact consumes an input with its **current approval**: every lane's review of the wave that approved it.
+**What a review names** (`reviewed`): its artifact, its record, and everything the artifact pins — its inputs, their approving reviews, the triggers it adjudicated, its lane inputs; a plan review, every task too; a build or document review, the plan's package, every task, and every report. A review whose pins are stale, that names less or more, or whose `lane` differs from the declared fingerprint, is stale. An artifact consumes an input with its **current approval**: every lane's review of the wave that approved it. A newer approval makes the artifact stale; incomplete pins means its stamp omitted a required input.
 
 ## Names
 
-- Pipeline folder: `<pipelines folder root>/<slug>/`; slug from the **Branch naming** convention; a second pipeline for the same issue appends `-2`, `-3`.
-- Branch: the slug. Work on a merged pipeline — an amendment, a later phase — runs on `<slug>_<n>` from the base branch. Production lanes `<slug>_<phase>-<lane>`; review lanes `<slug>_<phase>-review-<lane>`, or `<slug>_<phase>-<lane>-review-<review lane>` inside a production lane.
+- Pipeline folder: `<pipelines folder root>/<slug>/`; the issue-derived slug is one path segment, a valid git ref, contains no `_`, and names the pipeline branch. A second pipeline for the same issue appends `-2`, `-3`.
+- Auxiliary branches: production lanes use `<slug>-<phase>-<lane>`; review lanes use `<slug>-<phase>-review-<lane>`, or `<slug>-<phase>-<lane>-review-<review lane>` inside a production lane.
 - Reviews: `<artifact>-review-<wave>.md` for the implicit lane, `<artifact>-review-<lane>-<wave>.md` for a named lane. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`. You compute filenames and pass them in the prompt. A reviewer that adjudicates a trigger writes `Origin: <trigger path>` in its review.
 - Production lanes: `<phase>/<lane>/` holds the lane's artifact, record, and reviews, named as at the root.
 - Tasks: `<phase>/tasks/T<n>.md`, one file per task, self-contained — an e2e task carries its flows, a task naming `Verifies: A<n>` carries the assumption's condition; reports `<phase>/tasks/T<n>-report-<k>.md`, one per attempt, never overwritten; an attempt that lands no report does not exist — the next report is `k+1` of the last one landed. A plan is `<plan>.md` — overview, assumptions, order — plus its tasks folder.
@@ -74,9 +74,9 @@ A file pins exactly what it consumed, never its sibling record. Records are neve
 
 `rp check <pipeline folder> --base <base branch> --lanes <declaration> --target-phase <n>` reports every phase up to the target and names the **frontier** — the first item of:
 
-1. **A contradiction** — malformed frontmatter → you fix it; malformed fixed line → its author fixes it; mirror drift → stamp it; an undeclared lane or symlink → stop and tell the owner.
+1. **A contradiction** — malformed frontmatter → you repair and re-stamp it; malformed fixed line → its author fixes it; mirror drift → stamp it; an undeclared lane or symlink → stop and tell the owner.
 2. **A pending trigger** targeting a phase within the target → work on its target. A trigger with an invalid target → re-dispatch what wrote it.
-3. **A pending claim** — an `unsatisfiable` verdict that is its lane's latest, whose wave closed with no `rejected` lane, whose `reviewed` pins are fresh, whose target is unchanged and within the target phase. Target in owner territory → owner escalation. Target itself the subject of a pending claim → suspended, resolve that one first. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
+3. **A pending claim** — an `unsatisfiable` verdict that is its lane's latest, whose wave closed with no `rejected` lane, whose `reviewed` pins are fresh, whose target is unchanged and within the target phase. Target in owner territory → owner escalation. A pending claim made by the target's own lane reviews suspends claims against that target. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
 4. **Per phase, in order** — declared production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / adjudication; a lane waits while a lane it comes `after` is unapproved; every lane approved and fresh → consolidate; a lane closes permanently when the root pins its artifact, record, and one complete approving wave); then the root artifact: missing → produce; stale → produce with the delta; unstamped or incomplete pins → stamp what its producer consumed; an unstamped review → stamp it; an invalid one → its reviewer finishes it; not approved → a review wave, or an adjudication when the wave closed with a rejection. Approved means every lane approved the current wave with fresh pins. In build and document, with the plan approved and fresh: an unstamped report of any attempt → stamp it; an invalid one → its worker finishes it; the next task — the lowest-numbered task whose dependencies are done and which is neither done nor held by an unadjudicated failure — as `blocked <phase>/T<n>` when its latest report is fresh and `blocked`; all done → the phase review wave; approved → the phase is complete.
 5. **Complete** — every trigger and claim targeting a phase within the target resolved, every phase through the target approved and fresh, and every commit after the base outside the pipelines folder claimed by a task report (`## Commits`) → close-out. An unclaimed commit is the frontier: work that reached the branch outside a task. A base that does not resolve is an error, never completion.
 

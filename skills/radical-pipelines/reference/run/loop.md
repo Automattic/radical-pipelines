@@ -28,7 +28,8 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `… (invalid target)`                                 | Re-dispatch what wrote it: a target is an artifact id or, for a claim, an intent Goal, Constraint, or Decision |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
-| `INVALID FRONTMATTER <path>` / `INVALID LINE <path>` | The file's author fixes it                                                                                     |
+| `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
+| `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
 | `invalid plan: …`                                    | The plan producer, mode Adjudicate                                                                             |
 | `invalid reports: attempts of <phase>/tasks/<id> are not 1..n` | Rename that task's reports to `1..n` in landing order; re-stamp each with `--mirror`                            |
 | `tasks held in <phase>: …`                           | The plan producer, mode Adjudicate, with the held failed reports                                               |
@@ -42,7 +43,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 ## Dispatch
 
 - Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by the lane's `materials` when it has them. A named lane's **Brief** is its brief verbatim; the implicit lane has none. `--lanes` carries each named lane with its fingerprint (`state.md` § The frontier).
-- A producer's materials include, for each input artifact, its current approving reviews — every lane's review of the wave that approved it; the document plan also gets the approving build review.
+- A producer's materials include, for each input artifact, its current approving reviews — every lane's review of the wave that approved it; the document plan also gets the approving build review. A newer approval makes a consumer stale and provides **Input changes** for re-synthesis.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
@@ -70,7 +71,7 @@ A Delta review receives **Your previous review**, **Adjudication** — every rec
 A wave reviews one artifact at one identity; one wave at a time per artifact; its number is the artifact's next.
 
 1. Freeze: no producer works on the artifact until the wave closes.
-2. The implicit lane runs in the pipeline worktree. Named lanes: create `<slug>_<phase>-review-<lane>` branches and worktrees at the same commit, one reviewer each, in parallel.
+2. The implicit lane runs in the pipeline worktree. Named lanes: create `<slug>-<phase>-review-<lane>` branches and worktrees at the same commit, one reviewer each, in parallel.
 3. Each reviewer gets its **Brief** and, on a re-review, **Your previous review**, the **Diff** from its `head`, and the **Adjudication**.
 4. Land: merge the review-lane branches into the branch the wave runs on (disjoint files, no conflicts), remove their worktrees and branches, stamp every review.
 5. Close: any `rejected` → adjudication; every lane `approved` → done; an `unsatisfiable` with no `rejected` → the claim stands, `rp check` routes it. An approval from a lane means nothing in its brief objects.
@@ -79,7 +80,7 @@ Waves are atomic: a research request or blocker raised during a wave is served, 
 
 ## Production lanes
 
-A production lane, declared in `../conventions/agents.md`, is a sub-pipeline of one artifact. Create `<slug>_<phase>-<lane>` branches and worktrees at the same commit; each lane's producer writes in `<phase>/<lane>/` with its **Brief**; everything this file says about an artifact applies inside the lane — its review waves run on `<slug>_<phase>-<lane>-review-<review lane>` branches cut from and merged into the lane branch — and lanes run in parallel. A lane declared `after` others starts when they are approved and receives their artifacts under **Lane inputs**. After every landing in a lane, merge the lane branch into the pipeline branch (disjoint folders, no conflicts), so `rp check` on the pipeline branch always sees every lane; after every landing on the pipeline branch, merge it into each open lane branch, so a changed input reaches the lanes. When every lane is approved and fresh: remove the lane worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact, record, and approving reviews under **Lane candidates**; stamp the root artifact pinning them. Its review wave is a Consolidation review with the **Lane folders**. Later re-syntheses of the root run without lanes.
+A production lane, declared in `../conventions/agents.md`, is a sub-pipeline of one artifact. Create `<slug>-<phase>-<lane>` branches and worktrees at the same commit; each lane's producer writes in `<phase>/<lane>/` with its **Brief**; everything this file says about an artifact applies inside the lane — its review waves run on `<slug>-<phase>-<lane>-review-<review lane>` branches cut from and merged into the lane branch — and lanes run in parallel. A lane declared `after` others starts when they are approved and receives each lane's artifact, record, and approving reviews under **Lane inputs**, pinning them. After every landing in a lane, merge the lane branch into the pipeline branch (disjoint folders, no conflicts), so `rp check` on the pipeline branch always sees every lane; after every landing on the pipeline branch, merge it into each open lane branch, so a changed input reaches the lanes. When every lane is approved and fresh: remove the lane worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact, record, and approving reviews under **Lane candidates**; stamp the root artifact pinning them. Its review wave is a Consolidation review with the **Lane folders**. Later re-syntheses of the root run without lanes.
 
 ## Owner escalation
 
