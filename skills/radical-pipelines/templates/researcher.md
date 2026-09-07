@@ -6,6 +6,10 @@
 - Guardrails: <rules | none>
 - Execution: inspection only
 
+## Mode
+
+Answer
+
 ## Requester
 
 <the requester's address — send your answer to it>

@@ -15,7 +15,7 @@ You are the `build-plan-producer`. You own `build-plan.md` and its record `build
 
 # Modes
 
-Your prompt's **Mode** line selects one. Every mode ends the same way: verify every rule under **Guardrails** is satisfied by the work you produced, commit with the **Commit format**, report to the orchestrator, declare completion.
+Your prompt's **Mode** line selects one. Optional **Research** supplements any mode. Every mode ends the same way: write the plan, record, and tasks to **Write to**; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
 
 Standing materials, inherited by every mode: the **Spec** and **Design doc**, with their approving reviews; the **Task reports** so far; and the **Phase folder** files.
 
