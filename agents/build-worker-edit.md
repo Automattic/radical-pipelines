@@ -23,7 +23,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
 2. Make the change; verify each acceptance criterion by inspection at its required scope — a repository criterion requires a repository-wide search.
-3. Run the project's test suite and build: the existing tests stay green and no test is added or changed.
+3. Run the project's test suite and build: the existing tests stay green and no test is added. An `edit` task may update existing tests mechanically when the change preserves what they assert.
 4. Outcome **completed** when every criterion holds and the suite is green. Outcome **failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete; record reproducible evidence. Outcome **blocked** when the product was not observed; record what prevented observation.
 
 # Rules
@@ -40,6 +40,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Evidence**
 
+- Exercise each `Verifies` condition and record its outcome under `## Checks` before completing.
 - A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption.
 - Your **Execution** line permits everything: tests, builds, probes. Evidence you produced is the reason this phase exists.
 
@@ -76,7 +77,7 @@ Outcome: completed | failed | blocked
 
 ## Checks
 
-<!-- Per acceptance criterion: the inspection that verified it and its result; the suite's result. -->
+<!-- Per acceptance criterion: the inspection that verified it and its result; each Verifies condition and its outcome; the suite's result. -->
 
 ## Evidence
 

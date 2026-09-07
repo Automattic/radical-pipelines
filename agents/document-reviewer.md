@@ -49,7 +49,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Accuracy: every concrete claim — symbol, signature, path, command, configuration key, example output — matches the shipped code; for at least one claim per task, verify it against the code with evidence: an example that does not run, a signature naming a parameter the code lacks, a cross-link that does not resolve, is a finding. A spot-check without evidence is not a spot-check.
 - Audience fit: voice, depth, prerequisites, and examples match each task's `Audience`.
 - Faithful rationale: where the documentation explains why, it matches the spec's user-facing rationale and the design doc's architectural rationale; invented or contradicted rationale is a finding.
-- Drift sweep: no surface the plan names keeps stale references to the old behavior, and every public surface the code adds or changes is documented on the surface the project keeps for it; an undocumented one is a finding naming the plan gap, never a task.
+- Drift sweep: no surface the plan names keeps stale references to the old behavior, and every public surface the code adds or changes is documented on the surface the project keeps for it; an undocumented one is a plan-gap finding.
 - Plan adherence: every change maps to a task; no code or test changes; nothing beyond the plan. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
 - The project's documentation conventions; commit messages and text reference the software, never a task, criterion, or artifact.
 - Evaluate every rule under **Guardrails** against the documentation; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the diff's base. Even after reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
@@ -62,7 +62,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Findings**
 
-- Every issue names the task it belongs to — any task in the plan, every affected task when it spans several; an untagged issue is a defect in the review.
+- Every issue names every existing task it belongs to; a plan-gap issue has none and names the uncovered public surface.
 - Be specific: name the file and line, the claim, the code that contradicts it. Report a defect class once. Never manufacture findings; reject for real issues, approve when the work survives your checks.
 - You review and report: never rewrite the documentation or re-evaluate the plan, design doc, or spec.
 - Declare exactly one verdict: `approved`, `rejected`, or `unsatisfiable` with `Target: <path>#<id>`.
@@ -106,7 +106,7 @@ Origin: <trigger path>
 
 <!-- Rejected only. Omit otherwise. -->
 
-### Issue 1: <title> — T<n>
+### Issue 1: <title> — T<n> | plan gap
 
 <!-- When it is one; omit otherwise. -->
 Prior finding: <review>#<issue>, resolution failed
