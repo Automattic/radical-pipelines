@@ -95,36 +95,57 @@ const IDENTITY = /^[0-9a-f]{12}$/;
 const REPORT = /^([^/]+)\/tasks\/(T\d+)-report-(\d+)\.md$/;
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
 const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
-// Landing facts the stamp itself observes; with pins and mirrors, never written by --set.
-const OBSERVED = new Set(["pins", "reviewed", "head", "target-identity"]);
 
 // The projection of a body: every declaration in its fixed form, keyed as the frontmatter mirrors it.
 export function projectBody(body, rel = "") {
   const p = new Map();
-  const verdict = body.match(/^Verdict:\s*(approved|rejected|unsatisfiable)\s*$/m);
-  if (verdict) p.set("verdict", verdict[1]);
-  const brief = body.match(/^Brief:\s*(.+)$/m);
-  if (brief) p.set("brief", brief[1].trim());
-  const target = body.match(/^Target:\s*(\S+)\s*$/m);
-  if (target) p.set("target", target[1]);
-  const origins = [...body.matchAll(/^Origin:\s*(.+)$/gm)].map((m) => m[1].trim());
+  const malformed = (message) => p.set("malformed", [...(p.get("malformed") ?? []), message]);
+  const fixed = (name) => [...body.matchAll(new RegExp(`^${name}:\\s*(.*)$`, "gm"))].map((m) => m[1].trim());
+  const oneOf = (name, key, values) => {
+    const lines = fixed(name);
+    for (const value of lines) {
+      if (values.includes(value)) p.set(key, value);
+      else malformed(`${name}: expected ${values.join(" | ")}, got: ${value}`);
+    }
+  };
+  oneOf("Verdict", "verdict", ["approved", "rejected", "unsatisfiable"]);
+  const briefs = fixed("Brief");
+  for (const value of briefs) {
+    if (value) p.set("brief", value);
+    else malformed("Brief: expected text, got:");
+  }
+  const targets = fixed("Target");
+  for (const value of targets) {
+    if (/^[^#\s]+#[^#\s]+$/.test(value)) p.set("target", value);
+    else malformed(`Target: expected <path>#<id>, got: ${value}`);
+  }
+  const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S+$/.test(value) || /^decision-\d+$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
+  const origins = [];
+  for (const value of fixed("Origin")) {
+    if (originValid(value)) origins.push(value);
+    else malformed(`Origin: expected a path or source reference, got: ${value}`);
+  }
   if (origins.length === 1) p.set("origin", origins[0]);
   else if (origins.length > 1) p.set("origin", origins);
-  const outcome = body.match(/^Outcome:\s*(completed|failed|blocked)\s*$/m);
-  if (outcome) p.set("outcome", outcome[1]);
-  const recurs = [...body.matchAll(/^Prior finding:\s*(\S+#[^,\s]+),\s*resolution failed\s*$/gm)].map((m) => m[1]);
+  oneOf("Outcome", "outcome", ["completed", "failed", "blocked"]);
+  const recurs = [];
+  for (const value of fixed("Prior finding")) {
+    const match = value.match(/^(\S+#[^,\s]+),\s*resolution failed$/);
+    if (match) recurs.push(match[1]);
+    else malformed(`Prior finding: expected <review>#<issue>, resolution failed, got: ${value}`);
+  }
   if (recurs.length) p.set("recurs", recurs);
   // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
   // separated by commas — nothing else on the line. Anything else is malformed, never mined.
-  const dep = body.match(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.*)$/m);
-  if (dep) {
+  const dependencies = [...body.matchAll(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.*)$/gm)];
+  for (const dep of dependencies) {
     const value = dep[1].trim();
     if (/^none$/i.test(value)) p.set("depends", []);
     else if (/^T\d+(\s*,\s*T\d+)*$/.test(value)) {
       const ids = value.split(",").map((x) => x.trim());
-      if (new Set(ids).size !== ids.length) p.set("malformed", [...(p.get("malformed") ?? []), `Depends on: duplicate ids: ${value}`]);
+      if (new Set(ids).size !== ids.length) malformed(`Depends on: duplicate ids: ${value}`);
       else p.set("depends", ids);
-    } else p.set("malformed", [...(p.get("malformed") ?? []), `Depends on: expected none or task ids, got: ${value}`]);
+    } else malformed(`Depends on: expected none or task ids, got: ${value}`);
   }
   // A task report's `## Commits` section, up to the next heading: every line that starts with a
   // commit hash — after a bullet or a backtick — whatever follows it.
@@ -223,8 +244,10 @@ function cmdStamp(args) {
     const i = s.indexOf("=");
     if (i < 1) die(`stamp: --set expects key=value, got: ${s}`);
     const key = s.slice(0, i);
-    if (MIRRORS.includes(key) || OBSERVED.has(key)) die(`stamp: ${key} is written from the body or by the stamp itself, never by --set`);
-    fm.set(key, s.slice(i + 1));
+    const value = s.slice(i + 1);
+    if (key !== "lane") die(`stamp: --set accepts only lane, got: ${key}`);
+    if (!IDENTITY.test(value)) die(`stamp: lane must be a 12-character hexadecimal fingerprint, got: ${value}`);
+    fm.set(key, value);
   }
   if (args.mirror) mirrorBody(body, fm, base, rel);
   // A report names commits that already exist; they are stored canonical (full hash).
@@ -334,20 +357,41 @@ function parseLanes(text) {
   const decl = {};
   if (!text) return decl;
   const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
-  const laneOf = (x) => {
-    const [head, after = ""] = x.split("<");
-    const [id, fingerprint = null] = head.split("@");
+  const laneOf = (x, production) => {
+    const afterParts = x.split("<");
+    if (afterParts.length > 2) die(`check: invalid lane declaration "${x}" in --lanes`);
+    const [head, after = ""] = afterParts;
+    if (!production && afterParts.length > 1) die(`check: review lane "${head}" cannot declare after dependencies`);
+    const fingerprintParts = head.split("@");
+    if (fingerprintParts.length > 2) die(`check: invalid lane declaration "${x}" in --lanes`);
+    const [id, fingerprint = null] = fingerprintParts;
     if (!LANE_ID.test(id)) die(`check: invalid lane id "${id}" in --lanes`);
     if (RESERVED_LANE_IDS.has(id)) die(`check: "${id}" is a reserved name, not a lane id`);
     if (fingerprint !== null && !IDENTITY.test(fingerprint)) die(`check: invalid fingerprint for lane "${id}"`);
-    return { id, fingerprint, after: after.split("+").map((y) => y.trim()).filter(Boolean) };
+    const deps = after ? after.split("+").map((y) => y.trim()) : [];
+    if (deps.some((dep) => !LANE_ID.test(dep))) die(`check: invalid after dependency for lane "${id}"`);
+    if (new Set(deps).size !== deps.length) die(`check: duplicate after dependency for lane "${id}"`);
+    return { id, fingerprint, after: deps };
   };
   for (const entry of text.split(";")) {
-    const [prefix, rest = ""] = entry.split("=").map((x) => x.trim());
+    const parts = entry.split("=");
+    if (parts.length !== 2) die(`check: invalid artifact declaration "${entry}" in --lanes`);
+    const [prefix, rest] = parts.map((x) => x.trim());
     const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
     if (!art) die(`check: unknown artifact "${prefix}" in --lanes`);
-    const [reviews = "", production = ""] = rest.split("|");
-    const d = { review: reviews.split(",").map((x) => x.trim()).filter(Boolean).map(laneOf), production: production.split(",").map((x) => x.trim()).filter(Boolean).map(laneOf) };
+    if (Object.hasOwn(decl, prefix)) die(`check: duplicate artifact declaration "${prefix}" in --lanes`);
+    const groups = rest.split("|");
+    if (groups.length > 2) die(`check: invalid artifact declaration "${entry}" in --lanes`);
+    const [reviews = "", production = ""] = groups;
+    const list = (value, isProduction) => {
+      if (!value) return [];
+      const items = value.split(",").map((x) => x.trim());
+      if (items.some((x) => !x)) die(`check: empty lane declaration for "${prefix}" in --lanes`);
+      return items.map((x) => laneOf(x, isProduction));
+    };
+    const d = { review: list(reviews, false), production: list(production, true) };
+    const laneIds = [...d.review, ...d.production].map((l) => l.id);
+    if (new Set(laneIds).size !== laneIds.length) die(`check: duplicate lane declaration for "${prefix}" in --lanes`);
     if (d.production.length && (art.review || prefix === art.review)) die(`check: production lanes apply to the spec and design doc only, not ${prefix}`);
     const ids = new Set(d.production.map((l) => l.id));
     for (const l of d.production) for (const dep of l.after) if (!ids.has(dep)) die(`check: lane "${l.id}" comes after undeclared lane "${dep}"`);
@@ -487,9 +531,8 @@ function cmdCheck(args) {
     const artifactPath = inScope(sc, art.path);
     const pinned = (pinsByPath.get(artifactPath) ?? []).map((p) => pinParts(p)?.path).filter(Boolean);
     const base = [artifactPath, inScope(sc, art.record), ...pinned];
-    if (art.review && prefix === art.prefix) return [...base, ...taskFilesOf(art.phase)];
-    if (art.review && prefix === art.review) return [...base, ...taskFilesOf(art.phase), ...reportFilesOf(art.phase)];
-    return base;
+    const schema = art.review && prefix === art.prefix ? [...base, ...taskFilesOf(art.phase)] : art.review && prefix === art.review ? [...base, ...taskFilesOf(art.phase), ...reportFilesOf(art.phase)] : base;
+    return [...new Set(schema)];
   };
   const reviewFresh = (r, prefix, sc) => {
     const reviewed = [].concat(r.data.get("reviewed") ?? []);
@@ -666,7 +709,8 @@ function cmdCheck(args) {
     const pins = doc?.data.get("pins");
     const stale = staleOf(pins);
     if (!laneMatches(doc, fingerprint)) stale.push("lane declaration");
-    const required = [...art.requires, ...extraRequires];
+    const buildPackage = art.prefix === "document-plan" ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
+    const required = [...new Set([...art.requires, ...buildPackage, ...extraRequires])];
     const missingPins = required.filter((req) => !(pins ?? []).some((p) => pinParts(p)?.path === req));
     // Each required input is consumed with its current approval: every lane's review of the wave that approved it.
     for (const req of required) {
@@ -713,7 +757,7 @@ function cmdCheck(args) {
     // A consolidated root pins every lane's artifact, record, and approving reviews; only then are the lanes closed.
     const lanePins = (sc) => [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...laneReviewPaths(sc)];
     const rootPins = (pinsByPath.get(art.path) ?? []).map((p) => pinParts(p)?.path);
-    const consolidated = rootExists && laneScopes.length > 0 && laneScopes.every((sc) => laneApproved(sc) && lanePins(sc).every((p) => rootPins.includes(p)));
+    const consolidated = rootExists && laneScopes.length > 0 && laneScopes.every((sc) => lanePins(sc).every((p) => rootPins.includes(p)));
     let lanesReady = laneScopes.length > 0;
     for (const sc of laneScopes) {
       const { after, fingerprint } = laneOf(sc);
@@ -842,7 +886,8 @@ function cmdCheck(args) {
   out.targetPhase = args.targetPhase;
   out.complete = !frontier && !unresolvedInScope && through >= args.targetPhase;
   if (!frontier && unresolvedInScope) frontier = "triggers or claims still adjudicated, awaiting approval";
-  if (!frontier) frontier = out.complete ? "complete" : `complete through phase ${through}`;
+  if (!frontier && !out.complete) die(`check: no frontier before target phase ${args.targetPhase}`);
+  if (!frontier) frontier = "complete";
   out.frontier = frontier;
   lines.push(`complete through phase ${through}${out.complete ? " — target reached" : ` (target ${args.targetPhase})`}`);
   lines.push(`frontier ${frontier}`);
@@ -899,7 +944,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
         `rp — Radical Pipelines state tooling
 
 Usage:
-  node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set key=value]... [--mirror]
+  node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set lane=<fingerprint>] [--mirror]
   node rp.mjs fingerprint <lane id> [--brief <text>] [--materials <a,b>] [--after <lane+lane>]
   node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--json]
 

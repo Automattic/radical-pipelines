@@ -120,10 +120,12 @@ describe("rp state tooling", () => {
   test("identity is the body's hash: stamping never changes it", () => {
     const before = identity(read(root, "1-spec/spec.md"));
     stampSpec();
-    rp(root, "stamp", P("1-spec/spec.md"), "--set", "note=one");
-    rp(root, "stamp", P("1-spec/spec.md"), "--set", "note=two");
+    rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=111111111111");
+    rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=222222222222");
     assert.equal(identity(read(root, "1-spec/spec.md")), before);
     assert.match(read(root, "1-spec/spec.md"), /pins:\n  - 0-intent\/intent\.md@[0-9a-f]{12}/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--set", "note=no"), /--set accepts only lane/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=no"), /12-character hexadecimal fingerprint/);
   });
 
   test("empty frontmatter preserves a dependency-free task's body identity", () => {
@@ -143,7 +145,7 @@ describe("rp state tooling", () => {
   test("a body edit makes a pin stale; a frontmatter edit does not", () => {
     stampSpec();
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+FRESH/);
-    rp(root, "stamp", P("0-intent/intent.md"), "--set", "note=x");
+    rp(root, "stamp", P("0-intent/intent.md"), "--set", "lane=111111111111");
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+FRESH/);
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged.\n");
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+STALE/);
@@ -233,7 +235,7 @@ describe("rp state tooling", () => {
   // --- triggers and claims -----------------------------------------------------
 
   function amendment(target = "1-spec/spec.md#R1") {
-    write(root, "0-intent/1-amendment.md", `# Amendment 1\n\nTarget: ${target}\nOrigin: owner request\n\n## Request\n\nFix R1.\n`);
+    write(root, "0-intent/1-amendment.md", `# Amendment 1\n\nTarget: ${target}\nOrigin: decision-1\n\n## Request\n\nFix R1.\n`);
     rp(root, "stamp", P("0-intent/1-amendment.md"), "--mirror");
   }
 
@@ -340,6 +342,17 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(output, /trigger .*T1-report-2/);
   });
 
+  test("a phase-review schema deduplicates a failed report pinned by its plan", () => {
+    approveChain(3);
+    report("T1", 1, "failed");
+    stampPlan(["3-build/tasks/T1-report-1.md"]);
+    review("3-build/build-plan-review-2.md", "approved", [...PLAN_BASE, "3-build/tasks/T1-report-1.md", ...TASKS]);
+    report("T1", 2, "completed");
+    report("T2", 1, "completed", ["T1"]);
+    review("3-build/build-review-1.md", "approved", [...PLAN_BASE, "3-build/tasks/T1-report-1.md", ...TASKS, "3-build/tasks/T1-report-2.md", "3-build/tasks/T2-report-1.md"]);
+    assert.match(check(root, "--target-phase", "3"), /build\s+review: ·:approved\s+APPROVED[\s\S]*frontier complete/);
+  });
+
   test("a blocked report is never a trigger: its task stays pending for the orchestrator until a later attempt lands", () => {
     approveChain(3);
     report("T1", 1, "blocked");
@@ -370,8 +383,11 @@ describe("rp state tooling", () => {
     write(root, "4-document/document-plan-research.md", "# Doc research\n");
     write(root, "4-document/tasks/T1.md", "# T1: guide\n\n- **Depends on:** none\n");
     rp(root, "stamp", P("4-document/tasks/T1.md"), "--mirror");
+    const BUILD_WORK = [...TASKS, "3-build/tasks/T1-report-1.md", "3-build/tasks/T2-report-1.md"];
     rp(root, "stamp", P("4-document/document-plan.md"), "--pin", P("1-spec/spec.md"), "--pin", P("2-design-doc/design-doc.md"), "--pin", P("3-build/build-plan.md"), "--pin", P("1-spec/spec-review-1.md"), "--pin", P("2-design-doc/design-doc-review-1.md"), "--pin", P("3-build/build-plan-review-1.md"), "--pin", P("3-build/build-review-1.md"));
-    const DOC = ["4-document/document-plan.md", "4-document/document-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md", "3-build/build-review-1.md"];
+    assert.match(check(root), /document-plan\.md\s+INCOMPLETE PINS — missing pins: .*3-build\/tasks\/T1\.md.*3-build\/tasks\/T2-report-1\.md/);
+    rp(root, "stamp", P("4-document/document-plan.md"), "--pin", P("1-spec/spec.md"), "--pin", P("2-design-doc/design-doc.md"), "--pin", P("3-build/build-plan.md"), "--pin", P("1-spec/spec-review-1.md"), "--pin", P("2-design-doc/design-doc-review-1.md"), "--pin", P("3-build/build-plan-review-1.md"), "--pin", P("3-build/build-review-1.md"), ...BUILD_WORK.flatMap((f) => ["--pin", P(f)]));
+    const DOC = ["4-document/document-plan.md", "4-document/document-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md", "3-build/build-review-1.md", ...BUILD_WORK];
     review("4-document/document-plan-review-1.md", "approved", [...DOC, "4-document/tasks/T1.md"]);
     assert.match(check(root), /frontier task 4-document\/T1/);
     write(root, "4-document/tasks/T1-report-1.md", "# Task report\n\nOutcome: completed\n");
@@ -421,6 +437,11 @@ describe("rp state tooling", () => {
     output = check(root, "--lanes", lanes);
     assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH\s+reviews: ·:none/);
+    appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged upstream.\n");
+    output = check(root, "--lanes", lanes);
+    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
+    assert.match(output, /frontier re-synthesize 1-spec\/spec\.md/);
+    assert.doesNotMatch(output, /frontier re-synthesize 1-spec\/(?:event-driven|contrarian)\/spec\.md/);
   });
 
   test("a claim raised inside a production lane reaches the frontier, and lanes have counters", () => {
@@ -455,7 +476,7 @@ describe("rp state tooling", () => {
   test("state cannot be forged: mirrors come from the body, reviewed is immutable, identities are exact", () => {
     stampSpec();
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--set", "verdict=approved"), /never by --set/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--set", "verdict=approved"), /--set accepts only lane/);
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((f) => ["--reviewed", P(f)]), "--mirror");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md")), /immutable/);
     // A hand-written pin with an empty or short identity is never fresh.
@@ -592,6 +613,14 @@ describe("rp state tooling", () => {
     assert.throws(() => check(root, "--lanes", "spec=|a<missing"), /undeclared lane/);
     assert.throws(() => check(root, "--lanes", "spec=|a<b,b<a"), /cycle/);
     assert.throws(() => check(root, "--lanes", "build-plan=|a"), /spec and design doc only/);
+    assert.throws(() => check(root, "--lanes", "spec=a;spec=b"), /duplicate artifact declaration/);
+    assert.throws(() => check(root, "--lanes", "spec=a,a"), /duplicate lane declaration/);
+    assert.throws(() => check(root, "--lanes", "spec=a|a"), /duplicate lane declaration/);
+    for (const declaration of ["spec=a@abc@def", "spec=|a<b<c", "spec=a=b", "spec=a|b|c"]) {
+      assert.throws(() => check(root, "--lanes", declaration), /invalid (?:lane|artifact) declaration/);
+    }
+    assert.throws(() => check(root, "--lanes", "spec=a<b"), /review lane .* cannot declare after/);
+    assert.throws(() => check(root, "--lanes", "spec=|a<b++c,b,c"), /invalid after dependency/);
   });
 
   test("a report without an outcome, a cyclic plan, and non-sequential attempts are flagged, never dispatched", () => {
@@ -664,9 +693,30 @@ describe("rp state tooling", () => {
     write(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1, T1\n");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror"), /INVALID Depends on: duplicate ids/);
     assert.match(check(root, "--target-phase", "3"), /INVALID LINE 3-build\/tasks\/T2.md: Depends on: duplicate ids/);
+    write(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1\n- **Depends on:** later\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror"), /INVALID Depends on: expected none or task ids/);
     write(root, "3-build/tasks/T2.md", "# T2: second\n\n- **Depends on:** T1\n");
     rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror");
     assert.doesNotMatch(check(root, "--target-phase", "3"), /INVALID LINE/);
+  });
+
+  test("every fixed line is validated against its grammar", () => {
+    const cases = [
+      ["Verdict: approved with caveats", /Verdict: expected approved \| rejected \| unsatisfiable/],
+      ["Outcome: done", /Outcome: expected completed \| failed \| blocked/],
+      ["Target: 1-spec\/spec.md", /Target: expected <path>#<id>/],
+      ["Prior finding: 1-spec\/spec-review-1.md#Issue-1 resolved", /Prior finding: expected <review>#<issue>, resolution failed/],
+      ["Origin: owner request", /Origin: expected a path or source reference/],
+      ["Brief:", /Brief: expected text/],
+    ];
+    for (const [line, error] of cases) {
+      write(root, "1-spec/bad.md", `# Bad\n\n${line}\n`);
+      assert.throws(() => rp(root, "stamp", P("1-spec/bad.md"), "--mirror"), error);
+      assert.match(check(root, "--target-phase", "1"), /frontier INVALID LINE 1-spec\/bad\.md/);
+    }
+    write(root, "1-spec/bad.md", "# Good\n\nVerdict: approved\nOutcome: failed\nTarget: 1-spec/spec.md#R1\nPrior finding: 1-spec/spec-review-1.md#Issue-1, resolution failed\nOrigin: decision-1\nOrigin: 0-intent/1-amendment.md\nBrief: focused\n");
+    rp(root, "stamp", P("1-spec/bad.md"), "--mirror");
+    assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID LINE/);
   });
 
   test("a --- block that does not start at byte 0 is INVALID FRONTMATTER, not mirror drift", () => {
