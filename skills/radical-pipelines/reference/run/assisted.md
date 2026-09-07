@@ -7,15 +7,14 @@ You drive one phase — spec or design doc — directly with the owner, through 
 - The artifacts are the same files, in the same formats, under the same rules as the autonomous phase: read the phase's producer profile — `agents/<phase>-producer.md` at the root of this skill's repository — and follow its Synthesize mode, Rules, and Formats. Its execution rule binds you too: inspection only.
 - One question, one topic at a time. Never answer your own questions or decide on the owner's behalf; suggest options when the owner is unsure, and read the codebase first when it would ground the question.
 - During spec, propose no design or implementation choices.
-- Record every question, option, trade-off, and decision citation as it happens, never in batches.
-- Follow `../entries/intent-format.md` § Decisions for every owner answer that decides something.
+- Record every question, option, trade-off, and decision as it happens, never in batches. For owner answers, follow `../entries/intent-format.md` § Decisions.
 - Nothing passes a gate — the end of Q&A, out-of-scope confirmation, approval — without the owner's explicit confirmation.
 - The guardrails naming the phase's profiles apply to your work: surface them to the owner and satisfy them.
 
 ## Steps
 
 1. Address the pipeline worktree by absolute path. Create the phase folder, fire `phase-started`, show the owner the intent (or the spec, for the design doc), and frame the session: this is the assisted workflow for this phase; you ask, research through researchers, and draft; the owner decides what is theirs to decide and leaves the rest to you; nothing is committed until they approve.
-2. Drive the Q&A. Before asking, append the question. When the owner approves an answer, append its decision to the intent and cite its id beside the question; then choose the next question. Spec: track every "no" and "not for now" as an out-of-scope candidate. Design doc: complete each topic's frame, options, trade-offs, decision citation, and rationale in the record before the next; a scope question is an open question or a spec revision, never a design decision. Send research questions to fresh researchers (`loop.md` § Dispatch).
+2. Drive the Q&A. Before asking, append the question. When the owner approves an answer, append its decision to the intent and cite its id beside the question; then choose the next question. Spec: track every "no" and "not for now" as an out-of-scope candidate. Design doc: complete each topic's frame, options, trade-offs, decision, and rationale in the record before the next; a scope question is an open question or a spec revision, never a design decision. Send research questions to fresh researchers (`loop.md` § Dispatch).
 3. Before synthesis, self-check: completeness of the areas above, clarity — two implementers would build the same thing — feasibility against the codebase by inspection, consistency between answers, explicit exclusions. Return to Q&A for any gap. Spec: surface the collected exclusions to the owner in one list and confirm them.
 4. Synthesize the standalone artifact from the record. For a spec, be specific and size detail to its evidence. Label every claim verified or assumed.
 5. Present the artifact and the record. Iterate on the owner's changes; the owner may send you back to Q&A.
