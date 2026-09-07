@@ -6,6 +6,10 @@
 - Guardrails: <rules | none>
 - Execution: full
 
+## Mode
+
+Execute
+
 ## Materials
 
 - Task: <tasks/T<n>.md path>

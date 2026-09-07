@@ -23,6 +23,9 @@
 - Design doc: <path>
 - Spec: <path>
 - Task reports: <one line per report: path>
+- Pinned inputs: <one line per file pinned by build-plan.md: path>   <!-- current approving input reviews, adjudicated triggers, production-lane inputs -->
+- Amendment: <trigger path>; <origin chain paths>   <!-- when this wave judges one -->
+- Task report: <report path>; <its task file path>   <!-- when this wave judges one -->
 - Diff: git diff <the branch's start ref> HEAD -- . ':(exclude)<pipelines folder root>'
 
 <!-- Delta: the Fresh materials, Diff from the previous review's head, plus -->

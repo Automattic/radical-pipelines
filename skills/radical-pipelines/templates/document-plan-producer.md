@@ -17,23 +17,19 @@
 ## Materials
 
 - Research: <researcher answer>   <!-- when a research request preceded this dispatch; any mode -->
-
-<!-- Synthesize -->
 - Spec: <spec.md path>; <its approving review paths>
 - Design doc: <design-doc.md path>; <its approving review paths>
 - Build plan: <build-plan.md path>; <its approving review paths>; <its tasks and reports>; <approving build review path>
 - Task reports: <one line per report: path>   <!-- none when empty -->
 - Phase folder: <one line per existing file: path>
-- Input changes: <changed input path — git diff <this artifact's head> HEAD -- <input>>   <!-- re-synthesis only -->
 
-<!-- Adjudicate: the standing package plus exactly one correction -->
-- Spec: <spec.md path>; <its approving review paths>
-- Design doc: <design-doc.md path>; <its approving review paths>
-- Build plan: <build-plan.md path>; <its approving review paths>; <its tasks and reports>; <approving build review path>
+<!-- Synthesize adds -->
+- Input changes: <one line per changed input: path — git diff <this artifact's head> HEAD -- <path>; then each unresolved trigger targeting the plan: path>   <!-- re-synthesis only -->
+
+<!-- Adjudicate adds exactly one correction, plus the current plan package -->
 - document-plan.md: <path>
 - Tasks: <one line per task file: path>
 - document-plan-research.md: <path>
-- Task reports: <one line per report: path>
 - Review lanes: <one line per review: lane — path>
 - Amendment: <trigger path>; <origin chain paths>
 - Task report: <report path>; <its task file path>

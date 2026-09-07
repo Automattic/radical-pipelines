@@ -23,6 +23,9 @@
 - Tasks: <one line per task file: path>
 - build-plan-research.md: <path>
 - Task reports: <one line per report: path>
+- Pinned inputs: <one line per file pinned by build-plan.md: path>   <!-- current approving input reviews, adjudicated triggers, production-lane inputs -->
+- Amendment: <trigger path>; <origin chain paths>   <!-- when this wave judges one -->
+- Task report: <report path>; <its task file path>   <!-- when this wave judges one -->
 
 <!-- Delta: the Fresh materials plus -->
 - Your previous review: <path>

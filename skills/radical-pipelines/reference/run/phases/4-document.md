@@ -18,12 +18,13 @@ Plans and writes the documentation the shipped code needs — internal and exter
 
 ## Materials
 
-- Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, `3-build/build-plan.md` with its tasks and reports, their approving reviews, the approving build review, the shipped code (the branch), the task reports so far. **Input changes** on re-synthesis, plus unresolved triggers targeting the plan.
-- Plan **Adjudicate**: the Synthesize materials plus `document-plan.md` and `document-plan-research.md`, and one of **Review lanes** — plan reviews, or a `rejected` document review whose findings become corrective tasks; **Amendment**; or **Task report**.
+- Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, `3-build/build-plan.md` with its tasks and reports, their approving reviews, the approving build review, the shipped code (the branch), the task reports so far, and the **Phase folder** files. **Input changes** on re-synthesis lists each changed input with `git diff <plan head> HEAD -- <path>`, then every unresolved trigger targeting the plan.
+- Plan **Adjudicate**: the Synthesize materials plus `document-plan.md`, its **Tasks**, and `document-plan-research.md`, and one of **Review lanes** — plan reviews, or a `rejected` document review whose findings become corrective tasks; **Amendment**; or **Task report** — one failed report and its task file.
+- Plan review **Fresh**: the plan, record, tasks, reports, and pinned-input package — the spec, design doc, and build package with their current approving reviews, adjudicated triggers, and production-lane inputs — plus the trigger under review. **Delta**: the Fresh materials, **Your previous review**, the **Diff** from its `head`, and the **Adjudication**.
 - Worker: the **Task** file, its **Dependencies**, `1-spec/spec.md` and `2-design-doc/design-doc.md` (the rationale), **Write your report to**; on a later attempt, **Your previous report**, and the **Adjudication** when it adjudicated a failed one.
-- Document review **Fresh**: the plan, its record and tasks, `design-doc.md`, `spec.md`, `build-plan.md`, every report, **Diff** — every change on the branch outside the pipelines folder since its base. **Delta**: the same with **Your previous review**, the **Diff** from its `head`, and the **Adjudication** — the record entries written since.
+- Document review **Fresh**: the plan, its record and tasks, `design-doc.md`, `spec.md`, the complete build package — `build-plan.md`, its tasks and reports, and the approving build review — every document report, and **Diff** — every change on the branch outside the pipelines folder since its base. **Delta**: the same with **Your previous review**, the **Diff** from its `head`, and the **Adjudication** — the record entries written since.
 
 ## Tasks
 
-- Every task is a file with `Goal`, `Surface` (the documentation location it serves), `Audience`, `Files`, `Changes`, `Depends on`, `Acceptance`; the plan lists the order.
+- Every task is a file with `Goal`, `Surface` (the documentation location it serves), `Audience`, `Sections` (the exact sections and scope), `Files`, `Changes`, `Depends on`, `Acceptance`; the plan lists the order.
 - Fresh worker per attempt.
