@@ -39,7 +39,7 @@ Address every worktree by absolute path and run its Git commands through `git -C
 
 **A new pipeline**
 
-1. Slug per the **Branch naming** convention; a second pipeline for the same issue gets `-2`, `-3`.
+1. Slug per the **Branch naming** convention and `../run/state.md` § Names.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
 3. `<pipelines folder root>/<slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `Origin: starts-from` records the starting branch and `Origin: re-attempts` the prior pipeline slug.
 4. Commit following the **Commit format** convention; `rp stamp <intent> --mirror`; commit the stamp in that format.
@@ -48,11 +48,11 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 **An external amendment**
 
-1. Live pipeline: its branch and worktree. Merged pipeline: branch `<slug>_<n>` from the base branch, with a worktree. One live branch per pipeline; a second correction joins it.
+1. Live pipeline: its branch and worktree. Merged pipeline: a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; a second correction joins it.
 2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id).
 3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed); commit the stamps.
 
-**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the base branch.
+**Continue**: the pipeline's branch and worktree, created when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
 
 ### 6. Run
 

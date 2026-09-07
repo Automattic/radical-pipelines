@@ -20,7 +20,7 @@ Where issues live; how to read the body and comments, create, modify, and commen
 
 ### Branch naming (required)
 
-How one issue-derived slug is named. It is the pipeline branch, distinguishes issues, is one path segment, a valid git ref, and contains no `_`. Suggested: `<issue-id>-<short-description>`.
+How the issue-derived slug in `../run/state.md` § Names is formed. It distinguishes issues. Suggested: `<issue-id>-<short-description>`.
 
 ### Worktree folder root (required)
 
