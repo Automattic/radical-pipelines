@@ -218,6 +218,15 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(output, /complete through|commits\s/);
   });
 
+  test("representation contradictions are reported before base-dependent state", () => {
+    write(root, "1-spec/spec.md", "# Spec\n\nOutcome: not-an-outcome\n");
+    const output = rp(root, "check", PIPELINE, "--base", "missing-branch", "--target-phase", "1", "--json");
+    const state = JSON.parse(output);
+    assert.equal(state.frontier, "INVALID LINE 1-spec/spec.md");
+    assert.deepEqual(state.artifacts, []);
+    assert.equal("base" in state, false);
+  });
+
   test("stamped scalars with YAML punctuation round-trip through frontmatter", () => {
     const brief = "Check: all [paths] # deeply";
     write(root, "1-spec/spec-review-1.md", `# Review\n\nVerdict: rejected\nBrief: ${brief}\n`);
@@ -862,11 +871,11 @@ describe("rp state tooling", () => {
     assert.match(output, /lane\s+1-spec\/rogue\/\s+UNDECLARED/);
     assert.match(output, /frontier undeclared lane 1-spec\/rogue\//);
     rmSync(join(root, P("1-spec/rogue")), { recursive: true });
-    // An undeclared review lane neither opens a wave nor counts toward it.
+    // An undeclared review lane is diagnosed before wave state.
     review("1-spec/spec-review-extra-2.md", "rejected", SPEC);
     output = check(root, "--target-phase", "1");
     assert.match(output, /frontier undeclared lane 1-spec\/spec-review-extra-2\.md/);
-    assert.match(output, /reviews: ·:approved\s+APPROVED/);
+    assert.doesNotMatch(output, /artifact 1-spec\/spec\.md/);
     assert.throws(() => check(root, "--lanes", "spec=|tasks"), /reserved name/);
     assert.throws(() => check(root, "--lanes", "spec=tasks"), /reserved name/);
   });

@@ -848,7 +848,7 @@ function cmdCheck(args) {
     lines.push(`symlink  ${path}`);
     take(`symlink ${path}`);
   }
-  if (all.some((d) => d.frontmatterError)) {
+  if (out.contradictions.length) {
     out.frontier = frontier;
     lines.push(`frontier ${frontier}`);
     process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
