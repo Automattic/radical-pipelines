@@ -356,49 +356,46 @@ describe("rp state tooling", () => {
     assert.match(check(root, "--lanes", `design-doc=a11y@${FPS.a11y}`), /design-doc-review-1\.md .*held \(a lane rejected/);
   });
 
-  test("a claim about a changed artifact is moot; a changed target supersedes it; invalid targets are flagged", () => {
+  test("a claim about a changed artifact is moot; a changed target supersedes it", () => {
     stampSpec();
     review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
     appendFileSync(join(root, P("0-intent/intent.md")), "\nAnswered.\n");
     assert.match(check(root), /superseded \(target changed\)/);
-    review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#context-1\n");
-    assert.match(check(root), /INVALID TARGET/);
-    amendment("0-intent/intent.md#goal");
-    assert.match(check(root), /trigger .*INVALID TARGET/);
   });
 
-  test("a changed target supersedes a stamped claim before removed target ids are validated", () => {
+  test("a changed target supersedes a stamped claim after its id is removed", () => {
     stampSpec();
     approveSpec();
     stampDesign();
     review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN, [], "Target: 1-spec/spec.md#R1\n");
     write(root, "1-spec/spec.md", "# Spec\n\nRequirement R2 replaces the target.\n");
     assert.match(check(root), /design-doc-review-1\.md .*superseded \(target changed\)/);
-    assert.doesNotMatch(check(root), /claim .*design-doc-review-1\.md .*INVALID TARGET/);
   });
 
-  test("a later lane verdict supersedes an older claim before its invalid target is routed", () => {
-    stampSpec();
-    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 1-spec/spec.md#R99\n");
-    review("1-spec/spec-review-2.md", "approved", SPEC);
-    const output = check(root, "--target-phase", "1");
-    assert.match(output, /spec-review-1\.md .*superseded \(its lane reviewed again\)/);
-    assert.doesNotMatch(output, /claim .*INVALID TARGET/);
-  });
-
-  test("targets must address an id present in the artifact or its task files", () => {
+  test("stamp rejects trigger targets whose id is absent or outside their territory", () => {
     stampSpec();
     approveSpec();
-    amendment("1-spec/spec.md#R9");
-    assert.match(check(root), /trigger .*spec\.md#R9\s+INVALID TARGET/);
-    amendment("3-build/build-plan.md#T9");
-    assert.match(check(root), /trigger .*build-plan\.md#T9\s+INVALID TARGET/);
+    assert.throws(() => amendment("1-spec/spec.md#R9"), /INVALID TARGET 1-spec\/spec\.md#R9/);
+    assert.throws(() => amendment("3-build/build-plan.md#T9"), /INVALID TARGET 3-build\/build-plan\.md#T9/);
+    assert.throws(() => amendment("0-intent/intent.md#goal"), /INVALID TARGET 0-intent\/intent\.md#goal/);
     write(root, "0-intent/intent.md", "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\n- First.\n\n## Decisions\n\n1. Later.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
-    review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-2\n");
-    assert.match(check(root), /claim .*constraint-2\s+INVALID TARGET/);
-    review("1-spec/spec-review-3.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-0\n");
-    assert.match(check(root), /claim .*constraint-0\s+INVALID TARGET/);
+    assert.throws(() => review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-2\n"), /INVALID TARGET/);
+    assert.throws(() => review("1-spec/spec-review-3.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-0\n"), /INVALID TARGET/);
+    assert.throws(() => review("1-spec/spec-review-4.md", "unsatisfiable", SPEC), /INVALID TARGET \?/);
+  });
+
+  test("a landed amendment resolves after its target id is removed", () => {
+    stampSpec();
+    approveSpec();
+    amendment();
+    write(root, "1-spec/spec.md", "# Spec\n\nNew requirement R2.\n");
+    rp(root, "stamp", P("0-intent/1-amendment.md"), "--mirror");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/1-amendment.md"));
+    review("1-spec/spec-review-2.md", "approved", [...SPEC, "0-intent/1-amendment.md"]);
+    const output = check(root, "--target-phase", "1");
+    assert.match(output, /trigger .*spec\.md#R1\s+resolved/);
+    assert.doesNotMatch(output, /INVALID TARGET/);
   });
 
   test("spec and design assumptions are valid targets when their A ids exist", () => {
@@ -409,12 +406,10 @@ describe("rp state tooling", () => {
     amendment("1-spec/spec.md#A1");
     let output = check(root);
     assert.match(output, /trigger .*spec\.md#A1\s+PENDING/);
-    assert.doesNotMatch(output, /spec\.md#A1\s+INVALID TARGET/);
     write(root, "0-intent/1-amendment.md", "# Amendment 1\n\nTarget: 2-design-doc/design-doc.md#A1\nOrigin: decision-1\n");
     rp(root, "stamp", P("0-intent/1-amendment.md"), "--mirror");
     output = check(root);
     assert.match(output, /trigger .*design-doc\.md#A1\s+PENDING/);
-    assert.doesNotMatch(output, /design-doc\.md#A1\s+INVALID TARGET/);
   });
 
   test("a sealed artifact becomes stale when its required package changes membership", () => {
@@ -715,7 +710,7 @@ describe("rp state tooling", () => {
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged.\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.equal(read(root, "1-spec/spec-review-2.md").match(/target-identity: ([0-9a-f]{12})/)[1], landed);
-    write(root, "1-spec/spec-review-2.md", read(root, "1-spec/spec-review-2.md").replace(/^Target:.*\n/m, ""));
+    write(root, "1-spec/spec-review-2.md", read(root, "1-spec/spec-review-2.md").replace(/^Verdict: unsatisfiable\n/m, "Verdict: approved\n").replace(/^Target:.*\n/m, ""));
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.doesNotMatch(read(root, "1-spec/spec-review-2.md"), /target/);
   });

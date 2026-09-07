@@ -12,6 +12,7 @@ node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set lane=<f
 - `--reviewed` validates and fixes the package a review or task report names. Later stamps preserve it. A task report's package is exactly its task and dependencies.
 - `--set` accepts only `lane=<fingerprint>`.
 - `--mirror` rewrites every mirror from the body's declarations outside Markdown code fences — `Verdict:`, `Brief:`, `Target:`, `Origin:`, `Outcome:` (`completed` | `failed` | `blocked`), `Prior finding:`, `Depends on:`, a report's `## Commits` — replacing the previous set. It may repair an already-pinned review or report without consuming its package again. Every commit `## Commits` names must exist and resolve unambiguously; it is stored as its full hash. Frontmatter lists are read in block or inline form (`key: [a, b]`); scalars may be plain, JSON double-quoted, or YAML single-quoted. Malformed syntax or field types are invalid. The stamp writes block lists and quotes scalars when required. Every fixed line is accepted whole in its grammar or rejected as `INVALID <field>`; `Verdict`, `Brief`, `Target`, and `Outcome` occur once.
+- A trigger's target is validated when first stamped. `check` then computes only its resolution.
 - `head`, the commit the stamp observed, is recorded only when the stamp carries `--pin` or `--reviewed`.
 - Identity is the first 12 hexadecimal characters of the body's git blob hash, byte for byte, for every pinnable file. Stamping preserves it. Paths with a symlinked component are refused.
 

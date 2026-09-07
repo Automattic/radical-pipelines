@@ -203,6 +203,30 @@ const IDENTITY = /^[0-9a-f]{12}$/;
 const REPORT = /^([^/]+)\/tasks\/(T\d+)-report-(\d+)\.md$/;
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
 const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
+// The artifacts, in phase order, with what each one requires as pins.
+const ARTIFACTS = [
+  { path: "1-spec/spec.md", record: "1-spec/spec-research.md", prefix: "spec", phase: "1-spec", requires: ["0-intent/intent.md"] },
+  { path: "2-design-doc/design-doc.md", record: "2-design-doc/design-doc-research.md", prefix: "design-doc", phase: "2-design-doc", requires: ["0-intent/intent.md", "1-spec/spec.md"] },
+  { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
+  { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
+];
+const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
+
+function targetExists(target, read) {
+  if (!TARGET_ID.test(target)) return false;
+  const [path, item] = target.split("#");
+  const text = read(path);
+  if (text === null || text === undefined) return false;
+  const body = parseFrontmatter(text).body;
+  if (path === "0-intent/intent.md") {
+    if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(body);
+    const m = item.match(/^(constraint|decision)-(\d+)$/);
+    const section = m ? body.match(new RegExp(`^## ${m[1]}s?[^\\S\\n]*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mi"))?.[1] ?? "" : "";
+    return !!m && [...section.matchAll(/^\s*(?:[-*+]|\d+[.)])\s+/gm)].length >= Number(m[2]);
+  }
+  if (/^T\d+$/.test(item)) return read(`${path.split("/")[0]}/tasks/${item}.md`) != null;
+  return new RegExp(`(?:^|[^A-Za-z0-9])${item}(?=$|[^A-Za-z0-9])`).test(body);
+}
 
 // Keep line positions while hiding Markdown fenced code from structural readers.
 function outsideFences(text) {
@@ -347,6 +371,8 @@ function cmdStamp(args) {
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
   const { data, body } = parsedFrontmatter;
   const fm = data ?? new Map();
+  const previousTarget = fm.get("target");
+  const previousTargetIdentity = fm.get("target-identity");
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
   const report = rel.match(REPORT);
@@ -395,7 +421,19 @@ function cmdStamp(args) {
     if (!IDENTITY.test(value)) die(`stamp: lane must be a 12-character hexadecimal fingerprint, got: ${value}`);
     fm.set(key, value);
   }
-  if (args.mirror) mirrorBody(body, fm, base, rel);
+  if (args.mirror) {
+    mirrorBody(body, fm, base, rel);
+    const review = basename(rel).match(/^(.+?)-review-(?:(.+)-)?\d+\.md$/);
+    const claim = fm.get("verdict") === "unsatisfiable" && review && ARTIFACTS.some((a) => a.prefix === review[1] || a.review === review[1]);
+    const amendment = /^0-intent\/\d+-amendment\.md$/.test(rel);
+    const target = fm.get("target");
+    const validated = target === previousTarget && previousTargetIdentity;
+    const readable = (path) => {
+      const file = join(base, path);
+      return existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : null;
+    };
+    if ((amendment || claim) && !validated && (!targetExists(target, readable) || (amendment && target.startsWith("0-intent/")))) die(`stamp: INVALID TARGET ${target ?? "?"}`);
+  }
   // A report names commits that already exist; they are stored canonical (full hash).
   if (fm.has("commits")) {
     const canonical = [].concat(fm.get("commits") ?? []).map((h) => {
@@ -483,15 +521,6 @@ function treeReader(root, abs, ref) {
     },
   };
 }
-
-// The artifacts, in phase order, with what each one requires as pins.
-const ARTIFACTS = [
-  { path: "1-spec/spec.md", record: "1-spec/spec-research.md", prefix: "spec", phase: "1-spec", requires: ["0-intent/intent.md"] },
-  { path: "2-design-doc/design-doc.md", record: "2-design-doc/design-doc-research.md", prefix: "design-doc", phase: "2-design-doc", requires: ["0-intent/intent.md", "1-spec/spec.md"] },
-  { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
-  { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
-];
-const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
 // `--lanes spec=security@<fingerprint>[materials=<path>+<path>]|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven`:
 // per artifact, the named review lanes (the implicit lane is always present)
@@ -832,22 +861,6 @@ function cmdCheck(args) {
   }
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath === "0-intent/intent.md" || phaseOfTarget(targetPath) <= args.targetPhase;
-  const sectionItems = (body, heading) => {
-    const section = body.match(new RegExp(`^## ${heading}[^\\S\\n]*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mi"))?.[1] ?? "";
-    return [...section.matchAll(/^\s*(?:[-*+]|\d+[.)])\s+/gm)].length;
-  };
-  const targetExists = (target) => {
-    if (!TARGET_ID.test(target)) return false;
-    const [path, item] = target.split("#");
-    const body = parseFrontmatter(texts.get(path) ?? "").body;
-    if (path === "0-intent/intent.md") {
-      if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(body);
-      const m = item.match(/^(constraint|decision)-(\d+)$/);
-      return !!m && sectionItems(body, `${m[1]}s?`) >= Number(m[2]);
-    }
-    if (/^T\d+$/.test(item)) return texts.has(`${path.split("/")[0]}/tasks/${item}.md`);
-    return new RegExp(`(?:^|[^A-Za-z0-9])${item}(?=$|[^A-Za-z0-9])`).test(body);
-  };
 
   // pending → adjudicated (the target pins it) → resolved (the target approved
   // carrying the pin), or resolved by escalation (a closed wave of the target
@@ -855,7 +868,7 @@ function cmdCheck(args) {
   const resolutionOf = (item) => {
     if (item.targetPath === "0-intent/intent.md") return { state: "pending" };
     const targetArtifact = ARTIFACTS.find((x) => x.path === item.targetPath);
-    if (!targetArtifact) return { state: "invalid target", detail: item.targetPath };
+    if (!targetArtifact) return { state: "pending" };
     const lanes = laneStates(targetArtifact.prefix, "");
     for (const l of lanes)
       if (l.review && l.verdict === "unsatisfiable" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
@@ -872,14 +885,12 @@ function cmdCheck(args) {
   ].map((t) => ({ ...t, targetPath: t.target.split("#")[0] }));
   let unresolvedInScope = false;
   for (const t of triggers) {
-    const valid = t.kind === "amendment" ? targetExists(t.target) && t.targetPath !== "0-intent/intent.md" : true;
-    const res = valid ? resolutionOf(t) : { state: "invalid target", detail: t.target };
+    const res = resolutionOf(t);
     const scoped = inScopePhase(t.targetPath);
-    const label = res.state === "pending" ? (scoped ? "PENDING" : "pending, beyond the target phase") : res.state === "invalid target" ? `INVALID TARGET (${res.detail})` : `${res.state}${res.detail ? ` (${res.detail})` : ""}`;
+    const label = res.state === "pending" ? (scoped ? "PENDING" : "pending, beyond the target phase") : `${res.state}${res.detail ? ` (${res.detail})` : ""}`;
     out.triggers.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped });
     lines.push(`trigger  ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
-    if (res.state === "invalid target") take(`trigger ${t.rel} → ${t.target} (invalid target)`);
-    else if (res.state === "pending" && scoped) take(`trigger ${t.rel} → ${t.target}`);
+    if (res.state === "pending" && scoped) take(`trigger ${t.rel} → ${t.target}`);
     if (res.state !== "resolved" && scoped) unresolvedInScope = true;
   }
 
@@ -903,10 +914,9 @@ function cmdCheck(args) {
       };
       const cur = identityOf(c.targetPath);
       const unchanged = c.targetIdentity && cur && cur === c.targetIdentity;
-      const res = targetExists(c.target) ? resolutionOf(c) : { state: "invalid target" };
+      const res = resolutionOf(c);
       if (later) c.state = "superseded (its lane reviewed again)";
       else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
-      else if (res.state === "invalid target") c.state = `INVALID TARGET (${c.target})`;
       else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
       else if (!c.fresh) c.state = "moot (claiming artifact changed)";
       else if (c.waveOpen) c.state = "wave open";
@@ -928,7 +938,7 @@ function cmdCheck(args) {
     if (c.state === "pending") c.state = !scoped ? "pending, beyond the target phase" : ownerTerritory(c.target) ? "PENDING — owner escalation" : "PENDING";
     out.claims.push({ review: c.rel, target: c.target, state: c.state, inScope: scoped });
     lines.push(`claim    ${c.rel} → ${c.target}  ${c.state}`);
-    if (c.state.startsWith("PENDING") || c.state.startsWith("INVALID")) take(`claim ${c.rel} → ${c.target}${c.state.includes("owner") ? " (owner escalation)" : c.state.startsWith("INVALID") ? " (invalid target)" : ""}`);
+    if (c.state.startsWith("PENDING")) take(`claim ${c.rel} → ${c.target}${c.state.includes("owner") ? " (owner escalation)" : ""}`);
     if (!/^(resolved|superseded|moot|pending, beyond)/.test(c.state) && scoped) unresolvedInScope = true;
   }
 
