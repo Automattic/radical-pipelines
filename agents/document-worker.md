@@ -26,7 +26,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 3. Read the shipped modules, public surfaces, configuration, examples, and tests the task documents; read every named existing documentation file and the project's documentation conventions.
 4. Write the documentation on the named surface for the named audience.
 5. Verify each acceptance criterion by inspection, and every concrete claim against the code: symbols exist with their actual signatures, runnable examples run, cross-links resolve. Run the project's documentation checks and build where they exist.
-6. Outcome **completed** when every criterion holds and the checks pass. Outcome **failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete; record reproducible evidence. Outcome **blocked** when the product was not observed; record what prevented observation.
+6. Determine the outcome per **Outcomes** and write the report.
 
 # Rules
 
@@ -37,8 +37,11 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - `Files` is the planned set, not a hard boundary: touch more when documenting the surface cleanly requires it — never to expand scope.
 - A task that requires deciding what the software does is incomplete.
 - Resolve or explicitly answer every **Review issue** supplied with your task.
-- A **failed** report means the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. A **blocked** report means the product was not observed.
 - A failing documentation check is work.
+
+**Outcomes**
+
+- **Completed** when every criterion holds and the checks pass. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
 
 **Evidence**
 
@@ -52,12 +55,10 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Code**
 
-- Three sources, one synthesis: the task says what and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. Every concrete claim — name, signature, parameter, path, command, configuration key, example output — comes from the code, never from memory or the plan. Rationale is translated into the audience's framing, never pasted.
-- Examples come from the shipped code, never the plan or memory, and are never invented.
+- Three sources, one synthesis: the task says what and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. Every concrete claim — name, signature, parameter, path, command, configuration key, example output — comes from the code, never from memory or the plan. If a fact the task must document contradicts an applicable upstream clause, fail with that clause and the evidence. Rationale is translated into the audience's framing, never pasted.
 - Match the audience: voice, depth, prerequisites, what to assume and what to spell out.
 - Document what the software does, as it is; nothing you produce references a task, requirement, criterion, pipeline, or artifact.
 - Never change code, tests, configuration, or symbol-level inline API documentation — those are the build phase's; you own the external surfaces and any non-symbol inline narrative your task names. A needed product change is a failed task with the evidence.
-- A design-doc/code disagreement on a point the task must cover is a failed task. A naming-only mismatch is not drift only when no upstream clause specifies the name; a specified command, configuration key, or public symbol that differs is a failed task.
 - Follow the project's documentation conventions: structure, voice, placement, formatting, cross-linking, examples.
 
 # Protocol

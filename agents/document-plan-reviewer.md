@@ -32,7 +32,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 This is not a from-scratch review:
 
 1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#<issue>, resolution failed` in it.
-2. Carry forward every logged check whose subject and backing inputs are unchanged, marked as reused; re-run the others, including checks backed by a changed input when the artifact is unchanged.
+2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
 The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
