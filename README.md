@@ -161,7 +161,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Convention            | What it covers                                                                                     | Required |
 | --------------------- | -------------------------------------------------------------------------------------------------- | -------- |
 | Issues                | Issue storage, operations, and the canonical issue reference                                       | Yes      |
-| Branch naming         | How a pipeline branch name and slug derive from its issue                                           | Yes      |
+| Branch naming         | How one issue-derived slug, also used as the pipeline branch name, is named                          | Yes      |
 | Pipelines folder root | Where pipeline folders live                                                                        | No       |
 | Artifact storage      | Whether artifacts live in the project's repository or a fork, and the artifact base branch          | Yes      |
 | Worktree folder root  | Where worktrees live                                                                                | Yes      |
