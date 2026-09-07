@@ -725,7 +725,6 @@ function cmdCheck(args) {
 
   // What a review judges: the artifact package; plans add tasks, phase reviews add reports.
   const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
-  const isTrigger = (rel) => /^0-intent\/\d+-amendment\.md$/.test(rel) || REPORT.test(rel) || (/-review-.*\.md$/.test(rel) && all.find((d) => d.rel === rel)?.data.get("verdict") === "unsatisfiable");
   const materialPaths = (prefix, sc, lane) => {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
     const materials = reviewLanesOf(prefix).find((l) => l.id === lane)?.materials ?? null;
@@ -970,14 +969,7 @@ function cmdCheck(args) {
       else requirementsReady = false;
     }
     const recorded = pinPackage(pins);
-    const modelMember = (path) =>
-      path === "0-intent/intent.md" ||
-      /^0-intent\/\d+-amendment\.md$/.test(path) ||
-      ARTIFACTS.some((a) => path === a.path || path === a.record || path === inScope(sc, a.path) || path === inScope(sc, a.record)) ||
-      /-review-.*\.md$/.test(path) ||
-      /\/tasks\/T\d+(?:-report-\d+)?\.md$/.test(path);
-    const retained = recorded ? [...recorded.keys()].filter((path) => isTrigger(path) || !modelMember(path)) : [];
-    const requiredPackage = currentPackage([...required, ...retained]);
+    const requiredPackage = currentPackage([...required, ...(recorded?.keys() ?? [])]);
     for (const [path, sha] of extraPackage) requiredPackage.set(path, sha);
     const diff = packageDiff(recorded, requiredPackage);
     const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [

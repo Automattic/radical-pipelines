@@ -423,6 +423,14 @@ describe("rp state tooling", () => {
     assert.match(output, /frontier re-synthesize 2-design-doc\/design-doc\.md/);
   });
 
+  test("every recorded member remains consumed regardless of its filename class", () => {
+    write(root, "1-spec/tasks/T9.md", "# Historical input\n");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/tasks/T9.md"));
+    assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
+    appendFileSync(join(root, P("1-spec/tasks/T9.md")), "\nChanged.\n");
+    assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+STALE — package identities: 1-spec\/tasks\/T9\.md/);
+  });
+
   test("triggers and claims beyond the target phase are reported, not the frontier", () => {
     stampSpec();
     approveSpec();
