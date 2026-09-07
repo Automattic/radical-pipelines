@@ -8,7 +8,7 @@
 
 ## Write to
 
-<the phase folder — root, or `<lane>/` — where your artifact and record land>
+<the phase folder where your artifact and record land>
 
 ## Mode
 
