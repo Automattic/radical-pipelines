@@ -32,7 +32,7 @@ The phases are:
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
-In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, and every commit the pipeline made outside its folder is claimed by a task report. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner. A task report ends `completed`, `failed` — the product observed and contradicting the task, with reproducible evidence — or `blocked`: the product not observed, the report naming what prevented it, for the orchestrator to restore before the next attempt.
+In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, and every commit the pipeline made outside the pipelines folder root is claimed by a task report. State is computed from the tree, and external corrections become amendments whose changed identities make downstream pins stale and drive a cascade. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — the product was not observed and the report names what prevented it, for the orchestrator to restore before the next attempt.
 
 The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow.
 
@@ -163,17 +163,18 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Issues                | Issue storage, operations, and the canonical issue reference                                       | Yes      |
 | Branch naming         | How a pipeline branch name and slug derive from its issue                                           | Yes      |
 | Pipelines folder root | Where pipeline folders live                                                                        | No       |
-| Artifact storage      | Whether artifacts live in the project's repository or a fork, and the artifact base branch          | No       |
+| Artifact storage      | Whether artifacts live in the project's repository or a fork, and the artifact base branch          | Yes      |
 | Worktree folder root  | Where worktrees live                                                                                | Yes      |
 | Commit format         | How agents write commits                                                                            | No       |
 | PR format             | How pull request titles and descriptions are written                                                | No       |
 | Guardrails            | Rules the project's agents must satisfy                                                             | No       |
 | Lifecycle hooks       | Prose instructions run at defined pipeline moments                                                  | No       |
 | Agents                | Model per profile and the lanes it adds, with their briefs and materials                             | No       |
+| Health monitoring     | Health-loop interval and stall threshold                                                             | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
-Agents reserve blockers for malformed materials, unreadable inputs, and broken environments found before their first write; a worker that cannot observe the product mid-task reports a `blocked` outcome instead.
+Producers and reviewers report blockers for malformed materials, unreadable inputs, and broken environments whenever found. Workers report them before their first write; a worker that cannot observe the product mid-task reports `blocked`.
 
 ## Changelog and versioning
 
