@@ -742,16 +742,16 @@ function cmdCheck(args) {
     if (materials === null) return null;
     return materials.map((path) => (sc && (path === art.path || path === art.record) ? inScope(sc, path) : path));
   };
-  const schemaOf = (prefix, sc, lane = "") => {
+  const packageSchemaOf = (prefix, sc) => {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
     if (!art) return [];
     const artifactPath = inScope(sc, art.path);
     const pinned = (pinsByPath.get(artifactPath) ?? []).map((p) => pinParts(p)?.path).filter(Boolean);
     const base = [artifactPath, inScope(sc, art.record), ...pinned];
     const schema = art.review && prefix === art.prefix ? [...base, ...taskFilesOf(art.phase)] : art.review && prefix === art.review ? [...base, ...taskFilesOf(art.phase), ...reportFilesOf(art.phase)] : base;
-    const full = [...new Set(schema)];
-    return materialPaths(prefix, sc, lane) ?? full;
+    return [...new Set(schema)];
   };
+  const schemaOf = (prefix, sc, lane = "") => materialPaths(prefix, sc, lane) ?? packageSchemaOf(prefix, sc);
   const reviewFresh = (r, prefix, sc) => {
     return samePackage(pinPackage(r.data.get("reviewed")), currentPackage(schemaOf(prefix, sc, r.lane)));
   };
@@ -864,6 +864,18 @@ function cmdCheck(args) {
     lines.push(`frontier ${frontier}`);
     process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
     return;
+  }
+
+  for (const [prefix, lanes] of Object.entries(decl)) {
+    const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
+    const scopes = ["", ...lanes.production.map((lane) => `${art.phase}/${lane.id}/`)];
+    for (const lane of lanes.review.filter((candidate) => candidate.materials !== null)) {
+      for (const sc of scopes.filter((scope) => pinsByPath.has(inScope(scope, art.path)))) {
+        const packagePaths = new Set(packageSchemaOf(prefix, sc));
+        const outside = materialPaths(prefix, sc, lane.id).filter((path) => !packagePaths.has(path));
+        if (outside.length) die(`check: materials for review lane "${lane.id}" are outside the ${inScope(sc, art.path)} package: ${outside.join(", ")}`);
+      }
+    }
   }
 
   // Facts about branch commits require a valid representation and a real merge-base.

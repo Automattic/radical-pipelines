@@ -931,6 +931,11 @@ describe("rp state tooling", () => {
     assert.throws(() => check(root, "--lanes", "spec=security"), /requires a fingerprint/);
     assert.throws(() => check(root, "--lanes", `spec=security@${FPS.security}|a@${FPS.a},a-review-security@${FPS.b}`), /same auxiliary branch/);
     assert.throws(() => check(root, "--lanes", `spec=security@${FPS.security}|review-security@${FPS.a}`), /same auxiliary branch/);
+    approveChain(2);
+    writeTasks();
+    report("T1", 1, "completed");
+    stampPlan();
+    assert.throws(() => check(root, "--lanes", `build-plan=focus@${FPS.a}[materials=3-build/tasks/T1-report-1.md]`), /materials .* outside the 3-build\/build-plan\.md package/);
   });
 
   test("an unfinished report and cyclic plan are flagged; an invalid attempt is rejected before publication", () => {
