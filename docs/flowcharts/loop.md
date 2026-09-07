@@ -4,7 +4,8 @@ This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/refe
 
 ```mermaid
 flowchart TD
-    A["Run rp check"] --> B["Take the first frontier item"]
+    A["Run rp check"] --> STATUS["Treat complete-through-phase as status; read frontier"]
+    STATUS --> B["Take the first frontier item"]
     B --> C{"Frontier"}
     C -->|trigger| T["Dispatch target producer: Adjudicate"]
     C -->|claim: owner escalation| OE["Surface the dossier and pause"]
@@ -21,7 +22,11 @@ flowchart TD
     C -->|no task files| NOTASK["Re-dispatch the plan producer"]
     C -->|invalid target| TARGET["Re-dispatch the file's author"]
     C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]
-    C -->|invalid plan or reports| INVALID["Dispatch the plan producer: Adjudicate"]
+    C -->|INVALID FRONTMATTER or LINE| MALFORMED["Have the file's author fix it"]
+    C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Adjudicate"]
+    C -->|invalid report attempts| INVALIDREPORTS["Rename reports in landing order; repair their mirrors"]
+    C -->|tasks held| HELD["Dispatch the plan producer: Adjudicate with failed reports"]
+    C -->|adjudicated triggers or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
     C -->|unclaimed commits| UNCLAIMED["Tell the owner: claim them in a report or revert them"]
     C -->|undeclared lane or symlink| DEFECT["Stop and tell the owner"]
     C -->|complete| CLOSE["Close-out"]
@@ -38,9 +43,13 @@ flowchart TD
     NOTASK --> LAND
     TARGET --> LAND
     ATTEMPT --> LAND
-    INVALID --> LAND
+    MALFORMED --> LAND
+    INVALIDPLAN --> LAND
+    HELD --> LAND
+    AWAITING --> LAND
     LAND --> STAMP["Stamp; merge lane branches; fire phase hooks"]
     STAMP --> A
     ST --> A
+    INVALIDREPORTS --> A
     UNCLAIMED --> A
 ```
