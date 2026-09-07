@@ -24,7 +24,7 @@
 - Phase folder: <one line per existing file: path>
 
 <!-- Synthesize adds -->
-- Input changes: <one line per changed input: path — git diff <this artifact's head> HEAD -- <path>; then each unresolved trigger targeting the plan: path>   <!-- re-synthesis only -->
+- Input changes: <package change>   <!-- re-synthesis only -->
 
 <!-- Adjudicate adds exactly one correction, plus the current plan package -->
 - document-plan.md: <path>

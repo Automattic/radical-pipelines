@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Optional **Research** supplements any m
 
 ## Fresh
 
-Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, the **Task report context**, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present.
+Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present. This is the package you judge; its references supply historical material.
 
 1. Read the spec and the design doc; list every requirement, decision, acceptance criterion, and open assumption.
 2. Read `build-plan-research.md` and `build-plan.md`.
@@ -27,7 +27,7 @@ Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, the **Task 
 
 ## Delta
 
-Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries responding to your findings or to a task report. The **Diff** spans every named material changed since **Your previous review**'s `head`: artifact, record, **Tasks**, **Task reports**, and **Pinned inputs**, as applicable.
+Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries responding to your findings or to a task report.
 
 This is not a from-scratch review:
 

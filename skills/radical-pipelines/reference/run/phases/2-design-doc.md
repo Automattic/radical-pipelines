@@ -16,7 +16,7 @@ Decides how the spec is satisfied: architecture, mechanisms, decisions and trade
 
 ## Materials
 
-Use every mode package in `1-spec.md`, substituting `design-doc.md` and `design-doc-research.md` for the artifact and record; `0-intent/intent.md`, `1-spec/spec.md`, `1-spec/spec-research.md`, and current approving spec reviews for standing upstream inputs; and `design-doc.md` for the **Input changes** target.
+Use every mode package in `1-spec.md`, adding the approved spec package and substituting `design-doc.md` and `design-doc-research.md` for the artifact and record.
 
 ## Lanes
 

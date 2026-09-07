@@ -27,7 +27,7 @@ Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — th
 
 ## Delta
 
-Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since. The **Diff** spans every named material changed since **Your previous review**'s `head`: artifact, record, **Tasks**, **Task reports**, and **Pinned inputs**, as applicable.
+Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since.
 
 1. Confirm how each of your prior findings was resolved by the new commits. A resolution that fails is a finding; write `Prior finding: <review>#<issue>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.

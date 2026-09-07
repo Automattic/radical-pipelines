@@ -26,7 +26,6 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is restored (§ Dispatch)                                 |
 | `build review` / `document review`                   | A review wave of the phase's reviewer                                                                          |
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
-| `… (invalid target)`                                 | Re-dispatch what wrote it: a target is an artifact id or, for a claim, an intent Goal, Constraint, or Decision |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
 | `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
@@ -54,9 +53,9 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 ## Stamp on landing
 
-After every agent commit, before anyone consumes the result — and before the agent is terminated: repair `INVALID FRONTMATTER`, then re-stamp; send `INVALID LINE` to the body's author to fix and report again.
+After every agent commit, stamp before anyone consumes the result and before terminating the agent. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
 
-- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. The document plan pins every build task and report. Each task file of a plan: `rp stamp <task> --mirror`.
+- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
 - A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a trigger declares `Origin:` in its body.
 - A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. Later stamps preserve that package.
 - A named lane's artifact or review: `--set lane=<the lane's fingerprint>` too.
@@ -64,7 +63,7 @@ After every agent commit, before anyone consumes the result — and before the a
 
 ## Delta materials
 
-A Delta review receives **Your previous review**, **Adjudication** — every record entry written since — and the **Diff** from that review's `head` to `HEAD` over everything the review names: artifact, record, tasks, reports, and pinned inputs. Build and document Diffs also cover branch changes outside the pipelines folder. When only an input changed, the reviewer reruns the checks that input supports.
+A Delta review receives **Your previous review**, **Adjudication** — every record entry written since — and the **Diff** from that review's `head` to `HEAD` over everything the review names: artifact, record, tasks, reports, and pinned inputs. Build and document Diffs also cover branch changes outside the pipelines folder.
 
 ## Review waves
 

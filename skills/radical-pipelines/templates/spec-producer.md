@@ -30,7 +30,7 @@
 
 <!-- Synthesize: additions -->
 - Lane inputs: <one line per consumed lane: artifact path; record path; approving review paths>   <!-- production lanes with `after` -->
-- Input changes: <one line per changed input: path — git diff <this artifact's head> HEAD -- <input>; one line per unresolved trigger targeting spec.md: path>   <!-- re-synthesis only -->
+- Input changes: <package change>   <!-- re-synthesis only -->
 
 <!-- Adjudicate: additions; exactly one correction -->
 - Review lanes: <one line per review: lane — path>

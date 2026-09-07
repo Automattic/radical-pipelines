@@ -43,7 +43,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
 - **Seating** — Starting a spawned agent inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
 - **Shipped code** — The code, tests, and inline API documentation the build phase committed on the pipeline branch.
-- **Stale** — The state of a pin whose target's current identity differs from the recorded identity, or of an artifact that pins an input's former approval.
+- **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
 - **Target** — The `<path>#<id>` clause that a trigger or `unsatisfiable` verdict says must change.
 - **Target phase** — The highest phase a run executes before stopping.

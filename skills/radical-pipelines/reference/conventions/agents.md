@@ -34,7 +34,7 @@ Blocks under `.rp.md`'s `Agents` section, one per profile. A profile with no blo
 - `model` — what to spawn the profile on. A lane inherits the profile's unless it names its own.
 - `lane <id>` — a named lane; `<id>` starts with a lowercase letter or digit, continues with those or hyphens, and is not `tasks`. A reviewer's named lanes review **in addition to** its implicit lane. Named production lanes apply only to spec and design-doc producers and **replace** root synthesis: each produces in `<phase>/<id>/`, and the root artifact is their consolidation.
 - `brief` — the lane's angle: for a reviewer, what it verifies (without a brief, everything its profile covers); for a producer, what it explores. Reaches the agent verbatim under **Brief**.
-- `materials` — the pipeline-relative file materials a review lane receives and its review names. The lane declaration carries these paths; without it, the lane receives and names all template file materials. **Diff**, **Brief**, **Research**, and **Write to** are always supplied and never filtered.
+- `materials` — the pipeline-relative members selected from the review package in `../run/state.md` § Terms. The prompt declares that package; its references supply historical material. The lane declaration carries these paths; without it, the lane names the full package. **Diff**, **Brief**, **Research**, and **Write to** are always supplied and never filtered.
 - `after` — production lanes only: the lanes whose approved artifacts this one receives, and waits for.
 
 The implicit lane has no id, no brief, all materials, and the profile's model. Assisted runs have no named lanes and use owner approval as the whole review; production lanes use the autonomous workflow.

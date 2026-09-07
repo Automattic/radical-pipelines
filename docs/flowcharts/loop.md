@@ -20,12 +20,10 @@ flowchart TD
     C -->|blocked task| BLOCKED["Restore what the report names; dispatch its worker"]
     C -->|build or document review| PR["Run the review-wave procedure with the phase reviewer"]
     C -->|no task files| NOTASK["Re-dispatch the plan producer"]
-    C -->|invalid target| TARGET["Re-dispatch the file's author"]
     C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]
     C -->|INVALID FRONTMATTER| FRONTMATTER["Orchestrator repairs the frontmatter, then re-stamps the file"]
     C -->|INVALID LINE| LINE["Have the file's author fix it"]
     C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Adjudicate"]
-    C -->|invalid report attempts| INVALIDREPORTS["Rename reports in landing order; repair their mirrors"]
     C -->|tasks held| HELD["Dispatch the plan producer: Adjudicate with failed reports"]
     C -->|adjudicated triggers or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
     C -->|unclaimed commits| UNCLAIMED["Tell the owner: claim them in a report or revert them"]
@@ -42,16 +40,14 @@ flowchart TD
     BLOCKED --> LAND
     PR --> LAND
     NOTASK --> LAND
-    TARGET --> LAND
     ATTEMPT --> LAND
     FRONTMATTER --> A
     LINE --> LAND
     INVALIDPLAN --> LAND
     HELD --> LAND
     AWAITING --> LAND
-    LAND --> STAMP["Stamp; merge lane branches; fire phase hooks"]
+    LAND --> STAMP["Stamp before publication; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
     STAMP --> A
     ST --> A
-    INVALIDREPORTS --> A
     UNCLAIMED --> A
 ```
