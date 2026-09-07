@@ -607,26 +607,12 @@ function cmdCheck(args) {
       texts.set(rel, text);
       const { data: parsed, body, error: frontmatterError } = parseFrontmatter(text);
       const data = parsed ?? new Map();
-      // A `---` block that does not start at byte 0 is not frontmatter: the file is malformed, not drifted.
-      const strayBlock = !parsed && /\n---\r?\n[\s\S]*?\n---\r?(\n|$)/.test(outsideFences(text));
-      const drift = strayBlock || frontmatterError ? [] : mirrorDrift(data, body, rel);
+      const drift = frontmatterError ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
-      return { rel, name: rel.split("/").pop(), data, scope, drift, strayBlock, frontmatterError, malformed: projectBody(body, rel).get("malformed") ?? [] };
+      return { rel, name: rel.split("/").pop(), data, scope, drift, frontmatterError, malformed: projectBody(body, rel).get("malformed") ?? [] };
     });
-  // The pipeline's own commits follow its base: the merge-base of the inspected ref with the branch
-  // its intent `starts-from`, else with the artifact base branch (`--base`).
-  const tip = ref ?? rev("HEAD", "HEAD");
-  const startsFrom = [].concat(all.find((d) => d.rel === "0-intent/intent.md")?.data.get("origin") ?? []).map((o) => o.match(/^starts-from\s+(\S+)$/)?.[1]).find(Boolean);
-  const invalidFrontmatter = all.some((d) => d.strayBlock || d.frontmatterError);
-  const baseRef = startsFrom ? rev(startsFrom, "the starts-from branch") : args.base ? rev(args.base, "--base") : invalidFrontmatter ? tip : die("check: --base <ref> is required — the artifact base branch — unless the intent declares starts-from");
-  let base;
-  try {
-    base = execFileSync("git", ["merge-base", baseRef, tip], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  } catch {
-    die(`check: no merge-base between ${startsFrom ?? args.base} and ${args.ref ?? "HEAD"}`);
-  }
 
   const identityOf = (rel) => {
     const bytes = tree.read(rel, true);
@@ -791,11 +777,6 @@ function cmdCheck(args) {
 
   // 0. Contradictions: malformed files (their author fixes them); mirrors that no longer project
   // their body; lanes the declaration lacks.
-  for (const d of all.filter((d) => d.strayBlock)) {
-    out.contradictions.push({ path: d.rel, invalid: "frontmatter not at byte 0" });
-    lines.push(`INVALID FRONTMATTER ${d.rel}: a --- block that does not start at byte 0`);
-    take(`INVALID FRONTMATTER ${d.rel}`);
-  }
   for (const d of all.filter((d) => d.frontmatterError)) {
     out.contradictions.push({ path: d.rel, invalid: d.frontmatterError });
     lines.push(`INVALID FRONTMATTER ${d.rel}: ${d.frontmatterError}`);
@@ -820,6 +801,23 @@ function cmdCheck(args) {
     out.contradictions.push({ path, symlink: true });
     lines.push(`symlink  ${path}`);
     take(`symlink ${path}`);
+  }
+  if (all.some((d) => d.frontmatterError)) {
+    out.frontier = frontier;
+    lines.push(`frontier ${frontier}`);
+    process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
+    return;
+  }
+
+  // Facts about branch commits require a valid representation and a real merge-base.
+  const tip = ref ?? rev("HEAD", "HEAD");
+  const startsFrom = [].concat(all.find((d) => d.rel === "0-intent/intent.md")?.data.get("origin") ?? []).map((o) => o.match(/^starts-from\s+(\S+)$/)?.[1]).find(Boolean);
+  const baseRef = startsFrom ? rev(startsFrom, "the starts-from branch") : args.base ? rev(args.base, "--base") : die("check: --base <ref> is required — the artifact base branch — unless the intent declares starts-from");
+  let base;
+  try {
+    base = execFileSync("git", ["merge-base", baseRef, tip], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    die(`check: no merge-base between ${startsFrom ?? args.base} and ${args.ref ?? "HEAD"}`);
   }
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath === "0-intent/intent.md" || phaseOfTarget(targetPath) <= args.targetPhase;

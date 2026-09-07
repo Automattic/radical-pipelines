@@ -213,7 +213,9 @@ describe("rp state tooling", () => {
       assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--mirror"), /INVALID FRONTMATTER/);
     }
     write(root, "0-intent/intent.md", "---\norigin: starts-from main\n# no close\n");
-    assert.match(rp(root, "check", PIPELINE, "--target-phase", "1"), /frontier INVALID FRONTMATTER 0-intent\/intent\.md/);
+    const output = rp(root, "check", PIPELINE, "--target-phase", "1");
+    assert.match(output, /frontier INVALID FRONTMATTER 0-intent\/intent\.md/);
+    assert.doesNotMatch(output, /complete through|commits\s/);
   });
 
   test("stamped scalars with YAML punctuation round-trip through frontmatter", () => {
@@ -970,12 +972,13 @@ describe("rp state tooling", () => {
     }
   });
 
-  test("a --- block that does not start at byte 0 is INVALID FRONTMATTER, not mirror drift", () => {
+  test("a --- block inside a body is ordinary body text", () => {
     approveChain(1);
-    write(root, "1-spec/spec-research.md", "# Spec Research\n\n---\norigin: nothing\n---\n\nBody.\n");
+    const text = "# Spec Research\n\n---\nkey: value\n---\n\nBody.\n";
+    write(root, "1-spec/spec-research.md", text);
     const out = check(root, "--target-phase", "1");
-    assert.match(out, /INVALID FRONTMATTER 1-spec\/spec-research.md/);
-    assert.doesNotMatch(out, /differs from the body/);
+    assert.doesNotMatch(out, /INVALID FRONTMATTER 1-spec\/spec-research.md|differs from the body/);
+    assert.deepEqual(parseFrontmatter(text), { data: null, body: text });
   });
 
   test("frontmatter delimiters and fixed lines inside fenced code are ordinary body text", () => {
