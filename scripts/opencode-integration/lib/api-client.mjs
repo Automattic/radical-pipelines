@@ -308,6 +308,27 @@ function findToolResult(messages, nonce) {
 }
 
 /**
+ * Wait for the tool call a given nonce drove, in a given session, to settle.
+ *
+ * Split out of `driveToolCall` because a nested directive is emitted by a
+ * session other than the one it was posted to: a subagent's call is driven
+ * through its parent's prompt but settles in the child's own transcript.
+ *
+ * @param {{baseURL:string,password:string}} server
+ * @param {string} sessionID The session whose transcript carries the call.
+ * @param {string} nonce The nonce embedded via `nativeToolPrompt`.
+ * @param {{ timeoutMs?: number, label?: string }} [options]
+ * @returns {Promise<{ text: string|undefined, structuredJSON: *, error: {message: string}|undefined }>}
+ *   The settled result (see `findToolResult`).
+ */
+export async function pollToolResult(server, sessionID, nonce, { timeoutMs, label } = {}) {
+  return pollMessages(server, sessionID, (messages) => findToolResult(messages, nonce), {
+    timeoutMs,
+    label: label ?? `tool call ${nonce} to complete in ${sessionID}`,
+  });
+}
+
+/**
  * Drive one tool call deterministically: post a directive prompt forcing the
  * stub to emit a call to `name` with `args`, then wait for it to settle.
  *
@@ -324,10 +345,7 @@ function findToolResult(messages, nonce) {
 export async function driveToolCall(server, sessionID, name, args = {}, { timeoutMs } = {}) {
   const nonce = `n${Date.now()}${Math.random().toString(36).slice(2)}`;
   await prompt(server, sessionID, nativeToolPrompt(name, args, nonce));
-  return pollMessages(server, sessionID, (messages) => findToolResult(messages, nonce), {
-    timeoutMs,
-    label: `tool call to complete: ${name}`,
-  });
+  return pollToolResult(server, sessionID, nonce, { timeoutMs, label: `tool call to complete: ${name}` });
 }
 
 /**
