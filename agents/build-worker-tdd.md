@@ -24,7 +24,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
 2. For each acceptance criterion: write a failing unit test that asserts it, make it pass with the smallest change, then remove duplication and refactor with the tests green. You write unit tests only.
 3. Run the project's test suite and build.
-4. Outcome **completed** when every acceptance criterion is covered by a passing test and the suite is green. Outcome **failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete; record reproducible evidence. Outcome **blocked** when the product was not observed; record what prevented observation.
+4. Determine the outcome per **Outcomes** and write the report.
 
 # Rules
 
@@ -35,8 +35,11 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
 - A task that forces a design decision is incomplete.
 - Resolve or explicitly answer every **Review issue** supplied with your task.
-- A **failed** report means the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. A **blocked** report means the product was not observed.
 - A failing test or broken build is work.
+
+**Outcomes**
+
+- **Completed** when every acceptance criterion is covered by a passing test and the suite is green. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
 
 **Evidence**
 
