@@ -44,4 +44,4 @@ node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--targ
 node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main --lanes "spec=security@b01a76f7504a" --target-phase 3
 ```
 
-The report lists contradictions first — a file whose mirrors differ from its body, an undeclared lane, a symlink — then triggers, claims, and every phase up to the target: production lanes (sub-pipelines closed once the root pins each lane's artifact, record, and approving reviews), artifacts, tasks with their latest reports, phase reviews, the audit gate, unclaimed commits — and names the frontier.
+The report lists contradictions first — a file whose mirrors differ from its body, an undeclared lane, a symlink — then triggers, claims, and every phase up to the target: production lanes (sub-pipelines closed once the root pins each lane's artifact, record, and approving reviews), artifacts, tasks with their latest reports, phase reviews, unclaimed commits — and names the frontier.
