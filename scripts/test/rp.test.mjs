@@ -219,7 +219,7 @@ describe("rp state tooling", () => {
       review(`1-spec/spec-review-security-${w}.md`, w % 2 ? "rejected" : "approved", SPEC);
     }
     assert.match(check(root, "--lanes", lanes), /counter\s+spec: 3 waves this episode/);
-    assert.match(check(root, "--lanes", lanes), /frontier AUDIT → adjudicate 1-spec\/spec\.md/);
+    assert.match(check(root, "--lanes", lanes), /frontier AUDIT \(recurs: none\) → adjudicate 1-spec\/spec\.md/);
     rp(root, "stamp", P("1-spec/spec.md"), "--set", "audited-spec=3");
     assert.match(check(root, "--lanes", lanes), /frontier adjudicate 1-spec\/spec\.md/);
     rp(root, "stamp", P("1-spec/spec.md"), "--set", "episode-start-spec=3");
@@ -750,13 +750,13 @@ describe("rp state tooling", () => {
     stampSpec();
     approveSpec();
     for (const bad of ["0", "5", "abc", "1.5", "-1"]) assert.throws(() => check(root, "--target-phase", bad), /--target-phase expects an integer from 1 to 4/);
-    for (const flag of ["--audit", "--valve"]) {
+    for (const flag of ["--audit"]) {
       for (const bad of ["0", "x", "2.5"]) assert.throws(() => check(root, flag, bad), new RegExp(`${flag} expects an integer from 1`));
       assert.throws(() => check(root, flag), new RegExp(`${flag} expects a value`));
     }
     assert.throws(() => check(root, "--force"), /unknown option: --force/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin"), /--pin expects a value/);
-    assert.match(check(root, "--target-phase", "1", "--audit", "2", "--valve", "3"), /frontier complete/);
+    assert.match(check(root, "--target-phase", "1", "--audit", "2"), /frontier complete/);
   });
 
   test("check --json carries the state", () => {

@@ -1,12 +1,12 @@
 # Close-out
 
-The run stops: the target phase is complete, an owner escalation is pending, the valve fired, the owner cancelled, or something failed.
+The run stops: the target phase is complete, an owner escalation is pending, an audit stopped it, the owner cancelled, or something failed.
 
 1. Cancel health monitoring (`../conventions/health-monitoring.md`); terminate every agent of the run.
 2. Make sure every commit and stamp is on the pipeline branch and pushed; remove lane worktrees and branches.
 3. Fire `run-ended` with the cause.
 4. Complete through the target phase: comment on the issue through the **Issues** convention with the phase reached, and tell the owner the pipeline is ready for the closure actions below.
-5. Any other cause: report to the owner what stopped the run, the frontier as `rp check` shows it, and — for an escalation or the valve — the dossier (`loop.md` § Owner escalation, § The valve). Leave the tree exactly as it is; a later triage continues from it.
+5. Any other cause: report to the owner what stopped the run, the frontier as `rp check` shows it, and — for an escalation or an audit stop — the dossier (`loop.md` § Owner escalation, § Audit). Leave the tree exactly as it is; a later triage continues from it.
 6. Report to the owner: pipeline, branch, pull requests, phases completed, amendments absorbed, pending claims.
 
 ## Closure actions
@@ -28,7 +28,7 @@ When the pull request already exists, update its description the same way.
 Consult the **Artifact storage** convention for the remotes and the upstream branch and commit formats, then:
 
 1. Generate a clean branch name for `upstream` from the upstream branch format — separate from the fork branch — and create the branch at `upstream`'s main branch.
-2. Cherry-pick, oldest first, every commit outside the pipelines folder reachable from the pipeline branch but not from `upstream`'s main branch.
+2. Cherry-pick, oldest first, the pipeline's own commits outside the pipelines folder — those after its base (`state.md`), the set `rp check` holds task reports to.
 3. Rewrite the cherry-picked commit messages to the upstream commit format.
 4. Push the clean branch directly to `upstream`.
 5. Open the pull request in `upstream` from that clean branch. Its source branch lives in `upstream`, not in the fork — viewers of the pull request never see the fork.

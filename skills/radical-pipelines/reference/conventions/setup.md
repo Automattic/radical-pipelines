@@ -112,7 +112,7 @@ Models per profile and named lanes, in the blocks `agents.md` defines.
 
 ### Thresholds (optional)
 
-Audit and valve thresholds when overriding `rp check`'s defaults.
+The audit cadence (`audit: <waves>`) when overriding `rp check`'s default of 3.
 
 ## Tool setup actions
 

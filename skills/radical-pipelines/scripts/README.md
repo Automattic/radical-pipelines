@@ -30,14 +30,14 @@ The identity of a lane's whole declaration, for `--lanes`. A named lane's artifa
 ## `check`
 
 ```text
-node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--target-phase <n>] [--ref <ref>] [--audit <n>] [--valve <n>] [--json]
+node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--target-phase <n>] [--ref <ref>] [--audit <n>] [--json]
 ```
 
 - `--base` names the artifact base branch: the pipeline's own commits — those a task report must claim — follow its merge-base with the inspected ref. The branch the intent `starts-from` prevails when it declares one; otherwise `--base` is required. A base that does not resolve is an error.
 - `--lanes` declares, per artifact, the named review lanes and, after `|`, the production lanes with their `after` dependencies: `"spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh"`. A fingerprint, when given, must match the `lane` its reviews or lane artifact were stamped with. A lane folder or review the declaration lacks is reported, never treated as a lane; `tasks` is reserved.
 - `--target-phase <n>` is an integer from 1 (spec) to 4 (document); default 4. The report ends with `complete through phase <m>` against it.
 - `--ref` reads the pipeline from a commit instead of the working tree; the commit range is the same.
-- `--audit` and `--valve` are positive integers overriding the thresholds (defaults 3 and 6).
+- `--audit` is a positive integer: every that many waves of an episode without approval, the frontier is annotated `AUDIT (recurs: …)` (default 3).
 - `--json` emits machine-readable state.
 - Any other value, a missing value, or an unknown option is an error.
 
@@ -45,4 +45,4 @@ node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--targ
 node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main --lanes "spec=security@b01a76f7504a" --target-phase 3
 ```
 
-The report lists contradictions first — a file whose mirrors differ from its body, an undeclared lane, a symlink — then triggers, claims, and every phase up to the target: production lanes (sub-pipelines closed once the root pins each lane's artifact, record, and approving reviews), artifacts, tasks with their latest reports, phase reviews, audit and valve gates, unclaimed commits — and names the frontier.
+The report lists contradictions first — a file whose mirrors differ from its body, an undeclared lane, a symlink — then triggers, claims, and every phase up to the target: production lanes (sub-pipelines closed once the root pins each lane's artifact, record, and approving reviews), artifacts, tasks with their latest reports, phase reviews, the audit gate, unclaimed commits — and names the frontier.

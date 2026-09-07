@@ -17,7 +17,7 @@ The canonical vocabulary of Radical Pipelines.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
 - **Episode** — An artifact's waves since the last wave every lane approved, or since its `episode-start`.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
-- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a trigger, a claim, a phase's next step, an audit or valve gate, an unclaimed commit, or completion.
+- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a trigger, a claim, a phase's next step, an audit gate, an unclaimed commit, or completion.
 - **Identity** — The Git hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
@@ -47,7 +47,6 @@ The canonical vocabulary of Radical Pipelines.
 - **Task report** — An immutable per-attempt worker report, `tasks/T<n>-report-<k>.md`, landed in a commit of its own, naming the task it executed and the tasks it depended on, and recording its outcome, the commits it claims (every one must exist), checks, and any failure evidence.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
 - **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a fresh failed task report; adjudicated when the target pins it, resolved when a wave naming it approves the target or the claim is escalated; a claim persists until resolved, superseded (its target changed, or its lane reviewed again), or moot.
-- **Valve** — The run stop that produces an owner dossier after the convergence threshold, six waves by default, is reached without approval.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
 - **Wave** — One review of an artifact by every one of its lanes, numbered per artifact; closed when every lane's review is stamped and fresh.
 - **Worker** — A fresh agent that executes one task of a build or document plan and writes its task report.

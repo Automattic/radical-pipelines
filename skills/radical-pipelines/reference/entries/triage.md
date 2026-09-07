@@ -27,7 +27,7 @@ Apply the first predicate that holds:
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
-Several live pipelines match: pick the one whose frontier the request advances; a pipeline stopped by the valve is continued only with new input (an amendment or an escalation answer).
+Several live pipelines match: pick the one whose frontier the request advances; a pipeline stopped at an audit is continued only with new input (an amendment or an escalation answer).
 
 ### 4. Confirm the run
 
@@ -50,7 +50,7 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id).
 3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed); commit the stamps.
 
-**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the base branch. A pipeline the valve stopped: `rp stamp <artifact> --set episode-start-<series>=<its last wave>` once the new input is in the tree.
+**Continue**: the pipeline's branch and worktree, created when this machine lacks them; a merged pipeline continuing to a later phase gets `<slug>_<n>` from the base branch. A pipeline an audit stopped: `rp stamp <artifact> --set episode-start-<series>=<its last wave>` once the new input is in the tree.
 
 ### 6. Run
 

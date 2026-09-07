@@ -325,7 +325,6 @@ const ARTIFACTS = [
 ];
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-\d+|decision-\d+)|(?:1-spec\/spec|2-design-doc\/design-doc|3-build\/build-plan|4-document\/document-plan)\.md#\S+)$/;
 const AUDIT = 3;
-const VALVE = 6;
 
 // `--lanes spec=security,a11y|event-driven,contrarian<event-driven;build=fresh`:
 // per artifact, the named review lanes (the implicit lane is always present)
@@ -397,7 +396,6 @@ function cmdCheck(args) {
   // A stamped file carries the fingerprint of the lane it was dispatched under; a declared fingerprint must match it.
   const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
   const audit = args.audit ?? AUDIT;
-  const valve = args.valve ?? VALVE;
 
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
   // A file whose mirrors differ from its body's projection contradicts the tree: none of its
@@ -545,10 +543,12 @@ function cmdCheck(args) {
     const audited = Number(artifactDoc?.data.get(`audited-${prefix}`) ?? 0) >= last;
     return { episode, recurs, audited, last };
   };
+  // The audit: every `audit` waves of an episode without approval — 3, 6, 9, … by default — the
+  // orchestrator reads the episode and decides; `audited-<series>` records the wave it covered.
+  // The annotation carries the episode's recurring findings, the fact that decision rests on.
   const gateOf = (e, approved, closed) => {
     if (approved || !closed) return null;
-    if (e.episode >= valve) return "VALVE";
-    if (e.episode >= audit && !e.audited) return "AUDIT";
+    if (e.episode > 0 && e.episode % audit === 0 && !e.audited) return `AUDIT (recurs: ${e.recurs.length ? e.recurs.join(", ") : "none"})`;
     return null;
   };
 
@@ -865,7 +865,7 @@ function cmdCheck(args) {
 // --- cli --------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: ARTIFACTS.length, ref: null, base: null, audit: null, valve: null };
+  const args = { _: [], pin: [], reviewed: [], set: [], mirror: false, json: false, lanes: null, targetPhase: ARTIFACTS.length, ref: null, base: null, audit: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     // Every option is validated here: an unknown one, a missing value, or a value out of range is an error.
@@ -889,7 +889,6 @@ function parseArgs(argv) {
     else if (a === "--materials") args.materials = value();
     else if (a === "--after") args.after = value();
     else if (a === "--audit") args.audit = integer(1, Number.MAX_SAFE_INTEGER);
-    else if (a === "--valve") args.valve = integer(1, Number.MAX_SAFE_INTEGER);
     else if (a.startsWith("--")) die(`unknown option: ${a}`);
     else args._.push(a);
   }
@@ -916,7 +915,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set key=value]... [--mirror]
   node rp.mjs fingerprint <lane id> [--brief <text>] [--materials <a,b>] [--after <lane+lane>]
-  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--audit 3] [--valve 6] [--json]
+  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security|event-driven,contrarian<event-driven;build=fresh"] [--target-phase <n>] [--ref <branch>] [--audit 3] [--json]
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Brief, Target,
@@ -925,7 +924,7 @@ Depends on, a report's Commits), and head — the commit
 a stamp with pins observed. Identity is the hash of a file's body: stamping never
 changes it. check reports the frontier: triggers, claims, then phases in order
 up to the target — production lanes, artifacts, tasks, phase reviews,
-audit/valve gates — and completion. --base names the artifact base branch: the
+the audit gate — and completion. --base names the artifact base branch: the
 pipeline's own commits follow its merge-base with the inspected ref, or with the
 branch the intent starts-from when it declares one. --lanes declares, per
 artifact, the named review lanes (the implicit lane always exists) and, after |,
