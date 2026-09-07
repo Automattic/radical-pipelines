@@ -16,7 +16,7 @@ Closure actions are moments the owner invokes on a pipeline: opening its pull re
 ### Open the pull request
 
 1. Fire `before-opening-pr`.
-2. Open it from the pipeline branch onto the artifact base branch, writing its title and description per the **PR format** convention. Compose the description from the plan, its tasks and reports, and the approving phase review — what shipped, why, how, and what the review left non-blocking.
+2. Open it from the pipeline branch onto the artifact base branch, writing its title and description per the **PR format** convention. Compose the description from the artifacts and approving reviews through the phase reached, including tasks and reports when present — what shipped, why, how, and what the reviews left non-blocking.
    - `artifacts-in-repo`: push the pipeline branch and open the pull request with your own tools.
    - `artifacts-in-fork`: perform the upstream PR transformation below.
 3. Fire `after-opening-pr` and report the outcome.
