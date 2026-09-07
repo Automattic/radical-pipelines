@@ -17,8 +17,8 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
 | `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Amendment**                                     |
 | `synthesize <artifact>`                              | Its producer, mode Synthesize                                                                                  |
-| `stamp <file>`                                       | Its pins are missing, or its mirrors no longer project its body: § Stamp on landing                            |
-| `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with **Input changes** — never a re-stamp by you                                |
+| `stamp <file>`                                       | Its initial package is unrecorded, or its mirrors no longer project its body: § Stamp on landing               |
+| `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with the package change under **Input changes**                                 |
 | `review wave <artifact>`                             | A review wave                                                                                                  |
 | `adjudicate <artifact>`                              | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks. A claim the producer refuted reaches it here too, as the wave that refuted it |
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
@@ -44,7 +44,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 - Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by the lane's `materials` when it has them. A named lane's **Brief** is its brief verbatim; the implicit lane has none. `--lanes` carries each named lane with its fingerprint (`state.md` § The frontier).
 - Every message to an agent names what it must do next.
-- A producer's materials include, for each input artifact, its current approving reviews — every lane's review of the wave that approved it; the document plan also gets the approving build review. A newer approval makes a consumer stale and provides **Input changes** for re-synthesis.
+- A producer receives each required input package. A package change provides **Input changes** for re-synthesis.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
@@ -58,7 +58,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 After every agent commit, before anyone consumes the result — and before the agent is terminated: repair `INVALID FRONTMATTER` by re-stamping; send `INVALID LINE` to the body's author to fix and report again.
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. The document plan pins every build task and report. Each task file of a plan: `rp stamp <task> --mirror`.
-- A review's initial stamp: `rp stamp <review> --reviewed <each file state.md says it names> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a trigger declares `Origin:` in its body.
+- A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a trigger declares `Origin:` in its body.
 - A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. A mirror repair uses `rp stamp <report> --mirror`.
 - A named lane's artifact or review: `--set lane=<the lane's fingerprint>` too.
 - Commit the stamps on top of the landing.
