@@ -800,6 +800,7 @@ describe("rp state tooling", () => {
     for (const body of [
       "Brief:\nOrigin: decision-1\n",
       "Target:\n1-spec/spec.md#R1\n",
+      "Depends on:\nT1\n",
       "Verdict: approved\nVerdict: rejected\n",
       "Brief: one\nBrief: two\n",
       "Target: 1-spec/spec.md#R1\nTarget: 1-spec/spec.md#R1\n",

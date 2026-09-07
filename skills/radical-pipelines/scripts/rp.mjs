@@ -152,7 +152,7 @@ export function projectBody(body, rel = "") {
   if (recurs.length) p.set("recurs", recurs);
   // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
   // separated by commas — nothing else on the line. Anything else is malformed, never mined.
-  const dependencies = [...body.matchAll(/^\s*(?:-\s*)?\*?\*?Depends on:\*?\*?\s*(.*)$/gm)];
+  const dependencies = [...body.matchAll(/^[^\S\n]*(?:-[^\S\n]*)?\*?\*?Depends on:\*?\*?[^\S\n]*(.*)$/gm)];
   for (const dep of dependencies) {
     const value = dep[1].trim();
     if (/^none$/i.test(value)) p.set("depends", []);
@@ -803,7 +803,7 @@ function cmdCheck(args) {
       const lanes = reviewLanesOf(art.prefix);
       const waves = [...new Set(rs.map((r) => r.wave))].sort((a, b) => b - a);
       for (const wave of waves) {
-        const complete = lanes.map(({ id, fingerprint }) => rs.find((r) => r.wave === wave && r.lane === id && r.data.get("verdict") === "approved" && r.data.has("reviewed") && laneMatches(r, fingerprint)));
+        const complete = lanes.map(({ id, fingerprint }) => rs.find((r) => r.wave === wave && r.lane === id && r.data.get("verdict") === "approved" && r.data.get("reviewed")?.length > 0 && laneMatches(r, fingerprint)));
         if (complete.every(Boolean)) return complete.map((r) => r.rel);
       }
       return [];
