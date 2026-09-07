@@ -8,7 +8,7 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 
 1. `tools/<active tool>.md` from the skill: spawn, seat, address, terminate, health-loop, and model mechanics. The skill ships `tools/claude-code.md` and `tools/opencode.md`; for another tool, the project supplies those mechanics in its tool section of `.rp.md`, and setup asks for them.
 2. `.rp.md` from the main root: its shared sections and the active tool's section — `## <Tool>` inline, or the sidecar `.rp.<tool>.md` it names. Ignore other tools. A tool section written for a different tool than the active one counts as absent: offer setup for the active tool.
-3. `.rp.local.md` from the main root, when present. This git-ignored file overrides matching project facts in memory; unmentioned facts retain their `.rp.md` values.
+3. `.rp.local.md` from the main root, when present. Apply it only after the completeness check below.
 
 ## Conventions
 
@@ -36,6 +36,8 @@ The `.rp.md` frontmatter line `conventions: <N>` records the schema version. The
 
 ## Completeness
 
-Check the merged project facts. When a required row is missing, offer setup. If the owner declines, stop and explain what is missing.
+Check the committed `.rp.md` before merging local overrides. A complete file at the current version loads without setup. When a required row is missing, offer setup. If the owner declines, stop and explain what is missing.
+
+After it passes, merge `.rp.local.md` over it in memory: matching project facts override it; unmentioned facts retain their committed values.
 
 Finally, read `lifecycle-hooks.md`.

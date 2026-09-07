@@ -10,7 +10,7 @@ Tell the owner what exists and what is missing. Offer setup. If declined, stop a
 
 ## Fresh setup
 
-Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only; use `tools/<tool>.md` for mechanics. When the skill ships no `tools/<tool>.md` for the active tool, interview its mechanics too — how to spawn, seat, address, and terminate an agent, and how to start and cancel the health loop — and record them in the tool section.
+Interview the required rows one at a time, then offer each optional row. Mark each as required or optional and provide a default or example. Record project facts only. When the skill ships `tools/<tool>.md`, tell the owner which spawn, seating, addressing, termination, health-loop, and model mechanics it fixes. Otherwise interview those mechanics and record them in the tool section.
 
 ### Issues (required)
 
@@ -22,7 +22,7 @@ How one issue-derived slug is named. It is the pipeline branch, distinguishes is
 
 ### Worktree folder root (required)
 
-The root containing one worktree per branch. Suggested: `.worktrees/`. Apply the active tool's location rule.
+The root under which the orchestrator creates one worktree per branch with raw `git worktree` and removes lane worktrees when their lanes finish. Suggested: `.worktrees/`. Apply the active tool's location rule.
 
 ### Pipelines folder root (optional)
 
@@ -120,10 +120,13 @@ Before writing, perform any **Setup actions** in `tools/<tool>.md`. Get the owne
 
 ## Write
 
-1. Show the proposed changes and get the owner's confirmation. Resolve every required answer before writing a complete file.
-2. Write human-readable `.rp.md` with frontmatter `conventions: 1`, shared fact sections, and a section headed by the active tool's name for its project facts.
-3. With permission, add the worktree folder root to `.gitignore`.
-4. Commit the files and report completion.
+Keep `.rp.md` to the conventions above. Include other discovered facts or instructions only at the owner's explicit request; under-specification is safe.
+
+1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
+2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
+3. On the artifact base branch, write human-readable `.rp.md` with frontmatter `conventions: 1`, shared fact sections, and a section headed by the active tool's name for its project facts.
+4. With permission, append the worktree folder root entry to `.gitignore` and co-commit it with `.rp.md` on that branch. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
+5. Report whether `.rp.md` was created or updated and whether setup is complete.
 
 ## Migration
 
