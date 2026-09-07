@@ -544,6 +544,15 @@ describe("rp state tooling", () => {
 
   // --- production lanes ---------------------------------------------------------
 
+  function approveSpecLaneA(reviewed = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]) {
+    write(root, "1-spec/a/spec.md", "# Candidate a\n");
+    write(root, "1-spec/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--set", `lane=${FPS.a}`);
+    review("1-spec/a/spec-review-1.md", "approved", reviewed);
+  }
+
+  const LANE_A_PACKAGE = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
+
   test("declared production lanes are sub-pipelines; `after` waits; the root must pin every lane", () => {
     rmSync(join(root, P("1-spec/spec.md")));
     rmSync(join(root, P("1-spec/spec-research.md")));
@@ -572,15 +581,16 @@ describe("rp state tooling", () => {
     assert.match(check(root, "--lanes", lanes), /artifact 1-spec\/spec\.md\s+MISSING — every lane approved: consolidate/);
     write(root, "1-spec/spec.md", "# Consolidated spec\n");
     write(root, "1-spec/spec-research.md", "# Consolidated record\n");
-    // A root that records only one lane has a different package: lanes stay open.
+    // A lane closes only when the root records its complete package.
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"));
     output = check(root, "--lanes", lanes);
     assert.doesNotMatch(output, /closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+STALE — package members/);
-    // Nor is a package that omits a lane record a consolidation.
+    // One complete lane closes independently while an incomplete one stays open.
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--pin", P("1-spec/contrarian/spec.md"), "--pin", P("1-spec/contrarian/spec-review-1.md"));
     output = check(root, "--lanes", lanes);
-    assert.doesNotMatch(output, /closed/);
+    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
+    assert.doesNotMatch(output, /lane\s+1-spec\/contrarian\/spec\.md\s+closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+STALE — package members/);
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--pin", P("1-spec/contrarian/spec.md"), "--pin", P("1-spec/contrarian/spec-research.md"), "--pin", P("1-spec/contrarian/spec-review-1.md"));
     output = check(root, "--lanes", lanes);
@@ -612,6 +622,41 @@ describe("rp state tooling", () => {
     rp(root, "stamp", P("1-spec/spec.md"), ...[...lanePackage, "1-spec/a/spec-review-2.md", "1-spec/a/spec-review-security-2.md"].flatMap((path) => ["--pin", P(path)]));
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged upstream.\n");
     assert.match(check(root, "--lanes", lanes, "--target-phase", "1"), /lane\s+1-spec\/a\/spec\.md\s+closed/);
+  });
+
+  test("an incomplete approval package cannot close a production lane", () => {
+    approveSpecLaneA(["1-spec/a/spec.md", "1-spec/a/spec-research.md"]);
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    const output = check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1");
+    assert.doesNotMatch(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
+    assert.match(output, /frontier review wave 1-spec\/a\/spec\.md/);
+  });
+
+  test("a root reconfirmation preserves its closed lane package", () => {
+    approveSpecLaneA();
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
+    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Decisions\n\n1. New input.\n");
+    rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/spec-review-2.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
+    const output = check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1");
+    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
+    assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH[\s\S]*frontier complete/);
+  });
+
+  test("a new production lane leaves closed lanes outside the frontier", () => {
+    approveSpecLaneA();
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
+    assert.match(check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1"), /frontier complete/);
+    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Decisions\n\n1. Add lane b.\n");
+    rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
+    const output = check(root, "--lanes", `spec=|a@${FPS.a},b@${FPS.b}`, "--target-phase", "1");
+    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
+    assert.match(output, /lane\s+1-spec\/b\/spec\.md\s+MISSING/);
+    assert.match(output, /artifact 1-spec\/spec\.md\s+STALE/);
+    assert.match(output, /frontier synthesize 1-spec\/b\/spec\.md/);
   });
 
   test("an after lane waits for each dependency's recursively complete package", () => {

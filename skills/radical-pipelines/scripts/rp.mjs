@@ -745,6 +745,12 @@ function cmdCheck(args) {
   const reviewFresh = (r, prefix, sc) => {
     return samePackage(pinPackage(r.data.get("reviewed")), currentPackage(schemaOf(prefix, sc, r.lane)));
   };
+  const completeReviewPackage = (prefix, sc) => {
+    const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
+    const artifactPath = inScope(sc, art.path);
+    const consumed = pinPackage(all.find((d) => d.rel === artifactPath)?.data.get("pins"));
+    return new Map(schemaOf(prefix, sc).map((path) => [path, consumed?.get(path) ?? identityOf(path)]));
+  };
   const waveState = (prefix, sc, wave) => {
     if (!wave) return null;
     const rs = reviewsOf(sc).filter((r) => r.prefix === prefix && r.wave === wave);
@@ -754,6 +760,7 @@ function cmdCheck(args) {
     const packages = reviews.map((r) => pinPackage(r.data.get("reviewed")));
     if (packages.some((p) => !p)) return null;
     const full = packages[0];
+    if (!samePackage(full, completeReviewPackage(prefix, sc))) return null;
     for (let i = 1; i < packages.length; i++) {
       const paths = materialPaths(prefix, sc, lanes[i].id);
       const expected = paths === null ? full : new Map(paths.map((path) => [path, full.get(path)]));
@@ -944,10 +951,10 @@ function cmdCheck(args) {
 
   // 3. Phases in order, up to the target; a phase's production lanes come before its root artifact.
   const render = (ls) => (ls.length ? ls.map((l) => `${l.lane || "·"}:${l.verdict}${l.verdict !== "none" && l.verdict !== "unstamped" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
-  const artifactState = (doc, art, sc, extraRequires = [], fingerprint = null) => {
+  const artifactState = (doc, art, sc, extraPackage = new Map(), fingerprint = null) => {
     const pins = doc?.data.get("pins");
     const buildPackage = art.prefix === "document-plan" ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
-    const required = [...new Set([...art.requires, ...buildPackage, ...extraRequires])];
+    const required = [...new Set([...art.requires, ...buildPackage])];
     let requirementsReady = true;
     // Each required input is consumed with its current approval: every lane's review of the wave that approved it.
     for (const req of required) {
@@ -970,7 +977,9 @@ function cmdCheck(args) {
       /-review-.*\.md$/.test(path) ||
       /\/tasks\/T\d+(?:-report-\d+)?\.md$/.test(path);
     const retained = recorded ? [...recorded.keys()].filter((path) => isTrigger(path) || !modelMember(path)) : [];
-    const diff = packageDiff(recorded, currentPackage([...required, ...retained]));
+    const requiredPackage = currentPackage([...required, ...retained]);
+    for (const [path, sha] of extraPackage) requiredPackage.set(path, sha);
+    const diff = packageDiff(recorded, requiredPackage);
     const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
       ...(diff.members || !requirementsReady ? ["package members"] : []),
       ...(diff.identities.length ? [`package identities: ${diff.identities.join(", ")}`] : []),
@@ -997,18 +1006,7 @@ function cmdCheck(args) {
     const declaredLanes = productionLanesOf(art.prefix);
     const laneScopes = declaredLanes.map((l) => `${art.phase}/${l.id}/`).sort();
     const laneOf = (sc) => declaredLanes.find((l) => l.id === sc.split("/")[1]);
-    const laneApproved = (sc) => {
-      const lane = laneOf(sc);
-      if (lane.after.some((dep) => !laneApproved(`${art.phase}/${dep}/`))) return false;
-      const doc = all.find((d) => d.rel === `${sc}${name}`);
-      return !!doc && (() => { const st = artifactState(doc, art, sc, lane.after.flatMap((dep) => lanePins(`${art.phase}/${dep}/`)), lane.fingerprint); return st.approved && st.state === "fresh"; })();
-    };
-    const lanePins = (sc) => {
-      const lanes = laneStates(art.prefix, sc);
-      return [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...(approvedBy(lanes) ? lanes.map((l) => l.review.rel) : [])];
-    };
     const rootPinParts = (pinsByPath.get(art.path) ?? []).map(pinParts).filter(Boolean);
-    const rootPins = rootPinParts.map((p) => p.path);
     const rootPinMap = new Map(rootPinParts.map((p) => [p.path, p.sha]));
     const consumedApproval = (sc) => {
       const waves = [...new Set(reviewsOf(sc).filter((r) => r.prefix === art.prefix && rootPinMap.has(r.rel)).map((r) => r.wave))];
@@ -1017,24 +1015,43 @@ function cmdCheck(args) {
         return [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`].every((path) => rootPinMap.get(path) === state.package.get(path));
       });
     };
-    const consolidated =
-      rootExists &&
-      laneScopes.length > 0 &&
-      laneScopes.every((sc) => {
-        const approval = consumedApproval(sc);
-        return !!approval && [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...approval.reviews.map((r) => r.rel)].every((p) => rootPins.includes(p));
-      });
+    const closedPackage = (sc) => {
+      if (!rootExists) return null;
+      const approval = consumedApproval(sc);
+      const paths = approval ? [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...approval.reviews.map((r) => r.rel)] : [];
+      return paths.length && paths.every((path) => rootPinMap.has(path)) ? new Map(paths.map((path) => [path, rootPinMap.get(path)])) : null;
+    };
+    const lanePackage = (sc) => {
+      const closed = closedPackage(sc);
+      if (closed) return closed;
+      const lanes = laneStates(art.prefix, sc);
+      const paths = [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...(approvedBy(lanes) ? lanes.map((l) => l.review.rel) : [])];
+      return currentPackage(paths);
+    };
+    const dependencyPackage = (sc) => {
+      const packageMap = new Map();
+      for (const dep of laneOf(sc).after) for (const entry of lanePackage(`${art.phase}/${dep}/`)) packageMap.set(...entry);
+      return packageMap;
+    };
+    const laneApproved = (sc) => {
+      if (closedPackage(sc)) return true;
+      const lane = laneOf(sc);
+      if (lane.after.some((dep) => !laneApproved(`${art.phase}/${dep}/`))) return false;
+      const doc = all.find((d) => d.rel === `${sc}${name}`);
+      return !!doc && (() => { const st = artifactState(doc, art, sc, dependencyPackage(sc), lane.fingerprint); return st.approved && st.state === "fresh"; })();
+    };
     let lanesReady = laneScopes.length > 0;
     for (const sc of laneScopes) {
       const { after, fingerprint } = laneOf(sc);
       const waiting = after.filter((dep) => !laneApproved(`${art.phase}/${dep}/`));
       const doc = all.find((d) => d.rel === `${sc}${name}`);
-      const st = doc ? artifactState(doc, art, sc, after.flatMap((dep) => lanePins(`${art.phase}/${dep}/`)), fingerprint) : { state: "missing", stale: [], lanes: [], approved: false, episode: 0, recurs: [] };
-      const ok = st.approved && st.state === "fresh" && !waiting.length;
+      const st = doc ? artifactState(doc, art, sc, dependencyPackage(sc), fingerprint) : { state: "missing", stale: [], lanes: [], approved: false, episode: 0, recurs: [] };
+      const closed = !!closedPackage(sc);
+      const ok = closed || (st.approved && st.state === "fresh" && !waiting.length);
       if (!ok) lanesReady = false;
-      out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...st, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed: consolidated });
-      lines.push(`lane     ${sc}${name}  ${consolidated ? "closed" : st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
-      if (!consolidated && !ok && !waiting.length) take(`${st.state === "missing" ? `synthesize ${sc}${name}` : nextFor(`${sc}${name}`, st)}`);
+      out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...st, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed });
+      lines.push(`lane     ${sc}${name}  ${closed ? "closed" : st.state.toUpperCase()}${!closed && st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${!closed && waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
+      if (!closed && !ok && !waiting.length) take(`${st.state === "missing" ? `synthesize ${sc}${name}` : nextFor(`${sc}${name}`, st)}`);
       if (st.episode || st.recurs.length) out.counters[`${sc}${art.prefix}`] = { episode: st.episode, recurs: st.recurs };
     }
     if (!rootExists) {
@@ -1045,7 +1062,9 @@ function cmdCheck(args) {
       stopped = true;
       continue;
     }
-    const st = artifactState(all.find((d) => d.rel === art.path), art, "", laneScopes.flatMap(lanePins));
+    const rootLanePackage = new Map();
+    for (const sc of laneScopes) for (const entry of lanePackage(sc)) rootLanePackage.set(...entry);
+    const st = artifactState(all.find((d) => d.rel === art.path), art, "", rootLanePackage);
     out.artifacts.push({ artifact: art.path, ...st, lanes: st.lanes.map(({ review, ...x }) => x) });
     if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
     lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
