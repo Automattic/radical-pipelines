@@ -674,6 +674,16 @@ describe("rp state tooling", () => {
     assert.match(output, /lane\s+1-spec\/b\/spec\.md\s+MISSING/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+STALE/);
     assert.match(output, /frontier synthesize 1-spec\/b\/spec\.md/);
+    write(root, "1-spec/b/spec.md", "# Candidate b\n");
+    write(root, "1-spec/b/spec-research.md", "# Record b\n");
+    rp(root, "stamp", P("1-spec/b/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]), "--set", `lane=${FPS.b}`);
+    review("1-spec/b/spec-review-1.md", "approved", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md", ...LANE_A_PACKAGE]);
+    const ready = JSON.parse(check(root, "--lanes", `spec=|a@${FPS.a},b@${FPS.b}<a`, "--target-phase", "1", "--json"));
+    assert.equal(ready.frontier, "consolidate 1-spec/spec.md");
+    assert.deepEqual(ready.artifacts[0].laneCandidates, [
+      { lane: "1-spec/a/", package: LANE_A_PACKAGE },
+      { lane: "1-spec/b/", package: ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "1-spec/b/spec-review-1.md"] },
+    ]);
   });
 
   test("an after lane waits for each dependency's recursively complete package", () => {

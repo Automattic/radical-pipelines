@@ -1052,10 +1052,16 @@ function cmdCheck(args) {
       if (!closed && !ok && !waiting.length) take(`${st.state === "missing" ? `synthesize ${sc}${name}` : nextFor(`${sc}${name}`, st)}`);
       if (st.episode || st.recurs.length) out.counters[`${sc}${art.prefix}`] = { episode: st.episode, recurs: st.recurs };
     }
+    const laneCandidates = laneScopes.filter(laneApproved).map((sc) => ({ lane: sc, package: [...lanePackage(sc).keys()] }));
+    const needsConsolidation = laneScopes.some((sc) => !closedPackage(sc) && laneApproved(sc));
+    const renderCandidates = () => lines.push(`Lane candidates  ${laneCandidates.map((candidate) => `${candidate.lane}: ${candidate.package.join(", ")}`).join("; ")}`);
     if (!rootExists) {
-      out.artifacts.push({ artifact: art.path, state: "missing", consolidate: laneScopes.length ? lanesReady : undefined });
+      out.artifacts.push({ artifact: art.path, state: "missing", consolidate: laneScopes.length ? lanesReady : undefined, ...(lanesReady ? { laneCandidates } : {}) });
       lines.push(`artifact ${art.path}  MISSING${laneScopes.length ? (lanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}`);
-      if (laneScopes.length && lanesReady) take(`consolidate ${art.path}`);
+      if (laneScopes.length && lanesReady) {
+        renderCandidates();
+        take(`consolidate ${art.path}`);
+      }
       else if (!laneScopes.length) take(`synthesize ${art.path}`);
       stopped = true;
       continue;
@@ -1063,11 +1069,14 @@ function cmdCheck(args) {
     const rootLanePackage = new Map();
     for (const sc of laneScopes) for (const entry of lanePackage(sc)) rootLanePackage.set(...entry);
     const st = artifactState(all.find((d) => d.rel === art.path), art, "", rootLanePackage);
-    out.artifacts.push({ artifact: art.path, ...st, lanes: st.lanes.map(({ review, ...x }) => x) });
+    out.artifacts.push({ artifact: art.path, ...st, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
     if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
     lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
     if (st.state !== "fresh" || !st.approved) {
-      take(nextFor(art.path, st));
+      if (lanesReady && needsConsolidation) {
+        renderCandidates();
+        take(`consolidate ${art.path}`);
+      } else take(nextFor(art.path, st));
       stopped = true;
     }
     if (!art.review) {
