@@ -38,16 +38,53 @@ export function parseFrontmatter(raw) {
   const body = rest.slice(close.index + close[0].length);
   const data = new Map();
   const errors = [];
-  const collectionValue = (value) => /^[\[{]/.test(value) || /[\]}]$/.test(value) || /^-\s/.test(value) || /^[^:]+:\s/.test(value);
+  const collectionValue = (value) => /^[\[{#&*!|>@`%]/.test(value) || /^(?:-|\?|:)\s/.test(value) || /[\]}]$/.test(value) || /:\s/.test(value) || /\s#/.test(value);
+  const scalar = (rawValue) => {
+    const value = rawValue.trim();
+    if (value.startsWith('"')) {
+      try {
+        const parsed = JSON.parse(value);
+        return typeof parsed === "string" ? { value: parsed } : { error: "quoted scalar must be a string" };
+      } catch {
+        return { error: "malformed double-quoted scalar" };
+      }
+    }
+    if (value.startsWith("'")) {
+      if (!/^'(?:[^']|'')*'$/.test(value)) return { error: "malformed single-quoted scalar" };
+      return { value: value.slice(1, -1).replace(/''/g, "'") };
+    }
+    if (collectionValue(value)) return { error: "must be a scalar" };
+    return { value };
+  };
+  const flowItems = (inner) => {
+    if (!inner) return [];
+    const items = [];
+    let start = 0;
+    let quote = null;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (quote === '"' && ch === "\\") i++;
+      else if (quote === "'" && ch === "'" && inner[i + 1] === "'") i++;
+      else if (quote && ch === quote) quote = null;
+      else if (!quote && (ch === '"' || ch === "'")) quote = ch;
+      else if (!quote && ch === ",") {
+        items.push(inner.slice(start, i));
+        start = i + 1;
+      }
+    }
+    if (quote) return null;
+    items.push(inner.slice(start));
+    return items;
+  };
   let currentList = null;
   for (const rawLine of rest.slice(0, close.index).split("\n")) {
     const line = rawLine.replace(/\r$/, "");
     if (!line.trim()) continue;
     const item = line.match(/^  -\s+(.*)$/);
     if (item && currentList) {
-      const value = item[1].trim();
-      if (collectionValue(value)) errors.push(`list item under ${currentList} must be a scalar`);
-      else if (value) data.get(currentList).push(value);
+      const parsed = scalar(item[1]);
+      if (parsed.error) errors.push(`list item under ${currentList} ${parsed.error}`);
+      else if (parsed.value) data.get(currentList).push(parsed.value);
       else errors.push(`empty list item under ${currentList}`);
       continue;
     }
@@ -76,16 +113,17 @@ export function parseFrontmatter(raw) {
         continue;
       }
       const inner = flow.slice(1, -1);
-      const values = inner ? inner.split(",").map((x) => x.trim()) : [];
-      if (values.some((x) => !x)) errors.push(`empty list item under ${kv[1]}`);
-      if (values.some(collectionValue)) errors.push(`list item under ${kv[1]} must be a scalar`);
-      data.set(kv[1], values);
-      currentList = null;
-    } else if (collectionValue(kv[2].trim())) {
-      errors.push(`unsupported collection under ${kv[1]}`);
+      const items = flowItems(inner);
+      if (!items) errors.push(`malformed inline list under ${kv[1]}`);
+      const values = (items ?? []).map(scalar);
+      if (values.some((x) => x.error)) errors.push(`list item under ${kv[1]} ${values.find((x) => x.error).error}`);
+      if (values.some((x) => !x.error && !x.value)) errors.push(`empty list item under ${kv[1]}`);
+      data.set(kv[1], values.filter((x) => !x.error).map((x) => x.value));
       currentList = null;
     } else {
-      data.set(kv[1], kv[2].trim());
+      const parsed = scalar(kv[2]);
+      if (parsed.error) errors.push(`${parsed.error} under ${kv[1]}`);
+      else data.set(kv[1], parsed.value);
       currentList = null;
     }
   }
@@ -101,14 +139,19 @@ export function parseFrontmatter(raw) {
 }
 
 function renderFrontmatter(data, body) {
+  const scalar = (value) => {
+    const text = String(value);
+    const quote = !text || text.trim() !== text || /^[\[{#&*!|>@`%"']/.test(text) || /^(?:-|\?|:)\s/.test(text) || /[\]}]$/.test(text) || /:\s|\s#|[\r\n]/.test(text);
+    return quote ? JSON.stringify(text) : text;
+  };
   let out = "---\n";
   for (const [k, v] of data) {
     if (Array.isArray(v)) {
       if (v.length === 0) continue;
       out += `${k}:\n`;
-      for (const item of v) out += `  - ${item}\n`;
+      for (const item of v) out += `  - ${scalar(item)}\n`;
     } else {
-      out += `${k}: ${v}\n`;
+      out += `${k}: ${scalar(v)}\n`;
     }
   }
   return out + "---\n" + body;
@@ -121,12 +164,25 @@ function renderFrontmatter(data, body) {
 export function identity(text) {
   const { body } = parseFrontmatter(text);
   const bytes = Buffer.from(body, "utf8");
+  return blobIdentity(bytes);
+}
+
+function blobIdentity(bytes) {
   return createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex").slice(0, SHORT);
+}
+
+function byteIdentity(bytes) {
+  const raw = bytes.toString("latin1");
+  const open = raw.match(/^---\r?\n/);
+  if (!open) return blobIdentity(bytes);
+  const rest = raw.slice(open[0].length);
+  const close = rest.match(/(?:^|\n)---\r?(?:\n|$)/);
+  return blobIdentity(close ? bytes.subarray(open[0].length + close.index + close[0].length) : bytes);
 }
 
 function fileIdentity(abs) {
   if (!existsSync(abs)) return null;
-  return identity(readFileSync(abs, "utf8"));
+  return byteIdentity(readFileSync(abs));
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
@@ -351,7 +407,7 @@ function treeReader(root, abs, ref) {
     return {
       list: () => tree.files.map((f) => relative(abs, f)),
       symlinks: () => tree.symlinks.map((f) => relative(abs, f)),
-      read: (rel) => (existsSync(join(abs, rel)) ? readFileSync(join(abs, rel), "utf8") : null),
+      read: (rel, bytes = false) => (existsSync(join(abs, rel)) ? readFileSync(join(abs, rel), bytes ? undefined : "utf8") : null),
     };
   }
   const entries = execFileSync("git", ["ls-tree", "-r", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
@@ -364,9 +420,9 @@ function treeReader(root, abs, ref) {
   return {
     list: () => entries.filter((e) => e.mode !== "120000" && e.rel.endsWith(".md")).map((e) => e.rel),
     symlinks: () => entries.filter((e) => e.mode === "120000").map((e) => e.rel),
-    read: (rel) => {
+    read: (rel, bytes = false) => {
       try {
-        return execFileSync("git", ["show", `${ref}:${pipelineRel}/${rel}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+        return execFileSync("git", ["show", `${ref}:${pipelineRel}/${rel}`], { cwd: root, encoding: bytes ? undefined : "utf8", stdio: ["ignore", "pipe", "ignore"] });
       } catch {
         return null;
       }
@@ -383,10 +439,10 @@ const ARTIFACTS = [
 ];
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
-// `--lanes spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven`:
+// `--lanes spec=security@<fingerprint>[materials=<path>+<path>]|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven`:
 // per artifact, the named review lanes (the implicit lane is always present)
 // and, after `|`, the production lanes with their `after` dependencies.
-// A lane is `<id>@<fingerprint>`; a production lane may add `<dep+dep`.
+// A lane is `<id>@<fingerprint>` and may declare its material paths; a production lane may add `<dep+dep`.
 const RESERVED_LANE_IDS = new Set(["tasks"]);
 function parseLanes(text) {
   const decl = {};
@@ -398,22 +454,28 @@ function parseLanes(text) {
     const [head, after = ""] = afterParts;
     if (!production && afterParts.length > 1) die(`check: review lane "${head}" cannot declare after dependencies`);
     if (production && afterParts.length > 1 && !after.trim()) die(`check: lane "${head}" has an empty after dependency list`);
-    const fingerprintParts = head.split("@");
-    if (fingerprintParts.length > 2) die(`check: invalid lane declaration "${x}" in --lanes`);
-    const [id, fingerprint = null] = fingerprintParts;
+    const lane = head.match(/^([^@\[]+)(?:@([^@\[]+))?(?:\[materials=([^\]]+)\])?$/);
+    if (!lane) die(`check: invalid lane declaration "${x}" in --lanes`);
+    const [, id, fingerprint = null, materialText = null] = lane;
     if (!LANE_ID.test(id)) die(`check: invalid lane id "${id}" in --lanes`);
     if (RESERVED_LANE_IDS.has(id)) die(`check: "${id}" is a reserved name, not a lane id`);
     if (fingerprint === null) die(`check: named lane "${id}" requires a fingerprint`);
     if (!IDENTITY.test(fingerprint)) die(`check: invalid fingerprint for lane "${id}"`);
+    const materials = materialText === null ? null : materialText.split("+").map((y) => y.trim());
+    if (materials?.some((material) => !material || material.startsWith("/") || material.includes("@") || material.split("/").includes("..")))
+      die(`check: invalid material path for lane "${id}"`);
+    if (materials && new Set(materials).size !== materials.length) die(`check: duplicate material path for lane "${id}"`);
     const deps = after ? after.split("+").map((y) => y.trim()) : [];
     if (deps.some((dep) => !LANE_ID.test(dep))) die(`check: invalid after dependency for lane "${id}"`);
     if (new Set(deps).size !== deps.length) die(`check: duplicate after dependency for lane "${id}"`);
-    return { id, fingerprint, after: deps };
+    return { id, fingerprint, materials, after: deps };
   };
   for (const entry of text.split(";")) {
-    const parts = entry.split("=");
-    if (parts.length !== 2) die(`check: invalid artifact declaration "${entry}" in --lanes`);
-    const [prefix, rest] = parts.map((x) => x.trim());
+    const equal = entry.indexOf("=");
+    if (equal < 1) die(`check: invalid artifact declaration "${entry}" in --lanes`);
+    const prefix = entry.slice(0, equal).trim();
+    const rest = entry.slice(equal + 1).trim();
+    if (rest.replace(/\[materials=[^\]]+\]/g, "").includes("=")) die(`check: invalid artifact declaration "${entry}" in --lanes`);
     const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
     if (!art) die(`check: unknown artifact "${prefix}" in --lanes`);
     if (Object.hasOwn(decl, prefix)) die(`check: duplicate artifact declaration "${prefix}" in --lanes`);
@@ -511,7 +573,10 @@ function cmdCheck(args) {
     die(`check: no merge-base between ${startsFrom ?? args.base} and ${args.ref ?? "HEAD"}`);
   }
 
-  const identityOf = (rel) => (texts.has(rel) ? identity(texts.get(rel)) : null);
+  const identityOf = (rel) => {
+    const bytes = tree.read(rel, true);
+    return bytes === null ? null : byteIdentity(bytes);
+  };
   const pinFresh = (entry) => {
     const p = pinParts(entry);
     if (!p || !IDENTITY.test(p.sha)) return false;
@@ -569,20 +634,23 @@ function cmdCheck(args) {
   // A review names the artifact, its record, and everything the artifact pins
   // (its inputs, their approvals, the triggers it adjudicated, lane inputs);
   // a plan review, every task too; a phase review, every task and report.
-  const schemaOf = (prefix, sc) => {
+  const schemaOf = (prefix, sc, lane = "") => {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
     if (!art) return [];
     const artifactPath = inScope(sc, art.path);
     const pinned = (pinsByPath.get(artifactPath) ?? []).map((p) => pinParts(p)?.path).filter(Boolean);
     const base = [artifactPath, inScope(sc, art.record), ...pinned];
     const schema = art.review && prefix === art.prefix ? [...base, ...taskFilesOf(art.phase)] : art.review && prefix === art.review ? [...base, ...taskFilesOf(art.phase), ...reportFilesOf(art.phase)] : base;
-    return [...new Set(schema)];
+    const full = [...new Set(schema)];
+    const materials = reviewLanesOf(prefix).find((l) => l.id === lane)?.materials ?? null;
+    if (materials === null) return full;
+    return materials.map((path) => (sc && (path === art.path || path === art.record) ? inScope(sc, path) : path));
   };
   const reviewFresh = (r, prefix, sc) => {
     const reviewed = [].concat(r.data.get("reviewed") ?? []);
     if (!pinsFresh(reviewed)) return false;
     const named = reviewed.map((p) => pinParts(p)?.path).sort();
-    return JSON.stringify(named) === JSON.stringify([...schemaOf(prefix, sc)].sort());
+    return JSON.stringify(named) === JSON.stringify([...schemaOf(prefix, sc, r.lane)].sort());
   };
 
   // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
@@ -829,10 +897,12 @@ function cmdCheck(args) {
     const laneScopes = declaredLanes.map((l) => `${art.phase}/${l.id}/`).sort();
     const laneOf = (sc) => declaredLanes.find((l) => l.id === sc.split("/")[1]);
     const laneApproved = (sc) => {
+      const lane = laneOf(sc);
+      if (lane.after.some((dep) => !laneApproved(`${art.phase}/${dep}/`))) return false;
       const doc = all.find((d) => d.rel === `${sc}${name}`);
-      return !!doc && (() => { const st = artifactState(doc, art, sc, [], laneOf(sc).fingerprint); return st.approved && st.state === "fresh"; })();
+      return !!doc && (() => { const st = artifactState(doc, art, sc, lane.after.flatMap((dep) => lanePins(`${art.phase}/${dep}/`)), lane.fingerprint); return st.approved && st.state === "fresh"; })();
     };
-    const approvingWave = (sc) => {
+    const approvingWave = (sc, candidatePins = null) => {
       const rs = reviewsOf(sc).filter((r) => r.prefix === art.prefix);
       const lanes = reviewLanesOf(art.prefix);
       const waves = [...new Set(rs.map((r) => r.wave))].sort((a, b) => b - a);
@@ -841,24 +911,43 @@ function cmdCheck(args) {
           rs.find((r) => {
             if (r.wave !== wave || r.lane !== id || r.data.get("verdict") !== "approved" || !laneMatches(r, fingerprint)) return false;
             const named = [].concat(r.data.get("reviewed") ?? []).map((p) => pinParts(p)?.path).sort();
-            return JSON.stringify(named) === JSON.stringify([...schemaOf(art.prefix, sc)].sort());
+            return JSON.stringify(named) === JSON.stringify([...schemaOf(art.prefix, sc, id)].sort());
           }),
         );
-        if (complete.every(Boolean)) return complete.map((r) => r.rel);
+        if (complete.every(Boolean)) {
+          if (candidatePins) {
+            const candidates = [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`];
+            const exact = candidates.every((path) => {
+              const expected = candidatePins.get(path);
+              const observed = complete.map((r) => [].concat(r.data.get("reviewed") ?? []).map(pinParts).find((p) => p?.path === path)?.sha).filter(Boolean);
+              return expected && observed.length > 0 && observed.every((sha) => sha === expected);
+            });
+            if (!exact) continue;
+          }
+          return complete.map((r) => r.rel);
+        }
       }
       return [];
     };
     // Closure records one complete approving wave and persists after that wave becomes stale.
     const lanePins = (sc) => [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...approvingWave(sc)];
-    const rootPins = (pinsByPath.get(art.path) ?? []).map((p) => pinParts(p)?.path);
-    const consolidated = rootExists && laneScopes.length > 0 && laneScopes.every((sc) => approvingWave(sc).length === reviewLanesOf(art.prefix).length && lanePins(sc).every((p) => rootPins.includes(p)));
+    const rootPinParts = (pinsByPath.get(art.path) ?? []).map(pinParts).filter(Boolean);
+    const rootPins = rootPinParts.map((p) => p.path);
+    const rootPinMap = new Map(rootPinParts.map((p) => [p.path, p.sha]));
+    const consolidated =
+      rootExists &&
+      laneScopes.length > 0 &&
+      laneScopes.every((sc) => {
+        const wave = approvingWave(sc, rootPinMap);
+        return wave.length === reviewLanesOf(art.prefix).length && [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...wave].every((p) => rootPins.includes(p));
+      });
     let lanesReady = laneScopes.length > 0;
     for (const sc of laneScopes) {
       const { after, fingerprint } = laneOf(sc);
       const waiting = after.filter((dep) => !laneApproved(`${art.phase}/${dep}/`));
       const doc = all.find((d) => d.rel === `${sc}${name}`);
       const st = doc ? artifactState(doc, art, sc, after.flatMap((dep) => lanePins(`${art.phase}/${dep}/`)), fingerprint) : { state: "missing", stale: [], missingPins: [], lanes: [], approved: false, episode: 0, recurs: [] };
-      const ok = st.approved && st.state === "fresh";
+      const ok = st.approved && st.state === "fresh" && !waiting.length;
       if (!ok) lanesReady = false;
       out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...st, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed: consolidated });
       lines.push(`lane     ${sc}${name}  ${consolidated ? "closed" : st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${st.missingPins.length ? ` — missing pins: ${st.missingPins.join(", ")}` : ""}${waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
@@ -1040,7 +1129,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set lane=<fingerprint>] [--mirror]
   node rp.mjs fingerprint <lane id> [--brief <text>] [--materials <a,b>] [--after <lane+lane>]
-  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security@<fingerprint>|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh@<fingerprint>"] [--target-phase <n>] [--ref <branch>] [--json]
+  node rp.mjs check <pipeline-folder> --base <ref> [--lanes "spec=security@<fingerprint>[materials=<path>+<path>]|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh@<fingerprint>"] [--target-phase <n>] [--ref <branch>] [--json]
 
 stamp writes frontmatter (the machine's lane): pins, review pins (immutable),
 scalar keys, --mirror copies of body declarations (Verdict, Brief, Target,
@@ -1056,7 +1145,8 @@ branch the intent starts-from when it declares one. --lanes declares, per
 artifact, the named review lanes (the implicit lane always exists) and, after |,
 the production lanes with their after-dependencies (<, joined by +); each named
 lane carries the fingerprint of its whole declaration (fingerprint), which the
-lane's artifact and reviews must carry as \`lane\`, set at their stamp.
+lane's artifact and reviews must carry as \`lane\`, set at their stamp. Optional
+materials= lists the pipeline-relative paths a filtered review lane reviews.
 Spec: ../reference/run/state.md
 `,
     );

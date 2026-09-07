@@ -203,6 +203,7 @@ describe("rp state tooling", () => {
       ["---\npins:\n  - 0-intent\/intent.md@abc\n    - nested\n---\n# Spec\n", /malformed list item/],
       ["---\npins: [[nested]]\n---\n# Spec\n", /list item under pins must be a scalar/],
       ["---\npins:\n  - path: nested\n---\n# Spec\n", /list item under pins must be a scalar/],
+      ['---\nhead: "unterminated\n---\n# Spec\n', /malformed double-quoted scalar/],
     ];
     for (const [text, reason] of cases) {
       write(root, "1-spec/spec.md", text);
@@ -213,6 +214,29 @@ describe("rp state tooling", () => {
     }
     write(root, "0-intent/intent.md", "---\norigin: starts-from main\n# no close\n");
     assert.match(rp(root, "check", PIPELINE, "--target-phase", "1"), /frontier INVALID FRONTMATTER 0-intent\/intent\.md/);
+  });
+
+  test("stamped scalars with YAML punctuation round-trip through frontmatter", () => {
+    const brief = "Check: all [paths] # deeply";
+    write(root, "1-spec/spec-review-1.md", `# Review\n\nVerdict: rejected\nBrief: ${brief}\n`);
+    rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--mirror");
+    const stamped = read(root, "1-spec/spec-review-1.md");
+    assert.match(stamped, /brief: "Check: all \[paths\] # deeply"/);
+    assert.equal(parseFrontmatter(stamped).data.get("brief"), brief);
+    assert.deepEqual(parseFrontmatter("---\npins: ['a,b', \"c: d\"]\n---\nbody\n").data.get("pins"), ["a,b", "c: d"]);
+    assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID FRONTMATTER/);
+  });
+
+  test("pins to non-Markdown files are checked in the working tree and at a ref", () => {
+    writeFileSync(join(root, P("0-intent/context.txt")), Buffer.from([0xff, 0x00, 0x61]));
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/context.txt"));
+    assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "pin context");
+    git(root, "branch", "pinned-context");
+    writeFileSync(join(root, P("0-intent/context.txt")), Buffer.from([0xff, 0x00, 0x62]));
+    assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+STALE/);
+    assert.match(check(root, "--ref", "pinned-context", "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+FRESH/);
   });
 
   // --- reviews, waves, inputs --------------------------------------------------
@@ -569,6 +593,35 @@ describe("rp state tooling", () => {
     assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
   });
 
+  test("production-lane closure records approval of the exact candidate identities", () => {
+    const lanes = `spec=|a@${FPS.a}`;
+    write(root, "1-spec/a/spec.md", "# Spec a v1\n");
+    write(root, "1-spec/a/spec-research.md", "# Record a v1\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--set", `lane=${FPS.a}`);
+    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    write(root, "1-spec/a/spec.md", "# Spec a v2\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--set", `lane=${FPS.a}`);
+    write(root, "1-spec/spec.md", "# Consolidated spec\n");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/a/spec.md"), "--pin", P("1-spec/a/spec-research.md"), "--pin", P("1-spec/a/spec-review-1.md"));
+    const output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.doesNotMatch(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
+  });
+
+  test("an after lane waits for each dependency's recursively complete package", () => {
+    const lanes = `spec=|z@999999999999,b@${FPS.b}<z,c@${FPS.c}<b`;
+    for (const [id, fp] of [["z", "999999999999"], ["b", FPS.b]]) {
+      write(root, `1-spec/${id}/spec.md`, `# Spec ${id}\n`);
+      write(root, `1-spec/${id}/spec-research.md`, `# Record ${id}\n`);
+      const dependencyPins = id === "b" ? ["1-spec/z/spec.md", "1-spec/z/spec-research.md"] : [];
+      rp(root, "stamp", P(`1-spec/${id}/spec.md`), "--pin", P("0-intent/intent.md"), ...dependencyPins.flatMap((path) => ["--pin", P(path)]), "--set", `lane=${fp}`);
+    }
+    review("1-spec/b/spec-review-1.md", "approved", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md", "1-spec/z/spec.md", "1-spec/z/spec-research.md"]);
+    const output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.match(output, /lane\s+1-spec\/c\/spec\.md\s+MISSING\s+waiting for b/);
+    assert.match(output, /frontier review wave 1-spec\/z\/spec\.md/);
+    assert.doesNotMatch(output, /frontier synthesize 1-spec\/c\/spec\.md/);
+  });
+
   test("a claim raised inside a production lane reaches the frontier, and lanes have counters", () => {
     rmSync(join(root, P("1-spec/spec.md")));
     const lanes = `spec=|a@${FPS.a},b@${FPS.b}`;
@@ -698,6 +751,17 @@ describe("rp state tooling", () => {
     output = check(root, "--lanes", lanes, "--target-phase", "1");
     assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+FRESH\s+reviews: ·:approved\s+APPROVED/);
     assert.match(output, /frontier consolidate 1-spec\/spec\.md/);
+  });
+
+  test("a review lane names exactly its declared material paths", () => {
+    stampSpec();
+    approveSpec();
+    const materials = ["1-spec/spec.md", "0-intent/intent.md"];
+    const fp = rp(root, "fingerprint", "security", "--materials", materials.join(",")).trim();
+    review("1-spec/spec-review-security-1.md", "approved", materials, [`lane=${fp}`]);
+    const lanes = `spec=security@${fp}[materials=${materials.join("+")}]`;
+    assert.match(check(root, "--lanes", lanes, "--target-phase", "1"), /security:approved[\s\S]*frontier complete/);
+    assert.throws(() => check(root, "--lanes", `spec=security@${fp}[materials=1-spec/spec.md+1-spec/spec.md]`), /duplicate material path/);
   });
 
   test("a lane the declaration lacks is a defect, never an implicit lane; reserved names are refused", () => {
