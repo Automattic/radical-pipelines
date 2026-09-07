@@ -1,6 +1,6 @@
 # The loop
 
-The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed). Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until `rp check` reports complete through the target phase or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
+The autonomous workflow. You enter from triage with a pipeline folder, a branch, a worktree, a target phase, and the run policy (the lanes of `../conventions/agents.md` as confirmed). Start health monitoring (`../conventions/health-monitoring.md`). Then repeat until the frontier is `complete` or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
 
 ## One step
 
@@ -28,10 +28,16 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `… (invalid target)`                                 | Re-dispatch what wrote it: a target is an artifact id or, for a claim, an intent Goal, Constraint, or Decision |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
-| `invalid plan: …` / `invalid reports: …`             | The plan producer, mode Adjudicate, with the report `rp check` names                                           |
+| `INVALID FRONTMATTER <path>` / `INVALID LINE <path>` | The file's author fixes it                                                                                     |
+| `invalid plan: …`                                    | The plan producer, mode Adjudicate                                                                             |
+| `invalid reports: attempts of <phase>/tasks/<id> are not 1..n` | Rename that task's reports to `1..n` in landing order; re-stamp each with `--mirror`                            |
+| `tasks held in <phase>: …`                           | The plan producer, mode Adjudicate, with the held failed reports                                               |
+| `triggers or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                  |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
 | `undeclared lane <path>` / `symlink <path>`          | The tree holds a lane the run policy lacks, or a symlink: stop and tell the owner                              |
 | `complete`                                           | Close-out                                                                                                      |
+
+`complete through phase …` is status; dispatch the `frontier` line.
 
 ## Dispatch
 
@@ -49,9 +55,9 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 After every agent commit, before anyone consumes the result — and before the agent is terminated: a stamp that rejects a file (`INVALID …`) goes back to its author to fix and report again; you never edit an agent's file.
 
-- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
-- A review: `rp stamp <review> --reviewed <each file state.md says it names> --mirror`. Its filename carries the lane and the wave; a review that adjudicated a trigger declares `Origin:` in its body.
-- A task report: `rp stamp <report> --reviewed <its task> --reviewed <each task it depends on> --mirror`.
+- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. The document plan pins every build task and report. Each task file of a plan: `rp stamp <task> --mirror`.
+- A review's initial stamp: `rp stamp <review> --reviewed <each file state.md says it names> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a trigger declares `Origin:` in its body.
+- A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. A mirror repair uses `rp stamp <report> --mirror`.
 - A named lane's artifact or review: `--set lane=<the lane's fingerprint>` too.
 - Commit the stamps on top of the landing.
 
