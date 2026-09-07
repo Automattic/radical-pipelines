@@ -6,7 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -17,11 +17,21 @@ function die(msg) {
   process.exit(1);
 }
 
-function repoRoot() {
+function repositoryFor(argument) {
+  const requested = resolve(process.cwd(), argument);
+  const finalSymlink = existsSync(requested) && lstatSync(requested).isSymbolicLink();
+  const abs = finalSymlink ? join(realpathSync(dirname(requested)), basename(requested)) : existsSync(requested) ? realpathSync(requested) : requested;
+  let at = existsSync(abs) && lstatSync(abs).isDirectory() ? abs : dirname(abs);
+  while (!existsSync(at)) {
+    const parent = dirname(at);
+    if (parent === at) break;
+    at = parent;
+  }
   try {
-    return execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+    const root = execFileSync("git", ["-C", at, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+    return { root, abs: existsSync(abs) ? abs : resolve(realpathSync(at), relative(at, abs)) };
   } catch {
-    die("not inside a git repository");
+    die(`cannot locate a git repository for: ${argument}`);
   }
 }
 
@@ -66,7 +76,7 @@ export function parseFrontmatter(raw) {
       if (quote === '"' && ch === "\\") i++;
       else if (quote === "'" && ch === "'" && inner[i + 1] === "'") i++;
       else if (quote && ch === quote) quote = null;
-      else if (!quote && (ch === '"' || ch === "'")) quote = ch;
+      else if (!quote && (ch === '"' || ch === "'") && !inner.slice(start, i).trim()) quote = ch;
       else if (!quote && ch === ",") {
         items.push(inner.slice(start, i));
         start = i + 1;
@@ -181,7 +191,7 @@ function byteIdentity(bytes) {
 }
 
 function fileIdentity(abs) {
-  if (!existsSync(abs)) return null;
+  if (!existsSync(abs) || !lstatSync(abs).isFile()) return null;
   return byteIdentity(readFileSync(abs));
 }
 
@@ -298,9 +308,8 @@ function mirrorBody(body, fm, base, rel) {
 }
 
 function cmdStamp(args) {
-  const root = repoRoot();
   const file = args._[0] || die("stamp: missing <file>");
-  const abs = resolve(root, file);
+  const { root, abs } = repositoryFor(file);
   if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
   containedPath(root, abs);
 
@@ -407,7 +416,10 @@ function treeReader(root, abs, ref) {
     return {
       list: () => tree.files.map((f) => relative(abs, f)),
       symlinks: () => tree.symlinks.map((f) => relative(abs, f)),
-      read: (rel, bytes = false) => (existsSync(join(abs, rel)) ? readFileSync(join(abs, rel), bytes ? undefined : "utf8") : null),
+      read: (rel, bytes = false) => {
+        const path = join(abs, rel);
+        return existsSync(path) && lstatSync(path).isFile() ? readFileSync(path, bytes ? undefined : "utf8") : null;
+      },
     };
   }
   const entries = execFileSync("git", ["ls-tree", "-r", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
@@ -417,10 +429,12 @@ function treeReader(root, abs, ref) {
       const [meta, path] = l.split("\t");
       return { mode: meta.split(" ")[0], rel: path.slice(pipelineRel.length + 1) };
     });
+  const regular = new Set(entries.filter((e) => /^100\d{3}$/.test(e.mode)).map((e) => e.rel));
   return {
     list: () => entries.filter((e) => e.mode !== "120000" && e.rel.endsWith(".md")).map((e) => e.rel),
     symlinks: () => entries.filter((e) => e.mode === "120000").map((e) => e.rel),
     read: (rel, bytes = false) => {
+      if (!regular.has(rel)) return null;
       try {
         return execFileSync("git", ["show", `${ref}:${pipelineRel}/${rel}`], { cwd: root, encoding: bytes ? undefined : "utf8", stdio: ["ignore", "pipe", "ignore"] });
       } catch {
@@ -462,7 +476,11 @@ function parseLanes(text) {
     if (fingerprint === null) die(`check: named lane "${id}" requires a fingerprint`);
     if (!IDENTITY.test(fingerprint)) die(`check: invalid fingerprint for lane "${id}"`);
     const materials = materialText === null ? null : materialText.split("+").map((y) => y.trim());
-    if (materials?.some((material) => !material || material.startsWith("/") || material.includes("@") || material.split("/").includes("..")))
+    if (production && materials) die(`check: materials apply to review lanes only, not production lane "${id}"`);
+    if (materials?.some((material) => {
+      const parts = material.split("/");
+      return parts.length < 2 || parts.some((part) => !part || part === "." || part === "..") || material.startsWith("/") || material.includes("@");
+    }))
       die(`check: invalid material path for lane "${id}"`);
     if (materials && new Set(materials).size !== materials.length) die(`check: duplicate material path for lane "${id}"`);
     const deps = after ? after.split("+").map((y) => y.trim()) : [];
@@ -502,6 +520,13 @@ function parseLanes(text) {
       for (const dep of d.production.find((l) => l.id === id)?.after ?? []) visit(dep, new Set([...stack, id]));
     };
     for (const l of d.production) visit(l.id, new Set());
+    const branches = [
+      ...d.review.map((l) => `review-${l.id}`),
+      ...d.production.map((l) => l.id),
+      ...d.production.flatMap((p) => d.review.map((r) => `${p.id}-review-${r.id}`)),
+    ];
+    const collision = branches.find((branch, i) => branches.indexOf(branch) !== i);
+    if (collision) die(`check: lane declarations for "${prefix}" expand to the same auxiliary branch: ${collision}`);
     decl[prefix] = d;
   }
   return decl;
@@ -518,9 +543,8 @@ function cmdFingerprint(args) {
 }
 
 function cmdCheck(args) {
-  const root = repoRoot();
   const folder = args._[0] || die("check: missing <pipeline-folder>");
-  const abs = resolve(root, folder);
+  const { root, abs } = repositoryFor(folder);
   const pipelineName = basename(abs);
   if (!/^[^/_]+$/.test(pipelineName)) die(`check: pipeline folder name must be one segment without / or _: ${pipelineName || folder}`);
   if (!args.ref && !existsSync(abs)) die(`check: no such folder: ${folder}`);
@@ -543,6 +567,19 @@ function cmdCheck(args) {
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
   // A file whose mirrors differ from its body's projection contradicts the tree: none of its
   // mirrors is read until it is stamped again.
+  const outsideFences = (text) => {
+    let fenced = false;
+    return text
+      .split("\n")
+      .map((line) => {
+        if (/^\s*```/.test(line)) {
+          fenced = !fenced;
+          return "";
+        }
+        return fenced ? "" : line;
+      })
+      .join("\n");
+  };
   const texts = new Map();
   const all = tree
     .list()
@@ -553,7 +590,7 @@ function cmdCheck(args) {
       const { data: parsed, body, error: frontmatterError } = parseFrontmatter(text);
       const data = parsed ?? new Map();
       // A `---` block that does not start at byte 0 is not frontmatter: the file is malformed, not drifted.
-      const strayBlock = !parsed && /\n---\r?\n[\s\S]*?\n---\r?(\n|$)/.test(text);
+      const strayBlock = !parsed && /\n---\r?\n[\s\S]*?\n---\r?(\n|$)/.test(outsideFences(text));
       const drift = strayBlock || frontmatterError ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
@@ -594,6 +631,8 @@ function cmdCheck(args) {
     for (const r of docsOf(sc)) {
       const mm = r.name.match(/^(.+?)-review-(?:(.+)-)?(\d+)\.md$/);
       if (!mm || !PREFIXES.has(mm[1])) continue;
+      const artifact = ARTIFACTS.find((a) => a.prefix === mm[1] || a.review === mm[1]);
+      if (r.rel.split("/")[0] !== artifact.phase) continue;
       m.push({ ...r, prefix: mm[1], lane: mm[2] ?? "", wave: Number(mm[3]) });
     }
     return m;
@@ -644,7 +683,11 @@ function cmdCheck(args) {
     const full = [...new Set(schema)];
     const materials = reviewLanesOf(prefix).find((l) => l.id === lane)?.materials ?? null;
     if (materials === null) return full;
-    return materials.map((path) => (sc && (path === art.path || path === art.record) ? inScope(sc, path) : path));
+    return materials.map((path) => {
+      if (!sc || path.startsWith(sc)) return path;
+      const local = inScope(sc, path);
+      return texts.has(local) ? local : path;
+    });
   };
   const reviewFresh = (r, prefix, sc) => {
     const reviewed = [].concat(r.data.get("reviewed") ?? []);
@@ -910,12 +953,15 @@ function cmdCheck(args) {
         const complete = lanes.map(({ id, fingerprint }) =>
           rs.find((r) => {
             if (r.wave !== wave || r.lane !== id || r.data.get("verdict") !== "approved" || !laneMatches(r, fingerprint)) return false;
-            const named = [].concat(r.data.get("reviewed") ?? []).map((p) => pinParts(p)?.path).sort();
+            const reviewed = [].concat(r.data.get("reviewed") ?? []).map(pinParts);
+            if (reviewed.some((p) => !p || !IDENTITY.test(p.sha))) return false;
+            const named = reviewed.map((p) => p.path).sort();
             return JSON.stringify(named) === JSON.stringify([...schemaOf(art.prefix, sc, id)].sort());
           }),
         );
         if (complete.every(Boolean)) {
           if (candidatePins) {
+            if (complete.some((r) => !candidatePins.has(r.rel))) continue;
             const candidates = [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`];
             const exact = candidates.every((path) => {
               const expected = candidatePins.get(path);

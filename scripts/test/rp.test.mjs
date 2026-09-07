@@ -286,6 +286,14 @@ describe("rp state tooling", () => {
     assert.match(check(root), /frontier stamp 1-spec\/spec-review-1\.md/);
   });
 
+  test("a review counts only in its artifact's phase and lane scope", () => {
+    stampSpec();
+    review("2-design-doc/spec-review-1.md", "approved", SPEC);
+    const output = check(root, "--target-phase", "1");
+    assert.doesNotMatch(output, /artifact 1-spec\/spec\.md[\s\S]*APPROVED/);
+    assert.match(output, /frontier review wave 1-spec\/spec\.md/);
+  });
+
   // --- triggers and claims -----------------------------------------------------
 
   function amendment(target = "1-spec/spec.md#R1") {
@@ -607,6 +615,22 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
   });
 
+  test("production-lane closure uses the valid approving wave pinned by the root", () => {
+    const lanes = `spec=|a@${FPS.a}`;
+    write(root, "1-spec/a/spec.md", "# Spec a\n");
+    write(root, "1-spec/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--set", `lane=${FPS.a}`);
+    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    write(root, "1-spec/spec.md", "# Consolidated spec\n");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/a/spec.md"), "--pin", P("1-spec/a/spec-research.md"), "--pin", P("1-spec/a/spec-review-1.md"));
+    review("1-spec/a/spec-review-2.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    assert.match(check(root, "--lanes", lanes, "--target-phase", "1"), /lane\s+1-spec\/a\/spec\.md\s+closed/);
+
+    const bad = read(root, "1-spec/a/spec-review-1.md").replace(/0-intent\/intent\.md@[0-9a-f]{12}/, "0-intent/intent.md@bad");
+    write(root, "1-spec/a/spec-review-1.md", bad);
+    assert.doesNotMatch(check(root, "--lanes", lanes, "--target-phase", "1"), /lane\s+1-spec\/a\/spec\.md\s+closed/);
+  });
+
   test("an after lane waits for each dependency's recursively complete package", () => {
     const lanes = `spec=|z@999999999999,b@${FPS.b}<z,c@${FPS.c}<b`;
     for (const [id, fp] of [["z", "999999999999"], ["b", FPS.b]]) {
@@ -649,6 +673,22 @@ describe("rp state tooling", () => {
     write(root, "1-spec/spec.md", "# Spec\n\nChanged on the working tree.\n");
     assert.match(check(root, "--ref", "other", "--target-phase", "1"), /frontier complete/);
     assert.match(check(root, "--target-phase", "1"), /approved \(stale\)/);
+  });
+
+  test("stamp and check derive the worktree repository from their argument", () => {
+    const seat = `${root}-seat`;
+    git(root, "worktree", "add", "--quiet", "-b", "seat-branch", seat);
+    try {
+      writeFileSync(join(seat, "seat-work.js"), "export default 1;\n");
+      git(seat, "add", "-A");
+      git(seat, "commit", "--quiet", "-m", "seat work");
+      const seatHead = git(seat, "rev-parse", "--short=12", "HEAD").trim();
+      rp(root, "stamp", join(seat, P("1-spec/spec.md")), "--pin", P("0-intent/intent.md"));
+      assert.match(readFileSync(join(seat, P("1-spec/spec.md")), "utf8"), new RegExp(`head: ${seatHead}`));
+      assert.match(rp(root, "check", join(seat, PIPELINE), "--base", "main", "--target-phase", "1"), new RegExp(`unclaimed by any task report: ${seatHead.slice(0, 7)}`));
+    } finally {
+      git(root, "worktree", "remove", "--force", seat);
+    }
   });
 
   test("state cannot be forged: mirrors come from the body, reviewed is immutable, identities are exact", () => {
@@ -762,6 +802,21 @@ describe("rp state tooling", () => {
     const lanes = `spec=security@${fp}[materials=${materials.join("+")}]`;
     assert.match(check(root, "--lanes", lanes, "--target-phase", "1"), /security:approved[\s\S]*frontier complete/);
     assert.throws(() => check(root, "--lanes", `spec=security@${fp}[materials=1-spec/spec.md+1-spec/spec.md]`), /duplicate material path/);
+    assert.throws(() => check(root, "--lanes", `spec=security@${fp}[materials=diff]`), /invalid material path/);
+  });
+
+  test("review material paths expand to files present in a production lane", () => {
+    const fp = rp(root, "fingerprint", "security", "--materials", "1-spec/spec.md,1-spec/evidence.md,0-intent/intent.md").trim();
+    const lanes = `spec=security@${fp}[materials=1-spec/spec.md+1-spec/evidence.md+0-intent/intent.md]|a@${FPS.a}`;
+    write(root, "1-spec/evidence.md", "# Root evidence\n");
+    write(root, "1-spec/a/spec.md", "# Spec a\n");
+    write(root, "1-spec/a/spec-research.md", "# Record a\n");
+    write(root, "1-spec/a/evidence.md", "# Lane evidence\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--set", `lane=${FPS.a}`);
+    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    review("1-spec/a/spec-review-security-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/evidence.md", "0-intent/intent.md"], [`lane=${fp}`]);
+    const output = check(root, "--lanes", lanes, "--target-phase", "1");
+    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+FRESH[\s\S]*security:approved\s+APPROVED/);
   });
 
   test("a lane the declaration lacks is a defect, never an implicit lane; reserved names are refused", () => {
@@ -812,6 +867,8 @@ describe("rp state tooling", () => {
     assert.throws(() => check(root, "--lanes", `spec=|a@${FPS.a}<b++c,b@${FPS.b},c@${FPS.c}`), /invalid after dependency/);
     assert.throws(() => check(root, "--lanes", `spec=|a@${FPS.a}<`), /empty after dependency list/);
     assert.throws(() => check(root, "--lanes", "spec=security"), /requires a fingerprint/);
+    assert.throws(() => check(root, "--lanes", `spec=security@${FPS.security}|a@${FPS.a},a-review-security@${FPS.b}`), /same auxiliary branch/);
+    assert.throws(() => check(root, "--lanes", `spec=security@${FPS.security}|review-security@${FPS.a}`), /same auxiliary branch/);
   });
 
   test("a report without an outcome, a cyclic plan, and non-sequential attempts are flagged, never dispatched", () => {
@@ -934,6 +991,12 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(out, /differs from the body/);
   });
 
+  test("frontmatter delimiters inside fenced code are ordinary body text", () => {
+    approveChain(1);
+    write(root, "1-spec/example.md", "# Example\n\n```yaml\n---\nkey: value\n---\n```\n");
+    assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID FRONTMATTER 1-spec\/example\.md/);
+  });
+
   test("identity equals git's blob hash of the body, computed without git", () => {
     const gitHash = (text) => execFileSync("git", ["hash-object", "--stdin"], { input: text, encoding: "utf8" }).trim().slice(0, 12);
     for (const body of ["", "x", "# Spec\n", "ñ — unicode\n", "a\r\nb"]) assert.equal(identity(`---\npins:\n  - a@b\n---\n${body}`), gitHash(body));
@@ -964,6 +1027,7 @@ describe("rp state tooling", () => {
     assert.deepEqual(parseFrontmatter("---\ncommits: [abc1234, def5678]\n---\n").data.get("commits"), ["abc1234", "def5678"]);
     assert.deepEqual(parseFrontmatter("---\ncommits: []\n---\n").data.get("commits"), []);
     assert.deepEqual(parseFrontmatter("---\ncommits:\n  - abc1234\n---\n").data.get("commits"), ["abc1234"]);
+    assert.deepEqual(parseFrontmatter("---\norigin: [owner's-note.md]\n---\n").data.get("origin"), ["owner's-note.md"]);
   });
 
   test("identity is the body's exact bytes as git hashes them: CRLF is never normalized; only delimiter lines tolerate a \\r", () => {
@@ -990,6 +1054,8 @@ describe("rp state tooling", () => {
     assert.throws(() => rp(root, "stamp", P("1-spec/link.md"), "--mirror"), /symlinked/);
     // A cyclic folder symlink never aborts the walk.
     execFileSync("ln", ["-s", "..", join(root, P("1-spec/loop"))]);
+    const pinned = read(root, "1-spec/spec.md").replace("pins:\n", "pins:\n  - 1-spec/loop@aaaaaaaaaaaa\n");
+    write(root, "1-spec/spec.md", pinned);
     let output = check(root, "--target-phase", "1");
     assert.match(output, /symlink\s+1-spec\/link\.md\n/);
     assert.match(output, /symlink\s+1-spec\/loop\n/);
