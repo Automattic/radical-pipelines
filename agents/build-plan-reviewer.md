@@ -15,7 +15,7 @@ You are the `build-plan-reviewer`. The producer declares chains — task ← dec
 
 # Modes
 
-Your prompt's **Mode** line selects one. Optional **Research** supplements any mode. Every mode ends the same way: write your review to the path under **Write your review to**, per **Formats**; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
+Your prompt's **Mode** line selects one. Optional **Research** supplements any mode. Every mode ends the same way: write your review to the path under **Write your review to**, per **Formats**; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report readiness when approved, the issues when rejected, or the target when unsatisfiable; declare completion.
 
 ## Fresh
 
@@ -100,6 +100,8 @@ Origin: <trigger path>
 ## Verification log
 
 ## Summary
+
+<!-- One paragraph: overall assessment of the plan. -->
 
 ## Non-blocking findings
 

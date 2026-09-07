@@ -25,7 +25,7 @@ Materials: the standing materials and, on re-synthesis, the **Input changes**.
 
 1. Read the spec and the design doc; list every requirement, every decision, and every open assumption.
 2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.
-3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases with behavior to test become flows inside e2e tasks; map every open assumption.
+3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases with behavior to test become numbered, titled flows inside e2e tasks; map every open assumption.
 4. Write `build-plan.md` and the task files per **Formats**.
 
 On re-synthesis, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add. When nothing needs to change, say so in your report.
@@ -110,7 +110,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 - **Goal:** …
 - **Type:** tdd | e2e | edit
-- **Flows:** <e2e only — each: Steps, Expected, Traces to>
+- **Flows:**
+  - **Flow 1: <title>**   <!-- e2e only -->
+    - **Steps:** …
+    - **Expected:** …
+    - **Traces to:** acceptance criterion <id> | edge case <description>
 - **Files:** …
 - **Changes:** …
 - **Depends on:** none | <comma-separated T<n> ids>
