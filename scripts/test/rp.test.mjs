@@ -301,8 +301,10 @@ describe("rp state tooling", () => {
     stampSpec();
     review("2-design-doc/spec-review-1.md", "approved", SPEC);
     review("1-spec/archive/old/spec-review-1.md", "approved", SPEC);
-    const output = check(root, "--target-phase", "1");
+    review("2-design-doc/a/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
+    const output = check(root, "--lanes", `design-doc=|a@${FPS.a}`, "--target-phase", "1");
     assert.doesNotMatch(output, /artifact 1-spec\/spec\.md[\s\S]*APPROVED/);
+    assert.doesNotMatch(output, /claim\s+2-design-doc\/a\/spec-review-1\.md/);
     assert.match(output, /frontier review wave 1-spec\/spec\.md/);
   });
 

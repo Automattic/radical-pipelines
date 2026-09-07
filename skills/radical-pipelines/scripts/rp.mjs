@@ -643,7 +643,8 @@ function cmdCheck(args) {
       const mm = r.name.match(/^(.+?)-review-(?:(.+)-)?(\d+)\.md$/);
       if (!mm || !PREFIXES.has(mm[1])) continue;
       const artifact = ARTIFACTS.find((a) => a.prefix === mm[1] || a.review === mm[1]);
-      if (r.rel !== `${sc || `${artifact.phase}/`}${r.name}`) continue;
+      const artifactScope = sc ? `${artifact.phase}/${sc.split("/")[1]}/` : `${artifact.phase}/`;
+      if (r.rel !== `${artifactScope}${r.name}`) continue;
       m.push({ ...r, prefix: mm[1], lane: mm[2] ?? "", wave: Number(mm[3]) });
     }
     return m;
