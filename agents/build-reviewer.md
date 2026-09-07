@@ -58,7 +58,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Findings**
 
 - Every issue names the task it belongs to — any task in the plan, every affected task when it spans several; an untagged issue is a defect in the review.
-- Be specific: name the task, the criterion, the missing assertion. Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real issues, approve when the work survives your checks.
+- Be specific: name the task, criterion, missing assertion, and file and line. Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real issues, approve when the work survives your checks.
 - You review and report: never rewrite code or tests, never re-evaluate the plan or the design — flag deviations from them.
 - Declare exactly one verdict: `approved`, `rejected`, or `unsatisfiable` with `Target: <path>#<id>`.
 
