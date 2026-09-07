@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Standing materials in every mode: the *
 
 ## Synthesize
 
-Additional materials: the **Phase folder** files; conditional **Lane inputs**; and, on re-synthesis, **Input changes** — every changed input with its diff and every unresolved trigger targeting `design-doc.md`.
+Additional materials: the **Phase folder** files; conditional **Lane inputs** — each consumed lane's artifact, record, and approving reviews; and, on re-synthesis, **Input changes** — every changed input with its diff and every unresolved trigger targeting `design-doc.md`.
 
 1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes, not whether they are right. The spec's open assumptions are yours to account for. `spec-research.md` records the investigation behind the spec: direct research at the gaps the design opens, not at re-verifying what it already grounds.
 2. Create `design-doc-research.md` per **Formats**; on re-synthesis, update it in place.
@@ -80,7 +80,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - Record research, topics, options, decisions, open questions, and risks as they arise, never in a batch at the end.
 - `design-doc.md` keeps the open-assumption register: every `A<n>` — carried from the spec or your own — not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
-- The owner's words live only in the intent: cite its items, never restate them as yours.
+- The owner's words live only in the intent: cite relevant items by id, including decisions; never restate them as yours.
 - Ids are stable: `D<n>`, `A<n>` are never renumbered.
 
 **Research**

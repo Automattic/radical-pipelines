@@ -30,7 +30,7 @@
 
 <!-- Synthesize: additions -->
 - Phase folder: <one line per existing file: path>
-- Lane inputs: <one line per artifact of the lanes this one comes after: path>   <!-- production lanes with `after` -->
+- Lane inputs: <one line per consumed lane: artifact path; record path; approving review paths>   <!-- production lanes with `after` -->
 - Input changes: <one line per changed input: path — git diff <this artifact's head> HEAD -- <input>; one line per unresolved trigger targeting design-doc.md: path>   <!-- re-synthesis only -->
 
 <!-- Adjudicate: additions; exactly one correction -->
