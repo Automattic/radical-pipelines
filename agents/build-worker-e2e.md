@@ -19,7 +19,7 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication**.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication** and every **Review issue** attached to the task.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
 2. For each flow the task carries: automate its steps and expected outcome as an end-to-end test in the project's e2e convention; make it pass against the current code. The behavior exists by the time you run, so there is no red phase — but a test that passes without exercising the flow is worthless: confirm it genuinely drives the behavior.

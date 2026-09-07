@@ -19,7 +19,7 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and the **Design doc** — the why — and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication**.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and **Design doc** — the why — the named **Existing documentation**, the project's **Documentation conventions**, and — on a later attempt — **Your previous report** and, on a re-dispatch, the **Adjudication** and every **Review issue** attached to the task.
 
 1. Read the task file. Its `Goal`, `Surface`, `Audience`, `Sections`, `Changes`, and `Acceptance` are the boundary of your work.
 2. Read the spec's requirements, acceptance criteria, and user-facing rationale; read the design doc's architecture and decisions at the depth the task needs.

@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated trigger, and every production-lane input — the **Task reports**, the triggering **Amendment** or **Task report** when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
+Materials: the **Plan**, its **Record**, **Tasks**, the project's **Documentation conventions**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated trigger, and every production-lane input — the **Task reports**, the triggering **Amendment** or **Task report** when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
 The Diff is the phase's whole work, not only the work named by the latest reports. Earlier work is in scope, not scope creep; an issue may attach to any plan task.
 
