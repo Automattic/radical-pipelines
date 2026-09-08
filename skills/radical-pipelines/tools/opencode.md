@@ -23,6 +23,8 @@ Commands run through non-interactive `$SHELL -c` and source no profile or rc fil
 
 Send a directed message with `rp_send` to the agent's session ID. Its result reports admission and observed target state, not receipt.
 
+Spawned agents reach only `rp_send`; subagents reach no RP tools and return results to their requester. Root sessions reach every RP tool. Unclassifiable sessions are treated as root sessions.
+
 A read outside a session's worktree raises a permission request; the plugin redirects reads that resolve inside the worktree without asking. A pending request blocks the agent and is announced to the spawner. Answer it with `rp_permission_reply`: `once` allows it; `reject` refuses it and may carry corrective feedback. A blocked agent is not stalled.
 
 ## Termination
@@ -32,7 +34,7 @@ On an agent's completion declaration, call `rp_terminate` with its session ID.
 ## Health loop
 
 - Launch with `rp_loop_start`, passing the interval in milliseconds and tick prompt. The target defaults to the calling session. Ticks fire while idle and steer after two intervals without activity.
-- List with `rp_loop_list`; cancel with `rp_loop_cancel` and the loop ID.
+- List with `rp_loop_list`; cancel with `rp_loop_cancel` and the loop ID. A loop retires when its target session no longer exists.
 - Inspect with `rp_status`. It reports `pluginVersion`, `pin`, `ledger`, `recentErrors`, `recentLoopTicks`, and `readFailures`. Each ledger row includes `name`, `run`, `sessionID`, `agent`, `model`, `directory`, `updated`, `activity`, `running`, `pending`, `permissions`, `currentTool`, `lastTurn`, `turns`, `lastSend`, and `lastText`. `activity` includes input, tool, and model progress; `updated` moves on input. `lastText` contains the newest text excerpt or `olderThan`. Turn and send observations live in daemon memory and may be absent after restart. `readFailures` means the affected liveness fields are incomplete.
 
 ## Models
