@@ -420,20 +420,20 @@ describe("rp state tooling", () => {
     assert.match(output, /frontier claim 1-spec\/spec-review-1\.md → 0-intent\/intent\.md#goal \(owner escalation\)/);
   });
 
-  test("a claim stands only when its wave closed without a rejection; it is suspended behind its target's own claim", () => {
+  test("a claim stands only when its wave closed without a rejection; consumers lacking its approval are moot", () => {
     stampSpec();
     rp(root, "stamp", P("2-design-doc/design-doc.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec.md"));
     const DESIGN_NO_APPROVAL = DESIGN.filter((f) => !f.includes("spec-review"));
     review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
     review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN_NO_APPROVAL, [], "Target: 1-spec/spec.md#R1\n");
     let output = check(root);
-    assert.match(output, /design-doc-review-1\.md → 1-spec\/spec\.md#R1\s+suspended \(behind 1-spec\/spec-review-1\.md\)/);
+    assert.match(output, /design-doc-review-1\.md → 1-spec\/spec\.md#R1\s+moot/);
     assert.match(output, /frontier claim 1-spec\/spec-review-1\.md → 0-intent\/intent\.md#goal \(owner escalation\)/);
     // A second lane still to report keeps a claim open; a rejecting lane holds it.
-    output = check(root, "--lanes", `design-doc=a11y@${FPS.a11y}`);
-    assert.match(output, /design-doc-review-1\.md .*wave open/);
-    review("2-design-doc/design-doc-review-a11y-1.md", "rejected", DESIGN_NO_APPROVAL, [`lane=${FPS.a11y}`]);
-    assert.match(check(root, "--lanes", `design-doc=a11y@${FPS.a11y}`), /design-doc-review-1\.md .*held \(a lane rejected/);
+    output = check(root, "--lanes", `spec=a11y@${FPS.a11y}`);
+    assert.match(output, /spec-review-1\.md .*wave open/);
+    review("1-spec/spec-review-a11y-1.md", "rejected", SPEC, [`lane=${FPS.a11y}`]);
+    assert.match(check(root, "--lanes", `spec=a11y@${FPS.a11y}`), /spec-review-1\.md .*held \(a lane rejected/);
   });
 
   test("a claim about a changed artifact is moot; a changed target supersedes it", () => {
@@ -566,6 +566,34 @@ describe("rp state tooling", () => {
     assert.doesNotThrow(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--mirror"));
     assert.match(read(root, "3-build/tasks/T2-report-1.md"), /reviewed:\n  - 3-build\/tasks\/T2\.md@[0-9a-f]{12}\n  - 3-build\/tasks\/T1\.md@[0-9a-f]{12}/);
   });
+
+  for (const phase of ["3-build", "4-document"])
+    test(`verify-7: ${phase} report stamp and check share task dependency requirements`, () => {
+      if (phase === "4-document") write(root, "4-document/document-plan.md", "# Plan\n");
+      const task = `${phase}/tasks/T2.md`, report = `${phase}/tasks/T2-report-1.md`;
+      const dependency = `${phase}/tasks/T1.md`, extra = `${phase}/tasks/T3.md`;
+      registered(dependency, { depends: [] }, "# Task\nDepends on: none\n");
+      registered(extra, { depends: [] }, "# Extra\nDepends on: none\n");
+      registered(task, { depends: ["T1"] }, "# Task\nDepends on: T1\n");
+      for (const paths of [[task], [task, dependency, extra]]) {
+        write(root, report, "# Report\nOutcome: completed\n");
+        assert.throws(() => rp(root, "stamp", P(report), "--mirror", ...paths.flatMap((path) => ["--reviewed", P(path)])), /reviews exactly its task and its dependencies/);
+        registered(report, { reviewed: pairs(paths), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+        const state = JSON.parse(check(root, "--json"));
+        assert.equal(state.tasks[phase].done.includes("T2"), false);
+      }
+      write(root, report, "# Report\nOutcome: completed\n");
+      rp(root, "stamp", P(report), "--mirror", "--reviewed", P(dependency), "--reviewed", P(task));
+      assert.deepEqual(parseFrontmatter(read(root, report)).data.get("reviewed"), pairs([dependency, task]));
+      assert.equal(JSON.parse(check(root, "--json")).tasks[phase].done.includes("T2"), true);
+      registered(task, { depends: ["T1", "T3"] }, "# Task\nDepends on: T1, T3\n");
+      assert.equal(JSON.parse(check(root, "--json")).tasks[phase].done.includes("T2"), false);
+      const next = `${phase}/tasks/T2-report-2.md`;
+      write(root, next, "# Report\nOutcome: completed\n");
+      assert.throws(() => rp(root, "stamp", P(next), "--mirror", "--reviewed", P(task), "--reviewed", P(dependency)), /reviews exactly its task and its dependencies/);
+      rp(root, "stamp", P(next), "--mirror", ...[extra, task, dependency].flatMap((path) => ["--reviewed", P(path)]));
+      assert.equal(JSON.parse(check(root, "--json")).tasks[phase].done.includes("T2"), true);
+    });
 
   test("a failed report blocks its task only until adjudicated or the task changes", () => {
     approveChain(3);
@@ -887,6 +915,88 @@ describe("rp state tooling", () => {
           assert.equal(consumer(confirmed).approved, true);
           assert.equal(consumer(confirmed).episode, 0);
           assert.equal(confirmed.claims.some((claim) => claim.state.startsWith("PENDING")), false);
+        });
+
+  for (const scope of ["root", "production lane"])
+    for (const inputState of ["changed package", "stale approval", "no approval", "rejected new lane"])
+      for (const verdict of ["approved", "unsatisfiable"])
+        test(`verify-7: ${scope}, ${inputState}, ${verdict} waits for a current input approval`, () => {
+          const intent = "0-intent/intent.md", spec = "1-spec/spec.md";
+          const specInputs = [intent];
+          if (inputState === "stale approval") {
+            write(root, "0-intent/context.md", "# Context\nOriginal evidence.\n");
+            specInputs.push("0-intent/context.md");
+          }
+          let specPackage = ["1-spec/spec.md", "1-spec/spec-research.md", ...specInputs];
+          registered(spec, { pins: pairs(specInputs) });
+          const inputs = [intent, spec];
+          if (inputState !== "no approval") {
+            registeredVerdict("1-spec/spec-review-1.md", pairs(specPackage));
+            inputs.push("1-spec/spec-review-1.md");
+          }
+          const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/a/";
+          const artifact = `${sc}design-doc.md`, record = `${sc}design-doc-research.md`;
+          const lane = scope === "root" ? {} : { lane: FPS.a };
+          registered(artifact, { pins: pairs(inputs), ...lane }, "# Design\nDecision D1.\n");
+          write(root, record, "# Record\n");
+          const review = `${sc}design-doc-review-1.md`;
+          if (verdict === "approved") registeredVerdict(review, pairs([artifact, record, ...inputs]));
+          else registered(review, {
+            reviewed: pairs([artifact, record, ...inputs]), verdict, target: `${intent}#goal`, "target-identity": identity(read(root, intent)),
+          }, `# Review\nVerdict: unsatisfiable\nTarget: ${intent}#goal\n`);
+          const declarations = scope === "root" ? [] : [`design-doc=|a@${FPS.a}`];
+          const state = () => JSON.parse(check(root, "--target-phase", "2", "--lanes", declarations.join(";"), "--json"));
+          const consumer = (s) => scope === "root" ? s.artifacts[1] : s.lanes[0];
+          if (inputState !== "no approval") {
+            const before = state();
+            assert.equal(consumer(before).state, "fresh");
+            assert.equal(consumer(before).approved, verdict === "approved");
+            if (verdict === "unsatisfiable") assert.match(before.claims[0].state, /^PENDING/);
+          }
+          if (inputState === "changed package") {
+            write(root, "0-intent/context.md", "# Context\nNew evidence.\n");
+            registered(spec, { pins: pairs([intent, "0-intent/context.md"]) });
+            specPackage = [...SPEC, "0-intent/context.md"];
+          } else if (inputState === "stale approval") {
+            write(root, "0-intent/context.md", "# Context\nRevised evidence.\n");
+          } else if (inputState === "rejected new lane") {
+            declarations.push(`spec=security@${FPS.security}`);
+            registeredVerdict("1-spec/spec-review-2.md", pairs(SPEC));
+            registeredVerdict("1-spec/spec-review-security-2.md", pairs(SPEC), "rejected", FPS.security);
+          }
+          const blocked = state();
+          assert.equal(blocked.artifacts[0].approved, false);
+          assert.equal(consumer(blocked).state, "stale");
+          assert.equal(consumer(blocked).approved, false);
+          assert.equal(consumer(blocked).lanes[0].fresh, false);
+          assert.equal(consumer(blocked).episode, 1);
+          assert.equal(blocked.complete, false);
+          const action = inputState === "rejected new lane" ? "adjudicate" : inputState === "stale approval" ? "re-synthesize" : "review wave";
+          assert.equal(blocked.frontier, `${action} 1-spec/spec.md`);
+          assert.equal(blocked.claims.some((c) => c.state.startsWith("PENDING")), false);
+          if (verdict === "unsatisfiable") assert.match(blocked.claims[0].state, /^moot/);
+
+          const wave = inputState === "rejected new lane" ? 3 : 2;
+          if (inputState === "stale approval") registered(spec, { pins: pairs(specInputs) });
+          const approvals = [`1-spec/spec-review-${wave}.md`];
+          registeredVerdict(approvals[0], pairs(specPackage));
+          if (inputState === "rejected new lane") {
+            approvals.push(`1-spec/spec-review-security-${wave}.md`);
+            registeredVerdict(approvals[1], pairs(specPackage), "approved", FPS.security);
+          }
+          const restored = state();
+          assert.equal(restored.artifacts[0].approved, true);
+          assert.equal(consumer(restored).approved, false);
+          assert.deepEqual(consumer(restored).stale, ["package members"]);
+          assert.equal(restored.frontier, `re-synthesize ${artifact}`);
+          if (verdict === "unsatisfiable") assert.match(restored.claims[0].state, /^moot/);
+          const repinned = [intent, spec, ...approvals];
+          registered(artifact, { pins: pairs(repinned), ...lane });
+          registeredVerdict(`${sc}design-doc-review-2.md`, pairs([artifact, record, ...repinned]));
+          const confirmed = state();
+          assert.equal(consumer(confirmed).state, "fresh");
+          assert.equal(consumer(confirmed).approved, true);
+          assert.equal(consumer(confirmed).episode, 0);
         });
 
   test("verify-6: another consumer wave with the same pair set preserves currency", () => {

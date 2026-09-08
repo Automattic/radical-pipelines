@@ -260,6 +260,7 @@ function equalPackages(a, b, differences = null) {
 
 const packagePins = (p) => [...p].map(([path, sha]) => `${path}@${sha}`);
 const projectPackage = (p, paths) => p && new Map(paths.map((path) => [path, p.get(path)]));
+const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
 
 function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks = [], reports = []) {
   if (!consumed) return null;
@@ -267,6 +268,45 @@ function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks =
   const inputs = new Map([...consumed].filter(([path]) => path !== record));
   const members = reviewPackageMembers(art, prefix, scope, [...new Set([...inputs.keys(), ...art.requires])], tasks, reports);
   return new Map(members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]));
+}
+
+// The pins-by-file table, shared by stamp and every live currency predicate.
+function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf }) {
+  const currentPackage = (paths) => new Map([...new Set(paths)].map((path) => [path, identityOf(path)]));
+  const report = prefix.match(REPORT);
+  if (report) {
+    const [, phase, id] = report;
+    const task = `${phase}/tasks/${id}.md`;
+    const inputs = currentPackage([task, ...dependsOf(task).map((dep) => `${phase}/tasks/${dep}.md`)]);
+    return { inputs, review: inputs, ready: true };
+  }
+  const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
+  const recorded = pinPackage(pinsByPath.get(inScope(sc, art.path)));
+  const record = inScope(sc, art.record);
+  // Retention includes adjudicated triggers until the producer replaces its package.
+  const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
+  const build = art.requiresReview ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
+  const inputs = currentPackage([...art.requires, ...build, ...retained]);
+  let ready = true;
+  const approvals = art.requires.map((path) => ARTIFACTS.find((a) => a.path === path)?.prefix).filter(Boolean);
+  if (art.requiresReview) approvals.push(art.requiresReview);
+  for (const input of approvals) {
+    const wave = waveValidity(input, "", latestWaveOf(input, ""));
+    if (wave.current) for (const pair of currentPackage(wave.reviews.map((r) => r.rel))) inputs.set(...pair);
+    else ready = false;
+  }
+  const lanes = productionLanesOf(art.prefix);
+  const dependencies = sc ? lanes.find((lane) => `${art.phase}/${lane.id}/` === sc)?.after ?? [] : lanes.map((lane) => lane.id);
+  for (const lane of dependencies) {
+    const dependency = lanePackageOf(art, `${art.phase}/${lane}/`);
+    for (const pair of dependency.package) inputs.set(...pair);
+    if (!dependency.ready) ready = false;
+  }
+  return {
+    inputs,
+    review: ready ? artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase)) : null,
+    ready,
+  };
 }
 
 // A root records independent references, bound to the lane pins it consumed.
@@ -514,11 +554,14 @@ function cmdStamp(args) {
     }
     fm.set("reviewed", reviewed);
     if (report) {
-      const task = `${report[1]}/tasks/${report[2]}.md`;
-      const taskText = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
-      const deps = [].concat(parseFrontmatter(taskText).data?.get("depends") ?? []).map((d) => `${report[1]}/tasks/${d}.md`);
-      const expected = [task, ...deps];
-      if (!equalPackages(pinPackage(reviewed), new Map(expected.map((path) => [path, fileIdentity(join(base, path))])))) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${expected.join(" --reviewed ")}`);
+      const expected = requiredPackageOf(rel, "", {
+        identityOf: (path) => fileIdentity(join(base, path)),
+        dependsOf: (task) => {
+          const text = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
+          return [].concat(parseFrontmatter(text).data?.get("depends") ?? []);
+        },
+      }).review;
+      if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${[...expected.keys()].join(" --reviewed ")}`);
     }
     if (report) {
       const prior = readdirSync(join(base, report[1], "tasks"))
@@ -814,7 +857,6 @@ function cmdCheck(args) {
   const reportFilesOf = (phase) => all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
 
   // What a review judges: the artifact package; plans add tasks, phase reviews add reports.
-  const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
   const materialPaths = (prefix, sc, lane) => {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
     const materials = reviewLanesOf(prefix).find((l) => l.id === lane)?.materials ?? null;
@@ -842,7 +884,7 @@ function cmdCheck(args) {
   const contextOf = (prefix, sc) => {
     const recorded = recordedLane(prefix, sc);
     if (recorded && closedLanePackage(prefix, sc)) return { reference: recorded.reference, required: recorded.reference };
-    return { reference: liveReference(prefix, sc), required: requiredPackageOf(prefix, sc).review };
+    return { reference: liveReference(prefix, sc), required: requiredPackageOf(prefix, sc, packageContext).review };
   };
   const reviewFresh = (r, prefix, sc) => {
     const { required: packageMap } = contextOf(prefix, sc);
@@ -893,49 +935,16 @@ function cmdCheck(args) {
     };
   };
 
-  // The pins-by-file table, once: all live currency predicates use this derivation.
-  const requiredPackageOf = (prefix, sc) => {
-    const report = prefix.match(REPORT);
-    if (report) {
-      const [, phase, id] = report;
-      const task = `${phase}/tasks/${id}.md`;
-      const inputs = currentPackage([task, ...(taskFiles.find((t) => t.rel === task)?.deps ?? []).map((dep) => `${phase}/tasks/${dep}.md`)]);
-      return { inputs, review: inputs, ready: true };
-    }
-    const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
-    const recorded = pinPackage(pinsByPath.get(inScope(sc, art.path)));
-    const record = inScope(sc, art.record);
-    // Retention includes adjudicated triggers until the producer replaces its package.
-    const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
-    const build = art.requiresReview ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
-    const inputs = currentPackage([...art.requires, ...build, ...retained]);
-    let ready = true;
-    const approvals = art.requires.map((path) => ARTIFACTS.find((a) => a.path === path)?.prefix).filter(Boolean);
-    if (art.requiresReview) approvals.push(art.requiresReview);
-    for (const input of approvals) {
-      const wave = waveValidity(input, "", latestWaveOf(input, ""));
-      if (wave.current) for (const pair of currentPackage(wave.reviews.map((r) => r.rel))) inputs.set(...pair);
-      else ready = false;
-    }
-    const lanes = productionLanesOf(art.prefix);
-    const dependencies = sc ? lanes.find((lane) => `${art.phase}/${lane.id}/` === sc)?.after ?? [] : lanes.map((lane) => lane.id);
-    for (const lane of dependencies) {
-      const dependency = lanePackageOf(art, `${art.phase}/${lane}/`);
-      for (const pair of dependency.package) inputs.set(...pair);
-      if (!dependency.ready) ready = false;
-    }
-    return {
-      inputs,
-      review: artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase)),
-      ready,
-    };
+  const packageContext = {
+    identityOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf,
+    dependsOf: (task) => taskFiles.find((t) => t.rel === task)?.deps ?? [],
   };
   for (const t of all.filter((d) => REPORT.test(d.rel))) {
     const [, phase, id, k] = t.rel.match(REPORT);
     const key = `${phase}/${id}`;
     const attempt = Number(k);
     if (!reports.has(key) || reports.get(key).attempt < attempt)
-      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "").review) });
+      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "", packageContext).review) });
   }
 
   // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
@@ -1134,7 +1143,7 @@ function cmdCheck(args) {
   const artifactState = (doc, art, sc, fingerprint = null) => {
     const pins = doc?.data.get("pins");
     const recorded = pinPackage(pins);
-    const { inputs: requiredPackage, ready: requirementsReady } = requiredPackageOf(art.prefix, sc);
+    const { inputs: requiredPackage, ready: requirementsReady } = requiredPackageOf(art.prefix, sc, packageContext);
     const diff = { members: false, identities: new Set() };
     equalPackages(recorded, requiredPackage, diff);
     const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
