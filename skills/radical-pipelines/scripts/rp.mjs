@@ -792,19 +792,22 @@ function cmdCheck(args) {
     const pinned = (pinsByPath.get(artifactPath) ?? []).map((p) => pinParts(p)?.path).filter(Boolean);
     return reviewPackageMembers(art, prefix, sc, pinned, taskFilesOf(art.phase), reportFilesOf(art.phase));
   };
-  const reviewPackageOf = (prefix, sc) => {
+  const registeredReviewPackageOf = (prefix, sc, packageMap) => {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
     const consumed = pinPackage(all.find((d) => d.rel === inScope(sc, art.path))?.data.get("pins"));
-    return new Map(packageSchemaOf(prefix, sc).map((path) => [path, consumed?.get(path) ?? identityOf(path)]));
+    if (!consumed || art.requires.some((path) => !consumed.has(path))) return null;
+    return new Map(packageSchemaOf(prefix, sc).map((path) => [path, consumed.get(path) ?? packageMap.get(path)]));
   };
   const reviewFresh = (r, prefix, sc) => {
-    const packageMap = reviewPackageOf(prefix, sc);
+    const packageMap = currentPackage(packageSchemaOf(prefix, sc));
     const paths = materialPaths(prefix, sc, r.lane);
     const expected = paths === null ? packageMap : new Map(paths.map((path) => [path, packageMap.get(path)]));
     return samePackage(pinPackage(r.data.get("reviewed")), expected);
   };
   const waveValidity = (prefix, sc, wave, packageMap) => {
     if (!wave || !packageMap) return { valid: false, closed: false, reviews: [] };
+    const registered = registeredReviewPackageOf(prefix, sc, packageMap);
+    if (!registered || !samePackage(packageMap, registered)) return { valid: false, closed: false, reviews: [] };
     const rs = reviewsOf(sc).filter((r) => r.prefix === prefix && r.wave === wave);
     const lanes = reviewLanesOf(prefix);
     const reviews = lanes.map((lane) => rs.find((r) => r.lane === lane.id));
@@ -825,7 +828,7 @@ function cmdCheck(args) {
   const laneStates = (prefix, sc) => {
     const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
     const currentWave = latestWaveOf(prefix, sc);
-    const wave = waveValidity(prefix, sc, currentWave, reviewPackageOf(prefix, sc));
+    const wave = waveValidity(prefix, sc, currentWave, currentPackage(packageSchemaOf(prefix, sc)));
     return reviewLanesOf(prefix).map(({ id: lane, fingerprint }) => {
       const mine = rs.filter((r) => r.lane === lane);
       const r = mine.length ? mine.reduce((a, b) => (a.wave >= b.wave ? a : b)) : null;
@@ -944,7 +947,7 @@ function cmdCheck(args) {
         return { state: "resolved", detail: `escalated by ${l.review.rel}` };
     const pinned = (pinsByPath.get(item.targetPath) ?? []).some((p) => pinParts(p)?.path === item.rel);
     if (!pinned) return { state: "pending" };
-    const approved = waveValidity(targetArtifact.prefix, "", latestWaveOf(targetArtifact.prefix, ""), reviewPackageOf(targetArtifact.prefix, "")).valid;
+    const approved = waveValidity(targetArtifact.prefix, "", latestWaveOf(targetArtifact.prefix, ""), currentPackage(packageSchemaOf(targetArtifact.prefix, ""))).valid;
     return approved ? { state: "resolved", detail: `${item.targetPath} approved carrying it` } : { state: "adjudicated", detail: `by ${item.targetPath}, awaiting approval` };
   };
 
@@ -1024,12 +1027,12 @@ function cmdCheck(args) {
       const inputArt = ARTIFACTS.find((a) => a.path === req) ?? ARTIFACTS.find((a) => a.review && req === a.path && false);
       if (!inputArt) continue;
       const lanes = laneStates(inputArt.prefix, "");
-      if (waveValidity(inputArt.prefix, "", latestWaveOf(inputArt.prefix, ""), reviewPackageOf(inputArt.prefix, "")).valid) required.push(...lanes.map((l) => l.review.rel));
+      if (waveValidity(inputArt.prefix, "", latestWaveOf(inputArt.prefix, ""), currentPackage(packageSchemaOf(inputArt.prefix, ""))).valid) required.push(...lanes.map((l) => l.review.rel));
       else requirementsReady = false;
     }
     if (art.requiresReview) {
       const lanes = laneStates(art.requiresReview, "");
-      if (waveValidity(art.requiresReview, "", latestWaveOf(art.requiresReview, ""), reviewPackageOf(art.requiresReview, "")).valid) required.push(...lanes.map((l) => l.review.rel));
+      if (waveValidity(art.requiresReview, "", latestWaveOf(art.requiresReview, ""), currentPackage(packageSchemaOf(art.requiresReview, ""))).valid) required.push(...lanes.map((l) => l.review.rel));
       else requirementsReady = false;
     }
     const recorded = pinPackage(pins);
@@ -1046,7 +1049,7 @@ function cmdCheck(args) {
     const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
     const lanes = laneStates(art.prefix, sc);
     const e = episodeOf(art.prefix, sc);
-    const approved = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), reviewPackageOf(art.prefix, sc)).valid;
+    const approved = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), currentPackage(packageSchemaOf(art.prefix, sc))).valid;
     return { state, stale, lanes, approved, episode: e.episode, recurs: e.recurs };
   };
   const nextFor = (path, st) =>
@@ -1082,7 +1085,7 @@ function cmdCheck(args) {
     const lanePackage = (sc) => {
       const closed = closedPackage(sc);
       if (closed) return closed;
-      const approval = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), reviewPackageOf(art.prefix, sc));
+      const approval = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), currentPackage(packageSchemaOf(art.prefix, sc)));
       const paths = [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...(approval.valid ? approval.reviews.map((r) => r.rel) : [])];
       return currentPackage(paths);
     };
@@ -1098,7 +1101,7 @@ function cmdCheck(args) {
       const doc = all.find((d) => d.rel === `${sc}${name}`);
       return !!doc && (() => {
         const st = artifactState(doc, art, sc, dependencyPackage(sc), lane.fingerprint);
-        return st.state === "fresh" && waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), reviewPackageOf(art.prefix, sc)).valid;
+        return st.state === "fresh" && waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), currentPackage(packageSchemaOf(art.prefix, sc))).valid;
       })();
     };
     let lanesReady = laneScopes.length > 0;
@@ -1201,7 +1204,7 @@ function cmdCheck(args) {
     // Phase review: names the plan, its record, its inputs, every task, and every report.
     const rl = laneStates(art.review, "");
     const e = episodeOf(art.review, "");
-    const rApproved = waveValidity(art.review, "", latestWaveOf(art.review, ""), reviewPackageOf(art.review, "")).valid;
+    const rApproved = waveValidity(art.review, "", latestWaveOf(art.review, ""), currentPackage(packageSchemaOf(art.review, ""))).valid;
     out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => x), approved: rApproved, episode: e.episode, recurs: e.recurs };
     if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
     lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
