@@ -832,6 +832,128 @@ describe("rp state tooling", () => {
     assert.equal(state.frontier, "re-synthesize 1-spec/spec.md");
   });
 
+  for (const scope of ["root", "production lane"])
+    for (const update of ["later input wave", "new input review lane"])
+      for (const verdict of ["approved", "unsatisfiable"])
+        test(`verify-6: ${scope}, ${update}, ${verdict} uses the complete required package`, () => {
+          registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+          registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+          const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/a/";
+          const artifact = `${sc}design-doc.md`, record = `${sc}design-doc-research.md`;
+          write(root, artifact, "# Design\nDecision D1.\n"); write(root, record, "# Record\n");
+          const inputs = ["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
+          const lane = scope === "root" ? {} : { lane: FPS.a };
+          registered(artifact, { pins: pairs(inputs), ...lane });
+          const judged = pairs([artifact, record, ...inputs]);
+          const review = `${sc}design-doc-review-1.md`;
+          if (verdict === "approved") registeredVerdict(review, judged);
+          else registered(review, {
+            reviewed: judged, verdict, target: "0-intent/intent.md#goal", "target-identity": identity(read(root, "0-intent/intent.md")),
+          }, "# Review\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n");
+          const declarations = scope === "root" ? [] : [`design-doc=|a@${FPS.a}`];
+          const checkState = () => JSON.parse(check(root, "--target-phase", "2", "--lanes", declarations.join(";"), "--json"));
+          const consumer = (state) => scope === "root" ? state.artifacts[1] : state.lanes[0];
+          const before = checkState();
+          assert.equal(consumer(before).state, "fresh");
+          assert.equal(consumer(before).approved, verdict === "approved");
+          if (verdict === "unsatisfiable") assert.match(before.claims[0].state, /^PENDING/);
+
+          // Bodies and identities of both artifacts stay unchanged; only approval paths change.
+          const newReviews = ["1-spec/spec-review-2.md"];
+          registeredVerdict(newReviews[0], pairs(SPEC));
+          if (update === "new input review lane") {
+            declarations.push(`spec=security@${FPS.security}`);
+            newReviews.push("1-spec/spec-review-security-2.md");
+            registeredVerdict(newReviews[1], pairs(SPEC), "approved", FPS.security);
+          }
+          const changed = checkState();
+          assert.equal(changed.artifacts[0].approved, true);
+          assert.equal(consumer(changed).state, "stale");
+          assert.deepEqual(consumer(changed).stale, ["package members"]);
+          assert.equal(consumer(changed).approved, false);
+          assert.equal(consumer(changed).lanes[0].fresh, false);
+          assert.equal(consumer(changed).episode, 1);
+          assert.equal(changed.frontier, `re-synthesize ${artifact}`);
+          assert.equal(changed.complete, false);
+          assert.match(check(root, "--target-phase", "2", "--lanes", declarations.join(";")), /STALE — package members/);
+          if (verdict === "unsatisfiable") assert.match(changed.claims[0].state, /^moot/);
+
+          // Reconfirmation includes every lane of the input's current wave.
+          const currentInputs = ["0-intent/intent.md", "1-spec/spec.md", ...newReviews];
+          registered(artifact, { pins: pairs(currentInputs), ...lane });
+          registeredVerdict(`${sc}design-doc-review-2.md`, pairs([artifact, record, ...currentInputs]));
+          const confirmed = checkState();
+          assert.equal(consumer(confirmed).state, "fresh");
+          assert.equal(consumer(confirmed).approved, true);
+          assert.equal(consumer(confirmed).episode, 0);
+          assert.equal(confirmed.claims.some((claim) => claim.state.startsWith("PENDING")), false);
+        });
+
+  test("verify-6: another consumer wave with the same pair set preserves currency", () => {
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+    registered("2-design-doc/design-doc.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"]) });
+    registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
+    const before = JSON.parse(check(root, "--target-phase", "2", "--json"));
+    registeredVerdict("2-design-doc/design-doc-review-2.md", pairs(DESIGN).reverse());
+    const after = JSON.parse(check(root, "--target-phase", "2", "--json"));
+    assert.equal(after.frontier, before.frontier);
+    assert.equal(after.complete, true);
+    assert.equal(after.artifacts[1].state, "fresh");
+    assert.equal(after.artifacts[1].approved, true);
+    assert.equal(after.artifacts[1].episode, 0);
+    assert.deepEqual(after.artifacts[1].stale, []);
+    // Reordering an input approval's identical pairs changes no requirement either.
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC).reverse());
+    assert.deepEqual(JSON.parse(check(root, "--target-phase", "2", "--json")), after);
+  });
+
+  for (const phase of ["build-plan", "document-plan"])
+    test(`verify-6: the ${phase} table includes every required approval lane and adjudicated trigger`, () => {
+      registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+      registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+      registered("2-design-doc/design-doc.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"]) });
+      registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
+      const buildPins = ["1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md"];
+      registered("3-build/build-plan.md", { pins: pairs(buildPins) });
+      registered("3-build/tasks/T1.md", { depends: [] }, "# Task\nDepends on: none\n");
+      const planPackage = [...PLAN_BASE, "3-build/tasks/T1.md"];
+      registeredVerdict("3-build/build-plan-review-1.md", pairs(planPackage));
+      registered("3-build/tasks/T1-report-1.md", { reviewed: pairs(["3-build/tasks/T1.md"]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+      const buildPackage = [...planPackage, "3-build/tasks/T1-report-1.md"];
+      registeredVerdict("3-build/build-review-1.md", pairs(buildPackage));
+
+      const artifact = phase === "build-plan" ? "3-build/build-plan.md" : "4-document/document-plan.md";
+      const record = phase === "build-plan" ? "3-build/build-plan-research.md" : "4-document/document-plan-research.md";
+      const amendment = "0-intent/1-amendment.md";
+      registered(amendment, { target: `${artifact}#A1`, origin: "issue 8" }, `# Amendment\nTarget: ${artifact}#A1\nOrigin: issue 8\n`);
+      const inputs = phase === "build-plan" ? [...buildPins, amendment] : [
+        "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md",
+        "3-build/build-plan-review-1.md", "3-build/tasks/T1.md", "3-build/tasks/T1-report-1.md", "3-build/build-review-1.md", amendment,
+      ];
+      registered(artifact, { pins: pairs(inputs) }, "# Plan\nAssumption A1.\n");
+      write(root, record, "# Record\n");
+      const judged = [artifact, record, ...inputs, ...(phase === "build-plan" ? ["3-build/tasks/T1.md"] : [])];
+      registeredVerdict(`${dirname(artifact)}/${phase}-review-1.md`, pairs(judged));
+      const targetPhase = phase === "build-plan" ? "3" : "4";
+      const before = JSON.parse(check(root, "--target-phase", targetPhase, "--json"));
+      assert.equal(before.artifacts.at(-1).approved, true);
+      assert.equal(before.triggers[0].state, "resolved");
+      const inputPrefix = phase === "build-plan" ? "design-doc" : "build";
+      const inputPhase = phase === "build-plan" ? "2-design-doc" : "3-build";
+      const inputPackage = phase === "build-plan" ? DESIGN : buildPackage;
+      registeredVerdict(`${inputPhase}/${inputPrefix}-review-2.md`, pairs(inputPackage));
+      registeredVerdict(`${inputPhase}/${inputPrefix}-review-security-2.md`, pairs(inputPackage), "approved", FPS.security);
+      const state = JSON.parse(check(root, "--target-phase", targetPhase, "--lanes", `${inputPrefix}=security@${FPS.security}`, "--json"));
+      assert.equal(state.artifacts.at(-1).state, "stale");
+      assert.deepEqual(state.artifacts.at(-1).stale, ["package members"]);
+      assert.equal(state.artifacts.at(-1).approved, false);
+      assert.equal(state.artifacts.at(-1).episode, 1);
+      assert.equal(state.triggers[0].state, "adjudicated");
+      assert.equal(state.frontier, `re-synthesize ${artifact}`);
+      assert.equal(state.complete, false);
+    });
+
   test("root pins alone do not replace an independent consolidation reference", () => {
     const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
     write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");

@@ -811,15 +811,6 @@ function cmdCheck(args) {
     .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends") ?? []) }));
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
-  for (const t of all.filter((d) => REPORT.test(d.rel))) {
-    const [, phase, id, k] = t.rel.match(REPORT);
-    const key = `${phase}/${id}`;
-    const attempt = Number(k);
-    const task = `${phase}/tasks/${id}.md`;
-    const reference = currentPackage([task, ...(taskFiles.find((t) => t.rel === task)?.deps ?? []).map((dep) => `${phase}/tasks/${dep}.md`)]);
-    if (!reports.has(key) || reports.get(key).attempt < attempt)
-      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), reference) });
-  }
   const reportFilesOf = (phase) => all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
 
   // What a review judges: the artifact package; plans add tasks, phase reviews add reports.
@@ -851,14 +842,7 @@ function cmdCheck(args) {
   const contextOf = (prefix, sc) => {
     const recorded = recordedLane(prefix, sc);
     if (recorded && closedLanePackage(prefix, sc)) return { reference: recorded.reference, required: recorded.reference };
-    const reference = liveReference(prefix, sc);
-    const required = currentPackage([...(reference?.keys() ?? [])]);
-    if (!sc) for (const lane of productionLanesOf(prefix)) {
-      const art = ARTIFACTS.find((a) => a.prefix === prefix);
-      const binding = closedLanePackage(prefix, `${art.phase}/${lane.id}/`);
-      for (const pair of binding ?? []) required.set(...pair);
-    }
-    return { reference, required };
+    return { reference: liveReference(prefix, sc), required: requiredPackageOf(prefix, sc).review };
   };
   const reviewFresh = (r, prefix, sc) => {
     const { required: packageMap } = contextOf(prefix, sc);
@@ -899,6 +883,60 @@ function cmdCheck(args) {
     }
     return null;
   };
+  const lanePackageOf = (art, sc) => {
+    const closed = closedLanePackage(art.prefix, sc);
+    if (closed) return { package: closed, ready: true };
+    const approval = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc));
+    return {
+      package: currentPackage([inScope(sc, art.path), inScope(sc, art.record), ...(approval.current ? approval.reviews.map((r) => r.rel) : [])]),
+      ready: approval.current,
+    };
+  };
+
+  // The pins-by-file table, once: all live currency predicates use this derivation.
+  const requiredPackageOf = (prefix, sc) => {
+    const report = prefix.match(REPORT);
+    if (report) {
+      const [, phase, id] = report;
+      const task = `${phase}/tasks/${id}.md`;
+      const inputs = currentPackage([task, ...(taskFiles.find((t) => t.rel === task)?.deps ?? []).map((dep) => `${phase}/tasks/${dep}.md`)]);
+      return { inputs, review: inputs, ready: true };
+    }
+    const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
+    const recorded = pinPackage(pinsByPath.get(inScope(sc, art.path)));
+    const record = inScope(sc, art.record);
+    // Retention includes adjudicated triggers until the producer replaces its package.
+    const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
+    const build = art.requiresReview ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
+    const inputs = currentPackage([...art.requires, ...build, ...retained]);
+    let ready = true;
+    const approvals = art.requires.map((path) => ARTIFACTS.find((a) => a.path === path)?.prefix).filter(Boolean);
+    if (art.requiresReview) approvals.push(art.requiresReview);
+    for (const input of approvals) {
+      const wave = waveValidity(input, "", latestWaveOf(input, ""));
+      if (wave.current) for (const pair of currentPackage(wave.reviews.map((r) => r.rel))) inputs.set(...pair);
+      else ready = false;
+    }
+    const lanes = productionLanesOf(art.prefix);
+    const dependencies = sc ? lanes.find((lane) => `${art.phase}/${lane.id}/` === sc)?.after ?? [] : lanes.map((lane) => lane.id);
+    for (const lane of dependencies) {
+      const dependency = lanePackageOf(art, `${art.phase}/${lane}/`);
+      for (const pair of dependency.package) inputs.set(...pair);
+      if (!dependency.ready) ready = false;
+    }
+    return {
+      inputs,
+      review: artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase)),
+      ready,
+    };
+  };
+  for (const t of all.filter((d) => REPORT.test(d.rel))) {
+    const [, phase, id, k] = t.rel.match(REPORT);
+    const key = `${phase}/${id}`;
+    const attempt = Number(k);
+    if (!reports.has(key) || reports.get(key).attempt < attempt)
+      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "").review) });
+  }
 
   // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
   const laneStates = (prefix, sc) => {
@@ -1093,29 +1131,10 @@ function cmdCheck(args) {
 
   // 3. Phases in order, up to the target; a phase's production lanes come before its root artifact.
   const render = (ls) => (ls.length ? ls.map((l) => `${l.lane || "·"}:${l.verdict}${l.verdict !== "none" && l.verdict !== "unstamped" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
-  const artifactState = (doc, art, sc, extraPackage = new Map(), fingerprint = null) => {
+  const artifactState = (doc, art, sc, fingerprint = null) => {
     const pins = doc?.data.get("pins");
-    const buildPackage = art.prefix === "document-plan" ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
-    const required = [...new Set([...art.requires, ...buildPackage])];
-    let requirementsReady = true;
-    // Each required input is consumed with its current approval: every lane's review of the wave that approved it.
-    for (const req of required) {
-      const inputArt = ARTIFACTS.find((a) => a.path === req) ?? ARTIFACTS.find((a) => a.review && req === a.path && false);
-      if (!inputArt) continue;
-      const lanes = laneStates(inputArt.prefix, "");
-      if (waveValidity(inputArt.prefix, "", latestWaveOf(inputArt.prefix, "")).current) required.push(...lanes.map((l) => l.review.rel));
-      else requirementsReady = false;
-    }
-    if (art.requiresReview) {
-      const lanes = laneStates(art.requiresReview, "");
-      if (waveValidity(art.requiresReview, "", latestWaveOf(art.requiresReview, "")).current) required.push(...lanes.map((l) => l.review.rel));
-      else requirementsReady = false;
-    }
     const recorded = pinPackage(pins);
-    const siblingRecord = inScope(sc, art.record);
-    const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== siblingRecord);
-    const requiredPackage = currentPackage([...required, ...retained]);
-    for (const [path, sha] of extraPackage) requiredPackage.set(path, sha);
+    const { inputs: requiredPackage, ready: requirementsReady } = requiredPackageOf(art.prefix, sc);
     const diff = { members: false, identities: new Set() };
     equalPackages(recorded, requiredPackage, diff);
     const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
@@ -1145,25 +1164,14 @@ function cmdCheck(args) {
     const laneScopes = declaredLanes.map((l) => `${art.phase}/${l.id}/`).sort();
     const laneOf = (sc) => declaredLanes.find((l) => l.id === sc.split("/")[1]);
     const closedPackage = (sc) => closedLanePackage(art.prefix, sc);
-    const lanePackage = (sc) => {
-      const closed = closedPackage(sc);
-      if (closed) return closed;
-      const approval = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc));
-      const paths = [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...(approval.current ? approval.reviews.map((r) => r.rel) : [])];
-      return currentPackage(paths);
-    };
-    const dependencyPackage = (sc) => {
-      const packageMap = new Map();
-      for (const dep of laneOf(sc).after) for (const entry of lanePackage(`${art.phase}/${dep}/`)) packageMap.set(...entry);
-      return packageMap;
-    };
+    const lanePackage = (sc) => lanePackageOf(art, sc).package;
     const laneApproved = (sc) => {
       if (closedPackage(sc)) return true;
       const lane = laneOf(sc);
       if (lane.after.some((dep) => !laneApproved(`${art.phase}/${dep}/`))) return false;
       const doc = all.find((d) => d.rel === `${sc}${name}`);
       return !!doc && (() => {
-        const st = artifactState(doc, art, sc, dependencyPackage(sc), lane.fingerprint);
+        const st = artifactState(doc, art, sc, lane.fingerprint);
         return st.state === "fresh" && st.approved;
       })();
     };
@@ -1172,7 +1180,7 @@ function cmdCheck(args) {
       const { after, fingerprint } = laneOf(sc);
       const waiting = after.filter((dep) => !laneApproved(`${art.phase}/${dep}/`));
       const doc = all.find((d) => d.rel === `${sc}${name}`);
-      const st = doc ? artifactState(doc, art, sc, dependencyPackage(sc), fingerprint) : { state: "missing", stale: [], lanes: [], approved: false, episode: 0, recurs: [] };
+      const st = doc ? artifactState(doc, art, sc, fingerprint) : { state: "missing", stale: [], lanes: [], approved: false, episode: 0, recurs: [] };
       const closed = !!closedPackage(sc);
       const ok = closed || (st.approved && st.state === "fresh" && !waiting.length);
       if (!ok) lanesReady = false;
@@ -1195,9 +1203,7 @@ function cmdCheck(args) {
       stopped = true;
       continue;
     }
-    const rootLanePackage = new Map();
-    for (const sc of laneScopes) for (const entry of lanePackage(sc)) rootLanePackage.set(...entry);
-    const st = artifactState(all.find((d) => d.rel === art.path), art, "", rootLanePackage);
+    const st = artifactState(all.find((d) => d.rel === art.path), art, "");
     out.artifacts.push({ artifact: art.path, ...st, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
     if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
     lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);

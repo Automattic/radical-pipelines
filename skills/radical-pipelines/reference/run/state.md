@@ -20,7 +20,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 ## Frontmatter
 
-Frontmatter holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration outside Markdown code fences in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or what you did (`lane`). A stamp with `--reviewed` validates and fixes the consumed package. Later stamps preserve that package and landing facts while updating what their options request. `--set` accepts only `lane`. `rp check` derives validity from the tree, reads frontmatter and identities, and recomputes every mirror from the body: a file whose mirrors differ is stamped again before anything reads them; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
+Frontmatter holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration outside Markdown code fences in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or what you did (`lane`). A stamp with `--reviewed` fixes the consumed package, validating completeness for implicit reviews and task reports. `rp check` validates every review lane against its declared reference. Later stamps preserve that package and landing facts while updating what their options request. `--set` accepts only `lane`. `rp check` derives validity from the tree, reads frontmatter and identities, and recomputes every mirror from the body: a file whose mirrors differ is stamped again before anything reads them; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
 
 | Key         | Files                        | Value                                                                    |
 | ----------- | ---------------------------- | ------------------------------------------------------------------------ |
@@ -43,7 +43,7 @@ A stamp follows the commit of what it stamps and is committed on top of it, on t
 
 ## Pins by file
 
-A file records its package when first consumed and records a new package only after its producer reconfirms it. It never consumes its sibling record. A later phase never consumes an earlier phase's record.
+A file records its package when first consumed and records a new package only after its producer reconfirms it. It never consumes its sibling record. A later phase never consumes an earlier phase's record. Derive required packages from this table using current input identities; each required approval includes every review lane of its current wave.
 
 | File                                   | Pins                                                                         |
 | -------------------------------------- | ---------------------------------------------------------------------------- |
@@ -51,7 +51,7 @@ A file records its package when first consumed and records a new package only af
 | `0-intent/<n>-amendment.md`            | none; `target`, `origin`                                                     |
 | `1-spec/spec.md`                       | `intent.md`; every trigger it adjudicated; when consolidated, every lane's `spec.md`, record, and approving reviews |
 | spec or design production-lane artifact | what its root artifact would, plus each `after` lane's artifact, record, and approving reviews |
-| `2-design-doc/design-doc.md`           | `intent.md`, `spec.md`, an approving spec review; triggers; lanes when consolidated |
+| `2-design-doc/design-doc.md`           | `intent.md`, `spec.md`, approving spec wave; triggers; lanes when consolidated |
 | `3-build/build-plan.md`                | `spec.md`, `design-doc.md`, their approving reviews; triggers                |
 | `3-build/tasks/T<n>.md`                | none; `depends`                                                              |
 | `3-build/tasks/T<n>-report-<k>.md`     | `reviewed`: the task it executed and the tasks it depends on; `outcome`; a failed one targets `build-plan.md` |
