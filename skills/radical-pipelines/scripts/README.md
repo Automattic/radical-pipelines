@@ -8,7 +8,7 @@
 node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--set lane=<fingerprint>] [--mirror]
 ```
 
-- `--pin` records the inputs an artifact consumed; the set replaces the previous one. An artifact cannot pin its sibling record.
+- `--pin` records the inputs an artifact consumed; the set replaces the previous one. An artifact cannot pin its sibling record. Consolidation also captures `lane-packages` from the candidates; re-stamping the root preserves references bound to the same consumed lane pins.
 - `--reviewed` validates and fixes the package a review or task report names. An unfiltered review must equal the artifact's complete package. `check` verifies it again from the tree. Later stamps preserve it. A task report's package is exactly its task and dependencies; its attempt follows the last report with a valid landed package and metadata.
 - `--set` accepts only `lane=<fingerprint>`.
 - `--mirror` rewrites every mirror from the body's declarations outside Markdown code fences — `Verdict:`, `Brief:`, `Target:`, `Origin:`, `Outcome:` (`completed` | `failed` | `blocked`), `Prior finding:`, `Depends on:`, a report's `## Commits` — replacing the previous set. It may repair an already-pinned review or report without consuming its package again. Every commit `## Commits` names must exist and resolve unambiguously; it is stored as its full hash. Frontmatter lists are read in block or inline form (`key: [a, b]`); scalars may be plain, JSON double-quoted, or YAML single-quoted. Malformed syntax or field types are invalid. The stamp writes block lists and quotes scalars when required. Every fixed line is accepted whole in its grammar or rejected as `INVALID <field>`; `Verdict`, `Brief`, `Target`, and `Outcome` occur once.
@@ -45,4 +45,4 @@ node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--targ
 node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main --lanes "spec=security@b01a76f7504a" --target-phase 3
 ```
 
-The report lists contradictions first — malformed files, mirror drift, undeclared lanes, symlinks — and stops before facts whose representation is invalid. Otherwise it lists triggers, claims, and every phase up to the target: production lanes, artifacts, tasks with their latest reports, phase reviews, unclaimed commits — and names the frontier. Live waves use their artifact package; closed lanes use the package recorded by the root.
+The report lists contradictions first — malformed files, mirror drift, undeclared lanes, symlinks — and stops before facts whose representation is invalid. Otherwise it lists triggers, claims, and every phase up to the target: production lanes, artifacts, tasks with their latest reports, phase reviews, unclaimed commits — and names the frontier. Missing consolidation references require consolidation. Episodes count from the last current approval in the context defined by the state specification.

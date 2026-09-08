@@ -81,6 +81,24 @@ describe("rp state tooling", () => {
     const pins = reviewed.map((path) => `${path}@${identity(parseFrontmatter(read(root, path)).body)}`);
     write(root, rel, `---\nreviewed:\n${pins.map((pin) => `  - ${pin}`).join("\n")}\nverdict: approved\n${lane ? `lane: ${lane}\n` : ""}---\n# Review\n\nVerdict: approved\n`);
   }
+  function pairs(paths) {
+    return paths.map((path) => `${path}@${identity(read(root, path))}`);
+  }
+  function registered(rel, fields, body = parseFrontmatter(read(root, rel)).body) {
+    write(root, rel, `---\n${Object.entries(fields).map(([key, value]) => `${key}: ${JSON.stringify(value)}\n`).join("")}---\n${body}`);
+  }
+  function registeredVerdict(rel, pins, verdict = "approved", lane = null) {
+    registered(rel, { reviewed: pins, verdict, ...(lane ? { lane } : {}) }, `# Review\n\nVerdict: ${verdict}\n`);
+  }
+  function registeredRoot(artifact, reference, reviews, lane = null) {
+    const scope = dirname(artifact);
+    const binding = pairs([artifact, `${scope}/spec-research.md`, ...reviews]);
+    const pins = [...pairs(["0-intent/intent.md"]), ...binding];
+    registered("1-spec/spec.md", { pins, "lane-packages": [JSON.stringify([artifact, binding, reference])] });
+    const judged = [...pairs(["1-spec/spec.md", "1-spec/spec-research.md"]), ...pins];
+    registeredVerdict("1-spec/spec-review-1.md", judged);
+    if (lane) registeredVerdict("1-spec/spec-review-security-1.md", judged, "approved", lane);
+  }
   function stampSpec() {
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"));
   }
@@ -320,14 +338,14 @@ describe("rp state tooling", () => {
     assert.doesNotMatch(out, /AUDIT|VALVE/);
   });
 
-  test("a historical approved wave stays valid after the artifact changes", () => {
+  test("an episode counts only approvals current on the live reference", () => {
     stampSpec();
     approveSpec();
     appendFileSync(join(root, P("1-spec/spec.md")), "\nRequirement R2.\n");
     stampSpec();
     review("1-spec/spec-review-2.md", "rejected", SPEC);
     const state = JSON.parse(check(root, "--target-phase", "1", "--json"));
-    assert.equal(state.counters.spec.episode, 1);
+    assert.equal(state.counters.spec.episode, 2);
     assert.equal(state.frontier, "adjudicate 1-spec/spec.md");
   });
 
@@ -641,7 +659,7 @@ describe("rp state tooling", () => {
       write(root, artifact, "# Candidate a\n");
       write(root, record, "# Record a\n");
     }
-    rp(root, "stamp", P(artifact), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/context.md"), ...(context === "closed lane" ? ["--set", `lane=${FPS.a}`] : []));
+    registered(artifact, { pins: pairs(["0-intent/intent.md", "0-intent/context.md"]), ...(context === "closed lane" ? { lane: FPS.a } : {}) });
     const full = [artifact, record, "0-intent/intent.md", "0-intent/context.md"];
     const judged = complete ? full : full.slice(0, -1);
     const implicit = `${scope}spec-review-1.md`;
@@ -651,11 +669,7 @@ describe("rp state tooling", () => {
     const declaration = context === "closed lane" ? `spec=security@${FPS.security}|a@${FPS.a}` : `spec=security@${FPS.security}`;
     if (context === "closed lane") {
       const laneReviews = [implicit, ...(allLanes ? [named] : [])];
-      const rootPins = ["0-intent/intent.md", artifact, record, ...laneReviews];
-      rp(root, "stamp", P("1-spec/spec.md"), ...rootPins.flatMap((path) => ["--pin", P(path)]));
-      const rootPackage = ["1-spec/spec.md", "1-spec/spec-research.md", ...rootPins];
-      registeredReview("1-spec/spec-review-1.md", rootPackage);
-      registeredReview("1-spec/spec-review-security-1.md", rootPackage, FPS.security);
+      registeredRoot(artifact, pairs(full), laneReviews, FPS.security);
       const state = JSON.parse(check(root, "--lanes", declaration, "--target-phase", "1", "--json"));
       return state.lanes[0].closed && state.artifacts[0].approved && state.complete;
     }
@@ -670,6 +684,202 @@ describe("rp state tooling", () => {
           const name = `wave matrix: ${complete ? "complete" : "incomplete"} pins, ${concordant ? "concordant" : "discordant"} pins, ${allLanes ? "all lanes" : "missing lane"}, ${context}`;
           test(name, () => assert.equal(approvalMatrixCase(context, complete, concordant, allLanes), complete && concordant && allLanes));
         }
+
+  // 4 pair-set changes × 2 independent references × 3 disagreement arrangements.
+  // The third arrangement keeps reviewers concordant while changing their reference.
+  for (const change of ["add member", "remove member", "change identity", "equal"])
+    for (const context of ["live artifact", "closed lane"])
+      for (const who of ["one lane vs reference", "two lanes differ", "all lanes equal before reference change"])
+        test(`pair-set matrix: ${change}; ${context}; ${who}`, () => {
+          const sc = context === "closed lane" ? "1-spec/a/" : "1-spec/";
+          const artifact = `${sc}spec.md`, record = `${sc}spec-research.md`;
+          write(root, artifact, "# Candidate\n");
+          write(root, record, "# Record\n");
+          write(root, "0-intent/context.md", "# Context v1\n");
+          write(root, "0-intent/extra.md", "# Extra\n");
+          write(root, "0-intent/other.md", "# Other\n");
+          const input = pairs(["0-intent/intent.md", "0-intent/context.md"]);
+          registered(artifact, { pins: input, ...(context === "closed lane" ? { lane: FPS.a } : {}) });
+          let reference = [...pairs([artifact, record]), ...input];
+          const reviews = [`${sc}spec-review-1.md`, `${sc}spec-review-security-1.md`];
+          const mutate = (pins, salt = "v2") => {
+            if (change === "add member") return [...pins, ...pairs([salt === "v2" ? "0-intent/extra.md" : "0-intent/other.md"])];
+            if (change === "remove member") return pins.filter((p) => !p.startsWith(salt === "v2" ? "0-intent/context.md@" : "0-intent/intent.md@"));
+            if (change === "change identity") return pins.map((p) => p.startsWith("0-intent/context.md@") ? `0-intent/context.md@${identity(`# Context ${salt}\n`)}` : p);
+            return [...pins].reverse();
+          };
+          let first = [...reference], second = [...reference];
+          if (who === "one lane vs reference") first = mutate(first);
+          else if (who === "two lanes differ") {
+            first = mutate(first);
+            second = mutate(second, "v3");
+          } else {
+            reference = mutate(reference);
+            if (context === "live artifact") {
+              const inputs = reference.filter((p) => !p.startsWith(`${artifact}@`) && !p.startsWith(`${record}@`));
+              if (change === "change identity") write(root, "0-intent/context.md", "# Context v2\n");
+              registered(artifact, { pins: inputs });
+            }
+          }
+          registeredVerdict(reviews[0], first);
+          registeredVerdict(reviews[1], second, "approved", FPS.security);
+          if (context === "closed lane") registeredRoot(artifact, reference, reviews, FPS.security);
+          const state = JSON.parse(check(root, "--target-phase", "1", "--lanes", `spec=security@${FPS.security}${context === "closed lane" ? `|a@${FPS.a}` : ""}`, "--json"));
+          const valid = change === "equal";
+          assert.equal(state.complete, valid);
+          if (context === "closed lane") assert.equal(state.lanes[0].closed, valid);
+          else assert.equal(state.artifacts[0].approved, valid);
+          assert.equal(state.frontier === "complete", valid);
+          if (who !== "all lanes equal before reference change") assert.equal(state.frontier.startsWith("consolidate"), false);
+        });
+
+  test("verify-5: concordant reviews of an unconsumed identity cannot close a lane", () => {
+    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+    write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
+    write(root, "0-intent/context.md", "# Context v1\n");
+    const pins = pairs(["0-intent/intent.md", "0-intent/context.md"]);
+    registered(artifact, { pins, lane: FPS.a });
+    const reference = [...pairs([artifact, record]), ...pins];
+    write(root, "0-intent/context.md", "# Context v2\n");
+    const reviews = ["1-spec/a/spec-review-1.md", "1-spec/a/spec-review-security-1.md"];
+    const judged = pairs([artifact, record, "0-intent/intent.md", "0-intent/context.md"]);
+    registeredVerdict(reviews[0], judged);
+    registeredVerdict(reviews[1], judged, "approved", FPS.security);
+    registeredRoot(artifact, reference, reviews, FPS.security);
+    const state = JSON.parse(check(root, "--target-phase", "1", "--lanes", `spec=security@${FPS.security}|a@${FPS.a}`, "--json"));
+    assert.equal(state.lanes[0].closed, false);
+    assert.equal(state.lanes[0].approved, false);
+    assert.equal(state.complete, false);
+  });
+
+  for (const omitted of ["0-intent/intent.md", "0-intent/context.md"])
+    test(`F01 / verify-2: a registered review omitting ${omitted} cannot close`, () => {
+      const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+      write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
+      write(root, "0-intent/context.md", "# Context\n");
+      registered(artifact, { pins: pairs(["0-intent/intent.md", "0-intent/context.md"]), lane: FPS.a });
+      const reference = pairs([artifact, record, "0-intent/intent.md", "0-intent/context.md"]);
+      registeredVerdict("1-spec/a/spec-review-1.md", reference.filter((pin) => !pin.startsWith(`${omitted}@`)));
+      registeredRoot(artifact, reference, ["1-spec/a/spec-review-1.md"]);
+      const state = JSON.parse(check(root, "--target-phase", "1", "--lanes", `spec=|a@${FPS.a}`, "--json"));
+      assert.equal(state.lanes[0].closed, false);
+      assert.equal(state.frontier, "review wave 1-spec/a/spec.md");
+      assert.equal(state.complete, false);
+    });
+
+  test("F02 / R7.1.3 / verify #1: registered roots retain a and consolidate b", () => {
+    const a = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
+    write(root, a[0], "# A\n"); write(root, a[1], "# A record\n");
+    registered(a[0], { pins: pairs(["0-intent/intent.md"]), lane: FPS.a });
+    const reference = pairs([...a.slice(0, 2), "0-intent/intent.md"]);
+    registeredVerdict(a[2], reference); registeredRoot(a[0], reference, [a[2]]);
+    const original = parseFrontmatter(read(root, "1-spec/spec.md")).data.get("lane-packages");
+    appendFileSync(join(root, P("0-intent/intent.md")), "\nAdd b after a.\n");
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", ...a]), "lane-packages": original });
+    registeredVerdict("1-spec/spec-review-2.md", pairs([...SPEC, ...a]));
+    const reconfirmed = JSON.parse(check(root, "--target-phase", "1", "--lanes", `spec=|a@${FPS.a}`, "--json"));
+    assert.equal(reconfirmed.artifacts[0].state, "fresh");
+    assert.equal(reconfirmed.complete, true);
+    const state = () => JSON.parse(check(root, "--target-phase", "1", "--lanes", `spec=|a@${FPS.a},b@${FPS.b}<a`, "--json"));
+    assert.equal(state().lanes[0].closed, true);
+    assert.equal(state().frontier, "synthesize 1-spec/b/spec.md");
+    const b = ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "1-spec/b/spec-review-1.md"];
+    write(root, b[0], "# B\n"); write(root, b[1], "# B record\n");
+    registered(b[0], { pins: pairs(["0-intent/intent.md", ...a]), lane: FPS.b });
+    const bReference = pairs([...b.slice(0, 2), "0-intent/intent.md", ...a]);
+    registeredVerdict(b[2], bReference);
+    assert.equal(state().frontier, "consolidate 1-spec/spec.md");
+    assert.deepEqual(state().artifacts[0].laneCandidates.map((lane) => lane.package), [a, b]);
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", ...a, ...b]), "lane-packages": [...original, JSON.stringify([b[0], pairs(b), bReference])] });
+    registeredVerdict("1-spec/spec-review-3.md", pairs([...SPEC, ...a, ...b]));
+    assert.equal(state().complete, true);
+    assert.deepEqual(state().lanes.map((lane) => lane.closed), [true, true]);
+  });
+
+  test("verify #2/#3: registered sibling records stale; materials stay within the package", () => {
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec-research.md"]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+    let state = JSON.parse(check(root, "--target-phase", "1", "--json"));
+    assert.equal(state.frontier, "re-synthesize 1-spec/spec.md");
+    assert.equal(state.complete, false);
+    write(root, "0-intent/context.md", "# Context\n");
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+    const lanes = `spec=security@${FPS.security}[materials=0-intent/context.md]`;
+    assert.throws(() => check(root, "--target-phase", "1", "--lanes", lanes), /outside the .* package/);
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", "0-intent/context.md"]) });
+    registeredVerdict("1-spec/spec-review-2.md", pairs([...SPEC, "0-intent/context.md"]));
+    registeredVerdict("1-spec/spec-review-security-2.md", pairs(["0-intent/context.md"]), "approved", FPS.security);
+    state = JSON.parse(check(root, "--target-phase", "1", "--lanes", lanes, "--json"));
+    assert.equal(state.complete, true);
+  });
+
+  test("verify-3: registered claims become moot and resolutions adjudicated on input change", () => {
+    const amendment = "0-intent/1-amendment.md";
+    registered(amendment, { target: "1-spec/spec.md#R1", origin: "issue 8" }, "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 8\n");
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", amendment]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, amendment]));
+    const designPins = ["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
+    registered("2-design-doc/design-doc.md", { pins: pairs(designPins) });
+    registered("2-design-doc/design-doc-review-1.md", {
+      reviewed: pairs(["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md", ...designPins]),
+      verdict: "unsatisfiable", target: "1-spec/spec.md#R1", "target-identity": identity(read(root, "1-spec/spec.md")),
+    }, "# Review\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n");
+    appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged input.\n");
+    const state = JSON.parse(check(root, "--target-phase", "2", "--json"));
+    assert.equal(state.artifacts[0].approved, false);
+    assert.equal(state.triggers[0].state, "adjudicated");
+    assert.match(state.claims[0].state, /^moot/);
+    assert.equal(state.frontier, "re-synthesize 1-spec/spec.md");
+  });
+
+  test("root pins alone do not replace an independent consolidation reference", () => {
+    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+    write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
+    registered(artifact, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a });
+    registeredVerdict("1-spec/a/spec-review-1.md", pairs([artifact, record, "0-intent/intent.md"]));
+    const binding = [artifact, record, "1-spec/a/spec-review-1.md"];
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", ...binding]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, ...binding]));
+    const state = JSON.parse(check(root, "--target-phase", "1", "--lanes", `spec=|a@${FPS.a}`, "--json"));
+    assert.equal(state.lanes[0].closed, false);
+    assert.equal(state.complete, false);
+    assert.equal(state.frontier, "consolidate 1-spec/spec.md");
+  });
+
+  test("a registered task report cannot omit its dependency from the reference", () => {
+    buildDone();
+    registered("3-build/tasks/T2-report-1.md", { reviewed: pairs(["3-build/tasks/T2.md"]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+    const state = JSON.parse(check(root, "--target-phase", "3", "--json"));
+    assert.deepEqual(state.tasks["3-build"].done, ["T1"]);
+    assert.equal(state.frontier, "task 3-build/T2");
+    assert.equal(state.complete, false);
+  });
+
+  for (const change of ["add member", "remove member", "change identity"])
+    test(`verify-4/5: closed reference survives candidate ${change}`, () => {
+      const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+      write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
+      write(root, "0-intent/context.md", "# Context v1\n");
+      write(root, "0-intent/extra.md", "# Extra\n");
+      let inputs = ["0-intent/intent.md", "0-intent/context.md"];
+      registered(artifact, { pins: pairs(inputs), lane: FPS.a });
+      const reference = pairs([artifact, record, ...inputs]);
+      registeredVerdict("1-spec/a/spec-review-1.md", reference);
+      registeredRoot(artifact, reference, ["1-spec/a/spec-review-1.md"]);
+      const before = read(root, "1-spec/spec.md");
+      if (change === "add member") inputs.push("0-intent/extra.md");
+      if (change === "remove member") inputs.pop();
+      if (change === "change identity") write(root, "0-intent/context.md", "# Context v2\n");
+      registered(artifact, { pins: pairs(inputs), lane: FPS.a });
+      registeredVerdict("1-spec/a/spec-review-2.md", pairs([artifact, record, ...inputs]), "rejected");
+      const state = JSON.parse(check(root, "--target-phase", "1", "--lanes", `spec=|a@${FPS.a}`, "--json"));
+      assert.equal(state.lanes[0].closed, true);
+      assert.equal(state.lanes[0].episode, 1);
+      assert.equal(state.artifacts[0].state, "fresh");
+      assert.equal(state.artifacts[0].approved, true);
+      assert.equal(state.complete, true);
+      assert.equal(read(root, "1-spec/spec.md"), before);
+    });
 
   test("a root cannot complete from a lane review omitting consumed context", () => {
     write(root, "0-intent/context.md", "# Context\n");
