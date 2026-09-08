@@ -45,4 +45,4 @@ node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--targ
 node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main --lanes "spec=security@b01a76f7504a" --target-phase 3
 ```
 
-The report lists contradictions first — malformed files, mirror drift, undeclared lanes, symlinks — and stops before facts whose representation is invalid. Otherwise it lists triggers, claims, and every phase up to the target: production lanes, artifacts, tasks with their latest reports, phase reviews, unclaimed commits — and names the frontier.
+The report lists contradictions first — malformed files, mirror drift, undeclared lanes, symlinks — and stops before facts whose representation is invalid. Otherwise it lists triggers, claims, and every phase up to the target: production lanes, artifacts, tasks with their latest reports, phase reviews, unclaimed commits — and names the frontier. Live waves use their artifact package; closed lanes use the package recorded by the root.

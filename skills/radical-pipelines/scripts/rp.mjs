@@ -796,7 +796,7 @@ function cmdCheck(args) {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
     const consumed = pinPackage(all.find((d) => d.rel === inScope(sc, art.path))?.data.get("pins"));
     if (!consumed || art.requires.some((path) => !consumed.has(path))) return null;
-    return new Map(packageSchemaOf(prefix, sc).map((path) => [path, consumed.get(path) ?? packageMap.get(path)]));
+    return new Map(packageSchemaOf(prefix, sc).map((path) => [path, packageMap.get(path)]));
   };
   const reviewFresh = (r, prefix, sc) => {
     const packageMap = currentPackage(packageSchemaOf(prefix, sc));

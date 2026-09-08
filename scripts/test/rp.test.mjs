@@ -774,6 +774,27 @@ describe("rp state tooling", () => {
     assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH[\s\S]*frontier complete/);
   });
 
+  test("repinning a closed lane candidate preserves its package and episode", () => {
+    write(root, "0-intent/context.md", "# Context v1\n");
+    write(root, "1-spec/a/spec.md", "# Candidate a\n");
+    write(root, "1-spec/a/spec-research.md", "# Record a\n");
+    const inputs = ["0-intent/intent.md", "0-intent/context.md"];
+    rp(root, "stamp", P("1-spec/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]), "--set", `lane=${FPS.a}`);
+    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", ...inputs]);
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
+    assert.equal(JSON.parse(check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1", "--json")).frontier, "complete");
+    write(root, "0-intent/context.md", "# Context v2\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]), "--set", `lane=${FPS.a}`);
+    review("1-spec/a/spec-review-2.md", "rejected", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", ...inputs]);
+    const state = JSON.parse(check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1", "--json"));
+    assert.equal(state.lanes[0].closed, true);
+    assert.equal(state.counters["1-spec/a/spec"].episode, 1);
+    assert.equal(state.artifacts[0].state, "fresh");
+    assert.equal(state.artifacts[0].approved, true);
+    assert.equal(state.frontier, "complete");
+  });
+
   test("a new production lane leaves closed lanes outside the frontier", () => {
     approveSpecLaneA();
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
