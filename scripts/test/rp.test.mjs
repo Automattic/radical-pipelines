@@ -161,8 +161,9 @@ describe("rp state tooling", () => {
   });
 
   test("--mirror copies Verdict, Brief, Target, Outcome, Prior finding, Depends on, and every Origin line", () => {
+    stampSpec();
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: unsatisfiable\nBrief: security\nTarget: 0-intent/intent.md#goal\n\n### Issue 1\n\nPrior finding: 1-spec/spec-review-0.md#Issue-2, resolution failed\n");
-    rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--mirror");
+    rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const fm = read(root, "1-spec/spec-review-1.md");
     assert.match(fm, /verdict: unsatisfiable/);
     assert.match(fm, /brief: security/);
@@ -180,6 +181,7 @@ describe("rp state tooling", () => {
   });
 
   test("reviewed pins are immutable; head moves only with pins", () => {
+    stampSpec();
     approveSpec();
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md")), /immutable/);
     git(root, "add", "-A");
@@ -229,8 +231,9 @@ describe("rp state tooling", () => {
 
   test("stamped scalars with YAML punctuation round-trip through frontmatter", () => {
     const brief = "Check: all [paths] # deeply";
+    stampSpec();
     write(root, "1-spec/spec-review-1.md", `# Review\n\nVerdict: rejected\nBrief: ${brief}\n`);
-    rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md"), "--mirror");
+    rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const stamped = read(root, "1-spec/spec-review-1.md");
     assert.match(stamped, /brief: "Check: all \[paths\] # deeply"/);
     assert.equal(parseFrontmatter(stamped).data.get("brief"), brief);
@@ -264,9 +267,8 @@ describe("rp state tooling", () => {
 
   test("a review names its artifact, its record, and the artifact's inputs; a changed input stales the approval", () => {
     stampSpec();
-    review("1-spec/spec-review-1.md", "approved", ["1-spec/spec.md", "1-spec/spec-research.md"]);
-    assert.match(check(root), /reviews: ·:approved \(stale\)/);
-    approveSpec(2);
+    assert.throws(() => review("1-spec/spec-review-1.md", "approved", ["1-spec/spec.md", "1-spec/spec-research.md"]), /INVALID REVIEW PACKAGE/);
+    approveSpec();
     assert.match(check(root, "--target-phase", "1"), /frontier complete/);
     appendFileSync(join(root, P("0-intent/intent.md")), "\nNew constraint.\n");
     stampSpec(); // a re-synthesis that needed no edit refreshes the pins
@@ -400,6 +402,7 @@ describe("rp state tooling", () => {
     assert.throws(() => amendment("0-intent/intent.md#goal"), /INVALID TARGET 0-intent\/intent\.md#goal/);
     write(root, "0-intent/intent.md", "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\n- First.\n\n## Decisions\n\n1. Later.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
+    stampSpec();
     assert.throws(() => review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-2\n"), /INVALID TARGET/);
     assert.throws(() => review("1-spec/spec-review-3.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-0\n"), /INVALID TARGET/);
     assert.throws(() => review("1-spec/spec-review-4.md", "unsatisfiable", SPEC), /INVALID TARGET \?/);
@@ -589,6 +592,66 @@ describe("rp state tooling", () => {
 
   const LANE_A_PACKAGE = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
 
+  function approvalMatrixCase(context, complete, concordant, allLanes) {
+    write(root, "0-intent/context.md", "# Context\n");
+    const scope = context === "closed lane" ? "1-spec/a/" : "1-spec/";
+    const artifact = `${scope}spec.md`;
+    const record = `${scope}spec-research.md`;
+    if (context === "closed lane") {
+      write(root, artifact, "# Candidate a\n");
+      write(root, record, "# Record a\n");
+    }
+    rp(root, "stamp", P(artifact), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/context.md"), ...(context === "closed lane" ? ["--set", `lane=${FPS.a}`] : []));
+    const full = [artifact, record, "0-intent/intent.md", "0-intent/context.md"];
+    const judged = complete ? full : full.slice(0, -1);
+    const implicit = `${scope}spec-review-1.md`;
+    try {
+      review(implicit, "approved", judged);
+    } catch (error) {
+      assert.equal(complete, false);
+      assert.match(String(error), /INVALID REVIEW PACKAGE/);
+      return false;
+    }
+    const named = `${scope}spec-review-security-1.md`;
+    if (allLanes) review(named, "approved", concordant ? judged : judged.slice(0, -1), [`lane=${FPS.security}`]);
+    const declaration = context === "closed lane" ? `spec=security@${FPS.security}|a@${FPS.a}` : `spec=security@${FPS.security}`;
+    if (context === "closed lane") {
+      const laneReviews = [implicit, ...(allLanes ? [named] : [])];
+      const rootPins = ["0-intent/intent.md", artifact, record, ...laneReviews];
+      rp(root, "stamp", P("1-spec/spec.md"), ...rootPins.flatMap((path) => ["--pin", P(path)]));
+      const rootPackage = ["1-spec/spec.md", "1-spec/spec-research.md", ...rootPins];
+      review("1-spec/spec-review-1.md", "approved", rootPackage);
+      review("1-spec/spec-review-security-1.md", "approved", rootPackage, [`lane=${FPS.security}`]);
+      const state = JSON.parse(check(root, "--lanes", declaration, "--target-phase", "1", "--json"));
+      return state.lanes[0].closed && state.artifacts[0].approved && state.complete;
+    }
+    const state = JSON.parse(check(root, "--lanes", declaration, "--target-phase", "1", "--json"));
+    return state.artifacts[0].approved && state.complete;
+  }
+
+  for (const context of ["closed lane", "root"])
+    for (const complete of [true, false])
+      for (const concordant of [true, false])
+        for (const allLanes of [true, false]) {
+          const name = `wave matrix: ${complete ? "complete" : "incomplete"} pins, ${concordant ? "concordant" : "discordant"} pins, ${allLanes ? "all lanes" : "missing lane"}, ${context}`;
+          test(name, () => assert.equal(approvalMatrixCase(context, complete, concordant, allLanes), complete && concordant && allLanes));
+        }
+
+  test("a root cannot complete from a lane review omitting consumed context", () => {
+    write(root, "0-intent/context.md", "# Context\n");
+    write(root, "1-spec/a/spec.md", "# Candidate a\n");
+    write(root, "1-spec/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/context.md"), "--set", `lane=${FPS.a}`);
+    write(root, "1-spec/a/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/a/spec-review-1.md"), "--reviewed", P("1-spec/a/spec.md"), "--reviewed", P("1-spec/a/spec-research.md"), "--reviewed", P("0-intent/intent.md"), "--mirror"), /INVALID REVIEW PACKAGE/);
+    const lanePackage = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...lanePackage.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/spec-review-1.md", "approved", [...SPEC, ...lanePackage]);
+    const state = JSON.parse(check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1", "--json"));
+    assert.notEqual(state.complete, true);
+    assert.equal(state.frontier, "stamp 1-spec/a/spec-review-1.md");
+  });
+
   test("declared production lanes are sub-pipelines; `after` waits; the root must pin every lane", () => {
     rmSync(join(root, P("1-spec/spec.md")));
     rmSync(join(root, P("1-spec/spec-research.md")));
@@ -661,11 +724,7 @@ describe("rp state tooling", () => {
   });
 
   test("an incomplete approval package cannot close a production lane", () => {
-    approveSpecLaneA(["1-spec/a/spec.md", "1-spec/a/spec-research.md"]);
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
-    const output = check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1");
-    assert.doesNotMatch(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
-    assert.match(output, /frontier review wave 1-spec\/a\/spec\.md/);
+    assert.throws(() => approveSpecLaneA(["1-spec/a/spec.md", "1-spec/a/spec-research.md"]), /INVALID REVIEW PACKAGE/);
   });
 
   test("a root reconfirmation preserves its closed lane package", () => {

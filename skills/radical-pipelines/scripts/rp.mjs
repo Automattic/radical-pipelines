@@ -210,6 +210,22 @@ const ARTIFACTS = [
   { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
   { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
 ];
+function reviewArtifact(rel) {
+  const name = basename(rel);
+  for (const art of ARTIFACTS) {
+    for (const prefix of [art.prefix, art.review].filter(Boolean)) {
+      const match = name.match(new RegExp(`^${prefix}-review-(?:(.+)-)?(\\d+)\\.md$`));
+      if (match) return { art, prefix, lane: match[1] ?? "", wave: Number(match[2]) };
+    }
+  }
+  return null;
+}
+function reviewPackageMembers(art, prefix, scope, pinned, tasks, reports) {
+  const path = (rel) => (scope ? `${scope}${basename(rel)}` : rel);
+  const base = [path(art.path), path(art.record), ...pinned];
+  const members = art.review && prefix === art.prefix ? [...base, ...tasks] : art.review && prefix === art.review ? [...base, ...tasks, ...reports] : base;
+  return [...new Set(members)];
+}
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
 function targetExists(target, read) {
@@ -388,6 +404,15 @@ function cmdStamp(args) {
       return `${relative(base, target)}@${sha}`;
     });
 
+  for (const s of args.set) {
+    const i = s.indexOf("=");
+    if (i < 1) die(`stamp: --set expects key=value, got: ${s}`);
+    const key = s.slice(0, i);
+    const value = s.slice(i + 1);
+    if (key !== "lane") die(`stamp: --set accepts only lane, got: ${key}`);
+    if (!IDENTITY.test(value)) die(`stamp: lane must be a 12-character hexadecimal fingerprint, got: ${value}`);
+  }
+
   let consumed = false;
   if (args.pin.length) {
     const pins = pinList(args.pin);
@@ -397,7 +422,28 @@ function cmdStamp(args) {
   }
   if (args.reviewed.length) {
     if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
-    fm.set("reviewed", pinList(args.reviewed));
+    const reviewed = pinList(args.reviewed);
+    const review = reviewArtifact(rel);
+    if (review && rel.startsWith(`${review.art.phase}/`) && !review.lane) {
+      const scope = rel.split("/").length === 3 ? `${dirname(rel)}/` : "";
+      const artifactPath = scope ? `${scope}${basename(review.art.path)}` : review.art.path;
+      const artifactFile = join(base, artifactPath);
+      const artifactData = existsSync(artifactFile) ? parseFrontmatter(readFileSync(artifactFile, "utf8")).data : null;
+      const artifactPins = artifactData?.get("pins");
+      const parts = Array.isArray(artifactPins) ? artifactPins.map(pinParts) : [];
+      if (!parts.length || parts.some((part) => !part || !IDENTITY.test(part.sha)) || new Set(parts.map((part) => part.path)).size !== parts.length)
+        die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is unrecorded or invalid`);
+      const consumed = new Map(parts.map((part) => [part.path, part.sha]));
+      if (review.art.requires.some((path) => !consumed.has(path))) die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is incomplete`);
+      const taskFolder = join(base, review.art.phase, "tasks");
+      const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
+      const tasks = names.filter((name) => /^T\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
+      const reports = names.filter((name) => /^T\d+-report-\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
+      const expected = new Map(reviewPackageMembers(review.art, review.prefix, scope, [...consumed.keys()], tasks, reports).map((path) => [path, consumed.get(path) ?? fileIdentity(join(base, path))]));
+      const actual = new Map(reviewed.map((entry) => { const part = pinParts(entry); return [part.path, part.sha]; }));
+      if (expected.size !== actual.size || [...expected].some(([path, sha]) => actual.get(path) !== sha)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
+    }
+    fm.set("reviewed", reviewed);
     if (report) {
       const task = `${report[1]}/tasks/${report[2]}.md`;
       const taskText = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
@@ -425,11 +471,8 @@ function cmdStamp(args) {
   }
   for (const s of args.set) {
     const i = s.indexOf("=");
-    if (i < 1) die(`stamp: --set expects key=value, got: ${s}`);
     const key = s.slice(0, i);
     const value = s.slice(i + 1);
-    if (key !== "lane") die(`stamp: --set accepts only lane, got: ${key}`);
-    if (!IDENTITY.test(value)) die(`stamp: lane must be a 12-character hexadecimal fingerprint, got: ${value}`);
     fm.set(key, value);
   }
   if (args.mirror) {
@@ -747,42 +790,42 @@ function cmdCheck(args) {
     if (!art) return [];
     const artifactPath = inScope(sc, art.path);
     const pinned = (pinsByPath.get(artifactPath) ?? []).map((p) => pinParts(p)?.path).filter(Boolean);
-    const base = [artifactPath, inScope(sc, art.record), ...pinned];
-    const schema = art.review && prefix === art.prefix ? [...base, ...taskFilesOf(art.phase)] : art.review && prefix === art.review ? [...base, ...taskFilesOf(art.phase), ...reportFilesOf(art.phase)] : base;
-    return [...new Set(schema)];
+    return reviewPackageMembers(art, prefix, sc, pinned, taskFilesOf(art.phase), reportFilesOf(art.phase));
   };
-  const schemaOf = (prefix, sc, lane = "") => materialPaths(prefix, sc, lane) ?? packageSchemaOf(prefix, sc);
-  const reviewFresh = (r, prefix, sc) => {
-    return samePackage(pinPackage(r.data.get("reviewed")), currentPackage(schemaOf(prefix, sc, r.lane)));
-  };
-  const validReviewPackage = (prefix, sc, packageMap) => {
+  const reviewPackageOf = (prefix, sc) => {
     const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
-    return [inScope(sc, art.path), inScope(sc, art.record), ...art.requires].every((path) => packageMap.has(path));
+    const consumed = pinPackage(all.find((d) => d.rel === inScope(sc, art.path))?.data.get("pins"));
+    return new Map(packageSchemaOf(prefix, sc).map((path) => [path, consumed?.get(path) ?? identityOf(path)]));
   };
-  const waveState = (prefix, sc, wave) => {
-    if (!wave) return null;
+  const reviewFresh = (r, prefix, sc) => {
+    const packageMap = reviewPackageOf(prefix, sc);
+    const paths = materialPaths(prefix, sc, r.lane);
+    const expected = paths === null ? packageMap : new Map(paths.map((path) => [path, packageMap.get(path)]));
+    return samePackage(pinPackage(r.data.get("reviewed")), expected);
+  };
+  const waveValidity = (prefix, sc, wave, packageMap) => {
+    if (!wave || !packageMap) return { valid: false, closed: false, reviews: [] };
     const rs = reviewsOf(sc).filter((r) => r.prefix === prefix && r.wave === wave);
     const lanes = reviewLanesOf(prefix);
     const reviews = lanes.map((lane) => rs.find((r) => r.lane === lane.id));
-    if (reviews.some((r, i) => !r || !r.data.has("reviewed") || !VERDICTS.has(r.data.get("verdict")) || !laneMatches(r, lanes[i].fingerprint))) return null;
+    if (reviews.some((r, i) => !r || !r.data.has("reviewed") || !VERDICTS.has(r.data.get("verdict")) || !laneMatches(r, lanes[i].fingerprint))) return { valid: false, closed: false, reviews: [] };
     const packages = reviews.map((r) => pinPackage(r.data.get("reviewed")));
-    if (packages.some((p) => !p)) return null;
-    const full = packages[0];
-    if (!validReviewPackage(prefix, sc, full)) return null;
-    for (let i = 1; i < packages.length; i++) {
+    if (packages.some((p) => !p)) return { valid: false, closed: false, reviews };
+    for (let i = 0; i < packages.length; i++) {
       const paths = materialPaths(prefix, sc, lanes[i].id);
-      const expected = paths === null ? full : new Map(paths.map((path) => [path, full.get(path)]));
-      if ([...expected.values()].some((sha) => !sha) || !samePackage(packages[i], expected)) return null;
+      const expected = paths === null ? packageMap : new Map(paths.map((path) => [path, packageMap.get(path)]));
+      if ([...expected.values()].some((sha) => !sha) || !samePackage(packages[i], expected)) return { valid: false, closed: false, reviews };
     }
-    return { reviews, package: full, approved: reviews.every((r) => r.data.get("verdict") === "approved") };
+    return { valid: reviews.every((r) => r.data.get("verdict") === "approved"), closed: true, reviews, package: packageMap };
   };
+  const latestWaveOf = (prefix, sc) => Math.max(0, ...reviewsOf(sc).filter((r) => r.prefix === prefix).map((r) => r.wave));
+  const certifiedPackageOf = (prefix, sc, wave) => pinPackage(reviewsOf(sc).find((r) => r.prefix === prefix && r.wave === wave && r.lane === "")?.data.get("reviewed"));
 
   // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
   const laneStates = (prefix, sc) => {
     const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
-    const currentWave = Math.max(0, ...rs.map((r) => r.wave));
-    const wave = waveState(prefix, sc, currentWave);
-    const waveCurrent = !!wave && samePackage(wave.package, currentPackage(schemaOf(prefix, sc)));
+    const currentWave = latestWaveOf(prefix, sc);
+    const wave = waveValidity(prefix, sc, currentWave, reviewPackageOf(prefix, sc));
     return reviewLanesOf(prefix).map(({ id: lane, fingerprint }) => {
       const mine = rs.filter((r) => r.lane === lane);
       const r = mine.length ? mine.reduce((a, b) => (a.wave >= b.wave ? a : b)) : null;
@@ -794,13 +837,12 @@ function cmdCheck(args) {
         fresh: reviewFresh(r, prefix, sc) && laneMatches(r, fingerprint),
         wave: r.wave,
         current: r.wave === currentWave,
-        waveApproved: waveCurrent && wave.approved,
-        waveClosed: waveCurrent,
+        waveApproved: wave.valid,
+        waveClosed: wave.closed,
         review: r,
       };
     });
   };
-  const approvedBy = (lanes) => lanes.length > 0 && lanes.every((l) => l.verdict === "approved" && l.current && l.waveApproved);
   const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
   // A wave is closed when every declared lane has a stamped, fresh review in the current wave.
   const waveClosed = (lanes) => lanes.length > 0 && lanes.every((l) => l.current && l.waveClosed);
@@ -811,11 +853,11 @@ function cmdCheck(args) {
   };
 
   // Waves since every declared lane approved together — a counter for the owner, never a gate.
-  const episodeOf = (prefix, sc, artifactDoc) => {
+  const episodeOf = (prefix, sc) => {
     const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
     const waves = [...new Set(rs.map((r) => r.wave))];
     const last = waves.length ? Math.max(...waves) : 0;
-    const approvedAll = (w) => waveState(prefix, sc, w)?.approved;
+    const approvedAll = (w) => waveValidity(prefix, sc, w, certifiedPackageOf(prefix, sc, w)).valid;
     const lastApproved = Math.max(0, ...waves.filter(approvedAll));
     const start = lastApproved;
     const episode = Math.max(0, last - start);
@@ -902,7 +944,8 @@ function cmdCheck(args) {
         return { state: "resolved", detail: `escalated by ${l.review.rel}` };
     const pinned = (pinsByPath.get(item.targetPath) ?? []).some((p) => pinParts(p)?.path === item.rel);
     if (!pinned) return { state: "pending" };
-    return approvedBy(lanes) ? { state: "resolved", detail: `${item.targetPath} approved carrying it` } : { state: "adjudicated", detail: `by ${item.targetPath}, awaiting approval` };
+    const approved = waveValidity(targetArtifact.prefix, "", latestWaveOf(targetArtifact.prefix, ""), reviewPackageOf(targetArtifact.prefix, "")).valid;
+    return approved ? { state: "resolved", detail: `${item.targetPath} approved carrying it` } : { state: "adjudicated", detail: `by ${item.targetPath}, awaiting approval` };
   };
 
   // 1. Triggers: external amendments and fresh failed task reports.
@@ -981,12 +1024,12 @@ function cmdCheck(args) {
       const inputArt = ARTIFACTS.find((a) => a.path === req) ?? ARTIFACTS.find((a) => a.review && req === a.path && false);
       if (!inputArt) continue;
       const lanes = laneStates(inputArt.prefix, "");
-      if (approvedBy(lanes)) required.push(...lanes.map((l) => l.review.rel));
+      if (waveValidity(inputArt.prefix, "", latestWaveOf(inputArt.prefix, ""), reviewPackageOf(inputArt.prefix, "")).valid) required.push(...lanes.map((l) => l.review.rel));
       else requirementsReady = false;
     }
     if (art.requiresReview) {
       const lanes = laneStates(art.requiresReview, "");
-      if (approvedBy(lanes)) required.push(...lanes.map((l) => l.review.rel));
+      if (waveValidity(art.requiresReview, "", latestWaveOf(art.requiresReview, ""), reviewPackageOf(art.requiresReview, "")).valid) required.push(...lanes.map((l) => l.review.rel));
       else requirementsReady = false;
     }
     const recorded = pinPackage(pins);
@@ -1002,8 +1045,8 @@ function cmdCheck(args) {
     ];
     const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
     const lanes = laneStates(art.prefix, sc);
-    const e = episodeOf(art.prefix, sc, doc);
-    const approved = approvedBy(lanes);
+    const e = episodeOf(art.prefix, sc);
+    const approved = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), reviewPackageOf(art.prefix, sc)).valid;
     return { state, stale, lanes, approved, episode: e.episode, recurs: e.recurs };
   };
   const nextFor = (path, st) =>
@@ -1025,8 +1068,8 @@ function cmdCheck(args) {
     const rootPinMap = new Map(rootPinParts.map((p) => [p.path, p.sha]));
     const consumedApproval = (sc) => {
       const waves = [...new Set(reviewsOf(sc).filter((r) => r.prefix === art.prefix && rootPinMap.has(r.rel)).map((r) => r.wave))];
-      return waves.map((wave) => waveState(art.prefix, sc, wave)).find((state) => {
-        if (!state?.approved || state.reviews.some((r) => !rootPinMap.has(r.rel))) return false;
+      return waves.map((wave) => waveValidity(art.prefix, sc, wave, certifiedPackageOf(art.prefix, sc, wave))).find((state) => {
+        if (!state.valid || state.reviews.some((r) => !rootPinMap.has(r.rel))) return false;
         return [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`].every((path) => rootPinMap.get(path) === state.package.get(path));
       });
     };
@@ -1039,8 +1082,8 @@ function cmdCheck(args) {
     const lanePackage = (sc) => {
       const closed = closedPackage(sc);
       if (closed) return closed;
-      const lanes = laneStates(art.prefix, sc);
-      const paths = [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...(approvedBy(lanes) ? lanes.map((l) => l.review.rel) : [])];
+      const approval = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), reviewPackageOf(art.prefix, sc));
+      const paths = [`${sc}${name}`, `${sc}${art.record.split("/").pop()}`, ...(approval.valid ? approval.reviews.map((r) => r.rel) : [])];
       return currentPackage(paths);
     };
     const dependencyPackage = (sc) => {
@@ -1053,7 +1096,10 @@ function cmdCheck(args) {
       const lane = laneOf(sc);
       if (lane.after.some((dep) => !laneApproved(`${art.phase}/${dep}/`))) return false;
       const doc = all.find((d) => d.rel === `${sc}${name}`);
-      return !!doc && (() => { const st = artifactState(doc, art, sc, dependencyPackage(sc), lane.fingerprint); return st.approved && st.state === "fresh"; })();
+      return !!doc && (() => {
+        const st = artifactState(doc, art, sc, dependencyPackage(sc), lane.fingerprint);
+        return st.state === "fresh" && waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc), reviewPackageOf(art.prefix, sc)).valid;
+      })();
     };
     let lanesReady = laneScopes.length > 0;
     for (const sc of laneScopes) {
@@ -1154,8 +1200,8 @@ function cmdCheck(args) {
     }
     // Phase review: names the plan, its record, its inputs, every task, and every report.
     const rl = laneStates(art.review, "");
-    const e = episodeOf(art.review, "", all.find((d) => d.rel === art.path));
-    const rApproved = approvedBy(rl);
+    const e = episodeOf(art.review, "");
+    const rApproved = waveValidity(art.review, "", latestWaveOf(art.review, ""), reviewPackageOf(art.review, "")).valid;
     out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => x), approved: rApproved, episode: e.episode, recurs: e.recurs };
     if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
     lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
