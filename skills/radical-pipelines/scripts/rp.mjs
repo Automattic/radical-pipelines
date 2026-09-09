@@ -618,7 +618,10 @@ function cmdStamp(args) {
       /* no commits yet: no head to record */
     }
   }
-  if (!fm.size) die("stamp: nothing to write (use --pin, --reviewed, --set, --mirror)");
+  if (!fm.size) {
+    process.stdout.write(`nothing to mirror ${relative(root, abs)}\n`);
+    return;
+  }
 
   writeFileSync(abs, renderFrontmatter(fm, body));
   process.stdout.write(`stamped ${relative(root, abs)}\n`);

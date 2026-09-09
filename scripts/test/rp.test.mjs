@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
@@ -171,6 +171,43 @@ describe("rp state tooling", () => {
     assert.deepEqual(parsed.data, new Map());
     assert.equal(parsed.body, body);
     assert.equal(identity(stamped), expected);
+  });
+
+  for (const [name, rel, body, flags] of [
+    ["no declarations", "3-build/tasks/T1.md", "# T1\n\nImplement the change.\n", ["--mirror"]],
+    ["empty frontmatter", "3-build/tasks/T1.md", "---\n---\n# T1\n", ["--mirror"]],
+    ["fenced declarations", "0-intent/notes.md", "# Notes\n\n```text\nVerdict: not a verdict\n```\n", ["--mirror"]],
+    ["no flags", "0-intent/notes.md", "# Notes\n", []],
+  ]) test(`empty stamp projection: ${name} succeeds without writing`, () => {
+    write(root, rel, body);
+    const path = join(root, P(rel));
+    const before = statSync(path, { bigint: true });
+    assert.equal(rp(root, "stamp", P(rel), ...flags), `nothing to mirror ${P(rel)}\n`);
+    assert.equal(read(root, rel), body);
+    const after = statSync(path, { bigint: true });
+    assert.equal(after.mtimeNs, before.mtimeNs);
+    assert.equal(after.ctimeNs, before.ctimeNs);
+  });
+
+  test("empty stamp projection: declared dependencies still produce mirrors", () => {
+    const rel = "3-build/tasks/T2.md", body = "# T2\n\nDepends on: T1\n";
+    write(root, rel, body);
+    assert.equal(rp(root, "stamp", P(rel), "--mirror"), `stamped ${P(rel)}\n`);
+    const parsed = parseFrontmatter(read(root, rel));
+    assert.deepEqual(parsed.data.get("depends"), ["T1"]);
+    assert.equal(parsed.body, body);
+  });
+
+  test("empty stamp projection: invalid fixed lines still fail without writing", () => {
+    const rel = "3-build/tasks/T1.md", body = "# T1\n\nDepends on: maybe\n";
+    write(root, rel, body);
+    assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), (error) => {
+      assert.equal(error.status, 1);
+      assert.match(error.stderr, /INVALID Depends on:/);
+      assert.doesNotMatch(error.stdout, /nothing to mirror/);
+      return true;
+    });
+    assert.equal(read(root, rel), body);
   });
 
   test("a body edit makes a pin stale; a frontmatter edit does not", () => {
