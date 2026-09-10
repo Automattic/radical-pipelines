@@ -592,7 +592,7 @@ describe("wired through setup", () => {
       },
     };
 
-    setup(ctx, {
+    await setup(ctx, {
       env: isolatedEnv(),
       readServiceRecord: () => null,
       agentsSourceDir: mkdtempSync(join(tmpdir(), "rp-perm-src-")),
@@ -643,7 +643,7 @@ describe("wired through setup", () => {
       },
     };
 
-    setup(ctx, {
+    await setup(ctx, {
       env: isolatedEnv(SERVER_ENV),
       readServiceRecord: () => null,
       requestFn: async (url, init) => {
@@ -669,14 +669,14 @@ describe("wired through setup", () => {
     assert.deepEqual(failed, toToolResult({ status: 500, error: "PermissionReplyFailed" }));
 
     delete globalThis[SETUP_ONCE_KEY];
-    const unreachable = createUnreachableReplyTool();
+    const unreachable = await createUnreachableReplyTool();
     const result = await unreachable.execute({ session: "s", request: "r", reply: "once" }, { sessionID: "ses_owner" });
     assert.deepEqual(result, toToolResult({ error: "server unreachable" }));
   });
 });
 
 /** Register the tools with no resolvable server and return rp_permission_reply. */
-function createUnreachableReplyTool() {
+async function createUnreachableReplyTool() {
   const tools = new Map();
   const ctx = {
     tool: {
@@ -703,7 +703,7 @@ function createUnreachableReplyTool() {
       },
     },
   };
-  setup(ctx, {
+  await setup(ctx, {
     env: isolatedEnv(),
     readServiceRecord: () => null,
     agentsSourceDir: mkdtempSync(join(tmpdir(), "rp-perm-src-")),

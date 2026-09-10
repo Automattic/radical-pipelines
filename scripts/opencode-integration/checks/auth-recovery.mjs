@@ -59,7 +59,7 @@ export async function run(ctx) {
       directory: projectDir,
       model: { providerID: "stub", id: "stub-model" },
     });
-    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "auth-recovery-respawn", agent: "spec-researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "auth-recovery-run" });
+    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "auth-recovery-respawn", agent: "researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "auth-recovery-run" });
     assert.ok(result.text?.startsWith("ses_"), `expected a fresh session ID, got: ${result.text}`);
   });
 
@@ -67,7 +67,7 @@ export async function run(ctx) {
     results,
     "a spawned child's auth failure carries its cause to the spawner notification and rp_status's recentErrors",
     async () => {
-      const spawn = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "auth-cause-child", agent: "spec-researcher", model: "stubnoauth/stub-model", directory: projectDir, prompt: "say hello", run: "auth-recovery-run" });
+      const spawn = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "auth-cause-child", agent: "researcher", model: "stubnoauth/stub-model", directory: projectDir, prompt: "say hello", run: "auth-recovery-run" });
       assert.ok(spawn.text?.startsWith("ses_"), `expected a session ID, got: ${spawn.text}`);
       const childID = spawn.text;
 

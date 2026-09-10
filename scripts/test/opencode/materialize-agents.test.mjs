@@ -16,17 +16,17 @@ import { materializeAgents, resolveAgentsTargetDir } from "../../../opencode/plu
 describe("resolveAgentsTargetDir", () => {
   test("honors XDG_CONFIG_HOME when set", () => {
     const path = resolveAgentsTargetDir({ XDG_CONFIG_HOME: "/custom/config-home" });
-    assert.equal(path, join("/custom/config-home", "opencode", "agents"));
+    assert.equal(path, join("/custom/config-home", "opencode", "agents", "radical-pipelines"));
   });
 
-  test("falls back to ~/.config/opencode/agents when XDG_CONFIG_HOME is unset", () => {
+  test("falls back to ~/.config/opencode/agents/radical-pipelines when XDG_CONFIG_HOME is unset", () => {
     const path = resolveAgentsTargetDir({});
-    assert.equal(path, join(homedir(), ".config", "opencode", "agents"));
+    assert.equal(path, join(homedir(), ".config", "opencode", "agents", "radical-pipelines"));
   });
 
   test("defaults to the real process environment when none is given", () => {
     const path = resolveAgentsTargetDir();
-    assert.ok(path.endsWith(join("opencode", "agents")));
+    assert.ok(path.endsWith(join("opencode", "agents", "radical-pipelines")));
   });
 });
 
@@ -60,7 +60,6 @@ describe("materializeAgents", () => {
     const result = materializeAgents(sourceDir, targetDir);
 
     assert.deepEqual(result.written.sort(), ["agent-a.md", "agent-b.md"]);
-    assert.deepEqual(result.collisions, []);
 
     assert.equal(
       readFileSync(join(targetDir, "agent-a.md"), "utf8"),
@@ -73,40 +72,21 @@ describe("materializeAgents", () => {
     assert.ok(!existsSync(join(targetDir, "README.txt")));
   });
 
-  test("a second materialize with unchanged sources is a no-op diff and overwrites only RP-owned files", () => {
+  test("regenerates the target whole while leaving everything outside it untouched", () => {
     materializeAgents(sourceDir, targetDir);
-    const before = {
-      a: readFileSync(join(targetDir, "agent-a.md"), "utf8"),
-      b: readFileSync(join(targetDir, "agent-b.md"), "utf8"),
-    };
+    const strayDir = join(targetDir, "stray");
+    mkdirSync(strayDir);
+    writeFileSync(join(strayDir, "nested.md"), "remove me");
+    writeFileSync(join(targetDir, "stray.md"), "remove me too");
+    const outside = join(root, "outside.md");
+    writeFileSync(outside, "keep me");
 
     const result = materializeAgents(sourceDir, targetDir);
 
-    assert.deepEqual(result.collisions, []);
     assert.deepEqual(result.written.sort(), ["agent-a.md", "agent-b.md"]);
-    assert.equal(
-      readFileSync(join(targetDir, "agent-a.md"), "utf8"),
-      before.a,
-    );
-    assert.equal(
-      readFileSync(join(targetDir, "agent-b.md"), "utf8"),
-      before.b,
-    );
-  });
-
-  test("a pre-existing target file of the same name that is not RP-owned is reported as a collision and left unmodified", () => {
-    mkdirSync(targetDir, { recursive: true });
-    const foreignContent = "a foreign, hand-authored agent profile\n";
-    writeFileSync(join(targetDir, "agent-a.md"), foreignContent);
-
-    const result = materializeAgents(sourceDir, targetDir);
-
-    assert.deepEqual(result.collisions, ["agent-a.md"]);
-    assert.deepEqual(result.written, ["agent-b.md"]);
-    assert.equal(
-      readFileSync(join(targetDir, "agent-a.md"), "utf8"),
-      foreignContent,
-    );
+    assert.equal(existsSync(strayDir), false);
+    assert.equal(existsSync(join(targetDir, "stray.md")), false);
+    assert.equal(readFileSync(outside, "utf8"), "keep me");
   });
 
   test("updating a source profile and re-materializing overwrites the RP-owned target with the new bytes", () => {

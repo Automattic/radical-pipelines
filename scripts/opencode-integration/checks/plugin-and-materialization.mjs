@@ -1,7 +1,6 @@
 /**
- * Plugin load and version-id reporting, skill registration, and
- * agent-materialization mechanics — including foreign-file collision safety
- * and collision reporting — driven against the sandbox's running `serve`
+ * Plugin load and version-id reporting, skill registration, and isolated
+ * agent-folder regeneration, driven against the sandbox's running `serve`
  * process.
  */
 
@@ -24,16 +23,18 @@ const PACKAGE_JSON_PATH = join(REPO_ROOT, "package.json");
  */
 export async function run(ctx) {
   const { server, stub, projectDir, xdgConfigHome, results } = ctx;
-  const materializedAgentsDir = join(xdgConfigHome, "opencode", "agents");
+  const agentsDir = join(xdgConfigHome, "opencode", "agents");
+  const materializedAgentsDir = join(agentsDir, "radical-pipelines");
 
-  await runCheck(results, "collision safety: pre-existing foreign file at an agent path is left untouched", async () => {
+  await runCheck(results, "agent folder regeneration: seed files inside and outside RP's folder", async () => {
     // Seeded BEFORE the plugin's setup() has a chance to run (setup is lazy,
-    // triggered by the sandbox's first session — created just below) — a
-    // foreign, non-RP-owned file at a would-be materialized filename.
+    // triggered by the sandbox's first session — created just below).
     mkdirSync(materializedAgentsDir, { recursive: true });
-    ctx.foreignAgentPath = join(materializedAgentsDir, "spec-lead.md");
-    ctx.foreignAgentContent = "a foreign, hand-authored agent profile\n";
-    writeFileSync(ctx.foreignAgentPath, ctx.foreignAgentContent);
+    ctx.strayAgentPath = join(materializedAgentsDir, "stray.md");
+    ctx.outsideAgentPath = join(agentsDir, "owner-agent.md");
+    ctx.outsideAgentContent = "an owner-authored agent profile\n";
+    writeFileSync(ctx.strayAgentPath, "remove me\n");
+    writeFileSync(ctx.outsideAgentPath, ctx.outsideAgentContent);
   });
 
   await runCheck(results, "plugin loads and /api/plugin reports radical-pipelines@<package.json version>", async () => {
@@ -79,10 +80,10 @@ export async function run(ctx) {
     );
   });
 
-  await runCheck(results, "agent materialization: every source *.md profile is available by its filename-derived id", async () => {
+  await runCheck(results, "agent materialization: every source profile is available under RP's namespace", async () => {
     const sourceNames = readdirSync(AGENTS_SOURCE_DIR).filter((name) => name.endsWith(".md"));
     assert.ok(sourceNames.length > 0, "expected at least one source agent profile");
-    const expectedIDs = sourceNames.map((name) => name.replace(/\.md$/, "")).filter((id) => id !== "spec-lead");
+    const expectedIDs = sourceNames.map((name) => `radical-pipelines/${name.replace(/\.md$/, "")}`);
 
     const agents = await pollUntil(
       async () => {
@@ -95,14 +96,12 @@ export async function run(ctx) {
     const agentIDs = new Set(agents.map((a) => a.id));
 
     for (const id of expectedIDs) {
-      // "spec-lead" collided with the foreign file seeded above; it must NOT
-      // have been materialized (see the collision-safety check below).
       assert.ok(agentIDs.has(id), `expected agent "${id}" to be recognized; got: ${JSON.stringify([...agentIDs])}`);
     }
   });
 
   await runCheck(results, "agent materialization: materialized bytes match the source profile exactly", async () => {
-    const fileName = "spec-researcher.md";
+    const fileName = "researcher.md";
     const sourceBytes = readFileSync(join(AGENTS_SOURCE_DIR, fileName), "utf8");
     const materializedPath = join(materializedAgentsDir, fileName);
     await pollUntil(async () => existsSync(materializedPath), {
@@ -113,39 +112,25 @@ export async function run(ctx) {
     assert.equal(materializedBytes, sourceBytes);
   });
 
-  await runCheck(results, "collision safety: the foreign file at a colliding agent path was left byte-identical", async () => {
-    const currentContent = readFileSync(ctx.foreignAgentPath, "utf8");
-    assert.equal(currentContent, ctx.foreignAgentContent, "the foreign file must not have been overwritten");
+  await runCheck(results, "agent folder regeneration: stray content disappears and outside content is untouched", async () => {
+    assert.equal(existsSync(ctx.strayAgentPath), false, "the stray file inside RP's folder must be removed");
+    assert.equal(readFileSync(ctx.outsideAgentPath, "utf8"), ctx.outsideAgentContent);
   });
 
   await runCheck(
     results,
-    "collision reporting: the seeded spec-lead.md collision is observable via rp_status's recentErrors",
+    "every RP tool is offered to the model by name, not only through Code Mode's execute wrapper",
     async () => {
       const session = await createSession(server, {
         agent: "build",
         directory: projectDir,
         model: { providerID: "stub", id: "stub-model" },
       });
-      const result = await driveToolCall(server, session.id, "rp_status");
-      const status = JSON.parse(result.text);
-      assert.ok(
-        status.recentErrors.some(
-          (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
-        ),
-        `expected rp_status's recentErrors to report the spec-lead.md collision, got: ${JSON.stringify(status.recentErrors)}`,
-      );
-    },
-  );
-
-  await runCheck(
-    results,
-    "every RP tool is offered to the model by name, not only through Code Mode's execute wrapper",
-    async () => {
+      await driveToolCall(server, session.id, "rp_status");
       // opencode routes a registered tool by its `options.codemode`: only
       // `codemode: false` reaches the model as a tool of its own. Every
-      // check above drove its tool through the offered-name gate, so this
-      // asserts the whole set at once — the regression that silently moved
+      // driven tool passes through the offered-name gate, so this asserts the
+      // whole set at once — the regression that silently moved
       // all eight behind `execute` is invisible to a suite that only ever
       // calls them one at a time.
       const offered = stub.offeredToolNames();

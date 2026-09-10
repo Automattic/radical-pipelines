@@ -1,0 +1,40 @@
+# Agents
+
+How the project configures the agents it runs: the model of each profile, and the lanes it adds.
+
+## Format
+
+Blocks under `.rp.md`'s `Agents` section, one per profile. A profile with no block runs with your own model and no named lanes.
+
+```markdown
+#### researcher
+
+- model: <model, in the active tool's form, or a name the tool section defines>
+
+#### spec-producer
+
+- model: <model>
+- lane event-driven:
+  - brief: Explore an event-driven design; the spec's obligations are unchanged.
+- lane contrarian:
+  - after: event-driven
+  - brief: Diverge from the lanes you receive; find the path they did not take.
+  - model: <model>
+
+#### build-reviewer
+
+- model: <model>
+- lane fresh:
+  - brief: Review as a reader of the pull request would — what it does, whether it holds.
+  - materials: 3-build/build-plan.md
+```
+
+## Fields
+
+- `model` — what to spawn the profile on. A lane inherits the profile's unless it names its own.
+- `lane <id>` — a named lane; `<id>` starts with a lowercase letter or digit, continues with those or hyphens, and is not `tasks`. A reviewer's named lanes review **in addition to** its implicit lane. Named production lanes apply only to spec and design-doc producers and **replace** root synthesis: each produces in `<phase>/<id>/`, and the root artifact is their consolidation.
+- `brief` — the lane's angle: for a reviewer, what it verifies (without a brief, everything its profile covers); for a producer, what it explores. Reaches the agent verbatim under **Brief**.
+- `materials` — the pipeline-relative members selected from the review package in `../run/state.md` § Terms. The prompt declares that package; its references supply historical material. The lane declaration carries these paths; without it, the lane names the full package. **Diff**, **Brief**, **Research**, and **Write to** are always supplied and never filtered.
+- `after` — production lanes only: the lanes whose approved artifacts this one receives, and waits for.
+
+The implicit lane has no id, no brief, all materials, and the profile's model. Assisted runs have no named lanes and use owner approval as the whole review; production lanes use the autonomous workflow.

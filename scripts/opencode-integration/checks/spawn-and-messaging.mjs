@@ -39,7 +39,7 @@ export async function run(ctx) {
     model: STUB_MODEL,
   });
 
-  await runCheck(results, "rp_spawn rejects a bogus agent before creating a session", async () => {
+  await runCheck(results, "rp_spawn rejects an unknown RP profile before creating a session", async () => {
     const result = await driveToolCall(server, orchestrator.id, "rp_spawn", {
       name: "bogus-agent-attempt",
       agent: "not-a-real-rp-agent",
@@ -50,7 +50,7 @@ export async function run(ctx) {
     });
     assert.match(
       result.error?.message ?? "",
-      /Unknown agent "not-a-real-rp-agent"/,
+      /Unknown RP agent "not-a-real-rp-agent"/,
       `expected the bogus agent to be rejected, got: ${JSON.stringify(result)}`,
     );
   });
@@ -58,7 +58,7 @@ export async function run(ctx) {
   await runCheck(results, "rp_spawn rejects a bogus model string at parse", async () => {
     const result = await driveToolCall(server, orchestrator.id, "rp_spawn", {
       name: "bogus-model-attempt",
-      agent: "spec-researcher",
+      agent: "researcher",
       model: "not-a-valid-model-string",
       directory: projectDir,
       prompt: "hi",
@@ -71,15 +71,15 @@ export async function run(ctx) {
   });
 
   let childID;
-  await runCheck(results, "rp_spawn creates a session seated at the given directory and returns its session ID", async () => {
-    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "suite-child", agent: "spec-researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "suite-run" });
+  await runCheck(results, "rp_spawn takes a plain profile name and runs the namespaced agent in the given directory", async () => {
+    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "suite-child", agent: "researcher", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "suite-run" });
     assert.equal(result.structuredJSON, undefined, "rp_spawn's structured result is the bare session ID, not JSON");
     assert.ok(result.text?.startsWith("ses_"), `expected a session ID, got: ${result.text}`);
     childID = result.text;
 
     const child = await getSession(server, childID);
     assert.equal(child.location.directory, projectDir, "the spawned session must be seated at the requested directory");
-    assert.equal(child.agent, "spec-researcher");
+    assert.equal(child.agent, "radical-pipelines/researcher");
 
     const launch = await pollUntil(
       async () => (await getMessages(server, childID)).find((message) => message.type === "user"),
@@ -139,7 +139,7 @@ export async function run(ctx) {
       // child's turn rather than on the orchestrator's driving one.
       const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", {
         name: "suite-interrupted-child",
-        agent: "spec-researcher",
+        agent: "researcher",
         model: "stub/stub-model",
         directory: projectDir,
         prompt: `__RP_SLOW__:8000:__END__ title-interrupt-${Date.now()}`,

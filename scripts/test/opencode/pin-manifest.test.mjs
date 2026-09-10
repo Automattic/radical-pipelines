@@ -56,7 +56,7 @@ describe("opencode/pin.json", () => {
     assert.ok(pin.plugin.length > 0);
   });
 
-  test("pins cli to the exact confirmed build", () => {
+  test("pins cli to the exact build confirmed to discover nested agent profiles", () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
     assert.equal(pin.cli, "0.0.0-dev-19093");
   });

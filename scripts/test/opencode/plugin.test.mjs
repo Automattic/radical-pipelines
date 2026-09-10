@@ -91,7 +91,11 @@ async function clearAllLoopTimers() {
  * `agent`, `session`, `event`).
  */
 function createFakeCtx({
-  agents = ["spec-lead", "spec-reviewer", "build-writer-tdd"],
+  agents = [
+    "radical-pipelines/spec-reviewer",
+    "radical-pipelines/researcher",
+    "radical-pipelines/build-worker-tdd",
+  ],
   legacySkillDraft = false,
 } = {}) {
   const tools = new Map();
@@ -238,7 +242,6 @@ function createFakeCtx({
 /** Options that keep every `setup()` call in this file off the real home dir. */
 function isolatedDeps(overrides = {}) {
   return {
-    agentsSourceDir: freshDir(),
     agentsTargetDir: freshDir(),
     ...overrides,
   };
@@ -359,42 +362,17 @@ describe("setup: tool and skill registration", () => {
     assert.equal(first.hookDisposals, 1);
     assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "the last location's cleanup tears down the shared resources");
   });
-
-  test("a materialization collision with a pre-existing foreign agent file is surfaced via rp_status's recentErrors", async () => {
-    globalThis[ERROR_LOG_KEY] = [];
-    const sourceDir = freshDir();
-    const targetDir = freshDir();
-    writeFileSync(join(sourceDir, "spec-lead.md"), "# RP spec-lead\n");
-    writeFileSync(join(targetDir, "spec-lead.md"), "# foreign spec-lead, not RP-owned\n");
-
-    const { ctx, tools } = createFakeCtx();
-    await setup(ctx, {
-      env: {},
-      agentsSourceDir: sourceDir,
-      agentsTargetDir: targetDir,
-      readServiceRecord: () => null,
-      readCliVersion: () => null,
-    });
-
-    const result = (await tools.get("rp_status").execute({}, {})).output;
-    assert.ok(
-      result.recentErrors.some(
-        (entry) => entry.type === "agent.materialize.collision" && entry.name === "spec-lead.md",
-      ),
-      `expected a materialize-collision entry for spec-lead.md, got: ${JSON.stringify(result.recentErrors)}`,
-    );
-  });
 });
 
 describe("rp_spawn", () => {
   afterEach(clearAllLoopTimers);
 
-  test("rejects an agent not in ctx.agent.list() before any session.create", async () => {
-    const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-lead"] });
-    setup(ctx, isolatedDeps({ env: {} }));
+  test("rejects a name that is not an RP profile before any session.create", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    await setup(ctx, isolatedDeps({ env: {} }));
 
-    await assert.rejects(() =>
-      tools.get("rp_spawn").execute(
+    await assert.rejects(
+      () => tools.get("rp_spawn").execute(
         {
           name: "spec-reviewer-1",
           agent: "not-a-real-agent",
@@ -405,13 +383,14 @@ describe("rp_spawn", () => {
         },
         { sessionID: "ses_orchestrator" },
       ),
+      /Unknown RP agent "not-a-real-agent"/,
     );
     assert.equal(sessions.size, 0);
   });
 
-  test("on a valid agent, creates the session seated at directory, records the ledger entry with spawner = toolCtx.sessionID plus the seat and its repo root, and returns the created session ID", async () => {
-    const { ctx, tools, sessions } = createFakeCtx({ agents: ["spec-reviewer"] });
-    setup(ctx, isolatedDeps({ env: {}, resolveRepoRootFn: (directory) => `${directory}-repo-root` }));
+  test("resolves a plain RP profile name to its namespaced agent ID, seats it, records it, and returns its session ID", async () => {
+    const { ctx, tools, sessions } = createFakeCtx({ agents: ["radical-pipelines/spec-reviewer"] });
+    await setup(ctx, isolatedDeps({ env: {}, resolveRepoRootFn: (directory) => `${directory}-repo-root` }));
 
     let initialPrompt;
     const originalPrompt = ctx.session.prompt.bind(ctx.session);
@@ -437,7 +416,7 @@ describe("rp_spawn", () => {
     assert.equal(typeof sessionID, "string");
     const created = sessions.get(sessionID);
     assert.ok(created);
-    assert.equal(created.agent, "spec-reviewer");
+    assert.equal(created.agent, "radical-pipelines/spec-reviewer");
     assert.deepEqual(created.model, {
       providerID: "anthropic",
       id: "claude-3-opus",
@@ -457,8 +436,8 @@ describe("rp_spawn", () => {
     assert.ok(initialPrompt.text.startsWith("begin the review\n\n## RP messaging (opencode)"));
     assert.match(initialPrompt.text, /\*\*Spawner identifier:\*\* ses_orchestrator/);
     assert.match(initialPrompt.text, /`rp_send`/);
-    assert.match(initialPrompt.text, /Requester identifier.*otherwise.*Spawner identifier/s);
-    assert.match(initialPrompt.text, /for what your profile addresses to your requester/);
+    assert.match(initialPrompt.text, /\*\*Requester\*\*.*\*\*Spawner identifier\*\*/s);
+    assert.match(initialPrompt.text, /what your profile sends to its requester/);
   });
 
   test("the appended protocol tells the agent an ended turn is a stop and to hold its turn while work is outstanding", () => {
@@ -649,7 +628,7 @@ describe("rp_terminate", () => {
 
   test("reports an unreachable server without issuing a request", async () => {
     const { ctx, tools } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
 
     assert.deepEqual(
       await tools.get("rp_terminate").execute({ session: "ses_finished" }, { sessionID: "ses_owner" }),
@@ -663,7 +642,7 @@ describe("rp_send", () => {
 
   test("exposes no delivery control and ignores one smuggled into the arguments", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender", { id: "ses_sender" });
     sessions.set("ses_receiver", { id: "ses_receiver" });
 
@@ -688,7 +667,7 @@ describe("rp_send", () => {
 
   test("delivers to the sender's own spawner with steer", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_worker", { id: "ses_worker" });
     sessions.set("ses_its_spawner", { id: "ses_its_spawner" });
     // The commonest direction there is: an agent reporting to whoever spawned
@@ -721,7 +700,7 @@ describe("rp_send", () => {
 
   test("delivers agent-to-agent with steer, not only to and from the orchestrator", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_researcher", { id: "ses_researcher" });
     sessions.set("ses_requester", { id: "ses_requester" });
     // Both ends are RP spawns: the requester/researcher pair, not the spawner.
@@ -750,7 +729,7 @@ describe("rp_send", () => {
 
   test("delivers with steer and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender", { id: "ses_sender" });
     sessions.set("ses_receiver", { id: "ses_receiver" });
     recordSpawn("ses_sender", {
@@ -881,7 +860,7 @@ describe("rp_send", () => {
 
   test("returns the 404 for a dead target as the tool result rather than throwing", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender2", { id: "ses_sender2" });
     recordSpawn("ses_sender2", {
       name: "spec-lead",
@@ -899,7 +878,7 @@ describe("rp_send", () => {
 
   test("records the sender's admitted send with its recipient, and nothing for a rejected one", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
-    setup(ctx, isolatedDeps({ env: {} }));
+    await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_sender_rec", { id: "ses_sender_rec" });
     sessions.set("ses_its_spawner_rec", { id: "ses_its_spawner_rec" });
     recordSpawn("ses_sender_rec", {
@@ -4785,7 +4764,7 @@ describe("terminal-event listener", () => {
       spawner: "ses_spawner_success_log",
     });
 
-    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
     pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_success_log" } });
     await delay(10);
 
@@ -4810,7 +4789,7 @@ describe("terminal-event listener", () => {
       return args;
     };
 
-    setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
 
     const structuredError = {
       type: "provider.auth",
@@ -4960,7 +4939,7 @@ describe("buildLedgerRows", () => {
       [
         {
           id: "ses_ledger_1",
-          agent: "spec-lead",
+          agent: "radical-pipelines/spec-lead",
           model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
           location: { directory: "/repo/worktree" },
           time: { updated: 123 },
@@ -5088,7 +5067,7 @@ describe("buildLedgerRows", () => {
       [
         {
           id: "ses_after_restart",
-          agent: "spec-lead",
+          agent: "radical-pipelines/spec-lead",
           model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
           location: { directory: "/repo" },
           time: { updated: 1 },
@@ -5102,6 +5081,7 @@ describe("buildLedgerRows", () => {
 
     assert.equal(rows.length, 1);
     assert.equal(rows[0].name, "spec-lead-2");
+    assert.equal(rows[0].agent, "spec-lead");
   });
 });
 

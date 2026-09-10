@@ -122,7 +122,7 @@ export async function run(ctx) {
     async () => {
       const spawned = await driveToolCall(server, root.id, "rp_spawn", {
         name: "suite-tool-access-agent",
-        agent: "spec-researcher",
+        agent: "researcher",
         model: "stub/stub-model",
         directory: projectDir,
         prompt: "report readiness",
