@@ -1,5 +1,73 @@
 # @automattic/radical-pipelines
 
+## 0.16.0
+
+### Minor Changes
+
+- [#277](https://github.com/Automattic/radical-pipelines/pull/277) [`dcfcfaf`](https://github.com/Automattic/radical-pipelines/commit/dcfcfaf7d24ee3663d8b013004634dc16cb8ad6f) Thanks [@luisherranz](https://github.com/luisherranz)! - Add liveness facts to each `rp_status` ledger row — `run`, `activity` (the latest of `updated`, which the pinned opencode build moves only when the session receives input, the session's last observed tool or model progress event, and its last raw provider byte), `lastTurn` (succeeded, failed, or interrupted) and `turns`, `lastSend`, and `lastText` (the newest assistant text, or how deep a textless transcript was searched) — so an orchestrator can tell a working, a waiting, and a stopped agent apart; per-session status reads now cover only the sessions RP recognizes. The protocol `rp_spawn` appends now also tells each agent that an ended turn is a stop only a message resumes — a reply it awaits, or the completion notice of a background command it gave a `timeout` — and to hold its turn for anything else, waiting with foreground commands that have a timeout and comparing progress between checks
+
+- [#283](https://github.com/Automattic/radical-pipelines/pull/283) [`df0c64a`](https://github.com/Automattic/radical-pipelines/commit/df0c64abd367a9bcdb42ba9f6ed88a0367be8bbb) Thanks [@luisherranz](https://github.com/luisherranz)! - Register every RP tool as directly invocable on opencode, so an agent calls `rp_spawn`, `rp_send`, `rp_terminate`, `rp_loop_start`, `rp_loop_list`, `rp_loop_cancel`, `rp_status`, and `rp_permission_reply` by name. opencode routes a registered tool by its `options.codemode` and defaults to Code Mode, so tools that declared no option were reachable only inside the `execute` wrapper; each one now declares the direct form, as opencode's own built-in tools do. `setup` also awaits its tool and skill registrations — each returns a promise opencode resolves to a disposable, and `setup` is what the plugin API waits on before treating a location as live, so returning early could serve a session a catalogue RP had not finished contributing to. The pin moves to opencode build `0.0.0-dev-19093`
+
+- [#285](https://github.com/Automattic/radical-pipelines/pull/285) [`7539f33`](https://github.com/Automattic/radical-pipelines/commit/7539f3384cd790905f0ad52edb9efa26d1bc49f9) Thanks [@luisherranz](https://github.com/luisherranz)! - Bound requirements by what the intent makes material and admit disproportion as evidence against agent-chosen clauses, with accepted consequences judged by what they leave unserved, so review waves converge on proportionate mechanisms instead of total ones
+
+- [#282](https://github.com/Automattic/radical-pipelines/pull/282) [`2221565`](https://github.com/Automattic/radical-pipelines/commit/2221565b07723c78c0f3ff16d739e2f2031e5ead) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: scope the opencode plugin's tools to the session calling them. Every session in the daemon reached all eight, so a subagent — created by an agent delegating inside its own turn, and asked only to return findings — was handed the orchestration set and, through `rp_loop_list`, a directory of every live run to address. One of them reported into a pipeline that was not its own. Now the orchestrator and the owner's session reach every tool, a spawned agent reaches `rp_send` alone, and a subagent reaches none and is told to return its result to whoever delegated to it.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`1daa010`](https://github.com/Automattic/radical-pipelines/commit/1daa010f9359e7cfa3236acddc089c251e8b68df) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: Architecture v3.
+  
+  A pipeline is a converging set of artifacts. State is computed from the working tree: identities are body hashes, pins live in frontmatter written only by the orchestrator's `rp stamp`, and `rp check` reports the frontier — the first thing to do — from the tree alone, so any orchestrator, on any machine, continues a pipeline without a handoff. Corrections are amendments that cascade through staleness; forks, revisions, and pipeline families are gone. Every artifact loop carries a third verdict, `unsatisfiable`, that routes a contradiction to the artifact that must change — up to the owner when it contradicts a recorded Goal, Constraint, or Decision. No wave count gates a run: there is no valve and no audit; the orchestrator exercises judgment only at triage and owner escalation.
+  
+  Spec and design phases verify by inspection only and label every claim verified or assumed; build verifies assumptions first. Plans are folders of self-contained task files; task reports — `completed`, `failed` with reproducible evidence, or `blocked` when the product could not be observed — pin the tasks they executed and name the commits they made; `rp check` requires them to claim every commit after the pipeline's base outside the pipelines folder. Fixed lines in artifacts (`Verdict:`, `Target:`, `Outcome:`, `Depends on:`, `## Commits`, …) are mirrored whole into frontmatter or rejected as `INVALID`; a review's pins never change. Named lanes — production lanes with a brief, optionally `after` others; review lanes with a brief and materials — are identified by their whole declaration, run in their own branches, and consolidate into the root artifact.
+  
+  Profiles are rewritten on one schema (Role, Seat, Modes, Rules, Protocol, Formats), re-derived from v2 with every rule kept unless a v3 decision retired it, and paired with prompt templates in the skill: consolidators become a producer mode, writers become workers, research goes through one `researcher`, phase summaries are gone, and blockers only report malformed materials or a broken environment. Closure actions — opening, merging, or closing a pull request — are invoked by the owner.
+  
+  Conventions: `.rp.md` carries a `conventions` schema stamp with a migration changelog; tool mechanics move into the skill's `tools/` files, with a project-supplied fallback for other tools; `Agents` replaces `Agent models`, configuring each profile's model and named lanes; `Artifact storage` keeps `artifacts-in-repo` and `artifacts-in-fork` and names the artifact base branch, which `rp check --base` takes; `Health monitoring` keeps its recovery budget and escalation payload; lifecycle hooks cover pipeline, branch, worktree, phase, lane, run, and closure moments.
+  
+  The opencode plugin regenerates its namespaced agent-profile folder and spawns RP profiles from their plain names.
+
+### Patch Changes
+
+- [#280](https://github.com/Automattic/radical-pipelines/pull/280) [`80bb7f6`](https://github.com/Automattic/radical-pipelines/commit/80bb7f6da70dec3b24b6e2d16955be67b3efdea9) Thanks [@luisherranz](https://github.com/luisherranz)! - Bound opencode health-loop server requests and ticks so one unanswered request cannot stop a loop or wedge `rp_loop_cancel`
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`b428c1f`](https://github.com/Automattic/radical-pipelines/commit/b428c1f3e2494824e81380ce3e329f6b792fd9b3) Thanks [@luisherranz](https://github.com/luisherranz)! - Number attempts from landed task reports.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`1d85d49`](https://github.com/Automattic/radical-pipelines/commit/1d85d498cc8f769d78fe171d642ebc6074121817) Thanks [@luisherranz](https://github.com/luisherranz)! - Preserve complete lane packages after consolidation.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`b428c1f`](https://github.com/Automattic/radical-pipelines/commit/b428c1f3e2494824e81380ce3e329f6b792fd9b3) Thanks [@luisherranz](https://github.com/luisherranz)! - Derive retained inputs from recorded packages.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`2bf679b`](https://github.com/Automattic/radical-pipelines/commit/2bf679b5a13f8c9a3808dd35d1c4553a6e3c4fbe) Thanks [@luisherranz](https://github.com/luisherranz)! - Report representation contradictions before base-dependent state.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`7731fe4`](https://github.com/Automattic/radical-pipelines/commit/7731fe402d98e252e70c941dbf287681a7b4ec7f) Thanks [@luisherranz](https://github.com/luisherranz)! - Run the opencode integration suite in CI on every pull request except automated release pull requests, alongside the unit tests.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`b428c1f`](https://github.com/Automattic/radical-pipelines/commit/b428c1f3e2494824e81380ce3e329f6b792fd9b3) Thanks [@luisherranz](https://github.com/luisherranz)! - Preserve tabs in paths read from Git trees.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`b428c1f`](https://github.com/Automattic/radical-pipelines/commit/b428c1f3e2494824e81380ce3e329f6b792fd9b3) Thanks [@luisherranz](https://github.com/luisherranz)! - Keep lane reviews in their artifact phase.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`b428c1f`](https://github.com/Automattic/radical-pipelines/commit/b428c1f3e2494824e81380ce3e329f6b792fd9b3) Thanks [@luisherranz](https://github.com/luisherranz)! - Validate trigger targets when they land.
+
+- [#282](https://github.com/Automattic/radical-pipelines/pull/282) [`2221565`](https://github.com/Automattic/radical-pipelines/commit/2221565b07723c78c0f3ff16d739e2f2031e5ead) Thanks [@luisherranz](https://github.com/luisherranz)! - Retire an opencode health loop whose target session no longer exists. A dead target is terminal — no later tick can find it — but every tick failed and re-armed, so one abandoned loop filled `recentErrors` with the same 404 for as long as the daemon ran, burying the failures worth reading. The loop now records `loop.retired` once and stops.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`3ba2fdd`](https://github.com/Automattic/radical-pipelines/commit/3ba2fdd509135e5adb0533e1dc5b05280d7d3bc4) Thanks [@luisherranz](https://github.com/luisherranz)! - Accept empty stamp projections as informative no-ops without rewriting the file.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`dd41f36`](https://github.com/Automattic/radical-pipelines/commit/dd41f36bd94e7b34627137c75c2b6174f8735381) Thanks [@luisherranz](https://github.com/luisherranz)! - Consolidate approved new lanes into existing roots.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`bfc6d72`](https://github.com/Automattic/radical-pipelines/commit/bfc6d72a6f841c8a1cd11451902fb8b1f43c648e) Thanks [@luisherranz](https://github.com/luisherranz)! - Preserve historical wave validity after artifact changes.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`d2ccb2c`](https://github.com/Automattic/radical-pipelines/commit/d2ccb2c22d303cc5dc951c4d89b838e774564cbf) Thanks [@luisherranz](https://github.com/luisherranz)! - Reject review materials outside the judged package.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`b428c1f`](https://github.com/Automattic/radical-pipelines/commit/b428c1f3e2494824e81380ce3e329f6b792fd9b3) Thanks [@luisherranz](https://github.com/luisherranz)! - Reject sibling records from artifact packages.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`1192562`](https://github.com/Automattic/radical-pipelines/commit/1192562771e4b25df8a0d03ffe4aaf6c6df6cff7) Thanks [@luisherranz](https://github.com/luisherranz)! - Unify complete wave validity across pipeline state.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`0b603e9`](https://github.com/Automattic/radical-pipelines/commit/0b603e99cea2b54c33714251b9dc955a1bfc1734) Thanks [@luisherranz](https://github.com/luisherranz)! - Derive wave completeness and currency from the tree.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`24e252c`](https://github.com/Automattic/radical-pipelines/commit/24e252c6f16d8f86a9110917e605dfbebd3304d9) Thanks [@luisherranz](https://github.com/luisherranz)! - Preserve closed lane packages after candidate repins.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`f717f0d`](https://github.com/Automattic/radical-pipelines/commit/f717f0d999aeaaf9f6c5d95433d00338d3fe8896) Thanks [@luisherranz](https://github.com/luisherranz)! - Fix verify-5 with one pair-set comparison and independent consolidation references; preserve closed packages across candidate repins and compute episodes from current approvals.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`6af58f7`](https://github.com/Automattic/radical-pipelines/commit/6af58f7b964229845deb4460db72a353a3f5c0d2) Thanks [@luisherranz](https://github.com/luisherranz)! - Fix verify-6 by deriving required packages once, including current input approval waves in every currency check, and clarify stamp validation scope.
+
+- [#281](https://github.com/Automattic/radical-pipelines/pull/281) [`9880166`](https://github.com/Automattic/radical-pipelines/commit/9880166ef9f9e60c56e163546013f06f01c619b8) Thanks [@luisherranz](https://github.com/luisherranz)! - Fix verify-7 by propagating unavailable input approvals through required-package derivation and sharing task-report requirements between stamp and check.
+
 ## 0.15.0
 
 ### Minor Changes
