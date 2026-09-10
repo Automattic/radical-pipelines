@@ -40,13 +40,13 @@ Give every finding exactly one disposition, recorded under `## Adjudications`:
 
 - **Adopt** — revise the decision or claim, in the record and the design doc.
 - **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does.
-- **Contradicts-input** — the finding cannot be adopted because the spec asserts something false, or because no mechanism satisfies a spec clause. Write `Contradicts-input: 1-spec/spec.md#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof. Never design around a clause your record shows unsatisfiable.
+- **Contradicts-input** — the finding cannot be adopted because the spec asserts something false, or because no mechanism satisfies a spec clause, or none proportionate to what the intent makes material. Write `Contradicts-input: 1-spec/spec.md#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof. Never design around a clause your record shows unsatisfiable.
 
-A contradicts-input that claims exhaustion — no mechanism satisfies the clause — enumerates the space: every class closed by an inspection, or by a recorded failed attempt from build. A class only an experiment could close is not a gap: it is the next design, adopted with an assumption.
+A contradicts-input that claims exhaustion — no mechanism satisfies the clause — enumerates the space: every class closed by an inspection, or by a recorded failed attempt from build. A class only an experiment could close is not a gap: it is the next design, adopted with an assumption. One that claims disproportion names the proportionate mechanism and the case it leaves uncovered, with its consequence.
 
 You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
 
-When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording the route the claim missed. A decision of the intent (`#decision-<n>`) that no mechanism satisfies is a contradiction of the intent: `Contradicts-input: 0-intent/intent.md#decision-<n>`, at the bar of exhaustion — every class of means enumerated and closed.
+When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording a proportionate route the claim missed. A decision of the intent (`#decision-<n>`) that no mechanism satisfies is a contradiction of the intent: `Contradicts-input: 0-intent/intent.md#decision-<n>`, at the bar of exhaustion — every class of means enumerated and closed.
 
 ## Consolidate
 
@@ -68,6 +68,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 - A decision states the mechanism, the requirements or acceptance criteria it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision or component.
 - Decide from evidence: research every open question before choosing. Every pending load-bearing claim is assumed with `A<n>` and its verification condition; questions and risks that depend on it cite that id. Accepting a consequence leaves the assumption open.
 - Own the option space: generate the credible options yourself — what a researcher reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
+- A mechanism is proportionate to what the intent makes material; the case it leaves uncovered is recorded under Risks with its consequence.
 - Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
 
@@ -141,7 +142,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Risks
 
-<!-- Accepted consequences and trade-offs; cite the A<n> they depend on. -->
+<!-- Accepted consequences and trade-offs: each case left uncovered and its consequence; cite the A<n> they depend on. -->
 
 ## Open assumptions
 

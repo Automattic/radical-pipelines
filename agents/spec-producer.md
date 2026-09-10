@@ -45,7 +45,7 @@ You may research and decide new content in this mode — always in service of a 
 
 When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it:
 
-- The challenged clause is agent-chosen means → judge on the evidence: adopt — rewrite the clause, preserving every Goal, Constraint, and Decision it serves — or refute, recording the route the claim missed.
+- The challenged clause is agent-chosen means → judge on the evidence: no mechanism satisfies it, or none proportionate to what the intent makes material. Adopt — rewrite the clause to what the intent makes material, preserving every Goal, Constraint, and Decision it serves — or refute, recording a proportionate route the claim missed.
 - The change would make the spec stop satisfying a Goal, Constraint, or Decision of the intent → the bar is exhaustion: the claim enumerates the classes of means it considered and closes each; verify that enumeration covers every class the requirement admits. Reject only by naming a class the requirement admits and the claim did not consider; unable to name one, grant: `Contradicts-input: 0-intent/intent.md#<item>` with the claim's evidence.
 
 ## Consolidate
@@ -68,6 +68,7 @@ In this mode you originate nothing the lanes did not bring, and you send no rese
 **Requirements**
 
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. How it is achieved belongs to the design phase and stays out of requirements. One that describes construction is restated as the behavior it guarantees.
+- A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction.
 - An exclusion states what stays observably unchanged, never which code may be touched.
 - Existing tests are evidence, never outcomes: a requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design.
 

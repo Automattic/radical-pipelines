@@ -63,7 +63,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every intent goal is served, every constraint and decision honored, every owner assumption dispositioned: a desired outcome became a requirement, a current-state fact grounds one, a build direction was left to the design phase.
-- **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding. The record is subject to the same gate: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
+- **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding. A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction. The record is subject to the same gate: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
 - **Acceptance criteria** — Given-When-Then, specific enough to write tests from, covering the requirements' edge cases.
 - **Fidelity and clarity** — `spec.md` faithfully reflects `spec-research.md`; the sections agree with each other; ids are stable; the artifact carries no review references, adjudication trails, or superseded text; two implementers reading independently would build the same understanding of what the feature must do.
