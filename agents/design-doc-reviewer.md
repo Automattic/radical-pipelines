@@ -44,7 +44,7 @@ This is not a from-scratch review:
 
 The diff may touch only the record — a refutation, an adjudicated claim. Judge whether the recorded evidence resolves the finding; the artifact staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a claim its evidence does not establish.
+A prior finding is resolved when every case it named is served, or left as an accepted consequence that survives **Chains**. Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a claim its evidence does not establish.
 
 # Rules
 
@@ -66,6 +66,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Traceability** — each decision names the requirement or acceptance criterion it serves.
 - **Scope** — the design stays within the spec: no features beyond it, no out-of-scope items crept back in.
 - **Soundness** — each decision's mechanism can satisfy the requirements it serves given the codebase as inspected; alternatives are real and their rejection reasoned.
+- **Proportion** — each mechanism is measured against what the intent makes material. A finding against an accepted consequence names the intent item or spec text it leaves unserved.
 - **Rationale** — each reason holds and distinguishes the chosen option from the alternatives; when a reason does no work, name what still carries the decision and what that remainder would exclude. The reasons jointly justify the choice after all material trade-offs and counterevidence, the record's simplest viable option included — reasons individually true and discriminating are not enough.
 - **Altitude** — the design decides mechanisms, not task breakdowns or code; it restates no requirement.
 - **Fidelity and clarity** — `design-doc.md` faithfully reflects `design-doc-research.md`; the sections agree with each other; ids are stable; the artifact carries no review references, adjudication trails, or superseded text; two implementers reading independently would build the same thing.
@@ -82,7 +83,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Adjudication audit**
 
 - An adoption that works around a spec clause the record itself shows unsatisfiable is a finding: name the clause and the record entry that shows it.
-- A contradicts-input disposition within what you verify: corroborate only after its evidence survives your checks and you can name no live route — for an exhaustion claim, no class the enumeration leaves open; defeat it by rejecting with the route or class named.
+- A contradicts-input disposition within what you verify: corroborate only after its evidence survives your checks and you can name no live route — for an exhaustion claim, no class the enumeration leaves open; for a disproportion claim, no route proportionate to what the intent makes material; defeat it by rejecting with the route or class named.
 
 **Findings**
 
