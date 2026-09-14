@@ -343,12 +343,19 @@ function intentIds(data, body, rel) {
   const seen = new Set(data?.get("intent-ids") ?? []);
   const retired = new Set(data?.get("retired-ids") ?? []);
   const current = new Set([...declaredIds(body)].filter(valid));
+  for (const id of seen) if (!current.has(id)) retired.add(id);
   for (const id of retired) {
+    if (id.startsWith("decision-")) return { error: `decision id ${id} must remain active` };
     if (!seen.has(id)) return { error: `retired id ${id} is absent from intent-ids` };
     if (current.has(id)) return { error: `retired id ${id} is declared again` };
   }
-  for (const id of seen) if (!current.has(id)) retired.add(id);
-  return { seen: [...new Set([...seen, ...current])], retired: [...retired] };
+  const projection = new Map([["intent-ids", [...new Set([...seen, ...current])]], ["retired-ids", [...retired]]]);
+  const drift = fields.filter((key) => {
+    const stored = data?.get(key) ?? [];
+    const expected = projection.get(key);
+    return stored.length !== expected.length || expected.some((id) => !stored.includes(id));
+  });
+  return { projection, drift };
 }
 
 function targetExists(target, read, kind) {
@@ -700,11 +707,9 @@ function cmdStamp(args) {
       /* no commits yet: no head to record */
     }
   }
-  if (ids.seen) {
-    for (const [key, value] of [["intent-ids", ids.seen], ["retired-ids", ids.retired]]) {
-      if (value.length) fm.set(key, value);
-      else fm.delete(key);
-    }
+  for (const [key, value] of ids.projection ?? []) {
+    if (value.length) fm.set(key, value);
+    else fm.delete(key);
   }
   if (!fm.size) {
     process.stdout.write(`nothing to mirror ${relative(root, abs)}\n`);
@@ -889,8 +894,7 @@ function cmdCheck(args) {
   const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
 
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
-  // A file whose mirrors differ from its body's projection contradicts the tree: none of its
-  // mirrors is read until it is stamped again.
+  // A file whose recorded fields differ from its body's projection contradicts the tree.
   const texts = new Map();
   const all = tree
     .list()
@@ -899,9 +903,10 @@ function cmdCheck(args) {
       const text = tree.read(rel) ?? "";
       texts.set(rel, text);
       const { data: parsed, body, error: parseError } = parseFrontmatter(text);
+      const ids = parseError ? {} : intentIds(parsed, body, rel);
       const data = parsed ?? new Map();
-      const frontmatterError = parseError || intentIds(parsed, body, rel).error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
-      const drift = frontmatterError ? [] : mirrorDrift(data, body, rel);
+      const frontmatterError = parseError || ids.error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
+      const drift = frontmatterError ? [] : [...mirrorDrift(data, body, rel), ...(ids.drift ?? [])];
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
