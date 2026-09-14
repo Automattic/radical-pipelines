@@ -3,7 +3,7 @@
 // Zero dependencies. Serves the spec in ../reference/run/state.md; everything
 // it does can be done with bare git. Commands: stamp, check.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -650,8 +650,24 @@ function walk(dir) {
   return out;
 }
 
+function gitStream(root, args, input) {
+  const child = spawn("git", args, { cwd: root, stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+  const errors = [];
+  child.stderr.on("data", (chunk) => errors.push(chunk));
+  let failure;
+  const finished = new Promise((resolve) => {
+    child.on("error", (error) => { failure = error; });
+    child.on("close", (code, signal) => resolve(failure ?? (code === 0 ? null : new Error(`git ${args[0]} exited ${signal ?? code}: ${Buffer.concat(errors).toString("utf8").trim()}`))));
+  });
+  if (input !== undefined) {
+    child.stdin.on("error", (error) => { failure = error; });
+    child.stdin.end(input);
+  }
+  return { child, finished };
+}
+
 // A tree to read the pipeline from: the working tree, or a ref (`--ref`).
-function treeReader(root, abs, ref) {
+async function treeReader(root, abs, ref) {
   const pipelineRel = relative(root, abs);
   if (!ref) {
     const tree = walk(abs);
@@ -664,26 +680,95 @@ function treeReader(root, abs, ref) {
       },
     };
   }
-  const entries = execFileSync("git", ["ls-tree", "-rz", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
-    .split("\0")
-    .filter(Boolean)
-    .map((l) => {
-      const tab = l.indexOf("\t");
-      const meta = l.slice(0, tab);
-      const path = l.slice(tab + 1);
-      return { mode: meta.split(" ")[0], rel: path.slice(pipelineRel.length + 1) };
-    });
-  const regular = new Set(entries.filter((e) => /^100\d{3}$/.test(e.mode)).map((e) => e.rel));
+  const listing = gitStream(root, ["ls-tree", "-rz", ref, "--", pipelineRel]);
+  const entries = [];
+  let pending = Buffer.alloc(0);
+  try {
+    for await (const chunk of listing.child.stdout) {
+      pending = Buffer.concat([pending, chunk]);
+      let end;
+      while ((end = pending.indexOf(0)) !== -1) {
+        const line = pending.subarray(0, end).toString("utf8");
+        const tab = line.indexOf("\t");
+        const [mode, type, oid] = line.slice(0, tab).split(" ");
+        if (tab === -1 || !oid) throw new Error("invalid ls-tree entry");
+        entries.push({ mode, type, oid, rel: line.slice(tab + 1).slice(pipelineRel.length + 1) });
+        pending = pending.subarray(end + 1);
+      }
+    }
+    const failure = await listing.finished;
+    if (failure) throw failure;
+    if (pending.length) throw new Error("truncated ls-tree entry");
+  } catch (error) {
+    listing.child.kill();
+    await listing.finished;
+    throw new Error(`check: cannot read ${ref}:${pipelineRel}: ${error.message}`);
+  }
+  const regular = entries.filter((e) => /^100\d{3}$/.test(e.mode));
+  const contents = new Map(), texts = new Map();
+  // Object ids keep tabs and newlines in paths out of the line-oriented batch protocol.
+  const batch = gitStream(root, ["cat-file", "--batch"], regular.map((e) => `${e.oid}\n`).join(""));
+  const stream = batch.child.stdout[Symbol.asyncIterator]();
+  let chunk = Buffer.alloc(0), offset = 0;
+  const available = async () => {
+    if (offset < chunk.length) return true;
+    const next = await stream.next();
+    chunk = next.value ?? Buffer.alloc(0);
+    offset = 0;
+    return !next.done;
+  };
+  const line = async () => {
+    const parts = [];
+    while (await available()) {
+      const end = chunk.indexOf(10, offset);
+      parts.push(chunk.subarray(offset, end === -1 ? chunk.length : end));
+      offset = end === -1 ? chunk.length : end + 1;
+      if (end !== -1) return Buffer.concat(parts).toString("ascii");
+    }
+    throw new Error("unexpected end of batch header");
+  };
+  const bytes = async (length) => {
+    const result = Buffer.allocUnsafe(length);
+    let copied = 0;
+    while (copied < length) {
+      if (!await available()) throw new Error("unexpected end of batch object");
+      const count = Math.min(length - copied, chunk.length - offset);
+      chunk.copy(result, copied, offset, offset + count);
+      copied += count;
+      offset += count;
+    }
+    return result;
+  };
+  let reading = pipelineRel;
+  try {
+    for (const entry of regular) {
+      reading = `${pipelineRel}/${entry.rel}`;
+      const header = await line();
+      const [oid, type, size] = header.split(" ");
+      if (oid !== entry.oid || type !== "blob" || !/^\d+$/.test(size) || !Number.isSafeInteger(Number(size))) throw new Error(`invalid batch response: ${header}`);
+      const content = await bytes(Number(size));
+      if ((await bytes(1))[0] !== 10) throw new Error("invalid batch object terminator");
+      contents.set(entry.rel, content);
+    }
+    if (await available()) throw new Error("unexpected trailing batch output");
+    const failure = await batch.finished;
+    if (failure) throw failure;
+  } catch (error) {
+    batch.child.kill();
+    batch.child.stdout.destroy();
+    batch.child.stdin.destroy();
+    await batch.finished;
+    throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
+  }
   return {
     list: () => entries.filter((e) => e.mode !== "120000" && e.rel.endsWith(".md")).map((e) => e.rel),
     symlinks: () => entries.filter((e) => e.mode === "120000").map((e) => e.rel),
     read: (rel, bytes = false) => {
-      if (!regular.has(rel)) return null;
-      try {
-        return execFileSync("git", ["show", `${ref}:${pipelineRel}/${rel}`], { cwd: root, encoding: bytes ? undefined : "utf8", stdio: ["ignore", "pipe", "ignore"] });
-      } catch {
-        return null;
-      }
+      const content = contents.get(rel);
+      if (content === undefined) return null;
+      if (bytes) return content;
+      if (!texts.has(rel)) texts.set(rel, content.toString("utf8"));
+      return texts.get(rel);
     },
   };
 }
@@ -777,7 +862,7 @@ function cmdFingerprint(args) {
   process.stdout.write(`${laneFingerprint({ id, brief: args.brief ?? "", materials: args.materials ?? "", after: args.after ?? "" })}\n`);
 }
 
-function cmdCheck(args) {
+async function cmdCheck(args) {
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const { root, abs } = repositoryFor(folder);
   containedPath("check", root, abs);
@@ -793,7 +878,7 @@ function cmdCheck(args) {
     }
   };
   const ref = args.ref ? rev(args.ref, "--ref") : null;
-  const tree = treeReader(root, abs, ref);
+  const tree = await treeReader(root, abs, ref);
   const decl = parseLanes(args.lanes);
   const reviewLanesOf = (prefix) => [{ id: "", fingerprint: null }, ...(decl[prefix]?.review ?? [])];
   const productionLanesOf = (prefix) => decl[prefix]?.production ?? [];
@@ -1408,7 +1493,8 @@ Spec: ../reference/run/state.md
       cmdStamp(args);
       break;
     case "check":
-      cmdCheck(args);
+      try { await cmdCheck(args); }
+      catch (error) { die(error.message); }
       break;
     case "fingerprint":
       cmdFingerprint(args);

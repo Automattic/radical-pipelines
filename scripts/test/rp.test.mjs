@@ -146,6 +146,108 @@ describe("rp state tooling", () => {
     review("3-build/build-review-1.md", "approved", [...PLAN_BASE, ...TASKS, "3-build/tasks/T1-report-1.md", "3-build/tasks/T2-report-1.md"]);
   }
 
+  function gitShim(action = "") {
+    const bin = join(root, ".git", "test-bin"), log = join(root, ".git", "git-calls");
+    mkdirSync(bin);
+    const realGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+    writeFileSync(join(bin, "git"), `#!/bin/sh\nprintf '%s\\n' "$*" >> "$RP_GIT_LOG"\n${action}\nexec "$RP_REAL_GIT" "$@"\n`, { mode: 0o755 });
+    return { log, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RP_REAL_GIT: realGit, RP_GIT_LOG: log } };
+  }
+
+  test("ref reader: large binary inputs and records retain their body identities", () => {
+    const input = "0-intent/context\t雪\n.bin", record = "1-spec/spec-research.md";
+    write(root, input, Buffer.alloc(1500000, 0xff));
+    write(root, record, `# Research\n${"Evidence λ.\n".repeat(140000)}`);
+    const inputPin = `${input}@${git(root, "hash-object", P(input)).trim().slice(0, 12)}`;
+    registered("1-spec/spec.md", { pins: [...pairs(["0-intent/intent.md"]), inputPin] });
+    const judged = [...pairs(SPEC), inputPin];
+    registeredVerdict("1-spec/spec-review-1.md", judged);
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "large inputs");
+    const { ref: workingRef, ...working } = JSON.parse(check(root, "--target-phase", "1", "--json"));
+    const { ref: committedRef, ...committed } = JSON.parse(check(root, "--target-phase", "1", "--ref", "HEAD", "--json"));
+    assert.equal(working.complete, true);
+    assert.deepEqual(committed, working);
+    assert.equal(committedRef, git(root, "rev-parse", "HEAD").trim());
+  });
+
+  test("ref reader: four phases and resolved triggers match the worktree in one batch", (t) => {
+    const trigger = "0-intent/1-amendment.md";
+    registered(trigger, { target: "1-spec/spec.md#R1", origin: "issue 9" }, "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 9\n");
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", trigger]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, trigger]));
+    write(root, "2-design-doc/design-doc-research.md", `# Research\n${"Evidence λ.\n".repeat(140000)}`);
+    registered("2-design-doc/design-doc.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"]) });
+    registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
+    const buildInputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "2-design-doc/design-doc-research.md"];
+    registered("3-build/build-plan.md", { pins: pairs(buildInputs) });
+    const buildTask = "3-build/tasks/T1.md", buildReport = "3-build/tasks/T1-report-1.md";
+    registered(buildTask, { depends: [] }, "# Task\nDepends on: none\n");
+    registered(buildReport, { reviewed: pairs([buildTask]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+    const buildPackage = ["3-build/build-plan.md", "3-build/build-plan-research.md", ...buildInputs, buildTask];
+    registeredVerdict("3-build/build-plan-review-1.md", pairs(buildPackage));
+    registeredVerdict("3-build/build-review-1.md", pairs([...buildPackage, buildReport]));
+    const docInputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md", "3-build/build-review-1.md", buildTask, buildReport];
+    registered("4-document/document-plan.md", { pins: pairs(docInputs) }, "# Document plan\n");
+    write(root, "4-document/document-plan-research.md", "# Record\n");
+    const docTask = "4-document/tasks/T1.md", docReport = "4-document/tasks/T1-report-1.md";
+    registered(docTask, { depends: [] }, "# Task\nDepends on: none\n");
+    registered(docReport, { reviewed: pairs([docTask]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+    const docPackage = ["4-document/document-plan.md", "4-document/document-plan-research.md", ...docInputs, docTask];
+    registeredVerdict("4-document/document-plan-review-1.md", pairs(docPackage));
+    registeredVerdict("4-document/document-review-1.md", pairs([...docPackage, docReport]));
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "complete pipeline");
+    assert.equal(git(root, "status", "--porcelain"), "");
+    const start = performance.now();
+    const { ref: workingRef, ...working } = JSON.parse(check(root, "--json"));
+    const worktreeMs = performance.now() - start;
+    const { log, env } = gitShim();
+    const refStart = performance.now();
+    const { ref: committedRef, ...committed } = JSON.parse(execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8" }));
+    t.diagnostic(`worktree: ${worktreeMs.toFixed(1)} ms; batch ref: ${(performance.now() - refStart).toFixed(1)} ms`);
+    assert.equal(working.frontier, "complete");
+    assert.equal(working.completeThrough, 4);
+    assert.equal(working.triggers[0].state, "resolved");
+    assert.deepEqual(committed, working);
+    const calls = readFileSync(log, "utf8").trim().split("\n");
+    assert.equal(calls.filter((call) => call === "cat-file --batch").length, 1);
+    assert.equal(calls.some((call) => call.startsWith("show ")), false);
+  });
+
+  test("ref reader: an unreadable committed blob aborts without computing staleness", () => {
+    const file = "1-spec/spec-research.md";
+    write(root, file, "# Unique record\nObject deliberately removed after commit.\n");
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "record blob");
+    const oid = git(root, "rev-parse", `HEAD:${P(file)}`).trim(), ref = git(root, "rev-parse", "HEAD").trim();
+    rmSync(join(root, ".git", "objects", oid.slice(0, 2), oid.slice(2)));
+    assert.equal(JSON.parse(check(root, "--target-phase", "1", "--json")).complete, true);
+    assert.throws(() => check(root, "--ref", "HEAD", "--json"), (error) => {
+      assert.equal(error.status, 1);
+      assert.equal(error.stdout, "");
+      assert.ok(error.stderr.includes(`cannot read ${ref}:${P(file)}`));
+      assert.match(error.stderr, /missing/);
+      assert.doesNotMatch(error.stderr, /STALE|frontier/);
+      return true;
+    });
+  });
+
+  for (const failure of ["truncated object", "nonzero exit"])
+    test(`ref reader: ${failure} aborts with ref and path`, () => {
+      const action = failure === "truncated object" ? 'if [ "$1" = "cat-file" ]; then read oid; printf "%s blob 100\\nshort" "$oid"; exit 0; fi' : 'if [ "$1" = "cat-file" ]; then "$RP_REAL_GIT" "$@"; exit 7; fi';
+      const { env } = gitShim(action), ref = git(root, "rev-parse", "HEAD").trim();
+      assert.throws(() => execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), (error) => {
+        assert.equal(error.status, 1);
+        assert.equal(error.stdout, "");
+        assert.ok(error.stderr.includes(`cannot read ${ref}:${PIPELINE}/`));
+        assert.match(error.stderr, failure === "truncated object" ? /unexpected end of batch object/ : /git cat-file exited 7/);
+        return true;
+      });
+    });
+
   // --- identity and stamps -----------------------------------------------------
 
   test("identity is the body's hash: stamping never changes it", () => {
