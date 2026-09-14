@@ -36,3 +36,5 @@ These apply to the skill, the agent profiles, and the script alike.
 
 - Every change to the repository records a changeset (authoring guidance in CONTRIBUTING.md).
 - README.md is updated when a change alters behavior it describes.
+- Nothing in the repository, its PR descriptions, commit messages, changesets, or issues names an external project or its pipelines. A finding from one is stated in general terms — the class of input, the behavior, the rule it exposed.
+- A branch under review is brought up to date by merging its base branch into it, never by rebasing: its history is shared and carries the review.

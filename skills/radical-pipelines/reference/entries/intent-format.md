@@ -23,6 +23,8 @@ Read the body, every comment, cross-reference, external link, and attachment. Wh
 3. Download referenced assets beside `intent.md` and use relative paths.
 4. Make phase 0 self-contained, show the owner the rendered draft, and write it on approval.
 
+A re-synthesis from a modified issue also consumes the current intent: it preserves `Origin` and every decision; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
+
 ## Schema and rendering
 
 Render these sections and **omit any that are empty** — no `N/A` placeholders:
@@ -35,11 +37,11 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 A vague idea with only a Title and Goal is complete.
 
-Items are addressed by section and position: `#goal`, `#constraint-<n>`, `#context-<n>`, `#assumption-<n>`, `#decision-<n>`, counting bullets from 1.
+`#goal` addresses the Goal section. Every other item is a bullet that opens with its id — `constraint-<n>`, `context-<n>`, `assumption-<n>`, `decision-<n>` — assigned in order of creation and never reused.
 
 ## Decisions
 
-The intent is the only file that carries the owner's words. The issue's sections are never edited after creation; every decision the owner makes afterwards — a direction at triage, an answer in an assisted session, an answer to an escalation — is appended when approved under `## Decisions` as a numbered bullet: the words quoted verbatim, then what they answer (the run, the question, or the claim's path). Records cite each decision by id beside the question it answers.
+The intent is the only file that carries the owner's words. The issue's sections change only by synthesis from the issue; every decision the owner makes afterwards — a direction at triage, an answer in an assisted session, an answer to an escalation — is appended when approved under `## Decisions` with the next `decision-<n>`: the words quoted verbatim, then what they answer (the run, the question, or the claim's path). Records cite each decision by id beside the question it answers.
 
 ## Authoring discipline
 
@@ -55,7 +57,7 @@ Write an external amendment to `0-intent/<n>-amendment.md`:
 ```markdown
 # Amendment <n>
 
-Target: <path>#<id>
+Target: <path>[#<id>][, …]
 Origin: <source>
 
 ## Request

@@ -3,7 +3,7 @@
 The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined here: no synonyms or alternate notation.
 
 - **Agents** — The project convention configuring each profile's model and named lanes, with their briefs and materials.
-- **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against a target.
+- **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against its targets.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: the branch pipelines start from, merge into, and count their own commits after.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
 - **Base** — The commit a pipeline's own commits follow: the merge-base of its branch with the branch its intent `starts-from`, else with the artifact base branch (`rp check --base`).
@@ -45,11 +45,11 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Shipped code** — The code, tests, and inline API documentation the build phase committed on the pipeline branch.
 - **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
-- **Target** — The `<path>#<id>` clause that a trigger or `unsatisfiable` verdict says must change.
+- **Target** — What a trigger's evidence contradicts: a `<path>#<id>` clause for a claim or a failed report; one or more artifacts, whole or by clause, for an external amendment.
 - **Target phase** — The highest phase a run executes before stopping.
 - **Task report** — A per-attempt worker report, `tasks/T<n>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
-- **Trigger** — A file asking for work on a target: an external amendment, an `unsatisfiable` verdict, or a fresh failed task report; adjudicated when the target pins it, resolved when a wave naming it approves the target or the claim is escalated; a claim persists until resolved, superseded (its target changed, or its lane reviewed again), or moot.
+- **Trigger** — A file asking for work on its targets: an external amendment, an `unsatisfiable` verdict, or a fresh failed task report; adjudicated on a target when that target pins it, resolved on it when a wave naming it approves the target or the claim is escalated, resolved when every target is; a claim persists until resolved, superseded (its target changed, or its lane reviewed again), or moot.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
 - **Wave** — One review of an artifact by every one of its lanes, numbered per artifact; closed when every lane's review is stamped and fresh.
 - **Worker** — A fresh agent that executes one task of a build or document plan and writes its task report.

@@ -33,7 +33,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the new commits.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed work ships wrong or unplanned behavior, leaves an acceptance criterion unmet or unverified, or leaves a guardrail unsatisfied.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed work ships wrong or unplanned behavior, leaves an acceptance criterion unmet or unverified, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 
@@ -47,7 +47,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - The spec's acceptance criteria the tasks trace to pass against the resulting code; every design decision the tasks trace to is honored.
 - Plan adherence: every change maps to a task; no design change; nothing beyond the plan. Post-change coherence: nothing stranded — code, names, docs, or tests whose reason to exist the change removed. A survivor the plan or design records keeping is settled; one kept by default is a finding.
 - Every public symbol added or modified is documented per the project's inline-documentation convention; every change follows the project's coding, testing, build, and commit conventions.
-- Any task output, including commit messages, references the software only, never a specific task, requirement, flow, acceptance criterion, or artifact. Pipeline artifacts are exempt.
+- The diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words. The code describes the software as it is, never its prior state or the change from it.
 - Evaluate every rule under **Guardrails** against the code; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: the only evidence that makes a failure ambient is reproducing the identical failure on the diff's base; a failing test the diff never touched is not thereby ambient — a regression is a previously-passing test that now fails. Even with that reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
 - A hedge on a load-bearing claim in a report — likely, should, probably — is an unlabeled assumption. Every pending load-bearing claim gets `A<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 

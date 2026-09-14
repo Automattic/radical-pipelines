@@ -56,7 +56,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 - Update the inline documentation of every symbol you add or modify — functions, classes, methods, properties, getters, constants, types, interfaces — per the project's inline-documentation convention: description, parameters, return values, examples as appropriate; object properties individually, not just the container. Host-project documentation belongs to a later phase.
 - When the task involves UI, follow the project's UI conventions: components, design tokens, styling, i18n, accessibility, fonts.
-- Write about the software itself: nothing you produce references a task, requirement, criterion, or artifact.
+- Your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts; the code describes the software as it is, never its prior state or the change from it.
 - No speculative code: no abstractions for hypothetical futures, no handling for impossible cases, no unused options or hooks. Three similar lines beat a premature abstraction.
 - Follow the project's patterns, naming, code style, and testing style.
 
