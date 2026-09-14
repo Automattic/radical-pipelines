@@ -35,7 +35,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the new commits.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance criterion unmet, or leaves a guardrail unsatisfied.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance criterion unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 
@@ -49,7 +49,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Faithful rationale: where the documentation explains why, it matches the spec's user-facing rationale and the design doc's architectural rationale; invented or contradicted rationale is a finding.
 - Drift sweep: no surface the plan names keeps stale references to the old behavior, and every public surface the code adds or changes is documented on the surface the project keeps for it; an undocumented one is a finding.
 - Plan adherence: every change maps to a task; no code or test changes; nothing beyond the plan. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
-- The project's documentation conventions; host-project output — text, examples, comments, commit messages — references the software only, never a task, requirement, criterion, pipeline, or artifact; judge what the text refers to rather than matching words. Such a reference is a must-fix.
+- The project's documentation conventions; host-project output — everything a task leaves outside the pipelines folder — references the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words.
 - Evaluate every rule under **Guardrails** against the documentation; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the diff's base. Even after reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
 - A hedge on a load-bearing claim — likely, should, probably, assume — is an unlabeled assumption. Every pending load-bearing claim gets `A<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 - A minimal artifact is legitimate only when the record shows the investigation that came back empty; every "none" — no risks, no alternatives, no affected areas — names that sweep.
