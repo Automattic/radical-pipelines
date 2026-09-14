@@ -16,26 +16,29 @@ When the issue declares dependencies on other issues, check them through the **I
 
 ### 3. Route
 
-Apply the first predicate that holds:
+A request carries one or more statements; route each by the first predicate that holds:
 
 | Predicate                                                                           | Route                                                                     |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | A pending owner escalation exists and the request answers it                        | Record the answer (`../run/loop.md` § Owner escalation) and continue that pipeline |
 | A live pipeline's intent and amendments already call for this work                  | Continue it                                                               |
 | The request corrects what an existing pipeline's artifacts claim or its code does   | An external amendment on that pipeline                                    |
+| New scope for a live pipeline                                                       | The owner's choice: widen it, or a new pipeline from its tip (next row)  |
 | New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `Origin: starts-from` names that branch |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
-Several live pipelines match: pick the one whose frontier the request advances.
+When several live pipelines match, take the one the request identifies — by name, or as the only one whose frontier it advances; otherwise the owner chooses in step 4, the tip for a new pipeline included.
 
-### 4. Confirm the run
+Routes group by pipeline into runs.
 
-Ask the target phase in plain language without exposing phase numbers. In one message, give the route and why — or, when no predicate decides, the one deciding question — together with the full run policy to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm the run plan until the owner confirms it.
+### 4. Confirm the runs
+
+Ask the target phase in plain language without exposing phase numbers. In one message, give each route and why — or, when no predicate decides, the one deciding question — together with the full policy of each run to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 
-Address every worktree by absolute path and run its Git commands through `git -C <worktree>`. Before branching from a tracked artifact base branch, fetch its remote and fast-forward the local branch to its upstream.
+Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`. Before branching from a tracked artifact base branch, fetch its remote and fast-forward the local branch to its upstream.
 
 **A new pipeline**
 
@@ -54,6 +57,8 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 **Continue**: the pipeline's branch and worktree, created when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
 
+**Widen**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue.
+
 ### 6. Run
 
-Quote every direction the owner gave this session — the run policy as confirmed (the `--lanes` declaration, target phase) and any other instruction for the run — as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+One run at a time, in table order; a run carries its statements. Quote every direction the owner gave for it — its policy as confirmed (the `--lanes` declaration, target phase) and any other instruction — as decisions in its `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.

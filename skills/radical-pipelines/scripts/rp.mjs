@@ -141,15 +141,16 @@ export function parseFrontmatter(raw) {
       currentList = null;
     }
   }
-  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "lane-packages"]);
+  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "lane-packages", "target", "target-identity", "intent-ids", "retired-ids"]);
   const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
-  for (const [key, value] of data) {
+  for (const [key, raw] of data) {
+    const value = key === "target" || key === "target-identity" ? [].concat(raw) : raw;
+    data.set(key, value);
     if (lists.has(key) && !Array.isArray(value)) errors.push(`${key} must be a list`);
     if (scalars.has(key) && Array.isArray(value)) errors.push(`${key} must be a scalar`);
     if (key === "origin" && Array.isArray(value) && value.length === 0) errors.push("origin must be a scalar or non-empty list");
     if (key === "target" || key === "target-identity") {
       if (Array.isArray(value) && !value.length) errors.push(`${key} must be a non-empty list`);
-      data.set(key, [].concat(value));
     }
   }
   if (errors.length) return { data: null, body, error: errors.join("; ") };
@@ -327,22 +328,52 @@ function laneReferences(data) {
 }
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
+function declaredIds(body) {
+  return new Set([...outsideFences(body).matchAll(/^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+([A-Za-z][\w-]*)/gm)].map((m) => m[1]));
+}
+
+function intentIds(data, body, rel) {
+  const fields = ["intent-ids", "retired-ids"];
+  if (rel !== "0-intent/intent.md") return fields.some((key) => data?.has(key)) ? { error: "intent-ids and retired-ids belong to the intent" } : {};
+  const valid = (id) => /^(?:constraint|context|assumption|decision)-[1-9]\d*$/.test(id);
+  for (const key of fields) {
+    const ids = data?.get(key) ?? [];
+    if (ids.some((id) => !valid(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique intent item ids` };
+  }
+  const seen = new Set(data?.get("intent-ids") ?? []);
+  const retired = new Set(data?.get("retired-ids") ?? []);
+  const current = new Set([...declaredIds(body)].filter(valid));
+  for (const id of seen) if (!current.has(id)) retired.add(id);
+  for (const id of retired) {
+    if (id.startsWith("decision-")) return { error: `decision id ${id} must remain active` };
+    if (!seen.has(id)) return { error: `retired id ${id} is absent from intent-ids` };
+    if (current.has(id)) return { error: `retired id ${id} is declared again` };
+  }
+  const projection = new Map([["intent-ids", [...new Set([...seen, ...current])]], ["retired-ids", [...retired]]]);
+  const drift = fields.filter((key) => {
+    const stored = data?.get(key) ?? [];
+    const expected = projection.get(key);
+    return stored.length !== expected.length || expected.some((id) => !stored.includes(id));
+  });
+  return { projection, drift };
+}
+
 function targetExists(target, read, kind) {
   const [path, item] = target.split("#");
   if (kind !== "claim" && !ARTIFACTS.some((a) => a.path === path)) return false;
   if (!TARGET_ID.test(target) && !(kind === "amendment" && !item && ARTIFACTS.some((a) => a.path === path))) return false;
-  const text = read(path);
+  const artifact = read(path);
+  if (artifact === null || artifact === undefined) return false;
+  const source = /^T\d+$/.test(item) ? `${path.split("/")[0]}/tasks/${item}.md` : path;
+  const text = source === path ? artifact : read(source);
   if (text === null || text === undefined) return false;
+  const parsed = parseFrontmatter(text);
+  const error = parsed.error ?? intentIds(parsed.data, parsed.body, source).error;
+  if (error) die(`stamp: INVALID FRONTMATTER ${source}: ${error}`);
   if (!item) return true;
-  const body = parseFrontmatter(text).body;
-  if (path === "0-intent/intent.md") {
-    if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(body);
-    const m = item.match(/^(constraint|decision)-(\d+)$/);
-    const section = m ? body.match(new RegExp(`^## ${m[1]}s?[^\\S\\n]*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mi"))?.[1] ?? "" : "";
-    return !!m && [...section.matchAll(/^\s*(?:[-*+]|\d+[.)])\s+/gm)].length >= Number(m[2]);
-  }
-  if (/^T\d+$/.test(item)) return read(`${path.split("/")[0]}/tasks/${item}.md`) != null;
-  return new RegExp(`(?:^|[^A-Za-z0-9])${item}(?=$|[^A-Za-z0-9])`).test(body);
+  // #goal addresses a section; other textual ids address items.
+  if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(outsideFences(parsed.body));
+  return declaredIds(parsed.body).has(item);
 }
 
 function triggerKind(rel, data) {
@@ -540,6 +571,8 @@ function cmdStamp(args) {
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
   const previousKind = triggerKind(rel, fm);
+  const ids = intentIds(data, body, rel);
+  if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
   const report = rel.match(REPORT);
   const relParts = rel.split("/");
   const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
@@ -673,6 +706,10 @@ function cmdStamp(args) {
     } catch {
       /* no commits yet: no head to record */
     }
+  }
+  for (const [key, value] of ids.projection ?? []) {
+    if (value.length) fm.set(key, value);
+    else fm.delete(key);
   }
   if (!fm.size) {
     process.stdout.write(`nothing to mirror ${relative(root, abs)}\n`);
@@ -857,8 +894,7 @@ function cmdCheck(args) {
   const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
 
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
-  // A file whose mirrors differ from its body's projection contradicts the tree: none of its
-  // mirrors is read until it is stamped again.
+  // A file whose recorded fields differ from its body's projection contradicts the tree.
   const texts = new Map();
   const all = tree
     .list()
@@ -867,9 +903,10 @@ function cmdCheck(args) {
       const text = tree.read(rel) ?? "";
       texts.set(rel, text);
       const { data: parsed, body, error: parseError } = parseFrontmatter(text);
+      const ids = parseError ? {} : intentIds(parsed, body, rel);
       const data = parsed ?? new Map();
-      const frontmatterError = parseError || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
-      const drift = frontmatterError ? [] : mirrorDrift(data, body, rel);
+      const frontmatterError = parseError || ids.error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
+      const drift = frontmatterError ? [] : [...mirrorDrift(data, body, rel), ...(ids.drift ?? [])];
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
