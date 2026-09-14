@@ -28,7 +28,7 @@ A request carries one or more statements; route each by the first predicate that
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
-Several live pipelines match: the one the request identifies — by name, or as the only one whose frontier it advances; otherwise the owner chooses in step 4, the tip for a new pipeline included.
+When several live pipelines match, take the one the request identifies — by name, or as the only one whose frontier it advances; otherwise the owner chooses in step 4, the tip for a new pipeline included.
 
 Routes group by pipeline into runs.
 
