@@ -487,7 +487,7 @@ describe("rp state tooling", () => {
 
   test("trigger targets: corroboration resolves only the target whose wave names the origin", () => {
     const trigger = "0-intent/1-amendment.md", targets = ["1-spec/spec.md", "2-design-doc/design-doc.md"];
-    registered(trigger, { target: targets, origin: "issue 9" }, `# Amendment\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+    registered(trigger, { target: targets, "target-identity": targets.map((t) => identity(read(root, t))), origin: "issue 9" }, `# Amendment\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", trigger]) });
     registered("1-spec/spec-review-1.md", {
       reviewed: pairs([...SPEC, trigger]), verdict: "unsatisfiable", target: ["0-intent/intent.md#goal"],
@@ -549,6 +549,106 @@ describe("rp state tooling", () => {
     write(root, rel, body);
     assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID TARGET 1-spec\/spec.md/);
     assert.equal(read(root, rel), body);
+  });
+
+  for (const phase of ["3-build", "4-document"])
+    for (const destination of ["spec", "design", "other phase", "other task"])
+      test(`trigger review: ${phase} report rejects ${destination} at stamp and check`, () => {
+        write(root, "4-document/document-plan.md", "# Plan\n");
+        for (const folder of ["3-build", "4-document"])
+          for (const id of ["T1", "T2"]) registered(`${folder}/tasks/${id}.md`, { depends: [] }, "# Task\nDepends on: none\n");
+        const task = `${phase}/tasks/T1.md`, rel = `${phase}/tasks/T1-report-1.md`;
+        const plan = phase === "3-build" ? "3-build/build-plan.md" : "4-document/document-plan.md";
+        const other = phase === "3-build" ? "4-document/document-plan.md" : "3-build/build-plan.md";
+        const target = { spec: "1-spec/spec.md#R1", design: "2-design-doc/design-doc.md#D1", "other phase": `${other}#T1`, "other task": `${plan}#T2` }[destination];
+        const body = `# Report\nOutcome: failed\nTarget: ${target}\n`;
+        write(root, rel, body);
+        assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*expected its own task/);
+        assert.equal(read(root, rel), body);
+        registered(rel, { outcome: "failed", attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, target.split("#")[0]))] }, body);
+        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
+        assert.match(state.contradictions[0].invalid, /target: expected its own task/);
+        assert.deepEqual(state.triggers, []);
+        assert.deepEqual(state.artifacts, []);
+      });
+
+  for (const kind of ["amendment", "claim", "failed report"])
+    for (const defect of ["absent", "short", "long", "invalid"])
+      test(`trigger review: ${kind} rejects ${defect} target identities before facts`, () => {
+        const task = "3-build/tasks/T1.md";
+        registered(task, { depends: [] }, "# Task\nDepends on: none\n");
+        const rel = { amendment: "0-intent/1-amendment.md", claim: "1-spec/spec-review-1.md", "failed report": "3-build/tasks/T1-report-1.md" }[kind];
+        const targets = { amendment: ["1-spec/spec.md", "2-design-doc/design-doc.md"], claim: ["0-intent/intent.md#goal"], "failed report": ["3-build/build-plan.md#T1"] }[kind];
+        const identities = targets.map((t) => identity(read(root, t.split("#")[0])));
+        const fields = { target: targets, ...(kind === "claim" ? { verdict: "unsatisfiable", reviewed: pairs(SPEC) } : kind === "failed report" ? { outcome: "failed", attempt: "1", reviewed: pairs([task]) } : { origin: "issue 9" }) };
+        if (defect !== "absent") fields["target-identity"] = { short: identities.slice(1), long: [...identities, identities[0]], invalid: identities.map(() => "not-a-hash") }[defect];
+        const declaration = kind === "claim" ? "Verdict: unsatisfiable" : kind === "failed report" ? "Outcome: failed" : "Origin: issue 9";
+        registered(rel, fields, `# Trigger\n${declaration}\nTarget: ${targets.join(", ")}\n`);
+        const before = read(root, rel);
+        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
+        assert.match(state.contradictions[0].invalid, /target-identity/);
+        assert.deepEqual(state.triggers, []);
+        assert.deepEqual(state.claims, []);
+        assert.deepEqual(state.artifacts, []);
+        assert.equal(state.base, undefined);
+        assert.throws(() => rp(root, "stamp", P(rel)), /INVALID FRONTMATTER.*target-identity/);
+        assert.equal(read(root, rel), before);
+      });
+
+  for (const targets of [["1-spec/spec.md", "1-spec/spec.md#R1"], ["1-spec/spec.md#R1", "1-spec/spec.md#R2"]])
+    test(`trigger review: one artifact adjudicates ${targets.join(", ")} together`, () => {
+      const artifact = "1-spec/spec.md", trigger = "0-intent/1-amendment.md";
+      write(root, artifact, "# Spec\nRequirement R1.\nRequirement R2.\n");
+      registered(trigger, { target: targets, "target-identity": targets.map(() => identity(read(root, artifact))), origin: "issue 9" }, `# Amendment\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+      assert.doesNotThrow(() => rp(root, "stamp", P(trigger), "--mirror"));
+      const state = () => JSON.parse(check(root, "--target-phase", "1", "--json"));
+      assert.deepEqual(state().triggers.map((t) => t.state), ["pending", "pending"]);
+      registered(artifact, { pins: pairs(["0-intent/intent.md", trigger]) });
+      assert.deepEqual(state().triggers.map((t) => t.state), ["adjudicated", "adjudicated"]);
+      registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, trigger]));
+      const resolved = state();
+      assert.deepEqual(resolved.triggers.map((t) => t.state), ["resolved", "resolved"]);
+      assert.equal(resolved.triggers.every((t) => t.triggerResolved), true);
+      assert.equal(resolved.complete, true);
+      assert.equal(resolved.frontier, "complete");
+    });
+
+  test("trigger review: an exact repeated target is rejected atomically", () => {
+    const rel = "0-intent/1-amendment.md", body = "# Amendment\nTarget: 1-spec/spec.md#R1, 1-spec/spec.md#R1\nOrigin: issue 9\n";
+    write(root, rel, body);
+    assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID Target/);
+    assert.equal(read(root, rel), body);
+  });
+
+  test("trigger review: reversed design and spec targets follow the dependency chain", () => {
+    const spec = "1-spec/spec.md", design = "2-design-doc/design-doc.md", trigger = "0-intent/1-amendment.md";
+    registered(spec, { pins: pairs(["0-intent/intent.md"]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+    const inputs = ["0-intent/intent.md", spec, "1-spec/spec-review-1.md"];
+    registered(design, { pins: pairs(inputs) });
+    registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
+    const targets = [design, spec];
+    registered(trigger, { target: targets, "target-identity": targets.map((t) => identity(read(root, t))), origin: "issue 9" }, `# Amendment\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+    const state = () => JSON.parse(check(root, "--target-phase", "2", "--json"));
+    assert.equal(state().frontier, `trigger ${trigger} → ${spec}`);
+    registered(spec, { pins: pairs(["0-intent/intent.md", trigger]) });
+    registeredVerdict("1-spec/spec-review-2.md", pairs([...SPEC, trigger]));
+    const first = state();
+    assert.equal(first.artifacts[0].approved, true);
+    assert.equal(first.artifacts[1].state, "stale");
+    assert.deepEqual(first.artifacts[1].stale, ["package members"]);
+    assert.deepEqual(first.triggers.map((t) => t.state), ["resolved", "pending"]);
+    assert.equal(first.frontier, `trigger ${trigger} → ${design}`);
+    const current = ["0-intent/intent.md", spec, "1-spec/spec-review-2.md", trigger];
+    registered(design, { pins: pairs(current) });
+    registeredVerdict("2-design-doc/design-doc-review-2.md", pairs([design, "2-design-doc/design-doc-research.md", ...current]));
+    const final = state();
+    assert.deepEqual(final.triggers.map((t) => t.state), ["resolved", "resolved"]);
+    assert.equal(final.triggers.every((t) => t.triggerResolved), true);
+    assert.equal(final.complete, true);
+    assert.equal(final.frontier, "complete");
   });
 
   test("a trigger is pending, then adjudicated when its target pins it, then resolved when the target is approved carrying the pin", () => {
@@ -1021,7 +1121,7 @@ describe("rp state tooling", () => {
 
   test("verify-3: registered claims become moot and resolutions adjudicated on input change", () => {
     const amendment = "0-intent/1-amendment.md";
-    registered(amendment, { target: "1-spec/spec.md#R1", origin: "issue 8" }, "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 8\n");
+    registered(amendment, { target: ["1-spec/spec.md#R1"], "target-identity": [identity(read(root, "1-spec/spec.md"))], origin: "issue 8" }, "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 8\n");
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", amendment]) });
     registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, amendment]));
     const designPins = ["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
@@ -1214,7 +1314,8 @@ describe("rp state tooling", () => {
       const artifact = phase === "build-plan" ? "3-build/build-plan.md" : "4-document/document-plan.md";
       const record = phase === "build-plan" ? "3-build/build-plan-research.md" : "4-document/document-plan-research.md";
       const amendment = "0-intent/1-amendment.md";
-      registered(amendment, { target: `${artifact}#A1`, origin: "issue 8" }, `# Amendment\nTarget: ${artifact}#A1\nOrigin: issue 8\n`);
+      write(root, artifact, "# Plan\nAssumption A1.\n");
+      registered(amendment, { target: [`${artifact}#A1`], "target-identity": [identity(read(root, artifact))], origin: "issue 8" }, `# Amendment\nTarget: ${artifact}#A1\nOrigin: issue 8\n`);
       const inputs = phase === "build-plan" ? [...buildPins, amendment] : [
         "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md",
         "3-build/build-plan-review-1.md", "3-build/tasks/T1.md", "3-build/tasks/T1-report-1.md", "3-build/build-review-1.md", amendment,

@@ -353,6 +353,34 @@ function triggerKind(rel, data) {
   return null;
 }
 
+function reportTarget(rel) {
+  const report = rel.match(REPORT);
+  return report ? `${ARTIFACTS.find((a) => a.phase === report[1]).path}#${report[2]}` : null;
+}
+
+// Field representation rules shared by stamp and check; existence belongs to landing.
+function targetRepresentationErrors(rel, data) {
+  const kind = triggerKind(rel, data);
+  const targets = data.get("target"), identities = data.get("target-identity");
+  const errors = [];
+  const invalid = (field, reason) => errors.push({ field, reason });
+  if (kind || targets !== undefined || identities !== undefined) {
+    if (!Array.isArray(targets) || !targets.length) invalid("target", "expected a non-empty list");
+    else {
+      if (new Set(targets).size !== targets.length) invalid("target", "duplicate entries");
+      if (kind === "claim" && targets.length !== 1) invalid("target", "a claim names one clause");
+      const ownTask = reportTarget(rel);
+      if (ownTask && (targets.length !== 1 || targets[0] !== ownTask)) invalid("target", `expected its own task: ${ownTask}`);
+    }
+    if (!Array.isArray(identities) || !identities.length) invalid("target-identity", "expected a non-empty list aligned with target");
+    else {
+      if (identities.length !== targets?.length) invalid("target-identity", "must have one identity per target");
+      if (identities.some((id) => !IDENTITY.test(id))) invalid("target-identity", "expected 12-character hexadecimal identities");
+    }
+  }
+  return errors;
+}
+
 function targetPairs(rel, data) {
   return (data.get("target") ?? ["?"]).map((target, i) => ({
     rel, target, targetPath: target.split("#")[0], targetIdentity: data.get("target-identity")?.[i],
@@ -440,7 +468,7 @@ export function projectBody(body, rel = "") {
   if (report) {
     p.set("attempt", report[3]);
     if (p.get("outcome") === "failed" && !p.has("target"))
-      p.set("target", [`${ARTIFACTS.find((a) => a.phase === report[1]).path}#${report[2]}`]);
+      p.set("target", [reportTarget(rel)]);
   }
   return p;
 }
@@ -617,11 +645,12 @@ function cmdStamp(args) {
       return existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : null;
     };
     if (kind) {
-      if (!targets.length || (kind !== "amendment" && targets.length !== 1)) die(`stamp: INVALID TARGET ${targets.join(", ") || "?"}`);
       for (const target of targets)
         if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, kind)) die(`stamp: INVALID TARGET ${target}`);
     }
   }
+  const targetError = targetRepresentationErrors(rel, fm)[0];
+  if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: target-identity`}: ${targetError.reason}`);
   // A report names commits that already exist; they are stored canonical (full hash).
   if (fm.has("commits")) {
     const canonical = [].concat(fm.get("commits") ?? []).map((h) => {
@@ -835,8 +864,9 @@ function cmdCheck(args) {
     .map((rel) => {
       const text = tree.read(rel) ?? "";
       texts.set(rel, text);
-      const { data: parsed, body, error: frontmatterError } = parseFrontmatter(text);
+      const { data: parsed, body, error: parseError } = parseFrontmatter(text);
       const data = parsed ?? new Map();
+      const frontmatterError = parseError || targetRepresentationErrors(rel, data).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
       const drift = frontmatterError ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
