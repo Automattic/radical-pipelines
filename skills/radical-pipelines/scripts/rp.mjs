@@ -360,6 +360,7 @@ function reportTarget(rel) {
 
 // Field representation rules shared by stamp and check; existence belongs to landing.
 function targetRepresentationErrors(rel, data) {
+  if (data === null) return [];
   const kind = triggerKind(rel, data);
   const targets = data.get("target"), identities = data.get("target-identity");
   const errors = [];
@@ -370,6 +371,7 @@ function targetRepresentationErrors(rel, data) {
       if (new Set(targets).size !== targets.length) invalid("target", "duplicate entries");
       if (kind === "claim" && targets.length !== 1) invalid("target", "a claim names one clause");
       const ownTask = reportTarget(rel);
+      if (ownTask && data.get("outcome") !== "failed") invalid("target", "only failed reports may name a target");
       if (ownTask && (targets.length !== 1 || targets[0] !== ownTask)) invalid("target", `expected its own task: ${ownTask}`);
     }
     if (!Array.isArray(identities) || !identities.length) invalid("target-identity", "expected a non-empty list aligned with target");
@@ -866,7 +868,7 @@ function cmdCheck(args) {
       texts.set(rel, text);
       const { data: parsed, body, error: parseError } = parseFrontmatter(text);
       const data = parsed ?? new Map();
-      const frontmatterError = parseError || targetRepresentationErrors(rel, data).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
+      const frontmatterError = parseError || targetRepresentationErrors(rel, parsed).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
       const drift = frontmatterError ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);

@@ -573,6 +573,46 @@ describe("rp state tooling", () => {
         assert.deepEqual(state.artifacts, []);
       });
 
+  for (const phase of ["3-build", "4-document"])
+    for (const outcome of ["completed", "blocked"])
+      test(`trigger re-review: ${phase} ${outcome} report cannot have a target`, () => {
+        const plan = phase === "3-build" ? "3-build/build-plan.md" : "4-document/document-plan.md";
+        const task = `${phase}/tasks/T1.md`, rel = `${phase}/tasks/T1-report-1.md`;
+        write(root, plan, "# Plan\n");
+        registered(task, { depends: [] }, "# Task\nDepends on: none\n");
+        const target = `${plan}#T1`, body = `# Report\nOutcome: ${outcome}\nTarget: ${target}\n`;
+        write(root, rel, body);
+        assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*only failed reports/);
+        assert.equal(read(root, rel), body);
+        registered(rel, { outcome, attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, plan))] }, body);
+        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
+        assert.match(state.contradictions[0].invalid, /target: only failed reports/);
+        assert.deepEqual(state.triggers, []);
+        assert.deepEqual(state.tasks, {});
+      });
+
+  for (const frontmatter of ["absent", "empty", "missing identity"])
+    test(`trigger re-review: amendment with ${frontmatter} frontmatter has the correct repair frontier`, () => {
+      const rel = "0-intent/1-amendment.md", body = "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 9\n";
+      if (frontmatter === "absent") write(root, rel, body);
+      else registered(rel, frontmatter === "empty" ? {} : { target: ["1-spec/spec.md#R1"], origin: "issue 9" }, body);
+      git(root, "add", "-A");
+      git(root, "commit", "--quiet", "-m", "record amendment before stamp");
+      const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+      assert.equal(state.frontier, `${frontmatter === "absent" ? "stamp" : "INVALID FRONTMATTER"} ${rel}`);
+      assert.deepEqual(state.triggers, []);
+      assert.deepEqual(state.artifacts, []);
+      if (frontmatter === "absent") {
+        assert.deepEqual(state.contradictions[0].mirrors, ["target", "origin"]);
+        assert.equal(state.contradictions[0].invalid, undefined);
+      } else assert.match(state.contradictions[0].invalid, /target-identity/);
+      rp(root, "stamp", P(rel), "--mirror");
+      const stamped = JSON.parse(check(root, "--json"));
+      assert.deepEqual(stamped.contradictions, []);
+      assert.equal(stamped.frontier, `trigger ${rel} → 1-spec/spec.md#R1`);
+    });
+
   for (const kind of ["amendment", "claim", "failed report"])
     for (const defect of ["absent", "short", "long", "invalid"])
       test(`trigger review: ${kind} rejects ${defect} target identities before facts`, () => {
