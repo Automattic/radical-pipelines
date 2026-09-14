@@ -25,7 +25,7 @@ flowchart TD
     ROUTE --> R5["Start a new re-attempt"]
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
     ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
-    QUESTION --> CONFIRM["Ask once: each route or the deciding question, workflow, target phase, lanes, and remaining questions"]
+    QUESTION --> CONFIRM["Ask once: each route or the deciding question, each run's workflow, target phase, lanes, and remaining questions"]
     R1 --> CONFIRM
     R2 --> CONFIRM
     R3 --> CONFIRM
@@ -39,12 +39,12 @@ flowchart TD
     PREP --> P2["Select or create the amendment branch and worktree"]
     P2 --> P2A["Write decisions and amendment; commit and stamp"]
     PREP --> P3["Ensure the continuation branch and worktree exist"]
-    PREP --> P4["Modify the issue; re-synthesize the intent keeping decisions and ids; commit and stamp"]
+    PREP --> P4["Modify the issue; re-synthesize the intent; commit and stamp"]
     P4 --> P3
     P1A --> DIRECTIONS["Record run directions as intent decisions; stamp and commit"]
     P2A --> DIRECTIONS
     P3 --> DIRECTIONS
-    DIRECTIONS --> START["Fire run-started"]
+    DIRECTIONS --> START["For each run in turn: fire run-started"]
     START --> MODE{"Confirmed workflow"}
     MODE --> AUTO["Run the autonomous loop"]
     MODE --> ASSISTED["Run the assisted phase"]

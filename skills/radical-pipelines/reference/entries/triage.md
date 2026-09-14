@@ -30,13 +30,15 @@ A request carries one or more statements; route each by the first predicate that
 
 Several live pipelines match: the one the request identifies — by name, or as the only one whose frontier it advances; otherwise the owner chooses in step 4, the tip for a new pipeline included.
 
-### 4. Confirm the run
+Routes group by pipeline into runs.
 
-Ask the target phase in plain language without exposing phase numbers. In one message, give each route and why — or, when no predicate decides, the one deciding question — together with the full run policy to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm the run plan until the owner confirms it.
+### 4. Confirm the runs
+
+Ask the target phase in plain language without exposing phase numbers. In one message, give each route and why — or, when no predicate decides, the one deciding question — together with the full policy of each run to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 
-Address every worktree by absolute path and run its Git commands through `git -C <worktree>`. Before branching from a tracked artifact base branch, fetch its remote and fast-forward the local branch to its upstream.
+Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`. Before branching from a tracked artifact base branch, fetch its remote and fast-forward the local branch to its upstream.
 
 **A new pipeline**
 
@@ -59,4 +61,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-Quote every direction the owner gave this session — the run policy as confirmed (the `--lanes` declaration, target phase) and any other instruction for the run — as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+One run at a time, in table order. Quote every direction the owner gave this session — the run policy as confirmed (the `--lanes` declaration, target phase) and any other instruction for the run — as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
