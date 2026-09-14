@@ -48,7 +48,7 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 **An external amendment**
 
-1. Live pipeline: its branch and worktree. Merged pipeline: a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; a second correction joins it.
+1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; a second correction joins it.
 2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id). Set `Target:` by the kind of statement: product behavior → the build plan; documentation → the document plan; a named spec requirement or design decision → that clause. Diagnosis belongs to the adjudicating pair.
 3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed); commit the stamps.
 
