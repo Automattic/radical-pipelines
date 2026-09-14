@@ -38,9 +38,11 @@ node rp.mjs check <pipeline-folder> --base <ref> [--lanes <declaration>] [--targ
 - `--base` names the artifact base branch: the pipeline's own commits — those a task report must claim — follow its merge-base with the inspected ref. The branch the intent `starts-from` prevails when it declares one; otherwise `--base` is required. A base that does not resolve is an error.
 - `--lanes` declares, per artifact, the named review lanes and, after `|`, production lanes with their `after` dependencies: `"spec=security@<fingerprint>[materials=1-spec/spec.md+0-intent/intent.md]|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh@<fingerprint>"`. Every named lane is `<id>@<fingerprint>`, matching the stamped `lane`; optional `materials=` selects package members a filtered review lane receives and reviews. Other materials are always supplied. Without it, the lane reviews the full package. Components, paths, and delimiters are exact; artifacts, lane ids, material paths, and expanded auxiliary branch names are unique. A lane folder or review the declaration lacks is reported; `tasks` is reserved.
 - `--target-phase <n>` is an integer from 1 (spec) to 4 (document); default 4. The report ends with `complete through phase <m>` against it.
-- `--ref` reads the pipeline's exact paths and identities from a commit instead of the working tree; the commit range is the same. One streamed `git cat-file --batch` process supplies cached object bytes without a subprocess output-size limit. A read failure stops the check before facts, naming the ref and path.
+- `--ref` reads the pipeline's exact paths and identities from a commit instead of the working tree; the commit range is the same. One streamed `git cat-file --batch` process supplies cached object bytes without a subprocess output-size limit. Tree metadata and batch headers must match their complete grammars.
 - `--json` emits machine-readable state.
 - Each command accepts only its documented options and one positional argument. Any other value, missing value, duplicate single option, or unknown option is an error.
+
+Both readers require a pipeline directory. Unlisted members may be unwritten; listed documents must be readable regular files. Read failures stop the check before facts, naming the ref or worktree and path.
 
 ```sh
 node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main --lanes "spec=security@b01a76f7504a" --target-phase 3

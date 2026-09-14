@@ -248,6 +248,130 @@ describe("rp state tooling", () => {
       });
     });
 
+  const readFailure = (context, reason) => (error) => {
+    assert.equal(error.status, 1);
+    assert.equal(error.stdout, "");
+    assert.ok(error.stderr.includes(`cannot read ${context}`), error.stderr);
+    assert.match(error.stderr, reason);
+    assert.doesNotMatch(error.stderr, /frontier|STALE|UNSTAMPED/);
+    return true;
+  };
+
+  for (const mode of ["worktree", "ref"])
+    for (const kind of ["absent", "file"])
+      test(`reader contract: ${mode} rejects a pipeline root that is ${kind}`, () => {
+        rmSync(join(root, PIPELINE), { recursive: true });
+        if (kind === "file") writeFileSync(join(root, PIPELINE), "not a pipeline directory\n");
+        git(root, "add", "-A");
+        git(root, "commit", "--quiet", "-m", "invalid pipeline root");
+        const ref = git(root, "rev-parse", "HEAD").trim();
+        assert.throws(() => check(root, "--json", ...(mode === "ref" ? ["--ref", "HEAD"] : [])), readFailure(`${mode === "ref" ? ref : mode}:${PIPELINE}`, /expected a pipeline tree|ENOENT/));
+      });
+
+  for (const file of ["1-spec/spec.md", "1-spec/spec-research.md"])
+    test(`reader contract: a gitlink at ${file} is an error, not a missing document`, () => {
+      git(root, "rm", "--quiet", P(file));
+      const commit = git(root, "rev-parse", "HEAD").trim();
+      git(root, "update-index", "--add", "--cacheinfo", `160000,${commit},${P(file)}`);
+      git(root, "commit", "--quiet", "-m", "gitlink instead of a document");
+      const ref = git(root, "rev-parse", "HEAD").trim();
+      assert.throws(() => check(root, "--ref", "HEAD", "--json"), readFailure(`${ref}:${P(file)}`, /not a regular blob/));
+    });
+
+  for (const file of ["1-spec/spec.md", "1-spec/spec-research.md"])
+    test(`reader contract: a worktree directory at ${file} is not a missing document`, () => {
+      rmSync(join(root, P(file)));
+      mkdirSync(join(root, P(file)));
+      assert.throws(() => check(root, "--json"), readFailure(`worktree:${P(file)}`, /not a regular blob: tree/));
+    });
+
+  for (const failure of ["missing", "directory", "read error"])
+    test(`reader contract: listed worktree document becoming ${failure} aborts`, () => {
+      const file = "1-spec/spec-research.md", path = join(root, P(file));
+      const preload = join(root, ".git", "read-race.mjs");
+      writeFileSync(preload, `import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { resolve, dirname } from 'node:path';
+const target = fs.realpathSync(${JSON.stringify(path)}), failure = ${JSON.stringify(failure)};
+const read = fs.readFileSync, list = fs.readdirSync;
+let scheduled = false;
+fs.readdirSync = function(path, ...args) {
+  const result = list.call(this, path, ...args);
+  if (!scheduled && resolve(String(path)) === dirname(target)) {
+    scheduled = true;
+    queueMicrotask(() => {
+      if (failure === 'read error') return;
+      fs.unlinkSync(target);
+      if (failure === 'directory') fs.mkdirSync(target);
+    });
+  }
+  return result;
+};
+fs.readFileSync = function(path, ...args) {
+  if (failure === 'read error' && typeof path === 'string' && resolve(path) === target) throw new Error('injected EACCES');
+  return read.call(this, path, ...args);
+};
+syncBuiltinESMExports();
+`);
+      assert.throws(() => execFileSync(process.execPath, ["--import", preload, RP, "check", PIPELINE, "--base", "main", "--json"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), readFailure(`worktree:${P(file)}`, /ENOENT|no longer a regular file|EACCES/));
+    });
+
+  for (const mode of ["worktree", "ref"])
+    test(`reader contract: ${mode} permits a review that has not been written`, () => {
+      registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+      git(root, "add", "-A");
+      git(root, "commit", "--quiet", "-m", "artifact ready for its first review");
+      const state = JSON.parse(check(root, "--target-phase", "1", "--json", ...(mode === "ref" ? ["--ref", "HEAD"] : [])));
+      assert.deepEqual(state.contradictions, []);
+      assert.equal(state.artifacts[0].state, "fresh");
+      assert.equal(state.artifacts[0].lanes[0].verdict, "none");
+      assert.equal(state.frontier, "review wave 1-spec/spec.md");
+    });
+
+  function protocolShim(command, mutation) {
+    const script = join(root, ".git", "protocol.mjs");
+    writeFileSync(script, `import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+const args = process.argv.slice(2), mutation = ${JSON.stringify(mutation)};
+let output = execFileSync(process.env.RP_REAL_GIT, args, { input: args[0] === 'cat-file' ? readFileSync(0) : undefined });
+if (args[0] === 'cat-file') {
+  const end = output.indexOf(10), header = output.subarray(0, end).toString('ascii');
+  const [oid, type, size] = header.split(' ');
+  const changed = { missing: oid + ' missing', 'non-blob': oid + ' tree ' + size, extra: header + ' extra', space: header + ' ', cr: header + '\\r', size: oid + ' blob -1' }[mutation];
+  if (changed) output = Buffer.concat([Buffer.from(changed + '\\n'), output.subarray(end + 1)]);
+  if (mutation === 'terminator') output[end + 1 + Number(size)] = 88;
+  if (mutation === 'trailing') output = Buffer.concat([output, Buffer.from('extra')]);
+} else {
+  let changed = false;
+  output = Buffer.from(output.toString('utf8').split('\\0').map(line => {
+    const tab = line.indexOf('\\t'), header = line.slice(0, tab), path = line.slice(tab + 1);
+    if (changed || !path.startsWith(${JSON.stringify(PIPELINE + "/")})) return line;
+    changed = true;
+    const malformed = { extra: header + ' extra', space: header + ' ', cr: header + '\\r', mode: header.replace(/^[0-7]+/, '100000'), type: header.replace(' tree ', ' blob ').replace(' blob ', ' commit ') }[mutation];
+    return (malformed ?? header) + '\\t' + path;
+  }).join('\\0'));
+}
+process.stdout.write(output);
+`);
+    const { env } = gitShim(`if [ "$1" = "${command}" ]; then exec "$RP_NODE" "$RP_PROTOCOL" "$@"; fi`);
+    return { ...env, RP_NODE: process.execPath, RP_PROTOCOL: script };
+  }
+
+  for (const [command, mutations] of [["cat-file", ["valid", "missing", "non-blob", "extra", "space", "cr", "size", "terminator", "trailing"]], ["ls-tree", ["valid", "extra", "space", "cr", "mode", "type"]]])
+    for (const mutation of mutations)
+      test(`reader protocol: ${command} ${mutation} satisfies the complete grammar or aborts`, () => {
+        const env = protocolShim(command, mutation), ref = git(root, "rev-parse", "HEAD").trim();
+        const run = () => execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+        if (mutation === "valid") {
+          const { ref: fromCommit, ...committed } = JSON.parse(run());
+          const { ref: fromWorktree, ...working } = JSON.parse(check(root, "--json"));
+          assert.deepEqual(committed, working);
+        } else {
+          const reason = command === "ls-tree" ? /invalid ls-tree/ : mutation === "terminator" ? /invalid batch object terminator/ : mutation === "trailing" ? /unexpected trailing batch output/ : /invalid batch response/;
+          assert.throws(run, readFailure(`${ref}:${PIPELINE}/`, reason));
+        }
+      });
+
   // --- identity and stamps -----------------------------------------------------
 
   test("identity is the body's hash: stamping never changes it", () => {
