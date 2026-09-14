@@ -173,7 +173,7 @@ describe("rp state tooling", () => {
 
   test("ref reader: four phases and resolved triggers match the worktree in one batch", (t) => {
     const trigger = "0-intent/1-amendment.md";
-    registered(trigger, { target: "1-spec/spec.md#R1", origin: "issue 9" }, "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 9\n");
+    registered(trigger, { target: ["1-spec/spec.md#R1"], "target-identity": [identity(read(root, "1-spec/spec.md"))], origin: "issue 9" }, "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 9\n");
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", trigger]) });
     registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, trigger]));
     write(root, "2-design-doc/design-doc-research.md", `# Research\n${"Evidence λ.\n".repeat(140000)}`);
