@@ -25,16 +25,16 @@ flowchart TD
     ROUTE --> R5["Start a new re-attempt"]
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
     ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
-    QUESTION --> CONFIRM["Ask once: each route or the deciding question, each run's workflow, target phase, lanes, and remaining questions"]
-    R1 --> CONFIRM
-    R2 --> CONFIRM
-    R3 --> CONFIRM
-    R3W --> CONFIRM
-    R4 --> CONFIRM
-    R5 --> CONFIRM
-    R6 --> CONFIRM
-    CONFIRM --> GROUP["Group routes by pipeline into runs"]
-    GROUP --> PREP{"Prepare every route of the next run"}
+    QUESTION --> GROUP
+    GROUP --> CONFIRM["Ask once: each route or the deciding question, each run's workflow, target phase, lanes, and remaining questions"]
+    R1 --> GROUP["Group routes by pipeline into runs"]
+    R2 --> GROUP
+    R3 --> GROUP
+    R3W --> GROUP
+    R4 --> GROUP
+    R5 --> GROUP
+    R6 --> GROUP
+    CONFIRM --> PREP{"Prepare every route of the next run"}
     PREP --> P1["Create the branch at its start ref and create the worktree"]
     P1 --> P1A["Synthesize, approve, commit, and stamp the intent"]
     PREP --> P2["Select or create the amendment branch and worktree"]
