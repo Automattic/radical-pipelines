@@ -55,7 +55,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 **Code**
 
 - Follow the project's e2e conventions, including any inline documentation the test convention expects.
-- Write about the software as it is: nothing you produce — code, identifiers, comments, test names, messages, commit messages — references a task, requirement, flow, criterion, or artifact, or describes the software's prior state or the change from it.
+- Host-project output — code, identifiers, comments, test names, messages, commit messages — references the software only, never a task, requirement, flow, criterion, or artifact; the code describes the software as it is, never its prior state or the change from it.
 - No speculative code: no abstractions for hypothetical futures, no handling for impossible cases.
 - Follow the project's patterns, naming, code style, and testing style.
 
