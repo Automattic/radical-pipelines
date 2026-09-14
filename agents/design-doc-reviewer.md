@@ -83,7 +83,7 @@ A prior finding is resolved when every case it named is served, or left as an ac
 **Adjudication audit**
 
 - An adoption that works around a spec clause the record itself shows unsatisfiable is a finding: name the clause and the record entry that shows it.
-- A contradicts-input disposition within what you verify is yours to settle: corroborate when its evidence survives your checks — for a false claim, the evidence reproduces; for an exhaustion claim, no class the enumeration leaves open; for a disproportion claim, no route proportionate to what the intent makes material; defeat it by rejecting with the route or class named. Every disposition in the record is settled before you approve.
+- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false claim, the evidence reproduces; for an exhaustion claim, no class the enumeration leaves open; for a disproportion claim, no route proportionate to what the intent makes material; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
 

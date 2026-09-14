@@ -49,7 +49,7 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 **An external amendment**
 
 1. Live pipeline: its branch and worktree. Merged pipeline: a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; a second correction joins it.
-2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id). The targets are the artifacts whose contract the request contradicts, at the level it states them: observed product behavior, the build plan; documentation, the document plan; a requirement or decision it names, that artifact and clause. Diagnosis belongs to the adjudicating pair.
+2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id). Targets: product behavior → the build plan; documentation → the document plan; a named spec requirement or design decision → that clause. The adjudicating pair diagnoses.
 3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed); commit the stamps.
 
 **Continue**: the pipeline's branch and worktree, created when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
