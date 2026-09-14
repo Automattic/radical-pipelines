@@ -3,7 +3,7 @@
 // Zero dependencies. Serves the spec in ../reference/run/state.md; everything
 // it does can be done with bare git. Commands: stamp, check.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -728,57 +728,162 @@ function pinParts(entry) {
 }
 
 // The pipeline tree holds files and folders only: a symlink is never followed, it is reported.
-function walk(dir) {
-  const out = { files: [], symlinks: [] };
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    const st = lstatSync(p);
-    if (st.isSymbolicLink()) out.symlinks.push(p);
-    else if (st.isDirectory()) {
-      const sub = walk(p);
-      out.files.push(...sub.files);
-      out.symlinks.push(...sub.symlinks);
-    } else if (name.endsWith(".md")) out.files.push(p);
-  }
+function walk(dir, rel = "", out = []) {
+  const st = lstatSync(dir);
+  const type = st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "tree" : st.isFile() ? "blob" : "other";
+  out.push({ rel, type });
+  if (type === "tree") for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
   return out;
 }
 
-// A tree to read the pipeline from: the working tree, or a ref (`--ref`).
-function treeReader(root, abs, ref) {
-  const pipelineRel = relative(root, abs);
-  if (!ref) {
-    const tree = walk(abs);
-    return {
-      list: () => tree.files.map((f) => relative(abs, f)),
-      symlinks: () => tree.symlinks.map((f) => relative(abs, f)),
-      read: (rel, bytes = false) => {
-        const path = join(abs, rel);
-        return existsSync(path) && lstatSync(path).isFile() ? readFileSync(path, bytes ? undefined : "utf8") : null;
-      },
-    };
-  }
-  const entries = execFileSync("git", ["ls-tree", "-rz", ref, "--", pipelineRel], { cwd: root, encoding: "utf8" })
-    .split("\0")
-    .filter(Boolean)
-    .map((l) => {
-      const tab = l.indexOf("\t");
-      const meta = l.slice(0, tab);
-      const path = l.slice(tab + 1);
-      return { mode: meta.split(" ")[0], rel: path.slice(pipelineRel.length + 1) };
-    });
-  const regular = new Set(entries.filter((e) => /^100\d{3}$/.test(e.mode)).map((e) => e.rel));
+// The manifest is the boundary: unlisted members may be unwritten; listed members must be readable.
+function indexedTreeReader(entries, load, context) {
+  const members = new Map(entries.map((entry) => [entry.rel, entry]));
+  const fail = (rel, reason) => new Error(`check: cannot read ${context}${rel ? `/${rel}` : ""}: ${reason}`);
+  if (members.get("")?.type !== "tree") throw fail("", "expected a pipeline tree");
+  for (const entry of entries)
+    if (!["tree", "blob", "symlink"].includes(entry.type)) throw fail(entry.rel, `not a regular blob or directory: ${entry.type}`);
+  const contents = new Map(), texts = new Map();
   return {
-    list: () => entries.filter((e) => e.mode !== "120000" && e.rel.endsWith(".md")).map((e) => e.rel),
-    symlinks: () => entries.filter((e) => e.mode === "120000").map((e) => e.rel),
+    list: () => entries.filter((e) => e.type !== "symlink" && e.rel.endsWith(".md")).map((e) => e.rel),
+    symlinks: () => entries.filter((e) => e.type === "symlink").map((e) => e.rel),
     read: (rel, bytes = false) => {
-      if (!regular.has(rel)) return null;
+      const entry = members.get(rel);
+      if (!entry) return null;
       try {
-        return execFileSync("git", ["show", `${ref}:${pipelineRel}/${rel}`], { cwd: root, encoding: bytes ? undefined : "utf8", stdio: ["ignore", "pipe", "ignore"] });
-      } catch {
-        return null;
-      }
+        if (entry.type !== "blob") throw new Error(`not a regular blob: ${entry.type}`);
+        if (!contents.has(rel)) {
+          const content = load(entry);
+          if (!Buffer.isBuffer(content)) throw new Error("listed entry has no readable content");
+          contents.set(rel, content);
+        }
+        if (bytes) return contents.get(rel);
+        if (!texts.has(rel)) texts.set(rel, contents.get(rel).toString("utf8"));
+        return texts.get(rel);
+      } catch (error) { throw fail(rel, error.message); }
     },
   };
+}
+
+function gitStream(root, args, input) {
+  const child = spawn("git", args, { cwd: root, stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"] });
+  const errors = [];
+  child.stderr.on("data", (chunk) => errors.push(chunk));
+  let failure;
+  const finished = new Promise((resolve) => {
+    child.on("error", (error) => { failure = error; });
+    child.on("close", (code, signal) => resolve(failure ?? (code === 0 ? null : new Error(`git ${args[0]} exited ${signal ?? code}: ${Buffer.concat(errors).toString("utf8").trim()}`))));
+  });
+  if (input !== undefined) {
+    child.stdin.on("error", (error) => { failure = error; });
+    child.stdin.end(input);
+  }
+  return { child, finished };
+}
+
+// A tree to read the pipeline from: the working tree, or a ref (`--ref`).
+async function treeReader(root, abs, ref) {
+  const pipelineRel = relative(root, abs);
+  if (!ref) {
+    let entries;
+    try { entries = walk(abs); }
+    catch (error) { throw new Error(`check: cannot read worktree:${pipelineRel}: ${error.message}`); }
+    return indexedTreeReader(entries, ({ rel }) => {
+      const path = join(abs, rel);
+      if (!lstatSync(path).isFile()) throw new Error("listed entry is no longer a regular file");
+      return readFileSync(path);
+    }, `worktree:${pipelineRel}`);
+  }
+  const listing = gitStream(root, ["ls-tree", "-rtz", ref, "--", pipelineRel]);
+  const entries = [];
+  let pending = Buffer.alloc(0);
+  let reading = pipelineRel;
+  try {
+    for await (const chunk of listing.child.stdout) {
+      pending = Buffer.concat([pending, chunk]);
+      let end;
+      while ((end = pending.indexOf(0)) !== -1) {
+        const line = pending.subarray(0, end).toString("utf8");
+        const tab = line.indexOf("\t");
+        const path = line.slice(tab + 1);
+        reading = path || pipelineRel;
+        const metadata = line.slice(0, tab).match(/^(040000|100644|100755|120000|160000) (tree|blob|commit) ([0-9a-f]{40}|[0-9a-f]{64})(?![\s\S])/);
+        if (tab === -1 || !metadata || !path) throw new Error("invalid ls-tree entry");
+        const [, mode, type, oid] = metadata;
+        if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
+        const scoped = path === pipelineRel || path.startsWith(`${pipelineRel}/`);
+        if (!scoped && !(type === "tree" && pipelineRel.startsWith(`${path}/`))) throw new Error("ls-tree entry outside the pipeline");
+        if (scoped) entries.push({ type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) });
+        pending = pending.subarray(end + 1);
+      }
+    }
+    const failure = await listing.finished;
+    if (failure) throw failure;
+    if (pending.length) throw new Error("truncated ls-tree entry");
+  } catch (error) {
+    listing.child.kill();
+    await listing.finished;
+    throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
+  }
+  const contents = new Map();
+  const reader = indexedTreeReader(entries, ({ rel }) => contents.get(rel), `${ref}:${pipelineRel}`);
+  const regular = entries.filter((e) => e.type === "blob");
+  // Object ids keep tabs and newlines in paths out of the line-oriented batch protocol.
+  const batch = gitStream(root, ["cat-file", "--batch"], regular.map((e) => `${e.oid}\n`).join(""));
+  const stream = batch.child.stdout[Symbol.asyncIterator]();
+  let chunk = Buffer.alloc(0), offset = 0;
+  const available = async () => {
+    if (offset < chunk.length) return true;
+    const next = await stream.next();
+    chunk = next.value ?? Buffer.alloc(0);
+    offset = 0;
+    return !next.done;
+  };
+  const line = async () => {
+    const parts = [];
+    while (await available()) {
+      const end = chunk.indexOf(10, offset);
+      parts.push(chunk.subarray(offset, end === -1 ? chunk.length : end));
+      offset = end === -1 ? chunk.length : end + 1;
+      if (end !== -1) return Buffer.concat(parts).toString("ascii");
+    }
+    throw new Error("unexpected end of batch header");
+  };
+  const bytes = async (length) => {
+    const result = Buffer.allocUnsafe(length);
+    let copied = 0;
+    while (copied < length) {
+      if (!await available()) throw new Error("unexpected end of batch object");
+      const count = Math.min(length - copied, chunk.length - offset);
+      chunk.copy(result, copied, offset, offset + count);
+      copied += count;
+      offset += count;
+    }
+    return result;
+  };
+  reading = pipelineRel;
+  try {
+    for (const entry of regular) {
+      reading = `${pipelineRel}/${entry.rel}`;
+      const header = await line();
+      const metadata = header.match(/^([0-9a-f]{40}|[0-9a-f]{64}) blob (\d+)(?![\s\S])/);
+      if (!metadata || metadata[1] !== entry.oid || !Number.isSafeInteger(Number(metadata[2]))) throw new Error(`invalid batch response: ${header}`);
+      const size = Number(metadata[2]);
+      const content = await bytes(size);
+      if ((await bytes(1))[0] !== 10) throw new Error("invalid batch object terminator");
+      contents.set(entry.rel, content);
+    }
+    if (await available()) throw new Error("unexpected trailing batch output");
+    const failure = await batch.finished;
+    if (failure) throw failure;
+  } catch (error) {
+    batch.child.kill();
+    batch.child.stdout.destroy();
+    batch.child.stdin.destroy();
+    await batch.finished;
+    throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
+  }
+  return reader;
 }
 
 // `--lanes spec=security@<fingerprint>[materials=<path>+<path>]|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven`:
@@ -870,13 +975,12 @@ function cmdFingerprint(args) {
   process.stdout.write(`${laneFingerprint({ id, brief: args.brief ?? "", materials: args.materials ?? "", after: args.after ?? "" })}\n`);
 }
 
-function cmdCheck(args) {
+async function cmdCheck(args) {
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const { root, abs } = repositoryFor(folder);
   containedPath("check", root, abs);
   const pipelineName = basename(abs);
   if (!/^[^/_]+$/.test(pipelineName)) die(`check: pipeline folder name must be one segment without / or _: ${pipelineName || folder}`);
-  if (!args.ref && !existsSync(abs)) die(`check: no such folder: ${folder}`);
   const pipelineRel = relative(root, abs);
   const rev = (r, what) => {
     try {
@@ -886,7 +990,7 @@ function cmdCheck(args) {
     }
   };
   const ref = args.ref ? rev(args.ref, "--ref") : null;
-  const tree = treeReader(root, abs, ref);
+  const tree = await treeReader(root, abs, ref);
   const decl = parseLanes(args.lanes);
   const reviewLanesOf = (prefix) => [{ id: "", fingerprint: null }, ...(decl[prefix]?.review ?? [])];
   const productionLanesOf = (prefix) => decl[prefix]?.production ?? [];
@@ -900,7 +1004,7 @@ function cmdCheck(args) {
     .list()
     .sort()
     .map((rel) => {
-      const text = tree.read(rel) ?? "";
+      const text = tree.read(rel);
       texts.set(rel, text);
       const { data: parsed, body, error: parseError } = parseFrontmatter(text);
       const ids = parseError ? {} : intentIds(parsed, body, rel);
@@ -1502,7 +1606,8 @@ Spec: ../reference/run/state.md
       cmdStamp(args);
       break;
     case "check":
-      cmdCheck(args);
+      try { await cmdCheck(args); }
+      catch (error) { die(error.message); }
       break;
     case "fingerprint":
       cmdFingerprint(args);
