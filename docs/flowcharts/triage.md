@@ -33,7 +33,8 @@ flowchart TD
     R4 --> CONFIRM
     R5 --> CONFIRM
     R6 --> CONFIRM
-    CONFIRM --> PREP{"Prepare the selected route"}
+    CONFIRM --> GROUP["Group routes by pipeline into runs"]
+    GROUP --> PREP{"Prepare every route of the next run"}
     PREP --> P1["Create the branch at its start ref and create the worktree"]
     P1 --> P1A["Synthesize, approve, commit, and stamp the intent"]
     PREP --> P2["Select or create the amendment branch and worktree"]
@@ -41,11 +42,14 @@ flowchart TD
     PREP --> P3["Ensure the continuation branch and worktree exist"]
     PREP --> P4["Modify the issue; re-synthesize the intent; commit and stamp"]
     P4 --> P3
-    P1A --> DIRECTIONS["Record run directions as intent decisions; stamp and commit"]
+    P1A --> DIRECTIONS["Record the run's directions as decisions in its intent; stamp and commit"]
     P2A --> DIRECTIONS
     P3 --> DIRECTIONS
-    DIRECTIONS --> START["For each run in turn: fire run-started"]
+    DIRECTIONS --> START["Fire run-started"]
     START --> MODE{"Confirmed workflow"}
     MODE --> AUTO["Run the autonomous loop"]
     MODE --> ASSISTED["Run the assisted phase"]
+    AUTO --> NEXT{"Another run?"}
+    ASSISTED --> NEXT
+    NEXT -->|Yes| PREP
 ```

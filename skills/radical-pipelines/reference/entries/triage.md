@@ -61,4 +61,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-One run at a time, in table order. Quote every direction the owner gave this session — the run policy as confirmed (the `--lanes` declaration, target phase) and any other instruction for the run — as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+One run at a time, in table order; a run carries its statements. Quote every direction the owner gave for it — its policy as confirmed (the `--lanes` declaration, target phase) and any other instruction — as decisions in its `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
