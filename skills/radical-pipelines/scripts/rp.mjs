@@ -469,7 +469,7 @@ export function projectBody(body, rel = "") {
   const report = rel.match(REPORT);
   if (report) {
     p.set("attempt", report[3]);
-    if (p.get("outcome") === "failed" && !p.has("target"))
+    if (triggerKind(rel, p) === "failed report" && !p.has("target"))
       p.set("target", [reportTarget(rel)]);
   }
   return p;
@@ -1004,7 +1004,7 @@ function cmdCheck(args) {
     const key = `${phase}/${id}`;
     const attempt = Number(k);
     if (!reports.has(key) || reports.get(key).attempt < attempt)
-      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "", packageContext).review) });
+      reports.set(key, { rel: t.rel, data: t.data, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "", packageContext).review) });
   }
 
   // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
@@ -1126,7 +1126,7 @@ function cmdCheck(args) {
     if (!targetArtifact) return { state: "pending" };
     const lanes = laneStates(targetArtifact.prefix, "");
     for (const l of lanes)
-      if (l.review && l.verdict === "unsatisfiable" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
+      if (l.review && triggerKind(l.review.rel, l.review.data) === "claim" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
         return { state: "resolved", detail: `escalated by ${l.review.rel}` };
     const pinned = pinPackage(pinsByPath.get(item.targetPath))?.has(item.rel);
     if (!pinned) return { state: "pending" };
@@ -1137,7 +1137,7 @@ function cmdCheck(args) {
   // 1. Triggers: external amendments and fresh failed task reports.
   const triggers = [
     ...all.filter((d) => triggerKind(d.rel, d.data) === "amendment").flatMap((d) => targetPairs(d.rel, d.data).map((t) => ({ ...t, kind: "amendment" }))),
-    ...[...reports.values()].filter((t) => t.outcome === "failed" && t.fresh).flatMap((t) => targetPairs(t.rel, all.find((d) => d.rel === t.rel).data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` }))),
+    ...[...reports.values()].filter((t) => triggerKind(t.rel, t.data) === "failed report" && t.fresh).flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` }))),
   ].sort((a, b) => phaseOfTarget(a.targetPath) - phaseOfTarget(b.targetPath)).map((t) => ({ ...t, resolution: resolutionOf(t) }));
   let unresolvedInScope = false;
   for (const t of triggers) {
@@ -1155,7 +1155,7 @@ function cmdCheck(args) {
   const claims = [];
   for (const sc of scopes)
     for (const r of reviewsOf(sc)) {
-      if (r.data.get("verdict") !== "unsatisfiable") continue;
+      if (triggerKind(r.rel, r.data) !== "claim") continue;
       // A claim is its lane's verdict: the lane's latest review is the one that stands.
       const lanes = laneStates(r.prefix, sc);
       const mine = lanes.find((l) => l.review?.rel === r.rel);
@@ -1298,7 +1298,7 @@ function cmdCheck(args) {
     // A fresh failed report holds its task until the plan adjudicates it (pins it).
     const held = (id) => {
       const r = latestOf(id);
-      if (!r || r.outcome !== "failed" || !r.fresh) return false;
+      if (!r || triggerKind(r.rel, r.data) !== "failed report" || !r.fresh) return false;
       return !pinPackage(pinsByPath.get(art.path))?.has(r.rel);
     };
     // A fresh blocked report leaves its task pending: the environment, not the plan, is what changes before the next attempt.

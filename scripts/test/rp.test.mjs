@@ -410,6 +410,53 @@ describe("rp state tooling", () => {
 
   // --- triggers and claims -----------------------------------------------------
 
+  function checkWithClassification(excluded, ...args) {
+    // Change only the classifier in an isolated executable; exercise the real checker.
+    const script = join(root, ".git", "classified-rp.mjs");
+    const source = readFileSync(RP, "utf8");
+    writeFileSync(script, excluded ? source.replace("function triggerKind(rel, data) {", `function triggerKind(rel, data) { if (rel === ${JSON.stringify(excluded)}) return null;`) : source);
+    return JSON.parse(execFileSync(process.execPath, [script, "check", PIPELINE, "--base", "main", "--json", ...args], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+  }
+
+  for (const enabled of [true, false])
+    for (const fresh of [true, false])
+      test(`trigger classifier: report enabled=${enabled}, fresh=${fresh} governs collection and task holds`, () => {
+        registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+        registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+        registered("2-design-doc/design-doc.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"]) });
+        registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
+        const inputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md"];
+        registered("3-build/build-plan.md", { pins: pairs(inputs) });
+        const task = "3-build/tasks/T1.md", report = "3-build/tasks/T1-report-1.md";
+        registered(task, { depends: [] }, "# Task\nDepends on: none\n");
+        registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), ...(enabled ? { target: ["3-build/build-plan.md#T1"], "target-identity": [identity(read(root, "3-build/build-plan.md"))] } : {}) }, "# Report\nOutcome: failed\n");
+        registeredVerdict("3-build/build-plan-review-1.md", pairs([...PLAN_BASE, task]));
+        if (!fresh) registered(task, { depends: [] }, "# Changed task\nDepends on: none\n");
+        const state = checkWithClassification(enabled ? null : report, "--target-phase", "3");
+        assert.deepEqual(state.contradictions, []);
+        assert.equal(state.triggers.length, enabled && fresh ? 1 : 0);
+        assert.equal(state.tasks["3-build"].next, enabled && fresh ? null : "T1");
+        if (fresh) assert.equal(state.frontier, enabled ? `trigger ${report} → 3-build/build-plan.md#T1` : "task 3-build/T1");
+      });
+
+  for (const enabled of [true, false])
+    for (const fresh of [true, false])
+      for (const escalation of [true, false])
+        test(`trigger classifier: claim enabled=${enabled}, fresh=${fresh}, origin=${escalation} governs claims and resolution`, () => {
+          const trigger = "0-intent/1-amendment.md", review = "1-spec/spec-review-1.md";
+          const inputs = ["0-intent/intent.md", ...(escalation ? [trigger] : [])];
+          if (escalation) registered(trigger, { target: ["1-spec/spec.md#R1"], "target-identity": [identity(read(root, "1-spec/spec.md"))], origin: "issue 9" }, "# Amendment\nTarget: 1-spec/spec.md#R1\nOrigin: issue 9\n");
+          registered("1-spec/spec.md", { pins: pairs(inputs) });
+          registered(review, { verdict: "unsatisfiable", reviewed: pairs(["1-spec/spec.md", "1-spec/spec-research.md", ...inputs]), ...(enabled ? { target: ["0-intent/intent.md#goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] } : {}), ...(escalation ? { origin: trigger } : {}) }, `# Review\nVerdict: unsatisfiable\n${enabled ? "Target: 0-intent/intent.md#goal\n" : ""}${escalation ? `Origin: ${trigger}\n` : ""}`);
+          if (!fresh) write(root, "1-spec/spec-research.md", "# Changed record\n");
+          const state = checkWithClassification(enabled ? null : review, "--target-phase", "1");
+          assert.deepEqual(state.contradictions, []);
+          assert.equal(state.claims.length, enabled ? 1 : 0);
+          if (enabled) assert.match(state.claims[0].state, fresh ? /^PENDING/ : /^moot/);
+          if (escalation) assert.equal(state.triggers[0].state, enabled && fresh ? "resolved" : "adjudicated");
+          if (!enabled) assert.doesNotMatch(state.frontier, /^claim /);
+        });
+
   function amendment(target = "1-spec/spec.md#R1") {
     write(root, "0-intent/1-amendment.md", `# Amendment 1\n\nTarget: ${target}\nOrigin: decision-1\n\n## Request\n\nFix R1.\n`);
     rp(root, "stamp", P("0-intent/1-amendment.md"), "--mirror");
