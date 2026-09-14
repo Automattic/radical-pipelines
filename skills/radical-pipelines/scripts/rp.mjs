@@ -334,13 +334,9 @@ function targetExists(target, read, kind) {
   const text = read(path);
   if (text === null || text === undefined) return false;
   if (!item) return true;
-  const body = parseFrontmatter(text).body;
-  if (path === "0-intent/intent.md") {
-    if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(body);
-    const m = item.match(/^(constraint|decision)-(\d+)$/);
-    const section = m ? body.match(new RegExp(`^## ${m[1]}s?[^\\S\\n]*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mi"))?.[1] ?? "" : "";
-    return !!m && [...section.matchAll(/^\s*(?:[-*+]|\d+[.)])\s+/gm)].length >= Number(m[2]);
-  }
+  const body = outsideFences(parseFrontmatter(text).body);
+  // #goal addresses a section; other textual ids address items.
+  if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(body);
   if (/^T\d+$/.test(item)) return read(`${path.split("/")[0]}/tasks/${item}.md`) != null;
   return new RegExp(`(?:^|[^A-Za-z0-9])${item}(?=$|[^A-Za-z0-9])`).test(body);
 }

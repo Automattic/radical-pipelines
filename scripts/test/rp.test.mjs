@@ -860,13 +860,95 @@ describe("rp state tooling", () => {
     assert.throws(() => amendment("1-spec/spec.md#R9"), /INVALID TARGET 1-spec\/spec\.md#R9/);
     assert.throws(() => amendment("3-build/build-plan.md#T9"), /INVALID TARGET 3-build\/build-plan\.md#T9/);
     assert.throws(() => amendment("0-intent/intent.md#goal"), /INVALID TARGET 0-intent\/intent\.md#goal/);
-    write(root, "0-intent/intent.md", "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\n- First.\n\n## Decisions\n\n1. Later.\n");
+    write(root, "0-intent/intent.md", "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\n- constraint-1 First.\n\n## Decisions\n\n- decision-1 Later.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     stampSpec();
     assert.throws(() => review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-2\n"), /INVALID TARGET/);
     assert.throws(() => review("1-spec/spec-review-3.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#constraint-0\n"), /INVALID TARGET/);
     assert.throws(() => review("1-spec/spec-review-4.md", "unsatisfiable", SPEC), /INVALID TARGET \?/);
   });
+
+  for (const [kind, section] of [["constraint", "Constraints"], ["decision", "Decisions"]])
+    for (const presence of ["first bullet", "absent", "backtick fence", "tilde fence"])
+      test(`intent ${kind}-2 landing uses its explicit token: ${presence}`, () => {
+        const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
+        const target = `${intent}#${kind}-2`;
+        const item = `- ${kind}-2 Owner item.\n`;
+        const items = presence === "first bullet" ? item
+          : presence === "absent" ? `- ${kind}-20 Another item.\n- ${kind}-21 Later item.\n`
+          : presence === "backtick fence" ? `\`\`\`markdown\n${item}\`\`\`\n`
+          : `~~~markdown\n${item}~~~\n`;
+        registered(intent, { origin: "issue 7" }, `Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## ${section}\n\n${items}`);
+        registered("1-spec/spec.md", { pins: pairs([intent]) });
+        registered(claim, { reviewed: pairs(SPEC) }, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+        if (presence === "first bullet") {
+          rp(root, "stamp", P(claim), "--mirror");
+          assert.equal(parseFrontmatter(read(root, claim)).data.get("target"), target);
+          const state = JSON.parse(check(root, "--target-phase", "1", "--json"));
+          assert.equal(state.claims[0].target, target);
+          assert.equal(state.claims[0].state, "PENDING — owner escalation");
+        } else {
+          assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), /INVALID TARGET 0-intent\/intent\.md#(?:constraint|decision)-2/);
+        }
+      });
+
+  for (const [presence, body, valid] of [
+    ["section", "## Goal\n\nOriginal.\n", true],
+    ["fenced section", "```markdown\n## Goal\n```\n", false],
+    ["word only", "The goal is an outcome.\n", false],
+  ])
+    test(`#goal landing addresses its section: ${presence}`, () => {
+      const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
+      registered(intent, { origin: "issue 7" }, `Origin: issue 7\n\n# Intent\n\n${body}`);
+      registered("1-spec/spec.md", { pins: pairs([intent]) });
+      registered(claim, { reviewed: pairs(SPEC) }, "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n");
+      if (valid) {
+        rp(root, "stamp", P(claim), "--mirror");
+        const state = JSON.parse(check(root, "--target-phase", "1", "--json"));
+        assert.equal(state.claims[0].state, "PENDING — owner escalation");
+      } else {
+        assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), /INVALID TARGET 0-intent\/intent\.md#goal/);
+      }
+    });
+
+  for (const [kind, section] of [["context", "Context"], ["assumption", "Assumptions / directions to explore"]])
+    test(`intent ${kind} ids remain outside claim territory`, () => {
+      const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
+      registered(intent, { origin: "issue 7" }, `Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## ${section}\n\n- ${kind}-1 Owner item.\n`);
+      registered("1-spec/spec.md", { pins: pairs([intent]) });
+      registered(claim, { reviewed: pairs(SPEC) }, `# Review\n\nVerdict: unsatisfiable\nTarget: ${intent}#${kind}-1\n`);
+      assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), /INVALID TARGET 0-intent\/intent\.md#(?:context|assumption)-1/);
+    });
+
+  for (const [kind, section] of [["constraint", "Constraints"], ["decision", "Decisions"]])
+    test(`a landed claim retains its recorded ${kind} target after the item is retired`, () => {
+      const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
+      const target = `${intent}#${kind}-2`;
+      const body = "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n";
+      registered(intent, { origin: "issue 7" }, `${body}\n## ${section}\n\n- ${kind}-2 Owner item.\n`);
+      registered("1-spec/spec.md", { pins: pairs([intent]) });
+      registered(claim, {
+        reviewed: pairs(SPEC), verdict: "unsatisfiable", target, "target-identity": identity(read(root, intent)),
+      }, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+      const landed = read(root, claim);
+      assert.equal(JSON.parse(check(root, "--target-phase", "1", "--json")).claims[0].state, "PENDING — owner escalation");
+      registered(intent, { origin: "issue 7" }, body);
+      const state = JSON.parse(check(root, "--target-phase", "1", "--json"));
+      assert.equal(state.claims[0].target, target);
+      assert.equal(state.claims[0].state, "superseded (target changed)");
+      assert.equal(read(root, claim), landed);
+    });
+
+  for (const [artifact, id] of [["1-spec/spec.md", "R1"], ["2-design-doc/design-doc.md", "D1"]])
+    test(`textual target ${id} must occur outside fences in ${artifact}`, () => {
+      const amendment = "0-intent/1-amendment.md";
+      write(root, artifact, `# Artifact\n\n\`\`\`markdown\n${id}\n\`\`\`\n`);
+      write(root, amendment, `# Amendment\n\nTarget: ${artifact}#${id}\nOrigin: decision-1\n`);
+      assert.throws(() => rp(root, "stamp", P(amendment), "--mirror"), /INVALID TARGET/);
+      appendFileSync(join(root, P(artifact)), `\n${id} Target item.\n`);
+      rp(root, "stamp", P(amendment), "--mirror");
+      assert.equal(parseFrontmatter(read(root, amendment)).data.get("target"), `${artifact}#${id}`);
+    });
 
   test("a landed amendment resolves after its target id is removed", () => {
     stampSpec();
@@ -1610,7 +1692,7 @@ describe("rp state tooling", () => {
     approveSpecLaneA();
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
     review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
-    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Decisions\n\n1. New input.\n");
+    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Decisions\n\n- decision-1 New input.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
     review("1-spec/spec-review-2.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
@@ -1645,7 +1727,7 @@ describe("rp state tooling", () => {
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
     review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
     assert.match(check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1"), /frontier complete/);
-    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Decisions\n\n1. Add lane b.\n");
+    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Decisions\n\n- decision-1 Add lane b.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     const output = check(root, "--lanes", `spec=|a@${FPS.a},b@${FPS.b}`, "--target-phase", "1");
     assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
