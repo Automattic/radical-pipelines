@@ -359,19 +359,19 @@ function reportTarget(rel) {
 }
 
 // Field representation rules shared by stamp and check; existence belongs to landing.
-function targetRepresentationErrors(rel, data) {
+function targetRepresentationErrors(rel, data, body) {
   if (data === null) return [];
   const kind = triggerKind(rel, data);
   const targets = data.get("target"), identities = data.get("target-identity");
   const errors = [];
   const invalid = (field, reason) => errors.push({ field, reason });
+  if (!kind && (targets !== undefined || identities !== undefined || projectBody(body, rel).has("target"))) invalid("target", "only triggers may carry target fields");
   if (kind || targets !== undefined || identities !== undefined) {
     if (!Array.isArray(targets) || !targets.length) invalid("target", "expected a non-empty list");
     else {
       if (new Set(targets).size !== targets.length) invalid("target", "duplicate entries");
       if (kind === "claim" && targets.length !== 1) invalid("target", "a claim names one clause");
       const ownTask = reportTarget(rel);
-      if (ownTask && data.get("outcome") !== "failed") invalid("target", "only failed reports may name a target");
       if (ownTask && (targets.length !== 1 || targets[0] !== ownTask)) invalid("target", `expected its own task: ${ownTask}`);
     }
     if (!Array.isArray(identities) || !identities.length) invalid("target-identity", "expected a non-empty list aligned with target");
@@ -651,7 +651,7 @@ function cmdStamp(args) {
         if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, kind)) die(`stamp: INVALID TARGET ${target}`);
     }
   }
-  const targetError = targetRepresentationErrors(rel, fm)[0];
+  const targetError = targetRepresentationErrors(rel, fm, body)[0];
   if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: target-identity`}: ${targetError.reason}`);
   // A report names commits that already exist; they are stored canonical (full hash).
   if (fm.has("commits")) {
@@ -868,7 +868,7 @@ function cmdCheck(args) {
       texts.set(rel, text);
       const { data: parsed, body, error: parseError } = parseFrontmatter(text);
       const data = parsed ?? new Map();
-      const frontmatterError = parseError || targetRepresentationErrors(rel, parsed).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
+      const frontmatterError = parseError || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
       const drift = frontmatterError ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);

@@ -396,11 +396,16 @@ describe("rp state tooling", () => {
     stampSpec();
     review("2-design-doc/spec-review-1.md", "approved", SPEC);
     review("1-spec/archive/old/spec-review-1.md", "approved", SPEC);
-    review("2-design-doc/a/spec-review-1.md", "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n");
     const output = check(root, "--lanes", `design-doc=|a@${FPS.a}`, "--target-phase", "1");
     assert.doesNotMatch(output, /artifact 1-spec\/spec\.md[\s\S]*APPROVED/);
     assert.doesNotMatch(output, /claim\s+2-design-doc\/a\/spec-review-1\.md/);
     assert.match(output, /frontier review wave 1-spec\/spec\.md/);
+    const misplaced = "2-design-doc/a/spec-review-1.md";
+    assert.throws(() => review(misplaced, "unsatisfiable", SPEC, [], "Target: 0-intent/intent.md#goal\n"), /only triggers may carry target fields/);
+    registered(misplaced, { verdict: "unsatisfiable", reviewed: pairs(SPEC), target: ["0-intent/intent.md#goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] }, "# Review\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n");
+    const invalid = JSON.parse(check(root, "--lanes", `design-doc=|a@${FPS.a}`, "--target-phase", "1", "--json"));
+    assert.equal(invalid.frontier, `INVALID FRONTMATTER ${misplaced}`);
+    assert.deepEqual(invalid.claims, []);
   });
 
   // --- triggers and claims -----------------------------------------------------
@@ -541,15 +546,47 @@ describe("rp state tooling", () => {
     assert.equal(JSON.parse(check(root, "--json")).triggers[0].target, "3-build/build-plan.md#T1");
   });
 
-  test("trigger targets: becoming a claim validates targets recorded before the verdict", () => {
+  test("trigger fields: a review may name a target after declaring unsatisfiable", () => {
+    stampSpec();
     const rel = "1-spec/spec-review-1.md";
-    write(root, rel, "# Review\nVerdict: approved\nTarget: 1-spec/spec.md\n");
-    rp(root, "stamp", P(rel), "--mirror");
+    write(root, rel, "# Review\nVerdict: approved\nTarget: 0-intent/intent.md#goal\n");
+    assert.throws(() => rp(root, "stamp", P(rel), "--mirror", ...SPEC.flatMap((path) => ["--reviewed", P(path)])), /only triggers may carry target fields/);
     const body = read(root, rel).replace(/^Verdict: approved$/m, "Verdict: unsatisfiable");
     write(root, rel, body);
-    assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID TARGET 1-spec\/spec.md/);
-    assert.equal(read(root, rel), body);
+    rp(root, "stamp", P(rel), "--mirror", ...SPEC.flatMap((path) => ["--reviewed", P(path)]));
+    const state = JSON.parse(check(root, "--json"));
+    assert.deepEqual(state.contradictions, []);
+    assert.match(state.claims[0].state, /^PENDING — owner escalation$/);
   });
+
+  for (const kind of ["approved review", "rejected review", "artifact", "record", "task"])
+    for (const representation of ["declaration", "mirrored", "target", "target-identity"])
+      test(`trigger fields: ${kind} rejects ${representation} at stamp and check`, () => {
+        const review = kind.endsWith("review");
+        const rel = review ? "1-spec/spec-review-1.md" : { artifact: "1-spec/spec.md", record: "1-spec/spec-research.md", task: "3-build/tasks/T1.md" }[kind];
+        const fields = review ? { verdict: kind.split(" ")[0], reviewed: pairs(SPEC) } : kind === "artifact" ? { pins: pairs(["0-intent/intent.md"]) } : kind === "task" ? { depends: [] } : {};
+        const target = "1-spec/spec.md#R1";
+        const body = `# File\n${review ? `Verdict: ${fields.verdict}\n` : kind === "task" ? "Depends on: none\n" : ""}${["declaration", "mirrored"].includes(representation) ? `Target: ${target}\n` : ""}`;
+        if (["target", "mirrored"].includes(representation)) fields.target = [target];
+        if (["target-identity", "mirrored"].includes(representation)) fields["target-identity"] = [identity(read(root, "1-spec/spec.md"))];
+        if (representation === "declaration") {
+          write(root, rel, body);
+          const unstamped = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+          assert.equal(unstamped.frontier, `stamp ${rel}`);
+          assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /only triggers may carry target fields/);
+          assert.equal(read(root, rel), body);
+        }
+        registered(rel, fields, body);
+        const before = read(root, rel);
+        assert.throws(() => rp(root, "stamp", P(rel), ...(representation === "mirrored" ? ["--mirror"] : [])), /only triggers may carry target fields/);
+        assert.equal(read(root, rel), before);
+        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
+        assert.match(state.contradictions[0].invalid, /only triggers may carry target fields/);
+        assert.deepEqual(state.triggers, []);
+        assert.deepEqual(state.claims, []);
+        assert.deepEqual(state.artifacts, []);
+      });
 
   for (const phase of ["3-build", "4-document"])
     for (const destination of ["spec", "design", "other phase", "other task"])
@@ -582,12 +619,12 @@ describe("rp state tooling", () => {
         registered(task, { depends: [] }, "# Task\nDepends on: none\n");
         const target = `${plan}#T1`, body = `# Report\nOutcome: ${outcome}\nTarget: ${target}\n`;
         write(root, rel, body);
-        assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*only failed reports/);
+        assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*only triggers/);
         assert.equal(read(root, rel), body);
         registered(rel, { outcome, attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, plan))] }, body);
         const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
-        assert.match(state.contradictions[0].invalid, /target: only failed reports/);
+        assert.match(state.contradictions[0].invalid, /target: only triggers/);
         assert.deepEqual(state.triggers, []);
         assert.deepEqual(state.tasks, {});
       });
@@ -1925,8 +1962,9 @@ describe("rp state tooling", () => {
       assert.throws(() => rp(root, "stamp", P("1-spec/bad.md"), "--mirror"), error);
       assert.match(check(root, "--target-phase", "1"), /frontier INVALID LINE 1-spec\/bad\.md/);
     }
-    write(root, "1-spec/bad.md", "# Good\n\nVerdict: approved\nOutcome: failed\nTarget: 1-spec/spec.md#R1\nPrior finding: 1-spec/spec-review-1.md#Issue-1, resolution failed\nOrigin: decision-1\nOrigin: 0-intent/1-amendment.md\nBrief: focused\n");
-    rp(root, "stamp", P("1-spec/bad.md"), "--mirror");
+    rmSync(join(root, P("1-spec/bad.md")));
+    write(root, "1-spec/spec-review-1.md", "# Good\n\nVerdict: unsatisfiable\nOutcome: failed\nTarget: 1-spec/spec.md#R1\nPrior finding: 1-spec/spec-review-1.md#Issue-1, resolution failed\nOrigin: decision-1\nOrigin: 0-intent/1-amendment.md\nBrief: focused\n");
+    rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
     assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID LINE/);
 
     write(root, "0-intent/intent.md", "Origin: issue PROJECT-42 canonical reference\n\n# Intent\n\n## Goal\n\nOriginal.\n");

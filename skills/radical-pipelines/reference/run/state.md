@@ -29,7 +29,7 @@ Frontmatter holds only pins, mirrors, and landing facts. Its syntax and field ty
 | `reviewed`  | reviews, task reports        | list of `<path>@<identity>` — what the verdict is about; immutable       |
 | `verdict`   | reviews                      | `approved` \| `rejected` \| `unsatisfiable`                              |
 | `brief`     | reviews                      | the lane's brief, as the review declares it                              |
-| `target`    | triggers                     | `<path>#<id>`; `<path>` for an external amendment; a list when several   |
+| `target`    | triggers                     | `<path>#<id>`; `<path>` for an external amendment; a list when several. Only triggers carry `Target:`, `target`, or `target-identity`. |
 | `target-identity` | triggers                     | each target's identity when the trigger landed; a list when several      |
 | `origin`    | anything born from something | `issue <canonical reference>`; an external source; the trigger a review responds to; a list when several |
 | `recurs`    | reviews                      | mirror of `Prior finding: <review>#<issue>, resolution failed`           |
