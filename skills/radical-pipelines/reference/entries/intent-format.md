@@ -23,7 +23,7 @@ Read the body, every comment, cross-reference, external link, and attachment. Wh
 3. Download referenced assets beside `intent.md` and use relative paths.
 4. Make phase 0 self-contained, show the owner the rendered draft, and write it on approval.
 
-A re-synthesis from a modified issue also consumes the current intent: `Origin`, every decision, and every kept item keep their ids; an item the issue withdraws disappears; added content takes the next ids. Decisions accumulate.
+A re-synthesis from a modified issue also consumes the current intent: it preserves `Origin` and every decision; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
 
 ## Schema and rendering
 
