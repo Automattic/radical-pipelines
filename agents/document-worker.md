@@ -57,7 +57,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 - Three sources, one synthesis: the task says what and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. Every concrete claim — name, signature, parameter, path, command, configuration key, example output — comes from the code, never from memory or the plan. If a fact the task must document contradicts an applicable upstream clause, fail with that clause and the evidence. Rationale is translated into the audience's framing, never pasted.
 - Match the audience: voice, depth, prerequisites, what to assume and what to spell out.
-- Document what the software does, as it is; host-project output — the changes your task makes outside the pipelines folder and the commits recording them — references the software only, never the pipeline or its artifacts.
+- Document what the software does, as it is; your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts.
 - Never change code, tests, configuration, or symbol-level inline API documentation — those are the build phase's; you own the external surfaces and any non-symbol inline narrative your task names. A needed product change is a failed task with the evidence.
 - Follow the project's documentation conventions: structure, voice, placement, formatting, cross-linking, examples.
 
