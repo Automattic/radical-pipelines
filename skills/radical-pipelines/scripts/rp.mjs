@@ -142,11 +142,15 @@ export function parseFrontmatter(raw) {
     }
   }
   const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "lane-packages"]);
-  const scalars = new Set(["verdict", "brief", "target", "target-identity", "outcome", "head", "lane", "attempt"]);
+  const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
   for (const [key, value] of data) {
     if (lists.has(key) && !Array.isArray(value)) errors.push(`${key} must be a list`);
     if (scalars.has(key) && Array.isArray(value)) errors.push(`${key} must be a scalar`);
     if (key === "origin" && Array.isArray(value) && value.length === 0) errors.push("origin must be a scalar or non-empty list");
+    if (key === "target" || key === "target-identity") {
+      if (Array.isArray(value) && !value.length) errors.push(`${key} must be a non-empty list`);
+      data.set(key, [].concat(value));
+    }
   }
   if (errors.length) return { data: null, body, error: errors.join("; ") };
   return { data, body };
@@ -323,11 +327,13 @@ function laneReferences(data) {
 }
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
-function targetExists(target, read) {
-  if (!TARGET_ID.test(target)) return false;
+function targetExists(target, read, kind) {
   const [path, item] = target.split("#");
+  if (kind !== "claim" && !ARTIFACTS.some((a) => a.path === path)) return false;
+  if (!TARGET_ID.test(target) && !(kind === "amendment" && !item && ARTIFACTS.some((a) => a.path === path))) return false;
   const text = read(path);
   if (text === null || text === undefined) return false;
+  if (!item) return true;
   const body = parseFrontmatter(text).body;
   if (path === "0-intent/intent.md") {
     if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(body);
@@ -337,6 +343,50 @@ function targetExists(target, read) {
   }
   if (/^T\d+$/.test(item)) return read(`${path.split("/")[0]}/tasks/${item}.md`) != null;
   return new RegExp(`(?:^|[^A-Za-z0-9])${item}(?=$|[^A-Za-z0-9])`).test(body);
+}
+
+function triggerKind(rel, data) {
+  if (/^0-intent\/\d+-amendment\.md$/.test(rel)) return "amendment";
+  const review = reviewArtifact(rel);
+  if (review && rel.startsWith(`${review.art.phase}/`) && data.get("verdict") === "unsatisfiable") return "claim";
+  if (REPORT.test(rel) && data.get("outcome") === "failed") return "failed report";
+  return null;
+}
+
+function reportTarget(rel) {
+  const report = rel.match(REPORT);
+  return report ? `${ARTIFACTS.find((a) => a.phase === report[1]).path}#${report[2]}` : null;
+}
+
+// Field representation rules shared by stamp and check; existence belongs to landing.
+function targetRepresentationErrors(rel, data, body) {
+  if (data === null) return [];
+  const kind = triggerKind(rel, data);
+  const targets = data.get("target"), identities = data.get("target-identity");
+  const errors = [];
+  const invalid = (field, reason) => errors.push({ field, reason });
+  if (!kind && (targets !== undefined || identities !== undefined || projectBody(body, rel).has("target"))) invalid("target", "only triggers may carry target fields");
+  if (kind || targets !== undefined || identities !== undefined) {
+    if (!Array.isArray(targets) || !targets.length) invalid("target", "expected a non-empty list");
+    else {
+      if (new Set(targets).size !== targets.length) invalid("target", "duplicate entries");
+      if (kind === "claim" && targets.length !== 1) invalid("target", "a claim names one clause");
+      const ownTask = reportTarget(rel);
+      if (ownTask && (targets.length !== 1 || targets[0] !== ownTask)) invalid("target", `expected its own task: ${ownTask}`);
+    }
+    if (!Array.isArray(identities) || !identities.length) invalid("target-identity", "expected a non-empty list aligned with target");
+    else {
+      if (identities.length !== targets?.length) invalid("target-identity", "must have one identity per target");
+      if (identities.some((id) => !IDENTITY.test(id))) invalid("target-identity", "expected 12-character hexadecimal identities");
+    }
+  }
+  return errors;
+}
+
+function targetPairs(rel, data) {
+  return (data.get("target") ?? ["?"]).map((target, i) => ({
+    rel, target, targetPath: target.split("#")[0], targetIdentity: data.get("target-identity")?.[i],
+  }));
 }
 
 // Keep line positions while hiding Markdown fenced code from structural readers.
@@ -376,7 +426,11 @@ export function projectBody(body, rel = "") {
   };
   singleton("Verdict", "verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
   singleton("Brief", "brief", Boolean, "text");
-  singleton("Target", "target", (value) => /^[^#\s]+#[^#\s]+$/.test(value), "<path>#<id>");
+  singleton("Target", "target", (value) => {
+    const targets = value.split(",").map((t) => t.trim());
+    return targets.every((t) => /^[^#,\s]+(?:#[^#,\s]+)?$/.test(t)) && new Set(targets).size === targets.length;
+  }, "<path>[#<id>][, …]");
+  if (p.has("target")) p.set("target", p.get("target").split(",").map((t) => t.trim()));
   const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value) || /^decision-\d+$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
   const origins = [];
   for (const value of fixed("Origin")) {
@@ -413,7 +467,11 @@ export function projectBody(body, rel = "") {
     if (hashes.length) p.set("commits", hashes);
   }
   const report = rel.match(REPORT);
-  if (report) p.set("attempt", report[3]);
+  if (report) {
+    p.set("attempt", report[3]);
+    if (triggerKind(rel, p) === "failed report" && !p.has("target"))
+      p.set("target", [reportTarget(rel)]);
+  }
   return p;
 }
 
@@ -461,15 +519,11 @@ function pipelineFolder(root, file) {
 function mirrorBody(body, fm, base, rel) {
   const p = projectBody(body, rel);
   if (p.has("malformed")) die(`stamp: INVALID ${p.get("malformed").join("; ")} — a fixed line is mirrored whole or not at all; its author fixes it`);
-  const previousTarget = fm.get("target");
+  const previous = new Map(triggerKind(rel, fm) === triggerKind(rel, p) ? (fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]) : []);
   for (const k of MIRRORS) fm.delete(k);
   for (const [k, v] of p) fm.set(k, v);
   if (!p.has("target")) fm.delete("target-identity");
-  else if (p.get("target") !== previousTarget || !fm.has("target-identity")) {
-    const id = fileIdentity(resolve(base, p.get("target").split("#")[0]));
-    if (id) fm.set("target-identity", id);
-    else fm.delete("target-identity");
-  }
+  else fm.set("target-identity", p.get("target").map((target) => previous.get(target) || fileIdentity(resolve(base, target.split("#")[0])) || ""));
 }
 
 function cmdStamp(args) {
@@ -482,10 +536,10 @@ function cmdStamp(args) {
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
   const { data, body } = parsedFrontmatter;
   const fm = data ?? new Map();
-  const previousTarget = fm.get("target");
-  const previousTargetIdentity = fm.get("target-identity");
+  const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]));
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
+  const previousKind = triggerKind(rel, fm);
   const report = rel.match(REPORT);
   const relParts = rel.split("/");
   const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
@@ -586,17 +640,19 @@ function cmdStamp(args) {
   }
   if (args.mirror) {
     mirrorBody(body, fm, base, rel);
-    const review = basename(rel).match(/^(.+?)-review-(?:(.+)-)?\d+\.md$/);
-    const claim = fm.get("verdict") === "unsatisfiable" && review && ARTIFACTS.some((a) => a.prefix === review[1] || a.review === review[1]);
-    const amendment = /^0-intent\/\d+-amendment\.md$/.test(rel);
-    const target = fm.get("target");
-    const validated = target === previousTarget && previousTargetIdentity;
+    const kind = triggerKind(rel, fm);
+    const targets = fm.get("target") ?? [];
     const readable = (path) => {
       const file = join(base, path);
       return existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : null;
     };
-    if ((amendment || claim) && !validated && (!targetExists(target, readable) || (amendment && target.startsWith("0-intent/")))) die(`stamp: INVALID TARGET ${target ?? "?"}`);
+    if (kind) {
+      for (const target of targets)
+        if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, kind)) die(`stamp: INVALID TARGET ${target}`);
+    }
   }
+  const targetError = targetRepresentationErrors(rel, fm, body)[0];
+  if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: target-identity`}: ${targetError.reason}`);
   // A report names commits that already exist; they are stored canonical (full hash).
   if (fm.has("commits")) {
     const canonical = [].concat(fm.get("commits") ?? []).map((h) => {
@@ -810,8 +866,9 @@ function cmdCheck(args) {
     .map((rel) => {
       const text = tree.read(rel) ?? "";
       texts.set(rel, text);
-      const { data: parsed, body, error: frontmatterError } = parseFrontmatter(text);
+      const { data: parsed, body, error: parseError } = parseFrontmatter(text);
       const data = parsed ?? new Map();
+      const frontmatterError = parseError || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
       const drift = frontmatterError ? [] : mirrorDrift(data, body, rel);
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
@@ -947,7 +1004,7 @@ function cmdCheck(args) {
     const key = `${phase}/${id}`;
     const attempt = Number(k);
     if (!reports.has(key) || reports.get(key).attempt < attempt)
-      reports.set(key, { rel: t.rel, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "", packageContext).review) });
+      reports.set(key, { rel: t.rel, data: t.data, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "", packageContext).review) });
   }
 
   // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
@@ -1069,7 +1126,7 @@ function cmdCheck(args) {
     if (!targetArtifact) return { state: "pending" };
     const lanes = laneStates(targetArtifact.prefix, "");
     for (const l of lanes)
-      if (l.review && l.verdict === "unsatisfiable" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
+      if (l.review && triggerKind(l.review.rel, l.review.data) === "claim" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
         return { state: "resolved", detail: `escalated by ${l.review.rel}` };
     const pinned = pinPackage(pinsByPath.get(item.targetPath))?.has(item.rel);
     if (!pinned) return { state: "pending" };
@@ -1079,15 +1136,16 @@ function cmdCheck(args) {
 
   // 1. Triggers: external amendments and fresh failed task reports.
   const triggers = [
-    ...all.filter((d) => /^0-intent\/\d+-amendment\.md$/.test(d.rel)).map((d) => ({ rel: d.rel, kind: "amendment", target: d.data.get("target") ?? "?" })),
-    ...[...reports.values()].filter((t) => t.outcome === "failed" && t.fresh).map((t) => ({ rel: t.rel, kind: `failed task ${t.id}`, target: ARTIFACTS.find((x) => x.phase === t.phase)?.path ?? "?" })),
-  ].map((t) => ({ ...t, targetPath: t.target.split("#")[0] }));
+    ...all.filter((d) => triggerKind(d.rel, d.data) === "amendment").flatMap((d) => targetPairs(d.rel, d.data).map((t) => ({ ...t, kind: "amendment" }))),
+    ...[...reports.values()].filter((t) => triggerKind(t.rel, t.data) === "failed report" && t.fresh).flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` }))),
+  ].sort((a, b) => phaseOfTarget(a.targetPath) - phaseOfTarget(b.targetPath)).map((t) => ({ ...t, resolution: resolutionOf(t) }));
   let unresolvedInScope = false;
   for (const t of triggers) {
-    const res = resolutionOf(t);
+    const res = t.resolution;
     const scoped = inScopePhase(t.targetPath);
     const label = res.state === "pending" ? (scoped ? "PENDING" : "pending, beyond the target phase") : `${res.state}${res.detail ? ` (${res.detail})` : ""}`;
-    out.triggers.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped });
+    const triggerResolved = triggers.filter((pair) => pair.rel === t.rel).every((pair) => pair.resolution.state === "resolved");
+    out.triggers.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped, triggerResolved });
     lines.push(`trigger  ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
     if (res.state === "pending" && scoped) take(`trigger ${t.rel} → ${t.target}`);
     if (res.state !== "resolved" && scoped) unresolvedInScope = true;
@@ -1097,34 +1155,33 @@ function cmdCheck(args) {
   const claims = [];
   for (const sc of scopes)
     for (const r of reviewsOf(sc)) {
-      if (r.data.get("verdict") !== "unsatisfiable") continue;
+      if (triggerKind(r.rel, r.data) !== "claim") continue;
       // A claim is its lane's verdict: the lane's latest review is the one that stands.
       const lanes = laneStates(r.prefix, sc);
       const mine = lanes.find((l) => l.review?.rel === r.rel);
       const later = reviewsOf(sc).some((x) => x.prefix === r.prefix && x.lane === r.lane && x.wave > r.wave);
-      const c = {
-        rel: r.rel,
-        target: r.data.get("target") ?? "?",
-        targetPath: (r.data.get("target") ?? "?").split("#")[0],
-        targetIdentity: r.data.get("target-identity"),
-        fresh: mine ? mine.fresh : reviewFresh(r, r.prefix, sc),
-        waveOpen: !waveClosed(lanes),
-        rejected: lanes.some((l) => l.verdict === "rejected"),
-      };
-      const cur = identityOf(c.targetPath);
-      const unchanged = equalPackages(new Map([[c.targetPath, c.targetIdentity]]), new Map([[c.targetPath, cur]]));
-      const res = resolutionOf(c);
-      if (later) c.state = "superseded (its lane reviewed again)";
-      else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
-      else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
-      else if (!c.fresh) c.state = "moot (claiming artifact changed)";
-      else if (c.waveOpen) c.state = "wave open";
-      else if (c.rejected) c.state = "held (a lane rejected; adjudicate first)";
-      else if (res.state === "adjudicated") c.state = `adjudicated (${res.detail})`;
-      else c.state = c.targetIdentity ? "pending" : "pending (no target-identity)";
-      const source = ARTIFACTS.find((a) => a.prefix === r.prefix || a.review === r.prefix);
-      c.claimArtifactPath = source ? inScope(sc, source.path) : null;
-      claims.push(c);
+      for (const pair of targetPairs(r.rel, r.data)) {
+        const c = {
+          ...pair,
+          fresh: mine ? mine.fresh : reviewFresh(r, r.prefix, sc),
+          waveOpen: !waveClosed(lanes),
+          rejected: lanes.some((l) => l.verdict === "rejected"),
+        };
+        const cur = identityOf(c.targetPath);
+        const unchanged = equalPackages(new Map([[c.targetPath, c.targetIdentity]]), new Map([[c.targetPath, cur]]));
+        const res = resolutionOf(c);
+        if (later) c.state = "superseded (its lane reviewed again)";
+        else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
+        else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
+        else if (!c.fresh) c.state = "moot (claiming artifact changed)";
+        else if (c.waveOpen) c.state = "wave open";
+        else if (c.rejected) c.state = "held (a lane rejected; adjudicate first)";
+        else if (res.state === "adjudicated") c.state = `adjudicated (${res.detail})`;
+        else c.state = c.targetIdentity ? "pending" : "pending (no target-identity)";
+        const source = ARTIFACTS.find((a) => a.prefix === r.prefix || a.review === r.prefix);
+        c.claimArtifactPath = source ? inScope(sc, source.path) : null;
+        claims.push(c);
+      }
     }
   const pending = claims.filter((c) => c.state === "pending");
   for (const c of pending) {
@@ -1132,7 +1189,7 @@ function cmdCheck(args) {
     if (above) c.state = `suspended (behind ${above.rel})`;
   }
   const ownerTerritory = (target) => /^0-intent\/intent\.md#(goal|constraint-\d+|decision-\d+)$/.test(target);
-  for (const c of claims) {
+  for (const c of claims.sort((a, b) => phaseOfTarget(a.targetPath) - phaseOfTarget(b.targetPath))) {
     const scoped = inScopePhase(c.targetPath);
     if (c.state === "pending") c.state = !scoped ? "pending, beyond the target phase" : ownerTerritory(c.target) ? "PENDING — owner escalation" : "PENDING";
     out.claims.push({ review: c.rel, target: c.target, state: c.state, inScope: scoped });
@@ -1241,7 +1298,7 @@ function cmdCheck(args) {
     // A fresh failed report holds its task until the plan adjudicates it (pins it).
     const held = (id) => {
       const r = latestOf(id);
-      if (!r || r.outcome !== "failed" || !r.fresh) return false;
+      if (!r || triggerKind(r.rel, r.data) !== "failed report" || !r.fresh) return false;
       return !pinPackage(pinsByPath.get(art.path))?.has(r.rel);
     };
     // A fresh blocked report leaves its task pending: the environment, not the plan, is what changes before the next attempt.

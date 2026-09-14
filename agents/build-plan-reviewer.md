@@ -69,7 +69,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Adjudication audit**
 
 - An adoption or a replan that works around a design or spec clause the record itself refutes — or a fallen assumption — is a finding: name the clause and the record entry that refutes it.
-- A contradicts-input disposition within what you verify: corroborate only after its evidence survives your checks and you can name no live route; defeat it by rejecting with the route named.
+- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false claim, the evidence reproduces; for an exhaustion claim, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
 

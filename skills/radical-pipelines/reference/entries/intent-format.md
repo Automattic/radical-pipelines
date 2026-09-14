@@ -55,7 +55,7 @@ Write an external amendment to `0-intent/<n>-amendment.md`:
 ```markdown
 # Amendment <n>
 
-Target: <path>#<id>
+Target: <path>[#<id>][, …]
 Origin: <source>
 
 ## Request
