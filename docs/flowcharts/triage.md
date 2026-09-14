@@ -14,20 +14,22 @@ flowchart TD
     D -->|Yes| E{"Owner chooses"}
     E -->|Wait| WAIT["Wait"]
     E -->|Proceed| MANY
-    MANY -->|Yes| PICK["Pick the one whose frontier the request advances"]
-    MANY -->|No| ROUTE{"Apply the first matching route"}
+    MANY -->|Yes| PICK["The one the request identifies; otherwise the owner chooses"]
+    MANY -->|No| ROUTE{"Route each statement by its first matching predicate"}
     PICK --> ROUTE
     ROUTE --> R1["Record an answer to a pending owner escalation"]
     ROUTE --> R2["Continue the matching live pipeline"]
     ROUTE --> R3["Create an external amendment"]
+    ROUTE --> R3W["Widen the live pipeline, or start from its tip"]
     ROUTE --> R4["Start a pipeline from an unmerged tip"]
     ROUTE --> R5["Start a new re-attempt"]
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
     ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
-    QUESTION --> CONFIRM["Ask once: route or deciding question, workflow, target phase, lanes, and remaining questions"]
+    QUESTION --> CONFIRM["Ask once: each route or the deciding question, workflow, target phase, lanes, and remaining questions"]
     R1 --> CONFIRM
     R2 --> CONFIRM
     R3 --> CONFIRM
+    R3W --> CONFIRM
     R4 --> CONFIRM
     R5 --> CONFIRM
     R6 --> CONFIRM
@@ -37,6 +39,8 @@ flowchart TD
     PREP --> P2["Select or create the amendment branch and worktree"]
     P2 --> P2A["Write decisions and amendment; commit and stamp"]
     PREP --> P3["Ensure the continuation branch and worktree exist"]
+    PREP --> P4["Modify the issue; re-synthesize the intent keeping decisions and ids; commit and stamp"]
+    P4 --> P3
     P1A --> DIRECTIONS["Record run directions as intent decisions; stamp and commit"]
     P2A --> DIRECTIONS
     P3 --> DIRECTIONS

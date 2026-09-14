@@ -16,7 +16,7 @@ When the issue declares dependencies on other issues, check them through the **I
 
 ### 3. Route
 
-Apply the first predicate that holds:
+A request carries one or more statements; route each by the first predicate that holds:
 
 | Predicate                                                                           | Route                                                                     |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -28,11 +28,11 @@ Apply the first predicate that holds:
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
-Several live pipelines match: pick the one whose frontier the request advances.
+Several live pipelines match: the one the request identifies — by name, or as the only one whose frontier it advances; otherwise the owner chooses in step 4, the tip for a new pipeline included.
 
 ### 4. Confirm the run
 
-Ask the target phase in plain language without exposing phase numbers. In one message, give the route and why — or, when no predicate decides, the one deciding question — together with the full run policy to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm the run plan until the owner confirms it.
+Ask the target phase in plain language without exposing phase numbers. In one message, give each route and why — or, when no predicate decides, the one deciding question — together with the full run policy to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm the run plan until the owner confirms it.
 
 ### 5. Prepare
 
@@ -55,7 +55,7 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 **Continue**: the pipeline's branch and worktree, created when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
 
-**Widen**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` from it, commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue. Corrections in the same request are external amendments alongside.
+**Widen**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue.
 
 ### 6. Run
 
