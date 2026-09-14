@@ -1,5 +1,5 @@
 ---
-"@automattic/radical-pipelines": patch
+"@automattic/radical-pipelines": minor
 ---
 
-Triage routes new scope for a live pipeline as the owner's choice: widen it by modifying its issue and re-synthesizing the intent, or start a new pipeline from its tip
+BREAKING: add the Widen triage route and group routes into runs per pipeline. Give intent items explicit stable ids, persist retired ids to prevent reuse, and validate target ids by bullet or heading declarations rather than mentions. Existing intents need explicit ids before new claims can target their items.
