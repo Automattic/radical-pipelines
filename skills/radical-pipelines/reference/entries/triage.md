@@ -23,6 +23,7 @@ Apply the first predicate that holds:
 | A pending owner escalation exists and the request answers it                        | Record the answer (`../run/loop.md` § Owner escalation) and continue that pipeline |
 | A live pipeline's intent and amendments already call for this work                  | Continue it                                                               |
 | The request corrects what an existing pipeline's artifacts claim or its code does   | An external amendment on that pipeline                                    |
+| New scope for a live pipeline                                                       | The owner's choice: widen it, or a new pipeline from its tip (next row)  |
 | New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `Origin: starts-from` names that branch |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
@@ -53,6 +54,8 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed); commit the stamps.
 
 **Continue**: the pipeline's branch and worktree, created when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
+
+**Widen**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` from it, commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue. Corrections in the same request are external amendments alongside.
 
 ### 6. Run
 
