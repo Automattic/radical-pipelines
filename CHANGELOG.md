@@ -1,5 +1,27 @@
 # @automattic/radical-pipelines
 
+## 0.17.0
+
+### Minor Changes
+
+- [#286](https://github.com/Automattic/radical-pipelines/pull/286) [`e1bf7a0`](https://github.com/Automattic/radical-pipelines/commit/e1bf7a0efc5e9b6054b7bff76efecbaab36eaf6e) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: Stop posting automatic close-out comments to issues.
+
+- [#295](https://github.com/Automattic/radical-pipelines/pull/295) [`b7a2ea8`](https://github.com/Automattic/radical-pipelines/commit/b7a2ea8e9efb7362bc78186dbd7d04fb9b59cb9b) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: rename amendment to correction with files at `0-intent/correction-<n>.md`, trigger to challenge in CLI output and JSON fields, and Widen to Rescope. Reserve claim for the unsatisfiable verdict rather than allegations, retaining its labeled-statement sense.
+
+- [#295](https://github.com/Automattic/radical-pipelines/pull/295) [`e91256e`](https://github.com/Automattic/radical-pipelines/commit/e91256eed8972b18019ca0f597f8dd0150dd2cd7) Thanks [@luisherranz](https://github.com/luisherranz)! - BREAKING: add the Widen triage route and group routes into runs per pipeline. Give intent items explicit stable ids, persist retired issue-derived ids to prevent reuse, retain accumulating Decisions, and validate target ids by bullet or heading declarations rather than mentions. Require current stamped id history before computing downstream state. Existing intents need explicit ids before new claims can target their items.
+
+- [#295](https://github.com/Automattic/radical-pipelines/pull/295) [`e91256e`](https://github.com/Automattic/radical-pipelines/commit/e91256eed8972b18019ca0f597f8dd0150dd2cd7) Thanks [@luisherranz](https://github.com/luisherranz)! - Triggers target what their evidence contradicts: a claim targets a clause, a failed report its task, and an external amendment one or more artifacts at the level the request states them — a clause it names, else the whole artifact — with state per target artifact and the trigger resolved when every target is. Only triggers carry target fields; `rp stamp` and `rp check` validate targets and their landing identities before computing state. Reviewers corroborate a contradicts-input disposition by the kind of evidence it carries, and one left neither corroborated nor defeated is a must-fix.
+
+### Patch Changes
+
+- [#292](https://github.com/Automattic/radical-pipelines/pull/292) [`b1efb09`](https://github.com/Automattic/radical-pipelines/commit/b1efb092cd0f5739f399e5ff6d6b72f74d15deeb) Thanks [@luisherranz](https://github.com/luisherranz)! - Read committed pipeline files through one streaming git cat-file batch, preserving large and binary bodies. Report read failures with their ref and path instead of computing stale state from missing content.
+
+- [#291](https://github.com/Automattic/radical-pipelines/pull/291) [`543bfd2`](https://github.com/Automattic/radical-pipelines/commit/543bfd2300ae7949c7ae2b1358e722b3f97285ba) Thanks [@luisherranz](https://github.com/luisherranz)! - Scope the software-only rule to everything a task changes outside the pipelines folder and the commits recording it, in the workers and reviewers, with the pipeline and its artifacts as the forbidden referents; have reviewers judge what text refers to rather than match words; require code to describe the software as it is, never its prior state or the change from it; make committed work that breaks a rule under **Rules** a must-fix. Workers were citing the plan and narrating the diff in comments, and reviews were checking commit subjects only, then approving.
+
+- [#292](https://github.com/Automattic/radical-pipelines/pull/292) [`1723462`](https://github.com/Automattic/radical-pipelines/commit/17234626ee1f80196d78a8f7db99c29f33a2dc3e) Thanks [@luisherranz](https://github.com/luisherranz)! - Unify the worktree and ref access contract: require the pipeline tree, preserve expected member absence, and reject unreadable listed documents. Validate ls-tree and cat-file headers against their complete grammars.
+
+- [#295](https://github.com/Automattic/radical-pipelines/pull/295) [`e91256e`](https://github.com/Automattic/radical-pipelines/commit/e91256eed8972b18019ca0f597f8dd0150dd2cd7) Thanks [@luisherranz](https://github.com/luisherranz)! - Derive trigger collection, escalation, default targets, and task holds from the shared trigger classifier.
+
 ## 0.16.0
 
 ### Minor Changes
