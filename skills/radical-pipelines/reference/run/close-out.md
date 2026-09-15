@@ -7,7 +7,7 @@ The run stops: the target phase is complete, an owner escalation is pending, the
 3. Fire `run-ended` with the cause.
 4. Complete through the target phase: tell the owner the pipeline is ready for the closure actions below.
 5. Any other cause: report to the owner what stopped the run, the frontier as `rp check` shows it, and — for an escalation — the dossier (`loop.md` § Owner escalation). Leave the tree exactly as it is; a later triage continues from it.
-6. Report to the owner: pipeline, branch, pull requests, phases completed, amendments absorbed, pending claims.
+6. Report to the owner: pipeline, branch, pull requests, phases completed, corrections absorbed, pending claims.
 
 ## Closure actions
 

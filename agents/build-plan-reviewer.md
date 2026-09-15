@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Optional **Research** supplements any m
 
 ## Fresh
 
-Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present. This is the package you judge; its references supply historical material.
+Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated challenge, and every production-lane input — plus the **Correction** or **Task report** under review, when present. This is the package you judge; its references supply historical material.
 
 1. Read the spec and the design doc; list every requirement, decision, acceptance criterion, and open assumption.
 2. Read `build-plan-research.md` and `build-plan.md`.
@@ -69,7 +69,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Adjudication audit**
 
 - An adoption or a replan that works around a design or spec clause the record itself refutes — or a fallen assumption — is a finding: name the clause and the record entry that refutes it.
-- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false claim, the evidence reproduces; for an exhaustion claim, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
+- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
 
@@ -94,8 +94,8 @@ Verdict: approved | rejected | unsatisfiable
 Brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
 Target: <path>#<id>
-<!-- When the wave adjudicated a trigger: the Amendment or Task report you judged; omit otherwise. -->
-Origin: <trigger path>
+<!-- When the wave adjudicated a challenge: the Correction or Task report you judged; omit otherwise. -->
+Origin: <challenge path>
 
 ## Verification log
 

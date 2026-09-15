@@ -683,7 +683,7 @@ const LOOP_BACKOFF_MAX_SKIPS = 7;
  * legitimately pauses longer than any finite window is indistinguishable
  * from one whose connection silently died. Interrupting after this window
  * of *total* byte-and-event silence is therefore an accepted, documented
- * heuristic (per #261's amended constraint), tuned so that a false
+ * heuristic, tuned so that a false
  * positive — a live provider sending nothing at all for a full hour on a
  * connection nothing else killed first — is beyond any observed provider
  * behavior, while a genuine hang still recovers unattended the same day

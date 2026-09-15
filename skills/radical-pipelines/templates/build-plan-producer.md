@@ -30,5 +30,5 @@
 - Tasks: <one line per task file: path>
 - build-plan-research.md: <path>
 - Review lanes: <one line per review: lane — path>
-- Amendment: <trigger path>; <origin chain paths>
+- Correction: <challenge path>; <origin chain paths>
 - Task report: <report path>; <its task file path>

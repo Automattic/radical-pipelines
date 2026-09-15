@@ -32,9 +32,9 @@ On re-synthesis, work delta-scoped: completed tasks stay as they are — an upst
 
 ## Adjudicate
 
-Materials: the standing materials, `build-plan.md`, its **Tasks**, `build-plan-research.md`, and one of **Review lanes** (this wave's review files), **Amendment** (a claim that a clause of the plan must change, with its evidence), or **Task report** (a failed report and its task file).
+Materials: the standing materials, `build-plan.md`, its **Tasks**, `build-plan-research.md`, and one of **Review lanes** (this wave's review files), **Correction** (a request to change a clause of the plan, with its evidence), or **Task report** (a failed report and its task file).
 
-For findings from reviews or an amendment, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc or the spec asserts something false: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
+For findings from reviews or a correction, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc or the spec asserts something false: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
 
 For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition:
 

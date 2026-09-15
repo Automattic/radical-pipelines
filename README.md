@@ -24,7 +24,7 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 
 The phases are:
 
-- **Phase 0. Intent.** The initial request and any external amendments.
+- **Phase 0. Intent.** The initial request and any corrections.
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
 - **Phase 3. Build.** The build plan and its tasks, the code with the unit and end-to-end tests the tasks call for, and behavior verification.
@@ -32,7 +32,7 @@ The phases are:
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
-In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope trigger and claim is resolved, and every commit the pipeline made outside the pipelines folder root is claimed by a task report. State is computed from the tree, and external corrections become amendments targeting the artifacts their request contradicts — the build plan for observed product behavior, the document plan for documentation, a named clause for a requirement or decision — each adjudicating its part while the changed identities make downstream pins stale and drive a cascade. Requirements cover the cases the intent makes material; a design mechanism is proportionate to that, and the case it leaves uncovered is recorded with its consequence and judged by it. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — the product was not observed and the report names what prevented it, for the orchestrator to restore before the next attempt.
+In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every commit the pipeline made outside the pipelines folder root is claimed by a task report. State is computed from the tree, and corrections target the artifacts their request contradicts — the build plan for observed product behavior, the document plan for documentation, a named clause for a requirement or decision — each adjudicating its part while the changed identities make downstream pins stale and drive a cascade. Requirements cover the cases the intent makes material; a design mechanism is proportionate to that, and the case it leaves uncovered is recorded with its consequence and judged by it. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — the product was not observed and the report names what prevented it, for the orchestrator to restore before the next attempt.
 
 The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow.
 
@@ -59,7 +59,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 - **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task.
 - **Pipeline completion rate.** Percentage of tasks that make it from intent through the target phase without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint.
-- **Correction efficiency.** When a human supplies an amendment, how many review waves does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections.
+- **Correction efficiency.** When a human supplies a correction, how many review waves does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections.
 - **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human.
 
 # Project Usage

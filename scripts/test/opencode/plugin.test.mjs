@@ -706,7 +706,7 @@ describe("rp_send", () => {
     // Both ends are RP spawns: the requester/researcher pair, not the spawner.
     for (const [id, name] of [
       ["ses_researcher", "researcher-q1"],
-      ["ses_requester", "amend-lead"],
+      ["ses_requester", "correction-lead"],
     ]) {
       recordSpawn(id, { name, run: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
     }

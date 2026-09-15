@@ -288,7 +288,7 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
   const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
   const recorded = pinPackage(pinsByPath.get(inScope(sc, art.path)));
   const record = inScope(sc, art.record);
-  // Retention includes adjudicated triggers until the producer replaces its package.
+  // Retention includes adjudicated challenges until the producer replaces its package.
   const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
   const build = art.requiresReview ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
   const inputs = currentPackage([...art.requires, ...build, ...retained]);
@@ -361,7 +361,7 @@ function intentIds(data, body, rel) {
 function targetExists(target, read, kind) {
   const [path, item] = target.split("#");
   if (kind !== "claim" && !ARTIFACTS.some((a) => a.path === path)) return false;
-  if (!TARGET_ID.test(target) && !(kind === "amendment" && !item && ARTIFACTS.some((a) => a.path === path))) return false;
+  if (!TARGET_ID.test(target) && !(kind === "correction" && !item && ARTIFACTS.some((a) => a.path === path))) return false;
   const artifact = read(path);
   if (artifact === null || artifact === undefined) return false;
   const source = /^T\d+$/.test(item) ? `${path.split("/")[0]}/tasks/${item}.md` : path;
@@ -376,8 +376,8 @@ function targetExists(target, read, kind) {
   return declaredIds(parsed.body).has(item);
 }
 
-function triggerKind(rel, data) {
-  if (/^0-intent\/\d+-amendment\.md$/.test(rel)) return "amendment";
+function challengeKind(rel, data) {
+  if (/^0-intent\/correction-\d+\.md$/.test(rel)) return "correction";
   const review = reviewArtifact(rel);
   if (review && rel.startsWith(`${review.art.phase}/`) && data.get("verdict") === "unsatisfiable") return "claim";
   if (REPORT.test(rel) && data.get("outcome") === "failed") return "failed report";
@@ -392,11 +392,11 @@ function reportTarget(rel) {
 // Field representation rules shared by stamp and check; existence belongs to landing.
 function targetRepresentationErrors(rel, data, body) {
   if (data === null) return [];
-  const kind = triggerKind(rel, data);
+  const kind = challengeKind(rel, data);
   const targets = data.get("target"), identities = data.get("target-identity");
   const errors = [];
   const invalid = (field, reason) => errors.push({ field, reason });
-  if (!kind && (targets !== undefined || identities !== undefined || projectBody(body, rel).has("target"))) invalid("target", "only triggers may carry target fields");
+  if (!kind && (targets !== undefined || identities !== undefined || projectBody(body, rel).has("target"))) invalid("target", "only challenges may carry target fields");
   if (kind || targets !== undefined || identities !== undefined) {
     if (!Array.isArray(targets) || !targets.length) invalid("target", "expected a non-empty list");
     else {
@@ -500,7 +500,7 @@ export function projectBody(body, rel = "") {
   const report = rel.match(REPORT);
   if (report) {
     p.set("attempt", report[3]);
-    if (triggerKind(rel, p) === "failed report" && !p.has("target"))
+    if (challengeKind(rel, p) === "failed report" && !p.has("target"))
       p.set("target", [reportTarget(rel)]);
   }
   return p;
@@ -550,7 +550,7 @@ function pipelineFolder(root, file) {
 function mirrorBody(body, fm, base, rel) {
   const p = projectBody(body, rel);
   if (p.has("malformed")) die(`stamp: INVALID ${p.get("malformed").join("; ")} — a fixed line is mirrored whole or not at all; its author fixes it`);
-  const previous = new Map(triggerKind(rel, fm) === triggerKind(rel, p) ? (fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]) : []);
+  const previous = new Map(challengeKind(rel, fm) === challengeKind(rel, p) ? (fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]) : []);
   for (const k of MIRRORS) fm.delete(k);
   for (const [k, v] of p) fm.set(k, v);
   if (!p.has("target")) fm.delete("target-identity");
@@ -570,7 +570,7 @@ function cmdStamp(args) {
   const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]));
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
-  const previousKind = triggerKind(rel, fm);
+  const previousKind = challengeKind(rel, fm);
   const ids = intentIds(data, body, rel);
   if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
   const report = rel.match(REPORT);
@@ -673,7 +673,7 @@ function cmdStamp(args) {
   }
   if (args.mirror) {
     mirrorBody(body, fm, base, rel);
-    const kind = triggerKind(rel, fm);
+    const kind = challengeKind(rel, fm);
     const targets = fm.get("target") ?? [];
     const readable = (path) => {
       const file = join(base, path);
@@ -1192,7 +1192,7 @@ async function cmdCheck(args) {
     return { episode, recurs, last };
   };
 
-  const out = { pipeline: pipelineRel, ref, contradictions: [], triggers: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {}, frontier: null };
+  const out = { pipeline: pipelineRel, ref, contradictions: [], challenges: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {}, frontier: null };
   const lines = [ref ? `${pipelineRel} @ ${args.ref} (${ref.slice(0, SHORT)})` : pipelineRel];
   let frontier = null;
   const take = (item) => {
@@ -1267,7 +1267,7 @@ async function cmdCheck(args) {
     if (!targetArtifact) return { state: "pending" };
     const lanes = laneStates(targetArtifact.prefix, "");
     for (const l of lanes)
-      if (l.review && triggerKind(l.review.rel, l.review.data) === "claim" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
+      if (l.review && challengeKind(l.review.rel, l.review.data) === "claim" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
         return { state: "resolved", detail: `escalated by ${l.review.rel}` };
     const pinned = pinPackage(pinsByPath.get(item.targetPath))?.has(item.rel);
     if (!pinned) return { state: "pending" };
@@ -1275,20 +1275,20 @@ async function cmdCheck(args) {
     return approved ? { state: "resolved", detail: `${item.targetPath} approved carrying it` } : { state: "adjudicated", detail: `by ${item.targetPath}, awaiting approval` };
   };
 
-  // 1. Triggers: external amendments and fresh failed task reports.
-  const triggers = [
-    ...all.filter((d) => triggerKind(d.rel, d.data) === "amendment").flatMap((d) => targetPairs(d.rel, d.data).map((t) => ({ ...t, kind: "amendment" }))),
-    ...[...reports.values()].filter((t) => triggerKind(t.rel, t.data) === "failed report" && t.fresh).flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` }))),
+  // 1. Challenges: corrections and fresh failed task reports.
+  const challenges = [
+    ...all.filter((d) => challengeKind(d.rel, d.data) === "correction").flatMap((d) => targetPairs(d.rel, d.data).map((t) => ({ ...t, kind: "correction" }))),
+    ...[...reports.values()].filter((t) => challengeKind(t.rel, t.data) === "failed report" && t.fresh).flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` }))),
   ].sort((a, b) => phaseOfTarget(a.targetPath) - phaseOfTarget(b.targetPath)).map((t) => ({ ...t, resolution: resolutionOf(t) }));
   let unresolvedInScope = false;
-  for (const t of triggers) {
+  for (const t of challenges) {
     const res = t.resolution;
     const scoped = inScopePhase(t.targetPath);
     const label = res.state === "pending" ? (scoped ? "PENDING" : "pending, beyond the target phase") : `${res.state}${res.detail ? ` (${res.detail})` : ""}`;
-    const triggerResolved = triggers.filter((pair) => pair.rel === t.rel).every((pair) => pair.resolution.state === "resolved");
-    out.triggers.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped, triggerResolved });
-    lines.push(`trigger  ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
-    if (res.state === "pending" && scoped) take(`trigger ${t.rel} → ${t.target}`);
+    const challengeResolved = challenges.filter((pair) => pair.rel === t.rel).every((pair) => pair.resolution.state === "resolved");
+    out.challenges.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped, challengeResolved });
+    lines.push(`challenge ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
+    if (res.state === "pending" && scoped) take(`challenge ${t.rel} → ${t.target}`);
     if (res.state !== "resolved" && scoped) unresolvedInScope = true;
   }
 
@@ -1296,7 +1296,7 @@ async function cmdCheck(args) {
   const claims = [];
   for (const sc of scopes)
     for (const r of reviewsOf(sc)) {
-      if (triggerKind(r.rel, r.data) !== "claim") continue;
+      if (challengeKind(r.rel, r.data) !== "claim") continue;
       // A claim is its lane's verdict: the lane's latest review is the one that stands.
       const lanes = laneStates(r.prefix, sc);
       const mine = lanes.find((l) => l.review?.rel === r.rel);
@@ -1439,7 +1439,7 @@ async function cmdCheck(args) {
     // A fresh failed report holds its task until the plan adjudicates it (pins it).
     const held = (id) => {
       const r = latestOf(id);
-      if (!r || triggerKind(r.rel, r.data) !== "failed report" || !r.fresh) return false;
+      if (!r || challengeKind(r.rel, r.data) !== "failed report" || !r.fresh) return false;
       return !pinPackage(pinsByPath.get(art.path))?.has(r.rel);
     };
     // A fresh blocked report leaves its task pending: the environment, not the plan, is what changes before the next attempt.
@@ -1513,7 +1513,7 @@ async function cmdCheck(args) {
   out.completeThrough = through;
   out.targetPhase = args.targetPhase;
   out.complete = !frontier && !unresolvedInScope && through >= args.targetPhase;
-  if (!frontier && unresolvedInScope) frontier = "triggers or claims still adjudicated, awaiting approval";
+  if (!frontier && unresolvedInScope) frontier = "challenges or claims still adjudicated, awaiting approval";
   if (!frontier && !out.complete) die(`check: no frontier before target phase ${args.targetPhase}`);
   if (!frontier) frontier = "complete";
   out.frontier = frontier;
@@ -1582,7 +1582,7 @@ Origin, Outcome — completed | failed | blocked — Prior finding, a task's
 Depends on, a report's Commits), and head — the commit
 a stamp with pins observed. Identity is the first 12 hexadecimal characters of
 git's blob hash of every body byte: stamping never
-changes it. check reports the frontier: triggers, claims, then phases in order
+changes it. check reports the frontier: challenges, claims, then phases in order
 up to the target — production lanes, artifacts, tasks, phase reviews,
 and completion. --base names the artifact base branch: the
 pipeline's own commits follow its merge-base with the inspected ref, or with the

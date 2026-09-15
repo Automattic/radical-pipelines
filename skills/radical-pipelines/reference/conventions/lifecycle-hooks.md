@@ -10,7 +10,7 @@ Report a failed instruction to the owner and continue. An instruction marked **b
 | ------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | `before-creating-pipeline`     | A pipeline is about to be created, before any step                                                      |
 | `after-creating-pipeline`      | The pipeline exists: branch, worktree, pipeline folder, and committed intent                             |
-| `run-started`                  | Work on a pipeline begins — created, continued, or amended — before dispatch                            |
+| `run-started`                  | Work on a pipeline begins — created, continued, or corrected — before dispatch                          |
 | `before-creating-branch`       | A pipeline branch or lane branch is about to be created                                                 |
 | `after-creating-branch`        | A pipeline branch or lane branch is created                                                             |
 | `before-creating-worktree`     | A worktree is about to be created or recreated — the pipeline's or a lane's                             |

@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Standing materials in every mode: the *
 
 ## Synthesize
 
-Additional materials: conditional **Lane inputs** — each consumed lane's artifact, record, and approving reviews; and, on re-synthesis, **Input changes** — every changed input with its diff and every unresolved trigger targeting `design-doc.md`.
+Additional materials: conditional **Lane inputs** — each consumed lane's artifact, record, and approving reviews; and, on re-synthesis, **Input changes** — every changed input with its diff and every unresolved challenge targeting `design-doc.md`.
 
 1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes, not whether they are right. The spec's open assumptions are yours to account for. `spec-research.md` records the investigation behind the spec: direct research at the gaps the design opens, not at re-verifying what it already grounds.
 2. Create `design-doc-research.md` per **Formats**; on re-synthesis, update it in place.
@@ -34,7 +34,7 @@ On re-synthesis, work delta-scoped: touch what the input changes invalidate, lea
 
 ## Adjudicate
 
-Additional materials: one correction — **Review lanes** (this wave's review files), an **Amendment**, or a **Task report** — plus **Lane folders** when adjudicating a consolidation.
+Additional materials: one of **Review lanes** (this wave's review files), **Correction**, or **Task report** — plus **Lane folders** when adjudicating a consolidation.
 
 Give every finding exactly one disposition, recorded under `## Adjudications`:
 
@@ -42,11 +42,11 @@ Give every finding exactly one disposition, recorded under `## Adjudications`:
 - **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does.
 - **Contradicts-input** — the finding cannot be adopted because the spec asserts something false, or because no mechanism satisfies a spec clause, or none proportionate to what the intent makes material. Write `Contradicts-input: 1-spec/spec.md#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof. Never design around a clause your record shows unsatisfiable.
 
-A contradicts-input that claims exhaustion — no mechanism satisfies the clause — enumerates the space: every class closed by an inspection, or by a recorded failed attempt from build. A class only an experiment could close is not a gap: it is the next design, adopted with an assumption. One that claims disproportion names the proportionate mechanism and the case it leaves uncovered, with its consequence.
+A contradicts-input that alleges exhaustion — no mechanism satisfies the clause — enumerates the space: every class closed by an inspection, or by a recorded failed attempt from build. A class only an experiment could close is not a gap: it is the next design, adopted with an assumption. One that alleges disproportion names the proportionate mechanism and the case it leaves uncovered, with its consequence.
 
 You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
 
-When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording a proportionate route the claim missed. A decision of the intent (`#decision-<n>`) that no mechanism satisfies is a contradiction of the intent: `Contradicts-input: 0-intent/intent.md#decision-<n>`, at the bar of exhaustion — every class of means enumerated and closed.
+When the materials carry a **Correction** — a request to change a clause of your artifact, with its evidence — judge it: adopt, preserving every requirement the clause serves, or refute, recording a proportionate route the request missed. A decision of the intent (`#decision-<n>`) that no mechanism satisfies is a contradiction of the intent: `Contradicts-input: 0-intent/intent.md#decision-<n>`, at the bar of exhaustion — every class of means enumerated and closed.
 
 ## Consolidate
 

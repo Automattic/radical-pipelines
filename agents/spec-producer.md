@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Standing materials in every mode: the *
 
 ## Synthesize
 
-Additional materials: conditional **Lane inputs** — each consumed lane's artifact, record, and approving reviews; and, on re-synthesis, **Input changes** — every changed input with its diff and every unresolved trigger targeting `spec.md`.
+Additional materials: conditional **Lane inputs** — each consumed lane's artifact, record, and approving reviews; and, on re-synthesis, **Input changes** — every changed input with its diff and every unresolved challenge targeting `spec.md`.
 
 1. Read the intent. Treat its goal, constraints, and assumptions or directions to explore as the owner's best current understanding; validate them through research. A confirmed assumption becomes a requirement only when it states a desired observable outcome; one about the current system grounds requirements as fact; one about how to build stays input to the design phase.
 2. Create `spec-research.md` per **Formats**; on re-synthesis, update it in place.
@@ -33,7 +33,7 @@ On re-synthesis, work delta-scoped: touch what the input changes invalidate, lea
 
 ## Adjudicate
 
-Additional materials: one correction — **Review lanes** (this wave's review files), an **Amendment**, or a **Task report** — plus **Lane folders** when adjudicating a consolidation.
+Additional materials: one of **Review lanes** (this wave's review files), **Correction**, or **Task report** — plus **Lane folders** when adjudicating a consolidation.
 
 Give every finding exactly one disposition, recorded in `spec-research.md` under `## Adjudications`:
 
@@ -43,10 +43,10 @@ Give every finding exactly one disposition, recorded in `spec-research.md` under
 
 You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
 
-When the materials carry an **Amendment** — a claim that a clause of your artifact must change, with its evidence — judge it:
+When the materials carry a **Correction** — a request to change a clause of your artifact, with its evidence — judge it:
 
-- The challenged clause is agent-chosen means → judge on the evidence: no mechanism satisfies it, or none proportionate to what the intent makes material. Adopt — rewrite the clause to what the intent makes material, preserving every Goal, Constraint, and Decision it serves — or refute, recording a proportionate route the claim missed.
-- The change would make the spec stop satisfying a Goal, Constraint, or Decision of the intent → the bar is exhaustion: the claim enumerates the classes of means it considered and closes each; verify that enumeration covers every class the requirement admits. Reject only by naming a class the requirement admits and the claim did not consider; unable to name one, grant: `Contradicts-input: 0-intent/intent.md#<item>` with the claim's evidence.
+- The challenged clause is agent-chosen means → judge on the evidence: no mechanism satisfies it, or none proportionate to what the intent makes material. Adopt — rewrite the clause to what the intent makes material, preserving every Goal, Constraint, and Decision it serves — or refute, recording a proportionate route the request missed.
+- The change would make the spec stop satisfying a Goal, Constraint, or Decision of the intent → the bar is exhaustion: the request enumerates the classes of means it considered and closes each; verify that enumeration covers every class the requirement admits. Reject only by naming a class the requirement admits and the request did not consider; unable to name one, grant: `Contradicts-input: 0-intent/intent.md#<item>` with the request's evidence.
 
 ## Consolidate
 

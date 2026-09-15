@@ -19,10 +19,10 @@
 <!-- Standing: every mode -->
 - spec.md: <path>
 - spec-research.md: <path>
-- Pinned inputs: <one line per file spec.md pins: intent, adjudicated triggers, lane inputs, consolidation candidates>
+- Pinned inputs: <one line per file spec.md pins: intent, adjudicated challenges, lane inputs, consolidation candidates>
 - Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
-- Amendment: <trigger path>   <!-- when this wave adjudicates an amendment -->
-- Task report: <trigger path>   <!-- when this wave adjudicates a failed task report -->
+- Correction: <challenge path>   <!-- when this wave adjudicates a correction -->
+- Task report: <challenge path>   <!-- when this wave adjudicates a failed task report -->
 
 <!-- Consolidation: additions -->
 - Lane folders: <one line per lane: id — folder (spec.md, spec-research.md, approved review)>

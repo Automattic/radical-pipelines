@@ -19,8 +19,8 @@ flowchart TD
     PICK --> ROUTE
     ROUTE --> R1["Record an answer to a pending owner escalation"]
     ROUTE --> R2["Continue the matching live pipeline"]
-    ROUTE --> R3["Create an external amendment"]
-    ROUTE --> R3W["Widen the live pipeline, or start from its tip"]
+    ROUTE --> R3["Create a correction"]
+    ROUTE --> R3R["Rescope the live pipeline, or start from its tip"]
     ROUTE --> R4["Start a pipeline from an unmerged tip"]
     ROUTE --> R5["Start a new re-attempt"]
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
@@ -30,15 +30,15 @@ flowchart TD
     R1 --> GROUP["Group routes by pipeline into runs"]
     R2 --> GROUP
     R3 --> GROUP
-    R3W --> GROUP
+    R3R --> GROUP
     R4 --> GROUP
     R5 --> GROUP
     R6 --> GROUP
     CONFIRM --> PREP{"Prepare every route of the next run"}
     PREP --> P1["Create the branch at its start ref and create the worktree"]
     P1 --> P1A["Synthesize, approve, commit, and stamp the intent"]
-    PREP --> P2["Select or create the amendment branch and worktree"]
-    P2 --> P2A["Write decisions and amendment; commit and stamp"]
+    PREP --> P2["Select or create the correction branch and worktree"]
+    P2 --> P2A["Write decisions and correction; commit and stamp"]
     PREP --> P3["Ensure the continuation branch and worktree exist"]
     PREP --> P4["Modify the issue; re-synthesize the intent; commit and stamp"]
     P4 --> P3

@@ -10,7 +10,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, its pending claims and owner escalations, its open amendment branch.
+`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, its pending claims and owner escalations, its open correction branch.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies cannot be reported, proceeds without comment.
 
@@ -21,9 +21,9 @@ A request carries one or more statements; route each by the first predicate that
 | Predicate                                                                           | Route                                                                     |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | A pending owner escalation exists and the request answers it                        | Record the answer (`../run/loop.md` § Owner escalation) and continue that pipeline |
-| A live pipeline's intent and amendments already call for this work                  | Continue it                                                               |
-| The request corrects what an existing pipeline's artifacts claim or its code does   | An external amendment on that pipeline                                    |
-| New scope for a live pipeline                                                       | The owner's choice: widen it, or a new pipeline from its tip (next row)  |
+| A live pipeline's intent and corrections already call for this work                 | Continue it                                                               |
+| The request corrects what an existing pipeline's artifacts state or its code does   | A correction on that pipeline                                             |
+| A change of scope for a live pipeline                                               | The owner's choice: rescope it, or a new pipeline from its tip (next row)  |
 | New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `Origin: starts-from` names that branch |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `Origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
@@ -49,15 +49,15 @@ Prepare every route of a run before starting it. Address every worktree by absol
 
 Every branch and worktree you create — the pipeline's here, a lane's later — fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.
 
-**An external amendment**
+**A correction**
 
 1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; a second correction joins it.
-2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/<n>-amendment.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id). Set `Target:` by the kind of statement: product behavior → the build plan; documentation → the document plan; a named spec requirement or design decision → that clause. Diagnosis belongs to the adjudicating pair.
-3. Commit; `rp stamp <amendment> --mirror` (and the intent, when it changed); commit the stamps.
+2. The owner's words, when there are any, go into `intent.md` as a decision (`intent-format.md`); then `0-intent/correction-<n>.md`: `Target:`, `Origin:` (the PR comment, the CI run, the decision's id). Set `Target:` by the kind of statement: product behavior → the build plan; documentation → the document plan; a named spec requirement or design decision → that clause. Diagnosis belongs to the adjudicating pair.
+3. Commit; `rp stamp <correction> --mirror` (and the intent, when it changed); commit the stamps.
 
 **Continue**: the pipeline's branch and worktree, created when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
 
-**Widen**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue.
+**Rescope**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue.
 
 ### 6. Run
 

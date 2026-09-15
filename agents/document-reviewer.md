@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Plan**, its **Record**, **Tasks**, the project's **Documentation conventions**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated trigger, and every production-lane input — the **Task reports**, the triggering **Amendment** or **Task report** when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
+Materials: the **Plan**, its **Record**, **Tasks**, the project's **Documentation conventions**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Correction** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
 1. Read the plan to locate every task and its expected documentation surface.
 2. Read the project's documentation conventions before reviewing the diff.
@@ -81,8 +81,8 @@ Verdict: approved | rejected | unsatisfiable
 Brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
 Target: <path>#<id>
-<!-- When the wave adjudicated a trigger: the Amendment or Task report you judged; omit otherwise. -->
-Origin: <trigger path>
+<!-- When the wave adjudicated a challenge: the Correction or Task report you judged; omit otherwise. -->
+Origin: <challenge path>
 
 ## Verification log
 
