@@ -646,7 +646,7 @@ process.stdout.write(output);
 
   for (const enabled of [true, false])
     for (const fresh of [true, false])
-      test(`challenge classifier: report enabled=${enabled}, fresh=${fresh} governs collection and task holds`, () => {
+      test(`challenge classifier: report enabled=${enabled}, fresh=${fresh} governs collection and convergence`, () => {
         registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
         registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
         registered("2-design-doc/design-doc.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"]) });
@@ -661,7 +661,8 @@ process.stdout.write(output);
         const state = checkWithClassification(enabled ? null : report, "--target-phase", "3");
         assert.deepEqual(state.contradictions, []);
         assert.equal(state.challenges.length, enabled && fresh ? 1 : 0);
-        assert.equal(state.tasks["3-build"].next, enabled && fresh ? null : "T1");
+        assert.equal(state.tasks["3-build"].next, "T1");
+        assert.deepEqual(state.artifacts[2].materials.taskReports, enabled && fresh ? [report] : []);
         if (fresh) assert.equal(state.frontier, enabled ? "converge 3-build/build-plan.md" : "task 3-build/T1");
       });
 

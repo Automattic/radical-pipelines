@@ -1470,12 +1470,6 @@ async function cmdCheck(args) {
       const r = latestOf(id);
       return !!r && r.outcome === "completed" && r.fresh;
     };
-    // A fresh failed report holds its task until the plan adjudicates it (pins it).
-    const held = (id) => {
-      const r = latestOf(id);
-      if (!r || challengeKind(r.rel, r.data) !== "failed report" || !r.fresh) return false;
-      return !pinPackage(pinsByPath.get(art.path))?.has(r.rel);
-    };
     // A fresh blocked report leaves its task pending: the environment, not the plan, is what changes before the next attempt.
     const blockedBy = (id) => {
       const r = latestOf(id);
@@ -1497,7 +1491,7 @@ async function cmdCheck(args) {
       };
       return planTasks.find((t) => visit(t.id, new Set()))?.id ?? null;
     })();
-    const next = planTasks.find((t) => !isDone(t.id) && t.deps.every(isDone) && !held(t.id));
+    const next = planTasks.find((t) => !isDone(t.id) && t.deps.every(isDone));
     const remaining = planTasks.filter((t) => !isDone(t.id)).map((t) => t.id);
     out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null, blocked: next && blockedBy(next.id) ? next.id : null };
     lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
@@ -1511,7 +1505,7 @@ async function cmdCheck(args) {
       take(badReport);
       stopped = true;
     } else if (remaining.length) {
-      take(next ? `${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}` : `tasks held in ${art.phase}: ${remaining.join(", ")}`);
+      take(`${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}`);
       stopped = true;
     }
     // Phase review: names the plan, its record, its inputs, every task, and every report.
