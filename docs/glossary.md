@@ -19,7 +19,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
-- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a challenge, a claim, a phase's next step, an unclaimed commit, or completion.
+- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a claim against the intent, an artifact to converge, a phase's next step, an unclaimed commit, or completion.
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
