@@ -1257,6 +1257,22 @@ async function cmdCheck(args) {
   }
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath === "0-intent/intent.md" || phaseOfTarget(targetPath) <= args.targetPhase;
+  const inputStateOf = (doc, art, sc, fingerprint = null) => {
+    const pins = doc?.data.get("pins");
+    const recorded = pinPackage(pins);
+    const { inputs: requiredPackage, ready: requirementsReady } = requiredPackageOf(art.prefix, sc, packageContext);
+    const diff = { members: false, identities: new Set() };
+    equalPackages(recorded, requiredPackage, diff);
+    const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
+      ...(diff.members || !requirementsReady ? ["package members"] : []),
+      ...(diff.identities.size ? [`package identities: ${[...diff.identities].join(", ")}`] : []),
+      ...(!laneMatches(doc, fingerprint) ? ["lane declaration"] : []),
+    ];
+    const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
+    return { state, stale };
+  };
+  const targetInputsCurrent = (path) => ARTIFACTS.filter((art) => art.path === path)
+    .every((art) => inputStateOf(all.find((doc) => doc.rel === path), art, "").state === "fresh");
 
   // pending → adjudicated (the target pins it) → resolved (the target approved
   // carrying the pin), or resolved by escalation (a closed wave of the target
@@ -1288,7 +1304,7 @@ async function cmdCheck(args) {
     const challengeResolved = challenges.filter((pair) => pair.rel === t.rel).every((pair) => pair.resolution.state === "resolved");
     out.challenges.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped, challengeResolved });
     lines.push(`challenge ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
-    if (res.state === "pending" && scoped) take(`challenge ${t.rel} → ${t.target}`);
+    if (res.state === "pending" && scoped && targetInputsCurrent(t.targetPath)) take(`challenge ${t.rel} → ${t.target}`);
     if (res.state !== "resolved" && scoped) unresolvedInScope = true;
   }
 
@@ -1335,24 +1351,15 @@ async function cmdCheck(args) {
     if (c.state === "pending") c.state = !scoped ? "pending, beyond the target phase" : ownerTerritory(c.target) ? "PENDING — owner escalation" : "PENDING";
     out.claims.push({ review: c.rel, target: c.target, state: c.state, inScope: scoped });
     lines.push(`claim    ${c.rel} → ${c.target}  ${c.state}`);
-    if (c.state.startsWith("PENDING")) take(`claim ${c.rel} → ${c.target}${c.state.includes("owner") ? " (owner escalation)" : ""}`);
+    if (c.state.startsWith("PENDING") && targetInputsCurrent(c.targetPath)) take(`claim ${c.rel} → ${c.target}${c.state.includes("owner") ? " (owner escalation)" : ""}`);
     if (!/^(resolved|superseded|moot|pending, beyond)/.test(c.state) && scoped) unresolvedInScope = true;
   }
 
   // 3. Phases in order, up to the target; a phase's production lanes come before its root artifact.
+  const pendingChallenges = [...challenges.filter((t) => t.resolution.state === "pending"), ...claims.filter((c) => c.state.startsWith("PENDING"))];
   const render = (ls) => (ls.length ? ls.map((l) => `${l.lane || "·"}:${l.verdict}${l.verdict !== "none" && l.verdict !== "unstamped" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
   const artifactState = (doc, art, sc, fingerprint = null) => {
-    const pins = doc?.data.get("pins");
-    const recorded = pinPackage(pins);
-    const { inputs: requiredPackage, ready: requirementsReady } = requiredPackageOf(art.prefix, sc, packageContext);
-    const diff = { members: false, identities: new Set() };
-    equalPackages(recorded, requiredPackage, diff);
-    const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
-      ...(diff.members || !requirementsReady ? ["package members"] : []),
-      ...(diff.identities.size ? [`package identities: ${[...diff.identities].join(", ")}`] : []),
-      ...(!laneMatches(doc, fingerprint) ? ["lane declaration"] : []),
-    ];
-    const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
+    const { state, stale } = inputStateOf(doc, art, sc, fingerprint);
     const lanes = laneStates(art.prefix, sc);
     const e = episodeOf(art.prefix, sc);
     const approved = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc)).current;
@@ -1369,6 +1376,9 @@ async function cmdCheck(args) {
     const phaseNo = i + 1;
     if (phaseNo > args.targetPhase) break;
     const name = art.path.split("/")[1];
+    const pending = [...new Set(pendingChallenges.filter((c) => c.targetPath === art.path).map((c) => c.rel))];
+    const pendingText = pending.length ? `  pending challenges: ${pending.join(", ")}` : "";
+    const pendingState = pending.length ? { pendingChallenges: pending } : {};
     const rootExists = texts.has(art.path);
     const declaredLanes = productionLanesOf(art.prefix);
     const laneScopes = declaredLanes.map((l) => `${art.phase}/${l.id}/`).sort();
@@ -1403,8 +1413,8 @@ async function cmdCheck(args) {
     const needsConsolidation = laneScopes.some((sc) => !closedPackage(sc) && laneApproved(sc));
     const renderCandidates = () => lines.push(`Lane candidates  ${laneCandidates.map((candidate) => `${candidate.lane}: ${candidate.package.join(", ")}`).join("; ")}`);
     if (!rootExists) {
-      out.artifacts.push({ artifact: art.path, state: "missing", consolidate: laneScopes.length ? lanesReady : undefined, ...(lanesReady ? { laneCandidates } : {}) });
-      lines.push(`artifact ${art.path}  MISSING${laneScopes.length ? (lanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}`);
+      out.artifacts.push({ artifact: art.path, state: "missing", ...pendingState, consolidate: laneScopes.length ? lanesReady : undefined, ...(lanesReady ? { laneCandidates } : {}) });
+      lines.push(`artifact ${art.path}  MISSING${laneScopes.length ? (lanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}${pendingText}`);
       if (laneScopes.length && lanesReady) {
         renderCandidates();
         take(`consolidate ${art.path}`);
@@ -1414,9 +1424,9 @@ async function cmdCheck(args) {
       continue;
     }
     const st = artifactState(all.find((d) => d.rel === art.path), art, "");
-    out.artifacts.push({ artifact: art.path, ...st, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
+    out.artifacts.push({ artifact: art.path, ...st, ...pendingState, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
     if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
-    lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}`);
+    lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${pendingText}`);
     if (st.state !== "fresh" || !st.approved || needsConsolidation) {
       if (lanesReady && needsConsolidation) {
         renderCandidates();

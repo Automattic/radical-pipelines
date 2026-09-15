@@ -688,6 +688,154 @@ process.stdout.write(output);
     rp(root, "stamp", P("0-intent/correction-1.md"), "--mirror");
   }
 
+  function frontierChain(extraArtifact = null) {
+    const artifacts = ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "4-document/document-plan.md"];
+    const records = artifacts.map((path) => path.replace(/\.md$/, "-research.md"));
+    const reviews = artifacts.map((path) => path.replace(/\.md$/, "-review-1.md"));
+    const tasks = ["3-build/tasks/T1.md", "4-document/tasks/T1.md"];
+    const reports = tasks.map((path) => path.replace(/\.md$/, "-report-1.md"));
+    for (const [i, task] of tasks.entries()) {
+      registered(task, { depends: [] }, "# T1\nDepends on: none\n");
+      registered(reports[i], { reviewed: pairs([task]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+    }
+    const inputs = [
+      ["0-intent/intent.md"],
+      ["0-intent/intent.md", artifacts[0], reviews[0]],
+      [artifacts[0], artifacts[1], reviews[0], reviews[1]],
+      [artifacts[0], artifacts[1], artifacts[2], reviews[0], reviews[1], reviews[2], "3-build/build-review-1.md", tasks[0], reports[0]],
+    ];
+    const context = "0-intent/context.md";
+    write(root, context, "# Context\nOriginal evidence.\n");
+    const packages = [];
+    const phasePackages = [];
+    for (const [i, artifact] of artifacts.entries()) {
+      if (artifact === extraArtifact) inputs[i].push(context);
+      registered(artifact, { pins: pairs(inputs[i]) }, `# Artifact\n\n- ${["R1", "D1", "A1", "A1"][i]} Clause.\n`);
+      write(root, records[i], "# Record\n");
+      packages[i] = [artifact, records[i], ...inputs[i], ...(i >= 2 ? [tasks[i - 2]] : [])];
+      phasePackages[i] = [...packages[i], ...(i >= 2 ? [reports[i - 2]] : [])];
+      registeredVerdict(reviews[i], pairs(packages[i]));
+      if (i >= 2) registeredVerdict(`${i === 2 ? "3-build/build" : "4-document/document"}-review-1.md`, pairs(phasePackages[i]));
+    }
+    return { artifacts, records, reviews, inputs, packages, phasePackages, tasks, reports, context };
+  }
+
+  for (const kind of ["correction", "claim"])
+    for (const targetIndex of [0, 1, 2, 3])
+      for (const currency of ["current", "stale input", "missing input approval"])
+        test(`challenge frontier inputs: ${kind}, phase ${targetIndex + 1}, ${currency}`, () => {
+          const paths = ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "4-document/document-plan.md"];
+          const chain = frontierChain(targetIndex > 0 ? paths[targetIndex - 1] : null);
+          const artifact = chain.artifacts[targetIndex];
+          let lanes = [];
+          if (targetIndex === 0) {
+            const lane = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md", review = "1-spec/a/spec-review-1.md";
+            registered(lane, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a }, "# Candidate\n- R1 Clause.\n");
+            write(root, record, "# Record\n");
+            registeredVerdict(review, pairs([lane, record, "0-intent/intent.md"]));
+            registeredRoot(lane, pairs([lane, record, "0-intent/intent.md"]), [review]);
+            lanes = ["--lanes", `spec=|a@${FPS.a}`];
+          }
+          const sourceIndex = Math.min(targetIndex + 1, 3);
+          const challenge = kind === "correction" ? "0-intent/correction-1.md"
+            : targetIndex === 3 ? "4-document/document-review-1.md" : chain.reviews[sourceIndex];
+          const target = kind === "correction" ? artifact : `${artifact}#${["R1", "D1", "A1", "A1"][targetIndex]}`;
+          registered(challenge, {
+            target: [target], "target-identity": [identity(read(root, artifact))],
+            ...(kind === "correction" ? { origin: "issue 9" } : { verdict: "unsatisfiable", reviewed: pairs(targetIndex === 3 ? chain.phasePackages[sourceIndex] : chain.packages[sourceIndex]) }),
+          }, `# Challenge\n${kind === "correction" ? "Origin: issue 9" : "Verdict: unsatisfiable"}\nTarget: ${target}\n`);
+          if (currency === "stale input") appendFileSync(join(root, P(targetIndex === 0 ? "0-intent/intent.md" : chain.context)), "\nChanged evidence.\n");
+          if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 0 ? "1-spec/a/spec-review-1.md" : targetIndex === 3 ? "3-build/build-review-1.md" : chain.reviews[targetIndex - 1])));
+          const state = JSON.parse(check(root, ...lanes, "--json"));
+          assert.deepEqual(state.contradictions, []);
+          const expected = currency === "current" ? `${kind === "claim" ? "claim" : "challenge"} ${challenge} → ${target}`
+            : currency === "stale input" ? `re-synthesize ${chain.artifacts[Math.max(0, targetIndex - 1)]}`
+            : ["review wave 1-spec/a/spec.md", "review wave 1-spec/spec.md", "review wave 2-design-doc/design-doc.md", "build review"][targetIndex];
+          assert.equal(state.frontier, expected);
+          const reported = kind === "correction" ? state.challenges[0] : state.claims[0];
+          assert.equal(reported.target, target);
+          if (kind === "correction" || currency === "current") {
+            assert.match(reported.state, /^(pending|PENDING)$/);
+            assert.deepEqual(state.artifacts.find((a) => a.artifact === artifact).pendingChallenges, [challenge]);
+          } else assert.match(reported.state, /^moot/);
+        });
+
+  for (const targetIndex of [2, 3])
+    for (const currency of ["current", "stale input", "missing input approval"])
+      test(`challenge frontier inputs: failed report, phase ${targetIndex + 1}, ${currency}`, () => {
+        const chain = frontierChain(targetIndex === 2 ? "2-design-doc/design-doc.md" : "3-build/build-plan.md");
+        const artifact = chain.artifacts[targetIndex], task = chain.tasks[targetIndex - 2], report = chain.reports[targetIndex - 2];
+        registered(report, { reviewed: pairs([task]), outcome: "failed", attempt: "1", target: [`${artifact}#T1`], "target-identity": [identity(read(root, artifact))] }, "# Report\nOutcome: failed\n");
+        if (currency === "stale input") appendFileSync(join(root, P(chain.context)), "\nChanged evidence.\n");
+        if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 2 ? chain.reviews[1] : "3-build/build-review-1.md")));
+        const state = JSON.parse(check(root, "--json"));
+        assert.deepEqual(state.contradictions, []);
+        assert.equal(state.challenges[0].state, "pending");
+        const expected = currency === "current" ? `challenge ${report} → ${artifact}#T1`
+          : currency === "stale input" ? `re-synthesize ${chain.artifacts[targetIndex - 1]}`
+          : targetIndex === 2 ? "review wave 2-design-doc/design-doc.md" : "build review";
+        assert.equal(state.frontier, expected);
+        assert.deepEqual(state.artifacts.find((a) => a.artifact === artifact).pendingChallenges, [report]);
+      });
+
+  test("a fresh pending claim waits when its target lacks a current input approval", () => {
+    const chain = frontierChain();
+    const claim = "1-spec/spec-review-2.md", target = `${chain.artifacts[1]}#D1`;
+    registered(claim, { verdict: "unsatisfiable", reviewed: pairs(chain.packages[0]), target: [target], "target-identity": [identity(read(root, chain.artifacts[1]))] }, `# Review\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+    const state = JSON.parse(check(root, "--json"));
+    assert.equal(state.claims[0].state, "PENDING");
+    assert.equal(state.frontier, "adjudicate 1-spec/spec.md");
+    assert.deepEqual(state.artifacts[1].pendingChallenges, [claim]);
+    assert.match(check(root).split("\n").find((line) => line.startsWith("artifact 2-design-doc/design-doc.md ")), /pending challenges: 1-spec\/spec-review-2\.md/);
+  });
+
+  for (const verdict of ["absent", "rejected"])
+    test(`a challenge needs current inputs but no target approval: ${verdict}`, () => {
+      const chain = frontierChain();
+      const challenge = "0-intent/correction-1.md", target = chain.artifacts[1];
+      registered(challenge, { target: [target], "target-identity": [identity(read(root, target))], origin: "issue 9" }, `# Correction\nTarget: ${target}\nOrigin: issue 9\n`);
+      if (verdict === "absent") rmSync(join(root, P(chain.reviews[1])));
+      else registeredVerdict(chain.reviews[1], pairs(chain.packages[1]), verdict);
+      assert.equal(JSON.parse(check(root, "--json")).frontier, `challenge ${challenge} → ${target}`);
+    });
+
+  test("a correction along spec, design and plan is carried by each target's re-synthesis", () => {
+    const chain = frontierChain();
+    const [spec, design, plan] = chain.artifacts;
+    const correction = "0-intent/correction-1.md";
+    const targets = [spec, design, plan];
+    registered(correction, { target: targets, "target-identity": targets.map((path) => identity(read(root, path))), origin: "issue 9" }, `# Correction\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+    const state = () => JSON.parse(check(root, "--target-phase", "3", "--json"));
+    const pendingOn = (path) => {
+      const snapshot = state();
+      assert.equal(snapshot.frontier, `re-synthesize ${path}`);
+      assert.deepEqual(snapshot.artifacts.find((a) => a.artifact === path).pendingChallenges, [correction]);
+      const line = check(root, "--target-phase", "3").split("\n").find((line) => line.startsWith(`artifact ${path} `));
+      assert.match(line, /pending challenges: 0-intent\/correction-1\.md/);
+    };
+    assert.equal(state().frontier, `challenge ${correction} → ${spec}`);
+    registered(spec, { pins: pairs(["0-intent/intent.md", correction]) }, "# Spec\n- R1 Revised.\n");
+    assert.equal(state().frontier, `review wave ${spec}`);
+    registeredVerdict("1-spec/spec-review-2.md", pairs([...SPEC, correction]));
+    pendingOn(design);
+    const designInputs = ["0-intent/intent.md", spec, "1-spec/spec-review-2.md", correction];
+    registered(design, { pins: pairs(designInputs) }, "# Design\n- D1 Revised.\n");
+    assert.equal(state().frontier, `review wave ${design}`);
+    registeredVerdict("2-design-doc/design-doc-review-2.md", pairs([design, chain.records[1], ...designInputs]));
+    pendingOn(plan);
+    const planInputs = [spec, design, "1-spec/spec-review-2.md", "2-design-doc/design-doc-review-2.md", correction];
+    registered(plan, { pins: pairs(planInputs) }, "# Plan\n- A1 Revised.\n");
+    assert.equal(state().frontier, `review wave ${plan}`);
+    const planPackage = [plan, chain.records[2], ...planInputs, chain.tasks[0]];
+    registeredVerdict("3-build/build-plan-review-2.md", pairs(planPackage));
+    assert.equal(state().frontier, "build review");
+    registeredVerdict("3-build/build-review-2.md", pairs([...planPackage, chain.reports[0]]));
+    const complete = state();
+    assert.equal(complete.frontier, "complete");
+    assert.equal(complete.complete, true);
+    assert.deepEqual(complete.challenges.map((c) => [c.state, c.challengeResolved]), targets.map(() => ["resolved", true]));
+  });
+
   for (const clause of [false, true])
     test(`challenge targets: direct two-target lifecycle with ${clause ? "clauses" : "whole artifacts"}`, () => {
       const build = "3-build/build-plan.md", document = "4-document/document-plan.md";
@@ -724,13 +872,16 @@ process.stdout.write(output);
       registeredVerdict("3-build/build-plan-review-2.md", pairs([...buildPackage, challenge]));
       const built = state();
       assert.deepEqual(built.challenges.map((t) => t.state), ["resolved", "pending"]);
-      assert.equal(built.frontier, `challenge ${challenge} → ${targets[0]}`);
+      assert.equal(built.frontier, "build review");
+      assert.deepEqual(built.artifacts[3].pendingChallenges, [challenge]);
       assert.equal(built.artifacts[3].state, "stale");
       assert.deepEqual(built.artifacts[3].stale, ["package members"]);
       assert.equal(built.challenges.every((t) => !t.challengeResolved), true);
 
       registeredVerdict("3-build/build-review-2.md", pairs([...buildPackage, report, challenge]));
       assert.equal(state("--target-phase", "3").complete, true);
+      assert.equal(state().frontier, `re-synthesize ${document}`);
+      assert.deepEqual(state().artifacts[3].pendingChallenges, [challenge]);
       const repinned = [...inputs, build, "3-build/build-plan-review-2.md", "3-build/build-review-2.md", task, report, challenge];
       registered(document, { pins: pairs(repinned) });
       assert.deepEqual(state().challenges.map((t) => t.state), ["resolved", "adjudicated"]);
@@ -775,7 +926,8 @@ process.stdout.write(output);
     assert.deepEqual(state.challenges.map((t) => t.state), ["resolved", "pending"]);
     assert.match(state.challenges[0].detail, /^escalated by/);
     assert.equal(state.challenges.every((t) => !t.challengeResolved), true);
-    assert.equal(state.frontier, `challenge ${challenge} → ${targets[1]}`);
+    assert.equal(state.frontier, "claim 1-spec/spec-review-1.md → 0-intent/intent.md#goal (owner escalation)");
+    assert.deepEqual(state.artifacts[1].pendingChallenges, [challenge]);
   });
 
   test("challenge targets: new targets validate atomically while retained targets keep landing facts", () => {
@@ -920,7 +1072,10 @@ process.stdout.write(output);
       rp(root, "stamp", P(rel), "--mirror");
       const stamped = JSON.parse(check(root, "--json"));
       assert.deepEqual(stamped.contradictions, []);
-      assert.equal(stamped.frontier, `challenge ${rel} → 1-spec/spec.md#R1`);
+      assert.equal(stamped.frontier, "stamp 1-spec/spec.md");
+      assert.deepEqual(stamped.artifacts[0].pendingChallenges, [rel]);
+      registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+      assert.equal(JSON.parse(check(root, "--json")).frontier, `challenge ${rel} → 1-spec/spec.md#R1`);
     });
 
   for (const kind of ["correction", "claim", "failed report"])
@@ -955,6 +1110,7 @@ process.stdout.write(output);
       assert.doesNotThrow(() => rp(root, "stamp", P(challenge), "--mirror"));
       const state = () => JSON.parse(check(root, "--target-phase", "1", "--json"));
       assert.deepEqual(state().challenges.map((t) => t.state), ["pending", "pending"]);
+      assert.deepEqual(state().artifacts[0].pendingChallenges, [challenge]);
       registered(artifact, { pins: pairs(["0-intent/intent.md", challenge]) });
       assert.deepEqual(state().challenges.map((t) => t.state), ["adjudicated", "adjudicated"]);
       registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, challenge]));
@@ -990,7 +1146,8 @@ process.stdout.write(output);
     assert.equal(first.artifacts[1].state, "stale");
     assert.deepEqual(first.artifacts[1].stale, ["package members"]);
     assert.deepEqual(first.challenges.map((t) => t.state), ["resolved", "pending"]);
-    assert.equal(first.frontier, `challenge ${challenge} → ${design}`);
+    assert.equal(first.frontier, `re-synthesize ${design}`);
+    assert.deepEqual(first.artifacts[1].pendingChallenges, [challenge]);
     const current = ["0-intent/intent.md", spec, "1-spec/spec-review-2.md", challenge];
     registered(design, { pins: pairs(current) });
     registeredVerdict("2-design-doc/design-doc-review-2.md", pairs([design, "2-design-doc/design-doc-research.md", ...current]));
