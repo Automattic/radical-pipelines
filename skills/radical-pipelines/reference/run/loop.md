@@ -13,9 +13,9 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 | `frontier`                                           | Dispatch                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `challenge <path> → <target>`                        | The target's producer, mode Adjudicate, with the challenge under **Correction** (correction or claim) or **Task report** |
+| `challenge <path> → <target>`                        | The target's producer, mode Adjudicate, with every pending challenge on the target under **Correction** (correction or claim) or **Task report** |
 | `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
-| `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Correction**                                    |
+| `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with every pending challenge on the target under **Correction** or **Task report**                                    |
 | `synthesize <artifact>`                              | Its producer, mode Synthesize                                                                                  |
 | `stamp <file>`                                       | Its initial package is unrecorded, or its mirrors no longer project its body: § Stamp on landing               |
 | `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with the package change under **Input changes** and its pending challenges under **Correction** or **Task report** |
