@@ -19,26 +19,24 @@ Your prompt's **Mode** line selects one. Optional **Research** supplements any m
 
 Standing materials, inherited by every mode: the **Spec**, **Design doc**, and **Build plan** with its tasks and reports, each with its approving reviews; the approving build review; the **Task reports** so far; and the **Phase folder** files.
 
-## Synthesize
+## Converge
 
-Materials: the standing materials and, on re-synthesis, the **Input changes**.
+Materials: the standing materials and, each present when it applies, **Input changes** — every changed input with its diff; **Review lanes** — the closed wave's review files; **Corrections** and **Task reports** — every pending challenge on `document-plan.md`, with the files its `origin` chain leads through; and, with a plan already written, `document-plan.md`, its **Tasks**, and its record.
+
+Without a plan yet:
 
 1. Read the spec for its requirements, acceptance criteria, and user-facing rationale; read the design doc for the architecture and decisions that shape what needs documenting; read the build plan with its reports; inspect the shipped code on the branch.
 2. Explore the project's documentation to identify the right files, sections, conventions, and audiences. Sweep the repository end-to-end for any text that references the behavior the build phase changed — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions: a starting point, not a checklist. Every reference is a surface a task must address, or it stays out of sync with what landed. Record the sweep in `document-plan-research.md`, including searches that came back empty.
 3. Break the documentation work into tasks per **Rules**.
 4. Write `document-plan.md` and one `tasks/T<n>.md` per task, per **Formats**.
 
-On re-synthesis, work delta-scoped: completed tasks stay as they are — a change to their output is a corrective task you add. When nothing needs to change, say so in your report.
+With a plan, work delta-scoped: completed tasks stay as they are — a change to their output is a corrective task you add.
 
-## Adjudicate
-
-Materials: the standing materials, `document-plan.md`, its **Tasks**, `document-plan-research.md`, and one of **Review lanes** (this wave's review files), **Correction** (a request to change a clause of the plan, with its evidence), or **Task report** (a failed report and its task file).
-
-For findings from reviews or a correction, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan with the corrective tasks needed), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc, the spec, or the build plan asserts something the shipped code contradicts: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
+For every finding of the review lanes and every correction, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan with the corrective tasks needed), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc, the spec, or the build plan asserts something the shipped code contradicts: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
 
 For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition: **Replan** (the task was under-specified, its surface misnamed, or its acceptance unreachable), **Re-dispatch** (the evidence does not reproduce, or the worker misread the task; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover — target the design doc when the code is right, the build plan when the code is wrong: `Contradicts-input: <path>#<id>` with the report as evidence).
 
-You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
+You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
 # Rules
 
@@ -54,7 +52,7 @@ You may research and decide new content in this mode — always in service of a 
 
 **Claims**
 
-- Every load-bearing claim is **verified** with a citation or **assumed** with `A<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence in Adjudicate.
+- Every load-bearing claim is **verified** with a citation or **assumed** with `A<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence.
 - The plan states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 
 **Record**
