@@ -61,7 +61,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 
 **Claims**
 
-- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `A<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence in Adjudicate.
+- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `A<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence.
 
 **Record**
 

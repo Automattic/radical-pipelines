@@ -29,5 +29,5 @@ flowchart TD
     R --> S
     S --> A
     RESOLVED --> CASCADE
-    CHANGED --> CASCADE["Re-synthesize stale downstream artifacts"]
+    CHANGED --> CASCADE["Converge stale downstream artifacts"]
 ```

@@ -52,7 +52,7 @@ You may research and decide new content — always in service of a named finding
 
 **Claims**
 
-- Every load-bearing claim is **verified** with a citation or **assumed** with `A<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence in Adjudicate.
+- Every load-bearing claim is **verified** with a citation or **assumed** with `A<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence.
 - The plan states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 
 **Record**

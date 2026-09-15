@@ -20,7 +20,6 @@ flowchart TD
     C -->|INVALID FRONTMATTER| FRONTMATTER["Orchestrator repairs the frontmatter, then re-stamps the file"]
     C -->|INVALID LINE| LINE["Have the file's author fix it"]
     C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Converge"]
-    C -->|tasks held| HELD["Dispatch the plan producer: Converge with failed reports"]
     C -->|adjudicated challenges or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
     C -->|unclaimed commits| UNCLAIMED["Tell the owner: claim them in a report or revert them"]
     C -->|undeclared lane or symlink| DEFECT["Stop and tell the owner"]
@@ -36,7 +35,6 @@ flowchart TD
     FRONTMATTER --> A
     LINE --> LAND
     INVALIDPLAN --> LAND
-    HELD --> LAND
     AWAITING --> LAND
     LAND --> STAMP["Stamp before publication; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
     STAMP --> A

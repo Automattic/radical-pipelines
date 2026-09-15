@@ -26,7 +26,6 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
 | `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
 | `invalid plan: …`                                    | The plan producer, mode Converge                                                                             |
-| `tasks held in <phase>: …`                           | The plan producer, mode Converge, with the held failed reports                                               |
 | `challenges or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
 | `undeclared lane <path>` / `symlink <path>`          | The tree holds a lane the run policy lacks, or a symlink: stop and tell the owner                              |
