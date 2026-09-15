@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Standing materials in every mode: the *
 
 ## Synthesize
 
-Additional materials: conditional **Lane inputs** — each consumed lane's artifact, record, and approving reviews; and, on re-synthesis, **Input changes** — every changed input with its diff and every unresolved challenge targeting `spec.md`.
+Additional materials: conditional **Lane inputs** — each consumed lane's artifact, record, and approving reviews; and, on re-synthesis, **Input changes** — every changed input with its diff — and a **Correction** or **Task report** per unresolved challenge targeting `spec.md`.
 
 1. Read the intent. Treat its goal, constraints, and assumptions or directions to explore as the owner's best current understanding; validate them through research. A confirmed assumption becomes a requirement only when it states a desired observable outcome; one about the current system grounds requirements as fact; one about how to build stays input to the design phase.
 2. Create `spec-research.md` per **Formats**; on re-synthesis, update it in place.

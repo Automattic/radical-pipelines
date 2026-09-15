@@ -21,7 +21,7 @@ Standing materials, inherited by every mode: the **Spec** and **Design doc**, wi
 
 ## Synthesize
 
-Materials: the standing materials and, on re-synthesis, the **Input changes**.
+Materials: the standing materials and, on re-synthesis, the **Input changes** and a **Correction** or **Task report** per unresolved challenge targeting the plan.
 
 1. Read the spec and the design doc; list every requirement, every decision, and every open assumption.
 2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.

@@ -21,7 +21,7 @@ Standing materials, inherited by every mode: the **Spec**, **Design doc**, and *
 
 ## Synthesize
 
-Materials: the standing materials and, on re-synthesis, the **Input changes**.
+Materials: the standing materials and, on re-synthesis, the **Input changes** and a **Correction** or **Task report** per unresolved challenge targeting the plan.
 
 1. Read the spec for its requirements, acceptance criteria, and user-facing rationale; read the design doc for the architecture and decisions that shape what needs documenting; read the build plan with its reports; inspect the shipped code on the branch.
 2. Explore the project's documentation to identify the right files, sections, conventions, and audiences. Sweep the repository end-to-end for any text that references the behavior the build phase changed — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions: a starting point, not a checklist. Every reference is a surface a task must address, or it stays out of sync with what landed. Record the sweep in `document-plan-research.md`, including searches that came back empty.

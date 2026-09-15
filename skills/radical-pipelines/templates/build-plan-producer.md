@@ -24,8 +24,10 @@
 
 <!-- Synthesize adds -->
 - Input changes: <package change>   <!-- re-synthesis only -->
+- Correction: <challenge path>; <origin chain paths>   <!-- re-synthesis: one per pending challenge -->
+- Task report: <challenge path>; <origin chain paths>   <!-- re-synthesis: one per pending failed report -->
 
-<!-- Adjudicate adds exactly one correction, plus the current plan package -->
+<!-- Adjudicate adds one Correction or Task report line per pending challenge, plus the current plan package -->
 - build-plan.md: <path>
 - Tasks: <one line per task file: path>
 - build-plan-research.md: <path>

@@ -9,7 +9,7 @@ flowchart TD
     B --> C{"Frontier"}
     C -->|challenge, target inputs current| T["Dispatch target producer: Adjudicate"]
     C -->|claim: owner escalation| OE["Surface the dossier and pause"]
-    C -->|claim| CL["Dispatch target producer: Adjudicate"]
+    C -->|claim, target inputs current| CL["Dispatch target producer: Adjudicate"]
     C -->|synthesize artifact| S["Dispatch producer: Synthesize"]
     C -->|stamp file| ST["Stamp its pins or mirrors"]
     C -->|re-synthesize artifact| RS["Dispatch producer: Synthesize with input changes and pending challenges"]
