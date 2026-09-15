@@ -2,4 +2,4 @@
 "@automattic/radical-pipelines": minor
 ---
 
-BREAKING: producers have two modes, Converge and Consolidate — Converge takes whatever the artifact's package holds: input changes, the closed wave's reviews, pending challenges. A pending challenge no longer jumps the frontier: it makes its target unconverged, and the phase walk reaches the target in order, with its inputs approved. `rp check` reports `converge <artifact>` in place of synthesize, re-synthesize, adjudicate, and challenge lines.
+BREAKING: producers use Converge and Consolidate. The phase walk selects `converge <artifact>` for missing or stale artifacts, pending challenges, and rejected closed waves. Artifact reports expose Input changes, Review lanes, Corrections, and Task reports as convergence materials. Pending claims on the intent select owner escalation; other challenges follow phase order without a separate priority or claim-suspension rule.
