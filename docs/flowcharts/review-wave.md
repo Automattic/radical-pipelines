@@ -14,5 +14,5 @@ flowchart TD
     F -->|Any rejected| G["Dispatch the producer to adjudicate every lane"]
     F -->|Every approved| H["Artifact approved"]
     F -->|Unsatisfiable and no rejection| I["The claim stands"]
-    I --> J["Expose the verdict as a trigger"]
+    I --> J["Expose the verdict as a challenge"]
 ```

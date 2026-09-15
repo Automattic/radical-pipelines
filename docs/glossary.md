@@ -3,22 +3,23 @@
 The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined here: no synonyms or alternate notation.
 
 - **Agents** — The project convention configuring each profile's model and named lanes, with their briefs and materials.
-- **Amendment** — An external correction from the owner, PR review, or CI, recorded in phase 0 against its targets.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: the branch pipelines start from, merge into, and count their own commits after.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
 - **Base** — The commit a pipeline's own commits follow: the merge-base of its branch with the branch its intent `starts-from`, else with the artifact base branch (`rp check --base`).
 - **Blocker** — A report of malformed materials, unreadable input, or a broken environment. A worker reports it before its first write; a producer or reviewer may report it whenever found.
 - **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
+- **Challenge** — A file asking for work on its targets: a correction, an `unsatisfiable` verdict, or a fresh failed task report; adjudicated on a target when that target pins it, resolved on it when a wave naming it approves the target or the claim is escalated, resolved when every target is; a claim persists until resolved, superseded (its target changed, or its lane reviewed again), or moot.
 - **Claim** — An `unsatisfiable` review verdict with its target. A producer's `Contradicts-input` disposition is one source. A labeled normative statement in an artifact is also called a claim.
 - **Closure action** — A moment the owner invokes on a pipeline — opening or merging its pull request, both performed by the orchestrator, or closing without merging — bracketed by lifecycle hooks. Beyond those steps, work lives in hooks or with the owner.
 - **Completion predicate** — The file and approval state that marks a phase complete, evaluated from the working tree.
 - **Consolidate** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Consolidation** — A reviewer mode that audits the consolidated artifact against its lane folders, reusing approved checks where their claims and provenance are unchanged.
+- **Correction** — A request from the owner, PR review, or CI to correct existing work, recorded in phase 0 against its targets.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
-- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a trigger, a claim, a phase's next step, an unclaimed commit, or completion.
+- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a challenge, a claim, a phase's next step, an unclaimed commit, or completion.
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
@@ -28,14 +29,14 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Must-fix issue** — A finding that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a delta review rejects.
 - **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Issues** when rejecting and **Non-blocking findings** when approving.
 - **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner.
-- **Origin** — The source from which something was born: an issue reference, an external source, or a trigger it responds to.
+- **Origin** — The source from which something was born: an issue reference, an external source, or a challenge it responds to.
 - **Outcome** — A task report's conclusion: `completed`; `failed`, the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, the product was not observed and the report names what prevented it.
 - **Owner** — The human running the pipeline; talks only to the orchestrator.
 - **Owner escalation** — A pipeline pause and evidence dossier caused by a pending claim that targets the intent; the owner's answer is written into the intent as a decision.
 - **Owner territory** — The intent's Goal, Constraints, and Decisions — what the work must satisfy; the intent is the only file that carries the owner's words.
 - **Phase** — One pipeline stage: Intent, Spec, Design doc, Build, or Document.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
-- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope trigger and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report.
+- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope challenge and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
@@ -45,11 +46,10 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Shipped code** — The code, tests, and inline API documentation the build phase committed on the pipeline branch.
 - **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
-- **Target** — What a trigger's evidence contradicts: a `<path>#<id>` clause for a claim or a failed report; one or more artifacts, whole or by clause, for an external amendment.
+- **Target** — What a challenge's evidence contradicts: a `<path>#<id>` clause for a claim or a failed report; one or more artifacts, whole or by clause, for a correction.
 - **Target phase** — The highest phase a run executes before stopping.
 - **Task report** — A per-attempt worker report, `tasks/T<n>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
-- **Trigger** — A file asking for work on its targets: an external amendment, an `unsatisfiable` verdict, or a fresh failed task report; adjudicated on a target when that target pins it, resolved on it when a wave naming it approves the target or the claim is escalated, resolved when every target is; a claim persists until resolved, superseded (its target changed, or its lane reviewed again), or moot.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
 - **Wave** — One review of an artifact by every one of its lanes, numbered per artifact; closed when every lane's review is stamped and fresh.
 - **Worker** — A fresh agent that executes one task of a build or document plan and writes its task report.

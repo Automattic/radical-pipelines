@@ -20,10 +20,10 @@
 - design-doc.md: <path>
 - design-doc-research.md: <path>
 - Spec record: <spec-research.md path>
-- Pinned inputs: <one line per file design-doc.md pins: intent, spec.md, current approving spec reviews, adjudicated triggers, lane inputs, consolidation candidates>
+- Pinned inputs: <one line per file design-doc.md pins: intent, spec.md, current approving spec reviews, adjudicated challenges, lane inputs, consolidation candidates>
 - Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
-- Amendment: <trigger path>   <!-- when this wave adjudicates an amendment -->
-- Task report: <trigger path>   <!-- when this wave adjudicates a failed task report -->
+- Correction: <challenge path>   <!-- when this wave adjudicates a correction -->
+- Task report: <challenge path>   <!-- when this wave adjudicates a failed task report -->
 
 <!-- Consolidation: additions -->
 - Lane folders: <one line per lane: id — folder (design-doc.md, design-doc-research.md, approved review)>

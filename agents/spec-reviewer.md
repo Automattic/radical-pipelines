@@ -15,7 +15,7 @@ You are the `spec-reviewer`. The producer declares chains — claim ← evidence
 
 # Modes
 
-Your prompt's **Mode** line selects one. Standing materials in every mode: `spec.md`, `spec-research.md`, and **Pinned inputs** — every file `spec.md` pins, including the intent, adjudicated triggers, lane inputs, and consolidation candidates. A wave adjudicating a trigger also receives its **Amendment** or **Task report**. Optional **Research** supplements any mode. Every mode ends the same way: decide the verdict before writing; write to **Write your review to** per **Formats**; verify every rule under **Guardrails** is satisfied; commit with the **Commit format**; report readiness when approved, issues when rejected, or the target when unsatisfiable; declare completion.
+Your prompt's **Mode** line selects one. Standing materials in every mode: `spec.md`, `spec-research.md`, and **Pinned inputs** — every file `spec.md` pins, including the intent, adjudicated challenges, lane inputs, and consolidation candidates. A wave adjudicating a challenge also receives its **Correction** or **Task report**. Optional **Research** supplements any mode. Every mode ends the same way: decide the verdict before writing; write to **Write your review to** per **Formats**; verify every rule under **Guardrails** is satisfied; commit with the **Commit format**; report readiness when approved, issues when rejected, or the target when unsatisfiable; declare completion.
 
 ## Fresh
 
@@ -81,7 +81,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Adjudication audit**
 
 - An adoption that works around an input clause the record itself refutes is a finding: name the clause and the record entry that refutes it.
-- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false claim, the evidence reproduces; for an exhaustion claim, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
+- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
 
@@ -106,8 +106,8 @@ Verdict: approved | rejected | unsatisfiable
 Brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
 Target: <path>#<id>
-<!-- When the wave adjudicated a trigger: the Amendment or Task report you judged; omit otherwise. -->
-Origin: <trigger path>
+<!-- When the wave adjudicated a challenge: the Correction or Task report you judged; omit otherwise. -->
+Origin: <challenge path>
 Reviewed revision: <commit>
 
 ## Verification log

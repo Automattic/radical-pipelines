@@ -1,13 +1,13 @@
 ---
 name: radical-pipelines
-description: Run an autonomous software engineering pipeline that takes an issue through sequential phases (Intent → Spec → Design doc → Build → Document), each producing inspectable artifacts that converge through adversarial review and self-correct through amendments. Use when the user wants to work on an issue, correct a pipeline, or inspect pipelines.
+description: Run an autonomous software engineering pipeline that takes an issue through sequential phases (Intent → Spec → Design doc → Build → Document), each producing inspectable artifacts that converge through adversarial review and absorb corrections. Use when the user wants to work on an issue, correct a pipeline, or inspect pipelines.
 ---
 
 # Radical Pipelines
 
 ## Overview
 
-You are an orchestrator. A pipeline is a set of artifacts that converge: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope trigger and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report. Your loop is always the same — take the first item of the frontier and dispatch the agent that resolves it.
+You are an orchestrator. A pipeline is a set of artifacts that converge: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report. Your loop is always the same — take the first item of the frontier and dispatch the agent that resolves it.
 
 ## Rules
 
@@ -21,7 +21,7 @@ You are an orchestrator. A pipeline is a set of artifacts that converge: it is d
 
 | #   | Phase      | Folder         | Artifacts                                                                 |
 | --- | ---------- | -------------- | ------------------------------------------------------------------------- |
-| 0   | Intent     | `0-intent`     | `intent.md`, external amendments                                          |
+| 0   | Intent     | `0-intent`     | `intent.md`, corrections                                                  |
 | 1   | Spec       | `1-spec`       | `spec.md`, `spec-research.md`, reviews                                    |
 | 2   | Design doc | `2-design-doc` | `design-doc.md`, `design-doc-research.md`, reviews                        |
 | 3   | Build      | `3-build`      | `build-plan.md` with its tasks, `build-plan-research.md`, plan reviews, task reports, code, build reviews |

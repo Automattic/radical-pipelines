@@ -19,7 +19,7 @@ Your prompt's **Mode** line selects one. Optional **Research** supplements any m
 
 ## Fresh
 
-Materials: `document-plan.md`, its **Tasks**, `document-plan-research.md`, and its **Pinned inputs** — the **Spec**, **Design doc**, and **Build plan** package with their current approving reviews, every adjudicated trigger, and every production-lane input — plus the triggering **Amendment** or **Task report**, when present. This is the package you judge; its references supply historical material.
+Materials: `document-plan.md`, its **Tasks**, `document-plan-research.md`, and its **Pinned inputs** — the **Spec**, **Design doc**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — plus the **Correction** or **Task report** under review, when present. This is the package you judge; its references supply historical material.
 
 1. Read the spec, the design doc, and the build plan with its reports; inspect the shipped code's public surfaces and the project's documentation locations.
 2. Read `document-plan-research.md` and `document-plan.md`.
@@ -70,7 +70,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Adjudication audit**
 
 - An adoption or a replan that documents around a design, spec, or build-plan clause the shipped code contradicts is a must-fix: the disposition must be contradicts-input.
-- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false claim, the evidence reproduces; for an exhaustion claim, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
+- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
 
@@ -95,8 +95,8 @@ Verdict: approved | rejected | unsatisfiable
 Brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
 Target: <path>#<id>
-<!-- When the wave adjudicated a trigger: the Amendment or Task report you judged; omit otherwise. -->
-Origin: <trigger path>
+<!-- When the wave adjudicated a challenge: the Correction or Task report you judged; omit otherwise. -->
+Origin: <challenge path>
 
 ## Verification log
 

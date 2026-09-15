@@ -7,7 +7,7 @@ flowchart TD
     A["Run rp check"] --> STATUS["Treat complete-through-phase as status; read frontier"]
     STATUS --> B["Take the first frontier item"]
     B --> C{"Frontier"}
-    C -->|trigger| T["Dispatch target producer: Adjudicate"]
+    C -->|challenge| T["Dispatch target producer: Adjudicate"]
     C -->|claim: owner escalation| OE["Surface the dossier and pause"]
     C -->|claim| CL["Dispatch target producer: Adjudicate"]
     C -->|synthesize artifact| S["Dispatch producer: Synthesize"]
@@ -25,7 +25,7 @@ flowchart TD
     C -->|INVALID LINE| LINE["Have the file's author fix it"]
     C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Adjudicate"]
     C -->|tasks held| HELD["Dispatch the plan producer: Adjudicate with failed reports"]
-    C -->|adjudicated triggers or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
+    C -->|adjudicated challenges or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
     C -->|unclaimed commits| UNCLAIMED["Tell the owner: claim them in a report or revert them"]
     C -->|undeclared lane or symlink| DEFECT["Stop and tell the owner"]
     C -->|complete| CLOSE["Close-out"]

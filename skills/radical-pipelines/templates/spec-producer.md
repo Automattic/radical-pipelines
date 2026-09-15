@@ -34,8 +34,8 @@
 
 <!-- Adjudicate: additions; exactly one correction -->
 - Review lanes: <one line per review: lane — path>
-- Amendment: <trigger path>; <origin chain: review and record paths>
-- Task report: <trigger path>; <origin chain: review and record paths>
+- Correction: <challenge path>; <origin chain: review and record paths>
+- Task report: <challenge path>; <origin chain: review and record paths>
 - Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
 
 <!-- Consolidate: additions -->

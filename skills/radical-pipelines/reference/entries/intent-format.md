@@ -50,12 +50,12 @@ The intent is the only file that carries the owner's words. The issue's sections
 - **Keep requirements, design, and implementation in their phases.** Acceptance criteria belong to phase 1, architecture to phase 2, task breakdown to phase 3.
 - **Reflect hypotheses as open.** Record beliefs about approach or current state under Assumptions, not as requirements.
 
-## The amendment format
+## The correction format
 
-Write an external amendment to `0-intent/<n>-amendment.md`:
+Write a correction to `0-intent/correction-<n>.md`:
 
 ```markdown
-# Amendment <n>
+# Correction <n>
 
 Target: <path>[#<id>][, …]
 Origin: <source>
@@ -65,4 +65,4 @@ Origin: <source>
 <summary>
 ```
 
-The owner's words, when the amendment carries any, are a decision in the intent; `Origin:` names it. Summarize the request in your own words.
+The owner's words, when the correction carries any, are a decision in the intent; `Origin:` names it. Summarize the request in your own words.

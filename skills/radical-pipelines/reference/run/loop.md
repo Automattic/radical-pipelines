@@ -13,9 +13,9 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 | `frontier`                                           | Dispatch                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `trigger <path> → <target>`                          | The target's producer, mode Adjudicate, with the trigger under **Amendment** (external amendment or claim) or **Task report** |
+| `challenge <path> → <target>`                        | The target's producer, mode Adjudicate, with the challenge under **Correction** (correction or claim) or **Task report** |
 | `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
-| `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Amendment**                                     |
+| `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Correction**                                    |
 | `synthesize <artifact>`                              | Its producer, mode Synthesize                                                                                  |
 | `stamp <file>`                                       | Its initial package is unrecorded, or its mirrors no longer project its body: § Stamp on landing               |
 | `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with the package change under **Input changes**                                 |
@@ -31,7 +31,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
 | `invalid plan: …`                                    | The plan producer, mode Adjudicate                                                                             |
 | `tasks held in <phase>: …`                           | The plan producer, mode Adjudicate, with the held failed reports                                               |
-| `triggers or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                  |
+| `challenges or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
 | `undeclared lane <path>` / `symlink <path>`          | The tree holds a lane the run policy lacks, or a symlink: stop and tell the owner                              |
 | `complete`                                           | Close-out                                                                                                      |
@@ -55,8 +55,8 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 After every agent commit, stamp before anyone consumes the result and before terminating the agent. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
 
-- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every trigger it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
-- A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a trigger declares `Origin:` in its body.
+- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every challenge it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
+- A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a challenge declares `Origin:` in its body.
 - A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. Later stamps preserve that package.
 - A named lane's artifact or review: `--set lane=<the lane's fingerprint>` too.
 - Commit the stamps on top of the landing.
@@ -85,4 +85,4 @@ A production lane, declared in `../conventions/agents.md`, is a sub-pipeline of 
 
 A pending claim targets the intent. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into `intent.md` as a decision (`../entries/intent-format.md`), citing the claim's path; `rp stamp` it with `--mirror`; commit. The pipeline resumes on the next step.
 
-You write no verdict and open no amendment on your own initiative.
+You write no verdict and open no correction on your own initiative.
