@@ -16,7 +16,7 @@ The issue line is required. Add either later line when applicable. The canonical
 
 ## Synthesis from an issue
 
-Read the body, every comment, cross-reference, external link, and attachment. When the body already follows this format and nothing else exists — no comments, references, links, or attachments — add the Origin lines and copy the body verbatim. Otherwise:
+Read the body, every comment, cross-reference, external link, and attachment. When the body already follows this format and nothing else exists — no comments, references, links, or attachments — copy the body verbatim, adding the Origin lines and the ids. Otherwise:
 
 1. Follow references one level. Report unreadable links in the draft.
 2. Fold every comment and linked page's substance into the latest agreed state; label unsettled proposals from any participant as Assumptions.
@@ -37,7 +37,7 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 A vague idea with only a Title and Goal is complete.
 
-`#goal` addresses the Goal section. Every other item is a bullet that opens with its id — `constraint-<n>`, `context-<n>`, `assumption-<n>`, `decision-<n>` — assigned in order of creation and never reused.
+Every item other than the Goal is a bullet. In `intent.md`, `#goal` addresses the Goal section and each bullet opens with its id — `constraint-<n>`, `context-<n>`, `assumption-<n>`, `decision-<n>` — assigned in order of creation and never reused.
 
 ## Decisions
 
