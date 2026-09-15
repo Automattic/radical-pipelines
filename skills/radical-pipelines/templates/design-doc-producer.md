@@ -16,7 +16,7 @@
 
 ## Mode
 
-<Synthesize | Adjudicate | Consolidate>
+<Converge | Consolidate>
 
 ## Materials
 
@@ -29,16 +29,12 @@
 - design-doc.md: <path>
 - design-doc-research.md: <path>
 
-<!-- Synthesize: additions -->
+<!-- Converge: additions, each when it applies -->
 - Lane inputs: <one line per consumed lane: artifact path; record path; approving review paths>   <!-- production lanes with `after` -->
-- Input changes: <package change>   <!-- re-synthesis only -->
-- Correction: <challenge path>; <origin chain: review and record paths>   <!-- re-synthesis: one per pending challenge -->
-- Task report: <challenge path>; <origin chain: review and record paths>   <!-- re-synthesis: one per pending failed report -->
-
-<!-- Adjudicate: additions; one Correction or Task report line per pending challenge -->
-- Review lanes: <one line per review: lane — path>
-- Correction: <challenge path>; <origin chain: review and record paths>
-- Task report: <challenge path>; <origin chain: review and record paths>
+- Input changes: <package change>
+- Review lanes: <one line per review of the closed wave: lane — path>
+- Correction: <challenge path>; <origin chain: review and record paths>   <!-- one per pending correction or claim -->
+- Task report: <challenge path>; <origin chain: review and record paths>   <!-- one per pending failed report -->
 - Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
 
 <!-- Consolidate: additions -->

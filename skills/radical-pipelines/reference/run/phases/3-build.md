@@ -10,7 +10,7 @@ Plans the work as tasks, executes them, verifies the result against the plan, th
 
 | Profile               | Modes                   |
 | --------------------- | ----------------------- |
-| `build-plan-producer` | Synthesize · Adjudicate |
+| `build-plan-producer` | Converge |
 | `build-plan-reviewer` | Fresh · Delta           |
 | `build-worker-tdd`, `build-worker-edit`, `build-worker-e2e` | — |
 | `build-reviewer`      | Fresh · Delta           |
@@ -18,8 +18,7 @@ Plans the work as tasks, executes them, verifies the result against the plan, th
 
 ## Materials
 
-- Plan **Synthesize**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, their approving reviews, the task reports so far (the done-set is work to build on, never redo), and the **Phase folder** files. **Input changes** on re-synthesis lists each changed input with `git diff <plan head> HEAD -- <path>`; a **Correction** or **Task report** per unresolved challenge targeting the plan follows.
-- Plan **Adjudicate**: the Synthesize materials plus `build-plan.md`, its **Tasks**, and `build-plan-research.md`, and one of **Review lanes** — every review in the complete closed wave (approving, rejecting, and unsatisfiable lanes); **Correction** — a challenge targeting the plan, one per pending challenge; or **Task report** — a failed report and its task file, one per pending report.
+- Plan **Converge**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, their approving reviews, the task reports so far (the done-set is work to build on, never redo), and the **Phase folder** files. Each when it applies: **Input changes** — each changed input with `git diff <plan head> HEAD -- <path>`; `build-plan.md`, its **Tasks**, and `build-plan-research.md` once written; **Review lanes** — every review in the complete closed wave (approving, rejecting, and unsatisfiable lanes); a **Correction** — a challenge targeting the plan — or **Task report** — a failed report and its task file — per pending challenge.
 - Plan review **Fresh**: the plan, record, tasks, and pinned-input package — the spec and design doc with their current approving reviews, adjudicated challenges, and production-lane inputs — plus the challenge under review. **Delta**: the Fresh materials, **Your previous review**, the **Diff** from its `head`, and the **Adjudication**.
 - Worker: the **Task** file, its **Dependencies** (the task files it depends on), **Write your report to**; on a later attempt, **Your previous report**; for a corrective task or re-dispatch, the **Adjudication** and every **Review issue** attached to the task. The task's `Type` picks the profile: `tdd`, `edit`, `e2e`.
 - Build review **Fresh**: the plan, its record and tasks, its **Pinned inputs** — the design doc and spec with their current approving reviews, every adjudicated challenge, and every production-lane input — every **Task report**, the **Correction** or **Task report** under review when present, and **Diff** — every change on the branch outside the pipelines folder since its base. **Delta**: the same with **Your previous review**, the **Diff** from its `head`, and the **Adjudication** — the record entries written since.
