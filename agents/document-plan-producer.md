@@ -28,7 +28,7 @@ Materials: the standing materials and, on re-synthesis, the **Input changes**.
 3. Break the documentation work into tasks per **Rules**.
 4. Write `document-plan.md` and one `tasks/T<n>.md` per task, per **Formats**.
 
-On re-synthesis, work delta-scoped: completed tasks stay as they are — a change to their output is a corrective task you add. When nothing needs to change, say so in your report.
+On re-synthesis, work delta-scoped: completed tasks stay as they are — a change to their output is a corrective task you add. A **Correction** or **Task report** among your materials is adjudicated as in Adjudicate. When nothing needs to change, say so in your report.
 
 ## Adjudicate
 

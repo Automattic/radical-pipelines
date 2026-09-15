@@ -28,7 +28,7 @@ Materials: the standing materials and, on re-synthesis, the **Input changes**.
 3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases with behavior to test become numbered, titled flows inside e2e tasks; map every open assumption.
 4. Write `build-plan.md` and the task files per **Formats**.
 
-On re-synthesis, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add. When nothing needs to change, say so in your report.
+On re-synthesis, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add. A **Correction** or **Task report** among your materials is adjudicated as in Adjudicate. When nothing needs to change, say so in your report.
 
 ## Adjudicate
 

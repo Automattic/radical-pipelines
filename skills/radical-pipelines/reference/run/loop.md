@@ -18,7 +18,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Correction**                                    |
 | `synthesize <artifact>`                              | Its producer, mode Synthesize                                                                                  |
 | `stamp <file>`                                       | Its initial package is unrecorded, or its mirrors no longer project its body: § Stamp on landing               |
-| `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with the package change under **Input changes**                                 |
+| `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with the package change under **Input changes** and its pending challenges under **Correction** or **Task report** |
 | `review wave <artifact>`                             | A review wave                                                                                                  |
 | `adjudicate <artifact>`                              | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks. A claim the producer refuted reaches it here too, as the wave that refuted it |
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |

@@ -30,7 +30,7 @@ Additional materials: conditional **Lane inputs** — each consumed lane's artif
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
 8. In your report, declare the design doc ready for review.
 
-On re-synthesis, work delta-scoped: touch what the input changes invalidate, leave the rest. When nothing needs to change, say so in your report.
+On re-synthesis, work delta-scoped: touch what the input changes invalidate, leave the rest. A **Correction** or **Task report** among your materials is adjudicated as in Adjudicate. When nothing needs to change, say so in your report.
 
 ## Adjudicate
 
