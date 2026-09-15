@@ -26,7 +26,6 @@ flowchart TD
     C -->|undeclared lane or symlink| DEFECT["Stop and tell the owner"]
     C -->|complete| CLOSE["Close-out"]
     S --> LAND["Verify and land agent commits"]
-    S --> LAND
     RW --> LAND
     CON --> LAND
     TASK --> LAND
