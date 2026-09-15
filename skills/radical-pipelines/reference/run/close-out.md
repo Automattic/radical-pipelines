@@ -28,7 +28,7 @@ When the pull request already exists, update its description the same way.
 Consult the **Artifact storage** convention for the remotes and the upstream branch and commit formats, then:
 
 1. Generate a clean branch name for `upstream` from the upstream branch format — separate from the fork branch — and create the branch at `upstream`'s main branch.
-2. Cherry-pick, oldest first, the pipeline's own commits outside the pipelines folder — those after its base (`state.md`), the set `rp check` holds task reports to.
+2. Cherry-pick, oldest first, the commits carrying the pipeline's authored changes after its base (`state.md`).
 3. Rewrite the cherry-picked commit messages to the upstream commit format.
 4. Push the clean branch directly to `upstream`.
 5. Open the pull request in `upstream` from that clean branch. Its source branch lives in `upstream`, not in the fork — viewers of the pull request never see the fork.

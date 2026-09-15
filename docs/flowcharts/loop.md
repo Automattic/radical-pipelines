@@ -26,7 +26,6 @@ flowchart TD
     C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Adjudicate"]
     C -->|tasks held| HELD["Dispatch the plan producer: Adjudicate with failed reports"]
     C -->|adjudicated challenges or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
-    C -->|unclaimed commits| UNCLAIMED["Tell the owner: claim them in a report or revert them"]
     C -->|undeclared lane or symlink| DEFECT["Stop and tell the owner"]
     C -->|complete| CLOSE["Close-out"]
     T --> LAND["Verify and land agent commits"]
@@ -49,5 +48,4 @@ flowchart TD
     LAND --> STAMP["Stamp before publication; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
     STAMP --> A
     ST --> A
-    UNCLAIMED --> A
 ```

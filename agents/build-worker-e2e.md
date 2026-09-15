@@ -75,7 +75,7 @@ Outcome: completed | failed | blocked
 
 ## Commits
 
-<!-- One line per commit you made, the hash first: hash — subject. Every commit on the branch outside the pipelines folder is claimed here. -->
+<!-- One line per commit you made, the hash first: hash — subject. -->
 
 ## Checks
 
