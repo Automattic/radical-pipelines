@@ -20,6 +20,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a challenge, a claim, a phase's next step, an unclaimed commit, or completion.
+- **Helper** — A fresh agent that does one bounded piece of work — an answer, an observation, or a change — for the agent that asked, under that agent's Seat, and returns the result to it.
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
@@ -40,7 +41,6 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
-- **Researcher** — A fresh, inspection-only agent that answers one focused question with evidence directly to its requester.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
 - **Seating** — Starting a spawned agent inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
 - **Shipped code** — The code, tests, and inline API documentation the build phase committed on the pipeline branch.

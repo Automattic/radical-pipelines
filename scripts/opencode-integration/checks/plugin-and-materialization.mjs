@@ -101,7 +101,7 @@ export async function run(ctx) {
   });
 
   await runCheck(results, "agent materialization: materialized bytes match the source profile exactly", async () => {
-    const fileName = "researcher.md";
+    const fileName = "helper.md";
     const sourceBytes = readFileSync(join(AGENTS_SOURCE_DIR, fileName), "utf8");
     const materializedPath = join(materializedAgentsDir, fileName);
     await pollUntil(async () => existsSync(materializedPath), {

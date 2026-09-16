@@ -12,7 +12,7 @@ Execute
 
 ## Materials
 
-- Research: <researcher answer>   <!-- when a research request preceded this dispatch -->
+- Help: <helper result>   <!-- when a help request preceded this dispatch -->
 - Task: <tasks/T<n>.md path>
 - Dependencies: <one line per task file it depends on: path>
 - Your previous report: <path>   <!-- later attempts -->

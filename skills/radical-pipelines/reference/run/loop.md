@@ -45,10 +45,10 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - A producer receives each required input package. A package change provides **Input changes** for re-synthesis.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
-- `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
+- `Execution:` in the Seat is `inspection only` for producers and plan reviewers; `full` for workers and the build and document reviewers. A helper's Seat is its requester's.
 - A build or document review's fresh **Diff** is every change on the branch outside the pipelines folder since its base.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
-- Serve a **research request**: spawn a fresh `researcher` with the question and the requester's address; it answers the requester directly. Several independent questions in one message get one researcher each.
+- Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
 
 ## Stamp on landing
@@ -75,7 +75,7 @@ A wave reviews one artifact at one identity; one wave at a time per artifact; it
 4. Land: merge the review-lane branches into the branch the wave runs on (disjoint files, no conflicts), remove their worktrees and branches, stamp every review.
 5. Close: any `rejected` → adjudication; every lane `approved` → done; an `unsatisfiable` with no `rejected` → the claim stands, `rp check` routes it. An approval from a lane means nothing in its brief objects.
 
-Waves are atomic: a research request or blocker raised during a wave is served, but no adjudication starts until every lane reported.
+Waves are atomic: a help request or blocker raised during a wave is served, but no adjudication starts until every lane reported.
 
 ## Production lanes
 

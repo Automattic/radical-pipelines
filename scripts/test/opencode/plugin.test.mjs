@@ -93,7 +93,7 @@ async function clearAllLoopTimers() {
 function createFakeCtx({
   agents = [
     "radical-pipelines/spec-reviewer",
-    "radical-pipelines/researcher",
+    "radical-pipelines/helper",
     "radical-pipelines/build-worker-tdd",
   ],
   legacySkillDraft = false,
@@ -703,7 +703,7 @@ describe("rp_send", () => {
     await setup(ctx, isolatedDeps({ env: {} }));
     sessions.set("ses_researcher", { id: "ses_researcher" });
     sessions.set("ses_requester", { id: "ses_requester" });
-    // Both ends are RP spawns: the requester/researcher pair, not the spawner.
+    // Both ends are RP spawns: the requester/helper pair, not the spawner.
     for (const [id, name] of [
       ["ses_researcher", "researcher-q1"],
       ["ses_requester", "correction-lead"],

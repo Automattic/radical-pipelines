@@ -43,7 +43,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Verification**
 
 - Your **Execution** line permits everything: run the software to check every behavior the documentation claims. A review without verification evidence is not a review.
-- Investigation heavier than you can carry goes through a research request to the orchestrator; a fresh researcher answers directly. Attach the answer to your review.
+- Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly. Attach the answer to your review.
 - Per task: every acceptance criterion holds, verified against the documentation and the code it describes.
 - Accuracy: every concrete claim — symbol, signature, path, command, configuration key, example output — matches the shipped code; for at least one claim per task, verify it against the code with evidence: an example that does not run, a signature naming a parameter the code lacks, a cross-link that does not resolve, is a finding. A spot-check without evidence is not a spot-check.
 - Audience fit: voice, depth, prerequisites, and examples match each task's `Audience`.

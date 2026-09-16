@@ -14,7 +14,7 @@ Plans and writes the documentation the shipped code needs — internal and exter
 | `document-plan-reviewer` | Fresh · Delta           |
 | `document-worker`        | —                       |
 | `document-reviewer`      | Fresh · Delta           |
-| `researcher`             | —                       |
+| `helper`                 | —                       |
 
 ## Materials
 

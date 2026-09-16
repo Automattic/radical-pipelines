@@ -12,7 +12,7 @@ Decides how the spec is satisfied: architecture, mechanisms, decisions and trade
 | --------------------- | ------------------------------------- |
 | `design-doc-producer` | Synthesize · Adjudicate · Consolidate |
 | `design-doc-reviewer` | Fresh · Consolidation · Delta         |
-| `researcher`          | —                                     |
+| `helper`              | —                                     |
 
 ## Materials
 

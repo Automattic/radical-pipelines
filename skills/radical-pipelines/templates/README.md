@@ -4,7 +4,7 @@ One template per profile. The orchestrator builds every prompt from its template
 
 Slots:
 
-- `Seat` — Worktree, Branch, Commit format, Guardrails (`none` when the project has none), Execution (`inspection only` | `full`).
+- `Seat` — Worktree, Branch, Commit format, Guardrails (`none` when the project has none), Execution (`inspection only` | `full`). A helper commits nothing and its Seat is its requester's: no Commit format, the requester's Execution.
 - `Materials` — filtered by the lane's `materials` when it declares them.
 - `Brief` — a named lane's brief, verbatim; omitted for the implicit lane.
 - `Mode`, `Materials` — per profile.

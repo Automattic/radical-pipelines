@@ -7,7 +7,7 @@ flowchart TD
     A["Freeze the artifact at one identity"] --> B["Seed every declared lane at the same commit"]
     B --> C["Prepare Brief and, for a re-review, previous review, Diff, and Adjudication"]
     C --> D["Run reviewers in parallel"]
-    D --> E["Serve research requests or blockers; wait for every lane"]
+    D --> E["Serve help requests or blockers; wait for every lane"]
     E --> L["Merge review lanes into the wave branch"]
     L --> M["Remove lane worktrees and branches; stamp every review"]
     M --> F{"Closed-wave result"}

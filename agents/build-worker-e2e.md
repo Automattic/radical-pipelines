@@ -48,10 +48,10 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption.
 - Your **Execution** line permits everything: tests, builds, probes. Evidence you produced is the reason this phase exists.
 
-**Research**
+**Help**
 
-- Verify a named claim yourself — a specific file, a specific symbol. Send the orchestrator a research request for what needs exploration; a fresh researcher answers directly.
-- One focused question per request; batch only independent questions. Confirm every request was answered before reporting completion.
+- Do yourself what you can name — a file to read, a symbol to check. Send the orchestrator a help request for a piece of the work you can hand over whole — a question, an observation, a change; a fresh helper does it under your Seat and answers directly. What it returns is input you verify; the checks in your report are your own runs.
+- One piece per request; batch only independent requests. Confirm every request was answered before reporting completion.
 
 **Guardrails**
 
