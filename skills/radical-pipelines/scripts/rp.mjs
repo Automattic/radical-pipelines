@@ -1360,7 +1360,8 @@ async function cmdCheck(args) {
     const corrections = pending.filter((rel) => !taskReports.includes(rel));
     const rejectedReviews = (prefix) => {
       const lanes = laneStates(prefix, sc);
-      return waveClosed(lanes) && lanes.some((l) => l.verdict === "rejected") ? lanes.map((l) => ({ lane: l.lane, path: l.review.rel })) : [];
+      const complete = waveValidity(prefix, sc, latestWaveOf(prefix, sc)).reviews.length > 0;
+      return complete && lanes.some((l) => l.verdict === "rejected") ? lanes.map((l) => ({ lane: l.lane, path: l.review.rel })) : [];
     };
     const artifactReviews = rejectedReviews(art.prefix);
     const phaseReviews = !sc && art.review ? rejectedReviews(art.review) : [];

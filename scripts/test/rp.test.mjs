@@ -897,6 +897,23 @@ process.stdout.write(output);
         assert.ok(line.includes(`Review lanes: · — ${implicit}, focus — ${named}`));
       });
 
+  test("convergence carries a rejected wave together with input changes when both apply", () => {
+    const chain = frontierChain();
+    const spec = chain.artifacts[0];
+    registeredVerdict("1-spec/spec-review-2.md", pairs(chain.packages[0]), "rejected");
+    appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged context.\n");
+    const state = JSON.parse(check(root, "--json"));
+    assert.equal(state.frontier, `converge ${spec}`);
+    assert.deepEqual(state.artifacts[0].materials, {
+      inputChanges: { added: [], removed: [], changed: ["0-intent/intent.md"], ready: true },
+      reviewLanes: [{ lane: "", path: "1-spec/spec-review-2.md" }],
+      corrections: [], taskReports: [],
+    });
+    const line = check(root).split("\n").find((l) => l.startsWith(`artifact ${spec} `));
+    assert.match(line, /Input changes: changed \[0-intent\/intent\.md\]/);
+    assert.match(line, /Review lanes: · — 1-spec\/spec-review-2\.md/);
+  });
+
   for (const clause of [false, true])
     test(`challenge targets: direct two-target lifecycle with ${clause ? "clauses" : "whole artifacts"}`, () => {
       const build = "3-build/build-plan.md", document = "4-document/document-plan.md";
