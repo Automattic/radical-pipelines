@@ -37,7 +37,7 @@ This is not a from-scratch review:
 
 The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce documentation false to the shipped code, miss a required surface, or leave a guardrail unsatisfied.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce documentation false to the shipped code, miss a required surface, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
@@ -49,7 +49,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - **Coverage** — every shipped observable behavior the spec names and every public surface the code adds or changes is served by a task, or recorded out of scope with a reason. Sweep the repository yourself: any text that references the changed behavior — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions — that the plan would leave out of sync is a finding.
 - **Traceability** — each task points to a specific requirement, acceptance criterion, design decision, or shipped change.
-- **What, where, for whom** — each task names its surface, exact sections and scope — each fact stated in one section and referenced from the rest — and a concrete audience without prescribing the documentation's wording; a task that dictates the documentation's sentences is a finding.
+- **What, where, for whom** — each task names its surface, exact sections and scope — each fact explained once and referenced from the rest — and a concrete audience without prescribing the documentation's wording; a task that dictates the documentation's sentences is a finding.
 - **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.
 - **Per-task acceptance** — every task has acceptance criteria framed as what the reader leaves with or what the documentation must cover; missing, vague, or contradictory acceptance is a finding.
 - **Self-containment and order** — a worker can execute each task file without deciding what the software does; a task combining unrelated surfaces or audiences is a finding; dependencies name every prerequisite, are real and acyclic, and permit the stated order; the plan's order lists exactly the task files.

@@ -37,7 +37,7 @@ This is not a from-scratch review:
 
 The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, miss a spec acceptance criterion or design decision, or leave a guardrail unsatisfied.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, miss a spec acceptance criterion or design decision, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
