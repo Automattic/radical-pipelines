@@ -13,14 +13,10 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 | `frontier`                                           | Dispatch                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `challenge <path> → <target>`                        | The target's producer, mode Adjudicate, with the challenge under **Correction** (correction or claim) or **Task report** |
 | `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
-| `claim <review> → <target>`                          | The target's producer, mode Adjudicate, with the claim under **Correction**                                    |
-| `synthesize <artifact>`                              | Its producer, mode Synthesize                                                                                  |
+| `converge <artifact>`                                | Its producer, mode Converge, with what the artifact's line lists: the package change under **Input changes**, the closed wave's reviews under **Review lanes**, every pending challenge under **Corrections** or **Task reports** — for a build or document review's rejection, the phase's plan producer, whose adoptions are corrective tasks |
 | `stamp <file>`                                       | Its initial package is unrecorded, or its mirrors no longer project its body: § Stamp on landing               |
-| `re-synthesize <artifact>`                           | Its producer, mode Synthesize, with the package change under **Input changes**                                 |
 | `review wave <artifact>`                             | A review wave                                                                                                  |
-| `adjudicate <artifact>`                              | The producer, mode Adjudicate, with every lane's review under **Review lanes** — for a build or document review, the phase's plan producer, whose adoptions are corrective tasks. A claim the producer refuted reaches it here too, as the wave that refuted it |
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
 | `task <phase>/<id>`                                  | That task's worker                                                                                             |
 | `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is restored (§ Dispatch)                                 |
@@ -29,8 +25,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
 | `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
-| `invalid plan: …`                                    | The plan producer, mode Adjudicate                                                                             |
-| `tasks held in <phase>: …`                           | The plan producer, mode Adjudicate, with the held failed reports                                               |
+| `invalid plan: …`                                    | The plan producer, mode Converge                                                                             |
 | `challenges or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
 | `undeclared lane <path>` / `symlink <path>`          | The tree holds a lane the run policy lacks, or a symlink: stop and tell the owner                              |
@@ -42,7 +37,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 - Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by the lane's `materials` when it has them. A named lane's **Brief** is its brief verbatim; the implicit lane has none. `--lanes` carries each named lane with its fingerprint (`state.md` § The frontier).
 - Every message to an agent names what it must do next.
-- A producer receives each required input package. A package change provides **Input changes** for re-synthesis.
+- A producer receives each required input package. A package change provides **Input changes** for convergence.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
 - `Execution:` in the Seat is `inspection only` for producers, plan reviewers, and researchers; `full` for workers and the build and document reviewers.
