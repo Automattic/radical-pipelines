@@ -10,7 +10,7 @@ Decides how the spec is satisfied: architecture, mechanisms, decisions and trade
 
 | Profile               | Modes                                 |
 | --------------------- | ------------------------------------- |
-| `design-doc-producer` | Synthesize · Adjudicate · Consolidate |
+| `design-doc-producer` | Converge · Consolidate |
 | `design-doc-reviewer` | Fresh · Consolidation · Delta         |
 | `helper`              | —                                     |
 

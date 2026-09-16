@@ -19,7 +19,7 @@ flowchart TD
     I --> J["Give the owner the claim, evidence chain, and options"]
     J --> K["Write the answer into intent.md as a decision; stamp and commit"]
     K --> CHANGED["The target identity changes"]
-    H -->|No| N["Dispatch the target producer: Adjudicate"]
+    H -->|No| N["Dispatch the target producer: Converge"]
     N --> O{"Producer disposition"}
     O -->|Adopt| P["Change the target"]
     O -->|Refute| Q["Record the refutation"]
@@ -29,5 +29,5 @@ flowchart TD
     R --> S
     S --> A
     RESOLVED --> CASCADE
-    CHANGED --> CASCADE["Re-synthesize stale downstream artifacts"]
+    CHANGED --> CASCADE["Converge stale downstream artifacts"]
 ```

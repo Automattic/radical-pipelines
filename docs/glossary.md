@@ -19,14 +19,14 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
-- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a challenge, a claim, a phase's next step, an unclaimed commit, or completion.
+- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a claim against the intent, an artifact to converge, a phase's next step, an unclaimed commit, or completion.
 - **Helper** — A fresh agent that does one bounded piece of work — an answer, an observation, or a change — for the agent that asked, under that agent's Seat, and returns the result to it.
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
-- **Mode** — The selected procedure within an agent profile, such as Synthesize, Adjudicate, Consolidate, Fresh, or Delta.
+- **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
 - **Must-fix issue** — A finding that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a delta review rejects.
 - **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Issues** when rejecting and **Non-blocking findings** when approving.
 - **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner.

@@ -20,22 +20,20 @@ Your prompt's **Mode** line selects one. Optional **Help** supplements any mode.
 
 Standing materials, inherited by every mode: the **Spec** and **Design doc**, with their approving reviews; the **Task reports** so far; and the **Phase folder** files.
 
-## Synthesize
+## Converge
 
-Materials: the standing materials and, on re-synthesis, the **Input changes**.
+Materials: the standing materials and, each present when it applies, **Input changes** — every changed input with its diff; **Review lanes** — the closed wave's review files; **Corrections** and **Task reports** — every pending challenge on `build-plan.md`, with the files its `origin` chain leads through; and, with a plan already written, `build-plan.md`, its **Tasks**, and its record.
+
+Without a plan yet:
 
 1. Read the spec and the design doc; list every requirement, every decision, and every open assumption.
 2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.
 3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases with behavior to test become numbered, titled flows inside e2e tasks; map every open assumption.
 4. Write `build-plan.md` and the task files per **Formats**.
 
-On re-synthesis, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add. When nothing needs to change, say so in your report.
+With a plan, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add.
 
-## Adjudicate
-
-Materials: the standing materials, `build-plan.md`, its **Tasks**, `build-plan-research.md`, and one of **Review lanes** (this wave's review files), **Correction** (a request to change a clause of the plan, with its evidence), or **Task report** (a failed report and its task file).
-
-For findings from reviews or a correction, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc or the spec asserts something false: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
+For every finding of the review lanes and every correction, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc or the spec asserts something false: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
 
 For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition:
 
@@ -43,7 +41,7 @@ For a failed task report, reproduce its evidence first — this is the one exper
 - **Re-dispatch** — the evidence does not reproduce, or the worker misread the block: say why; an identical second failure is not re-dispatched without new evidence.
 - **Contradicts-input** — a mapped assumption fell (`Verifies: A<n>`), or a spec or design claim is false: `Contradicts-input: <path>#<id>` with the report as evidence.
 
-You may research and decide new content in this mode — always in service of a named finding, never on your own initiative.
+You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
 A review rejection changes only the tasks its findings require; other tasks stay unchanged.
 
@@ -64,7 +62,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 
 **Claims**
 
-- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `A<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence in Adjudicate.
+- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `A<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence.
 
 **Record**
 
