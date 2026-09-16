@@ -22,13 +22,14 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Commit format         | Commit message rules; absent, an imperative subject line                                                                              | No       |
 | PR format             | Pull request title and description rules                                                                                               | No       |
 | Guardrails            | Rules agents must satisfy                                                                                                              | No       |
+| Documentation conventions | How the project's documentation is written: the files that define its structure, voice, and terminology, and any rule beyond them | No       |
 | Lifecycle hooks       | Instructions run at defined moments                                                                                                    | No       |
 | Agents                | Model per profile and the lanes it adds, with their briefs and materials (`agents.md`)                                                 | No       |
 | Health monitoring     | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                          | No       |
 
 ## Schema stamp
 
-The `.rp.md` frontmatter line `conventions: <N>` records the schema version. The current version is 1.
+The `.rp.md` frontmatter line `conventions: <N>` records the schema version. The current version is 2.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

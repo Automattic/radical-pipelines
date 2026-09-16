@@ -1,0 +1,5 @@
+---
+"@automattic/radical-pipelines": minor
+---
+
+Hold the document phase to a prose standard: content is what the audience acts on, at the depth they act on it, in the voice and vocabulary of the surrounding document; each fact is stated in one section and referenced from the rest; a wrong sentence is rewritten whole; every surface describes the software as it is, only a changelog the change. The reviewer judges a behavior claim as the audience follows it within supported use, so an exception reached only outside it is not falsity, and treats a second statement of a fact, a mechanism the reader cannot act on, and a term of the spec, design doc, or task as findings. The plan names one section per fact, and a task dictating sentences is a finding whatever their source. Add the optional `Documentation conventions` project convention, delivered to the document worker and reviewer, and bump the conventions format to version 2. Corrective waves on documentation were only ever adding: each finding became a qualifier appended at every site that mentioned the fact, in the vocabulary of the artifacts, until the surface no longer read as documentation.

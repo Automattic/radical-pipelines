@@ -17,7 +17,7 @@ Execute
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
 - Existing documentation: <one line per named file>
-- Documentation conventions: <one line per path>
+- Documentation conventions: <convention | none>
 - Your previous report: <path>   <!-- later attempts -->
 - Adjudication: <record path — section>   <!-- corrective task or re-dispatch -->
 - Review issues: <review path — issue ids attached to this task>   <!-- corrective task or re-dispatch -->

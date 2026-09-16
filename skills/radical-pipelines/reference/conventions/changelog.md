@@ -2,6 +2,14 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 2
+
+Migrate from version 1.
+
+### Additions
+
+- `Documentation conventions`, optional: how the project's documentation is written.
+
 ## 1
 
 Migrate from version 0.
