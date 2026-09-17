@@ -4040,22 +4040,19 @@ const SESSION_MESSAGES_PAGE = 200;
 
 /**
  * Read a session's whole stored history, oldest first, following the
- * server's cursors, optionally one message type only. Earlier messages
- * remain stored after a checkpoint, so this sees what the active context
- * no longer does.
+ * server's cursors. Earlier messages remain stored after a checkpoint, so
+ * this sees what the active context no longer does.
  *
  * @param {{ baseURL: string, password: string }} server A resolved server.
  * @param {string} sessionID The session to read.
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
  *   Injectable request function, forwarded to `requestServer`.
- * @param {{ type?: string }} [options] A message type to filter by.
- * @returns {Promise<Array<object>>} Every matching `Session.Message.Info` record.
+ * @returns {Promise<Array<object>>} Every `Session.Message.Info` record.
  * @throws {Error} On a non-2xx response or a malformed page.
  */
-async function listSessionMessages(server, sessionID, requestFn, { type } = {}) {
+async function listSessionMessages(server, sessionID, requestFn) {
   const messages = [];
-  const filter = type ? `&type=${encodeURIComponent(type)}` : "";
-  let path = `/api/session/${sessionID}/message?order=asc&limit=${SESSION_MESSAGES_PAGE}${filter}`;
+  let path = `/api/session/${sessionID}/message?order=asc&limit=${SESSION_MESSAGES_PAGE}`;
   while (path) {
     const response = await requestServer(server, "GET", path, undefined, requestFn);
     if (response.status < 200 || response.status >= 300) {
@@ -4065,7 +4062,7 @@ async function listSessionMessages(server, sessionID, requestFn, { type } = {}) 
     messages.push(...page.data);
     const next = page.cursor?.next;
     path = next
-      ? `/api/session/${sessionID}/message?cursor=${encodeURIComponent(next)}&limit=${SESSION_MESSAGES_PAGE}${filter}`
+      ? `/api/session/${sessionID}/message?cursor=${encodeURIComponent(next)}&limit=${SESSION_MESSAGES_PAGE}`
       : undefined;
   }
   return messages;
@@ -4152,10 +4149,9 @@ function isWellFormedStoredPart(part) {
 }
 
 /**
- * Derive a session's activations from its stored history: what a
- * checkpoint has sealed away from the active context. Read when the daemon
- * holds no record for a session. A session without a checkpoint has nothing
- * sealed and is not paged.
+ * Derive a session's activations from its stored history: what the last
+ * completed checkpoint has sealed away from the active context. A session
+ * without a checkpoint has nothing sealed.
  *
  * @param {{ baseURL: string, password: string }} server A resolved server.
  * @param {string} sessionID The session to read.
@@ -4165,13 +4161,9 @@ function isWellFormedStoredPart(part) {
  * @throws {Error} When the history cannot be read.
  */
 async function readSealedSkillActivations(server, sessionID, skills, requestFn) {
-  const compactions = await listSessionMessages(server, sessionID, requestFn, { type: "compaction" });
-  if (!compactions.some((message) => message.status === "completed")) {
-    return [];
-  }
   const messages = await listSessionMessages(server, sessionID, requestFn);
   const last = messages.findLastIndex((message) => message.type === "compaction" && message.status === "completed");
-  return packagedSkillActivations(storedSkillActivations(messages.slice(0, last)), skills);
+  return packagedSkillActivations(storedSkillActivations(messages.slice(0, Math.max(last, 0))), skills);
 }
 
 /**
@@ -4203,8 +4195,8 @@ function renderSkillResupply(skills) {
  * What a checkpoint sealed is not in any request: until a session's stored
  * history has been read, it is read — once, shared by the requests that
  * arrive meanwhile, and again on the next request when it fails or the
- * server is unreachable. A spawned agent never activates the skill and is
- * skipped without a read.
+ * server is unreachable; meanwhile the record serves as far as it goes. A
+ * spawned agent never activates the skill and is skipped without a read.
  *
  * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
  *   The `context` hook event.
@@ -4236,20 +4228,17 @@ async function onContext(event, { server, skills, requestFn }) {
         .finally(() => recoveries.delete(sessionID));
       recoveries.set(sessionID, recovery);
     }
-    let sealed;
-    try {
-      sealed = await recovery;
-    } catch {
-      return;
-    }
+    const sealed = await recovery.catch(() => undefined);
     // The session may have been deleted meanwhile; its record is gone and
     // stays gone.
     record = records.get(sessionID);
     if (!record) {
       return;
     }
-    record.skills = packagedSkillActivations([...sealed, ...record.skills], skills);
-    record.recovered = true;
+    if (sealed) {
+      record.skills = packagedSkillActivations([...sealed, ...record.skills], skills);
+      record.recovered = true;
+    }
   }
   const lacking = record.skills.filter((id) => !observed.includes(id));
   if (lacking.length === 0) {
