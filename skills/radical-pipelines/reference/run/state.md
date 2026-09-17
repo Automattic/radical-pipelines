@@ -24,9 +24,9 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 - `workflow`: `autonomous` or `assisted`.
 - `target-phase`: an integer from 1 through 4.
-- `lanes`, optional: lane objects containing only non-empty string `profile`, `id`, and `brief`; review lanes may add unique pipeline-relative `materials` from the artifact's review package, and production lanes may add unique `after` ids declared by the same profile.
+- `lanes`, optional: lane objects containing only non-empty string `profile`, `id`, and `brief`; review lanes may add unique pipeline-relative `materials` from the artifact's review package, and production lanes may add unique `after` ids declared by the same profile. A `materials` or `after` list is non-empty when present; omission means none.
 
-Lane ids start with a lowercase letter or digit, continue with those or hyphens, and exclude `tasks`; they are unique per profile. `after` dependencies are acyclic. Expanded auxiliary branch names are unique. Assisted configurations have no lanes. The profiles map as follows:
+Lane ids start with a lowercase letter or digit, continue with those or hyphens, and exclude `tasks`; they are unique per profile. `after` dependencies are acyclic. Assisted configurations have no lanes. The profiles map as follows:
 
 | Profile | Artifact | Kind |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
 | `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists and is stored as its full hash, whatever length the body wrote |
 | `head`      | files with pins              | the commit a stamp with pins observed: the diff base for the next delta review or convergence |
-| `lane`      | production artifacts and records; named reviews | the fingerprint derived from `run-config.md` and the file's path         |
+| `lane`      | production artifacts; named reviews | the fingerprint derived from `run-config.md` and the file's path                     |
 | `attempt`, `outcome` | task reports        | the attempt, from the filename; `completed` \| `failed` \| `blocked`     |
 
 A stamp follows the commit of what it stamps and is committed on top of it, on the branch the work landed on. Every commit on the branch outside the pipelines folder is claimed by a task report, which lands in a commit of its own after the commits it names.
@@ -96,7 +96,7 @@ A file records its package when first consumed and records a new package only af
 
 ## Owner territory
 
-`0-intent/intent.md` is the only file that carries the owner's words: the issue as written, and every later decision quoted under `## Decisions`. Owner territory is what the work must satisfy: its Goal, Constraints, and Decisions. Records cite the intent; they never hold owner words of their own.
+`0-intent/intent.md` carries the issue and the owner's directions about the work (`../entries/intent-format.md` § Decisions). Owner territory is what the work must satisfy: its Goal, Constraints, and Decisions. Records cite the intent; they never hold owner words of their own.
 
 ## The frontier
 

@@ -14,4 +14,4 @@ The owner writes the `Agents` section in any human-readable format. Interpret it
 
 Review lanes supplement the implicit lane. Production lanes replace root synthesis with candidates and consolidation.
 
-The implicit lane has no id, no brief, all materials, and the profile's model. Assisted runs have no named lanes and use owner approval as the whole review; production lanes use the autonomous workflow.
+The implicit lane has no id, no brief, all materials, and the profile's model.

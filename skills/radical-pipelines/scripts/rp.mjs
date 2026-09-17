@@ -168,9 +168,32 @@ function reviewArtifact(rel) {
   return null;
 }
 
+const laneProfile = (prefix, kind) => [...LANE_PROFILES].find(([, value]) => value.prefix === prefix && value.kind === kind)?.[0] ?? null;
+
+// One path classifier supplies scopes, review identity, and lane-bearing files.
+function pipelineFileRole(rel) {
+  const parts = rel.split("/");
+  const art = ARTIFACTS.find((candidate) => candidate.phase === parts[0]);
+  if (!art) return { scope: "" };
+  const review = reviewArtifact(rel);
+  const scoped = parts.length === 3 && parts[1] !== "tasks";
+  const scope = scoped ? `${parts[0]}/${parts[1]}/` : "";
+  const placedReview = review && review.art === art && ((parts.length === 2) || scoped) ? review : null;
+  const productionLane = scoped ? { id: parts[1], profile: laneProfile(art.prefix, "production") } : null;
+  const namedReview = placedReview?.lane ? { id: placedReview.lane, profile: laneProfile(placedReview.prefix, "review") } : null;
+  return {
+    art,
+    scope,
+    productionLane,
+    productionArtifact: scoped && parts[2] === basename(art.path),
+    review: placedReview,
+    namedReview,
+  };
+}
+
 // The fingerprint of a lane: the identity of its whole declaration — id, brief, materials, after.
 export function laneFingerprint({ id, brief = "", materials = "", after = "" }) {
-  const list = (s, sep) => String(s).split(sep).map((x) => x.trim()).filter(Boolean).join(sep);
+  const list = (value, separator) => (Array.isArray(value) ? value : String(value).split(separator)).map((item) => String(item).trim()).filter(Boolean).join(separator);
   return identity(`${id}\n${String(brief).trim()}\n${list(materials, ",")}\n${list(after, "+")}\n`);
 }
 
@@ -184,7 +207,7 @@ function runConfiguration(read, command) {
   const object = Object.fromEntries(parsed.data);
   const keys = new Set(["workflow", "target-phase", "lanes"]);
   const unknown = Object.keys(object).find((key) => !keys.has(key));
-  if (unknown) invalid(`unknown key: ${unknown}`);
+  if (unknown !== undefined) invalid(`unknown key: ${unknown}`);
   if (!["autonomous", "assisted"].includes(object.workflow)) invalid('workflow must be "autonomous" or "assisted"');
   if (!Number.isInteger(object["target-phase"]) || object["target-phase"] < 1 || object["target-phase"] > ARTIFACTS.length)
     invalid(`target-phase must be an integer from 1 to ${ARTIFACTS.length}`);
@@ -193,16 +216,20 @@ function runConfiguration(read, command) {
   for (const [index, value] of (object.lanes ?? []).entries()) {
     const at = `lanes[${index}]`;
     if (value === null || Array.isArray(value) || typeof value !== "object") invalid(`${at} must be an object`);
-    const profile = LANE_PROFILES.get(value.profile);
-    if (!profile) invalid(`${at}.profile is unknown: ${value.profile}`);
     const allowed = new Set(["profile", "id", "brief", "materials", "after"]);
     const extra = Object.keys(value).find((key) => !allowed.has(key));
-    if (extra) invalid(`${at} has unknown key: ${extra}`);
-    if (!LANE_ID.test(value.id ?? "")) invalid(`${at}.id is invalid: ${value.id}`);
+    if (extra !== undefined) invalid(`${at} has unknown key: ${extra}`);
+    if (typeof value.profile !== "string") invalid(`${at}.profile must be a string`);
+    const profile = LANE_PROFILES.get(value.profile);
+    if (!profile) invalid(`${at}.profile is unknown: ${value.profile}`);
+    if (typeof value.id !== "string") invalid(`${at}.id must be a string`);
+    if (!LANE_ID.test(value.id)) invalid(`${at}.id is invalid: ${value.id}`);
     if (RESERVED_LANE_IDS.has(value.id)) invalid(`${at}.id uses the reserved name "${value.id}"`);
     if (typeof value.brief !== "string" || !value.brief.trim()) invalid(`${at}.brief must be a non-empty string`);
     if (profile.kind === "review" && Object.hasOwn(value, "after")) invalid(`${at}.after applies to production lanes only`);
     if (profile.kind === "production" && Object.hasOwn(value, "materials")) invalid(`${at}.materials applies to review lanes only`);
+    for (const key of ["materials", "after"])
+      if (Array.isArray(value[key]) && !value[key].length) invalid(`${at}.${key} must be non-empty when present`);
     if (Object.hasOwn(value, "materials")) {
       if (!Array.isArray(value.materials) || value.materials.some((path) => typeof path !== "string")) invalid(`${at}.materials must be an array of paths`);
       for (const path of value.materials) {
@@ -318,6 +345,28 @@ function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks =
   const inputs = new Map([...consumed].filter(([path]) => path !== record));
   const members = reviewPackageMembers(art, prefix, scope, [...new Set([...inputs.keys(), ...art.requires])], tasks, reports);
   return new Map(members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]));
+}
+
+function validateRunConfiguration(configuration, inspect, command) {
+  const invalid = (reason) => { throw new Error(`${command}: INVALID RUN CONFIG run-config.md: ${reason}`); };
+  const markdown = inspect.list();
+  for (const lane of configuration.lanes.filter((candidate) => candidate.kind === "review" && candidate.materials)) {
+    const art = ARTIFACTS.find((candidate) => candidate.prefix === lane.prefix || candidate.review === lane.prefix);
+    const production = configuration.decl[lane.prefix]?.production ?? [];
+    for (const scope of ["", ...production.map((candidate) => `${art.phase}/${candidate.id}/`)]) {
+      const artifactPath = inScope(scope, art.path);
+      const artifact = inspect.document(artifactPath);
+      if (!Array.isArray(artifact?.data?.get("pins"))) continue;
+      const tasks = markdown.filter((path) => new RegExp(`^${art.phase}/tasks/T\\d+\\.md$`).test(path));
+      const reports = markdown.filter((path) => REPORT.test(path) && path.startsWith(`${art.phase}/`));
+      const reference = artifactReviewPackage(art, lane.prefix, scope, pinPackage(artifact.data.get("pins")), inspect.identityOf, tasks, reports);
+      const selected = lane.materials.map((path) => scope && (path === art.path || path === art.record) ? inScope(scope, path) : path);
+      const packagePaths = new Set(reference?.keys() ?? []);
+      const outside = selected.filter((path) => !packagePaths.has(path));
+      if (outside.length) invalid(`materials for review lane "${lane.id}" are outside the ${artifactPath} package: ${outside.join(", ")}`);
+    }
+  }
+  return configuration;
 }
 
 // The pins-by-file table, shared by stamp and every live currency predicate.
@@ -619,34 +668,26 @@ function cmdStamp(args) {
   if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
   const report = rel.match(REPORT);
   const relParts = rel.split("/");
+  const role = pipelineFileRole(rel);
   const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
   const siblingRecord = artifact ? `${relParts.slice(0, -1).join("/")}/${basename(artifact.record)}` : null;
 
   const laneForPath = () => {
-    const review = reviewArtifact(rel);
-    const reviewDirectory = dirname(rel);
-    const reviewScope = reviewDirectory.match(new RegExp(`^${review?.art.phase}/([^/]+)$`));
-    if (review && (reviewDirectory === review.art.phase || reviewScope)) {
-      const config = runConfiguration((path) => readPipelineFile(join(base, path))?.text ?? null, "stamp");
-      if (reviewScope) {
-        const productionProfile = [...LANE_PROFILES].find(([, value]) => value.kind === "production" && value.prefix === review.art.prefix)?.[0];
-        if (!config.lanes.some((lane) => lane.profile === productionProfile && lane.id === reviewScope[1]))
-          die(`stamp: path names an undeclared lane: ${rel}`);
-      }
-      if (!review.lane) return null;
-      const reviewProfile = [...LANE_PROFILES].find(([, value]) => value.kind === "review" && value.prefix === review.prefix)?.[0];
-      return config.lanes.find((lane) => lane.profile === reviewProfile && lane.id === review.lane) ?? die(`stamp: path names an undeclared lane: ${rel}`);
+    const needsConfiguration = role.namedReview || role.productionArtifact || (role.review && role.productionLane);
+    if (!needsConfiguration) return null;
+    const config = runConfiguration((path) => readPipelineFile(join(base, path))?.text ?? null, "stamp");
+    validateRunConfiguration(config, {
+      list: () => walk(base).filter((entry) => entry.type === "blob" && entry.rel.endsWith(".md")).map((entry) => entry.rel),
+      document: (path) => readAt(path),
+      identityOf: (path) => readAt(path)?.identity ?? null,
+    }, "stamp");
+    const production = role.productionLane && config.lanes.find((lane) => lane.profile === role.productionLane.profile && lane.id === role.productionLane.id);
+    if (role.productionLane && !production) die(`stamp: path names an undeclared lane: ${rel}`);
+    if (role.namedReview) {
+      return config.lanes.find((lane) => lane.profile === role.namedReview.profile && lane.id === role.namedReview.id) ??
+        die(`stamp: path names an undeclared lane: ${rel}`);
     }
-    if (relParts.length === 3) {
-      const member = ARTIFACTS.find((candidate) => candidate.phase === relParts[0] && [basename(candidate.path), basename(candidate.record)].includes(relParts[2]));
-      if (member) {
-        const profile = [...LANE_PROFILES].find(([, value]) => value.kind === "production" && value.prefix === member.prefix)?.[0];
-        const config = runConfiguration((path) => readPipelineFile(join(base, path))?.text ?? null, "stamp");
-        return config.lanes.find((lane) => lane.profile === profile && lane.id === relParts[1]) ??
-          die(`stamp: path names an undeclared lane: ${rel}`);
-      }
-    }
-    return null;
+    return role.productionArtifact ? production : null;
   };
   const priorLane = fm.get("lane");
   fm.delete("lane");
@@ -987,9 +1028,8 @@ async function cmdCheck(args) {
       const frontmatterError = parseError || ids.error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
       const drift = frontmatterError ? [] : [...mirrorDrift(data, body, rel), ...(ids.drift ?? [])];
       if (drift.length) for (const k of MIRRORS) data.delete(k);
-      const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
-      const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
-      return { rel, name: rel.split("/").pop(), data, scope, drift, frontmatterError, malformed: projectBody(body, rel).get("malformed") ?? [] };
+      const role = pipelineFileRole(rel);
+      return { rel, name: rel.split("/").pop(), data, scope: role.scope, role, drift, frontmatterError, malformed: projectBody(body, rel).get("malformed") ?? [] };
     });
 
   const identityOf = (rel) => {
@@ -1001,23 +1041,16 @@ async function cmdCheck(args) {
   const pinsByPath = new Map(all.filter((d) => Array.isArray(d.data.get("pins"))).map((d) => [d.rel, d.data.get("pins")]));
 
   // Reviews: `<prefix>-review-[<lane>-]<wave>.md`; the implicit lane has no id. Only declared lanes review.
-  const PREFIXES = new Set(ARTIFACTS.flatMap((a) => [a.prefix, a.review]).filter(Boolean));
-  const allReviewsOf = (sc) => {
-    const m = [];
-    for (const r of docsOf(sc)) {
-      const mm = r.name.match(/^(.+?)-review-(?:(.+)-)?(\d+)\.md$/);
-      if (!mm || !PREFIXES.has(mm[1])) continue;
-      const artifact = ARTIFACTS.find((a) => a.prefix === mm[1] || a.review === mm[1]);
-      const artifactScope = sc ? `${artifact.phase}/${sc.split("/")[1]}/` : `${artifact.phase}/`;
-      if (r.rel !== `${artifactScope}${r.name}`) continue;
-      m.push({ ...r, prefix: mm[1], lane: mm[2] ?? "", wave: Number(mm[3]) });
-    }
-    return m;
-  };
+  const allReviewsOf = (sc) => docsOf(sc).filter((doc) => doc.role.review).map((doc) => ({
+    ...doc,
+    prefix: doc.role.review.prefix,
+    lane: doc.role.review.lane,
+    wave: doc.role.review.wave,
+  }));
   const declaredReview = (r) => reviewLanesOf(r.prefix).some((l) => l.id === r.lane);
   const reviewsOf = (sc) => allReviewsOf(sc).filter(declaredReview);
   // Lane scopes are the declared production lanes; a folder the declaration lacks is a defect, never a lane.
-  const scopes = [...new Set(all.map((d) => d.scope))];
+  const scopes = ["", ...new Set(all.filter((doc) => doc.role.productionLane).map((doc) => doc.scope))];
   const declaredScopes = new Set(ARTIFACTS.flatMap((a) => productionLanesOf(a.prefix).map((l) => `${a.phase}/${l.id}/`)));
   const undeclared = [
     ...scopes.filter((sc) => sc && !declaredScopes.has(sc)),
@@ -1031,6 +1064,12 @@ async function cmdCheck(args) {
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
   const reportFilesOf = (phase) => all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
+
+  validateRunConfiguration(configuration, {
+    list: () => all.map((doc) => doc.rel),
+    document: (path) => all.find((doc) => doc.rel === path) ?? null,
+    identityOf,
+  }, "check");
 
   // What a review judges: the artifact package; plans add tasks, phase reviews add reports.
   const materialPaths = (prefix, sc, lane) => {
@@ -1215,18 +1254,6 @@ async function cmdCheck(args) {
     lines.push(`frontier ${frontier}`);
     process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
     return;
-  }
-
-  for (const [prefix, lanes] of Object.entries(decl)) {
-    const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
-    const scopes = ["", ...lanes.production.map((lane) => `${art.phase}/${lane.id}/`)];
-    for (const lane of lanes.review.filter((candidate) => candidate.materials !== null)) {
-      for (const sc of scopes.filter((scope) => pinsByPath.has(inScope(scope, art.path)))) {
-        const packagePaths = new Set(contextOf(prefix, sc).reference?.keys() ?? []);
-        const outside = materialPaths(prefix, sc, lane.id).filter((path) => !packagePaths.has(path));
-        if (outside.length) die(`check: materials for review lane "${lane.id}" are outside the ${inScope(sc, art.path)} package: ${outside.join(", ")}`);
-      }
-    }
   }
 
   // Facts about branch commits require a valid representation and a real merge-base.
@@ -1524,7 +1551,6 @@ async function cmdCheck(args) {
   for (const [label, c] of Object.entries(out.counters))
     lines.push(`counter  ${label}: ${c.episode} wave${c.episode === 1 ? "" : "s"} this episode${c.recurs.length ? `  recurs: ${c.recurs.join(", ")}` : ""}`);
   out.completeThrough = through;
-  out.targetPhase = configuration.targetPhase;
   out.complete = !frontier && !unresolvedInScope && through >= configuration.targetPhase;
   if (!frontier && unresolvedInScope) frontier = "challenges or claims still adjudicated, awaiting approval";
   if (!frontier && !out.complete) die(`check: no frontier before target phase ${configuration.targetPhase}`);
@@ -1599,7 +1625,8 @@ Spec: ../reference/run/state.md
     const args = parseArgs(cmd, rest);
   switch (cmd) {
     case "stamp":
-      cmdStamp(args);
+      try { cmdStamp(args); }
+      catch (error) { die(error.message); }
       break;
     case "check":
       try { await cmdCheck(args); }
