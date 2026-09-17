@@ -73,14 +73,30 @@ function validateFrontmatter(data) {
     if (lists.has(key) && !strings(value)) errors.push(`${key} must be a list of strings`);
     else if (scalars.has(key) && typeof value !== "string") errors.push(`${key} must be a string`);
     else if (key === "origin" && !(typeof value === "string" || (strings(value) && value.length))) errors.push("origin must be a string or non-empty list of strings");
-    else if (key === "lane-packages" && !(Array.isArray(value) && value.every((entry) =>
-      Array.isArray(entry) && entry.length === 3 && typeof entry[0] === "string" && strings(entry[1]) && strings(entry[2]))))
-      errors.push("lane-packages must be a list of [artifact path, consumed lane pins, reference pins]");
+    else if (key === "lane-packages") {
+      const error = lanePackagesError(value);
+      if (error) errors.push(error);
+    }
     else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
       errors.push(`${key} must be a string or list of strings`);
     if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
   }
   return errors.join("; ") || null;
+}
+
+function lanePackagesError(value) {
+  if (!Array.isArray(value)) return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
+  const artifacts = new Set();
+  for (const entry of value) {
+    if (!Array.isArray(entry) || entry.length !== 3 || typeof entry[0] !== "string" || !entry[0])
+      return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
+    const [artifact, binding, reference] = entry;
+    if (artifacts.has(artifact)) return `lane-packages has duplicate artifact path: ${artifact}`;
+    if (!pinPackage(binding)) return `lane-packages consumed lane pins for ${artifact} must be a non-empty pin package`;
+    if (!pinPackage(reference)) return `lane-packages reference pins for ${artifact} must be a non-empty pin package`;
+    artifacts.add(artifact);
+  }
+  return null;
 }
 
 export function renderFrontmatter(data, body) {
@@ -111,9 +127,11 @@ function byteIdentity(bytes) {
   return blobIdentity(close ? bytes.subarray(open[0].length + close.index + close[0].length) : bytes);
 }
 
-function fileIdentity(abs) {
+function readPipelineFile(abs) {
   if (!existsSync(abs) || !lstatSync(abs).isFile()) return null;
-  return byteIdentity(readFileSync(abs));
+  const bytes = readFileSync(abs);
+  const text = bytes.toString("utf8");
+  return { ...parseFrontmatter(text), text, identity: byteIdentity(bytes) };
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
@@ -228,13 +246,8 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
 
 // A root records independent references, bound to the lane pins it consumed.
 function laneReferences(data) {
-  const result = new Map();
-  for (const entry of data?.get("lane-packages") ?? []) {
-    const [artifact, binding, reference] = entry;
-    if (result.has(artifact) || !pinPackage(binding) || !pinPackage(reference)) return new Map();
-    result.set(artifact, { binding: pinPackage(binding), reference: pinPackage(reference) });
-  }
-  return result;
+  return new Map((data?.get("lane-packages") ?? []).map(([artifact, binding, reference]) =>
+    [artifact, { binding: pinPackage(binding), reference: pinPackage(reference) }]));
 }
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
@@ -457,14 +470,14 @@ function pipelineFolder(root, file) {
 
 // Replace every mirror with the body's projection. `target-identity` is what the stamp observed
 // when the target landed: it is kept while the target stays the same.
-function mirrorBody(body, fm, base, rel) {
+function mirrorBody(body, fm, rel, identityOf) {
   const p = projectBody(body, rel);
   if (p.has("malformed")) die(`stamp: INVALID ${p.get("malformed").join("; ")} — a fixed line is mirrored whole or not at all; its author fixes it`);
   const previous = new Map(challengeKind(rel, fm) === challengeKind(rel, p) ? (fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]) : []);
   for (const k of MIRRORS) fm.delete(k);
   for (const [k, v] of p) fm.set(k, v);
   if (!p.has("target")) fm.delete("target-identity");
-  else fm.set("target-identity", p.get("target").map((target) => previous.get(target) || fileIdentity(resolve(base, target.split("#")[0])) || ""));
+  else fm.set("target-identity", p.get("target").map((target) => previous.get(target) || identityOf(target.split("#")[0]) || ""));
 }
 
 function cmdStamp(args) {
@@ -473,17 +486,18 @@ function cmdStamp(args) {
   if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
   containedPath("stamp", root, abs);
 
-  const parsedFrontmatter = parseFrontmatter(readFileSync(abs, "utf8"));
+  const parsedFrontmatter = readPipelineFile(abs);
+  if (!parsedFrontmatter) die(`stamp: no such file: ${file}`);
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
   const { data, body } = parsedFrontmatter;
   const fm = data ?? new Map();
   const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]));
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
-  const parsedAt = (path) => {
-    const parsed = parseFrontmatter(readFileSync(join(base, path), "utf8"));
-    if (parsed.error) die(`stamp: INVALID FRONTMATTER ${path}: ${parsed.error}`);
-    return parsed;
+  const readAt = (path) => {
+    const source = readPipelineFile(join(base, path));
+    if (source?.error) die(`stamp: INVALID FRONTMATTER ${path}: ${source.error}`);
+    return source;
   };
   const previousKind = challengeKind(rel, fm);
   const ids = intentIds(data, body, rel);
@@ -497,8 +511,9 @@ function cmdStamp(args) {
     paths.map((p) => {
       const target = containedPath("stamp", root, resolve(root, p));
       if (!target.startsWith(base + "/")) die(`stamp: a pin stays inside the pipeline folder: ${p}`);
-      const sha = fileIdentity(target) ?? die(`stamp: cannot pin missing file: ${p}`);
-      return `${relative(base, target)}@${sha}`;
+      const path = relative(base, target);
+      const sha = readAt(path)?.identity ?? die(`stamp: cannot pin missing file: ${p}`);
+      return `${path}@${sha}`;
     });
 
   for (const s of args.set) {
@@ -524,9 +539,9 @@ function cmdStamp(args) {
         const scope = `${dirname(path)}/`;
         const binding = new Map([...recorded].filter(([member]) => member.startsWith(scope)));
         const prior = previous.get(path);
-        const input = parsedAt(path).data;
+        const input = readAt(path).data;
         const reference = prior && equalPackages(prior.binding, binding) ? prior.reference :
-          artifactReviewPackage(artifact, artifact.prefix, scope, pinPackage(input?.get("pins")), (member) => fileIdentity(join(base, member)));
+          artifactReviewPackage(artifact, artifact.prefix, scope, pinPackage(input?.get("pins")), (member) => readAt(member)?.identity ?? null);
         if (reference) references.push([path, packagePins(binding), packagePins(reference)]);
       }
       fm.delete("lane-packages");
@@ -543,7 +558,7 @@ function cmdStamp(args) {
       const scope = rel.split("/").length === 3 ? `${dirname(rel)}/` : "";
       const artifactPath = scope ? `${scope}${basename(review.art.path)}` : review.art.path;
       const artifactFile = join(base, artifactPath);
-      const artifactData = existsSync(artifactFile) ? parsedAt(artifactPath).data : null;
+      const artifactData = existsSync(artifactFile) ? readAt(artifactPath).data : null;
       const consumed = pinPackage(artifactData?.get("pins"));
       if (!consumed)
         die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is unrecorded or invalid`);
@@ -551,18 +566,15 @@ function cmdStamp(args) {
       const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
       const tasks = names.filter((name) => /^T\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
       const reports = names.filter((name) => /^T\d+-report-\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => fileIdentity(join(base, path)), tasks, reports);
+      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports);
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
     }
     fm.set("reviewed", reviewed);
     if (report) {
       const expected = requiredPackageOf(rel, "", {
-        identityOf: (path) => fileIdentity(join(base, path)),
+        identityOf: (path) => readAt(path)?.identity ?? null,
         dependsOf: (task) => {
-          const text = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
-          const parsed = parseFrontmatter(text);
-          if (parsed.error) die(`stamp: INVALID FRONTMATTER ${task}: ${parsed.error}`);
-          return [].concat(parsed.data?.get("depends") ?? []);
+          return [].concat(readAt(task)?.data?.get("depends") ?? []);
         },
       }).review;
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${[...expected.keys()].join(" --reviewed ")}`);
@@ -573,7 +585,7 @@ function cmdStamp(args) {
         .filter(({ match }) => match && Number(match[1]) !== Number(report[3]))
         .filter(({ name, match }) => {
           const priorRel = `${report[1]}/tasks/${name}`;
-          const parsed = parsedAt(priorRel);
+          const parsed = readAt(priorRel);
           return pinPackage(parsed.data?.get("reviewed")) && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && IDENTITY.test(parsed.data.get("head")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
         })
         .map(({ match }) => Number(match[1]));
@@ -589,12 +601,11 @@ function cmdStamp(args) {
     fm.set(key, value);
   }
   if (args.mirror) {
-    mirrorBody(body, fm, base, rel);
+    mirrorBody(body, fm, rel, (path) => readAt(path)?.identity ?? null);
     const kind = challengeKind(rel, fm);
     const targets = fm.get("target") ?? [];
     const readable = (path) => {
-      const file = join(base, path);
-      return existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : null;
+      return readAt(path)?.text ?? null;
     };
     if (kind) {
       for (const target of targets)

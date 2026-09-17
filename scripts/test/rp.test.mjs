@@ -85,7 +85,7 @@ describe("rp state tooling", () => {
     return paths.map((path) => `${path}@${identity(read(root, path))}`);
   }
   function registered(rel, fields, body = parseFrontmatter(read(root, rel)).body) {
-    write(root, rel, renderFrontmatter(new Map(Object.entries(fields)), body));
+    write(root, rel, `---\n${JSON.stringify(fields, null, 2)}\n---\n${body}`);
   }
   function registeredVerdict(rel, pins, verdict = "approved", lane = null) {
     registered(rel, { reviewed: pins, verdict, ...(lane ? { lane } : {}) }, `# Review\n\nVerdict: ${verdict}\n`);
@@ -489,7 +489,7 @@ process.stdout.write(output);
       ['---\n{"pins":[1]}\n---\n# Spec\n', /pins must be a list of strings/],
       ['---\n{"head":[]}\n---\n# Spec\n', /head must be a string/],
       ['---\n{"origin":[]}\n---\n# Spec\n', /origin must be a string or non-empty list of strings/],
-      ['---\n{"lane-packages":[["artifact",[],"pins"]]}\n---\n# Spec\n', /lane-packages must be a list/],
+      ['---\n{"lane-packages":[["artifact",[],"pins"]]}\n---\n# Spec\n', /consumed lane pins/],
     ];
     for (const [text, reason] of cases) {
       write(root, "1-spec/spec.md", text);
@@ -510,11 +510,68 @@ process.stdout.write(output);
       data: new Map([["pins", ["a@111111111111"]], ["head", "222222222222"]]),
       body: "body\n",
     });
-    for (const value of ["[1]", '"text"', "1", "null"]) {
+    for (const value of ["[1]", '"text"', "1", "true", "false", "null"]) {
       const parsed = parseFrontmatter(`---\n${value}\n---\nbody\n`);
       assert.equal(parsed.data, null);
       assert.equal(parsed.body, "body\n");
       assert.match(parsed.error, /frontmatter must be a JSON object/);
+    }
+    for (const [object, error] of [
+      [{ head: 1 }, /head must be a string/],
+      [{ head: {} }, /head must be a string/],
+      [{ head: false }, /head must be a string/],
+      [{ pins: [["a@111111111111"]] }, /pins must be a list of strings/],
+      [{ target: [1] }, /target must be a list of strings/],
+      [{ origin: [["issue 1"]] }, /origin must be a string or non-empty list of strings/],
+      [{ note: 1 }, /note must be a string or list of strings/],
+      [{ note: {} }, /note must be a string or list of strings/],
+    ]) {
+      const parsed = parseFrontmatter(`---\n${JSON.stringify(object)}\n---\nbody\n`);
+      assert.equal(parsed.data, null);
+      assert.equal(parsed.body, "body\n");
+      assert.match(parsed.error, error);
+    }
+    assert.deepEqual(parseFrontmatter('---\n{"head":"111111111111","head":"222222222222"}\n---\n').data,
+      new Map([["head", "222222222222"]]));
+  });
+
+  test("stamp rejects malformed frontmatter in every consumed document", () => {
+    const malformed = '---\n{"origin":123}\n---\n# Malformed\n';
+    const cases = [
+      ["pins", "1-spec/spec.md", ["--pin", P("0-intent/bad.md")], "# Spec\n"],
+      ["reviewed", "0-intent/notes.md", ["--reviewed", P("0-intent/bad.md")], "# Notes\n"],
+      ["targets", "0-intent/correction-1.md", ["--mirror"], "# Correction\n\nTarget: 1-spec/spec.md\nOrigin: issue 8\n"],
+    ];
+    for (const [name, rel, args, body] of cases) {
+      const consumed = name === "targets" ? "1-spec/spec.md" : "0-intent/bad.md";
+      write(root, consumed, malformed);
+      write(root, rel, body);
+      assert.throws(() => rp(root, "stamp", P(rel), ...args), new RegExp(`INVALID FRONTMATTER ${consumed.replaceAll("/", "\\/")}`));
+      assert.equal(read(root, rel), body);
+    }
+  });
+
+  test("invalid lane packages are frontmatter errors", () => {
+    const artifact = "1-spec/a/spec.md";
+    const pins = ["0-intent/intent.md@111111111111"];
+    const valid = [artifact, pins, pins];
+    const cases = [
+      ["empty consumed package", [[artifact, [], pins]], /consumed lane pins/],
+      ["empty reference package", [[artifact, pins, []]], /reference pins/],
+      ["invalid consumed pin", [[artifact, ["bad"], pins]], /consumed lane pins/],
+      ["invalid reference pin", [[artifact, pins, ["bad"]]], /reference pins/],
+      ["nested consumed value", [[artifact, [["bad"]], pins]], /consumed lane pins/],
+      ["nested reference value", [[artifact, pins, [["bad"]]]], /reference pins/],
+      ["duplicate artifact", [valid, valid], /duplicate artifact path/],
+      ["one invalid entry", [valid, ["1-spec/b/spec.md", ["bad"], pins]], /consumed lane pins/],
+    ];
+    for (const [name, lanePackages, error] of cases) {
+      registered("1-spec/spec.md", { "lane-packages": lanePackages }, "# Spec\n");
+      const state = JSON.parse(check(root, "--target-phase", "1", "--json"));
+      assert.equal(state.frontier, "INVALID FRONTMATTER 1-spec/spec.md", name);
+      assert.deepEqual(state.artifacts, [], name);
+      assert.match(state.contradictions[0].invalid, error, name);
+      assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--mirror"), error, name);
     }
   });
 
@@ -1656,7 +1713,7 @@ process.stdout.write(output);
     stampSpec();
     const forged = parseFrontmatter(read(root, "1-spec/spec.md"));
     forged.data.get("pins").push(`1-spec/spec-research.md@${identity(read(root, "1-spec/spec-research.md"))}`);
-    write(root, "1-spec/spec.md", renderFrontmatter(forged.data, forged.body));
+    registered("1-spec/spec.md", Object.fromEntries(forged.data), forged.body);
     assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+STALE — package members/);
   });
 
@@ -2837,6 +2894,7 @@ process.stdout.write(output);
     const parsed = parseFrontmatter(rendered);
     assert.equal(parsed.body, body);
     assert.deepEqual(parsed.data, new Map([...data].filter(([, value]) => !Array.isArray(value) || value.length)));
+    assert.equal(renderFrontmatter(parsed.data, parsed.body), rendered);
   });
 
   test("identity is the body's exact bytes as git hashes them: CRLF is never normalized; only delimiter lines tolerate a \\r", () => {
@@ -2865,8 +2923,7 @@ process.stdout.write(output);
     execFileSync("ln", ["-s", "..", join(root, P("1-spec/loop"))]);
     const parsed = parseFrontmatter(read(root, "1-spec/spec.md"));
     parsed.data.get("pins").unshift("1-spec/loop@aaaaaaaaaaaa");
-    const pinned = renderFrontmatter(parsed.data, parsed.body);
-    write(root, "1-spec/spec.md", pinned);
+    registered("1-spec/spec.md", Object.fromEntries(parsed.data), parsed.body);
     let output = check(root, "--target-phase", "1");
     assert.match(output, /symlink\s+1-spec\/link\.md\n/);
     assert.match(output, /symlink\s+1-spec\/loop\n/);

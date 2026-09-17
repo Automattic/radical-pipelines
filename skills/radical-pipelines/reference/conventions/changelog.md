@@ -71,4 +71,4 @@ Pipelines in the previous layout (`<slug>/base/…`) are closed: discovery reads
 
 - `Agents`, optional: model per profile and named lanes (replaces `Agent models`).
 - `Artifact storage`, required, gains the artifact base branch.
-- Frontmatter stamp `conventions: 1`.
+- Frontmatter schema stamp 1.
