@@ -101,6 +101,8 @@ The plugin currently bundles:
 
 Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
+A long run outlives its context: when Claude Code compacts a session, it re-injects the body of every invoked skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage, checking which agents are already working before dispatching. No hook is needed.
+
 The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
 ## opencode plugin install
@@ -125,6 +127,7 @@ opencode service restart
 A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. After the restart:
 
 - The `radical-pipelines` skill is invokable — the plugin registers the packaged skills with their source paths and content.
+- A session that activated the skill gets it back after opencode's context compaction, which summarizes the transcript and drops an activated skill with it. Every model request shows the plugin the session's active context, and the plugin records the activation it sees there — a successful `skill` tool call, or the skill attached to a prompt. A request that no longer carries a recorded activation is continuing from a checkpoint, and the plugin re-supplies the skill's body as system text, as Claude Code does for invoked skills; the skill's own opening instruction then makes the session follow the skill again and recompute state. Once the session activates the skill again, the re-supply stops. What a checkpoint sealed is in no request, so a session's stored history is read once — shared by requests that arrive meanwhile, and again on the next request when it fails or the server is unreachable, recording `skill.resupply.unreadable` and serving what the session's requests have shown meanwhile; a malformed history is a failed read, never an empty one. A deleted session's record is dropped and the records are capped. `rp_status` lists the sessions that activated the skill under `skillActivations`.
 - The plugin regenerates RP's profiles in opencode's global `agents/radical-pipelines/` folder, where they register as `radical-pipelines/<name>`; `rp_spawn` accepts the plain RP profile name.
 - Every agent spawned with `rp_spawn` receives the opencode messaging protocol and its spawner's session ID automatically, so its required reports and messages — including its completion declaration, which always goes to the spawner — are routed with `rp_send` rather than left in its transcript. The same protocol tells it that an ended turn is a stop: only a message resumes the session — a reply it awaits, or the completion notice of a background command it gave a `timeout` (background commands carry none by default, so a hung one never reports back) — and anything else it waits on holds its turn, with foreground commands that have a timeout and progress compared between checks, instead of parking on detached work nothing can wake it for.
 - A spawned agent's failed turn is announced to the spawner with its cause, unless `rp_terminate` has successfully deleted that agent's session — every terminal event for a deleted session is suppressed.
@@ -155,7 +158,7 @@ opencode reports plugin ids, not versions, so RP surfaces its own version:
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter carries `conventions: 1`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter carries `conventions: 2`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
 | Convention            | What it covers                                                                                     | Required |
 | --------------------- | -------------------------------------------------------------------------------------------------- | -------- |

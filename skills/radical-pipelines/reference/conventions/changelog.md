@@ -2,6 +2,18 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 2
+
+Migrate from version 1.
+
+### Renames
+
+In `Agents`, the `researcher` block becomes `helper`.
+
+### Removals
+
+- `researcher` from every `Guardrails` block's `agents`, dropping a block left with none.
+
 ## 1
 
 Migrate from version 0.

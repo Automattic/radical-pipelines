@@ -14,7 +14,7 @@ Plans the work as tasks, executes them, verifies the result against the plan, th
 | `build-plan-reviewer` | Fresh · Delta           |
 | `build-worker-tdd`, `build-worker-edit`, `build-worker-e2e` | — |
 | `build-reviewer`      | Fresh · Delta           |
-| `researcher`          | —                       |
+| `helper`              | —                       |
 
 ## Materials
 

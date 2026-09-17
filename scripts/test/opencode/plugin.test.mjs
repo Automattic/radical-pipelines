@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -91,7 +91,7 @@ async function clearAllLoopTimers() {
 function createFakeCtx({
   agents = [
     "radical-pipelines/spec-reviewer",
-    "radical-pipelines/researcher",
+    "radical-pipelines/helper",
     "radical-pipelines/build-worker-tdd",
   ],
 } = {}) {
@@ -107,6 +107,7 @@ function createFakeCtx({
   let subscribeCalls = 0;
   let hookRegistrations = 0;
   let hookDisposals = 0;
+  const hooks = new Map();
   const eventQueue = [];
   const eventWaiters = [];
 
@@ -175,9 +176,10 @@ function createFakeCtx({
         return { sessionID, text, delivery };
       },
       // Matches the real ctx.session.hook contract: registers a model hook
-      // and resolves to a disposable Registration.
-      async hook() {
+      // by name and resolves to a disposable Registration.
+      async hook(name, callback) {
         hookRegistrations += 1;
+        hooks.set(name, callback);
         return {
           dispose: async () => {
             hookDisposals += 1;
@@ -210,6 +212,7 @@ function createFakeCtx({
     addedSkills,
     sessions,
     pushEvent,
+    hooks,
     get subscribeCalls() {
       return subscribeCalls;
     },
@@ -274,6 +277,37 @@ describe("setup: tool and skill registration", () => {
     assert.ok(skill.content.startsWith("# Radical Pipelines"));
   });
 
+  test("the registered context hook re-supplies the packaged skill to a session continuing from a checkpoint", async () => {
+    globalThis[Symbol.for("radical-pipelines.opencode.skillActivations")]?.clear();
+    const { ctx, hooks, addedSkills } = createFakeCtx();
+    await setup(
+      ctx,
+      isolatedDeps({
+        env: {},
+        readServiceRecord: () => ({ url: "http://127.0.0.1:1", password: "pw" }),
+        requestFn: async () => ({ status: 200, body: { data: [], cursor: { next: null } } }),
+      }),
+    );
+    await delay(0);
+
+    const loaded = {
+      sessionID: "ses_wired_orchestrator",
+      system: [],
+      messages: [
+        { role: "assistant", content: [{ type: "tool-call", id: "c1", name: "skill", input: { id: "radical-pipelines" } }] },
+        { role: "tool", content: [{ type: "tool-result", id: "c1", name: "skill", result: { type: "text", value: "…" } }] },
+      ],
+    };
+    await hooks.get("context")(loaded);
+    assert.deepEqual(loaded.system, [], "nothing to re-supply while the activation is in the active context");
+
+    const after = { sessionID: "ses_wired_orchestrator", system: [], messages: [] };
+    await hooks.get("context")(after);
+    const [block] = after.system;
+    const skill = addedSkills.find((candidate) => candidate.id === "radical-pipelines");
+    assert.ok(block.text.includes(`Skill: radical-pipelines\nBase directory: ${dirname(skill.path)}\n\n${skill.content}`));
+  });
+
   test("calling setup twice subscribes to events exactly once", async () => {
     delete globalThis[SETUP_ONCE_KEY];
 
@@ -296,7 +330,7 @@ describe("setup: tool and skill registration", () => {
 
     await cleanup();
     assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "cleanup must clear the once-guard");
-    assert.equal(first.hookDisposals, 1, "the location's own hook must be disposed");
+    assert.equal(first.hookDisposals, 2, "every one of the location's own hooks must be disposed");
 
     // A reloaded plugin's setup must be able to re-arm the observers.
     const second = createFakeCtx();
@@ -305,7 +339,7 @@ describe("setup: tool and skill registration", () => {
     await secondCleanup();
   });
 
-  test("every location registers its own raw-liveness hook, and cleanup ownership is reference-counted", async () => {
+  test("every location registers its own session hooks, and cleanup ownership is reference-counted", async () => {
     delete globalThis[SETUP_ONCE_KEY];
 
     const first = createFakeCtx();
@@ -313,17 +347,17 @@ describe("setup: tool and skill registration", () => {
     const firstCleanup = await setup(first.ctx, isolatedDeps({ env: {} }));
     const secondCleanup = await setup(second.ctx, isolatedDeps({ env: {} }));
 
-    // The hook is location-scoped: the once-guard must not swallow the
-    // second location's registration.
+    // The hooks are location-scoped: the once-guard must not swallow the
+    // second location's registrations.
     await delay(0);
-    assert.equal(first.hookRegistrations, 1);
-    assert.equal(second.hookRegistrations, 1, "the second location must get its own hook");
+    assert.deepEqual([...first.hooks.keys()].sort(), ["context", "http.response"]);
+    assert.equal(second.hookRegistrations, 2, "the second location must get its own hooks");
 
-    // A non-owner location's cleanup disposes only its own hook, never the
-    // shared observers or another location's registration.
+    // A non-owner location's cleanup disposes only its own hooks, never the
+    // shared observers or another location's registrations.
     await secondCleanup();
-    assert.equal(second.hookDisposals, 1);
-    assert.equal(first.hookDisposals, 0, "another location's hook must survive");
+    assert.equal(second.hookDisposals, 2);
+    assert.equal(first.hookDisposals, 0, "another location's hooks must survive");
     assert.ok(globalThis[SETUP_ONCE_KEY], "the shared observers must survive while a location is live");
 
     // Double-invoking one cleanup must not release another's reference.
@@ -331,7 +365,7 @@ describe("setup: tool and skill registration", () => {
     assert.ok(globalThis[SETUP_ONCE_KEY], "a repeated cleanup must not double-release");
 
     await firstCleanup();
-    assert.equal(first.hookDisposals, 1);
+    assert.equal(first.hookDisposals, 2);
     assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "the last location's cleanup tears down the shared resources");
   });
 });
@@ -673,11 +707,11 @@ describe("rp_send", () => {
   test("delivers agent-to-agent with steer, not only to and from the orchestrator", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
     await setup(ctx, isolatedDeps({ env: {} }));
-    sessions.set("ses_researcher", { id: "ses_researcher" });
+    sessions.set("ses_helper", { id: "ses_helper" });
     sessions.set("ses_requester", { id: "ses_requester" });
-    // Both ends are RP spawns: the requester/researcher pair, not the spawner.
+    // Both ends are RP spawns: the requester/helper pair, not the spawner.
     for (const [id, name] of [
-      ["ses_researcher", "researcher-q1"],
+      ["ses_helper", "helper-q1"],
       ["ses_requester", "correction-lead"],
     ]) {
       recordSpawn(id, { name, run: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
@@ -692,11 +726,11 @@ describe("rp_send", () => {
 
     await tools
       .get("rp_send")
-      .execute({ to: "ses_requester", message: "Q1 answer" }, { sessionID: "ses_researcher" });
+      .execute({ to: "ses_requester", message: "Q1 answer" }, { sessionID: "ses_helper" });
 
     assert.equal(captured.sessionID, "ses_requester");
     assert.equal(captured.delivery, "steer");
-    assert.ok(captured.text.startsWith("[from researcher-q1 (ses_researcher)]"));
+    assert.ok(captured.text.startsWith("[from helper-q1 (ses_helper)]"));
   });
 
   test("delivers with steer and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {

@@ -5,6 +5,8 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
+> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Follow this file again as at first sight. A run under way resumes its workflow without triage, and before dispatching, checks through your tool's mechanics which agents are already working.
+
 ## Overview
 
 You are an orchestrator. A pipeline is a set of artifacts that converge: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report. Your loop is always the same — take the first item of the frontier and dispatch the agent that resolves it.
