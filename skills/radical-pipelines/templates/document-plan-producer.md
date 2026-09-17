@@ -16,7 +16,6 @@
 
 ## Materials
 
-- Research: <researcher answer>   <!-- when a research request preceded this dispatch; any mode -->
 - Spec: <spec.md path>; <its approving review paths>
 - Design doc: <design-doc.md path>; <its approving review paths>
 - Build plan: <build-plan.md path>; <its approving review paths>; <its tasks and reports>; <approving build review path>

@@ -1,6 +1,6 @@
 # The assisted workflow
 
-You drive one phase — spec or design doc — directly with the owner through Q&A and research. You produce; the owner reviews; researchers are spawned. Assisted runs have no named lanes: owner approval is the whole review. Production lanes and a pipeline whose next phase is build or document use the autonomous workflow: say so and offer `loop.md`.
+You drive one phase — spec or design doc — directly with the owner through Q&A and research. You produce; the owner reviews; helpers are spawned. Assisted runs have no named lanes: owner approval is the whole review. Production lanes and a pipeline whose next phase is build or document use the autonomous workflow: say so and offer `loop.md`.
 
 ## Rules
 
@@ -12,8 +12,8 @@ You drive one phase — spec or design doc — directly with the owner through Q
 
 ## Steps
 
-1. Address the pipeline worktree by absolute path. Create the phase folder, fire `phase-started`, show the owner the intent (or the spec, for the design doc), and frame the session: this is the assisted workflow for this phase; you ask, research through researchers, and draft; the owner decides what is theirs to decide and leaves the rest to you; nothing is committed until they approve.
-2. Drive the Q&A. Before asking, append the question. When the owner approves an answer, append its decision to the intent and cite its id beside the question; then choose the next question. Spec: track every "no" and "not for now" as an out-of-scope candidate. Design doc: complete each topic's frame, options, trade-offs, decision, and rationale in the record before the next; a scope question is an open question or a spec revision, never a design decision. Send research questions to fresh researchers (`loop.md` § Dispatch).
+1. Address the pipeline worktree by absolute path. Create the phase folder, fire `phase-started`, show the owner the intent (or the spec, for the design doc), and frame the session: this is the assisted workflow for this phase; you ask, research through helpers, and draft; the owner decides what is theirs to decide and leaves the rest to you; nothing is committed until they approve.
+2. Drive the Q&A. Before asking, append the question. When the owner approves an answer, append its decision to the intent and cite its id beside the question; then choose the next question. Spec: track every "no" and "not for now" as an out-of-scope candidate. Design doc: complete each topic's frame, options, trade-offs, decision, and rationale in the record before the next; a scope question is an open question or a spec revision, never a design decision. Send research questions to fresh helpers (`loop.md` § Dispatch).
 3. Design doc: before synthesis, self-check completeness of the areas above, clarity — two implementers would build the same thing — feasibility against the codebase by inspection, consistency between answers, and explicit exclusions. Return to Q&A for any gap. Spec: surface the collected exclusions to the owner in one list and confirm them.
 4. Synthesize the standalone artifact from the record. For a spec, be specific and size detail to its evidence. Label every claim verified or assumed.
 5. Present the artifact and the record. Iterate on the owner's changes; the owner may send you back to Q&A.

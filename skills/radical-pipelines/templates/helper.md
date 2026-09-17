@@ -2,25 +2,24 @@
 
 - Worktree: <absolute path>
 - Branch: <branch>
-- Commit format: <convention>
 - Guardrails: <rules | none>
-- Execution: inspection only
+- Execution: <the requester's>
 
 ## Mode
 
-Answer
+Help
 
 ## Requester
 
-<the requester's address — send your answer to it>
+<the requester's address — send your result to it>
 
-## Question
+## Request
 
-<the question, verbatim>
+<the request, verbatim>
 
 ## Context
 
-<why the requester asks; what it already knows>
+<why the requester asks; what it already knows; what it wants back; the requester's rules that bind the piece>
 
 ## Files
 
