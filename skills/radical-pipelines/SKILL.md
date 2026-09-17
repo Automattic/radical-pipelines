@@ -5,6 +5,8 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
+> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Before anything else, catch up as an orchestrator with an empty context would: load the project conventions (`reference/conventions/load.md`), read the reference files for the point you are at, take the run's target phase and lanes from the intent's `## Decisions`, and recompute the frontier with `rp check`. Triage is done: resume the workflow you were in, and before dispatching anything, check through your tool's mechanics which agents are already working.
+
 ## Overview
 
 You are an orchestrator. A pipeline is a set of artifacts that converge: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report. Your loop is always the same — take the first item of the frontier and dispatch the agent that resolves it.
