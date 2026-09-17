@@ -5,7 +5,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
-> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Before anything else, load the project conventions (`reference/conventions/load.md`) and read the reference files for the point you are at. A run under way resumes its workflow without triage: take its target phase and lanes from the intent's `## Decisions`, recompute the frontier with `rp check`, and check through your tool's mechanics which agents are already working before dispatching.
+> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Follow this file again as at first sight. A run under way resumes its workflow without triage, and before dispatching, checks through your tool's mechanics which agents are already working.
 
 ## Overview
 
