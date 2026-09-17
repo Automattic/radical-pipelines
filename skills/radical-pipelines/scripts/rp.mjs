@@ -39,7 +39,7 @@ function repositoryFor(argument) {
   }
 }
 
-// --- frontmatter (subset: scalars and lists of strings) ---------------------
+// --- frontmatter ------------------------------------------------------------
 
 // The body is every byte after the closing delimiter line, exactly as git hashes it: nothing is
 // normalized. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
@@ -50,130 +50,42 @@ export function parseFrontmatter(raw) {
   const close = rest.match(/(?:^|\n)---\r?(?:\n|$)/);
   if (!close) return { data: null, body: raw, error: "missing closing --- delimiter" };
   const body = rest.slice(close.index + close[0].length);
-  const data = new Map();
-  const errors = [];
-  const collectionValue = (value) => /^[\[{#&*!|>@`%]/.test(value) || /^(?:-|\?|:)\s/.test(value) || /[\]}]$/.test(value) || /:\s/.test(value) || /\s#/.test(value);
-  const scalar = (rawValue) => {
-    const value = rawValue.trim();
-    if (value.startsWith('"')) {
-      try {
-        const parsed = JSON.parse(value);
-        return typeof parsed === "string" ? { value: parsed } : { error: "quoted scalar must be a string" };
-      } catch {
-        return { error: "malformed double-quoted scalar" };
-      }
-    }
-    if (value.startsWith("'")) {
-      if (!/^'(?:[^']|'')*'$/.test(value)) return { error: "malformed single-quoted scalar" };
-      return { value: value.slice(1, -1).replace(/''/g, "'") };
-    }
-    if (collectionValue(value)) return { error: "must be a scalar" };
-    return { value };
-  };
-  const flowItems = (inner) => {
-    if (!inner) return [];
-    const items = [];
-    let start = 0;
-    let quote = null;
-    for (let i = 0; i < inner.length; i++) {
-      const ch = inner[i];
-      if (quote === '"' && ch === "\\") i++;
-      else if (quote === "'" && ch === "'" && inner[i + 1] === "'") i++;
-      else if (quote && ch === quote) quote = null;
-      else if (!quote && (ch === '"' || ch === "'") && !inner.slice(start, i).trim()) quote = ch;
-      else if (!quote && ch === ",") {
-        items.push(inner.slice(start, i));
-        start = i + 1;
-      }
-    }
-    if (quote) return null;
-    items.push(inner.slice(start));
-    return items;
-  };
-  let currentList = null;
-  for (const rawLine of rest.slice(0, close.index).split("\n")) {
-    const line = rawLine.replace(/\r$/, "");
-    if (!line.trim()) continue;
-    const item = line.match(/^  -\s+(.*)$/);
-    if (item && currentList) {
-      const parsed = scalar(item[1]);
-      if (parsed.error) errors.push(`list item under ${currentList} ${parsed.error}`);
-      else if (parsed.value) data.get(currentList).push(parsed.value);
-      else errors.push(`empty list item under ${currentList}`);
-      continue;
-    }
-    if (/^\s+-/.test(line)) {
-      errors.push(`malformed list item: ${line}`);
-      continue;
-    }
-    const kv = line.match(/^([A-Za-z][\w-]*):\s*(.*)$/);
-    if (!kv) {
-      errors.push(`malformed line: ${line}`);
-      continue;
-    }
-    if (data.has(kv[1])) {
-      errors.push(`duplicate field: ${kv[1]}`);
-      continue;
-    }
-    if (kv[2] === "") {
-      data.set(kv[1], []);
-      currentList = kv[1];
-    } else if (kv[2].trim().startsWith("[")) {
-      // Inline flow list: `key: [a, b]`, `key: []`.
-      const flow = kv[2].trim();
-      if (!flow.endsWith("]")) {
-        errors.push(`malformed inline list under ${kv[1]}`);
-        currentList = null;
-        continue;
-      }
-      const inner = flow.slice(1, -1);
-      const items = flowItems(inner);
-      if (!items) errors.push(`malformed inline list under ${kv[1]}`);
-      const values = (items ?? []).map(scalar);
-      if (values.some((x) => x.error)) errors.push(`list item under ${kv[1]} ${values.find((x) => x.error).error}`);
-      if (values.some((x) => !x.error && !x.value)) errors.push(`empty list item under ${kv[1]}`);
-      data.set(kv[1], values.filter((x) => !x.error).map((x) => x.value));
-      currentList = null;
-    } else {
-      const parsed = scalar(kv[2]);
-      if (parsed.error) errors.push(`${parsed.error} under ${kv[1]}`);
-      else data.set(kv[1], parsed.value);
-      currentList = null;
-    }
+  let object;
+  try {
+    object = JSON.parse(rest.slice(0, close.index));
+  } catch (error) {
+    return { data: null, body, error: `invalid JSON: ${error.message}` };
   }
-  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "lane-packages", "target", "target-identity", "intent-ids", "retired-ids"]);
-  const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
-  for (const [key, raw] of data) {
-    const value = key === "target" || key === "target-identity" ? [].concat(raw) : raw;
-    data.set(key, value);
-    if (lists.has(key) && !Array.isArray(value)) errors.push(`${key} must be a list`);
-    if (scalars.has(key) && Array.isArray(value)) errors.push(`${key} must be a scalar`);
-    if (key === "origin" && Array.isArray(value) && value.length === 0) errors.push("origin must be a scalar or non-empty list");
-    if (key === "target" || key === "target-identity") {
-      if (Array.isArray(value) && !value.length) errors.push(`${key} must be a non-empty list`);
-    }
-  }
-  if (errors.length) return { data: null, body, error: errors.join("; ") };
+  if (object === null || Array.isArray(object) || typeof object !== "object" || Object.getPrototypeOf(object) !== Object.prototype)
+    return { data: null, body, error: "frontmatter must be a JSON object" };
+  const data = new Map(Object.entries(object));
+  const error = validateFrontmatter(data);
+  if (error) return { data: null, body, error };
   return { data, body };
 }
 
-function renderFrontmatter(data, body) {
-  const scalar = (value) => {
-    const text = String(value);
-    const quote = !text || text.trim() !== text || /^[\[{#&*!|>@`%"']/.test(text) || /^(?:-|\?|:)\s/.test(text) || /[\]}]$/.test(text) || /:\s|\s#|[\r\n]/.test(text);
-    return quote ? JSON.stringify(text) : text;
-  };
-  let out = "---\n";
-  for (const [k, v] of data) {
-    if (Array.isArray(v)) {
-      if (v.length === 0) continue;
-      out += `${k}:\n`;
-      for (const item of v) out += `  - ${scalar(item)}\n`;
-    } else {
-      out += `${k}: ${scalar(v)}\n`;
-    }
+function validateFrontmatter(data) {
+  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "target", "target-identity", "intent-ids", "retired-ids"]);
+  const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
+  const strings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
+  const errors = [];
+  for (const [key, value] of data) {
+    if (lists.has(key) && !strings(value)) errors.push(`${key} must be a list of strings`);
+    else if (scalars.has(key) && typeof value !== "string") errors.push(`${key} must be a string`);
+    else if (key === "origin" && !(typeof value === "string" || (strings(value) && value.length))) errors.push("origin must be a string or non-empty list of strings");
+    else if (key === "lane-packages" && !(Array.isArray(value) && value.every((entry) =>
+      Array.isArray(entry) && entry.length === 3 && typeof entry[0] === "string" && strings(entry[1]) && strings(entry[2]))))
+      errors.push("lane-packages must be a list of [artifact path, consumed lane pins, reference pins]");
+    else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
+      errors.push(`${key} must be a string or list of strings`);
+    if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
   }
-  return out + "---\n" + body;
+  return errors.join("; ") || null;
+}
+
+export function renderFrontmatter(data, body) {
+  const object = Object.fromEntries([...data].filter(([, value]) => !Array.isArray(value) || value.length));
+  return `---\n${JSON.stringify(object, null, 2)}\n---\n${body}`;
 }
 
 // --- identity: hash of the body only ----------------------------------------
@@ -318,11 +230,9 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
 function laneReferences(data) {
   const result = new Map();
   for (const entry of data?.get("lane-packages") ?? []) {
-    try {
-      const [artifact, binding, reference] = JSON.parse(entry);
-      if (typeof artifact !== "string" || result.has(artifact) || !pinPackage(binding) || !pinPackage(reference)) return new Map();
-      result.set(artifact, { binding: pinPackage(binding), reference: pinPackage(reference) });
-    } catch { return new Map(); }
+    const [artifact, binding, reference] = entry;
+    if (result.has(artifact) || !pinPackage(binding) || !pinPackage(reference)) return new Map();
+    result.set(artifact, { binding: pinPackage(binding), reference: pinPackage(reference) });
   }
   return result;
 }
@@ -570,6 +480,11 @@ function cmdStamp(args) {
   const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]));
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
+  const parsedAt = (path) => {
+    const parsed = parseFrontmatter(readFileSync(join(base, path), "utf8"));
+    if (parsed.error) die(`stamp: INVALID FRONTMATTER ${path}: ${parsed.error}`);
+    return parsed;
+  };
   const previousKind = challengeKind(rel, fm);
   const ids = intentIds(data, body, rel);
   if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
@@ -609,10 +524,10 @@ function cmdStamp(args) {
         const scope = `${dirname(path)}/`;
         const binding = new Map([...recorded].filter(([member]) => member.startsWith(scope)));
         const prior = previous.get(path);
-        const input = parseFrontmatter(readFileSync(join(base, path), "utf8")).data;
+        const input = parsedAt(path).data;
         const reference = prior && equalPackages(prior.binding, binding) ? prior.reference :
           artifactReviewPackage(artifact, artifact.prefix, scope, pinPackage(input?.get("pins")), (member) => fileIdentity(join(base, member)));
-        if (reference) references.push(JSON.stringify([path, packagePins(binding), packagePins(reference)]));
+        if (reference) references.push([path, packagePins(binding), packagePins(reference)]);
       }
       fm.delete("lane-packages");
       if (references.length) fm.set("lane-packages", references);
@@ -628,7 +543,7 @@ function cmdStamp(args) {
       const scope = rel.split("/").length === 3 ? `${dirname(rel)}/` : "";
       const artifactPath = scope ? `${scope}${basename(review.art.path)}` : review.art.path;
       const artifactFile = join(base, artifactPath);
-      const artifactData = existsSync(artifactFile) ? parseFrontmatter(readFileSync(artifactFile, "utf8")).data : null;
+      const artifactData = existsSync(artifactFile) ? parsedAt(artifactPath).data : null;
       const consumed = pinPackage(artifactData?.get("pins"));
       if (!consumed)
         die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is unrecorded or invalid`);
@@ -645,7 +560,9 @@ function cmdStamp(args) {
         identityOf: (path) => fileIdentity(join(base, path)),
         dependsOf: (task) => {
           const text = existsSync(join(base, task)) ? readFileSync(join(base, task), "utf8") : "";
-          return [].concat(parseFrontmatter(text).data?.get("depends") ?? []);
+          const parsed = parseFrontmatter(text);
+          if (parsed.error) die(`stamp: INVALID FRONTMATTER ${task}: ${parsed.error}`);
+          return [].concat(parsed.data?.get("depends") ?? []);
         },
       }).review;
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${[...expected.keys()].join(" --reviewed ")}`);
@@ -656,8 +573,8 @@ function cmdStamp(args) {
         .filter(({ match }) => match && Number(match[1]) !== Number(report[3]))
         .filter(({ name, match }) => {
           const priorRel = `${report[1]}/tasks/${name}`;
-          const parsed = parseFrontmatter(readFileSync(join(base, priorRel), "utf8"));
-          return !parsed.error && pinPackage(parsed.data?.get("reviewed")) && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && IDENTITY.test(parsed.data.get("head")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
+          const parsed = parsedAt(priorRel);
+          return pinPackage(parsed.data?.get("reviewed")) && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && IDENTITY.test(parsed.data.get("head")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
         })
         .map(({ match }) => Number(match[1]));
       const next = Math.max(0, ...prior) + 1;

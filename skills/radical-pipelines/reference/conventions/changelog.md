@@ -6,6 +6,10 @@ Entries are ordered by version. Version 0 is the unstamped format.
 
 Migrate from version 1.
 
+### Frontmatter
+
+Rewrite the frontmatter as a JSON object with stamp `{ "conventions": 2 }`.
+
 ### Renames
 
 In `Agents`, the `researcher` block becomes `helper`.

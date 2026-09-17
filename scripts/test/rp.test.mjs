@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { identity, parseFrontmatter } from "../../skills/radical-pipelines/scripts/rp.mjs";
+import { identity, parseFrontmatter, renderFrontmatter } from "../../skills/radical-pipelines/scripts/rp.mjs";
 
 const RP = fileURLToPath(new URL("../../skills/radical-pipelines/scripts/rp.mjs", import.meta.url));
 const PIPELINE = ".pipelines/demo";
@@ -79,13 +79,13 @@ describe("rp state tooling", () => {
   }
   function registeredReview(rel, reviewed, lane = null) {
     const pins = reviewed.map((path) => `${path}@${identity(parseFrontmatter(read(root, path)).body)}`);
-    write(root, rel, `---\nreviewed:\n${pins.map((pin) => `  - ${pin}`).join("\n")}\nverdict: approved\n${lane ? `lane: ${lane}\n` : ""}---\n# Review\n\nVerdict: approved\n`);
+    registered(rel, { reviewed: pins, verdict: "approved", ...(lane ? { lane } : {}) }, "# Review\n\nVerdict: approved\n");
   }
   function pairs(paths) {
     return paths.map((path) => `${path}@${identity(read(root, path))}`);
   }
   function registered(rel, fields, body = parseFrontmatter(read(root, rel)).body) {
-    write(root, rel, `---\n${Object.entries(fields).map(([key, value]) => `${key}: ${JSON.stringify(value)}\n`).join("")}---\n${body}`);
+    write(root, rel, renderFrontmatter(new Map(Object.entries(fields)), body));
   }
   function registeredVerdict(rel, pins, verdict = "approved", lane = null) {
     registered(rel, { reviewed: pins, verdict, ...(lane ? { lane } : {}) }, `# Review\n\nVerdict: ${verdict}\n`);
@@ -94,7 +94,7 @@ describe("rp state tooling", () => {
     const scope = dirname(artifact);
     const binding = pairs([artifact, `${scope}/spec-research.md`, ...reviews]);
     const pins = [...pairs(["0-intent/intent.md"]), ...binding];
-    registered("1-spec/spec.md", { pins, "lane-packages": [JSON.stringify([artifact, binding, reference])] });
+    registered("1-spec/spec.md", { pins, "lane-packages": [[artifact, binding, reference]] });
     const judged = [...pairs(["1-spec/spec.md", "1-spec/spec-research.md"]), ...pins];
     registeredVerdict("1-spec/spec-review-1.md", judged);
     if (lane) registeredVerdict("1-spec/spec-review-security-1.md", judged, "approved", lane);
@@ -380,7 +380,7 @@ process.stdout.write(output);
     rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=111111111111");
     rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=222222222222");
     assert.equal(identity(read(root, "1-spec/spec.md")), before);
-    assert.match(read(root, "1-spec/spec.md"), /pins:\n  - 0-intent\/intent\.md@[0-9a-f]{12}/);
+    assert.match(read(root, "1-spec/spec.md"), /"pins": \[\n    "0-intent\/intent\.md@[0-9a-f]{12}"/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--set", "note=no"), /--set accepts only lane/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=no"), /12-character hexadecimal fingerprint/);
   });
@@ -401,7 +401,7 @@ process.stdout.write(output);
 
   for (const [name, rel, body, flags] of [
     ["no declarations", "3-build/tasks/T1.md", "# T1\n\nImplement the change.\n", ["--mirror"]],
-    ["empty frontmatter", "3-build/tasks/T1.md", "---\n---\n# T1\n", ["--mirror"]],
+    ["empty frontmatter", "3-build/tasks/T1.md", "---\n{}\n---\n# T1\n", ["--mirror"]],
     ["fenced declarations", "0-intent/notes.md", "# Notes\n\n```text\nVerdict: not a verdict\n```\n", ["--mirror"]],
     ["no flags", "0-intent/notes.md", "# Notes\n", []],
   ]) test(`empty stamp projection: ${name} succeeds without writing`, () => {
@@ -450,19 +450,19 @@ process.stdout.write(output);
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: unsatisfiable\nBrief: security\nTarget: 0-intent/intent.md#goal\n\n### Issue 1\n\nPrior finding: 1-spec/spec-review-0.md#Issue-2, resolution failed\n");
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const fm = read(root, "1-spec/spec-review-1.md");
-    assert.match(fm, /verdict: unsatisfiable/);
-    assert.match(fm, /brief: security/);
+    assert.match(fm, /"verdict": "unsatisfiable"/);
+    assert.match(fm, /"brief": "security"/);
     assert.deepEqual(parseFrontmatter(fm).data.get("target"), ["0-intent/intent.md#goal"]);
     assert.deepEqual(parseFrontmatter(fm).data.get("target-identity"), [identity(read(root, "0-intent/intent.md"))]);
-    assert.match(fm, /recurs:\n  - 1-spec\/spec-review-0\.md#Issue-2/);
+    assert.match(fm, /"recurs": \[\n    "1-spec\/spec-review-0\.md#Issue-2"/);
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
-    assert.match(read(root, "0-intent/intent.md"), /origin: issue 7/);
+    assert.match(read(root, "0-intent/intent.md"), /"origin": "issue 7"/);
     write(root, "0-intent/intent.md", "Origin: issue 7\nOrigin: starts-from 6-other\n\n# Intent\n\n## Goal\n\nx\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
-    assert.match(read(root, "0-intent/intent.md"), /origin:\n  - issue 7\n  - starts-from 6-other/);
+    assert.match(read(root, "0-intent/intent.md"), /"origin": \[\n    "issue 7",\n    "starts-from 6-other"/);
     write(root, "3-build/tasks/T2.md", "# T2\n\n- **Depends on:** T1\n");
     rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror");
-    assert.match(read(root, "3-build/tasks/T2.md"), /depends:\n  - T1/);
+    assert.match(read(root, "3-build/tasks/T2.md"), /"depends": \[\n    "T1"/);
   });
 
   test("reviewed pins are immutable; head moves only with pins", () => {
@@ -472,25 +472,24 @@ process.stdout.write(output);
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "one");
     stampSpec();
-    const head1 = read(root, "1-spec/spec.md").match(/head: ([0-9a-f]{12})/)[1];
+    const head1 = parseFrontmatter(read(root, "1-spec/spec.md")).data.get("head");
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "two");
     rp(root, "stamp", P("1-spec/spec.md"), "--set", "lane=abc123def456");
-    assert.equal(read(root, "1-spec/spec.md").match(/head: ([0-9a-f]{12})/)[1], head1);
+    assert.equal(parseFrontmatter(read(root, "1-spec/spec.md")).data.get("head"), head1);
     stampSpec();
-    assert.notEqual(read(root, "1-spec/spec.md").match(/head: ([0-9a-f]{12})/)[1], head1);
+    assert.notEqual(parseFrontmatter(read(root, "1-spec/spec.md")).data.get("head"), head1);
   });
 
   test("malformed frontmatter is reported before its fields are read", () => {
     const cases = [
-      ["---\npins:\n  - 0-intent/intent.md@abc\n# no close\n", /missing closing --- delimiter/],
-      ["---\npins:\nnot yaml\n---\n# Spec\n", /malformed line: not yaml/],
-      ["---\npins: one\n---\n# Spec\n", /pins must be a list/],
-      ["---\nhead: [unterminated\n---\n# Spec\n", /malformed inline list under head/],
-      ["---\npins:\n  - 0-intent\/intent.md@abc\n    - nested\n---\n# Spec\n", /malformed list item/],
-      ["---\npins: [[nested]]\n---\n# Spec\n", /list item under pins must be a scalar/],
-      ["---\npins:\n  - path: nested\n---\n# Spec\n", /list item under pins must be a scalar/],
-      ['---\nhead: "unterminated\n---\n# Spec\n', /malformed double-quoted scalar/],
+      ['---\n{"pins":["0-intent/intent.md@abc"]}\n# no close\n', /missing closing --- delimiter/],
+      ["---\nnot JSON\n---\n# Spec\n", /invalid JSON/],
+      ['---\n{"pins":"one"}\n---\n# Spec\n', /pins must be a list of strings/],
+      ['---\n{"pins":[1]}\n---\n# Spec\n', /pins must be a list of strings/],
+      ['---\n{"head":[]}\n---\n# Spec\n', /head must be a string/],
+      ['---\n{"origin":[]}\n---\n# Spec\n', /origin must be a string or non-empty list of strings/],
+      ['---\n{"lane-packages":[["artifact",[],"pins"]]}\n---\n# Spec\n', /lane-packages must be a list/],
     ];
     for (const [text, reason] of cases) {
       write(root, "1-spec/spec.md", text);
@@ -499,10 +498,24 @@ process.stdout.write(output);
       assert.match(output, reason);
       assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--mirror"), /INVALID FRONTMATTER/);
     }
-    write(root, "0-intent/intent.md", "---\norigin: starts-from main\n# no close\n");
+    write(root, "0-intent/intent.md", '---\n{"origin":"starts-from main"}\n# no close\n');
     const output = rp(root, "check", PIPELINE, "--target-phase", "1");
     assert.match(output, /frontier INVALID FRONTMATTER 0-intent\/intent\.md/);
     assert.doesNotMatch(output, /complete through|commits\s/);
+  });
+
+  test("frontmatter accepts only a JSON object with valid field types", () => {
+    const valid = parseFrontmatter('---\n{"pins":["a@111111111111"],"head":"222222222222"}\n---\nbody\n');
+    assert.deepEqual(valid, {
+      data: new Map([["pins", ["a@111111111111"]], ["head", "222222222222"]]),
+      body: "body\n",
+    });
+    for (const value of ["[1]", '"text"', "1", "null"]) {
+      const parsed = parseFrontmatter(`---\n${value}\n---\nbody\n`);
+      assert.equal(parsed.data, null);
+      assert.equal(parsed.body, "body\n");
+      assert.match(parsed.error, /frontmatter must be a JSON object/);
+    }
   });
 
   test("representation contradictions are reported before base-dependent state", () => {
@@ -514,15 +527,14 @@ process.stdout.write(output);
     assert.equal("base" in state, false);
   });
 
-  test("stamped scalars with YAML punctuation round-trip through frontmatter", () => {
+  test("stamped strings with punctuation round-trip through frontmatter", () => {
     const brief = "Check: all [paths] # deeply";
     stampSpec();
     write(root, "1-spec/spec-review-1.md", `# Review\n\nVerdict: rejected\nBrief: ${brief}\n`);
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const stamped = read(root, "1-spec/spec-review-1.md");
-    assert.match(stamped, /brief: "Check: all \[paths\] # deeply"/);
+    assert.match(stamped, /"brief": "Check: all \[paths\] # deeply"/);
     assert.equal(parseFrontmatter(stamped).data.get("brief"), brief);
-    assert.deepEqual(parseFrontmatter("---\npins: ['a,b', \"c: d\"]\n---\nbody\n").data.get("pins"), ["a,b", "c: d"]);
     assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID FRONTMATTER/);
   });
 
@@ -1392,7 +1404,7 @@ process.stdout.write(output);
       registered(intent, fields, `${body}\n## ${section}\n\n- ${kind}-2 Owner item.\n`);
       registered("1-spec/spec.md", { pins: pairs([intent]) });
       registered(claim, {
-        reviewed: pairs(SPEC), verdict: "unsatisfiable", target, "target-identity": identity(read(root, intent)),
+        reviewed: pairs(SPEC), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, intent))],
       }, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
       const landed = read(root, claim);
       assert.equal(JSON.parse(check(root, "--target-phase", "1", "--json")).claims[0].state, "PENDING — owner escalation");
@@ -1642,8 +1654,9 @@ process.stdout.write(output);
   test("an artifact cannot consume its sibling record", () => {
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec-research.md")), /never pins its sibling record/);
     stampSpec();
-    const forged = read(root, "1-spec/spec.md").replace(/^head:/m, `  - 1-spec/spec-research.md@${identity(read(root, "1-spec/spec-research.md"))}\nhead:`);
-    write(root, "1-spec/spec.md", forged);
+    const forged = parseFrontmatter(read(root, "1-spec/spec.md"));
+    forged.data.get("pins").push(`1-spec/spec-research.md@${identity(read(root, "1-spec/spec-research.md"))}`);
+    write(root, "1-spec/spec.md", renderFrontmatter(forged.data, forged.body));
     assert.match(check(root, "--target-phase", "1"), /artifact 1-spec\/spec\.md\s+STALE — package members/);
   });
 
@@ -1675,7 +1688,7 @@ process.stdout.write(output);
     assert.throws(() => report("T2", 1, "completed"), /reviews exactly its task and its dependencies/);
     report("T1", 1, "completed");
     report("T2", 1, "completed", ["T1"]);
-    assert.match(read(root, "3-build/tasks/T2-report-1.md"), /attempt: 1/);
+    assert.equal(parseFrontmatter(read(root, "3-build/tasks/T2-report-1.md")).data.get("attempt"), "1");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md")), /immutable/);
     write(root, "3-build/tasks/T1.md", "# T1: revised\n\n- **Depends on:** none\n");
     rp(root, "stamp", P("3-build/tasks/T1.md"), "--mirror");
@@ -1688,10 +1701,11 @@ process.stdout.write(output);
     approveChain(3);
     report("T1", 1, "completed");
     report("T2", 1, "completed", ["T1"]);
+    const recorded = parseFrontmatter(read(root, "3-build/tasks/T2-report-1.md")).data.get("reviewed");
     write(root, "3-build/tasks/T2.md", "# T2: replanned\n\n- **Depends on:** none\n");
     rp(root, "stamp", P("3-build/tasks/T2.md"), "--mirror");
     assert.doesNotThrow(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--mirror"));
-    assert.match(read(root, "3-build/tasks/T2-report-1.md"), /reviewed:\n  - 3-build\/tasks\/T2\.md@[0-9a-f]{12}\n  - 3-build\/tasks\/T1\.md@[0-9a-f]{12}/);
+    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/T2-report-1.md")).data.get("reviewed"), recorded);
   });
 
   for (const phase of ["3-build", "4-document"])
@@ -1752,7 +1766,7 @@ process.stdout.write(output);
   test("a blocked report is never a challenge: its task stays pending for the orchestrator until a later attempt lands", () => {
     approveChain(3);
     report("T1", 1, "blocked");
-    assert.match(read(root, "3-build/tasks/T1-report-1.md"), /outcome: blocked/);
+    assert.equal(parseFrontmatter(read(root, "3-build/tasks/T1-report-1.md")).data.get("outcome"), "blocked");
     let output = check(root);
     assert.doesNotMatch(output, /challenge/);
     assert.match(output, /open \[T1:blocked\]/);
@@ -1945,7 +1959,7 @@ process.stdout.write(output);
     registeredVerdict(b[2], bReference);
     assert.equal(state().frontier, "consolidate 1-spec/spec.md");
     assert.deepEqual(state().artifacts[0].laneCandidates.map((lane) => lane.package), [a, b]);
-    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", ...a, ...b]), "lane-packages": [...original, JSON.stringify([b[0], pairs(b), bReference])] });
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", ...a, ...b]), "lane-packages": [...original, [b[0], pairs(b), bReference]] });
     registeredVerdict("1-spec/spec-review-3.md", pairs([...SPEC, ...a, ...b]));
     assert.equal(state().complete, true);
     assert.deepEqual(state().lanes.map((lane) => lane.closed), [true, true]);
@@ -1977,7 +1991,7 @@ process.stdout.write(output);
     registered("2-design-doc/design-doc.md", { pins: pairs(designPins) });
     registered("2-design-doc/design-doc-review-1.md", {
       reviewed: pairs(["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md", ...designPins]),
-      verdict: "unsatisfiable", target: "1-spec/spec.md#R1", "target-identity": identity(read(root, "1-spec/spec.md")),
+      verdict: "unsatisfiable", target: ["1-spec/spec.md#R1"], "target-identity": [identity(read(root, "1-spec/spec.md"))],
     }, "# Review\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#R1\n");
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged input.\n");
     const state = JSON.parse(check(root, "--target-phase", "2", "--json"));
@@ -2003,7 +2017,7 @@ process.stdout.write(output);
           const review = `${sc}design-doc-review-1.md`;
           if (verdict === "approved") registeredVerdict(review, judged);
           else registered(review, {
-            reviewed: judged, verdict, target: "0-intent/intent.md#goal", "target-identity": identity(read(root, "0-intent/intent.md")),
+            reviewed: judged, verdict, target: ["0-intent/intent.md#goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))],
           }, "# Review\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#goal\n");
           const declarations = scope === "root" ? [] : [`design-doc=|a@${FPS.a}`];
           const checkState = () => JSON.parse(check(root, "--target-phase", "2", "--lanes", declarations.join(";"), "--json"));
@@ -2069,7 +2083,7 @@ process.stdout.write(output);
           const review = `${sc}design-doc-review-1.md`;
           if (verdict === "approved") registeredVerdict(review, pairs([artifact, record, ...inputs]));
           else registered(review, {
-            reviewed: pairs([artifact, record, ...inputs]), verdict, target: `${intent}#goal`, "target-identity": identity(read(root, intent)),
+            reviewed: pairs([artifact, record, ...inputs]), verdict, target: [`${intent}#goal`], "target-identity": [identity(read(root, intent))],
           }, `# Review\nVerdict: unsatisfiable\nTarget: ${intent}#goal\n`);
           const declarations = scope === "root" ? [] : [`design-doc=|a@${FPS.a}`];
           const state = () => JSON.parse(check(root, "--target-phase", "2", "--lanes", declarations.join(";"), "--json"));
@@ -2334,10 +2348,16 @@ process.stdout.write(output);
   test("a root reconfirmation preserves its closed lane package", () => {
     approveSpecLaneA();
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    const lanePackages = parseFrontmatter(read(root, "1-spec/spec.md")).data.get("lane-packages");
+    assert.equal(Array.isArray(lanePackages[0]), true);
+    assert.equal(typeof lanePackages[0][0], "string");
+    assert.equal(Array.isArray(lanePackages[0][1]), true);
+    assert.equal(Array.isArray(lanePackages[0][2]), true);
     review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
     appendFileSync(join(root, P("0-intent/intent.md")), "\n## Decisions\n\n- decision-1 New input.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec.md")).data.get("lane-packages"), lanePackages);
     review("1-spec/spec-review-2.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
     const output = check(root, "--lanes", `spec=|a@${FPS.a}`, "--target-phase", "1");
     assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
@@ -2442,7 +2462,7 @@ process.stdout.write(output);
       git(seat, "commit", "--quiet", "-m", "seat work");
       const seatHead = git(seat, "rev-parse", "--short=12", "HEAD").trim();
       rp(root, "stamp", join(seat, P("1-spec/spec.md")), "--pin", P("0-intent/intent.md"));
-      assert.match(readFileSync(join(seat, P("1-spec/spec.md")), "utf8"), new RegExp(`head: ${seatHead}`));
+      assert.equal(parseFrontmatter(readFileSync(join(seat, P("1-spec/spec.md")), "utf8")).data.get("head"), seatHead);
       assert.match(rp(root, "check", join(seat, PIPELINE), "--base", "main", "--target-phase", "1"), new RegExp(`unclaimed by any task report: ${seatHead.slice(0, 7)}`));
     } finally {
       git(root, "worktree", "remove", "--force", seat);
@@ -2456,7 +2476,7 @@ process.stdout.write(output);
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((f) => ["--reviewed", P(f)]), "--mirror");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md")), /immutable/);
     // A hand-written pin with an empty or short identity is never fresh.
-    write(root, "2-design-doc/design-doc.md", "---\npins:\n  - 0-intent/intent.md@\n  - 1-spec/spec.md@abc\n---\n# Design doc\n");
+    registered("2-design-doc/design-doc.md", { pins: ["0-intent/intent.md@", "1-spec/spec.md@abc"] }, "# Design doc\n");
     assert.match(check(root), /artifact 2-design-doc\/design-doc\.md\s+STALE/);
   });
 
@@ -2474,8 +2494,8 @@ process.stdout.write(output);
     // Re-mirroring a stamped file is legitimate: reviewed stays, the mirror set is recomputed whole.
     rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
     const text = read(root, "1-spec/spec-review-1.md");
-    assert.doesNotMatch(text, /verdict:/);
-    assert.match(text, /reviewed:/);
+    assert.equal(parseFrontmatter(text).data.has("verdict"), false);
+    assert.equal(parseFrontmatter(text).data.has("reviewed"), true);
     output = check(root, "--target-phase", "1");
     assert.doesNotMatch(output, /mirror\s/);
     assert.match(output, /frontier INVALID REVIEW 1-spec\/spec-review-1\.md: no Verdict line/);
@@ -2771,9 +2791,9 @@ process.stdout.write(output);
 
   test("frontmatter delimiters and fixed lines inside fenced code are ordinary body text", () => {
     approveChain(1);
-    write(root, "1-spec/example.md", "# Example\n\n```yaml\n---\nkey: value\n---\n```\n");
+    write(root, "1-spec/example.md", "# Example\n\n```text\n---\nkey: value\n---\n```\n");
     write(root, "1-spec/long-fence.md", "# Example\n\n````markdown\n```\n---\nkey: value\n---\nOutcome: success\n```\n````\n");
-    write(root, "1-spec/tilde-fence.md", "# Example\n\n~~~yaml\n---\nOutcome: success\n---\n~~~\n");
+    write(root, "1-spec/tilde-fence.md", "# Example\n\n~~~text\n---\nOutcome: success\n---\n~~~\n");
     const output = check(root, "--target-phase", "1");
     assert.doesNotMatch(output, /INVALID FRONTMATTER 1-spec\/(?:example|long-fence|tilde-fence)\.md/);
     assert.doesNotMatch(output, /INVALID LINE 1-spec\/(?:long-fence|tilde-fence)\.md/);
@@ -2781,7 +2801,7 @@ process.stdout.write(output);
 
   test("identity equals git's blob hash of the body, computed without git", () => {
     const gitHash = (text) => execFileSync("git", ["hash-object", "--stdin"], { input: text, encoding: "utf8" }).trim().slice(0, 12);
-    for (const body of ["", "x", "# Spec\n", "ñ — unicode\n", "a\r\nb"]) assert.equal(identity(`---\npins:\n  - a@b\n---\n${body}`), gitHash(body));
+    for (const body of ["", "x", "# Spec\n", "ñ — unicode\n", "a\r\nb"]) assert.equal(identity(`---\n{"pins":["a@b"]}\n---\n${body}`), gitHash(body));
   });
 
   test("a report's Commits section is mirrored whole, whatever the line format, and names only commits that exist", () => {
@@ -2799,17 +2819,24 @@ process.stdout.write(output);
     rp(root, "stamp", P("3-build/tasks/T1-report-1.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror");
     // Short hashes in the body are stored canonical: the full hash.
     const full = shas.map((s) => git(root, "rev-parse", s).trim());
-    assert.match(read(root, "3-build/tasks/T1-report-1.md"), new RegExp(`commits:\\n  - ${full[0]}\\n  - ${full[1]}\\n  - ${full[2]}\\n`));
+    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/T1-report-1.md")).data.get("commits"), full);
     assert.doesNotMatch(check(root, "--target-phase", "3"), /unclaimed/);
     write(root, "3-build/tasks/T2-report-1.md", "# Task report\n\nOutcome: completed\n\n## Commits\n\n- 0badc0ffee1 — never made\n");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/T2-report-1.md"), "--reviewed", P("3-build/tasks/T2.md"), "--reviewed", P("3-build/tasks/T1.md"), "--mirror"), /names a commit that does not exist or is ambiguous: 0badc0ffee1/);
   });
 
-  test("frontmatter lists are read in block and inline form; an empty inline list is empty", () => {
-    assert.deepEqual(parseFrontmatter("---\ncommits: [abc1234, def5678]\n---\n").data.get("commits"), ["abc1234", "def5678"]);
-    assert.deepEqual(parseFrontmatter("---\ncommits: []\n---\n").data.get("commits"), []);
-    assert.deepEqual(parseFrontmatter("---\ncommits:\n  - abc1234\n---\n").data.get("commits"), ["abc1234"]);
-    assert.deepEqual(parseFrontmatter("---\norigin: [owner's-note.md]\n---\n").data.get("origin"), ["owner's-note.md"]);
+  test("frontmatter renders and parses nested data without changing the body", () => {
+    const body = "# Body\n\nExact bytes.\r\n";
+    const data = new Map([
+      ["pins", ["a,b", "c: d"]],
+      ["lane-packages", [["1-spec/a/spec.md", ["a@111111111111"], ["b@222222222222"]]]],
+      ["brief", "Check: all [paths] # deeply"],
+      ["depends", []],
+    ]);
+    const rendered = renderFrontmatter(data, body);
+    const parsed = parseFrontmatter(rendered);
+    assert.equal(parsed.body, body);
+    assert.deepEqual(parsed.data, new Map([...data].filter(([, value]) => !Array.isArray(value) || value.length)));
   });
 
   test("identity is the body's exact bytes as git hashes them: CRLF is never normalized; only delimiter lines tolerate a \\r", () => {
@@ -2819,12 +2846,12 @@ process.stdout.write(output);
     assert.notEqual(identity("# Spec\r\n"), identity("# Spec\n"));
     stampSpec();
     const text = read(root, "1-spec/spec.md");
-    assert.match(text, /^---\npins:\n[\s\S]*---\n# Spec\r\n$/);
+    assert.match(text, /^---\n\{\n[\s\S]*\n\}\n---\n# Spec\r\n$/);
     assert.equal(identity(text), gitHash("# Spec\r\n"));
     // Delimiter lines may carry a \r; the closing one may end the file.
-    assert.equal(identity("---\r\nnote: x\r\n---\r\n# Spec\r\n"), gitHash("# Spec\r\n"));
-    assert.deepEqual(parseFrontmatter("---\nnote: x\n---"), { data: new Map([["note", "x"]]), body: "" });
-    assert.deepEqual(parseFrontmatter("---\n---\nbody\n"), { data: new Map(), body: "body\n" });
+    assert.equal(identity('---\r\n{"note":"x"}\r\n---\r\n# Spec\r\n'), gitHash("# Spec\r\n"));
+    assert.deepEqual(parseFrontmatter('---\n{"note":"x"}\n---'), { data: new Map([["note", "x"]]), body: "" });
+    assert.deepEqual(parseFrontmatter("---\n{}\n---\nbody\n"), { data: new Map(), body: "body\n" });
   });
 
   test("the pipeline tree holds no symlinks: stamp refuses them, check reports them without following", () => {
@@ -2836,7 +2863,9 @@ process.stdout.write(output);
     assert.throws(() => rp(root, "stamp", P("1-spec/link.md"), "--mirror"), /symlinked/);
     // A cyclic folder symlink never aborts the walk.
     execFileSync("ln", ["-s", "..", join(root, P("1-spec/loop"))]);
-    const pinned = read(root, "1-spec/spec.md").replace("pins:\n", "pins:\n  - 1-spec/loop@aaaaaaaaaaaa\n");
+    const parsed = parseFrontmatter(read(root, "1-spec/spec.md"));
+    parsed.data.get("pins").unshift("1-spec/loop@aaaaaaaaaaaa");
+    const pinned = renderFrontmatter(parsed.data, parsed.body);
     write(root, "1-spec/spec.md", pinned);
     let output = check(root, "--target-phase", "1");
     assert.match(output, /symlink\s+1-spec\/link\.md\n/);

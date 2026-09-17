@@ -9,7 +9,7 @@ flowchart TD
     C --> H{"Version stamp status"}
     H -->|No .rp.md| I["Offer Fresh setup"]
     H -->|Older or absent stamp| J["Offer Migration"]
-    H -->|conventions: 2| D{"Required active-tool section present?"}
+    H -->|"conventions" = 2| D{"Required active-tool section present?"}
     H -->|Newer than 2| L["Stop and update the skill"]
     D -->|No| E["Offer setup for the active tool"]
     E --> F{"Owner accepts setup?"}
