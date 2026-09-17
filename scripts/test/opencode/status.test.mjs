@@ -148,6 +148,7 @@ describe("shapeStatus", () => {
       ],
       errorLog: ["boom"],
       loopTickLog: [{ loopID: "loop_1", outcome: "busy", at: 123 }],
+      skillReloads: [{ sessionID: "ses_orchestrator", skills: ["radical-pipelines"], files: ["/repo/.rp.md"] }],
     });
 
     assert.deepEqual(result, {
@@ -176,6 +177,7 @@ describe("shapeStatus", () => {
       recentErrors: ["boom"],
       recentLoopTicks: [{ loopID: "loop_1", outcome: "busy", at: 123 }],
       readFailures: [],
+      skillReloads: [{ sessionID: "ses_orchestrator", skills: ["radical-pipelines"], files: ["/repo/.rp.md"] }],
     });
   });
 

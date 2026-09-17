@@ -2261,6 +2261,9 @@ async function buildStatusPayload({
     errorLog: getErrorLog(),
     loopTickLog: getLoopTickLog(),
     readFailures: [...failures.values()],
+    skillReloads: [...getSkillReloads()]
+      .filter(([, record]) => record.skills.length > 0)
+      .map(([sessionID, record]) => ({ sessionID, ...record })),
   });
 }
 
@@ -3670,6 +3673,7 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   errorLog: Array<*>,
  *   loopTickLog?: Array<*>,
  *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
+ *   skillReloads?: Array<{sessionID: string, skills: string[], files: string[]}>,
  * }} input The status payload's components. `pluginVersion` identifies the
  *   running plugin build; `pinComparison` is the result of comparing the
  *   running opencode build against the pin; `ledgerEntries` is one row per
@@ -3677,7 +3681,9 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   bounded recent-event rings; `readFailures` lists the server reads that
  *   failed while gathering the ledger — a non-empty list means the ledger's
  *   `running`/`pending`/`permissions`/`lastText` fields are incomplete, not
- *   that the sessions are idle.
+ *   that the sessions are idle; `skillReloads` lists the sessions that
+ *   activated a packaged skill, with the files re-supplied after a
+ *   checkpoint.
  * @returns {{
  *   pluginVersion: string,
  *   pin: "match" | "outside the verified surface" | "not determinable",
@@ -3702,6 +3708,7 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   recentErrors: Array<*>,
  *   recentLoopTicks: Array<*>,
  *   readFailures: Array<{endpoint: string, status: number | "transport", count: number}>,
+ *   skillReloads: Array<{sessionID: string, skills: string[], files: string[]}>,
  * }} The shaped `rp_status` result.
  */
 function shapeStatus({
@@ -3711,6 +3718,7 @@ function shapeStatus({
   errorLog,
   loopTickLog = [],
   readFailures = [],
+  skillReloads = [],
 }) {
   return {
     pluginVersion,
@@ -3736,6 +3744,7 @@ function shapeStatus({
     recentErrors: errorLog,
     recentLoopTicks: loopTickLog,
     readFailures,
+    skillReloads,
   };
 }
 
@@ -3859,6 +3868,388 @@ function readSkillDirectory(
   }
 
   return skills.sort((left, right) => (left.id < right.id ? -1 : 1));
+}
+
+/**
+ * `globalThis` key backing the per-session skill-reload records.
+ *
+ * Shares the re-import rationale of `LEDGER_KEY`. Each entry accumulates
+ * what the session has been observed to load: the packaged skills it
+ * activated and the files it read while loading them.
+ */
+const SKILL_RELOAD_KEY = Symbol.for("radical-pipelines.opencode.skillReload");
+
+/**
+ * Fetch the process-wide skill-reload records, creating them on first use.
+ *
+ * @returns {Map<string, { skills: string[], files: string[], missing?: string[] }>}
+ *   Session ID to its record; `missing` holds the files the last render
+ *   could not read.
+ */
+function getSkillReloads() {
+  if (!globalThis[SKILL_RELOAD_KEY]) {
+    globalThis[SKILL_RELOAD_KEY] = new Map();
+  }
+  return globalThis[SKILL_RELOAD_KEY];
+}
+
+/**
+ * Basenames of the project convention files the skill loads: `.rp.md`, its
+ * per-tool sidecars (`.rp.<tool>.md`), and the local override (`.rp.local.md`).
+ */
+const CONVENTION_FILE_PATTERN = /^\.rp(?:\.[^./]+)?\.md$/;
+
+/**
+ * Decide whether a `read` of `path` is part of loading the skill: an
+ * absolute path inside one of the packaged skill folders, or a project
+ * convention file wherever it lives. Relative paths cannot be re-read
+ * without the working directory of the call and are not counted.
+ *
+ * @param {string} path The `path` input of the `read` call.
+ * @param {string[]} skillDirs Absolute folders of the packaged skills.
+ * @returns {boolean}
+ */
+function isSkillReloadPath(path, skillDirs) {
+  if (typeof path !== "string" || !isAbsolute(path)) {
+    return false;
+  }
+  if (CONVENTION_FILE_PATTERN.test(basename(path))) {
+    return true;
+  }
+  return skillDirs.some((dir) => path === dir || path.startsWith(`${dir}/`));
+}
+
+/**
+ * The skill-loading events in a session's stored history, oldest first:
+ * `{ skill }` for an activation — a completed `skill` tool call, a `skill`
+ * message, or a skill attached to a user prompt — and `{ file }` for a
+ * completed `read`.
+ *
+ * @param {Array<object>} messages `Session.Message.Info` records.
+ * @returns {Generator<{ skill: string } | { file: string }>}
+ */
+function* storedSkillEvents(messages) {
+  for (const message of messages) {
+    if (message.type === "skill") {
+      yield { skill: message.skill };
+    }
+    if (message.type === "user") {
+      for (const skill of message.skills ?? []) {
+        yield { skill: skill.id };
+      }
+    }
+    if (message.type === "assistant") {
+      for (const part of message.content ?? []) {
+        if (part.type !== "tool" || part.state?.status !== "completed") {
+          continue;
+        }
+        if (part.name === "skill") {
+          yield { skill: part.state.input?.id };
+        }
+        if (part.name === "read") {
+          yield { file: part.state.input?.path };
+        }
+      }
+    }
+  }
+}
+
+/**
+ * The skill-loading events in the messages a model request carries — the
+ * active context, as the `context` hook sees it: activations and reads
+ * appear as `tool-call` parts of assistant messages. A skill attached to a
+ * prompt is indistinguishable from prompt text here; it is found in the
+ * stored history instead.
+ *
+ * @param {Array<{ role: string, content: string | Array<object> }>} messages
+ * @returns {Generator<{ skill: string } | { file: string }>}
+ */
+function* activeSkillEvents(messages) {
+  for (const message of messages) {
+    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+      continue;
+    }
+    for (const part of message.content) {
+      if (part.type !== "tool-call") {
+        continue;
+      }
+      if (part.name === "skill") {
+        yield { skill: part.input?.id };
+      }
+      if (part.name === "read") {
+        yield { file: part.input?.path };
+      }
+    }
+  }
+}
+
+/**
+ * Fold skill-loading events into a record: the packaged skills activated
+ * and the files read while loading them, each in first-seen order without
+ * repeats.
+ *
+ * @param {Iterable<{ skill?: string, file?: string }>} events
+ * @param {Array<{ id: string, location: string }>} skills The packaged skills.
+ * @returns {{ skills: string[], files: string[] }}
+ */
+function collectSkillReload(events, skills) {
+  const ids = new Set(skills.map((skill) => skill.id));
+  const skillDirs = skills.map((skill) => dirname(skill.location));
+  const record = { skills: [], files: [] };
+  for (const event of events) {
+    if (event.skill !== undefined && ids.has(event.skill) && !record.skills.includes(event.skill)) {
+      record.skills.push(event.skill);
+    }
+    if (event.file !== undefined && isSkillReloadPath(event.file, skillDirs) && !record.files.includes(event.file)) {
+      record.files.push(event.file);
+    }
+  }
+  return record;
+}
+
+/**
+ * Add what a request showed to a session's record.
+ *
+ * @param {{ skills: string[], files: string[] }} record The session's record, mutated.
+ * @param {{ skills: string[], files: string[] }} observed What the request carried.
+ * @returns {void}
+ */
+function mergeSkillReload(record, observed) {
+  for (const key of ["skills", "files"]) {
+    for (const item of observed[key]) {
+      if (!record[key].includes(item)) {
+        record[key].push(item);
+      }
+    }
+  }
+}
+
+/**
+ * Page size for `listSessionMessages`.
+ */
+const SESSION_MESSAGES_PAGE = 200;
+
+/**
+ * Read a session's whole stored history, oldest first, following the
+ * server's cursors. Earlier messages remain stored after a checkpoint, so
+ * this sees what the active context no longer does.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session to read.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<Array<object>>} Every `Session.Message.Info` record.
+ * @throws {Error} On a non-2xx response.
+ */
+async function listSessionMessages(server, sessionID, requestFn) {
+  const messages = [];
+  let path = `/api/session/${sessionID}/message?order=asc&limit=${SESSION_MESSAGES_PAGE}`;
+  while (path) {
+    const response = await requestServer(server, "GET", path, undefined, requestFn);
+    if (response.status < 200 || response.status >= 300) {
+      throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
+    }
+    messages.push(...(response.body?.data ?? []));
+    const next = response.body?.cursor?.next;
+    path = next
+      ? `/api/session/${sessionID}/message?cursor=${encodeURIComponent(next)}&limit=${SESSION_MESSAGES_PAGE}`
+      : undefined;
+  }
+  return messages;
+}
+
+/**
+ * Check whether a session has a completed checkpoint in its stored history.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session to check.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<boolean>}
+ * @throws {Error} On a non-2xx response.
+ */
+async function hasCheckpoint(server, sessionID, requestFn) {
+  const response = await requestServer(
+    server,
+    "GET",
+    `/api/session/${sessionID}/message?type=compaction&order=desc&limit=${SESSION_MESSAGES_PAGE}`,
+    undefined,
+    requestFn,
+  );
+  if (response.status < 200 || response.status >= 300) {
+    throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
+  }
+  return (response.body?.data ?? []).some((message) => message.status === "completed");
+}
+
+/**
+ * Derive a session's record from its stored history: what a checkpoint has
+ * sealed away from the active context. Read when the daemon holds no record
+ * for a session and its request shows no activation — either the session
+ * never loaded a skill, or it did before a checkpoint the daemon did not
+ * see. A session without a checkpoint has nothing sealed and is not paged.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session to read.
+ * @param {Array<{ id: string, location: string }>} skills The packaged skills.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ * @returns {Promise<{ skills: string[], files: string[] }>}
+ * @throws {Error} When the history cannot be read.
+ */
+async function readSealedSkillReload(server, sessionID, skills, requestFn) {
+  if (!(await hasCheckpoint(server, sessionID, requestFn))) {
+    return { skills: [], files: [] };
+  }
+  const messages = await listSessionMessages(server, sessionID, requestFn);
+  const last = messages.findLastIndex((message) => message.type === "compaction" && message.status === "completed");
+  return collectSkillReload(storedSkillEvents(messages.slice(0, last)), skills);
+}
+
+/**
+ * Decide whether a model request is opencode's checkpoint summary: its last
+ * message is the summary prompt opencode appends to the transcript, which
+ * carries the response template and forbids continuing the task.
+ *
+ * @param {Array<{ role: string, content: string | Array<object> }>} messages
+ * @returns {boolean}
+ */
+function isCompactionRequest(messages) {
+  const last = messages.at(-1);
+  if (last?.role !== "user") {
+    return false;
+  }
+  const text =
+    typeof last.content === "string"
+      ? last.content
+      : (last.content ?? []).map((part) => (part.type === "text" ? part.text : "")).join("\n");
+  return text.includes("<template>") && text.includes("Do not continue the task or call tools.");
+}
+
+/**
+ * Text pushed into the checkpoint summary request of a session that
+ * activated a packaged skill, so the summary keeps what the owner settled
+ * and what is in flight, which the re-supplied skill cannot recover.
+ */
+const SKILL_RELOAD_SUMMARY_SECTION = [
+  "This session orchestrates a Radical Pipelines run. Add a `## Pipeline run` section to the summary with what the owner settled at triage and what is in flight:",
+  "the pipeline folder and branch, the worktree, the base branch, the target phase, the workflow, the lane declaration, every confirmation the owner gave, the frontier item being resolved with the agent dispatched for it and its session ID, and any pending owner escalation.",
+  "The owner stated these; keep them.",
+].join(" ");
+
+/**
+ * Render the block re-supplied to a session that continues from a
+ * checkpoint: each activated skill as the `skill` tool presented it, every
+ * file read while loading it, and the live facts the plugin holds for the
+ * session. Skill bodies and file contents are the current ones.
+ *
+ * @param {{
+ *   skills: Array<{ id: string, location: string, content: string }>,
+ *   files: string[],
+ *   agents: Array<{ name: string, sessionID: string, directory?: string }>,
+ *   loops: Array<{ id: string, interval: number }>,
+ * }} input
+ * @param {(path: string) => string} [read] File reader; defaults to the filesystem.
+ * @returns {{ text: string, missing: string[] }} The rendered block, and the
+ *   files that could not be read and were left out.
+ */
+function renderSkillReload({ skills, files, agents, loops }, read = (path) => readFileSync(path, "utf8")) {
+  const missing = [];
+  const sections = [
+    "This session's context was checkpointed. The skill and the files read while loading it are re-supplied below, current as on disk. Recompute state with `rp check` and `rp_status` before acting.",
+    ...skills.map((skill) => `Skill: ${skill.id}\nBase directory: ${dirname(skill.location)}\n\n${skill.content}`),
+  ];
+  for (const path of files) {
+    try {
+      sections.push(`File: ${path}\n${read(path)}`);
+    } catch {
+      missing.push(path);
+    }
+  }
+  sections.push(
+    agents.length === 0
+      ? "Agents spawned by this session: (none)"
+      : ["Agents spawned by this session:", ...agents.map((agent) => `- ${agent.name} — ${agent.sessionID}${agent.directory ? ` — ${agent.directory}` : ""}`)].join("\n"),
+  );
+  sections.push(
+    loops.length === 0
+      ? "Health loops targeting this session: (none)"
+      : ["Health loops targeting this session:", ...loops.map((loop) => `- ${loop.id} (${loop.interval} ms)`)].join("\n"),
+  );
+  return { text: sections.join("\n\n"), missing };
+}
+
+/**
+ * The context hook: keep a session's skill across checkpoints.
+ *
+ * Compaction summarizes the transcript and drops instructions the assistant
+ * was given rather than told — the activated skill and the files read from
+ * its folder among them — so a session that continues from a checkpoint
+ * has lost them. Every request shows its active context; what it shows is
+ * added to the session's record. A request from a session whose record
+ * holds an activation the request no longer carries is continuing from a
+ * checkpoint: it is re-supplied the skill and the recorded files the
+ * request lacks. The checkpoint summary request itself is asked to keep the
+ * run's settled facts instead.
+ *
+ * A session the daemon holds no record for, whose request shows no
+ * activation, is read once from its stored history. A spawned agent never
+ * activates the skill and is skipped without a read.
+ *
+ * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
+ *   The `context` hook event.
+ * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, registryPath: string, requestFn?: Function }} deps
+ * @returns {Promise<void>}
+ */
+async function onContext(event, { server, skills, registryPath, requestFn }) {
+  const { sessionID } = event;
+  if (lookupSpawn(sessionID)) {
+    return;
+  }
+  const observed = collectSkillReload(activeSkillEvents(event.messages), skills);
+  const reloads = getSkillReloads();
+  let record = reloads.get(sessionID);
+  if (record) {
+    mergeSkillReload(record, observed);
+  } else {
+    record = observed;
+    if (observed.skills.length === 0 && server) {
+      try {
+        record = await readSealedSkillReload(server, sessionID, skills, requestFn);
+        mergeSkillReload(record, observed);
+      } catch (error) {
+        recordError({ type: "skill.reload.unreadable", sessionID, error: String(error), at: Date.now() });
+        return;
+      }
+    }
+    reloads.set(sessionID, record);
+  }
+  if (record.skills.length === 0) {
+    return;
+  }
+  if (isCompactionRequest(event.messages)) {
+    event.system.push({ type: "text", text: SKILL_RELOAD_SUMMARY_SECTION });
+    return;
+  }
+  if (observed.skills.length > 0) {
+    return;
+  }
+  const agents = [...getLedger().bySessionID]
+    .filter(([, entry]) => entry.spawner === sessionID)
+    .map(([id, entry]) => ({ name: entry.name, sessionID: id, directory: entry.directory }));
+  const loops = listLoopEntries(registryPath).filter((entry) => entry.targetSession === sessionID);
+  const { text, missing } = renderSkillReload({
+    skills: skills.filter((skill) => record.skills.includes(skill.id)),
+    files: record.files.filter((path) => !observed.files.includes(path)),
+    agents,
+    loops,
+  });
+  for (const path of missing) {
+    if (!record.missing?.includes(path)) {
+      recordError({ type: "skill.reload.missing", sessionID, path, at: Date.now() });
+    }
+  }
+  record.missing = missing;
+  event.system.push({ type: "text", text });
 }
 
 /**
@@ -4703,15 +5094,32 @@ async function setup(ctx, deps = {}) {
   // this hook is missing. A hook landing late cannot retroactively tee a
   // response whose headers already passed; coverage returns only with the
   // next response the hook actually observes.
-  const hookRegistration = Promise.resolve()
-    .then(() => ctx.session.hook("http.response", observeHttpResponse))
-    .catch((error) => {
-      recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() });
-      return undefined;
-    });
+  //
+  // The skill-reload hook is registered the same way: `context` sees every
+  // model request and re-supplies the skill to a session continuing from a
+  // checkpoint. It reads the packaged skills at call time so the block
+  // carries their current bodies.
+  const registerHook = (name, callback) =>
+    Promise.resolve()
+      .then(() => ctx.session.hook(name, callback))
+      .catch((error) => {
+        recordError({ type: "observer.hook.failed", hook: name, error: String(error), at: Date.now() });
+        return undefined;
+      });
+  const hookRegistrations = [
+    registerHook("http.response", observeHttpResponse),
+    registerHook("context", (event) =>
+      onContext(event, {
+        server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
+        skills: readSkillDirectory(SKILLS_SOURCE_DIR),
+        registryPath,
+        requestFn,
+      }),
+    ),
+  ];
 
   // The plugin API invokes the returned cleanup when unloading a location:
-  // dispose only this location's hook, and tear the shared observer and
+  // dispose only this location's hooks, and tear the shared observer and
   // timers down only when the last live location releases them — clearing
   // the once-guard so a reloaded plugin's setup can re-arm everything.
   let cleaned = false;
@@ -4720,8 +5128,9 @@ async function setup(ctx, deps = {}) {
       return;
     }
     cleaned = true;
-    const registration = await hookRegistration;
-    await Promise.resolve(registration?.dispose?.()).catch(() => {});
+    for (const registration of await Promise.all(hookRegistrations)) {
+      await Promise.resolve(registration?.dispose?.()).catch(() => {});
+    }
     shared.refs -= 1;
     if (shared.refs <= 0 && globalThis[SETUP_ONCE_KEY] === shared) {
       delete globalThis[SETUP_ONCE_KEY];
@@ -4743,7 +5152,9 @@ export {
   asDirectTool,
   buildBasicAuthHeader,
   buildLedgerRows,
+  activeSkillEvents,
   buildStatusPayload,
+  collectSkillReload,
   comparePinnedBuild,
   currentToolFor,
   deleteLoopEntry,
@@ -4759,8 +5170,11 @@ export {
   getSessionInbox,
   getSessionMessages,
   getSessionUpdatedAt,
+  getSkillReloads,
   guardTool,
+  hasCheckpoint,
   interruptSession,
+  isCompactionRequest,
   isDeadStreamMessage,
   isSessionActive,
   isSessionNotFoundError,
@@ -4770,9 +5184,12 @@ export {
   lastSessionEventAt,
   lastTargetInterruptAt,
   listLoopEntries,
+  listSessionMessages,
   lookupSpawn,
   materializeAgents,
+  mergeSkillReload,
   observeHttpResponse,
+  onContext,
   onPermissionAsked,
   onToolEvent,
   parseModelString,
@@ -4783,6 +5200,7 @@ export {
   readCliVersion,
   readPackageVersion,
   readPinManifest,
+  readSealedSkillReload,
   readServiceRecordFile,
   readSessionParentage,
   readSkillDirectory,
@@ -4796,6 +5214,7 @@ export {
   recordTargetInterrupt,
   recordTurnEnd,
   redirectTargets,
+  renderSkillReload,
   replyToPermission,
   requestServer,
   resolveAgentsTargetDir,
@@ -4810,6 +5229,7 @@ export {
   sessionReadError,
   setup,
   shapeStatus,
+  storedSkillEvents,
   superviseEvents,
   terminalEventError,
   terminalEventSessionID,
