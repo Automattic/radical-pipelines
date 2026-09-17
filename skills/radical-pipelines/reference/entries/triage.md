@@ -34,7 +34,7 @@ Routes group by pipeline into runs.
 
 ### 4. Confirm the runs
 
-Propose each run's configuration from its current `run-config.md`, or the **Agents** defaults when absent. In one message, give each route and why — or, when no predicate decides, the one deciding question — and ask the owner to confirm or change the workflow, target phase in plain language, lanes, models, and remaining questions. Lane changes may remove dropped-lane files and stale artifacts whose approval package changes. Revise and reconfirm until the owner confirms.
+Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give each route and why — or, when no predicate decides, the one deciding question — the configuration to confirm or change (workflow, target phase in plain language without phase numbers, lanes, models), what a lane change does to the tree (a dropped lane's files are removed; artifacts whose approval package changes go stale), and every other question this session still has. Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 
@@ -61,4 +61,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-One run at a time, in table order; a run carries its statements. Quote the owner's directions about the work as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`. Write `run-config.md` with the confirmed configuration and body, applying `../run/state.md` § Run configuration; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+One run at a time, in table order; a run carries its statements. Quote the owner's directions about the work as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`. Write `run-config.md` (`../run/state.md` § Run configuration) as confirmed; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.

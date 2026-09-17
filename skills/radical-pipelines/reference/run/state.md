@@ -39,13 +39,13 @@ Lane ids start with a lowercase letter or digit, continue with those or hyphens,
 | `spec-producer` | `spec` | production |
 | `design-doc-producer` | `design-doc` | production |
 
-Its body is free prose for models, owner directions, and other run information. `rp` ignores it. Agents receive relevant information in their prompts.
+Its body is free prose — models, the owner's directions for the run, anything else the run needs; `rp` ignores it.
 
 The file remains with a merged pipeline. It records no fact about whether a run is under way; tool mechanics report working agents. Write and commit every configuration change before acting on it. In that commit, remove a dropped lane's folder and reviews. Terminate agents working under a changed lane; `rp check` dispatches it again.
 
 ## Frontmatter
 
-Frontmatter is a JSON object between `---` lines; the last value of a repeated key applies, and stamps omit empty lists. Artifact frontmatter holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration outside Markdown code fences in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or the lane derived from the path. A stamp with `--reviewed` fixes the consumed package, validating completeness for implicit reviews and task reports. `rp check` validates every review lane against its declared reference. Later stamps preserve that package and landing facts while updating what their options request. `rp check` derives validity from the tree, reads frontmatter and identities, and recomputes body-derived fields: a file whose projection differs is stamped again before anything reads it; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
+Frontmatter is a JSON object between `---` lines; the last value of a repeated key applies, and stamps omit empty lists. Every other file's frontmatter holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration outside Markdown code fences in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or the lane derived from the path. A stamp with `--reviewed` fixes the consumed package, validating completeness for implicit reviews and task reports. `rp check` validates every review lane against its declared reference. Later stamps preserve that package and landing facts while updating what their options request. `rp check` derives validity from the tree, reads frontmatter and identities, and recomputes body-derived fields: a file whose projection differs is stamped again before anything reads it; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
 
 | Key         | Files                        | Value                                                                    |
 | ----------- | ---------------------------- | ------------------------------------------------------------------------ |
@@ -62,7 +62,7 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
 | `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists and is stored as its full hash, whatever length the body wrote |
 | `head`      | files with pins              | the commit a stamp with pins observed: the diff base for the next delta review or convergence |
-| `lane`      | production artifacts; named reviews | the fingerprint derived from `run-config.md` and the file's path                     |
+| `lane`      | a production lane's artifact; a named review lane's review | the fingerprint derived from `run-config.md` and the file's path                     |
 | `attempt`, `outcome` | task reports        | the attempt, from the filename; `completed` \| `failed` \| `blocked`     |
 
 A stamp follows the commit of what it stamps and is committed on top of it, on the branch the work landed on. Every commit on the branch outside the pipelines folder is claimed by a task report, which lands in a commit of its own after the commits it names.

@@ -7,9 +7,8 @@ The owner writes the `Agents` section in any human-readable format. Interpret it
 ## Fields
 
 - `model` — what to spawn the profile on. A lane inherits the profile's model unless it has its own.
-- Named lane `id` — identifies the lane.
 - `brief` — the review angle or production exploration, passed verbatim under **Brief**.
-- `materials` — review-package members selected for a review lane. Its references supply historical material. **Diff**, **Brief**, and **Write to** remain in the prompt.
+- `materials` — the members of the review package (`../run/state.md` § Terms) a review lane receives; the package's references supply the rest. **Diff**, **Brief**, and **Write to** are always supplied.
 - `after` — production lanes whose approved artifacts this lane receives and waits for.
 
 Review lanes supplement the implicit lane. Production lanes replace root synthesis with candidates and consolidation.
