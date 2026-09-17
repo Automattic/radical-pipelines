@@ -19,7 +19,7 @@ Help
 
 ## Context
 
-<why the requester asks; what it already knows; what it wants back>
+<why the requester asks; what it already knows; what it wants back; the requester's rules that bind the piece>
 
 ## Files
 

@@ -53,7 +53,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **What, where, for whom** — each task names its surface, exact sections and scope, and a concrete audience without prescribing the documentation's wording; a task that dictates sentences the worker should draw from the code is a finding.
 - **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.
 - **Per-task acceptance** — every task has acceptance criteria framed as what the reader leaves with or what the documentation must cover; missing, vague, or contradictory acceptance is a finding.
-- **Self-containment and order** — a worker can execute each task file without deciding what the software does; a task combining unrelated surfaces or audiences, or parts a worker could complete and verify separately, is a finding; dependencies name every prerequisite, are real and acyclic, and permit the stated order; the plan's order lists exactly the task files.
+- **Self-containment and order** — a worker can execute each task file without deciding what the software does; a task with parts a worker could complete and verify separately is a finding; dependencies name every prerequisite, are real and acyclic, and permit the stated order; the plan's order lists exactly the task files.
 - **Documentation only** — a task produces documentation, never source code.
 - **Scope** — the plan stays within the spec and design doc.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.

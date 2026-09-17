@@ -51,7 +51,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Help**
 
-- Do yourself what you can name — a file to read, a symbol to check. Send the orchestrator a help request for a piece of the work you can hand over whole — a question, an observation, a change; a fresh helper does it under your Seat and answers directly. What it returns is input you verify; the checks in your report are your own runs.
+- Do yourself what you can name — a file to read, a symbol to check. Send the orchestrator a help request for a piece of the work you can hand over whole — a question, an observation, a change; a fresh helper does it under your Seat and answers directly. The request carries the rules of yours that bind the piece. What it returns is input you verify; the checks in your report are your own runs.
 - One piece per request; batch only independent requests. Confirm every request was answered before reporting completion.
 
 **Guardrails**

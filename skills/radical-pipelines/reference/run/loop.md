@@ -43,7 +43,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - `Execution:` in the Seat is `inspection only` for producers and plan reviewers; `full` for workers and the build and document reviewers. A helper's Seat is its requester's.
 - A build or document review's fresh **Diff** is every change on the branch outside the pipelines folder since its base.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
-- Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each.
+- Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each. A result whose requester is gone reaches the next instance dispatched for its work under **Help**.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
 
 ## Stamp on landing

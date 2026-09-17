@@ -10,9 +10,9 @@ Migrate from version 1.
 
 In `Agents`, the `researcher` block becomes `helper`.
 
-### Additions
+### Removals
 
-- Frontmatter stamp `conventions: 2`.
+- `researcher` from every `Guardrails` block's `agents`: a helper receives its requester's rules.
 
 ## 1
 
