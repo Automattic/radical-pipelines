@@ -701,11 +701,11 @@ describe("rp_send", () => {
   test("delivers agent-to-agent with steer, not only to and from the orchestrator", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
     await setup(ctx, isolatedDeps({ env: {} }));
-    sessions.set("ses_researcher", { id: "ses_researcher" });
+    sessions.set("ses_helper", { id: "ses_helper" });
     sessions.set("ses_requester", { id: "ses_requester" });
     // Both ends are RP spawns: the requester/helper pair, not the spawner.
     for (const [id, name] of [
-      ["ses_researcher", "researcher-q1"],
+      ["ses_helper", "helper-q1"],
       ["ses_requester", "correction-lead"],
     ]) {
       recordSpawn(id, { name, run: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
@@ -720,11 +720,11 @@ describe("rp_send", () => {
 
     await tools
       .get("rp_send")
-      .execute({ to: "ses_requester", message: "Q1 answer" }, { sessionID: "ses_researcher" });
+      .execute({ to: "ses_requester", message: "Q1 answer" }, { sessionID: "ses_helper" });
 
     assert.equal(captured.sessionID, "ses_requester");
     assert.equal(captured.delivery, "steer");
-    assert.ok(captured.text.startsWith("[from researcher-q1 (ses_researcher)]"));
+    assert.ok(captured.text.startsWith("[from helper-q1 (ses_helper)]"));
   });
 
   test("delivers with steer and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
