@@ -1,8 +1,8 @@
 /**
- * rp_status's version and pin-comparison surface, its ledger rows' liveness
- * facts, and the suite's own pin assertion: the suite reads the running build
+ * rp_status's version surface, its ledger rows' liveness
+ * facts, and the suite's runtime assertion: the suite reads the running build
  * directly via `opencode --version` (the same XDG-isolated invocation the
- * harness uses everywhere) and asserts it equals `opencode/pin.json`'s `cli`.
+ * harness uses everywhere) and asserts it equals the resolved CLI version.
  */
 
 import assert from "node:assert/strict";
@@ -29,22 +29,22 @@ const STUB_MODEL = { providerID: "stub", id: "stub-model" };
 /**
  * Run every check in this group.
  *
- * @param {{ server: object, projectDir: string, env: object, opencodeBin: string, pin: object, results: Array }} ctx
+ * @param {{ server: object, projectDir: string, env: object, opencodeBin: string, version: string, results: Array }} ctx
  * @returns {Promise<void>}
  */
 export async function run(ctx) {
-  const { server, projectDir, env, opencodeBin, pin, results } = ctx;
+  const { server, projectDir, env, opencodeBin, version, results } = ctx;
 
-  await runCheck(results, "the pin assertion: the running build (read directly) equals opencode/pin.json's cli", async () => {
+  await runCheck(results, "the running CLI matches the resolved stable release", async () => {
     // Every opencode invocation in the sandbox — including this one-off
     // --version call — uses the sandbox's XDG env, per the harness's
     // log-leak rule.
     const { stdout } = await execFileAsync(opencodeBin, ["--version"], { env: { ...process.env, ...env } });
     const runningBuild = stdout.trim().replace(/^opencode\s+v/, "");
-    assert.equal(runningBuild, pin.cli, `expected the running build to equal the pinned cli ${pin.cli}, got: ${stdout}`);
+    assert.equal(runningBuild, version, `expected CLI ${version}, got: ${stdout}`);
   });
 
-  await runCheck(results, "rp_status reports the plugin version and a pin comparison", async () => {
+  await runCheck(results, "rp_status reports the plugin version without a runtime pin", async () => {
     const session = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
     const result = await driveToolCall(server, session.id, "rp_status");
     const status = JSON.parse(result.text);
@@ -52,11 +52,7 @@ export async function run(ctx) {
     const pkgVersion = JSON.parse(readFileSync(new URL("../../../package.json", import.meta.url), "utf8")).version;
     assert.equal(status.pluginVersion, `radical-pipelines@${pkgVersion}`);
 
-    // Under `serve` (no service record), rp_status falls back to
-    // `opencode --version`, which the sandbox's serve process can resolve
-    // since the pinned install's bin dir is on its PATH — so the
-    // comparison should resolve to "match" rather than "not determinable".
-    assert.equal(status.pin, "match", `expected rp_status's pin comparison to be "match", got: ${status.pin}`);
+    assert.equal(Object.hasOwn(status, "pin"), false);
     assert.ok(Array.isArray(status.ledger));
     assert.ok(Array.isArray(status.recentErrors));
     assert.ok(Array.isArray(status.recentLoopTicks));

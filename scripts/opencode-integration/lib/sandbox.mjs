@@ -1,8 +1,8 @@
 /**
  * XDG-isolated sandbox harness for the opencode integration suite.
  *
- * Installs the pinned `@opencode/cli` (non-globally, cached by exact
- * version so repeat runs skip the network) and drives it entirely inside a
+ * Resolves the latest stable `@opencode/cli` (non-globally, cached by exact
+ * version) and drives it entirely inside a
  * fresh temp directory: all four XDG vars point inside the sandbox on every
  * invocation, including `--version`, so nothing this suite runs ever touches
  * the real user's opencode state.
@@ -11,9 +11,7 @@
  * needs a private, disposable server per run. `serve` writes no service
  * record, so `RP_OPENCODE_SERVER_URL` + `OPENCODE_PASSWORD` are set on its own
  * environment — the same override contract the plugin's `resolveServer`
- * reads — and the cached install's bin directory is put on `PATH` so the
- * plugin's `opencode --version` fallback (used when no service record is
- * present) resolves.
+ * reads.
  */
 
 import { spawn } from "node:child_process";
@@ -21,7 +19,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
@@ -37,7 +34,6 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".."
 // path must be a directory", which would leave this suite exercising a
 // sandbox the plugin never loaded into.
 const PLUGIN_ENTRY = join(REPO_ROOT, "opencode");
-const PIN_MANIFEST_PATH = join(REPO_ROOT, "opencode", "pin.json");
 
 /** Fixed local port the sandbox's `serve` process listens on. */
 const SERVE_PORT = 46177;
@@ -49,30 +45,21 @@ const SERVE_PASSWORD = "rp-opencode-integration-suite";
 const STUB_PORT = 46178;
 
 /**
- * Read and parse the pin manifest (the single source of truth for the exact
- * `@opencode/cli` build and `@opencode/plugin` version this suite
- * targets).
+ * Resolve the latest stable CLI from npm, installing on first use and caching
+ * by resolved version under the OS temp directory.
  *
- * @returns {{ cli: string, plugin: string }} The parsed manifest.
- */
-export function readPinManifest() {
-  return JSON.parse(readFileSync(PIN_MANIFEST_PATH, "utf8"));
-}
-
-/**
- * Resolve (installing on first use) a non-global, version-pinned install of
- * `@opencode/cli` and `@opencode/plugin`, cached by exact version under
- * the OS temp directory so a repeat run with the same pin never touches the
- * network.
- *
- * @param {{ cli: string, plugin: string }} pin The pin manifest.
- * @returns {Promise<{ cacheDir: string, binDir: string, opencodeBin: string }>}
+ * @returns {Promise<{ version: string, cacheDir: string, binDir: string, opencodeBin: string }>}
  *   `cacheDir` is the install root; `binDir` is its `node_modules/.bin`
  *   (added to `PATH` for the sandbox's processes); `opencodeBin` is the
  *   resolved `opencode` executable path.
  */
-export async function ensurePinnedCli(pin) {
-  const cacheDir = join(tmpdir(), "rp-opencode-integration-cache", pin.cli);
+export async function ensureCli() {
+  const { stdout } = await runCommand("npm", ["view", "@opencode/cli@latest", "version", "--json"]);
+  const version = JSON.parse(stdout);
+  if (typeof version !== "string" || !/^2\.\d+\.\d+$/.test(version)) {
+    throw new Error(`Expected a stable opencode v2 release, got: ${stdout}`);
+  }
+  const cacheDir = join(tmpdir(), "rp-opencode-integration-cache", version);
   const binDir = join(cacheDir, "node_modules", ".bin");
   const opencodeBin = join(binDir, "opencode");
 
@@ -88,8 +75,7 @@ export async function ensurePinnedCli(pin) {
         "install",
         "--no-audit",
         "--no-fund",
-        `@opencode/cli@${pin.cli}`,
-        `@opencode/plugin@${pin.plugin}`,
+        `@opencode/cli@${version}`,
       ],
       { cwd: cacheDir },
     );
@@ -97,11 +83,11 @@ export async function ensurePinnedCli(pin) {
 
   if (!existsSync(opencodeBin)) {
     throw new Error(
-      `Pinned opencode CLI did not install as expected: ${opencodeBin} not found after \`npm install\` in ${cacheDir}.`,
+      `opencode CLI did not install as expected: ${opencodeBin} not found after \`npm install\` in ${cacheDir}.`,
     );
   }
 
-  return { cacheDir, binDir, opencodeBin };
+  return { version, cacheDir, binDir, opencodeBin };
 }
 
 /**
@@ -167,7 +153,6 @@ function writeSandboxConfig({ xdgConfigHome, stubPort }) {
     JSON.stringify(
       {
         $schema: "https://opencode.ai/config.json",
-        update: "disable",
         plugins: [PLUGIN_ENTRY],
         providers: {
           // The core suite's provider: a mandatory (if dummy) apiKey, so
@@ -236,8 +221,7 @@ export function destroySandbox(sandboxDir) {
  *
  * Sets `RP_OPENCODE_SERVER_URL` + `OPENCODE_PASSWORD` on the process's own
  * environment (the harness's server-reach contract, mirroring the plugin's
- * `resolveServer`), and prepends the pinned install's bin directory to
- * `PATH` so the plugin's `opencode --version` fallback resolves.
+ * `resolveServer`), and prepends the install's bin directory to `PATH`.
  *
  * @param {{ projectDir: string, env: Record<string,string>, binDir: string, opencodeBin: string }} options
  * @returns {Promise<{ child: import("node:child_process").ChildProcess, baseURL: string, password: string }>}

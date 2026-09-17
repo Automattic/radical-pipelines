@@ -105,18 +105,18 @@ The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are
 
 ## opencode plugin install
 
-opencode installs plugins from its global config rather than from a marketplace. Radical Pipelines is distributed as a pinned Git specifier that opencode resolves through its own npm resolver, so installing it is a config edit followed by one restart. The target is released opencode v2 (the `opencode` binary), verified against one exact pinned version recorded in [`opencode/pin.json`](./opencode/pin.json).
+Radical Pipelines supports stable opencode v2 (the `opencode` binary). Install it through opencode's global plugin configuration using its Git source.
 
-Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, pinned to a release tag, and disable opencode's auto-update:
+Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`:
 
 ```jsonc
 {
-  "plugins": ["github:Automattic/radical-pipelines#v<X.Y.Z>"],
-  "update": "disable"
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["github:Automattic/radical-pipelines"]
 }
 ```
 
-Replace `v<X.Y.Z>` with the RP release tag to install; RP tags every release `v<version>`. Then restart the opencode service once:
+Then restart the opencode service:
 
 ```bash
 opencode service restart
@@ -131,28 +131,26 @@ A single restart is enough — the plugin finishes its setup before opencode sca
 - A spawned agent's read outside its worktree raises a permission request that the plugin announces to the spawner; reads that resolve inside the worktree are redirected without asking. The spawner answers with `rp_permission_reply`.
 - `rp_terminate` deletes a finished agent's session so it cannot linger or receive more work.
 - `rp_status` reports each spawned session with its `run` and its liveness facts: `activity` (the latest of `updated`, which opencode moves only when the session receives input, the session's last observed tool or model progress event, and its last raw provider byte), `lastTurn` (`succeeded`, `failed`, or `interrupted`) and `turns`, `lastSend` (its last `rp_send` and recipient), and `lastText` (its newest assistant text, or how many messages were searched without finding one) — enough to tell a working, a waiting, and a stopped agent apart. `lastTurn`, `turns`, and `lastSend` live in the daemon's memory: after a restart they are absent until observed again — unknown, not never — and `activity` falls back to `updated` until progress is observed; `run`, `lastText`, and the rest are read back from the durable session store.
-- Health-loop ticks skip recently active sessions, steer into sessions with no activity for two intervals, and remain observable through `rp_status`. A tick never duplicates a prompt whose predecessor is still undelivered or unanswered — a parked queue copy facing a running session is promoted to steer delivery in place; each injection is judged by the turn that answers it, and when that turn only fails (network outage, provider quota exhaustion) the loop backs off exponentially — up to ~8 intervals between probes — while still inspecting the target every tick and resuming normal cadence on the first success; and a target stuck on a dead provider stream — a frozen tool call, with no tool executing anywhere in the message, whose own response (identified by its provider call id in the teed bytes of each location's provider responses) produced no bytes and no progress events for a one-hour confirmation window (an accepted, documented heuristic: silence cannot prove death, so a totally silent live stream outlasting the window would be interrupted — a case beyond observed provider behavior) — is interrupted exactly once across all loops, with any parked monitor copy made steerable first, so the monitor prompt reaches the freed session on the next delivery. Under the plugin's single-observer assumption (no other plugin consumes through its tee and then substitutes the response without cancelling it), a stream whose response identity is established is never interrupted while it produces bytes — bounded only by the instant between the final revalidation and the session-scoped interrupt request, the tightest window the pinned API offers. Traffic whose identity cannot be established — never observed, or observed but with the projected tool id unmatched in its consumed bytes — is unknown coverage and is never escalated.
+- Health-loop ticks skip recently active sessions, steer into sessions with no activity for two intervals, and remain observable through `rp_status`. A tick never duplicates a prompt whose predecessor is still undelivered or unanswered — a parked queue copy facing a running session is promoted to steer delivery in place; each injection is judged by the turn that answers it, and when that turn only fails (network outage, provider quota exhaustion) the loop backs off exponentially — up to ~8 intervals between probes — while still inspecting the target every tick and resuming normal cadence on the first success; and a target stuck on a dead provider stream — a frozen tool call, with no tool executing anywhere in the message, whose own response (identified by its provider call id in the teed bytes of each location's provider responses) produced no bytes and no progress events for a one-hour confirmation window (an accepted, documented heuristic: silence cannot prove death, so a totally silent live stream outlasting the window would be interrupted — a case beyond observed provider behavior) — is interrupted exactly once across all loops, with any parked monitor copy made steerable first, so the monitor prompt reaches the freed session on the next delivery. Under the plugin's single-observer assumption (no other plugin consumes through its tee and then substitutes the response without cancelling it), a stream whose response identity is established is never interrupted while it produces bytes — bounded only by the instant between the final revalidation and the session-scoped interrupt request, the tightest window the API offers. Traffic whose identity cannot be established — never observed, or observed but with the projected tool id unmatched in its consumed bytes — is unknown coverage and is never escalated.
 - Health-loop server requests time out after 10 seconds. A tick still pending after two minutes records `timeout` in `rp_status` and re-arms; cancelling a loop returns as soon as it is disarmed instead of waiting for its active tick. A tick that finds its target session gone retires the loop and records `loop.retired`, rather than failing again on every interval for as long as the daemon runs.
 - The plugin's tools are scoped to the session calling them, by two facts a caller cannot forge: the parentage opencode reports when a session is created, and the ledger RP writes when it spawns. The orchestrator — which nothing spawned — and the owner's own session reach every tool; an agent spawned with `rp_spawn` reaches `rp_send`, which is all its profile needs; and a subagent, created by a session delegating inside its own turn, reaches none and is told to return its findings to whoever delegated to it. Parentage normally arrives on the event stream, but an event can be missed — the subscription replays no history, and a dropped stream resubscribes rather than recovering what fell in the gap — so a session RP has not seen is asked about, once, against the durable session store rather than assumed unparented. Any read that does not answer — an unreachable server, but equally one that replies 500 or 404 — leaves the question open, and an unclassifiable caller is then treated as a root session, because refusing every one of them would stop the orchestrator too. The ledger lives in daemon memory, so after a restart a spawned agent widens to the orchestrator's set until it is spawned again.
-- opencode's auto-update is disabled, holding the installation on the verified build.
-
-`update: "disable"` matters because RP verifies against one exact opencode version. That version lives in [`opencode/pin.json`](./opencode/pin.json), which pins both the `@opencode/cli` package the `opencode` binary comes from and the `@opencode/plugin` package version the plugin is written against. Any opencode version other than the pin is outside RP's verified surface.
 
 ### Updating
 
-To move to a newer RP release, change the pinned tag in the same `plugins` entry to the newer `v<version>` release tag — keeping `update: "disable"` — and restart:
+Update the configured Git plugin and restart:
 
 ```bash
+opencode plugin update github:Automattic/radical-pipelines
 opencode service restart
 ```
 
-opencode resolves the new tag into its own cache entry and the plugin refreshes the materialized agents during setup, so the newer skill and agents take effect after the restart. Only a pinned tag refreshes this way: a moving ref (a branch name in place of a `v<version>` tag) resolves once and never refreshes, which is why the procedure always pins a tag.
+The plugin refreshes its packaged skill and materialized agents during setup. Use `opencode plugin check` to check for available plugin updates.
 
 ### Checking the installed version
 
 opencode reports plugin ids, not versions, so RP surfaces its own version:
 
-- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version; its `pin` field compares the running opencode build against `opencode/pin.json` — `match` when they are equal, `outside the verified surface` when the running build differs from the pin, and `not determinable` when the running build cannot be read; and `recentLoopTicks` retains recent health-loop outcomes separately from `recentErrors`.
+- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version; `recentLoopTicks` retains recent health-loop outcomes separately from `recentErrors`.
 - opencode's HTTP API reports the same id: `opencode api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
 
 ## Configuration

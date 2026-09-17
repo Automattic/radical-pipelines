@@ -443,7 +443,7 @@ function agentExists(agentList, agentID) {
  * Tags observed on a dead-target session error, across the two shapes it
  * appears in: the in-process `ctx.session.prompt` rejection (`name`/`_tag`
  * `"Session.NotFoundError"`, no HTTP status — verified live against the
- * pinned build) and the raw HTTP response body (`_tag: "SessionNotFoundError"`,
+ * tested runtime) and the raw HTTP response body (`_tag: "SessionNotFoundError"`,
  * no dot, alongside a 404 status).
  */
 const SESSION_NOT_FOUND_TAGS = new Set(["Session.NotFoundError", "SessionNotFoundError"]);
@@ -507,7 +507,7 @@ function formatAttribution(sender) {
  *
  * The turn rule exists because an opencode session outlives its turn: an
  * idle session resumes only on an inbox item. Verified live against the
- * pinned build: a `shell` call with `background: true` ends the turn and its
+ * tested runtime: a `shell` call with `background: true` ends the turn and its
  * completion later arrives as an inbox item that starts a new execution — so
  * awaiting it is a legitimate reason to end the turn — but background
  * commands carry no timeout by default, so a hung one never completes and
@@ -1714,7 +1714,7 @@ function requestServer(server, method, path, body, requestFn = fetchRequest) {
  * reads `GET /api/session/active`, whose body envelopes the object keyed by
  * the session IDs currently running as `{ data: {...} }` — every opencode
  * HTTP GET response is wrapped in this `data` envelope, verified live against
- * the pinned build.
+ * the tested runtime.
  *
  * @param {{ baseURL: string, password: string }} server A server resolved by
  *   `resolveServer`.
@@ -1902,49 +1902,6 @@ async function interruptSession(server, sessionID, requestFn) {
 }
 
 /**
- * Read the running opencode build's best-effort version string via
- * `opencode --version`.
- *
- * Used as `rp_status`'s fallback when no service record (and so no `version`
- * field) is available — the `serve` harness case, which writes no record.
- *
- * @param {(command: string, args: string[], options: object) => string} [exec]
- *   Injectable process-execution function; defaults to
- *   `child_process.execFileSync`. Injected in tests so a missing/failing
- *   `opencode` binary is never actually invoked.
- * @returns {string | null} The bare build string,
- *   or `null` when the command could not be run (e.g. the binary is not
- *   installed). The CLI prints `"opencode v<build>"`, so that leading
- *   `"opencode v"` is stripped; without it, this
- *   would never equal the pin manifest's bare build string.
- */
-function readCliVersion(exec = execFileSync) {
-  try {
-    return exec("opencode", ["--version"], { encoding: "utf8" }).trim().replace(/^opencode\s+v/, "");
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Resolve the running opencode build string for the pin comparison.
- *
- * @param {{ version?: string } | null} serviceRecord The service record read
- *   by `readServiceRecordFile` (present only while a daemon runs), or `null`.
- * @param {() => string | null} readCliVersionFn Best-effort fallback reading
- *   `opencode --version` (see `readCliVersion`); called only when
- *   `serviceRecord` carries no `version`.
- * @returns {string} `serviceRecord.version` when present; else whatever
- *   `readCliVersionFn` returns; else `"unknown"`.
- */
-function resolveRunningBuild(serviceRecord, readCliVersionFn) {
-  if (serviceRecord && serviceRecord.version) {
-    return serviceRecord.version;
-  }
-  return readCliVersionFn() ?? "unknown";
-}
-
-/**
  * Resolve the ledger entry a session record belongs to, when RP recognizes it.
  *
  * @param {{ id: string, title?: string }} record A session record
@@ -1987,7 +1944,7 @@ const LAST_TEXT_DEEP_PAGE = 100;
  * non-empty text part and returns that message's last such part, trimmed and
  * truncated to `LAST_TEXT_EXCERPT_CAP`. The timestamp is the message's
  * completion time, or its creation time while it is still in flight — text
- * parts carry no time of their own in the pinned projection. A full page
+ * parts carry no time of their own in the session projection. A full page
  * without text is inconclusive and says so; only a short page proves the
  * session never spoke.
  *
@@ -2066,7 +2023,7 @@ function latestOf(first, ...rest) {
  *   One row per session record RP recognizes as its own, in `sessionRecords`
  *   order; records RP does not recognize (neither ledger nor `rp:` title)
  *   are omitted. `activity` is the latest of the record's `updated` — which
- *   the pinned build moves only when the session receives input — the
+ *   opencode moves only when the session receives input — the
  *   session's last observed progress event, and its last raw provider byte
  *   (a streaming tool call's partial arguments emit no event), so it covers
  *   tool and model progress within a turn.
@@ -2128,26 +2085,18 @@ function buildLedgerRows(
  *   env?: Record<string, string | undefined>,
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- *   readCliVersion?: () => string | null,
  * }} [options] `env` defaults to `process.env`; `readServiceRecord` defaults
- *   to `readServiceRecordFile`; `requestFn` defaults to the real HTTP client;
- *   `readCliVersion` defaults to the real `opencode --version` reader.
+ *   to `readServiceRecordFile`; `requestFn` defaults to the real HTTP client.
  * @returns {Promise<object>} The shaped status payload (see `shapeStatus`).
  */
 async function buildStatusPayload({
   env = process.env,
   readServiceRecord: readServiceRecordOverride,
   requestFn,
-  readCliVersion: readCliVersionOverride,
 } = {}) {
   const readRecord = readServiceRecordOverride ?? readServiceRecordFile;
-  const readVersion = readCliVersionOverride ?? readCliVersion;
 
   const server = resolveServer({ env, readServiceRecord: readRecord });
-  const pin = readPinManifest();
-  const serviceRecord = readRecord(env);
-  const runningBuild = resolveRunningBuild(serviceRecord, readVersion);
-  const pinComparison = comparePinnedBuild(runningBuild, pin.cli);
 
   let sessionRecords = [];
   let activeIDs = null;
@@ -2186,7 +2135,7 @@ async function buildStatusPayload({
 
   if (server) {
     // Every opencode HTTP GET response envelopes its payload as
-    // `{ data: ... }` — verified live against the pinned build.
+    // `{ data: ... }` — verified live against opencode.
     const sessionsResponse = await readEndpoint("session", "/api/session");
     if (sessionsResponse) {
       sessionRecords = sessionsResponse.body?.data ?? [];
@@ -2256,7 +2205,6 @@ async function buildStatusPayload({
 
   return shapeStatus({
     pluginVersion: PLUGIN_ID,
-    pinComparison,
     ledgerEntries,
     errorLog: getErrorLog(),
     loopTickLog: getLoopTickLog(),
@@ -2714,7 +2662,7 @@ function lastRawSessionProgressAt(sessionID) {
 /**
  * Pattern extracting identifier values from a response's decoded bytes.
  *
- * Pinned provider protocols project the tool-part id from different raw
+ * Provider protocols project the tool-part id from different raw
  * fields — Chat's `id`, Open Responses' `call_id`, Bedrock's `toolUseId` —
  * so every id-suffixed key's string value is captured, and the quoted JSON
  * token is decoded so escaped values (`"call_\u0031"`) match their
@@ -2805,7 +2753,7 @@ const PROGRESS_EVENT_PREFIXES = [
  *
  * Fed by the plugin's event subscription. This signal is strictly a *veto*
  * for the dead-stream guard — observed progress defers an interrupt, but
- * silence never authorizes one (the pinned build emits no events for
+ * silence never authorizes one (opencode emits no events for
  * partial argument chunks, and the observer itself can lag or fail), so a
  * missing or stale entry carries no weight on its own; authorization comes
  * from the wall-clock confirmation window (see `runLoopTick`).
@@ -3567,51 +3515,6 @@ function materializeAgents(
 }
 
 /**
- * Absolute path to the pin manifest, resolved relative to this module's
- * location so it resolves correctly regardless of the process's working
- * directory.
- *
- * Serves as `readPinManifest`'s default `manifestPath`; tests inject their
- * own path instead of relying on this constant.
- */
-const DEFAULT_PIN_MANIFEST_PATH = fileURLToPath(
-  new URL("./pin.json", import.meta.url),
-);
-
-/**
- * Read and parse the pin manifest declaring the exact `@opencode/cli`
- * build (and `@opencode/plugin` version) this layer targets.
- *
- * @param {string} [manifestPath] Absolute path to the manifest JSON file.
- *   Defaults to `opencode/pin.json` alongside this module.
- * @returns {{ cli: string, plugin: string }} The parsed manifest.
- */
-function readPinManifest(manifestPath = DEFAULT_PIN_MANIFEST_PATH) {
-  return JSON.parse(readFileSync(manifestPath, "utf8"));
-}
-
-/**
- * Compare a running opencode build against the pinned build.
- *
- * @param {string | null | undefined} runningBuild The build string reported
- *   by the running installation (e.g. from `opencode --version` or the
- *   service record), or a nullish value or the literal `"unknown"` when it
- *   could not be read (e.g. a `serve` process exposes no service record).
- * @param {string} pinnedCli The pinned `@opencode/cli` build string (the
- *   pin manifest's `cli` field, see `readPinManifest`).
- * @returns {"match" | "outside the verified surface" | "not determinable"}
- *   `"match"` when `runningBuild` equals `pinnedCli`; `"not determinable"`
- *   when `runningBuild` is nullish or `"unknown"` rather than a real build
- *   string; otherwise `"outside the verified surface"`.
- */
-function comparePinnedBuild(runningBuild, pinnedCli) {
-  if (runningBuild == null || runningBuild === "unknown") {
-    return "not determinable";
-  }
-  return runningBuild === pinnedCli ? "match" : "outside the verified surface";
-}
-
-/**
  * Default cap for the in-memory recent-errors ring `appendToErrorLog`
  * maintains.
  */
@@ -3644,14 +3547,12 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  * Shape the `rp_status` tool result from its component inputs.
  *
  * Pure: every input is supplied by the caller — the plugin's `rp_status`
- * handler gathers the plugin version, the pin comparison (see
- * `comparePinnedBuild`), the ledger snapshot, and the error log (see
+ * handler gathers the plugin version, the ledger snapshot, and the error log (see
  * `appendToErrorLog`) from their respective sources — so this function
  * performs no I/O of its own.
  *
  * @param {{
  *   pluginVersion: string,
- *   pinComparison: "match" | "outside the verified surface" | "not determinable",
  *   ledgerEntries: Array<{
  *     name: string,
  *     run: string,
@@ -3674,8 +3575,7 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   loopTickLog?: Array<*>,
  *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
  * }} input The status payload's components. `pluginVersion` identifies the
- *   running plugin build; `pinComparison` is the result of comparing the
- *   running opencode build against the pin; `ledgerEntries` is one row per
+ *   running plugin build; `ledgerEntries` is one row per
  *   live spawn (see `buildLedgerRows`); `errorLog` and `loopTickLog` are
  *   bounded recent-event rings; `readFailures` lists the server reads that
  *   failed while gathering the ledger — a non-empty list means the ledger's
@@ -3683,7 +3583,6 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   that the sessions are idle.
  * @returns {{
  *   pluginVersion: string,
- *   pin: "match" | "outside the verified surface" | "not determinable",
  *   ledger: Array<{
  *     name: string,
  *     run: string,
@@ -3709,7 +3608,6 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  */
 function shapeStatus({
   pluginVersion,
-  pinComparison,
   ledgerEntries,
   errorLog,
   loopTickLog = [],
@@ -3717,7 +3615,6 @@ function shapeStatus({
 }) {
   return {
     pluginVersion,
-    pin: pinComparison,
     ledger: ledgerEntries.map((entry) => ({
       name: entry.name,
       run: entry.run,
@@ -4373,15 +4270,14 @@ function buildLoopCancelTool(registryPath) {
  *   env: Record<string, string | undefined>,
  *   readServiceRecordOverride?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- *   readCliVersionOverride?: () => string | null,
  * }} deps Passed through to `buildStatusPayload`.
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }) {
+function buildStatusTool({ env, readServiceRecordOverride, requestFn }) {
   return {
     name: "rp_status",
-    description: "Report plugin version, pin comparison, ledger snapshot, recent errors, and health-loop ticks.",
+    description: "Report plugin version, ledger snapshot, recent errors, and health-loop ticks.",
     output: ANY_OUTPUT_SCHEMA,
     input: { type: "object", properties: {} },
     async execute() {
@@ -4390,7 +4286,6 @@ function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVer
           env,
           readServiceRecord: readServiceRecordOverride,
           requestFn,
-          readCliVersion: readCliVersionOverride,
         }),
       );
     },
@@ -4439,8 +4334,7 @@ async function consumeEvents(ctx, onEvent, onIterator) {
  * Keep the event subscription alive for the daemon's lifetime, resubscribing
  * whenever the stream ends or fails, until the signal aborts.
  *
- * The pinned subscribe API accepts no cancellation options, so teardown
- * retains the live iterator and closes it with `return()` when the signal
+ * Teardown retains the live iterator and closes it with `return()` when the signal
  * aborts — otherwise a cleaned-up supervisor would stay blocked on `next()`
  * forever while a reloaded plugin starts another.
  *
@@ -4506,7 +4400,6 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  *   env?: Record<string, string | undefined>,
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- *   readCliVersion?: () => string | null,
  *   agentsSourceDir?: string,
  *   agentsTargetDir?: string,
  *   resolveRepoRootFn?: (directory: string) => string | null,
@@ -4514,8 +4407,7 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  * }} [deps] Injectable dependencies, absent in opencode's real invocation
  *   (`setup(ctx)`) and supplied only by offline tests: `env` and
  *   `readServiceRecord` reach `resolveServer`; `requestFn` reaches the HTTP
- *   client; `readCliVersion` reaches the pin-comparison fallback;
- *   `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
+ *   client; `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
  *   `resolveRepoRootFn` reaches `rp_spawn`; `exists` reaches the permission
  *   mediator's redirect check.
  * @returns {Promise<() => Promise<void>>} Resolves once this location's tools
@@ -4530,7 +4422,6 @@ async function setup(ctx, deps = {}) {
     env = process.env,
     readServiceRecord: readServiceRecordOverride,
     requestFn,
-    readCliVersion: readCliVersionOverride,
     agentsSourceDir,
     agentsTargetDir,
     resolveRepoRootFn,
@@ -4642,7 +4533,7 @@ async function setup(ctx, deps = {}) {
     tools.add(guard(buildLoopStartTool({ registryPath, tick })));
     tools.add(guard(buildLoopListTool(registryPath)));
     tools.add(guard(buildLoopCancelTool(registryPath)));
-    tools.add(guard(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })));
+    tools.add(guard(buildStatusTool({ env, readServiceRecordOverride, requestFn })));
     tools.add(guard(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
     return tools;
   });
@@ -4690,7 +4581,7 @@ async function setup(ctx, deps = {}) {
   // The raw-liveness observer, registered per location: `ctx.session.hook`
   // is location-scoped, so the once-guarded resources above must not own
   // it — every location tees its own provider responses (see
-  // `observeHttpResponse`). Pinned registration inserts the callback
+  // `observeHttpResponse`). Registration inserts the callback
   // synchronously with no failure channel; the guard below still records
   // the unexpected, and the dead-stream gate treats uncovered targets as
   // unobservable rather than silent, so escalation is disabled wherever
@@ -4738,7 +4629,6 @@ export {
   buildBasicAuthHeader,
   buildLedgerRows,
   buildStatusPayload,
-  comparePinnedBuild,
   currentToolFor,
   deleteLoopEntry,
   disarmLoopTimer,
@@ -4774,9 +4664,7 @@ export {
   parseSkillFrontmatter,
   parseTitle,
   promoteInboxItem,
-  readCliVersion,
   readPackageVersion,
-  readPinManifest,
   readServiceRecordFile,
   readSessionParentage,
   readSkillDirectory,
@@ -4797,7 +4685,6 @@ export {
   resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
   resolveRepoRoot,
-  resolveRunningBuild,
   resolveServer,
   resolveToolAccess,
   runLoopTick,

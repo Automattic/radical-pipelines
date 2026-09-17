@@ -4,7 +4,7 @@
  *
  * Every opencode HTTP GET (and most POST) response envelopes its payload as
  * `{ data: ... }` (some additionally carry `location`) — verified live
- * against the pinned build. This client unwraps that envelope once, here,
+ * against opencode. This client unwraps that envelope once, here,
  * so no check has to re-derive it.
  */
 

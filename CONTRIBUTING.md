@@ -10,6 +10,8 @@ When you open a PR, GitHub pre-fills the repo's default template (`.github/PULL_
 
 ## Running tests and checks locally
 
+Use Node.js 22 or newer.
+
 ```bash
 npm test
 ```
@@ -22,9 +24,9 @@ This runs the `node --test 'scripts/test/**/*.test.mjs'` suite (the `sync-versio
 npm run test:opencode
 ```
 
-This runs the hermetic, pinned opencode integration suite (`scripts/opencode-integration/run.mjs`), which exercises RP's opencode layer against exactly the pinned `@opencode/cli` version recorded in `opencode/pin.json`. It lives outside `scripts/test/`, so the fixed `npm test` gate above never runs it — run it explicitly. On first use it installs the pinned CLI (cached by exact version under the OS temp directory, so a repeat run with the same pin never touches the network again), then drives it inside an XDG-isolated sandbox whose core checks run entirely offline against a local OpenAI-compatible stub provider.
+This runs the opencode integration suite (`scripts/opencode-integration/run.mjs`) against the latest stable `@opencode/cli` release. Each run resolves the version from npm, installs it if absent from the version-keyed cache under the OS temp directory, and reports the tested version. It lives outside `scripts/test/`, so run it explicitly. The core checks use an XDG-isolated sandbox and a local OpenAI-compatible stub provider.
 
-The core suite needs no network beyond that one-time install. Add `--network-smoke` to also run the release-cadence network smoke path, which additionally requires network access to GitHub and to opencode's hosted free-model endpoint:
+The core suite needs npm access for version resolution and installation; model turns run offline. Add `--network-smoke` to also test the documented Git installation source and hosted free models, requiring network access to GitHub and opencode's hosted free-model endpoint:
 
 ```bash
 npm run test:opencode -- --network-smoke
