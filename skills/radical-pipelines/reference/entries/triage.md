@@ -10,7 +10,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, its pending claims and owner escalations, its open correction branch.
+`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check <pipeline folder> --base <base branch>` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, its pending claims and owner escalations, its open correction branch.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies cannot be reported, proceeds without comment.
 
@@ -34,7 +34,7 @@ Routes group by pipeline into runs.
 
 ### 4. Confirm the runs
 
-Ask the target phase in plain language without exposing phase numbers. In one message, give each route and why — or, when no predicate decides, the one deciding question — together with the full policy of each run to confirm (workflow, target phase, the lanes of `../conventions/agents.md`) and every other question this session still has. Revise and reconfirm until the owner confirms.
+Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give each route and why — or, when no predicate decides, the one deciding question — the configuration to confirm or change (workflow, target phase in plain language without phase numbers, lanes, models), what a lane change does to the tree (a dropped lane's files are removed; artifacts whose approval package changes go stale), and every other question this session still has. Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 
@@ -61,4 +61,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-One run at a time, in table order; a run carries its statements. Quote every direction the owner gave for it — its policy as confirmed (the `--lanes` declaration, target phase) and any other instruction — as decisions in its `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+One run at a time, in table order; a run carries its statements. Quote the owner's directions about the work as decisions in `intent.md` (`intent-format.md`); `rp stamp` it with `--mirror`. Write `run-config.md` (`../run/state.md` § Run configuration) as confirmed; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.

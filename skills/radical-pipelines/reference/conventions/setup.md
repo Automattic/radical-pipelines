@@ -110,7 +110,7 @@ Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the
 
 ### Agents (optional)
 
-Models per profile and named lanes, in the blocks `agents.md` defines.
+Defaults for profile models and named lanes, in any human-readable format (`agents.md`).
 
 ### Health monitoring (optional)
 

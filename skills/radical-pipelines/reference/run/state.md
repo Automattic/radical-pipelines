@@ -8,7 +8,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 - **Pin** — `<path>@<identity>`, path relative to the pipeline folder. Only you write pins, through `rp stamp`.
 - **Package** — a set of (member, identity) pairs recording what an artifact consumed or a review judged. Recorded members remain consumed until the producer records a replacement package. An artifact's package contains its required inputs with their approving waves, adjudicated challenges, and consumed lane packages. A review's package is the artifact package it judged, plus the artifact and record; plan reviews add tasks, phase reviews add reports. Historical material is supplied through the references in that package; its content joins the verdict only when the artifact pins it. A lane package is its artifact, record, and valid approving wave.
 - **Stale** — a recorded package that differs from the required package by member or identity.
-- **Lane** — one instance of a role on one artifact. Every reviewer has an implicit lane with no id; the project may declare named review lanes and named production lanes (`../conventions/agents.md`). A named lane's identity is its whole declaration — id, brief, materials, `after` — as one **fingerprint**: a lane artifact or review stamped with another is stale; a lane folder or review the declaration lacks is a defect, never a lane. A production lane's scope contains its artifact and record: declarations expand those paths into the lane; all other paths retain their identity. Prompts and pins use that expansion. A production lane closes when the root consumes the package of its valid wave. That package remains closed history outside the frontier. Root consolidation combines closed packages with packages whose valid wave is current.
+- **Lane** — one instance of a role on one artifact. Every reviewer has an implicit lane with no id; the run configuration may declare named review and production lanes. A named lane's fingerprint derives from its `id`, `brief`, `materials`, and `after`: a lane artifact or review stamped with another is stale; a lane folder or review the configuration lacks is a defect, never a lane. A production lane's scope contains its artifact and record: declarations expand those paths into the lane; all other paths retain their identity. Prompts and pins use that expansion. A production lane closes when the root consumes the package of its valid wave. That package remains closed history outside the frontier. Root consolidation combines closed packages with packages whose valid wave is current.
 - **Wave** — one review of an artifact by every declared lane; numbered per artifact. A wave is valid when every lane records `approved` and its `reviewed` equals the reference by equality as sets of (member, identity) pairs; a filtered lane uses its selected projection. Live state takes its reference from the artifact's recorded consumption, expanded to its review package. A closed lane uses the independent reference recorded by the root at consolidation, bound to the lane package it consumed. A wave is current when valid and its reference equals the package required now. A live required package is satisfiable only when every required input approval is recursively valid and current.
 - **Verdict** — a review's conclusion: `approved`, `rejected`, or `unsatisfiable`. An `unsatisfiable` verdict names a `target`: `<path>#<id>`.
 - **Outcome** — a task report's conclusion: `completed`; `failed` — the observed product contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked` — the product was not observed, and the report names what prevented it.
@@ -18,9 +18,34 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 - **Episode** — an artifact's waves since its last valid, current wave in its context; a counter `rp check` reports, never a gate.
 - **Assumption** — every pending load-bearing claim, labeled `assumed` with stable `A<n>` and its verification condition. Questions and risks that depend on it cite that id. Accepting a consequence leaves its verification pending.
 
+## Run configuration
+
+`run-config.md` at the pipeline folder root states the configuration under which the tree is produced. Its JSON-object frontmatter contains only:
+
+- `workflow`: `autonomous` or `assisted`.
+- `target-phase`: an integer from 1 through 4.
+- `lanes`, optional: lane objects containing only non-empty string `profile`, `id`, and `brief`; review lanes may add unique pipeline-relative `materials` from the artifact's review package, and production lanes may add unique `after` ids declared by the same profile. A list is non-empty when present. Omitted `lanes` means no named lanes; omitted `materials` selects the full review package; omitted `after` means no dependencies.
+
+Lane ids start with a lowercase letter or digit, continue with those or hyphens, and exclude `tasks`; they are unique per profile. `after` dependencies are acyclic. Assisted configurations have no lanes. The profiles map as follows:
+
+| Profile | Artifact | Kind |
+| --- | --- | --- |
+| `spec-reviewer` | `spec` | review |
+| `design-doc-reviewer` | `design-doc` | review |
+| `build-plan-reviewer` | `build-plan` | review |
+| `build-reviewer` | `build` | review |
+| `document-plan-reviewer` | `document-plan` | review |
+| `document-reviewer` | `document` | review |
+| `spec-producer` | `spec` | production |
+| `design-doc-producer` | `design-doc` | production |
+
+Its body is free prose — models, the owner's directions for the run, anything else the run needs; `rp` ignores it.
+
+The file remains with a merged pipeline. It records no fact about whether a run is under way; tool mechanics report working agents. Write and commit every configuration change before acting on it. In that commit, remove a dropped lane's folder and reviews. Terminate agents working under a changed lane; `rp check` dispatches it again.
+
 ## Frontmatter
 
-Frontmatter is a JSON object between `---` lines; the last value of a repeated key applies, and stamps omit empty lists. It holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration outside Markdown code fences in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or what you did (`lane`). A stamp with `--reviewed` fixes the consumed package, validating completeness for implicit reviews and task reports. `rp check` validates every review lane against its declared reference. Later stamps preserve that package and landing facts while updating what their options request. `--set` accepts only `lane`. `rp check` derives validity from the tree, reads frontmatter and identities, and recomputes body-derived fields: a file whose projection differs is stamped again before anything reads it; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
+Frontmatter is a JSON object between `---` lines; the last value of a repeated key applies, and stamps omit empty lists. Every other file's frontmatter holds only pins, mirrors, and landing facts. Its syntax and field types must be valid. A mirror copies a declaration outside Markdown code fences in the body, in its fixed form (`Verdict:`, `Brief:`, `Target:`, `Prior finding:`, `Outcome:`, `Origin:`, `Depends on:`, a report's `## Commits`) — a fixed line holds exactly its value in the field's grammar and is mirrored whole or rejected as `INVALID`, never mined for tokens; `Verdict`, `Brief`, `Target`, and `Outcome` occur once. A landing fact records what the stamp observed (`head`, `target-identity`, `attempt`) or the lane derived from the path. A stamp with `--reviewed` fixes the consumed package, validating completeness for implicit reviews and task reports. `rp check` validates every review lane against its declared reference. Later stamps preserve that package and landing facts while updating what their options request. `rp check` derives validity from the tree, reads frontmatter and identities, and recomputes body-derived fields: a file whose projection differs is stamped again before anything reads it; a stamped review without `Verdict:`, or report without `Outcome:`, is invalid.
 
 | Key         | Files                        | Value                                                                    |
 | ----------- | ---------------------------- | ------------------------------------------------------------------------ |
@@ -37,7 +62,7 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
 | `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists and is stored as its full hash, whatever length the body wrote |
 | `head`      | files with pins              | the commit a stamp with pins observed: the diff base for the next delta review or convergence |
-| `lane`      | a named lane's artifact and reviews | the fingerprint of the declaration the agent was dispatched under                 |
+| `lane`      | a production lane's artifact; a named review lane's review | the fingerprint derived from `run-config.md` and the file's path                     |
 | `attempt`, `outcome` | task reports        | the attempt, from the filename; `completed` \| `failed` \| `blocked`     |
 
 A stamp follows the commit of what it stamps and is committed on top of it, on the branch the work landed on. Every commit on the branch outside the pipelines folder is claimed by a task report, which lands in a commit of its own after the commits it names.
@@ -48,6 +73,7 @@ A file records its package when first consumed and records a new package only af
 
 | File                                   | Pins                                                                         |
 | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `run-config.md`                        | none                                                                         |
 | `0-intent/intent.md`                   | none; `origin`: `issue <canonical reference>`                                |
 | `0-intent/correction-<n>.md`            | none; `target`, `origin`                                                     |
 | `1-spec/spec.md`                       | `intent.md`; every challenge it adjudicated; when consolidated, every lane's `spec.md`, record, and approving reviews |
@@ -70,18 +96,16 @@ A file records its package when first consumed and records a new package only af
 
 ## Owner territory
 
-`0-intent/intent.md` is the only file that carries the owner's words: the issue as written, and every later decision quoted under `## Decisions`. Owner territory is what the work must satisfy: its Goal, Constraints, and Decisions. Records cite the intent; they never hold owner words of their own.
+`0-intent/intent.md` carries the issue and the owner's directions about the work (`../entries/intent-format.md` § Decisions). Owner territory is what the work must satisfy: its Goal, Constraints, and Decisions. Records cite the intent; they never hold owner words of their own.
 
 ## The frontier
 
-`rp check <pipeline folder> --base <base branch> --lanes <declaration> --target-phase <n>` reports every phase up to the target and names the **frontier** — the first item of:
+`rp check <pipeline folder> --base <base branch>` reads `run-config.md`, reports every phase up to its target, and names the **frontier** — the first item of:
 
 1. **A contradiction** — malformed frontmatter → you repair and re-stamp it; malformed fixed line → its author fixes it; mirror drift → stamp it; an undeclared lane or symlink → stop and tell the owner. Representation is validated first; facts that depend on an invalid representation remain uncomputed.
 2. **A pending claim targeting the intent** → owner escalation. A claim is pending while it is its lane's latest verdict, its wave closed with no `rejected` lane, its `reviewed` pins are fresh, and its target is unchanged; a claim whose wave is still open, or whose wave has a rejection, waits for that wave.
 3. **Per phase, in order** — open production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / rejected wave / pending challenge; a lane waits until every `after` lane's valid wave is current, recursively; every open lane's valid wave current → consolidate); then the root artifact: missing → converge; no recorded package → stamp what its producer consumed; stale, with a pending challenge, or with a closed wave that rejected → converge with the package change, that wave's reviews, and every pending challenge on it; an unstamped review → stamp it; an invalid one → its reviewer finishes it; without a current valid wave → a review wave. In build and document, after the plan's valid wave is current: an unstamped report of any attempt → stamp it; an invalid one → its worker finishes it; the next task — the lowest-numbered task whose dependencies are done and which is not done — as `blocked <phase>/T<n>` when its latest report is fresh and `blocked`; all done → the phase review wave; its current valid wave completes the phase.
 4. **Complete** — every challenge and claim targeting a phase within the target resolved, every phase through the target has a current valid wave over a fresh artifact, and every commit after the base outside the pipelines folder claimed by a task report (`## Commits`) → close-out. An unclaimed commit is the frontier: work that reached the branch outside a task. A base that does not resolve is an error, never completion.
-
-The declaration: `--lanes "spec=security@<fingerprint>[materials=1-spec/spec.md+0-intent/intent.md]|event-driven@<fingerprint>,contrarian@<fingerprint><event-driven;build=fresh@<fingerprint>"` — per artifact, the named review lanes (the implicit lane always exists) and, after `|`, the production lanes with their `after` dependencies (`<`, joined by `+`), each with its fingerprint. A filtered lane adds `[materials=<path>+<path>]`; use the same comma-separated paths in `rp fingerprint <id> --materials <path>,<path>`. `rp check` rejects malformed components, duplicate artifacts, lane ids, or material paths, an unknown artifact, a reserved lane id (`tasks`), an undeclared or cyclic dependency, or production lanes outside the spec and design doc.
 
 Counters, read from review frontmatter: **waves this episode** and **`recurs`** — a prior finding whose resolution failed, within the episode.
 
