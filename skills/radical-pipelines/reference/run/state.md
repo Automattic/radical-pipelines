@@ -29,7 +29,7 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `reviewed`  | reviews, task reports        | list of `<path>@<identity>` — what the verdict is about; immutable       |
 | `verdict`   | reviews                      | `approved` \| `rejected` \| `unsatisfiable`                              |
 | `brief`     | reviews                      | the lane's brief, as the review declares it                              |
-| `target`    | challenges                   | non-empty list of `<path>#<id>`; `<path>` for a correction; a list even for one target. Only challenges carry `Target:`, `target`, or `target-identity`. |
+| `target`    | challenges                   | non-empty list of `<path>#<id>`; `<path>` for a correction. Only challenges carry `Target:`, `target`, or `target-identity`. |
 | `target-identity` | challenges                   | non-empty list of each target's identity when the challenge landed, aligned with `target` |
 | `intent-ids`, `retired-ids` | `0-intent/intent.md` | cumulative lists of unique intent item ids: all ids seen by a stamp, and the issue-derived subset absent at a later stamp; a retired id declared again is invalid frontmatter |
 | `origin`    | anything born from something | `issue <canonical reference>`; an external source; the challenge a review responds to; a list when several |

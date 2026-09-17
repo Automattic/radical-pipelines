@@ -28,7 +28,7 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 
 ## Schema stamp
 
-The `.rp.md` frontmatter JSON object's `conventions` field records the schema version. The current version is 2.
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 2.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

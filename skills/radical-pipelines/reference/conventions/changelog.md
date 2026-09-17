@@ -8,7 +8,7 @@ Migrate from version 1.
 
 ### Frontmatter
 
-Rewrite the frontmatter as a JSON object with stamp `{ "conventions": 2 }`.
+Rewrite the frontmatter as a JSON object.
 
 ### Renames
 
