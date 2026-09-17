@@ -372,7 +372,7 @@ export async function run(ctx) {
         );
 
         // Park a queue copy of the monitor prompt behind the hung turn: the
-        // interrupt must not strand it (`continue=true` leaves queued
+        // interrupt must not strand it (`resume=true` leaves queued
         // prompts parked), so the confirming tick promotes it to steer
         // first.
         await prompt(server, hung.id, deadMarker, { delivery: "queue" });

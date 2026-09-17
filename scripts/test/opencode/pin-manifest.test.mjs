@@ -39,31 +39,10 @@ describe("opencode/pin.json", () => {
     assert.doesNotThrow(() => JSON.parse(raw));
   });
 
-  // Upstream publishes two package layouts under the same prerelease
-  // channels. Builds numbered with a short sequence (`0.0.0-<channel>-17711`)
-  // root their export at the v2 API; builds stamped with a 12-digit date
-  // (`0.0.0-dev-202608180449`) root it at v1 and expose v2 only under a
-  // `./v2/*` subpath. The channel name discriminates neither, so the pin is
-  // held to the numbered form — the one that tracks the layout RP targets.
-  test("declares an exact, numbered v2-layout build, never a moving tag or a datestamped build", () => {
+  test("declares exact released v2 versions rather than moving tags or ranges", () => {
     const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.match(pin.cli, /^0\.0\.0-[a-z]+-\d{1,6}$/);
-  });
-
-  test("declares an @opencode-ai/plugin version string", () => {
-    const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.equal(typeof pin.plugin, "string");
-    assert.ok(pin.plugin.length > 0);
-  });
-
-  test("pins cli to the exact build confirmed to discover nested agent profiles", () => {
-    const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.equal(pin.cli, "0.0.0-dev-19093");
-  });
-
-  test("pins plugin to the exact confirmed version", () => {
-    const pin = JSON.parse(readFileSync(PIN_PATH, "utf8"));
-    assert.equal(pin.plugin, "0.0.0-dev-19093");
+    assert.match(pin.cli, /^2\.\d+\.\d+$/);
+    assert.match(pin.plugin, /^2\.\d+\.\d+$/);
   });
 
   test("declares cli and plugin as independent fields (no shared or derived field)", () => {

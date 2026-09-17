@@ -1081,7 +1081,7 @@ function recordFailedProbe(state) {
  *   per target (`withTargetLock`), skipping targets another loop already
  *   interrupted after this suspicion began, and a final
  *   fingerprint-and-liveness revalidation runs inside the lock immediately
- *   before the interrupt. The interrupt runs with `continue=true`, after
+ *   before the interrupt. The interrupt runs with `resume=true`, after
  *   promoting any parked queue copy of the prompt so the resumed execution
  *   delivers it, and clears the skip window so the freed target is
  *   re-probed on the next tick. Recovery is never delayed by coalescing or
@@ -1460,7 +1460,7 @@ async function runActiveTick(
         return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
       }
       // A parked queue copy would out-survive the interrupt
-      // (`continue=true` resumes steering input while queued prompts stay
+      // (`resume=true` resumes steering input while queued prompts stay
       // parked) and then coalesce every later tick: promote it first so
       // the resumed execution delivers it.
       const inbox = await readInbox(server, entry.targetSession);
@@ -1559,7 +1559,7 @@ function resolveServiceRecordDir(env) {
 /**
  * Read and parse opencode's service record from disk, when one exists.
  *
- * The service record is written only while a daemon (`opencode2 service
+ * The service record is written only while a daemon (`opencode service
  * start`) runs — a `serve` process writes none — so a missing record is the
  * normal `serve`/harness case, not an error.
  *
@@ -1862,18 +1862,18 @@ async function getSessionMessages(server, sessionID, requestFn) {
 async function promoteInboxItem(server, sessionID, inboxID, requestFn) {
   const response = await requestServer(
     server,
-    "POST",
-    `/api/session/${sessionID}/inbox/${inboxID}/steer`,
-    undefined,
+    "PATCH",
+    `/api/session/${sessionID}/inbox/${inboxID}`,
+    { delivery: "steer" },
     requestFn,
   );
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`POST /api/session/${sessionID}/inbox/${inboxID}/steer returned ${response.status}`);
+    throw new Error(`PATCH /api/session/${sessionID}/inbox/${inboxID} returned ${response.status}`);
   }
 }
 
 /**
- * Interrupt a session's in-flight execution. With `continue=true` execution
+ * Interrupt a session's in-flight execution. With `resume=true` execution
  * resumes with pending steering input and next-in-line control items;
  * queued prompts stay parked until the session next idles.
  *
@@ -1892,7 +1892,7 @@ async function interruptSession(server, sessionID, requestFn) {
   const response = await requestServer(
     server,
     "POST",
-    `/api/session/${sessionID}/interrupt?continue=true`,
+    `/api/session/${sessionID}/interrupt?resume=true`,
     undefined,
     requestFn,
   );
@@ -1903,7 +1903,7 @@ async function interruptSession(server, sessionID, requestFn) {
 
 /**
  * Read the running opencode build's best-effort version string via
- * `opencode2 --version`.
+ * `opencode --version`.
  *
  * Used as `rp_status`'s fallback when no service record (and so no `version`
  * field) is available — the `serve` harness case, which writes no record.
@@ -1911,16 +1911,16 @@ async function interruptSession(server, sessionID, requestFn) {
  * @param {(command: string, args: string[], options: object) => string} [exec]
  *   Injectable process-execution function; defaults to
  *   `child_process.execFileSync`. Injected in tests so a missing/failing
- *   `opencode2` binary is never actually invoked.
- * @returns {string | null} The bare build string (e.g. `"0.0.0-next-<N>"`),
+ *   `opencode` binary is never actually invoked.
+ * @returns {string | null} The bare build string,
  *   or `null` when the command could not be run (e.g. the binary is not
- *   installed). The real CLI prints `"opencode2 v<build>"` — verified
- *   live — so that leading `"opencode2 v"` is stripped; without it, this
+ *   installed). The CLI prints `"opencode v<build>"`, so that leading
+ *   `"opencode v"` is stripped; without it, this
  *   would never equal the pin manifest's bare build string.
  */
 function readCliVersion(exec = execFileSync) {
   try {
-    return exec("opencode2", ["--version"], { encoding: "utf8" }).trim().replace(/^opencode2\s+v/, "");
+    return exec("opencode", ["--version"], { encoding: "utf8" }).trim().replace(/^opencode\s+v/, "");
   } catch {
     return null;
   }
@@ -1932,7 +1932,7 @@ function readCliVersion(exec = execFileSync) {
  * @param {{ version?: string } | null} serviceRecord The service record read
  *   by `readServiceRecordFile` (present only while a daemon runs), or `null`.
  * @param {() => string | null} readCliVersionFn Best-effort fallback reading
- *   `opencode2 --version` (see `readCliVersion`); called only when
+ *   `opencode --version` (see `readCliVersion`); called only when
  *   `serviceRecord` carries no `version`.
  * @returns {string} `serviceRecord.version` when present; else whatever
  *   `readCliVersionFn` returns; else `"unknown"`.
@@ -2120,7 +2120,7 @@ function buildLedgerRows(
  * Gather and shape the full `rp_status` payload.
  *
  * Reads the ledger snapshot and per-session pending counts over the reach
- * helper and the HTTP client (never an `opencode2 api` shell-out); when the
+ * helper and the HTTP client (never an `opencode api` shell-out); when the
  * server cannot be resolved, the ledger comes back empty rather than firing
  * requests blind.
  *
@@ -2131,7 +2131,7 @@ function buildLedgerRows(
  *   readCliVersion?: () => string | null,
  * }} [options] `env` defaults to `process.env`; `readServiceRecord` defaults
  *   to `readServiceRecordFile`; `requestFn` defaults to the real HTTP client;
- *   `readCliVersion` defaults to the real `opencode2 --version` reader.
+ *   `readCliVersion` defaults to the real `opencode --version` reader.
  * @returns {Promise<object>} The shaped status payload (see `shapeStatus`).
  */
 async function buildStatusPayload({
@@ -3035,13 +3035,16 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
     }
     const server = resolveServer({ env, readServiceRecord });
     if (server) {
-      await requestServer(
+      const response = await requestServer(
         server,
-        "POST",
-        `/api/session/${sessionID}/rename`,
+        "PATCH",
+        `/api/session/${sessionID}`,
         { title: formatTitle({ run: entry.run, name: entry.name }) },
         requestFn,
       );
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`PATCH /api/session/${sessionID} returned ${response.status}`);
+      }
       titled.add(sessionID);
     }
   };
@@ -3576,8 +3579,8 @@ const DEFAULT_PIN_MANIFEST_PATH = fileURLToPath(
 );
 
 /**
- * Read and parse the pin manifest declaring the exact `@opencode-ai/cli`
- * build (and `@opencode-ai/plugin` version) this layer targets.
+ * Read and parse the pin manifest declaring the exact `@opencode/cli`
+ * build (and `@opencode/plugin` version) this layer targets.
  *
  * @param {string} [manifestPath] Absolute path to the manifest JSON file.
  *   Defaults to `opencode/pin.json` alongside this module.
@@ -3591,10 +3594,10 @@ function readPinManifest(manifestPath = DEFAULT_PIN_MANIFEST_PATH) {
  * Compare a running opencode build against the pinned build.
  *
  * @param {string | null | undefined} runningBuild The build string reported
- *   by the running installation (e.g. from `opencode2 --version` or the
+ *   by the running installation (e.g. from `opencode --version` or the
  *   service record), or a nullish value or the literal `"unknown"` when it
  *   could not be read (e.g. a `serve` process exposes no service record).
- * @param {string} pinnedCli The pinned `@opencode-ai/cli` build string (the
+ * @param {string} pinnedCli The pinned `@opencode/cli` build string (the
  *   pin manifest's `cli` field, see `readPinManifest`).
  * @returns {"match" | "outside the verified surface" | "not determinable"}
  *   `"match"` when `runningBuild` equals `pinnedCli`; `"not determinable"`
@@ -3777,7 +3780,7 @@ const SKILLS_SOURCE_DIR = fileURLToPath(new URL("../skills", import.meta.url));
  * Split a skill file into its YAML frontmatter fields and its markdown body.
  *
  * Only the scalar fields opencode reads off a skill are recognized (`name`,
- * `description`, `slash`); anything else in the block is ignored. A file
+ * `description`, `autoinvoke`); anything else in the block is ignored. A file
  * without a leading `---` fence has no frontmatter and is all body.
  *
  * @param {string} source Raw file contents.
@@ -3816,7 +3819,7 @@ function parseSkillFrontmatter(source) {
  * @param {string} directory Absolute path to the skills directory.
  * @param {{ exists?: (path: string) => boolean, read?: (path: string) => string, list?: (path: string) => string[] }} [io]
  *   Injection seam for tests; defaults to the real filesystem.
- * @returns {Array<{ id: string, name: string, description?: string, slash?: boolean, location: string, content: string }>}
+ * @returns {Array<{ id: string, name: string, description?: string, autoinvoke?: boolean, path: string, content: string }>}
  *   Skills sorted by id. An absent or unreadable directory yields `[]`.
  */
 function readSkillDirectory(
@@ -3850,10 +3853,10 @@ function readSkillDirectory(
       ...(frontmatter.description === undefined
         ? {}
         : { description: frontmatter.description }),
-      ...(frontmatter.slash === undefined
+      ...(frontmatter.autoinvoke === undefined
         ? {}
-        : { slash: frontmatter.slash === "true" }),
-      location: file.path,
+        : { autoinvoke: frontmatter.autoinvoke === "true" }),
+      path: file.path,
       content,
     });
   }
@@ -4644,16 +4647,7 @@ async function setup(ctx, deps = {}) {
     return tools;
   });
 
-  // Builds up to the previously pinned one took a directory source; newer ones
-  // dropped `source` from the draft and take fully-formed skills through
-  // `add`. Probing the draft keeps one plugin working on both, rather than
-  // dying with "sources.source is not a function" on whichever build the
-  // owner happens to run.
   await ctx.skill.transform((skills) => {
-    if (typeof skills.source === "function") {
-      skills.source({ type: "directory", path: SKILLS_SOURCE_DIR });
-      return skills;
-    }
     for (const skill of readSkillDirectory(SKILLS_SOURCE_DIR)) {
       skills.add(skill);
     }

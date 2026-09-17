@@ -3,7 +3,7 @@
  * opencode integration suite.
  *
  * The hermetic, pinned integration suite that exercises the RP coordination
- * layer against exactly the pinned `@opencode-ai/cli` build, in an
+ * layer against exactly the pinned `@opencode/cli` build, in an
  * XDG-isolated sandbox, offline (an OpenAI-compatible SSE stub provider
  * backs every core-flow turn at zero cost). Lives outside `scripts/test/`,
  * so the fixed `npm test` gate never runs it.

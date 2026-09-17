@@ -105,26 +105,26 @@ The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are
 
 ## opencode plugin install
 
-opencode installs plugins from its global config rather than from a marketplace. Radical Pipelines is distributed as a pinned Git specifier that opencode resolves through its own npm resolver, so installing it is a config edit followed by one restart. The target is opencode v2 (the public beta, the `opencode2` binary), verified against one exact pinned build recorded in [`opencode/pin.json`](./opencode/pin.json).
+opencode installs plugins from its global config rather than from a marketplace. Radical Pipelines is distributed as a pinned Git specifier that opencode resolves through its own npm resolver, so installing it is a config edit followed by one restart. The target is released opencode v2 (the `opencode` binary), verified against one exact pinned version recorded in [`opencode/pin.json`](./opencode/pin.json).
 
 Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, pinned to a release tag, and disable opencode's auto-update:
 
 ```jsonc
 {
   "plugins": ["github:Automattic/radical-pipelines#v<X.Y.Z>"],
-  "autoupdate": false
+  "update": "disable"
 }
 ```
 
 Replace `v<X.Y.Z>` with the RP release tag to install; RP tags every release `v<version>`. Then restart the opencode service once:
 
 ```bash
-opencode2 service restart
+opencode service restart
 ```
 
 A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. After the restart:
 
-- The `radical-pipelines` skill is invokable — the plugin registers the packaged skill tree as a skill source by reference, unmodified.
+- The `radical-pipelines` skill is invokable — the plugin registers the packaged skills with their source paths and content.
 - The plugin regenerates RP's profiles in opencode's global `agents/radical-pipelines/` folder, where they register as `radical-pipelines/<name>`; `rp_spawn` accepts the plain RP profile name.
 - Every agent spawned with `rp_spawn` receives the opencode messaging protocol and its spawner's session ID automatically, so its required reports and messages — including its completion declaration, which always goes to the spawner — are routed with `rp_send` rather than left in its transcript. The same protocol tells it that an ended turn is a stop: only a message resumes the session — a reply it awaits, or the completion notice of a background command it gave a `timeout` (background commands carry none by default, so a hung one never reports back) — and anything else it waits on holds its turn, with foreground commands that have a timeout and progress compared between checks, instead of parking on detached work nothing can wake it for.
 - A spawned agent's failed turn is announced to the spawner with its cause, unless `rp_terminate` has successfully deleted that agent's session — every terminal event for a deleted session is suppressed.
@@ -136,14 +136,14 @@ A single restart is enough — the plugin finishes its setup before opencode sca
 - The plugin's tools are scoped to the session calling them, by two facts a caller cannot forge: the parentage opencode reports when a session is created, and the ledger RP writes when it spawns. The orchestrator — which nothing spawned — and the owner's own session reach every tool; an agent spawned with `rp_spawn` reaches `rp_send`, which is all its profile needs; and a subagent, created by a session delegating inside its own turn, reaches none and is told to return its findings to whoever delegated to it. Parentage normally arrives on the event stream, but an event can be missed — the subscription replays no history, and a dropped stream resubscribes rather than recovering what fell in the gap — so a session RP has not seen is asked about, once, against the durable session store rather than assumed unparented. Any read that does not answer — an unreachable server, but equally one that replies 500 or 404 — leaves the question open, and an unclassifiable caller is then treated as a root session, because refusing every one of them would stop the orchestrator too. The ledger lives in daemon memory, so after a restart a spawned agent widens to the orchestrator's set until it is spawned again.
 - opencode's auto-update is disabled, holding the installation on the verified build.
 
-`autoupdate: false` matters because RP verifies against one exact opencode build, not the moving `next` tag. That build lives in [`opencode/pin.json`](./opencode/pin.json), which pins both the `@opencode-ai/cli` build the `opencode2` binary comes from and the `@opencode-ai/plugin` package version the plugin is written against. Any opencode build other than the pin is outside RP's verified surface.
+`update: "disable"` matters because RP verifies against one exact opencode version. That version lives in [`opencode/pin.json`](./opencode/pin.json), which pins both the `@opencode/cli` package the `opencode` binary comes from and the `@opencode/plugin` package version the plugin is written against. Any opencode version other than the pin is outside RP's verified surface.
 
 ### Updating
 
-To move to a newer RP release, change the pinned tag in the same `plugins` entry to the newer `v<version>` release tag — keeping `autoupdate: false` — and restart:
+To move to a newer RP release, change the pinned tag in the same `plugins` entry to the newer `v<version>` release tag — keeping `update: "disable"` — and restart:
 
 ```bash
-opencode2 service restart
+opencode service restart
 ```
 
 opencode resolves the new tag into its own cache entry and the plugin refreshes the materialized agents during setup, so the newer skill and agents take effect after the restart. Only a pinned tag refreshes this way: a moving ref (a branch name in place of a `v<version>` tag) resolves once and never refreshes, which is why the procedure always pins a tag.
@@ -153,7 +153,7 @@ opencode resolves the new tag into its own cache entry and the plugin refreshes 
 opencode reports plugin ids, not versions, so RP surfaces its own version:
 
 - Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version; its `pin` field compares the running opencode build against `opencode/pin.json` — `match` when they are equal, `outside the verified surface` when the running build differs from the pin, and `not determinable` when the running build cannot be read; and `recentLoopTicks` retains recent health-loop outcomes separately from `recentErrors`.
-- opencode's HTTP API reports the same id: `opencode2 api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
+- opencode's HTTP API reports the same id: `opencode api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
 
 ## Configuration
 

@@ -1,7 +1,7 @@
 /**
  * XDG-isolated sandbox harness for the opencode integration suite.
  *
- * Installs the pinned `@opencode-ai/cli` (non-globally, cached by exact
+ * Installs the pinned `@opencode/cli` (non-globally, cached by exact
  * version so repeat runs skip the network) and drives it entirely inside a
  * fresh temp directory: all four XDG vars point inside the sandbox on every
  * invocation, including `--version`, so nothing this suite runs ever touches
@@ -12,7 +12,7 @@
  * record, so `RP_OPENCODE_SERVER_URL` + `OPENCODE_PASSWORD` are set on its own
  * environment — the same override contract the plugin's `resolveServer`
  * reads — and the cached install's bin directory is put on `PATH` so the
- * plugin's `opencode2 --version` fallback (used when no service record is
+ * plugin's `opencode --version` fallback (used when no service record is
  * present) resolves.
  */
 
@@ -50,7 +50,7 @@ const STUB_PORT = 46178;
 
 /**
  * Read and parse the pin manifest (the single source of truth for the exact
- * `@opencode-ai/cli` build and `@opencode-ai/plugin` version this suite
+ * `@opencode/cli` build and `@opencode/plugin` version this suite
  * targets).
  *
  * @returns {{ cli: string, plugin: string }} The parsed manifest.
@@ -61,7 +61,7 @@ export function readPinManifest() {
 
 /**
  * Resolve (installing on first use) a non-global, version-pinned install of
- * `@opencode-ai/cli` and `@opencode-ai/plugin`, cached by exact version under
+ * `@opencode/cli` and `@opencode/plugin`, cached by exact version under
  * the OS temp directory so a repeat run with the same pin never touches the
  * network.
  *
@@ -69,12 +69,12 @@ export function readPinManifest() {
  * @returns {Promise<{ cacheDir: string, binDir: string, opencodeBin: string }>}
  *   `cacheDir` is the install root; `binDir` is its `node_modules/.bin`
  *   (added to `PATH` for the sandbox's processes); `opencodeBin` is the
- *   resolved `opencode2` executable path.
+ *   resolved `opencode` executable path.
  */
 export async function ensurePinnedCli(pin) {
   const cacheDir = join(tmpdir(), "rp-opencode-integration-cache", pin.cli);
   const binDir = join(cacheDir, "node_modules", ".bin");
-  const opencodeBin = join(binDir, "opencode2");
+  const opencodeBin = join(binDir, "opencode");
 
   if (!existsSync(opencodeBin)) {
     mkdirSync(cacheDir, { recursive: true });
@@ -88,8 +88,8 @@ export async function ensurePinnedCli(pin) {
         "install",
         "--no-audit",
         "--no-fund",
-        `@opencode-ai/cli@${pin.cli}`,
-        `@opencode-ai/plugin@${pin.plugin}`,
+        `@opencode/cli@${pin.cli}`,
+        `@opencode/plugin@${pin.plugin}`,
       ],
       { cwd: cacheDir },
     );
@@ -167,7 +167,7 @@ function writeSandboxConfig({ xdgConfigHome, stubPort }) {
     JSON.stringify(
       {
         $schema: "https://opencode.ai/config.json",
-        autoupdate: false,
+        update: "disable",
         plugins: [PLUGIN_ENTRY],
         providers: {
           // The core suite's provider: a mandatory (if dummy) apiKey, so
@@ -176,7 +176,7 @@ function writeSandboxConfig({ xdgConfigHome, stubPort }) {
           // injector.
           stub: {
             name: "RP integration stub",
-            package: "@opencode-ai/ai/providers/openai-compatible",
+            package: "@opencode/ai/providers/openai-compatible",
             settings: { baseURL: `http://127.0.0.1:${stubPort}/v1`, apiKey: "hermetic-dummy-key" },
             models: { "stub-model": { name: "Stub Model" } },
           },
@@ -184,7 +184,7 @@ function writeSandboxConfig({ xdgConfigHome, stubPort }) {
           // HTTP 401 for this known-invalid bearer token.
           stubnoauth: {
             name: "RP integration stub (no auth)",
-            package: "@opencode-ai/ai/providers/openai-compatible",
+            package: "@opencode/ai/providers/openai-compatible",
             settings: { baseURL: `http://127.0.0.1:${stubPort}/v1`, apiKey: INVALID_AUTH_KEY },
             models: { "stub-model": { name: "Stub Model" } },
           },
@@ -237,7 +237,7 @@ export function destroySandbox(sandboxDir) {
  * Sets `RP_OPENCODE_SERVER_URL` + `OPENCODE_PASSWORD` on the process's own
  * environment (the harness's server-reach contract, mirroring the plugin's
  * `resolveServer`), and prepends the pinned install's bin directory to
- * `PATH` so the plugin's `opencode2 --version` fallback resolves.
+ * `PATH` so the plugin's `opencode --version` fallback resolves.
  *
  * @param {{ projectDir: string, env: Record<string,string>, binDir: string, opencodeBin: string }} options
  * @returns {Promise<{ child: import("node:child_process").ChildProcess, baseURL: string, password: string }>}

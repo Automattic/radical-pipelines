@@ -96,11 +96,9 @@ function createFakeCtx({
     "radical-pipelines/researcher",
     "radical-pipelines/build-worker-tdd",
   ],
-  legacySkillDraft = false,
 } = {}) {
   const tools = new Map();
   const addedSkills = [];
-  const skillSources = [];
   const sessions = new Map();
   let nextID = 1;
 
@@ -134,33 +132,21 @@ function createFakeCtx({
         fn(api);
       },
     },
-    // Matches the real ctx.skill.transform() draft contract: current builds
-    // take fully-formed skills through add(); builds up to the previously
-    // pinned one exposed source() instead, and calling it on a current build
-    // dies with "sources.source is not a function". `legacySkillDraft` models
-    // the older shape so both paths stay covered.
     skill: {
       transform(fn) {
-        const api = legacySkillDraft
-          ? {
-              source(src) {
-                skillSources.push(src);
-                return api;
-              },
-            }
-          : {
-              list: () => [...addedSkills],
-              add(skill) {
-                addedSkills.push(skill);
-                return api;
-              },
-              update() {
-                return api;
-              },
-              remove() {
-                return api;
-              },
-            };
+        const api = {
+          list: () => [...addedSkills],
+          add(skill) {
+            addedSkills.push(skill);
+            return api;
+          },
+          update() {
+            return api;
+          },
+          remove() {
+            return api;
+          },
+        };
         fn(api);
       },
     },
@@ -224,7 +210,6 @@ function createFakeCtx({
     ctx,
     tools,
     addedSkills,
-    skillSources,
     sessions,
     pushEvent,
     get subscribeCalls() {
@@ -287,19 +272,8 @@ describe("setup: tool and skill registration", () => {
     const skill = addedSkills[0];
     assert.equal(skill.name, "radical-pipelines");
     assert.match(skill.description, /autonomous software engineering pipeline/);
-    assert.ok(skill.location.endsWith("skills/radical-pipelines/SKILL.md"));
+    assert.ok(skill.path.endsWith("skills/radical-pipelines/SKILL.md"));
     assert.ok(skill.content.startsWith("# Radical Pipelines"));
-  });
-
-  test("falls back to the directory source on builds whose draft still offers it", async () => {
-    const { ctx, addedSkills, skillSources } = createFakeCtx({ legacySkillDraft: true });
-
-    await setup(ctx, isolatedDeps({ env: {} }));
-
-    assert.equal(addedSkills.length, 0);
-    assert.equal(skillSources.length, 1);
-    assert.equal(skillSources[0].type, "directory");
-    assert.ok(skillSources[0].path.endsWith("skills"));
   });
 
   test("calling setup twice subscribes to events exactly once", async () => {
@@ -1275,7 +1249,7 @@ describe("interruptSession", () => {
     };
 
     await interruptSession(server, "ses_1", requestFn);
-    assert.deepEqual(calls, [{ path: "/api/session/ses_1/interrupt?continue=true", method: "POST" }]);
+    assert.deepEqual(calls, [{ path: "/api/session/ses_1/interrupt?resume=true", method: "POST" }]);
   });
 
   test("throws on a non-2xx response", async () => {
@@ -1286,15 +1260,15 @@ describe("interruptSession", () => {
 describe("promoteInboxItem", () => {
   const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
 
-  test("posts the queue-to-steer promotion for the given inbox item", async () => {
+  test("updates the given inbox item's delivery to steer", async () => {
     const calls = [];
     const requestFn = async (url, init) => {
-      calls.push({ path: url.pathname, method: init.method });
+      calls.push({ path: url.pathname, method: init.method, body: JSON.parse(init.body) });
       return { status: 204 };
     };
 
     await promoteInboxItem(server, "ses_1", "inb_1", requestFn);
-    assert.deepEqual(calls, [{ path: "/api/session/ses_1/inbox/inb_1/steer", method: "POST" }]);
+    assert.deepEqual(calls, [{ path: "/api/session/ses_1/inbox/inb_1", method: "PATCH", body: { delivery: "steer" } }]);
   });
 
   test("throws on a non-2xx response", async () => {
@@ -4696,7 +4670,7 @@ describe("terminal-event listener", () => {
     pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_title" } });
     await delay(10);
     assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title/rename");
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title");
     assert.equal(
       renames[0].init.body,
       JSON.stringify({ title: "rp:258-agent-declared-completion:worker-title" }),
@@ -4744,7 +4718,7 @@ describe("terminal-event listener", () => {
     await delay(10);
 
     assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int/rename");
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int");
     assert.equal(renames[0].init.body, JSON.stringify({ title: "rp:276-activity-reporting:worker-interrupted" }));
     assert.equal(promptCalls.length, 0, "an interrupt is a deliberate stop, not a failure to announce");
     assert.deepEqual(globalThis[ERROR_LOG_KEY], []);
@@ -5103,14 +5077,12 @@ describe("resolveRunningBuild", () => {
 });
 
 describe("readCliVersion", () => {
-  test("strips the real CLI's leading 'opencode2 v' and trims the output", () => {
-    // The real `opencode2 --version` prints "opencode2 v<build>\n" — verified
-    // live against the pinned build — not the bare build string alone.
-    assert.equal(readCliVersion(() => "opencode2 v0.0.0-next-15772\n"), "0.0.0-next-15772");
+  test("strips the CLI's leading 'opencode v' and trims the output", () => {
+    assert.equal(readCliVersion(() => "opencode v2.0.5\n"), "2.0.5");
   });
 
-  test("returns the output unchanged when it carries no 'opencode2 v' prefix", () => {
-    assert.equal(readCliVersion(() => "0.0.0-next-15772\n"), "0.0.0-next-15772");
+  test("returns the output unchanged when it carries no 'opencode v' prefix", () => {
+    assert.equal(readCliVersion(() => "2.0.5\n"), "2.0.5");
   });
 
   test("returns null when exec throws (e.g. the binary is missing)", () => {

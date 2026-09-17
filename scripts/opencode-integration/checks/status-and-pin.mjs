@@ -1,7 +1,7 @@
 /**
  * rp_status's version and pin-comparison surface, its ledger rows' liveness
  * facts, and the suite's own pin assertion: the suite reads the running build
- * directly via `opencode2 --version` (the same XDG-isolated invocation the
+ * directly via `opencode --version` (the same XDG-isolated invocation the
  * harness uses everywhere) and asserts it equals `opencode/pin.json`'s `cli`.
  */
 
@@ -40,7 +40,7 @@ export async function run(ctx) {
     // --version call — uses the sandbox's XDG env, per the harness's
     // log-leak rule.
     const { stdout } = await execFileAsync(opencodeBin, ["--version"], { env: { ...process.env, ...env } });
-    const runningBuild = stdout.trim().replace(/^opencode2\s+v/, "");
+    const runningBuild = stdout.trim().replace(/^opencode\s+v/, "");
     assert.equal(runningBuild, pin.cli, `expected the running build to equal the pinned cli ${pin.cli}, got: ${stdout}`);
   });
 
@@ -53,7 +53,7 @@ export async function run(ctx) {
     assert.equal(status.pluginVersion, `radical-pipelines@${pkgVersion}`);
 
     // Under `serve` (no service record), rp_status falls back to
-    // `opencode2 --version`, which the sandbox's serve process can resolve
+    // `opencode --version`, which the sandbox's serve process can resolve
     // since the pinned install's bin dir is on its PATH — so the
     // comparison should resolve to "match" rather than "not determinable".
     assert.equal(status.pin, "match", `expected rp_status's pin comparison to be "match", got: ${status.pin}`);
