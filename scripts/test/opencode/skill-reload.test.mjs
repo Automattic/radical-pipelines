@@ -241,6 +241,22 @@ describe("listSessionMessages", () => {
     assert.match(requests[1], /cursor=2/);
   });
 
+  test("a page of well-formed records is accepted, including unfinished or failed calls without input and other tools", async () => {
+    const body = {
+      data: [
+        { type: "assistant", content: [{ type: "tool", name: "skill", state: { status: "running" } }] },
+        { type: "assistant", content: [{ type: "tool", name: "read", state: { status: "error", input: {} } }] },
+        { type: "assistant", content: [{ type: "tool", name: "glob", state: { status: "completed", input: {} } }] },
+        { type: "user", text: "hi" },
+        { type: "shell" },
+      ],
+      cursor: { previous: null },
+    };
+    const requestFn = async () => ({ status: 200, body });
+    assert.equal((await listSessionMessages(server, "ses_1", requestFn)).length, 5);
+    assert.equal(await hasCheckpoint(server, "ses_1", requestFn), false);
+  });
+
   test("a non-2xx or malformed page is an error, not an empty history", async () => {
     const { requestFn } = fakeServer([], { status: 500 });
     await assert.rejects(listSessionMessages(server, "ses_1", requestFn), /500/);
@@ -257,6 +273,9 @@ describe("listSessionMessages", () => {
       { data: [{ type: "assistant", content: "x" }] },
       { data: [{ type: "assistant", content: [{ type: "tool", name: "read" }] }] },
       { data: [{ type: "assistant", content: [{ type: "tool", state: { status: "completed" } }] }] },
+      { data: [{ type: "assistant", content: [{ type: "tool", name: "skill", state: { status: "completed" } }] }] },
+      { data: [{ type: "assistant", content: [{ type: "tool", name: "skill", state: { status: "completed", input: { id: 42 } } }] }] },
+      { data: [{ type: "assistant", content: [{ type: "tool", name: "read", state: { status: "completed", input: { path: 42 } } }] }] },
     ]) {
       const malformed = async () => ({ status: 200, body });
       await assert.rejects(listSessionMessages(server, "ses_1", malformed), /malformed/, JSON.stringify(body));

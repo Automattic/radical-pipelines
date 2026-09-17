@@ -4142,7 +4142,8 @@ function sessionMessagesPage(body, sessionID) {
  * `user` has no `skills` or an array of objects with a string `id`; an
  * `assistant` has no `content` or an array of parts with a string `type`,
  * where a `tool` part has a string `name` and a `state` object with a
- * string `status`.
+ * string `status`, and a completed `skill` or `read` call has an input
+ * object with a string `id` or `path`.
  *
  * @param {*} message
  * @returns {boolean}
@@ -4164,18 +4165,33 @@ function isWellFormedStoredMessage(message) {
     );
   }
   if (message.type === "assistant") {
-    return (
-      message.content === undefined ||
-      (Array.isArray(message.content) &&
-        message.content.every(
-          (part) =>
-            typeof part?.type === "string" &&
-            (part.type !== "tool" ||
-              (typeof part.name === "string" && typeof part.state === "object" && part.state !== null && typeof part.state.status === "string")),
-        ))
-    );
+    return message.content === undefined || (Array.isArray(message.content) && message.content.every(isWellFormedStoredPart));
   }
   return true;
+}
+
+/**
+ * The part clause of `isWellFormedStoredMessage`.
+ *
+ * @param {*} part
+ * @returns {boolean}
+ */
+function isWellFormedStoredPart(part) {
+  if (typeof part?.type !== "string") {
+    return false;
+  }
+  if (part.type !== "tool") {
+    return true;
+  }
+  const { name, state } = part;
+  if (typeof name !== "string" || typeof state !== "object" || state === null || typeof state.status !== "string") {
+    return false;
+  }
+  if (state.status !== "completed") {
+    return true;
+  }
+  const consumed = { skill: "id", read: "path" }[name];
+  return consumed === undefined || typeof state.input?.[consumed] === "string";
 }
 
 /**
