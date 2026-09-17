@@ -332,8 +332,8 @@ describe("setup: tool and skill registration", () => {
     const after = { sessionID: "ses_wired_orchestrator", system: [], messages: [] };
     await hooks.get("context")(after);
     const [block] = after.system;
-    assert.match(block.text, /Skill: radical-pipelines\nBase directory: .*skills\/radical-pipelines\n\n# Radical Pipelines/);
-    assert.match(block.text, /File: .*reference\/conventions\/load\.md\n# Load project conventions/);
+    assert.match(block.text, /load the skill again with the `skill` tool: `radical-pipelines`/);
+    assert.match(block.text, new RegExp(`  - ${loadPath.replaceAll(".", "\\.")}`));
   });
 
   test("calling setup twice subscribes to events exactly once", async () => {

@@ -3682,8 +3682,8 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   failed while gathering the ledger — a non-empty list means the ledger's
  *   `running`/`pending`/`permissions`/`lastText` fields are incomplete, not
  *   that the sessions are idle; `skillReloads` lists the sessions that
- *   activated a packaged skill, with the files re-supplied after a
- *   checkpoint.
+ *   activated a packaged skill, with the files they are told to read again
+ *   after a checkpoint.
  * @returns {{
  *   pluginVersion: string,
  *   pin: "match" | "outside the verified surface" | "not determinable",
@@ -3882,9 +3882,7 @@ const SKILL_RELOAD_KEY = Symbol.for("radical-pipelines.opencode.skillReload");
 /**
  * Fetch the process-wide skill-reload records, creating them on first use.
  *
- * @returns {Map<string, { skills: string[], files: string[], missing?: string[] }>}
- *   Session ID to its record; `missing` holds the files the last render
- *   could not read.
+ * @returns {Map<string, { skills: string[], files: string[] }>} Session ID to its record.
  */
 function getSkillReloads() {
   if (!globalThis[SKILL_RELOAD_KEY]) {
@@ -4137,45 +4135,24 @@ const SKILL_RELOAD_SUMMARY_SECTION = [
 ].join(" ");
 
 /**
- * Render the block re-supplied to a session that continues from a
- * checkpoint: each activated skill as the `skill` tool presented it, every
- * file read while loading it, and the live facts the plugin holds for the
- * session. Skill bodies and file contents are the current ones.
+ * Render the instruction given to a session that continues from a
+ * checkpoint: load each activated skill again and read again the files it
+ * had read while loading it, then recompute state. Reloading through the
+ * skill makes the session follow the skill's own load path, including the
+ * project files its conventions name; the file list spares it navigating
+ * back to the reference files it had open.
  *
- * @param {{
- *   skills: Array<{ id: string, location: string, content: string }>,
- *   files: string[],
- *   agents: Array<{ name: string, sessionID: string, directory?: string }>,
- *   loops: Array<{ id: string, interval: number }>,
- * }} input
- * @param {(path: string) => string} [read] File reader; defaults to the filesystem.
- * @returns {{ text: string, missing: string[] }} The rendered block, and the
- *   files that could not be read and were left out.
+ * @param {{ skills: string[], files: string[] }} input The activated skill
+ *   ids and the recorded files the request lacks.
+ * @returns {string}
  */
-function renderSkillReload({ skills, files, agents, loops }, read = (path) => readFileSync(path, "utf8")) {
-  const missing = [];
-  const sections = [
-    "This session's context was checkpointed. The skill and the files read while loading it are re-supplied below, current as on disk. Recompute state with `rp check` and `rp_status` before acting.",
-    ...skills.map((skill) => `Skill: ${skill.id}\nBase directory: ${dirname(skill.location)}\n\n${skill.content}`),
-  ];
-  for (const path of files) {
-    try {
-      sections.push(`File: ${path}\n${read(path)}`);
-    } catch {
-      missing.push(path);
-    }
-  }
-  sections.push(
-    agents.length === 0
-      ? "Agents spawned by this session: (none)"
-      : ["Agents spawned by this session:", ...agents.map((agent) => `- ${agent.name} — ${agent.sessionID}${agent.directory ? ` — ${agent.directory}` : ""}`)].join("\n"),
-  );
-  sections.push(
-    loops.length === 0
-      ? "Health loops targeting this session: (none)"
-      : ["Health loops targeting this session:", ...loops.map((loop) => `- ${loop.id} (${loop.interval} ms)`)].join("\n"),
-  );
-  return { text: sections.join("\n\n"), missing };
+function renderSkillReload({ skills, files }) {
+  return [
+    "This session's context was checkpointed and no longer holds the skill it had loaded. Before doing anything else:",
+    ...skills.map((id) => `- load the skill again with the \`skill\` tool: \`${id}\``),
+    ...(files.length === 0 ? [] : [`- read again the files you had read while loading it:\n${files.map((path) => `  - ${path}`).join("\n")}`]),
+    "- recompute state with `rp_status` and `rp check`.",
+  ].join("\n");
 }
 
 /**
@@ -4187,9 +4164,10 @@ function renderSkillReload({ skills, files, agents, loops }, read = (path) => re
  * has lost them. Every request shows its active context; what it shows is
  * added to the session's record. A request from a session whose record
  * holds an activation the request no longer carries is continuing from a
- * checkpoint: it is re-supplied the skill and the recorded files the
- * request lacks. The checkpoint summary request itself is asked to keep the
- * run's settled facts instead.
+ * checkpoint: it is told to load the skill again and read again the
+ * recorded files it lacks. Once it does, the activation is back in its
+ * context and the instruction stops. The checkpoint summary request itself
+ * is asked to keep the run's settled facts instead.
  *
  * A session the daemon holds no record for, whose request shows no
  * activation, is read once from its stored history. A spawned agent never
@@ -4197,10 +4175,10 @@ function renderSkillReload({ skills, files, agents, loops }, read = (path) => re
  *
  * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
  *   The `context` hook event.
- * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, registryPath: string, requestFn?: Function }} deps
+ * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function }} deps
  * @returns {Promise<void>}
  */
-async function onContext(event, { server, skills, registryPath, requestFn }) {
+async function onContext(event, { server, skills, requestFn }) {
   const { sessionID } = event;
   if (lookupSpawn(sessionID)) {
     return;
@@ -4233,23 +4211,13 @@ async function onContext(event, { server, skills, registryPath, requestFn }) {
   if (observed.skills.length > 0) {
     return;
   }
-  const agents = [...getLedger().bySessionID]
-    .filter(([, entry]) => entry.spawner === sessionID)
-    .map(([id, entry]) => ({ name: entry.name, sessionID: id, directory: entry.directory }));
-  const loops = listLoopEntries(registryPath).filter((entry) => entry.targetSession === sessionID);
-  const { text, missing } = renderSkillReload({
-    skills: skills.filter((skill) => record.skills.includes(skill.id)),
-    files: record.files.filter((path) => !observed.files.includes(path)),
-    agents,
-    loops,
+  event.system.push({
+    type: "text",
+    text: renderSkillReload({
+      skills: record.skills,
+      files: record.files.filter((path) => !observed.files.includes(path)),
+    }),
   });
-  for (const path of missing) {
-    if (!record.missing?.includes(path)) {
-      recordError({ type: "skill.reload.missing", sessionID, path, at: Date.now() });
-    }
-  }
-  record.missing = missing;
-  event.system.push({ type: "text", text });
 }
 
 /**
@@ -5096,9 +5064,8 @@ async function setup(ctx, deps = {}) {
   // next response the hook actually observes.
   //
   // The skill-reload hook is registered the same way: `context` sees every
-  // model request and re-supplies the skill to a session continuing from a
-  // checkpoint. It reads the packaged skills at call time so the block
-  // carries their current bodies.
+  // model request and tells a session continuing from a checkpoint to load
+  // its skill again.
   const registerHook = (name, callback) =>
     Promise.resolve()
       .then(() => ctx.session.hook(name, callback))
@@ -5112,7 +5079,6 @@ async function setup(ctx, deps = {}) {
       onContext(event, {
         server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
         skills: readSkillDirectory(SKILLS_SOURCE_DIR),
-        registryPath,
         requestFn,
       }),
     ),
