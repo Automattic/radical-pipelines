@@ -3892,6 +3892,40 @@ function getSkillReloads() {
 }
 
 /**
+ * Upper bound on held skill-reload records. Every root session the hook
+ * sees gets one; the oldest is evicted past this bound and, if it still
+ * matters, derived again from the session's stored history.
+ */
+const SKILL_RELOAD_CAP = 4096;
+
+/**
+ * Hold a session's skill-reload record, evicting the oldest past the cap.
+ *
+ * @param {string} sessionID
+ * @param {{ skills: string[], files: string[] }} record
+ * @returns {void}
+ */
+function holdSkillReload(sessionID, record) {
+  const reloads = getSkillReloads();
+  reloads.set(sessionID, record);
+  while (reloads.size > SKILL_RELOAD_CAP) {
+    reloads.delete(reloads.keys().next().value);
+  }
+}
+
+/**
+ * Drop a deleted session's skill-reload record.
+ *
+ * @param {object} event The event received from `ctx.event.subscribe`.
+ * @returns {void}
+ */
+function forgetSkillReload(event) {
+  if (event?.type === "session.deleted" && typeof event.data?.sessionID === "string") {
+    getSkillReloads().delete(event.data.sessionID);
+  }
+}
+
+/**
  * Basenames of the project convention files the skill loads: `.rp.md`, its
  * per-tool sidecars (`.rp.<tool>.md`), and the local override (`.rp.local.md`).
  */
@@ -3954,21 +3988,39 @@ function* storedSkillEvents(messages) {
 
 /**
  * The skill-loading events in the messages a model request carries — the
- * active context, as the `context` hook sees it: activations and reads
- * appear as `tool-call` parts of assistant messages. A skill attached to a
- * prompt is indistinguishable from prompt text here; it is found in the
- * stored history instead.
+ * active context, as the `context` hook sees it. An activation is a `skill`
+ * tool call with a successful result, or a user text part holding a
+ * packaged skill's body (how a skill attached to a prompt is rendered); a
+ * read is a `read` tool call with a successful result.
  *
  * @param {Array<{ role: string, content: string | Array<object> }>} messages
+ * @param {Array<{ id: string, content: string }>} skills The packaged skills.
  * @returns {Generator<{ skill: string } | { file: string }>}
  */
-function* activeSkillEvents(messages) {
+function* activeSkillEvents(messages, skills) {
+  const succeeded = new Set();
   for (const message of messages) {
-    if (message.role !== "assistant" || !Array.isArray(message.content)) {
+    if (!Array.isArray(message.content)) {
       continue;
     }
     for (const part of message.content) {
-      if (part.type !== "tool-call") {
+      if (part.type === "tool-result" && part.resultType !== "error") {
+        succeeded.add(part.id);
+      }
+    }
+  }
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) {
+      continue;
+    }
+    for (const part of message.content) {
+      if (message.role === "user" && part.type === "text") {
+        const attached = skills.find((skill) => skill.content === part.text);
+        if (attached) {
+          yield { skill: attached.id };
+        }
+      }
+      if (message.role !== "assistant" || part.type !== "tool-call" || !succeeded.has(part.id)) {
         continue;
       }
       if (part.name === "skill") {
@@ -4047,13 +4099,36 @@ async function listSessionMessages(server, sessionID, requestFn) {
     if (response.status < 200 || response.status >= 300) {
       throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
     }
-    messages.push(...(response.body?.data ?? []));
-    const next = response.body?.cursor?.next;
+    const page = sessionMessagesPage(response.body, sessionID);
+    messages.push(...page.data);
+    const next = page.cursor?.next;
     path = next
       ? `/api/session/${sessionID}/message?cursor=${encodeURIComponent(next)}&limit=${SESSION_MESSAGES_PAGE}`
       : undefined;
   }
   return messages;
+}
+
+/**
+ * Validate one page of `GET /api/session/:id/message`: a `data` array of
+ * records with a `type`, and a `cursor` whose `next` is a string or null
+ * when present. Anything else cannot be read.
+ *
+ * @param {*} body The parsed response body.
+ * @param {string} sessionID The session read, for the error.
+ * @returns {{ data: Array<object>, cursor?: { next?: string | null } }}
+ * @throws {Error} On a malformed page.
+ */
+function sessionMessagesPage(body, sessionID) {
+  const next = body?.cursor?.next;
+  const wellFormed =
+    Array.isArray(body?.data) &&
+    body.data.every((message) => typeof message?.type === "string") &&
+    (next === undefined || next === null || typeof next === "string");
+  if (!wellFormed) {
+    throw new Error(`GET /api/session/${sessionID}/message returned a malformed page`);
+  }
+  return body;
 }
 
 /**
@@ -4077,7 +4152,7 @@ async function hasCheckpoint(server, sessionID, requestFn) {
   if (response.status < 200 || response.status >= 300) {
     throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
   }
-  return (response.body?.data ?? []).some((message) => message.status === "completed");
+  return sessionMessagesPage(response.body, sessionID).data.some((message) => message.status === "completed");
 }
 
 /**
@@ -4136,19 +4211,19 @@ const SKILL_RELOAD_SUMMARY_SECTION = [
 
 /**
  * Render the instruction given to a session that continues from a
- * checkpoint: load each activated skill again and read again the files it
- * had read while loading it, then recompute state. Reloading through the
- * skill makes the session follow the skill's own load path, including the
- * project files its conventions name; the file list spares it navigating
- * back to the reference files it had open.
+ * checkpoint: load again each skill it lacks, read again each file it
+ * lacks, then recompute state. Reloading through the skill makes the
+ * session follow the skill's own load path, including the project files
+ * its conventions name; the file list spares it navigating back to the
+ * reference files it had open.
  *
- * @param {{ skills: string[], files: string[] }} input The activated skill
- *   ids and the recorded files the request lacks.
+ * @param {{ skills: string[], files: string[] }} lacking What the record
+ *   holds and the request does not carry.
  * @returns {string}
  */
 function renderSkillReload({ skills, files }) {
   return [
-    "This session's context was checkpointed and no longer holds the skill it had loaded. Before doing anything else:",
+    "This session's context was checkpointed and no longer holds what it had loaded. Before doing anything else:",
     ...skills.map((id) => `- load the skill again with the \`skill\` tool: \`${id}\``),
     ...(files.length === 0 ? [] : [`- read again the files you had read while loading it:\n${files.map((path) => `  - ${path}`).join("\n")}`]),
     "- recompute state with `rp_status` and `rp check`.",
@@ -4162,12 +4237,13 @@ function renderSkillReload({ skills, files }) {
  * was given rather than told — the activated skill and the files read from
  * its folder among them — so a session that continues from a checkpoint
  * has lost them. Every request shows its active context; what it shows is
- * added to the session's record. A request from a session whose record
- * holds an activation the request no longer carries is continuing from a
- * checkpoint: it is told to load the skill again and read again the
- * recorded files it lacks. Once it does, the activation is back in its
- * context and the instruction stops. The checkpoint summary request itself
- * is asked to keep the run's settled facts instead.
+ * added to the session's record. A request from a session that activated a
+ * skill, whose record holds anything the request no longer carries, is
+ * continuing from a checkpoint: it is told to load the lacking skill again
+ * and read the lacking files again. As it does, each returns to its
+ * context and leaves the instruction; a file no longer on disk is not
+ * asked for. The checkpoint summary request itself is asked to keep the
+ * run's settled facts instead.
  *
  * A session the daemon holds no record for, whose request shows no
  * activation, is read once from its stored history. A spawned agent never
@@ -4175,17 +4251,16 @@ function renderSkillReload({ skills, files }) {
  *
  * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
  *   The `context` hook event.
- * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function }} deps
+ * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function, exists?: (path: string) => boolean }} deps
  * @returns {Promise<void>}
  */
-async function onContext(event, { server, skills, requestFn }) {
+async function onContext(event, { server, skills, requestFn, exists = existsSync }) {
   const { sessionID } = event;
   if (lookupSpawn(sessionID)) {
     return;
   }
-  const observed = collectSkillReload(activeSkillEvents(event.messages), skills);
-  const reloads = getSkillReloads();
-  let record = reloads.get(sessionID);
+  const observed = collectSkillReload(activeSkillEvents(event.messages, skills), skills);
+  let record = getSkillReloads().get(sessionID);
   if (record) {
     mergeSkillReload(record, observed);
   } else {
@@ -4199,7 +4274,7 @@ async function onContext(event, { server, skills, requestFn }) {
         return;
       }
     }
-    reloads.set(sessionID, record);
+    holdSkillReload(sessionID, record);
   }
   if (record.skills.length === 0) {
     return;
@@ -4208,16 +4283,14 @@ async function onContext(event, { server, skills, requestFn }) {
     event.system.push({ type: "text", text: SKILL_RELOAD_SUMMARY_SECTION });
     return;
   }
-  if (observed.skills.length > 0) {
+  const lacking = {
+    skills: record.skills.filter((id) => !observed.skills.includes(id)),
+    files: record.files.filter((path) => !observed.files.includes(path) && exists(path)),
+  };
+  if (lacking.skills.length === 0 && lacking.files.length === 0) {
     return;
   }
-  event.system.push({
-    type: "text",
-    text: renderSkillReload({
-      skills: record.skills,
-      files: record.files.filter((path) => !observed.files.includes(path)),
-    }),
-  });
+  event.system.push({ type: "text", text: renderSkillReload(lacking) });
 }
 
 /**
@@ -5008,12 +5081,13 @@ async function setup(ctx, deps = {}) {
   // `add`. Probing the draft keeps one plugin working on both, rather than
   // dying with "sources.source is not a function" on whichever build the
   // owner happens to run.
+  const packagedSkills = readSkillDirectory(SKILLS_SOURCE_DIR);
   await ctx.skill.transform((skills) => {
     if (typeof skills.source === "function") {
       skills.source({ type: "directory", path: SKILLS_SOURCE_DIR });
       return skills;
     }
-    for (const skill of readSkillDirectory(SKILLS_SOURCE_DIR)) {
+    for (const skill of packagedSkills) {
       skills.add(skill);
     }
     return skills;
@@ -5028,6 +5102,7 @@ async function setup(ctx, deps = {}) {
       async (event) => {
         recordSessionEventActivity(event);
         recordSessionParent(event);
+        forgetSkillReload(event);
         onToolEvent(event);
         recordTurnEnd(event);
         await onPermissionAsked(event, {
@@ -5065,7 +5140,8 @@ async function setup(ctx, deps = {}) {
   //
   // The skill-reload hook is registered the same way: `context` sees every
   // model request and tells a session continuing from a checkpoint to load
-  // its skill again.
+  // its skill again. It works from the skills read at registration: only
+  // their ids, folders, and bodies matter, and a reloaded plugin reads anew.
   const registerHook = (name, callback) =>
     Promise.resolve()
       .then(() => ctx.session.hook(name, callback))
@@ -5078,7 +5154,7 @@ async function setup(ctx, deps = {}) {
     registerHook("context", (event) =>
       onContext(event, {
         server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
-        skills: readSkillDirectory(SKILLS_SOURCE_DIR),
+        skills: packagedSkills,
         requestFn,
       }),
     ),
@@ -5132,6 +5208,7 @@ export {
   formatPermissionForward,
   formatRedirectMessage,
   formatStructuredError,
+  forgetSkillReload,
   formatTitle,
   getSessionInbox,
   getSessionMessages,
@@ -5139,6 +5216,7 @@ export {
   getSkillReloads,
   guardTool,
   hasCheckpoint,
+  holdSkillReload,
   interruptSession,
   isCompactionRequest,
   isDeadStreamMessage,

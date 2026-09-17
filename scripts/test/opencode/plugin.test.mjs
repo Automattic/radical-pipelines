@@ -324,6 +324,13 @@ describe("setup: tool and skill registration", () => {
             { type: "tool-call", id: "c2", name: "read", input: { path: loadPath } },
           ],
         },
+        {
+          role: "tool",
+          content: [
+            { type: "tool-result", id: "c1", name: "skill", result: { type: "text", value: "…" } },
+            { type: "tool-result", id: "c2", name: "read", result: { type: "text", value: "…" } },
+          ],
+        },
       ],
     };
     await hooks.get("context")(loaded);

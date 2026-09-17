@@ -94,9 +94,25 @@ export async function run(ctx) {
     assert.match(system, new RegExp(`  - ${conventionsPath.replaceAll(".", "\\.")}`));
   });
 
-  await runCheck(results, "skill reload: once the session loads the skill and reads the file again, the instruction stops", async () => {
+  await runCheck(results, "skill reload: with the skill loaded again but the file still unread, only the file is asked for", async () => {
     const activation = await driveToolCall(server, sessionID, "skill", { id: "radical-pipelines" });
     assert.equal(activation.error, undefined, `skill activation failed: ${activation.error?.message}`);
+    await waitForIdle(server, sessionID);
+
+    const before = stub.chatRequests().length;
+    const nonce = `n${Date.now()}`;
+    await prompt(server, sessionID, `plain turn ${nonce}`);
+    await waitForIdle(server, sessionID);
+
+    const turn = turnRequest(stub.chatRequests().slice(before), nonce);
+    assert.ok(turn, "the stub must have received the turn after the skill reload");
+    const system = roleText(turn, "system");
+    assert.match(system, /context was checkpointed/);
+    assert.doesNotMatch(system, /load the skill again/);
+    assert.match(system, new RegExp(`  - ${conventionsPath.replaceAll(".", "\\.")}`));
+  });
+
+  await runCheck(results, "skill reload: once the file is read again too, the instruction stops", async () => {
     const read = await driveToolCall(server, sessionID, "read", { path: conventionsPath });
     assert.equal(read.error, undefined, `read failed: ${read.error?.message}`);
     await waitForIdle(server, sessionID);
