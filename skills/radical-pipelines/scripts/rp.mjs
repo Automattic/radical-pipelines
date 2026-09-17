@@ -639,6 +639,8 @@ function cmdStamp(args) {
     if (value.length) fm.set(key, value);
     else fm.delete(key);
   }
+  const frontmatterError = validateFrontmatter(fm);
+  if (frontmatterError) die(`stamp: INVALID FRONTMATTER ${rel}: ${frontmatterError}`);
   if (!fm.size) {
     process.stdout.write(`nothing to mirror ${relative(root, abs)}\n`);
     return;

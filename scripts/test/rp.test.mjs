@@ -573,6 +573,16 @@ process.stdout.write(output);
       assert.match(state.contradictions[0].invalid, error, name);
       assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--mirror"), error, name);
     }
+
+    write(root, artifact, "# Candidate\n");
+    registered(artifact, { pins: pairs(["0-intent/intent.md"]) }, "# Candidate\n");
+    const destination = "# Spec\n";
+    write(root, "1-spec/spec.md", destination);
+    assert.throws(
+      () => rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P(artifact)),
+      /INVALID FRONTMATTER 1-spec\/spec\.md: lane-packages reference pins/,
+    );
+    assert.equal(read(root, "1-spec/spec.md"), destination);
   });
 
   test("representation contradictions are reported before base-dependent state", () => {
