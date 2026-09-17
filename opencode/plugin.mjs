@@ -3989,12 +3989,13 @@ function* storedSkillEvents(messages) {
 /**
  * The skill-loading events in the messages a model request carries — the
  * active context, as the `context` hook sees it. An activation is a `skill`
- * tool call with a successful result, or a user text part holding a
- * packaged skill's body (how a skill attached to a prompt is rendered); a
- * read is a `read` tool call with a successful result.
+ * tool call with a successful result, or a user text part opening with the
+ * `<skill_content name="…">` tag opencode renders a skill attached to a
+ * prompt with; a read is a `read` tool call with a successful result. A
+ * result is a `tool-result` part whose `result.type` is not `error`.
  *
  * @param {Array<{ role: string, content: string | Array<object> }>} messages
- * @param {Array<{ id: string, content: string }>} skills The packaged skills.
+ * @param {Array<{ id: string, name: string }>} skills The packaged skills.
  * @returns {Generator<{ skill: string } | { file: string }>}
  */
 function* activeSkillEvents(messages, skills) {
@@ -4004,7 +4005,7 @@ function* activeSkillEvents(messages, skills) {
       continue;
     }
     for (const part of message.content) {
-      if (part.type === "tool-result" && part.resultType !== "error") {
+      if (part.type === "tool-result" && part.result?.type !== "error") {
         succeeded.add(part.id);
       }
     }
@@ -4015,7 +4016,7 @@ function* activeSkillEvents(messages, skills) {
     }
     for (const part of message.content) {
       if (message.role === "user" && part.type === "text") {
-        const attached = skills.find((skill) => skill.content === part.text);
+        const attached = skills.find((skill) => part.text?.startsWith(`<skill_content name="${skill.name}">`));
         if (attached) {
           yield { skill: attached.id };
         }
@@ -4111,8 +4112,8 @@ async function listSessionMessages(server, sessionID, requestFn) {
 
 /**
  * Validate one page of `GET /api/session/:id/message`: a `data` array of
- * records with a `type`, and a `cursor` whose `next` is a string or null
- * when present. Anything else cannot be read.
+ * well-formed records, and a `cursor` that is absent or an object whose
+ * `next` is absent, null, or a string. Anything else cannot be read.
  *
  * @param {*} body The parsed response body.
  * @param {string} sessionID The session read, for the error.
@@ -4120,15 +4121,61 @@ async function listSessionMessages(server, sessionID, requestFn) {
  * @throws {Error} On a malformed page.
  */
 function sessionMessagesPage(body, sessionID) {
-  const next = body?.cursor?.next;
+  const cursor = body?.cursor;
   const wellFormed =
     Array.isArray(body?.data) &&
-    body.data.every((message) => typeof message?.type === "string") &&
-    (next === undefined || next === null || typeof next === "string");
+    body.data.every(isWellFormedStoredMessage) &&
+    (cursor === undefined ||
+      (typeof cursor === "object" &&
+        cursor !== null &&
+        (cursor.next === undefined || cursor.next === null || typeof cursor.next === "string")));
   if (!wellFormed) {
     throw new Error(`GET /api/session/${sessionID}/message returned a malformed page`);
   }
   return body;
+}
+
+/**
+ * Decide whether a stored message carries, well-formed, every field
+ * `storedSkillEvents` and `readSealedSkillReload` consume: a string `type`;
+ * a `compaction` has a string `status`; a `skill` has a string `skill`; a
+ * `user` has no `skills` or an array of objects with a string `id`; an
+ * `assistant` has no `content` or an array of parts with a string `type`,
+ * where a `tool` part has a string `name` and a `state` object with a
+ * string `status`.
+ *
+ * @param {*} message
+ * @returns {boolean}
+ */
+function isWellFormedStoredMessage(message) {
+  if (typeof message?.type !== "string") {
+    return false;
+  }
+  if (message.type === "compaction") {
+    return typeof message.status === "string";
+  }
+  if (message.type === "skill") {
+    return typeof message.skill === "string";
+  }
+  if (message.type === "user") {
+    return (
+      message.skills === undefined ||
+      (Array.isArray(message.skills) && message.skills.every((skill) => typeof skill?.id === "string"))
+    );
+  }
+  if (message.type === "assistant") {
+    return (
+      message.content === undefined ||
+      (Array.isArray(message.content) &&
+        message.content.every(
+          (part) =>
+            typeof part?.type === "string" &&
+            (part.type !== "tool" ||
+              (typeof part.name === "string" && typeof part.state === "object" && part.state !== null && typeof part.state.status === "string")),
+        ))
+    );
+  }
+  return true;
 }
 
 /**
@@ -4158,9 +4205,8 @@ async function hasCheckpoint(server, sessionID, requestFn) {
 /**
  * Derive a session's record from its stored history: what a checkpoint has
  * sealed away from the active context. Read when the daemon holds no record
- * for a session and its request shows no activation — either the session
- * never loaded a skill, or it did before a checkpoint the daemon did not
- * see. A session without a checkpoint has nothing sealed and is not paged.
+ * for a session. A session without a checkpoint has nothing sealed and is
+ * not paged.
  *
  * @param {{ baseURL: string, password: string }} server A resolved server.
  * @param {string} sessionID The session to read.
@@ -4245,9 +4291,10 @@ function renderSkillReload({ skills, files }) {
  * asked for. The checkpoint summary request itself is asked to keep the
  * run's settled facts instead.
  *
- * A session the daemon holds no record for, whose request shows no
- * activation, is read once from its stored history. A spawned agent never
- * activates the skill and is skipped without a read.
+ * A session the daemon holds no record for is read once from its stored
+ * history, whatever its request shows: what a checkpoint sealed is not in
+ * the request. A spawned agent never activates the skill and is skipped
+ * without a read.
  *
  * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
  *   The `context` hook event.
@@ -4260,20 +4307,28 @@ async function onContext(event, { server, skills, requestFn, exists = existsSync
     return;
   }
   const observed = collectSkillReload(activeSkillEvents(event.messages, skills), skills);
-  let record = getSkillReloads().get(sessionID);
+  const reloads = getSkillReloads();
+  let record = reloads.get(sessionID);
   if (record) {
     mergeSkillReload(record, observed);
-  } else {
+  } else if (!server) {
     record = observed;
-    if (observed.skills.length === 0 && server) {
-      try {
-        record = await readSealedSkillReload(server, sessionID, skills, requestFn);
-        mergeSkillReload(record, observed);
-      } catch (error) {
-        recordError({ type: "skill.reload.unreadable", sessionID, error: String(error), at: Date.now() });
-        return;
-      }
+    holdSkillReload(sessionID, record);
+  } else {
+    // Held before the read so a deletion meanwhile drops it: a record
+    // written after would resurrect the session.
+    holdSkillReload(sessionID, observed);
+    try {
+      record = await readSealedSkillReload(server, sessionID, skills, requestFn);
+    } catch (error) {
+      reloads.delete(sessionID);
+      recordError({ type: "skill.reload.unreadable", sessionID, error: String(error), at: Date.now() });
+      return;
     }
+    if (!reloads.has(sessionID)) {
+      return;
+    }
+    mergeSkillReload(record, observed);
     holdSkillReload(sessionID, record);
   }
   if (record.skills.length === 0) {

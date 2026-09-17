@@ -60,6 +60,9 @@ export async function run(ctx) {
     assert.equal(activation.error, undefined, `skill activation failed: ${activation.error?.message}`);
     const read = await driveToolCall(server, sessionID, "read", { path: conventionsPath });
     assert.equal(read.error, undefined, `read failed: ${read.error?.message}`);
+    // A failed read of a convention file: not loaded, so never listed.
+    const failed = await driveToolCall(server, sessionID, "read", { path: join(projectDir, ".rp.local.md") });
+    assert.ok(failed.error, "reading a missing file must fail");
     await waitForIdle(server, sessionID);
 
     const before = stub.chatRequests().length;
@@ -127,7 +130,7 @@ export async function run(ctx) {
     assert.doesNotMatch(roleText(turn, "system"), /context was checkpointed/);
   });
 
-  await runCheck(results, "skill reload: rp_status lists the session with its skill and files", async () => {
+  await runCheck(results, "skill reload: rp_status lists the session with its skill and the files it loaded, not the read that failed", async () => {
     const status = await driveToolCall(server, sessionID, "rp_status", {});
     assert.equal(status.error, undefined, `rp_status failed: ${status.error?.message}`);
     const reloads = status.structuredJSON?.skillReloads ?? [];
@@ -135,5 +138,40 @@ export async function run(ctx) {
     assert.ok(own, `expected ${sessionID} among ${JSON.stringify(reloads)}`);
     assert.deepEqual(own.skills, ["radical-pipelines"]);
     assert.deepEqual(own.files, [conventionsPath]);
+  });
+
+  await runCheck(results, "skill reload: a skill attached to the prompt is an activation too, and is asked for again after the checkpoint", async () => {
+    const session = await createSession(server, {
+      agent: "build",
+      directory: projectDir,
+      model: { providerID: "stub", id: "stub-model" },
+    });
+    const attached = await request(server, "POST", `/api/session/${session.id}/prompt`, {
+      text: "start with the skill attached",
+      skills: [{ id: "radical-pipelines" }],
+      delivery: "queue",
+    });
+    assert.ok(attached.status >= 200 && attached.status < 300, `prompt returned ${attached.status}`);
+    await waitForIdle(server, session.id);
+    // A second turn gives the checkpoint an older exchange to summarize.
+    await prompt(server, session.id, "one more turn");
+    await waitForIdle(server, session.id);
+
+    const compact = await request(server, "POST", `/api/session/${session.id}/compact`, {});
+    assert.ok(compact.status >= 200 && compact.status < 300, `compact returned ${compact.status}`);
+    await pollMessages(
+      server,
+      session.id,
+      (messages) => messages.find((message) => message.type === "compaction" && message.status === "completed"),
+      { label: "a completed checkpoint" },
+    );
+
+    const before = stub.chatRequests().length;
+    const nonce = `n${Date.now()}`;
+    await prompt(server, session.id, `plain turn ${nonce}`);
+    await waitForIdle(server, session.id);
+    const turn = turnRequest(stub.chatRequests().slice(before), nonce);
+    assert.ok(turn, "the stub must have received the turn after the checkpoint");
+    assert.match(roleText(turn, "system"), /load the skill again with the `skill` tool: `radical-pipelines`/);
   });
 }

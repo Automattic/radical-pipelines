@@ -310,7 +310,14 @@ describe("setup: tool and skill registration", () => {
     globalThis[Symbol.for("radical-pipelines.opencode.skillReload")]?.clear();
     const { ctx, hooks } = createFakeCtx();
     const loadPath = fileURLToPath(new URL("../../../skills/radical-pipelines/reference/conventions/load.md", import.meta.url));
-    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+    await setup(
+      ctx,
+      isolatedDeps({
+        env: {},
+        readServiceRecord: () => ({ url: "http://127.0.0.1:1", password: "pw" }),
+        requestFn: async () => ({ status: 200, body: { data: [], cursor: { next: null } } }),
+      }),
+    );
     await delay(0);
 
     const loaded = {

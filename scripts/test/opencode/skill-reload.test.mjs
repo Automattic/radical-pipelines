@@ -20,7 +20,9 @@ import {
 const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
 
 const SKILL_DIR = "/skills/radical-pipelines";
-const skills = [{ id: "radical-pipelines", location: `${SKILL_DIR}/SKILL.md`, content: "# Radical Pipelines" }];
+const skills = [{ id: "radical-pipelines", name: "radical-pipelines", location: `${SKILL_DIR}/SKILL.md`, content: "# Radical Pipelines" }];
+/** A skill attached to a prompt, as opencode renders it into the user message. */
+const attachedSkill = { type: "text", text: '<skill_content name="radical-pipelines">\n# Skill: radical-pipelines\n\n# Radical Pipelines\n…\n</skill_content>' };
 const server = { baseURL: "http://127.0.0.1:1", password: "pw" };
 
 /** A stored assistant message holding one `read` (or other tool) call. */
@@ -49,8 +51,7 @@ function active(...calls) {
         type: "tool-result",
         id: ids[index],
         name,
-        result: { type: "text", value: "…" },
-        ...(outcome?.error ? { resultType: "error" } : {}),
+        result: outcome?.error ? { type: "error", value: { message: "failed" } } : { type: "text", value: "…" },
       })),
     },
   ];
@@ -143,7 +144,8 @@ describe("activeSkillEvents", () => {
     const messages = [
       { role: "system", content: "…" },
       { role: "user", content: "hi" },
-      { role: "user", content: [{ type: "text", text: "# Radical Pipelines" }, { type: "text", text: "work on it" }] },
+      { role: "user", content: [attachedSkill, { type: "text", text: "work on it" }] },
+      { role: "user", content: [{ type: "text", text: "# Radical Pipelines" }] },
       ...activeActivation,
       { role: "assistant", content: "plain text" },
       ...active(["read", { path: "/repo/.rp.md" }], ["glob", { pattern: "*" }]),
@@ -242,7 +244,20 @@ describe("listSessionMessages", () => {
   test("a non-2xx or malformed page is an error, not an empty history", async () => {
     const { requestFn } = fakeServer([], { status: 500 });
     await assert.rejects(listSessionMessages(server, "ses_1", requestFn), /500/);
-    for (const body of [undefined, {}, { data: "x" }, { data: [{}] }, { data: [], cursor: { next: 3 } }]) {
+    for (const body of [
+      undefined,
+      {},
+      { data: "x" },
+      { data: [{}] },
+      { data: [], cursor: { next: 3 } },
+      { data: [], cursor: "invalid" },
+      { data: [{ type: "compaction" }] },
+      { data: [{ type: "skill" }] },
+      { data: [{ type: "user", skills: [{}] }] },
+      { data: [{ type: "assistant", content: "x" }] },
+      { data: [{ type: "assistant", content: [{ type: "tool", name: "read" }] }] },
+      { data: [{ type: "assistant", content: [{ type: "tool", state: { status: "completed" } }] }] },
+    ]) {
       const malformed = async () => ({ status: 200, body });
       await assert.rejects(listSessionMessages(server, "ses_1", malformed), /malformed/, JSON.stringify(body));
       await assert.rejects(hasCheckpoint(server, "ses_1", malformed), /malformed/, JSON.stringify(body));
@@ -273,7 +288,8 @@ describe("the skill-reload records", () => {
 
 describe("the context hook", () => {
   const unreachable = async () => assert.fail("the stored history must not be read");
-  const deps = (requestFn = unreachable, exists = () => true) => ({ server, skills, requestFn, exists });
+  /** Defaults to an empty stored history: a session's first sighting reads it once. */
+  const deps = (requestFn = fakeServer([]).requestFn, exists = () => true) => ({ server, skills, requestFn, exists });
   const checkpointed = { role: "user", content: "<conversation-checkpoint>…" };
 
   beforeEach(() => {
@@ -288,13 +304,13 @@ describe("the context hook", () => {
     assert.deepEqual(loaded.system, []);
     assert.deepEqual(getSkillReloads().get("ses_o"), { skills: ["radical-pipelines"], files: ["/repo/.rp.md"] });
 
-    // A later request adds a read.
+    // A later request adds a read; the history is not read again.
     const more = {
       sessionID: "ses_o",
       system: [],
       messages: [...activeActivation, ...activeRead(`${SKILL_DIR}/reference/run/state.md`)],
     };
-    await onContext(more, deps());
+    await onContext(more, deps(unreachable));
     assert.deepEqual(getSkillReloads().get("ses_o").files, ["/repo/.rp.md", `${SKILL_DIR}/reference/run/state.md`]);
 
     // The checkpoint summary request: asked for the run section, nothing else.
@@ -337,7 +353,7 @@ describe("the context hook", () => {
   });
 
   test("a skill attached to a prompt counts as its activation in the active context", async () => {
-    const attached = { role: "user", content: [{ type: "text", text: "# Radical Pipelines" }, { type: "text", text: "go" }] };
+    const attached = { role: "user", content: [attachedSkill, { type: "text", text: "go" }] };
     const loaded = { sessionID: "ses_a", system: [], messages: [attached] };
     await onContext(loaded, deps());
     assert.deepEqual(loaded.system, []);
@@ -350,6 +366,7 @@ describe("the context hook", () => {
 
   test("a recorded file no longer on disk is not asked for", async () => {
     holdSkillReload("ses_o", { skills: ["radical-pipelines"], files: ["/repo/.rp.md", "/repo/gone.md"] });
+    // The record is held: the history is never read.
     const after = { sessionID: "ses_o", system: [], messages: [checkpointed, ...activeActivation] };
     await onContext(after, deps(unreachable, (path) => path !== "/repo/gone.md"));
     assert.match(after.system[0].text, /\/repo\/\.rp\.md/);
@@ -373,13 +390,40 @@ describe("the context hook", () => {
     assert.deepEqual(summary.system, []);
   });
 
-  test("a session without a record whose request shows no activation is read from its stored history", async () => {
-    const { requestFn } = fakeServer([storedActivation, storedRead("/repo/.rp.md"), checkpoint]);
+  test("a session without a record is read from its stored history, whatever its request shows", async () => {
+    const history = [storedActivation, storedRead("/repo/.rp.md"), checkpoint];
+
     const restarted = { sessionID: "ses_restarted", system: [], messages: [checkpointed] };
-    await onContext(restarted, deps(requestFn));
+    await onContext(restarted, deps(fakeServer(history).requestFn));
     assert.equal(restarted.system.length, 1);
     assert.match(restarted.system[0].text, /`radical-pipelines`/);
     assert.deepEqual(getSkillReloads().get("ses_restarted").files, ["/repo/.rp.md"]);
+
+    // Restarted after the skill was loaded again but before the file was:
+    // the sealed file is still asked for.
+    const partial = { sessionID: "ses_partial", system: [], messages: [checkpointed, ...activeActivation] };
+    await onContext(partial, deps(fakeServer(history).requestFn));
+    assert.equal(partial.system.length, 1);
+    assert.doesNotMatch(partial.system[0].text, /load the skill again/);
+    assert.match(partial.system[0].text, /\/repo\/\.rp\.md/);
+  });
+
+  test("a session deleted while its history is being read is not held", async () => {
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const requestFn = async () => {
+      await gate;
+      return { status: 200, body: { data: [storedActivation, checkpoint], cursor: { next: null } } };
+    };
+    const pending = onContext({ sessionID: "ses_gone", system: [], messages: [] }, deps(requestFn));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(getSkillReloads().has("ses_gone"), true, "held while the read is in flight");
+    forgetSkillReload({ type: "session.deleted", data: { sessionID: "ses_gone" } });
+    release();
+    await pending;
+    assert.equal(getSkillReloads().has("ses_gone"), false);
   });
 
   test("a spawned agent is skipped without a read", async () => {
