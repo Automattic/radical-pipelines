@@ -12,7 +12,7 @@ In `Agents`, the `researcher` block becomes `helper`.
 
 ### Removals
 
-- `researcher` from every `Guardrails` block's `agents`: a helper receives its requester's rules.
+- `researcher` from every `Guardrails` block's `agents`, dropping a block left with none.
 
 ## 1
 

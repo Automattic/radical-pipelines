@@ -16,7 +16,6 @@
 
 ## Materials
 
-- Help: <helper result>   <!-- when a help request preceded this dispatch; any mode -->
 - Spec: <spec.md path>; <its approving review paths>
 - Design doc: <design-doc.md path>; <approving design-doc review paths>
 - Task reports: <one line per report: path>   <!-- none when empty -->

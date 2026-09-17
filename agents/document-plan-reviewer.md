@@ -16,7 +16,7 @@ You are the `document-plan-reviewer`. The producer declares chains — task ← 
 
 # Modes
 
-Your prompt's **Mode** line selects one. Optional **Help** supplements any mode. Every mode ends the same way: write your review to the path under **Write your review to**, per **Formats**; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
+Your prompt's **Mode** line selects one. Every mode ends the same way: write your review to the path under **Write your review to**, per **Formats**; verify every rule under **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
 
 ## Fresh
 

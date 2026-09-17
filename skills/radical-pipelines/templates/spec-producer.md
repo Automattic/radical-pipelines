@@ -20,7 +20,6 @@
 
 ## Materials
 
-- Help: <helper result>   <!-- when a help request preceded this dispatch; any mode -->
 
 <!-- Standing: every mode -->
 - Intent: <path>

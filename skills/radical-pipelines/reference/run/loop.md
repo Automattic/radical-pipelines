@@ -40,10 +40,10 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - A producer receives each required input package. A package change provides **Input changes** for convergence.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; the model per the project's agent conventions.
-- `Execution:` in the Seat is `inspection only` for producers and plan reviewers; `full` for workers and the build and document reviewers. A helper's Seat is its requester's.
+- `Execution:` in the Seat is `inspection only` for producers and plan reviewers; `full` for workers and the build and document reviewers. A helper shares its requester's Worktree, Branch, and Execution.
 - A build or document review's fresh **Diff** is every change on the branch outside the pipelines folder since its base.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
-- Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each. A result whose requester is gone reaches the next instance dispatched for its work under **Help**.
+- Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
 
 ## Stamp on landing

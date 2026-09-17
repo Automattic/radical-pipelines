@@ -12,7 +12,6 @@ Execute
 
 ## Materials
 
-- Help: <helper result>   <!-- when a help request preceded this dispatch -->
 - Task: <tasks/T<n>.md path>
 - Dependencies: <one line per task file it depends on: path>
 - Your previous report: <path>   <!-- later attempts -->

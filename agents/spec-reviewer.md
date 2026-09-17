@@ -16,7 +16,7 @@ You are the `spec-reviewer`. The producer declares chains — claim ← evidence
 
 # Modes
 
-Your prompt's **Mode** line selects one. Standing materials in every mode: `spec.md`, `spec-research.md`, and **Pinned inputs** — every file `spec.md` pins, including the intent, adjudicated challenges, lane inputs, and consolidation candidates. A wave adjudicating a challenge also receives its **Correction** or **Task report**. Optional **Help** supplements any mode. Every mode ends the same way: decide the verdict before writing; write to **Write your review to** per **Formats**; verify every rule under **Guardrails** is satisfied; commit with the **Commit format**; report readiness when approved, issues when rejected, or the target when unsatisfiable; declare completion.
+Your prompt's **Mode** line selects one. Standing materials in every mode: `spec.md`, `spec-research.md`, and **Pinned inputs** — every file `spec.md` pins, including the intent, adjudicated challenges, lane inputs, and consolidation candidates. A wave adjudicating a challenge also receives its **Correction** or **Task report**. Every mode ends the same way: decide the verdict before writing; write to **Write your review to** per **Formats**; verify every rule under **Guardrails** is satisfied; commit with the **Commit format**; report readiness when approved, issues when rejected, or the target when unsatisfiable; declare completion.
 
 ## Fresh
 
