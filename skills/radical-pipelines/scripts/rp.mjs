@@ -347,20 +347,74 @@ function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks =
   return new Map(members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]));
 }
 
+const reviewLanesFor = (configuration, prefix) => [{ id: "", fingerprint: null, materials: null }, ...(configuration.decl[prefix]?.review ?? [])];
+const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
+
+function materialPathsFor(configuration, prefix, scope, lane) {
+  const art = ARTIFACTS.find((candidate) => candidate.prefix === prefix || candidate.review === prefix);
+  const materials = reviewLanesFor(configuration, prefix).find((candidate) => candidate.id === lane)?.materials ?? null;
+  if (materials === null) return null;
+  return materials.map((path) => scope && (path === art.path || path === art.record) ? inScope(scope, path) : path);
+}
+
+function reviewDocuments(inspect, prefix, scope) {
+  return inspect.list().flatMap((path) => {
+    const role = pipelineFileRole(path);
+    if (role.scope !== scope || role.review?.prefix !== prefix) return [];
+    const document = inspect.document(path);
+    return document ? [{ ...document, rel: path, lane: role.review.lane, wave: role.review.wave }] : [];
+  });
+}
+
+function authoritativeReviewContext(configuration, prefix, scope, inspect) {
+  const art = ARTIFACTS.find((candidate) => candidate.prefix === prefix || candidate.review === prefix);
+  if (scope && art?.prefix === prefix) {
+    const root = inspect.document(art.path);
+    const recorded = laneReferences(root?.data).get(inScope(scope, art.path));
+    const rootPins = pinPackage(root?.data?.get("pins"));
+    const binding = rootPins && new Map([...rootPins].filter(([path]) => path.startsWith(scope)));
+    const product = [inScope(scope, art.path), inScope(scope, art.record)];
+    if (recorded && equalPackages(recorded.binding, binding) && equalPackages(projectPackage(binding, product), projectPackage(recorded.reference, product))) {
+      const reviews = reviewDocuments(inspect, prefix, scope);
+      const waves = new Set(reviews.filter((review) => recorded.binding.has(review.rel)).map((review) => review.wave));
+      for (const wave of waves) {
+        const lanes = reviewLanesFor(configuration, prefix);
+        const waveReviews = lanes.map((lane) => reviews.find((review) => review.wave === wave && review.lane === lane.id));
+        const approved = waveReviews.every((review, index) => {
+          if (!review || review.data.get("verdict") !== "approved" || !laneMatches(review, lanes[index].fingerprint)) return false;
+          const paths = materialPathsFor(configuration, prefix, scope, lanes[index].id);
+          return equalPackages(pinPackage(review.data.get("reviewed")), paths === null ? recorded.reference : projectPackage(recorded.reference, paths));
+        });
+        if (!approved) continue;
+        const consumed = new Map([
+          ...projectPackage(recorded.reference, product),
+          ...waveReviews.map((review) => [review.rel, inspect.identityOf(review.rel)]),
+        ]);
+        if (equalPackages(consumed, recorded.binding)) return { reference: recorded.reference, binding: recorded.binding, closed: true };
+      }
+    }
+  }
+  const artifact = inspect.document(inScope(scope, art.path));
+  const markdown = inspect.list();
+  const tasks = markdown.filter((path) => new RegExp(`^${art.phase}/tasks/T\\d+\\.md$`).test(path));
+  const reports = markdown.filter((path) => REPORT.test(path) && path.startsWith(`${art.phase}/`));
+  return {
+    reference: artifactReviewPackage(art, prefix, scope, pinPackage(artifact?.data?.get("pins")), inspect.identityOf, tasks, reports),
+    binding: null,
+    closed: false,
+  };
+}
+
 function validateRunConfiguration(configuration, inspect, command) {
   const invalid = (reason) => { throw new Error(`${command}: INVALID RUN CONFIG run-config.md: ${reason}`); };
-  const markdown = inspect.list();
   for (const lane of configuration.lanes.filter((candidate) => candidate.kind === "review" && candidate.materials)) {
     const art = ARTIFACTS.find((candidate) => candidate.prefix === lane.prefix || candidate.review === lane.prefix);
     const production = configuration.decl[lane.prefix]?.production ?? [];
     for (const scope of ["", ...production.map((candidate) => `${art.phase}/${candidate.id}/`)]) {
       const artifactPath = inScope(scope, art.path);
-      const artifact = inspect.document(artifactPath);
-      if (!Array.isArray(artifact?.data?.get("pins"))) continue;
-      const tasks = markdown.filter((path) => new RegExp(`^${art.phase}/tasks/T\\d+\\.md$`).test(path));
-      const reports = markdown.filter((path) => REPORT.test(path) && path.startsWith(`${art.phase}/`));
-      const reference = artifactReviewPackage(art, lane.prefix, scope, pinPackage(artifact.data.get("pins")), inspect.identityOf, tasks, reports);
-      const selected = lane.materials.map((path) => scope && (path === art.path || path === art.record) ? inScope(scope, path) : path);
+      const reference = authoritativeReviewContext(configuration, lane.prefix, scope, inspect).reference;
+      if (!reference) continue;
+      const selected = materialPathsFor(configuration, lane.prefix, scope, lane.id);
       const packagePaths = new Set(reference?.keys() ?? []);
       const outside = selected.filter((path) => !packagePaths.has(path));
       if (outside.length) invalid(`materials for review lane "${lane.id}" are outside the ${artifactPath} package: ${outside.join(", ")}`);
@@ -1007,10 +1061,8 @@ async function cmdCheck(args) {
   const tree = await treeReader(root, abs, ref);
   const configuration = runConfiguration((path) => tree.read(path), "check");
   const decl = configuration.decl;
-  const reviewLanesOf = (prefix) => [{ id: "", fingerprint: null }, ...(decl[prefix]?.review ?? [])];
+  const reviewLanesOf = (prefix) => reviewLanesFor(configuration, prefix);
   const productionLanesOf = (prefix) => decl[prefix]?.production ?? [];
-  // A stamped file carries the fingerprint of the lane it was dispatched under; a declared fingerprint must match it.
-  const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
 
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
   // A file whose recorded fields differ from its body's projection contradicts the tree.
@@ -1065,45 +1117,22 @@ async function cmdCheck(args) {
   const reports = new Map();
   const reportFilesOf = (phase) => all.filter((d) => REPORT.test(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
 
-  validateRunConfiguration(configuration, {
+  const inspection = {
     list: () => all.map((doc) => doc.rel),
     document: (path) => all.find((doc) => doc.rel === path) ?? null,
     identityOf,
-  }, "check");
+  };
+  validateRunConfiguration(configuration, inspection, "check");
 
   // What a review judges: the artifact package; plans add tasks, phase reviews add reports.
-  const materialPaths = (prefix, sc, lane) => {
-    const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
-    const materials = reviewLanesOf(prefix).find((l) => l.id === lane)?.materials ?? null;
-    if (materials === null) return null;
-    return materials.map((path) => (sc && (path === art.path || path === art.record) ? inScope(sc, path) : path));
-  };
-  const liveReference = (prefix, sc) => {
-    const art = ARTIFACTS.find((a) => a.prefix === prefix) ?? ARTIFACTS.find((a) => a.review === prefix);
-    const consumed = pinPackage(all.find((d) => d.rel === inScope(sc, art.path))?.data.get("pins"));
-    return artifactReviewPackage(art, prefix, sc, consumed, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase));
-  };
-  const recordedLane = (prefix, sc) => {
-    if (!sc) return null;
-    const art = ARTIFACTS.find((a) => a.prefix === prefix);
-    if (!art) return null;
-    const root = all.find((d) => d.rel === art.path);
-    const recorded = laneReferences(root?.data).get(inScope(sc, art.path));
-    if (!recorded) return null;
-    const rootPins = pinPackage(root?.data.get("pins"));
-    const binding = rootPins && new Map([...rootPins].filter(([path]) => path.startsWith(sc)));
-    const product = [inScope(sc, art.path), inScope(sc, art.record)];
-    if (!equalPackages(recorded.binding, binding) || !equalPackages(projectPackage(binding, product), projectPackage(recorded.reference, product))) return null;
-    return recorded;
-  };
   const contextOf = (prefix, sc) => {
-    const recorded = recordedLane(prefix, sc);
-    if (recorded && closedLanePackage(prefix, sc)) return { reference: recorded.reference, required: recorded.reference };
-    return { reference: liveReference(prefix, sc), required: requiredPackageOf(prefix, sc, packageContext).review };
+    const context = authoritativeReviewContext(configuration, prefix, sc, inspection);
+    return context.closed ? { reference: context.reference, required: context.reference } :
+      { reference: context.reference, required: requiredPackageOf(prefix, sc, packageContext).review };
   };
   const reviewFresh = (r, prefix, sc) => {
     const { required: packageMap } = contextOf(prefix, sc);
-    const paths = materialPaths(prefix, sc, r.lane);
+    const paths = materialPathsFor(configuration, prefix, sc, r.lane);
     return equalPackages(pinPackage(r.data.get("reviewed")), paths === null ? packageMap : projectPackage(packageMap, paths));
   };
   const waveValidity = (prefix, sc, wave, context = contextOf(prefix, sc)) => {
@@ -1116,7 +1145,7 @@ async function cmdCheck(args) {
     for (let i = 0; i < reviews.length; i++) {
       const r = reviews[i];
       if (!r || !VERDICTS.has(r.data.get("verdict")) || !laneMatches(r, lanes[i].fingerprint)) return invalid;
-      const paths = materialPaths(prefix, sc, lanes[i].id);
+      const paths = materialPathsFor(configuration, prefix, sc, lanes[i].id);
       if (!equalPackages(pinPackage(r.data.get("reviewed")), paths === null ? reference : projectPackage(reference, paths))) return invalid;
     }
     const valid = reviews.every((r) => r.data.get("verdict") === "approved");
@@ -1125,20 +1154,8 @@ async function cmdCheck(args) {
   };
   const latestWaveOf = (prefix, sc) => Math.max(0, ...reviewsOf(sc).filter((r) => r.prefix === prefix).map((r) => r.wave));
   const closedLanePackage = (prefix, sc) => {
-    const recorded = recordedLane(prefix, sc);
-    if (!recorded) return null;
-    const waves = new Set(reviewsOf(sc).filter((r) => r.prefix === prefix && recorded.binding.has(r.rel)).map((r) => r.wave));
-    const art = ARTIFACTS.find((a) => a.prefix === prefix);
-    for (const wave of waves) {
-      const state = waveValidity(prefix, sc, wave, { reference: recorded.reference, required: recorded.reference });
-      if (!state.current) continue;
-      const binding = new Map([
-        ...projectPackage(recorded.reference, [inScope(sc, art.path), inScope(sc, art.record)]),
-        ...currentPackage(state.reviews.map((r) => r.rel)),
-      ]);
-      if (equalPackages(binding, recorded.binding)) return recorded.binding;
-    }
-    return null;
+    const context = authoritativeReviewContext(configuration, prefix, sc, inspection);
+    return context.closed ? context.binding : null;
   };
   const lanePackageOf = (art, sc) => {
     const closed = closedLanePackage(art.prefix, sc);

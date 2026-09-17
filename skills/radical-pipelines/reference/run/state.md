@@ -24,7 +24,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 - `workflow`: `autonomous` or `assisted`.
 - `target-phase`: an integer from 1 through 4.
-- `lanes`, optional: lane objects containing only non-empty string `profile`, `id`, and `brief`; review lanes may add unique pipeline-relative `materials` from the artifact's review package, and production lanes may add unique `after` ids declared by the same profile. A `materials` or `after` list is non-empty when present; omission means none.
+- `lanes`, optional: lane objects containing only non-empty string `profile`, `id`, and `brief`; review lanes may add unique pipeline-relative `materials` from the artifact's review package, and production lanes may add unique `after` ids declared by the same profile. A list is non-empty when present. Omitted `materials` selects the full review package; omitted `after` means no dependencies.
 
 Lane ids start with a lowercase letter or digit, continue with those or hyphens, and exclude `tasks`; they are unique per profile. `after` dependencies are acyclic. Assisted configurations have no lanes. The profiles map as follows:
 

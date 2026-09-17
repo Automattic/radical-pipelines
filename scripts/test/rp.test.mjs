@@ -2135,6 +2135,37 @@ process.stdout.write(output);
     assert.equal(candidate.lanes.find((entry) => entry.lane === "security").fresh, true);
   });
 
+  test("a closed lane validates materials against the root's preserved reference", () => {
+    const context = "0-intent/context.md";
+    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+    const implicit = "1-spec/a/spec-review-1.md", named = "1-spec/a/spec-review-security-1.md";
+    const reviewer = { ...standard.security, materials: [context] };
+    configure({ targetPhase: 1, lanes: [reviewer, standard.a] });
+    write(root, context, "# Context\n");
+    write(root, artifact, "# Candidate\n");
+    write(root, record, "# Record\n");
+    registered(artifact, { pins: pairs(["0-intent/intent.md", context]), lane: FPS.a });
+    const reference = pairs([artifact, record, "0-intent/intent.md", context]);
+    registeredVerdict(implicit, reference);
+    registeredVerdict(named, pairs([context]), "approved", laneFingerprint(reviewer));
+
+    const binding = pairs([artifact, record, implicit, named]);
+    const rootPins = pairs(["0-intent/intent.md", context, artifact, record, implicit, named]);
+    registered("1-spec/spec.md", { pins: rootPins, "lane-packages": [[artifact, binding, reference]] });
+    const judged = pairs(["1-spec/spec.md", "1-spec/spec-research.md", ...rootPins.map((pin) => pin.slice(0, pin.lastIndexOf("@")))]);
+    registeredVerdict("1-spec/spec-review-1.md", judged);
+    registeredVerdict("1-spec/spec-review-security-1.md", pairs([context]), "approved", laneFingerprint(reviewer));
+    let state = JSON.parse(check(root, "--json"));
+    assert.equal(state.lanes[0].closed, true);
+    assert.equal(state.complete, true);
+
+    registered(artifact, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a });
+    rp(root, "stamp", P(named), "--mirror");
+    state = JSON.parse(check(root, "--json"));
+    assert.equal(state.lanes[0].closed, true);
+    assert.equal(state.complete, true);
+  });
+
   test("verify-3: registered claims become moot and resolutions adjudicated on input change", () => {
     const correction = "0-intent/correction-1.md";
     registered(correction, { target: ["1-spec/spec.md#R1"], "target-identity": [identity(read(root, "1-spec/spec.md"))], origin: "issue 8" }, "# Correction\nTarget: 1-spec/spec.md#R1\nOrigin: issue 8\n");
