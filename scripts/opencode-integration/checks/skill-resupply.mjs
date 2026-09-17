@@ -7,6 +7,9 @@
  */
 
 import assert from "node:assert/strict";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { readSkillDirectory } from "../../../opencode/plugin.mjs";
 import { runCheck } from "../lib/check-runner.mjs";
 import {
   createSession,
@@ -57,7 +60,13 @@ async function plainTurn(server, stub, sessionID) {
   return turn;
 }
 
-const RESUPPLIED = /Skill: radical-pipelines\nBase directory: .*skills\/radical-pipelines\n\n# Radical Pipelines/;
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+
+/** The re-supplied form of the packaged skill: its id, base directory, and registered body. */
+const RESUPPLIED = (() => {
+  const skill = readSkillDirectory(join(REPO_ROOT, "skills")).find((candidate) => candidate.id === "radical-pipelines");
+  return `Skill: radical-pipelines\nBase directory: ${dirname(skill.location)}\n\n${skill.content}`;
+})();
 
 /**
  * Run every check in this group.
@@ -79,15 +88,14 @@ export async function run(ctx) {
     const activation = await driveToolCall(server, sessionID, "skill", { id: "radical-pipelines" });
     assert.equal(activation.error, undefined, `skill activation failed: ${activation.error?.message}`);
     await waitForIdle(server, sessionID);
-    assert.doesNotMatch(roleText(await plainTurn(server, stub, sessionID), "system"), RESUPPLIED);
+    assert.ok(!roleText(await plainTurn(server, stub, sessionID), "system").includes(RESUPPLIED));
 
     await compact(server, sessionID);
 
     for (let turn = 0; turn < 2; turn += 1) {
       const system = roleText(await plainTurn(server, stub, sessionID), "system");
       assert.match(system, /context was checkpointed/);
-      assert.match(system, RESUPPLIED);
-      assert.match(system, /if anything in your context suggests this session was compacted/);
+      assert.ok(system.includes(RESUPPLIED), "the registered skill body must be re-supplied verbatim");
     }
   });
 
@@ -127,6 +135,6 @@ export async function run(ctx) {
     await waitForIdle(server, session.id);
 
     await compact(server, session.id);
-    assert.match(roleText(await plainTurn(server, stub, session.id), "system"), RESUPPLIED);
+    assert.ok(roleText(await plainTurn(server, stub, session.id), "system").includes(RESUPPLIED));
   });
 }

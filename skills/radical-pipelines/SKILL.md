@@ -5,7 +5,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
-> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Before anything else, catch up as an orchestrator with an empty context would: load the project conventions (`reference/conventions/load.md`), read the reference files for the point you are at, take the run's target phase and lanes from the intent's `## Decisions`, and recompute the frontier with `rp check`. Triage is done: resume the workflow you were in, and before dispatching anything, check through your tool's mechanics which agents are already working.
+> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Before anything else, load the project conventions (`reference/conventions/load.md`) and read the reference files for the point you are at. A run under way resumes its workflow without triage: take its target phase and lanes from the intent's `## Decisions`, recompute the frontier with `rp check`, and check through your tool's mechanics which agents are already working before dispatching.
 
 ## Overview
 

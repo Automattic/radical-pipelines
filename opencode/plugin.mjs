@@ -2262,8 +2262,8 @@ async function buildStatusPayload({
     loopTickLog: getLoopTickLog(),
     readFailures: [...failures.values()],
     skillActivations: [...getSkillActivations()]
-      .filter(([, skills]) => skills.length > 0)
-      .map(([sessionID, skills]) => ({ sessionID, skills })),
+      .filter(([, record]) => record.skills.length > 0)
+      .map(([sessionID, record]) => ({ sessionID, skills: record.skills })),
   });
 }
 
@@ -3874,21 +3874,41 @@ function readSkillDirectory(
  * `globalThis` key backing the per-session record of activated skills.
  *
  * Shares the re-import rationale of `LEDGER_KEY`. Each entry lists the
- * packaged skills a session has been observed to activate.
+ * packaged skills a session has been seen to activate, and whether what a
+ * checkpoint sealed away has been recovered from its stored history.
  */
 const SKILL_ACTIVATIONS_KEY = Symbol.for("radical-pipelines.opencode.skillActivations");
 
 /**
  * Fetch the process-wide skill-activation records, creating them on first use.
  *
- * @returns {Map<string, string[]>} Session ID to the ids of the packaged
- *   skills it activated, in first-seen order.
+ * @returns {Map<string, { skills: string[], recovered: boolean }>} Session
+ *   ID to the ids of the packaged skills it activated, in first-seen order,
+ *   and whether its sealed history has been read.
  */
 function getSkillActivations() {
   if (!globalThis[SKILL_ACTIVATIONS_KEY]) {
     globalThis[SKILL_ACTIVATIONS_KEY] = new Map();
   }
   return globalThis[SKILL_ACTIVATIONS_KEY];
+}
+
+/**
+ * `globalThis` key backing the sealed-history reads in flight, one per
+ * session, so concurrent requests of a session await the same read.
+ */
+const SKILL_RECOVERIES_KEY = Symbol.for("radical-pipelines.opencode.skillRecoveries");
+
+/**
+ * Fetch the in-flight sealed-history reads, creating the map on first use.
+ *
+ * @returns {Map<string, Promise<string[]>>}
+ */
+function getSkillRecoveries() {
+  if (!globalThis[SKILL_RECOVERIES_KEY]) {
+    globalThis[SKILL_RECOVERIES_KEY] = new Map();
+  }
+  return globalThis[SKILL_RECOVERIES_KEY];
 }
 
 /**
@@ -3902,12 +3922,12 @@ const SKILL_ACTIVATIONS_CAP = 4096;
  * Hold a session's skill-activation record, evicting the oldest past the cap.
  *
  * @param {string} sessionID
- * @param {string[]} skills
+ * @param {{ skills: string[], recovered: boolean }} record
  * @returns {void}
  */
-function holdSkillActivations(sessionID, skills) {
+function holdSkillActivations(sessionID, record) {
   const records = getSkillActivations();
-  records.set(sessionID, skills);
+  records.set(sessionID, record);
   while (records.size > SKILL_ACTIVATIONS_CAP) {
     records.delete(records.keys().next().value);
   }
@@ -4020,19 +4040,22 @@ const SESSION_MESSAGES_PAGE = 200;
 
 /**
  * Read a session's whole stored history, oldest first, following the
- * server's cursors. Earlier messages remain stored after a checkpoint, so
- * this sees what the active context no longer does.
+ * server's cursors, optionally one message type only. Earlier messages
+ * remain stored after a checkpoint, so this sees what the active context
+ * no longer does.
  *
  * @param {{ baseURL: string, password: string }} server A resolved server.
  * @param {string} sessionID The session to read.
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
  *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<Array<object>>} Every `Session.Message.Info` record.
+ * @param {{ type?: string }} [options] A message type to filter by.
+ * @returns {Promise<Array<object>>} Every matching `Session.Message.Info` record.
  * @throws {Error} On a non-2xx response or a malformed page.
  */
-async function listSessionMessages(server, sessionID, requestFn) {
+async function listSessionMessages(server, sessionID, requestFn, { type } = {}) {
   const messages = [];
-  let path = `/api/session/${sessionID}/message?order=asc&limit=${SESSION_MESSAGES_PAGE}`;
+  const filter = type ? `&type=${encodeURIComponent(type)}` : "";
+  let path = `/api/session/${sessionID}/message?order=asc&limit=${SESSION_MESSAGES_PAGE}${filter}`;
   while (path) {
     const response = await requestServer(server, "GET", path, undefined, requestFn);
     if (response.status < 200 || response.status >= 300) {
@@ -4042,7 +4065,7 @@ async function listSessionMessages(server, sessionID, requestFn) {
     messages.push(...page.data);
     const next = page.cursor?.next;
     path = next
-      ? `/api/session/${sessionID}/message?cursor=${encodeURIComponent(next)}&limit=${SESSION_MESSAGES_PAGE}`
+      ? `/api/session/${sessionID}/message?cursor=${encodeURIComponent(next)}&limit=${SESSION_MESSAGES_PAGE}${filter}`
       : undefined;
   }
   return messages;
@@ -4129,30 +4152,6 @@ function isWellFormedStoredPart(part) {
 }
 
 /**
- * Check whether a session has a completed checkpoint in its stored history.
- *
- * @param {{ baseURL: string, password: string }} server A resolved server.
- * @param {string} sessionID The session to check.
- * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<boolean>}
- * @throws {Error} On a non-2xx response or a malformed page.
- */
-async function hasCheckpoint(server, sessionID, requestFn) {
-  const response = await requestServer(
-    server,
-    "GET",
-    `/api/session/${sessionID}/message?type=compaction&order=desc&limit=${SESSION_MESSAGES_PAGE}`,
-    undefined,
-    requestFn,
-  );
-  if (response.status < 200 || response.status >= 300) {
-    throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
-  }
-  return sessionMessagesPage(response.body, sessionID).data.some((message) => message.status === "completed");
-}
-
-/**
  * Derive a session's activations from its stored history: what a
  * checkpoint has sealed away from the active context. Read when the daemon
  * holds no record for a session. A session without a checkpoint has nothing
@@ -4166,7 +4165,8 @@ async function hasCheckpoint(server, sessionID, requestFn) {
  * @throws {Error} When the history cannot be read.
  */
 async function readSealedSkillActivations(server, sessionID, skills, requestFn) {
-  if (!(await hasCheckpoint(server, sessionID, requestFn))) {
+  const compactions = await listSessionMessages(server, sessionID, requestFn, { type: "compaction" });
+  if (!compactions.some((message) => message.status === "completed")) {
     return [];
   }
   const messages = await listSessionMessages(server, sessionID, requestFn);
@@ -4200,10 +4200,11 @@ function renderSkillResupply(skills) {
  * continuing from a checkpoint: the skill's body is re-supplied in
  * `system`, as the tool's own compaction re-supplies invoked skills.
  *
- * A session the daemon holds no record for is read once from its stored
- * history, whatever its request shows: what a checkpoint sealed is not in
- * the request. A spawned agent never activates the skill and is skipped
- * without a read.
+ * What a checkpoint sealed is not in any request: until a session's stored
+ * history has been read, it is read — once, shared by the requests that
+ * arrive meanwhile, and again on the next request when it fails or the
+ * server is unreachable. A spawned agent never activates the skill and is
+ * skipped without a read.
  *
  * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
  *   The `context` hook event.
@@ -4218,24 +4219,39 @@ async function onContext(event, { server, skills, requestFn }) {
   const observed = packagedSkillActivations(activeSkillActivations(event.messages, skills), skills);
   const records = getSkillActivations();
   let record = records.get(sessionID);
-  if (!record && server) {
-    // Held before the read so a deletion meanwhile drops it: a record
-    // written after would resurrect the session.
-    holdSkillActivations(sessionID, observed);
-    try {
-      record = await readSealedSkillActivations(server, sessionID, skills, requestFn);
-    } catch (error) {
-      records.delete(sessionID);
-      recordError({ type: "skill.resupply.unreadable", sessionID, error: String(error), at: Date.now() });
-      return;
-    }
-    if (!records.has(sessionID)) {
-      return;
-    }
+  if (!record) {
+    record = { skills: [], recovered: false };
+    holdSkillActivations(sessionID, record);
   }
-  record = packagedSkillActivations([...(record ?? []), ...observed], skills);
-  holdSkillActivations(sessionID, record);
-  const lacking = record.filter((id) => !observed.includes(id));
+  record.skills = packagedSkillActivations([...record.skills, ...observed], skills);
+  if (!record.recovered && server) {
+    const recoveries = getSkillRecoveries();
+    let recovery = recoveries.get(sessionID);
+    if (!recovery) {
+      recovery = readSealedSkillActivations(server, sessionID, skills, requestFn)
+        .catch((error) => {
+          recordError({ type: "skill.resupply.unreadable", sessionID, error: String(error), at: Date.now() });
+          throw error;
+        })
+        .finally(() => recoveries.delete(sessionID));
+      recoveries.set(sessionID, recovery);
+    }
+    let sealed;
+    try {
+      sealed = await recovery;
+    } catch {
+      return;
+    }
+    // The session may have been deleted meanwhile; its record is gone and
+    // stays gone.
+    record = records.get(sessionID);
+    if (!record) {
+      return;
+    }
+    record.skills = packagedSkillActivations([...sealed, ...record.skills], skills);
+    record.recovered = true;
+  }
+  const lacking = record.skills.filter((id) => !observed.includes(id));
   if (lacking.length === 0) {
     return;
   }
@@ -5165,7 +5181,6 @@ export {
   getSessionUpdatedAt,
   getSkillActivations,
   guardTool,
-  hasCheckpoint,
   holdSkillActivations,
   interruptSession,
   isDeadStreamMessage,

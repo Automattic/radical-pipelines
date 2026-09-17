@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -307,7 +307,7 @@ describe("setup: tool and skill registration", () => {
 
   test("the registered context hook re-supplies the packaged skill to a session continuing from a checkpoint", async () => {
     globalThis[Symbol.for("radical-pipelines.opencode.skillActivations")]?.clear();
-    const { ctx, hooks } = createFakeCtx();
+    const { ctx, hooks, addedSkills } = createFakeCtx();
     await setup(
       ctx,
       isolatedDeps({
@@ -332,8 +332,8 @@ describe("setup: tool and skill registration", () => {
     const after = { sessionID: "ses_wired_orchestrator", system: [], messages: [] };
     await hooks.get("context")(after);
     const [block] = after.system;
-    assert.match(block.text, /Skill: radical-pipelines\nBase directory: .*skills\/radical-pipelines\n\n# Radical Pipelines/);
-    assert.match(block.text, /if anything in your context suggests this session was compacted/);
+    const skill = addedSkills.find((candidate) => candidate.id === "radical-pipelines");
+    assert.ok(block.text.includes(`Skill: radical-pipelines\nBase directory: ${dirname(skill.location)}\n\n${skill.content}`));
   });
 
   test("calling setup twice subscribes to events exactly once", async () => {

@@ -5,7 +5,6 @@ import {
   activeSkillActivations,
   forgetSkillActivations,
   getSkillActivations,
-  hasCheckpoint,
   holdSkillActivations,
   listSessionMessages,
   onContext,
@@ -119,11 +118,18 @@ describe("activeSkillActivations", () => {
 });
 
 describe("readSealedSkillActivations", () => {
-  test("a session without a checkpoint has nothing sealed and is not paged", async () => {
+  test("a session without a checkpoint has nothing sealed and its history is not paged", async () => {
     const { requestFn, requests } = fakeServer([storedActivation]);
     assert.deepEqual(await readSealedSkillActivations(server, "ses_1", skills, requestFn), []);
     assert.equal(requests.length, 1);
     assert.match(requests[0], /type=compaction/);
+  });
+
+  test("a completed checkpoint behind pages of failed ones is found", async () => {
+    const failures = Array.from({ length: 5 }, () => ({ type: "compaction", status: "failed" }));
+    const { requestFn, requests } = fakeServer([storedActivation, ...failures, checkpoint], { pageSize: 2 });
+    assert.deepEqual(await readSealedSkillActivations(server, "ses_1", skills, requestFn), ["radical-pipelines"]);
+    assert.equal(requests.filter((path) => path.includes("type=compaction")).length, 3);
   });
 
   test("only what precedes the last completed checkpoint is sealed", async () => {
@@ -161,7 +167,14 @@ describe("listSessionMessages", () => {
     };
     const requestFn = async () => ({ status: 200, body });
     assert.equal((await listSessionMessages(server, "ses_1", requestFn)).length, 5);
-    assert.equal(await hasCheckpoint(server, "ses_1", requestFn), false);
+  });
+
+  test("a type filter is carried across pages", async () => {
+    const messages = [{ type: "user", text: "a" }, checkpoint, { type: "user", text: "b" }, checkpoint, checkpoint];
+    const { requestFn, requests } = fakeServer(messages, { pageSize: 2 });
+    const result = await listSessionMessages(server, "ses_1", requestFn, { type: "compaction" });
+    assert.equal(result.length, 3);
+    assert.ok(requests.every((path) => path.includes("type=compaction")), JSON.stringify(requests));
   });
 
   test("a non-2xx or malformed page is an error, not an empty history", async () => {
@@ -185,7 +198,6 @@ describe("listSessionMessages", () => {
     ]) {
       const malformed = async () => ({ status: 200, body });
       await assert.rejects(listSessionMessages(server, "ses_1", malformed), /malformed/, JSON.stringify(body));
-      await assert.rejects(hasCheckpoint(server, "ses_1", malformed), /malformed/, JSON.stringify(body));
     }
   });
 });
@@ -194,7 +206,7 @@ describe("the skill-activation records", () => {
   beforeEach(() => getSkillActivations().clear());
 
   test("a deleted session's record is dropped", () => {
-    holdSkillActivations("ses_1", ["radical-pipelines"]);
+    holdSkillActivations("ses_1", { skills: ["radical-pipelines"], recovered: true });
     forgetSkillActivations({ type: "session.deleted", data: { sessionID: "ses_1" } });
     forgetSkillActivations({ type: "session.created", data: { sessionID: "ses_2" } });
     forgetSkillActivations({ type: "session.deleted" });
@@ -203,7 +215,7 @@ describe("the skill-activation records", () => {
 
   test("the oldest record is evicted past the cap", () => {
     for (let index = 0; index < 4097; index += 1) {
-      holdSkillActivations(`ses_${index}`, []);
+      holdSkillActivations(`ses_${index}`, { skills: [], recovered: true });
     }
     assert.equal(getSkillActivations().size, 4096);
     assert.equal(getSkillActivations().has("ses_0"), false);
@@ -227,6 +239,7 @@ describe("the context hook", () => {
   const unreachable = async () => assert.fail("the stored history must not be read");
   /** Defaults to an empty stored history: a session's first sighting reads it once. */
   const deps = (requestFn = fakeServer([]).requestFn) => ({ server, skills, requestFn });
+  const record = (sessionID) => getSkillActivations().get(sessionID);
 
   beforeEach(() => {
     getSkillActivations().clear();
@@ -238,7 +251,7 @@ describe("the context hook", () => {
     const loaded = { sessionID: "ses_o", system: [], messages: activeActivation };
     await onContext(loaded, deps());
     assert.deepEqual(loaded.system, []);
-    assert.deepEqual(getSkillActivations().get("ses_o"), ["radical-pipelines"]);
+    assert.deepEqual(record("ses_o"), { skills: ["radical-pipelines"], recovered: true });
 
     // A later request; the history is not read again.
     await onContext({ sessionID: "ses_o", system: [], messages: activeActivation }, deps(unreachable));
@@ -263,7 +276,7 @@ describe("the context hook", () => {
     const loaded = { sessionID: "ses_a", system: [], messages: [attached] };
     await onContext(loaded, deps());
     assert.deepEqual(loaded.system, []);
-    assert.deepEqual(getSkillActivations().get("ses_a"), ["radical-pipelines"]);
+    assert.deepEqual(record("ses_a").skills, ["radical-pipelines"]);
 
     const after = { sessionID: "ses_a", system: [], messages: [checkpointed] };
     await onContext(after, deps(unreachable));
@@ -290,7 +303,30 @@ describe("the context hook", () => {
     const reloaded = { sessionID: "ses_reloaded", system: [], messages: [checkpointed, ...activeActivation] };
     await onContext(reloaded, deps(fakeServer(history).requestFn));
     assert.deepEqual(reloaded.system, []);
-    assert.deepEqual(getSkillActivations().get("ses_reloaded"), ["radical-pipelines"]);
+    assert.deepEqual(record("ses_reloaded"), { skills: ["radical-pipelines"], recovered: true });
+  });
+
+  test("concurrent requests of one session await the same history read", async () => {
+    let reads = 0;
+    let release;
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    const requestFn = async (url) => {
+      reads += 1;
+      await gate;
+      const data = url.searchParams.get("type") === "compaction" ? [checkpoint] : [storedActivation, checkpoint];
+      return { status: 200, body: { data, cursor: { next: null } } };
+    };
+    const first = { sessionID: "ses_c", system: [], messages: [checkpointed] };
+    const second = { sessionID: "ses_c", system: [], messages: [checkpointed] };
+    const pending = Promise.all([onContext(first, deps(requestFn)), onContext(second, deps(requestFn))]);
+    await new Promise((resolve) => setImmediate(resolve));
+    release();
+    await pending;
+    assert.equal(reads, 2, "one read of the compaction records and one of the history, shared");
+    assert.equal(first.system.length, 1);
+    assert.equal(second.system.length, 1, "the second request waited for the sealed activation");
   });
 
   test("a session deleted while its history is being read is not held", async () => {
@@ -319,24 +355,35 @@ describe("the context hook", () => {
     assert.equal(getSkillActivations().has("ses_agent"), false);
   });
 
-  test("a history that cannot be read leaves no record, is reported, and is read again next time", async () => {
-    const { requestFn } = fakeServer([], { status: 500 });
+  test("a history that cannot be read is reported once and read again next time", async () => {
+    const { requestFn, requests } = fakeServer([], { status: 500 });
     const context = { sessionID: "ses_o", system: [], messages: [] };
     await onContext(context, deps(requestFn));
     assert.deepEqual(context.system, []);
-    assert.equal(getSkillActivations().has("ses_o"), false);
-    assert.equal(globalThis[ERROR_LOG_KEY][0].type, "skill.resupply.unreadable");
+    assert.deepEqual(record("ses_o"), { skills: [], recovered: false });
+    assert.deepEqual(globalThis[ERROR_LOG_KEY].map((entry) => entry.type), ["skill.resupply.unreadable"]);
+
+    await onContext({ sessionID: "ses_o", system: [], messages: [] }, deps(requestFn));
+    assert.equal(requests.length, 2, "read again");
   });
 
-  test("without a server, a session is known only through what its requests show", async () => {
+  test("without a server, a session is known through its requests until the server is reachable", async () => {
     const loaded = { sessionID: "ses_o", system: [], messages: activeActivation };
     await onContext(loaded, { ...deps(), server: null });
+    assert.deepEqual(record("ses_o"), { skills: ["radical-pipelines"], recovered: false });
     const after = { sessionID: "ses_o", system: [], messages: [] };
     await onContext(after, { ...deps(), server: null });
     assert.equal(after.system.length, 1);
 
-    const unknown = { sessionID: "ses_u", system: [], messages: [] };
+    // The server is back: the sealed history is read then.
+    const unknown = { sessionID: "ses_u", system: [], messages: [checkpointed] };
     await onContext(unknown, { ...deps(), server: null });
     assert.deepEqual(unknown.system, []);
+    const { requestFn, requests } = fakeServer([storedActivation, checkpoint]);
+    const recovered = { sessionID: "ses_u", system: [], messages: [checkpointed] };
+    await onContext(recovered, deps(requestFn));
+    assert.ok(requests.length > 0, "the history is read once the server is reachable");
+    assert.equal(recovered.system.length, 1);
+    assert.deepEqual(record("ses_u"), { skills: ["radical-pipelines"], recovered: true });
   });
 });
