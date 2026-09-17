@@ -1,6 +1,6 @@
 # The assisted workflow
 
-You drive one phase — spec or design doc — directly with the owner through Q&A and research. You produce; the owner reviews; helpers are spawned. Assisted runs have no named lanes: owner approval is the whole review. Production lanes and a pipeline whose next phase is build or document use the autonomous workflow: say so and offer `loop.md`.
+You drive one phase — spec or design doc — directly with the owner through Q&A and research. You produce; the owner reviews; helpers are spawned. Its assisted run configuration has no lanes; owner approval is the whole review. Production lanes and a pipeline whose next phase is build or document use the autonomous workflow: say so and offer `loop.md`.
 
 ## Rules
 
