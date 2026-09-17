@@ -135,6 +135,7 @@ function readPipelineFile(abs) {
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
+const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
 const REPORT = /^([^/]+)\/tasks\/(T\d+)-report-(\d+)\.md$/;
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
 const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
@@ -205,15 +206,21 @@ function runConfiguration(read, command) {
   if (parsed.error) invalid(parsed.error);
   if (parsed.data === null) invalid("frontmatter is required");
   const object = Object.fromEntries(parsed.data);
+  const optionalList = (container, key, label) => {
+    if (!Object.hasOwn(container, key)) return null;
+    if (!Array.isArray(container[key])) invalid(`${label} must be an array`);
+    if (!container[key].length) invalid(`${label} must be non-empty when present`);
+    return container[key];
+  };
   const keys = new Set(["workflow", "target-phase", "lanes"]);
   const unknown = Object.keys(object).find((key) => !keys.has(key));
   if (unknown !== undefined) invalid(`unknown key: ${unknown}`);
   if (!["autonomous", "assisted"].includes(object.workflow)) invalid('workflow must be "autonomous" or "assisted"');
   if (!Number.isInteger(object["target-phase"]) || object["target-phase"] < 1 || object["target-phase"] > ARTIFACTS.length)
     invalid(`target-phase must be an integer from 1 to ${ARTIFACTS.length}`);
-  if (object.lanes !== undefined && !Array.isArray(object.lanes)) invalid("lanes must be an array");
+  const declaredLanes = optionalList(object, "lanes", "lanes") ?? [];
   const lanes = [];
-  for (const [index, value] of (object.lanes ?? []).entries()) {
+  for (const [index, value] of declaredLanes.entries()) {
     const at = `lanes[${index}]`;
     if (value === null || Array.isArray(value) || typeof value !== "object") invalid(`${at} must be an object`);
     const allowed = new Set(["profile", "id", "brief", "materials", "after"]);
@@ -228,20 +235,20 @@ function runConfiguration(read, command) {
     if (typeof value.brief !== "string" || !value.brief.trim()) invalid(`${at}.brief must be a non-empty string`);
     if (profile.kind === "review" && Object.hasOwn(value, "after")) invalid(`${at}.after applies to production lanes only`);
     if (profile.kind === "production" && Object.hasOwn(value, "materials")) invalid(`${at}.materials applies to review lanes only`);
-    for (const key of ["materials", "after"])
-      if (Array.isArray(value[key]) && !value[key].length) invalid(`${at}.${key} must be non-empty when present`);
+    const materials = optionalList(value, "materials", `${at}.materials`);
+    const after = optionalList(value, "after", `${at}.after`);
     if (Object.hasOwn(value, "materials")) {
-      if (!Array.isArray(value.materials) || value.materials.some((path) => typeof path !== "string")) invalid(`${at}.materials must be an array of paths`);
-      for (const path of value.materials) {
+      if (materials.some((path) => typeof path !== "string")) invalid(`${at}.materials must be an array of paths`);
+      for (const path of materials) {
         const parts = path.split("/");
         if (parts.length < 2 || parts.some((part) => !part || part === "." || part === "..") || path.startsWith("/") || path.includes("@"))
           invalid(`${at}.materials has invalid path: ${path}`);
       }
-      if (new Set(value.materials).size !== value.materials.length) invalid(`${at}.materials has duplicate paths`);
+      if (new Set(materials).size !== materials.length) invalid(`${at}.materials has duplicate paths`);
     }
     if (Object.hasOwn(value, "after")) {
-      if (!Array.isArray(value.after) || value.after.some((id) => typeof id !== "string" || !LANE_ID.test(id))) invalid(`${at}.after must be an array of lane ids`);
-      if (new Set(value.after).size !== value.after.length) invalid(`${at}.after has duplicate lane ids`);
+      if (after.some((id) => typeof id !== "string" || !LANE_ID.test(id))) invalid(`${at}.after must be an array of lane ids`);
+      if (new Set(after).size !== after.length) invalid(`${at}.after has duplicate lane ids`);
     }
     const lane = {
       profile: value.profile,
@@ -362,8 +369,25 @@ function reviewDocuments(inspect, prefix, scope) {
     const role = pipelineFileRole(path);
     if (role.scope !== scope || role.review?.prefix !== prefix) return [];
     const document = inspect.document(path);
-    return document ? [{ ...document, rel: path, lane: role.review.lane, wave: role.review.wave }] : [];
+    return document ? [{ ...document, data: document.data ?? new Map(), rel: path, lane: role.review.lane, wave: role.review.wave }] : [];
   });
+}
+
+function evaluateWave(configuration, prefix, scope, wave, { reference, required }, inspect) {
+  const invalid = { valid: false, current: false, closed: false, reviews: [] };
+  if (!wave || !reference) return invalid;
+  const available = reviewDocuments(inspect, prefix, scope).filter((review) => review.wave === wave);
+  const lanes = reviewLanesFor(configuration, prefix);
+  const reviews = lanes.map((lane) => available.find((review) => review.lane === lane.id));
+  for (let index = 0; index < reviews.length; index++) {
+    const review = reviews[index];
+    if (!review || !VERDICTS.has(review.data.get("verdict")) || !laneMatches(review, lanes[index].fingerprint)) return invalid;
+    const paths = materialPathsFor(configuration, prefix, scope, lanes[index].id);
+    if (!equalPackages(pinPackage(review.data.get("reviewed")), paths === null ? reference : projectPackage(reference, paths))) return invalid;
+  }
+  const valid = reviews.every((review) => review.data.get("verdict") === "approved");
+  const applicable = equalPackages(reference, required);
+  return { valid, current: valid && applicable, closed: applicable, reviews, package: reference };
 }
 
 function authoritativeReviewContext(configuration, prefix, scope, inspect) {
@@ -378,17 +402,11 @@ function authoritativeReviewContext(configuration, prefix, scope, inspect) {
       const reviews = reviewDocuments(inspect, prefix, scope);
       const waves = new Set(reviews.filter((review) => recorded.binding.has(review.rel)).map((review) => review.wave));
       for (const wave of waves) {
-        const lanes = reviewLanesFor(configuration, prefix);
-        const waveReviews = lanes.map((lane) => reviews.find((review) => review.wave === wave && review.lane === lane.id));
-        const approved = waveReviews.every((review, index) => {
-          if (!review || review.data.get("verdict") !== "approved" || !laneMatches(review, lanes[index].fingerprint)) return false;
-          const paths = materialPathsFor(configuration, prefix, scope, lanes[index].id);
-          return equalPackages(pinPackage(review.data.get("reviewed")), paths === null ? recorded.reference : projectPackage(recorded.reference, paths));
-        });
-        if (!approved) continue;
+        const state = evaluateWave(configuration, prefix, scope, wave, { reference: recorded.reference, required: recorded.reference }, inspect);
+        if (!state.current) continue;
         const consumed = new Map([
           ...projectPackage(recorded.reference, product),
-          ...waveReviews.map((review) => [review.rel, inspect.identityOf(review.rel)]),
+          ...state.reviews.map((review) => [review.rel, inspect.identityOf(review.rel)]),
         ]);
         if (equalPackages(consumed, recorded.binding)) return { reference: recorded.reference, binding: recorded.binding, closed: true };
       }
@@ -1136,21 +1154,7 @@ async function cmdCheck(args) {
     return equalPackages(pinPackage(r.data.get("reviewed")), paths === null ? packageMap : projectPackage(packageMap, paths));
   };
   const waveValidity = (prefix, sc, wave, context = contextOf(prefix, sc)) => {
-    const { reference, required } = context;
-    const invalid = { valid: false, current: false, closed: false, reviews: [] };
-    if (!wave || !reference) return invalid;
-    const rs = reviewsOf(sc).filter((r) => r.prefix === prefix && r.wave === wave);
-    const lanes = reviewLanesOf(prefix);
-    const reviews = lanes.map((lane) => rs.find((r) => r.lane === lane.id));
-    for (let i = 0; i < reviews.length; i++) {
-      const r = reviews[i];
-      if (!r || !VERDICTS.has(r.data.get("verdict")) || !laneMatches(r, lanes[i].fingerprint)) return invalid;
-      const paths = materialPathsFor(configuration, prefix, sc, lanes[i].id);
-      if (!equalPackages(pinPackage(r.data.get("reviewed")), paths === null ? reference : projectPackage(reference, paths))) return invalid;
-    }
-    const valid = reviews.every((r) => r.data.get("verdict") === "approved");
-    const applicable = equalPackages(reference, required);
-    return { valid, current: valid && applicable, closed: applicable, reviews, package: reference };
+    return evaluateWave(configuration, prefix, sc, wave, context, inspection);
   };
   const latestWaveOf = (prefix, sc) => Math.max(0, ...reviewsOf(sc).filter((r) => r.prefix === prefix).map((r) => r.wave));
   const closedLanePackage = (prefix, sc) => {
@@ -1201,7 +1205,6 @@ async function cmdCheck(args) {
       };
     });
   };
-  const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
   // A wave is closed when every declared lane has a stamped, fresh review in the current wave.
   const waveClosed = (lanes) => lanes.length > 0 && lanes.every((l) => l.current && l.waveClosed);
   // A review landed without its pins is stamped; one stamped without a verdict is invalid.

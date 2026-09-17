@@ -2166,6 +2166,32 @@ process.stdout.write(output);
     assert.equal(state.complete, true);
   });
 
+  test("an unstamped consumed review cannot approve a lane and can be stamped", () => {
+    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+    const implicit = "1-spec/a/spec-review-1.md", named = "1-spec/a/spec-review-focus-1.md";
+    const focus = lane("spec-reviewer", "focus", { materials: ["0-intent/intent.md"] });
+    configure({ targetPhase: 1, lanes: [focus, standard.a] });
+    write(root, artifact, "# Candidate\n");
+    write(root, record, "# Record\n");
+    registered(artifact, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a });
+    const reference = pairs([artifact, record, "0-intent/intent.md"]);
+    registeredVerdict(implicit, reference);
+    write(root, named, "# Review\n\nVerdict: approved\n");
+    const binding = pairs([artifact, record, implicit, named]);
+    registered("1-spec/spec.md", {
+      pins: pairs(["0-intent/intent.md", artifact, record, implicit, named]),
+      "lane-packages": [[artifact, binding, reference]],
+    });
+
+    let state = JSON.parse(check(root, "--json"));
+    assert.equal(state.frontier, `stamp ${named}`);
+    assert.deepEqual(state.artifacts, []);
+
+    rp(root, "stamp", P(named), "--reviewed", P("0-intent/intent.md"), "--mirror");
+    state = JSON.parse(check(root, "--json"));
+    assert.equal(state.lanes[0].closed, true);
+  });
+
   test("verify-3: registered claims become moot and resolutions adjudicated on input change", () => {
     const correction = "0-intent/correction-1.md";
     registered(correction, { target: ["1-spec/spec.md#R1"], "target-identity": [identity(read(root, "1-spec/spec.md"))], origin: "issue 8" }, "# Correction\nTarget: 1-spec/spec.md#R1\nOrigin: issue 8\n");
@@ -2866,6 +2892,7 @@ process.stdout.write(output);
       [{ workflow: "autonomous", "target-phase": "1" }, /target-phase/],
       [{ workflow: "autonomous", "target-phase": 1, extra: true }, /unknown key/],
       [{ workflow: "autonomous", "target-phase": 1, "": true }, /unknown key/],
+      [{ workflow: "autonomous", "target-phase": 1, lanes: [] }, /lanes must be non-empty when present/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: {} }, /lanes must be an array/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: ["lane"] }, /must be an object/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, "": true }] }, /unknown key/],
@@ -2880,12 +2907,12 @@ process.stdout.write(output);
       [{ workflow: "autonomous", "target-phase": 1, lanes: [standard.security, standard.security] }, /duplicate lane id/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, brief: " " }] }, /non-empty string/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, brief: 1 }] }, /non-empty string/],
-      [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, materials: "path" }] }, /array of paths/],
+      [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, materials: "path" }] }, /materials must be an array/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, materials: [] }] }, /non-empty when present/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, materials: ["1-spec/spec.md", "1-spec/spec.md"] }] }, /duplicate paths/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.a, materials: ["1-spec/spec.md"] }] }, /review lanes only/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, after: ["x"] }] }, /production lanes only/],
-      [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-producer", "a", { after: "b" })] }, /array of lane ids/],
+      [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-producer", "a", { after: "b" })] }, /after must be an array/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-producer", "a", { after: [] })] }, /non-empty when present/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-producer", "a", { after: ["b", "b"] }), standard.b] }, /duplicate lane ids/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-producer", "a", { after: ["missing"] })] }, /undeclared lane/],
