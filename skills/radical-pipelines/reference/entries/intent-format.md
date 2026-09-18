@@ -41,7 +41,7 @@ Every item other than the Goal is a bullet. In `intent.md`, `#goal` addresses th
 
 ## Decisions
 
-The intent is the only file that carries the owner's decisions. The issue's sections change only by synthesis from the issue; every decision the owner makes afterwards that changes what the work must satisfy is appended when approved under `## Decisions`, one entry per question answered, with the next `decision-<n>`: the ruling, stated so the entry reads without the exchange it came from. Records cite each decision by id beside the question it answers.
+The intent is the only file that carries the owner's decisions. The issue's sections change only by synthesis from the issue; every decision the owner makes afterwards that changes what the work must satisfy is appended when approved under `## Decisions`, one entry per question answered, with the next `decision-<n>`: the ruling, stated so the entry reads without the exchange it came from, then `Origin:` — the source it was given in. Records cite each decision by id beside the question it answers.
 
 ## Authoring discipline
 
