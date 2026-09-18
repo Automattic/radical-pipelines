@@ -18,7 +18,7 @@ import {
 const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
 
 const SKILL_DIR = "/skills/radical-pipelines";
-const skills = [{ id: "radical-pipelines", name: "radical-pipelines", location: `${SKILL_DIR}/SKILL.md`, content: "# Radical Pipelines" }];
+const skills = [{ id: "radical-pipelines", name: "radical-pipelines", path: `${SKILL_DIR}/SKILL.md`, content: "# Radical Pipelines" }];
 const server = { baseURL: "http://127.0.0.1:1", password: "pw" };
 
 const storedActivation = {
@@ -55,7 +55,7 @@ const checkpointed = { role: "user", content: "<conversation-checkpoint>…" };
 
 /**
  * A `requestFn` serving one session's stored history in pages of
- * `pageSize`, as the pinned API does: `order`, `limit`, and `cursor` only,
+ * `pageSize`, as the API does: `order`, `limit`, and `cursor` only,
  * no type filter. Records request paths.
  */
 function fakeServer(messages, { pageSize = 200, status = 200 } = {}) {
