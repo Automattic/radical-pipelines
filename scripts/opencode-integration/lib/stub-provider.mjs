@@ -91,6 +91,9 @@ export const INVALID_AUTH_KEY = "rp-invalid-auth-key";
 /** Text returned for any turn that carries no (or an already-answered) directive. */
 export const PLAIN_REPLY_TEXT = "RP_STUB_TURN_COMPLETE";
 
+/** Text returned for a compaction request: the smallest summary opencode accepts. */
+export const COMPACTION_REPLY_TEXT = "## Objective\n- RP_STUB_CHECKPOINT\n\n## Next Move\n1. Continue.";
+
 /**
  * Build one OpenAI-compatible streaming chunk.
  *
@@ -139,6 +142,7 @@ function lastUserText(messages) {
 export function startStubProvider({ port }) {
   const firedDirectives = new Set();
   const offeredToolNames = new Set();
+  const chatRequests = [];
 
   const server = http.createServer((req, res) => {
     const chunks = [];
@@ -169,6 +173,7 @@ export function startStubProvider({ port }) {
       }
 
       const text = lastUserText(parsed.messages ?? []);
+      chatRequests.push({ messages: parsed.messages ?? [], tools: parsed.tools ?? [] });
 
       if (req.headers.authorization === `Bearer ${INVALID_AUTH_KEY}`) {
         // A slow directive delays the failure, turning the instant 401 into
@@ -353,8 +358,12 @@ export function startStubProvider({ port }) {
         );
         res.write(sseChunk(parsed.model ?? "stub-model", {}, "tool_calls"));
       } else {
+        // A compaction request ends with opencode's summary prompt, which
+        // carries its own template; the reply must contain one of the
+        // template's headings or the checkpoint is rejected.
+        const reply = text.includes("## Objective") ? COMPACTION_REPLY_TEXT : PLAIN_REPLY_TEXT;
         res.write(sseChunk(parsed.model ?? "stub-model", { role: "assistant", content: "" }));
-        res.write(sseChunk(parsed.model ?? "stub-model", { content: PLAIN_REPLY_TEXT }));
+        res.write(sseChunk(parsed.model ?? "stub-model", { content: reply }));
         res.write(sseChunk(parsed.model ?? "stub-model", {}, "stop"));
       }
       res.write("data: [DONE]\n\n");
@@ -372,6 +381,10 @@ export function startStubProvider({ port }) {
         // which tools are callable by name rather than only through Code
         // Mode's `execute` wrapper.
         offeredToolNames: () => new Set(offeredToolNames),
+        // Every chat request this stub has received, in arrival order, with
+        // the messages and tools opencode sent — the evidence of what the
+        // model was actually given on a turn.
+        chatRequests: () => [...chatRequests],
         close: () => new Promise((r) => server.close(() => r())),
       });
     });

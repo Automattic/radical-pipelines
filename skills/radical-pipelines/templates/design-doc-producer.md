@@ -20,7 +20,6 @@
 
 ## Materials
 
-- Research: <researcher answer>   <!-- when a research request preceded this dispatch; any mode -->
 
 <!-- Standing: every mode -->
 - Intent: <path>

@@ -31,6 +31,7 @@ import * as statusAndPin from "./checks/status-and-pin.mjs";
 import * as interruptAndModelSwitch from "./checks/interrupt-and-model-switch.mjs";
 import * as authRecovery from "./checks/auth-recovery.mjs";
 import * as networkErrorProbe from "./checks/network-error-probe.mjs";
+import * as skillResupply from "./checks/skill-resupply.mjs";
 import * as networkSmoke from "./checks/network-smoke.mjs";
 
 /** Check groups run in every invocation: the hermetic, offline core path. */
@@ -43,6 +44,7 @@ const CORE_CHECK_GROUPS = [
   ["Interrupt and model switch", interruptAndModelSwitch],
   ["Auth-error recovery", authRecovery],
   ["Tool-call network-error probe", networkErrorProbe],
+  ["Skill re-supply across a checkpoint", skillResupply],
 ];
 
 async function main() {

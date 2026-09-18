@@ -6,6 +6,14 @@ Entries are ordered by version. Version 0 is the unstamped format.
 
 Migrate from version 1.
 
+### Renames
+
+In `Agents`, the `researcher` block becomes `helper`.
+
+### Removals
+
+- `researcher` from every `Guardrails` block's `agents`, dropping a block left with none.
+
 ### Additions
 
 - `Documentation conventions`, optional: how the project's documentation is written.
