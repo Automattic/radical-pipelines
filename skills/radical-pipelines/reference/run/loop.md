@@ -78,6 +78,6 @@ A production lane, declared in `../conventions/agents.md`, is a sub-pipeline of 
 
 ## Owner escalation
 
-A pending claim targets the intent. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into `intent.md` as a decision (`../entries/intent-format.md`), citing the claim's path; `rp stamp` it with `--mirror`; commit. The pipeline resumes on the next step.
+A pending claim targets the intent. Fire `escalation-raised`; pause the pipeline. Tell the owner: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into `intent.md` as a decision (`../entries/intent-format.md`); `rp stamp` it with `--mirror`; commit. The pipeline resumes on the next step.
 
 You write no verdict and open no correction on your own initiative.
