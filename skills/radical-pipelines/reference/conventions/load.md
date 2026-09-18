@@ -22,7 +22,6 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Commit format         | Commit message rules; absent, an imperative subject line                                                                              | No       |
 | PR format             | Pull request title and description rules                                                                                               | No       |
 | Guardrails            | Rules agents must satisfy                                                                                                              | No       |
-| Documentation conventions | How the project's documentation is written: the files that define its structure, voice, and terminology, and any rule beyond them | No       |
 | Lifecycle hooks       | Instructions run at defined moments                                                                                                    | No       |
 | Agents                | Model per profile and the lanes it adds, with their briefs and materials (`agents.md`)                                                 | No       |
 | Health monitoring     | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                          | No       |

@@ -14,10 +14,6 @@ In `Agents`, the `researcher` block becomes `helper`.
 
 - `researcher` from every `Guardrails` block's `agents`, dropping a block left with none.
 
-### Additions
-
-- `Documentation conventions`, optional: how the project's documentation is written.
-
 ## 1
 
 Migrate from version 0.

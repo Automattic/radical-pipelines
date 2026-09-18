@@ -20,13 +20,12 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Plan**, its **Record**, **Tasks**, the project's **Documentation conventions**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Correction** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
+Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Correction** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
 1. Read the plan to locate every task and its expected documentation surface.
-2. Read the project's documentation conventions before reviewing the diff.
-3. Map every commit in the whole diff to a task through the task reports; a commit no report claims, or a change no task covers, is a finding.
-4. Review the diff per **Rules**; run the documentation checks and exercise the software where the documentation makes claims about its behavior.
-5. Build your verification log; decide your verdict from the log alone.
+2. Map every commit in the whole diff to a task through the task reports; a commit no report claims, or a change no task covers, is a finding.
+3. Review the diff per **Rules**; run the documentation checks and exercise the software where the documentation makes claims about its behavior.
+4. Build your verification log; decide your verdict from the log alone.
 
 ## Delta
 
