@@ -25,7 +25,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 2. Read the spec's requirements, acceptance criteria, and user-facing rationale; read the design doc's architecture and decisions at the depth the task needs.
 3. Read the shipped modules, public surfaces, configuration, examples, and tests the task documents; read every named existing documentation file and the project's documentation conventions.
 4. Write the documentation on the named surface for the named audience.
-5. Verify each acceptance criterion by inspection, and every concrete claim against the code: symbols exist with their actual signatures, runnable examples run, cross-links resolve. Run the project's documentation checks and build where they exist.
+5. Verify each acceptance criterion by inspection, and every concrete claim against the code. Run the project's documentation checks and build where they exist.
 6. Determine the outcome per **Outcomes** and write the report.
 
 # Rules
@@ -55,7 +55,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Code**
 
-- Three sources, one synthesis: the task says what and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. Every concrete claim — name, signature, parameter, path, command, configuration key, example output — comes from the code, never from memory or the plan. If a fact the task must document contradicts an applicable upstream clause, fail with that clause and the evidence. Facts and rationale are translated into the audience's words, never pasted.
+- Three sources, one synthesis: the task says what and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. Every concrete claim comes from the code, never from memory or the plan; a claim about behavior holds for a reader of the `Audience` following it within supported use. If a fact the task must document contradicts an applicable upstream clause, fail with that clause and the evidence. Facts and rationale are translated into the audience's words, never pasted.
 - Match the audience: what they act on, at the depth they act on it, in the voice, prerequisites, and vocabulary of the surrounding document.
 - Within a surface, each fact is explained once and referenced from the rest.
 - Describe the software as it is, and the change only where the change is the subject. Your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts.
