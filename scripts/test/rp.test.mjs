@@ -1429,12 +1429,15 @@ process.stdout.write(output);
     ["3-build/build-plan.md", "T2", "3-build/tasks/T2.md"],
     ["4-document/document-plan.md", "T2", "4-document/tasks/T2.md"],
   ])
-    for (const form of ["bullet", "heading", "mention", "other item reference", "prefix", "fenced"])
+    for (const form of ["bullet", "heading", "emphasized bullet", "emphasized heading", "code", "mention", "other item reference", "prefix", "fenced"])
       test(`target declaration: ${artifact}#${id}, ${form}`, () => {
         const target = `${artifact}#${id}`, claim = "1-spec/spec-review-1.md";
         const declarations = {
           bullet: `- ${id} Item.\n`,
           heading: `## ${id}: Item\n`,
+          "emphasized bullet": `1. **${id} — Item.**\n`,
+          "emphasized heading": `### **${id}**: Item\n`,
+          code: `- **\`${id}\`** Item.\n`,
           mention: `See ${id}.\n`,
           "other item reference": `- decision-9 See ${id}.\n`,
           prefix: `- ${id}-old Former item.\n`,
@@ -1443,7 +1446,7 @@ process.stdout.write(output);
         write(root, artifact, "# Artifact\n");
         write(root, source, `# Artifact\n\n${declarations[form]}`);
         write(root, claim, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
-        if (["bullet", "heading"].includes(form)) {
+        if (["bullet", "heading", "emphasized bullet", "emphasized heading", "code"].includes(form)) {
           rp(root, "stamp", P(claim), "--mirror");
           assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
         } else {

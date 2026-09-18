@@ -329,7 +329,7 @@ function laneReferences(data) {
 const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
 
 function declaredIds(body) {
-  return new Set([...outsideFences(body).matchAll(/^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+([A-Za-z][\w-]*)/gm)].map((m) => m[1]));
+  return new Set([...outsideFences(body).matchAll(/^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+[*`]*([A-Za-z][\w-]*)/gm)].map((m) => m[1]));
 }
 
 function intentIds(data, body, rel) {
