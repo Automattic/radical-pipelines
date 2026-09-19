@@ -252,7 +252,7 @@ describe("onPermissionAsked", () => {
       `http://127.0.0.1:9999/api/session/${sessionID}/permission/${requestID}/reply`,
     );
     const body = JSON.parse(requests[0].init.body);
-    assert.equal(body.reply, "reject");
+    assert.equal(body.decision, "reject");
     assert.match(body.message, /\/main\/\.worktrees\/wt\/\.agents\/skills\/testing/);
     assert.ok(
       globalThis[ERROR_LOG_KEY].some(
@@ -471,10 +471,10 @@ describe("replyToPermission", () => {
 
     assert.equal(requests[0].url.pathname, "/api/session/ses_1/permission/per_1/reply");
     assert.deepEqual(JSON.parse(requests[0].init.body), {
-      reply: "reject",
+      decision: "reject",
       message: "use the worktree",
     });
-    assert.deepEqual(JSON.parse(requests[1].init.body), { reply: "once" });
+    assert.deepEqual(JSON.parse(requests[1].init.body), { decision: "once" });
   });
 });
 
@@ -658,7 +658,7 @@ describe("wired through setup", () => {
     const ok = await tool.execute({ session: "ses_1", request: "per_1", reply: "once" }, { sessionID: "ses_owner" });
     assert.deepEqual(ok, toToolResult({ replied: true }));
     assert.equal(requests[0].url.pathname, "/api/session/ses_1/permission/per_1/reply");
-    assert.deepEqual(JSON.parse(requests[0].init.body), { reply: "once" });
+    assert.deepEqual(JSON.parse(requests[0].init.body), { decision: "once" });
 
     status = 404;
     const missing = await tool.execute({ session: "ses_1", request: "per_gone", reply: "reject" }, { sessionID: "ses_owner" });
