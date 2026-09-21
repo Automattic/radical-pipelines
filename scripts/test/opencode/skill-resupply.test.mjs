@@ -336,7 +336,7 @@ describe("the context hook", () => {
   });
 
   test("a spawned agent is skipped without a read", async () => {
-    recordSpawn("ses_agent", { name: "researcher slug-1", run: "slug", spawner: "ses_o" });
+    recordSpawn("ses_agent", { name: "researcher slug-1", pipelineSlug: "slug", spawner: "ses_o" });
     const context = { sessionID: "ses_agent", system: [], messages: [] };
     await onContext(context, deps(unreachable));
     assert.deepEqual(context.system, []);

@@ -46,7 +46,7 @@ export async function run(ctx) {
       model: "stub/stub-model",
       directory: projectDir,
       prompt: "hi",
-      run: "suite-run",
+      pipeline_slug: "suite-run",
     });
     assert.match(
       result.error?.message ?? "",
@@ -62,7 +62,7 @@ export async function run(ctx) {
       model: "not-a-valid-model-string",
       directory: projectDir,
       prompt: "hi",
-      run: "suite-run",
+      pipeline_slug: "suite-run",
     });
     assert.ok(
       result.error?.message,
@@ -72,7 +72,7 @@ export async function run(ctx) {
 
   let childID;
   await runCheck(results, "rp_spawn takes a plain profile name and runs the namespaced agent in the given directory", async () => {
-    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "suite-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "suite-run" });
+    const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "suite-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug: "suite-run" });
     assert.equal(result.structuredJSON, undefined, "rp_spawn's structured result is the bare session ID, not JSON");
     assert.ok(result.text?.startsWith("ses_"), `expected a session ID, got: ${result.text}`);
     childID = result.text;
@@ -143,7 +143,7 @@ export async function run(ctx) {
         model: "stub/stub-model",
         directory: projectDir,
         prompt: `__RP_SLOW__:8000:__END__ title-interrupt-${Date.now()}`,
-        run: "suite-run",
+        pipeline_slug: "suite-run",
       });
       const interruptedChildID = spawnResult.text;
       await pollUntil(

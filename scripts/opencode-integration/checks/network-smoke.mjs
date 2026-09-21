@@ -117,7 +117,7 @@ export async function run(ctx) {
         orchestrator.id,
         "Call the rp_spawn tool with name=\"smoke-child\", agent=\"helper\", model=\"opencode/hy3-free\", directory=" +
           JSON.stringify(smokeProjectDir) +
-          ", prompt=\"say hello\", run=\"smoke-run\". Report only the returned session id, nothing else.",
+          ", prompt=\"say hello\", pipeline_slug=\"smoke-run\". Report only the returned session id, nothing else.",
       );
       assert.ok(result.includes("ses_"), `expected a spawned session id in the reply, got: ${result}`);
     });
