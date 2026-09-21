@@ -223,9 +223,9 @@ describe("rp state tooling", () => {
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "record blob");
     const oid = git(root, "rev-parse", `HEAD:${P(file)}`).trim(), ref = git(root, "rev-parse", "HEAD").trim();
-    rmSync(join(root, ".git", "objects", oid.slice(0, 2), oid.slice(2)));
     assert.equal(JSON.parse(check(root, "--target-phase", "1", "--json")).complete, true);
-    assert.throws(() => check(root, "--ref", "HEAD", "--json"), (error) => {
+    const env = protocolShim("cat-file", "missing", oid);
+    assert.throws(() => execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), (error) => {
       assert.equal(error.status, 1);
       assert.equal(error.stdout, "");
       assert.ok(error.stderr.includes(`cannot read ${ref}:${P(file)}`));
@@ -328,13 +328,22 @@ syncBuiltinESMExports();
       assert.equal(state.frontier, "review wave 1-spec/spec.md");
     });
 
-  function protocolShim(command, mutation) {
+  function protocolShim(command, mutation, targetOID = null) {
     const script = join(root, ".git", "protocol.mjs");
     writeFileSync(script, `import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-const args = process.argv.slice(2), mutation = ${JSON.stringify(mutation)};
-let output = execFileSync(process.env.RP_REAL_GIT, args, { input: args[0] === 'cat-file' ? readFileSync(0) : undefined });
-if (args[0] === 'cat-file') {
+const args = process.argv.slice(2), mutation = ${JSON.stringify(mutation)}, target = ${JSON.stringify(targetOID)};
+const input = args[0] === 'cat-file' ? readFileSync(0) : undefined;
+let output;
+if (args[0] === 'cat-file' && target) {
+  const requests = input.toString('ascii').trim().split('\\n').filter(Boolean);
+  output = Buffer.concat(requests.map((oid) => oid === target && mutation === 'missing'
+    ? Buffer.from(oid + ' missing\\n')
+    : execFileSync(process.env.RP_REAL_GIT, args, { input: Buffer.from(oid + '\\n') })));
+} else {
+  output = execFileSync(process.env.RP_REAL_GIT, args, { input });
+}
+if (args[0] === 'cat-file' && !target) {
   const end = output.indexOf(10), header = output.subarray(0, end).toString('ascii');
   const [oid, type, size] = header.split(' ');
   const changed = { missing: oid + ' missing', 'non-blob': oid + ' tree ' + size, extra: header + ' extra', space: header + ' ', cr: header + '\\r', size: oid + ' blob -1' }[mutation];

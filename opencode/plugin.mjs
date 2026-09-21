@@ -3133,7 +3133,8 @@ function formatPermissionForward(entry, request) {
  * @param {{ baseURL: string, password: string }} server A server resolved by
  *   `resolveServer`.
  * @param {{ sessionID: string, requestID: string, reply: "once" | "reject", message?: string }} input
- *   The reply. `message` on a reject reaches the asking agent as corrective
+ *   The reply, carrying the skill's term for it; the route's body names it
+ *   `decision`. `message` on a reject reaches the asking agent as corrective
  *   feedback instead of aborting its turn.
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
  *   Injectable request function, forwarded to `requestServer`.
@@ -3144,7 +3145,7 @@ function replyToPermission(server, { sessionID, requestID, reply, message }, req
     server,
     "POST",
     `/api/session/${sessionID}/permission/${requestID}/reply`,
-    message === undefined ? { reply } : { reply, message },
+    message === undefined ? { decision: reply } : { decision: reply, message },
     requestFn,
   );
 }
