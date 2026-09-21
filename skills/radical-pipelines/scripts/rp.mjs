@@ -149,7 +149,7 @@ function reviewArtifact(rel) {
   const name = basename(rel);
   for (const art of ARTIFACTS) {
     for (const prefix of [art.prefix, art.review].filter(Boolean)) {
-      const match = name.match(new RegExp(`^${prefix}-review-(?:(.+)-)?(\\d+)\\.md$`));
+      const match = name.match(new RegExp(`^${prefix}-review-(?:(.+)-)?([1-9]\\d*)\\.md$`));
       if (match) return { art, prefix, lane: match[1] ?? "", wave: Number(match[2]) };
     }
   }
@@ -268,7 +268,7 @@ function parseId(id) {
   return m ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
 }
 const numberOf = (id) => parseId(id).n;
-// The vocabulary entry of a root or lane artifact.
+// The vocabulary entry of a root or lane artifact, review, or record.
 function idsEntry(rel) {
   const m = rel.match(/^([^/]+)\/(?:([^/]+)\/)?([^/]+)$/);
   if (!m || m[2] === "tasks") return null;
@@ -279,7 +279,7 @@ function idsEntry(rel) {
   if (prefix && ARTIFACTS.some((a) => a.phase === m[1] && basename(a.record) === m[3])) return { prefix, declares: ["question"] };
   return null;
 }
-// A file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
+// A Markdown file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
 function strayTaskFile(rel) {
   const m = rel.match(/^([^/]+)\/tasks\/([^/]+\.md)$/);
   const plan = m && planOf(m[1]);
@@ -1089,7 +1089,7 @@ async function cmdCheck(args) {
   const allReviewsOf = (sc) => {
     const m = [];
     for (const r of docsOf(sc)) {
-      const mm = r.name.match(/^(.+?)-review-(?:(.+)-)?(\d+)\.md$/);
+      const mm = r.name.match(/^(.+?)-review-(?:(.+)-)?([1-9]\d*)\.md$/);
       if (!mm || !PREFIXES.has(mm[1])) continue;
       const artifact = ARTIFACTS.find((a) => a.prefix === mm[1] || a.review === mm[1]);
       const artifactScope = sc ? `${artifact.phase}/${sc.split("/")[1]}/` : `${artifact.phase}/`;

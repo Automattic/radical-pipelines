@@ -497,15 +497,15 @@ process.stdout.write(output);
 
   test("--mirror copies Verdict, Brief, Target, Outcome, Prior finding, Depends on, and every Origin line", () => {
     stampSpec();
-    write(root, "1-spec/spec-review-0.md", "# Review\n\nVerdict: rejected\n\n### spec-finding-1: One\n\n### spec-finding-2: Two\n");
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: unsatisfiable\nBrief: security\nTarget: 0-intent/intent.md#intent-goal\n\n### spec-finding-1\n\nPrior finding: 1-spec/spec-review-0.md#spec-finding-2, resolution failed\n");
-    rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
-    const fm = read(root, "1-spec/spec-review-1.md");
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n\n### spec-finding-1: One\n\n### spec-finding-2: Two\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: unsatisfiable\nBrief: security\nTarget: 0-intent/intent.md#intent-goal\n\n### spec-finding-1\n\nPrior finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
+    rp(root, "stamp", P("1-spec/spec-review-2.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
+    const fm = read(root, "1-spec/spec-review-2.md");
     assert.match(fm, /"verdict": "unsatisfiable"/);
     assert.match(fm, /"brief": "security"/);
     assert.deepEqual(parseFrontmatter(fm).data.get("target"), ["0-intent/intent.md#intent-goal"]);
     assert.deepEqual(parseFrontmatter(fm).data.get("target-identity"), [identity(read(root, "0-intent/intent.md"))]);
-    assert.match(fm, /"recurs": \[\n    "1-spec\/spec-review-0\.md#spec-finding-2"/);
+    assert.match(fm, /"recurs": \[\n    "1-spec\/spec-review-1\.md#spec-finding-2"/);
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     assert.match(read(root, "0-intent/intent.md"), /"origin": "issue 7"/);
     write(root, "0-intent/intent.md", "Origin: issue 7\nOrigin: starts-from 6-other\n\n# Intent\n\n## Goal\n\nx\n");
@@ -1754,6 +1754,13 @@ process.stdout.write(output);
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("recurs"), ["1-spec/spec-review-1.md#spec-finding-1"]);
   });
 
+  test("a review's wave is a canonical positive number", () => {
+    stampSpec();
+    registered("1-spec/spec-review-01.md", { verdict: "approved", reviewed: pairs(SPEC) }, "# Review\n\nVerdict: approved\n");
+    registered("1-spec/spec-review-0.md", { verdict: "rejected", reviewed: pairs(SPEC) }, "# Review\n\nVerdict: rejected\n");
+    assert.match(check(root, "--target-phase", "1"), /frontier review wave 1-spec\/spec\.md/);
+  });
+
   test("a non-Markdown file in a tasks folder is outside the tree", () => {
     write(root, "3-build/tasks/notes.txt", "scratch\n");
     assert.match(rp(root, "stamp", P("3-build/tasks/notes.txt"), "--mirror"), /nothing to mirror/);
@@ -1800,7 +1807,7 @@ process.stdout.write(output);
   });
 
   test("a prior finding names a finding of the review's phase", () => {
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-0.md#build-finding-1, resolution failed\n");
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#build-finding-1, resolution failed\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID Prior finding: expected <an earlier review of this kind>#<finding id of its phase>/);
   });
 
