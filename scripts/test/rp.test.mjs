@@ -3431,10 +3431,11 @@ process.stdout.write(output);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--json"), /stamp: option --json is not allowed/);
     assert.throws(() => rp(root, "check", PIPELINE, "extra", "--base", "main"), /unexpected positional argument/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin"), /--pin expects a value/);
-    const invalid = ".pipelines/bad_name";
-    mkdirSync(join(root, invalid, "0-intent"), { recursive: true });
-    writeFileSync(join(root, invalid, "0-intent/intent.md"), "# Intent\n");
-    assert.throws(() => rp(root, "check", invalid, "--base", "main"), /pipeline slug must be one segment without \/ or _/);
+    for (const invalid of [".pipelines/bad_name", ".pipelines/bad..name", ".pipelines/-bad"]) {
+      mkdirSync(join(root, invalid, "0-intent"), { recursive: true });
+      writeFileSync(join(root, invalid, "0-intent/intent.md"), "# Intent\n");
+      assert.throws(() => rp(root, "check", invalid, "--base", "main"), /pipeline slug must be a valid git ref without _/);
+    }
     configure({ targetPhase: 1 });
     assert.match(check(root), /frontier complete/);
   });

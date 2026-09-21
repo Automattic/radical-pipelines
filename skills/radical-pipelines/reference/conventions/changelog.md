@@ -12,9 +12,11 @@ Migrate from version 2.
 | ---------------- | --------------- |
 | `Branch naming`  | `Pipeline slug` |
 
+Reword its body to describe the slug.
+
 ### Additions
 
-- `Pipeline branch format`, optional: the pipeline branch as a template over `<pipeline slug>`; default `<pipeline slug>`.
+- `Pipeline branch format`, optional: the pipeline branch as a template over `<pipeline slug>`.
 
 ## 2
 

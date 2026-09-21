@@ -89,7 +89,7 @@ A file records its package when first consumed and records a new package only af
 
 - Pipeline slug: the pipeline's identifier, derived from its issue per the **Pipeline slug** convention — one path segment, a valid git ref, without `_`. A second pipeline for the same issue appends `-2`, `-3`.
 - Pipeline folder: `<pipelines folder root>/<pipeline slug>/`.
-- Pipeline branch: the **Pipeline branch format** convention applied to the slug; default `<pipeline slug>`. Work on a merged pipeline uses branch `<pipeline branch>_<n>`.
+- Pipeline branch: the **Pipeline branch format** convention applied to the slug. Work on a merged pipeline uses branch `<pipeline branch>_<n>`.
 - Auxiliary branches: `<phase>` is the declaration artifact (`spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`). After `<pipeline branch>-<phase>-`, production lanes occupy `<lane>`, root review lanes `review-<review lane>`, and production-lane reviews `<production lane>-review-<review lane>`. Expanded names are unique; `rp check` rejects a collision.
 - Reviews: `<artifact>-review-<wave>.md` for the implicit lane, `<artifact>-review-<lane>-<wave>.md` for a named lane. `<artifact>` is `spec`, `design-doc`, `build-plan`, `build`, `document-plan`, `document`. You compute filenames and pass them in the prompt. A reviewer that adjudicates a challenge writes `Origin: <challenge path>` in its review.
 - Production lanes: `<phase>/<lane>/` holds the lane's artifact, record, and reviews, named as at the root.

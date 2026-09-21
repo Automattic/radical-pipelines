@@ -38,9 +38,9 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Phase** — One pipeline stage: Intent, Spec, Design doc, Build, or Document.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
 - **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope challenge and claim is resolved, and every commit after its base outside the pipelines folder is claimed by a task report.
-- **Pipeline branch** — The branch a pipeline's commits land on: the **Pipeline branch format** convention applied to its slug, defaulting to the slug itself. Lane branches and the branches of work on a merged pipeline extend it.
-- **Pipeline branch format** — The project convention giving the pipeline branch as a template over `<pipeline slug>`.
-- **Pipeline slug** — A pipeline's identifier, derived from its issue by the **Pipeline slug** convention: one path segment, a valid git ref, without `_`. It names the pipeline folder and appears in every agent instance name.
+- **Pipeline branch** — The **Pipeline branch format** convention applied to the pipeline slug: the branch a new pipeline is created on, and the stem of its lane branches and of the branches of work on it once merged.
+- **Pipeline branch format** — The project convention giving the pipeline branch as a template over `<pipeline slug>`, defaulting to the slug itself.
+- **Pipeline slug** — The project convention deriving a pipeline's identifier from its issue, and that identifier: one path segment, a valid git ref, without `_`, naming the pipeline folder.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.

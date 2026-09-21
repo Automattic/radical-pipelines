@@ -2,4 +2,4 @@
 "@automattic/radical-pipelines": minor
 ---
 
-BREAKING: conventions format 3 — the pipeline's identifier is the pipeline slug, defined once in the state model and named `<pipeline slug>` everywhere; the `Branch naming` convention becomes `Pipeline slug`, and the optional `Pipeline branch format` derives the pipeline branch from the slug (default the slug itself), so lane branches and merged-pipeline branches extend the pipeline branch rather than the slug.
+BREAKING: name the pipeline's identifier the pipeline slug — `<pipeline slug>` throughout the skill — and derive the pipeline branch from it through the new optional `Pipeline branch format` convention (default the slug itself), with lane and merged-pipeline branches extending the pipeline branch; conventions format 3 renames `Branch naming` to `Pipeline slug`; `rp check` rejects a pipeline folder whose name is not a valid git ref

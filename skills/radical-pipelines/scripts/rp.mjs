@@ -1190,12 +1190,26 @@ async function treeReader(root, abs, ref) {
   return reader;
 }
 
+// The pipeline folder's name is the pipeline slug: one segment, a valid git ref, without `_`.
+function pipelineSlugOf(abs) {
+  const slug = basename(abs);
+  const validRef = () => {
+    try {
+      execFileSync("git", ["check-ref-format", "--branch", slug], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!slug || slug.includes("_") || !validRef()) die(`check: pipeline slug must be a valid git ref without _: ${slug}`);
+  return slug;
+}
+
 async function cmdCheck(args) {
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const { root, abs } = repositoryFor(folder);
   containedPath("check", root, abs);
-  const pipelineSlug = basename(abs);
-  if (!/^[^/_]+$/.test(pipelineSlug)) die(`check: pipeline slug must be one segment without / or _: ${pipelineSlug || folder}`);
+  pipelineSlugOf(abs);
   const pipelineRel = relative(root, abs);
   const rev = (r, what) => {
     try {
