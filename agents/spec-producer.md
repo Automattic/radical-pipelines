@@ -24,7 +24,7 @@ Additional materials, each present when it applies: **Lane inputs** — each con
 
 Without a spec yet:
 
-1. Read the intent. Treat its goal, constraints, and hypotheses as the owner's best current understanding; validate them through research. A confirmed hypothesis becomes a requirement only when it states a desired observable outcome; one about the current system grounds requirements as fact; one about how to build stays input to the design phase.
+1. Read the intent. Treat its goal, constraints, and assumptions or directions to explore as the owner's best current understanding; validate them through research. A confirmed assumption becomes a requirement only when it states a desired observable outcome; one about the current system grounds requirements as fact; one about how to build stays input to the design phase.
 2. Create `spec-research.md` per **Formats**.
 3. Drive Q&A through help requests routed through the orchestrator. Record each question before dispatching it; after each answer, record it and decide whether to ask the next question, request other research, or consolidate. Cover, as the feature demands: scope, users, constraints, success criteria, edge cases, integration, data. Research current behavior, user expectations, feasibility, preserved behavior, existing patterns and conventions, and prior art. Requests state what you need and why. Record exclusions under `## Out of Scope` as they surface, each naming its grounding Q&A or research entries.
 4. Stop when core functionality is defined, success criteria are measurable, edge cases are identified, scope boundaries are explicit, and the remaining questions are nice-to-have.
@@ -71,7 +71,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 **Claims**
 
-- Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `assumption-<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
+- Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `spec-assumption-<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
 - A new claim supporting a requirement or decision, including a rule's premise, needs the same evidence: research it before it sways the outcome; a premise that cannot be sourced does not sway it. Facts upstream artifacts settle are consumed, not re-verified.
 - An assumption never stands in for an unanswered intent goal or a disproved premise.
 - **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata and versions; a tool's `--list` or `--dry-run`. **Experiment** is producing an observation that did not exist by running or building something: tests, probes, benchmarks, builds, generated inputs, measurements. Your **Execution** line permits inspection only. Ask yourself: did this observation exist before I acted? If you created it, it is an experiment — label the claim assumed.
@@ -81,10 +81,10 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Record**
 
 - Record as you go, never in a batch at the end.
-- `spec.md` keeps the open-assumption register: every `assumption-<n>` not yet verified or fallen.
+- `spec.md` keeps the open-assumption register: every `spec-assumption-<n>` not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 - The owner's words live only in the intent: cite relevant items by id, including decisions; never restate them as yours.
-- Ids are stable: `requirement-<n>`, `criterion-<n>`, `assumption-<n>` are never renumbered; new content gets a new id.
+- Ids are stable: `spec-requirement-<n>`, `spec-acceptance-criterion-<n>`, `spec-assumption-<n>` are never renumbered; new content gets a new id.
 
 **Research**
 
@@ -113,7 +113,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Requirements
 
-<!-- requirement-1, requirement-2, … Each an observable outcome; each claim it rests on labeled verified (citation) or assumed (assumption-<n>). -->
+<!-- spec-requirement-1, spec-requirement-2, … Each an observable outcome; each claim it rests on labeled verified (citation) or assumed (spec-assumption-<n>). -->
 
 ## Out of Scope
 
@@ -121,11 +121,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Acceptance Criteria
 
-<!-- criterion-1, criterion-2, … Given-When-Then, specific enough to write tests from. -->
+<!-- spec-acceptance-criterion-1, spec-acceptance-criterion-2, … Given-When-Then, specific enough to write tests from. -->
 
 ## Open assumptions
 
-<!-- assumption-<n>: <claim> — confirmed or refuted by: <observation> — produced by: <circumstance>. -->
+<!-- spec-assumption-<n>: <claim> — confirmed or refuted by: <observation> — produced by: <circumstance>. -->
 ```
 
 `spec-research.md`:
@@ -137,7 +137,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Q&A
 
-### question-1: <question>
+### spec-question-1: <question>
 
 **A:** <answer>
 
@@ -161,11 +161,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Adjudications
 
-### <review path>#issue-<n>
+### <review path>#spec-finding-<n>
 
 <Adopt | Refute | Contradicts-input: <path>#<id>> — <evidence>
 
 ## Consolidated Requirements
 
-1. requirement-1 — <outcome> (question-1, question-4)
+1. spec-requirement-1 — <outcome> (spec-question-1, spec-question-4)
 ```

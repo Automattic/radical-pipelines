@@ -135,7 +135,7 @@ function readPipelineFile(abs) {
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
-const REPORT = /^([^/]+)\/tasks\/(task-\d+)-report-(\d+)\.md$/;
+let REPORT; // `<phase>/tasks/<task id>-report-<k>.md`, defined with the id vocabulary below.
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
 const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
 // The artifacts, in phase order, with what each one requires as pins.
@@ -249,72 +249,116 @@ function laneReferences(data) {
   return new Map((data?.get("lane-packages") ?? []).map(([artifact, binding, reference]) =>
     [artifact, { binding: pinPackage(binding), reference: pinPackage(reference) }]));
 }
-// Ids are `<word>-<n>`, one word per concept. An artifact originates the words it declares; a word
-// its upstream also declares is carried from there. A challenge targets an artifact's declared
-// words, `task` in a plan, and the intent's owner territory.
-const ID = /^([a-z]+)-([1-9]\d*)$/;
+// Ids are `<prefix>-<word>-<n>`: the prefix names the artifact class that originates the id, the
+// word its concept. An artifact originates the words under its prefix, numbered from 1 without gaps
+// and never reused; an id under another prefix is carried and must exist in the upstream artifact.
+// A challenge targets an artifact's claimable ids. A plan declares a task by its file, which is its
+// own history.
 const IDS = {
-  "0-intent/intent.md": { declares: ["constraint", "context", "hypothesis", "decision"], claimable: ["goal", "constraint", "decision"], permanent: ["decision"] },
-  "1-spec/spec.md": { declares: ["requirement", "criterion", "assumption"] },
-  "2-design-doc/design-doc.md": { declares: ["choice", "assumption"], upstream: "1-spec/spec.md" },
-  "3-build/build-plan.md": { declares: ["assumption"], upstream: "2-design-doc/design-doc.md", tasks: true },
-  "4-document/document-plan.md": { declares: ["assumption"], upstream: "3-build/build-plan.md", tasks: true },
+  "0-intent/intent.md": { prefix: "intent", declares: ["constraint", "context", "assumption", "decision"], claimable: ["goal", "constraint", "decision"], permanent: ["decision"] },
+  "1-spec/spec.md": { prefix: "spec", declares: ["requirement", "acceptance-criterion", "assumption"] },
+  "2-design-doc/design-doc.md": { prefix: "design-doc", declares: ["decision", "assumption"], upstream: "1-spec/spec.md", carries: ["assumption"] },
+  "3-build/build-plan.md": { prefix: "build", declares: ["assumption", "task"], upstream: "2-design-doc/design-doc.md", carries: ["assumption"] },
+  "4-document/document-plan.md": { prefix: "document", declares: ["assumption", "task"], upstream: "3-build/build-plan.md", carries: ["assumption"] },
 };
-const wordOf = (id) => (id === "goal" ? "goal" : id.match(ID)?.[1]);
-const numberOf = (id) => Number(id.match(ID)[2]);
-const claimableWords = (path) => IDS[path]?.claimable ?? [...IDS[path].declares, ...(IDS[path].tasks ? ["task"] : [])];
-// A target's item, when its path and word are in the vocabulary.
+const PREFIX = Object.values(IDS).map((e) => e.prefix).join("|");
+const ID = new RegExp(String.raw`^(${PREFIX})-([a-z]+(?:-[a-z]+)*)-([1-9]\d*)$`);
+function parseId(id) {
+  if (id === "intent-goal") return { prefix: "intent", word: "goal" };
+  const m = id.match(ID);
+  return m ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
+}
+const numberOf = (id) => parseId(id).n;
+// The vocabulary entry of a root or lane artifact.
+function idsEntry(rel) {
+  const m = rel.match(/^([^/]+)\/(?:([^/]+)\/)?([^/]+)$/);
+  return m && m[2] !== "tasks" ? IDS[`${m[1]}/${m[3]}`] ?? null : null;
+}
+const planOf = (phase) => Object.entries(IDS).find(([path, e]) => path.startsWith(`${phase}/`) && e.declares.includes("task"))?.[1] ?? null;
+const taskFile = (entry) => new RegExp(String.raw`^${entry.prefix}-task-[1-9]\d*\.md$`);
+const TASK_ID = String.raw`(?:${PREFIX})-task-[1-9]\d*`;
+REPORT = new RegExp(String.raw`^([^/]+)/tasks/(${TASK_ID})-report-([1-9]\d*)\.md$`);
+const claimableWords = (entry) => entry.claimable ?? entry.declares;
+// A target's item, when its path and id are in the vocabulary.
 function targetItem(target) {
   const [path, item] = target.split("#");
-  if (!IDS[path]) return null;
-  return item === undefined || claimableWords(path).includes(wordOf(item)) ? { path, item } : null;
+  const entry = IDS[path];
+  if (!entry) return null;
+  if (item === undefined) return { path, item };
+  const id = parseId(item);
+  return id && id.prefix === entry.prefix && claimableWords(entry).includes(id.word) ? { path, item } : null;
 }
 
 // Inline formatting marks that may wrap a declared value without being part of it.
 const MARKS = "[*_`]*";
-const ITEM = new RegExp(String.raw`^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+${MARKS}([a-z]+-[1-9]\d*)(?![A-Za-z0-9-])`, "gm");
+const ITEM = new RegExp(String.raw`^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+${MARKS}([a-z][a-z-]*-[1-9]\d*)(?![A-Za-z0-9-])`, "gm");
+// Every id the body declares, with how many times each is declared.
 function declaredIds(body) {
-  return new Set([...outsideFences(body).matchAll(ITEM)].map((m) => m[1]));
+  const counts = new Map();
+  for (const [, id] of outsideFences(body).matchAll(ITEM)) if (parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  return counts;
 }
 
-// Every id an artifact has declared: those recorded by a stamp and those its body declares now.
-function knownIds(data, body, rel) {
-  const declared = (id) => IDS[rel].declares.includes(wordOf(id));
-  return new Set([...(data?.get("ids") ?? []), ...[...declaredIds(body)].filter(declared)]);
+// What an artifact declares now: the ids under its prefix and words in its body — a task by its
+// file — and the ids it carries.
+function currentIds(entry, body, tasks) {
+  const own = (id) => parseId(id).prefix === entry.prefix && parseId(id).word !== "task" && entry.declares.includes(parseId(id).word);
+  const carried = (id) => parseId(id).prefix !== entry.prefix && (entry.carries ?? []).includes(parseId(id).word);
+  const declared = declaredIds(body);
+  const duplicate = [...declared].find(([id, n]) => n > 1 && (own(id) || carried(id)));
+  if (duplicate) return { invalid: `${duplicate[0]} is declared more than once` };
+  const ids = [...declared.keys()].filter((id) => own(id) || carried(id));
+  const files = entry.declares.includes("task") ? tasks.filter((name) => taskFile(entry).test(name)).map((name) => name.replace(/\.md$/, "")) : [];
+  return { ids: new Set([...ids, ...files]) };
+}
+
+// Every id an artifact has declared: those recorded by a stamp and those it declares now.
+function knownIds(data, body, rel, tasks) {
+  const current = currentIds(idsEntry(rel), body, tasks);
+  return new Set([...(data?.get("ids") ?? []), ...(current.ids ?? [])]);
 }
 
 // The `ids` and `retired-ids` projection of an artifact, or why its declarations are invalid:
-// `error` when the recorded fields are malformed, `invalid` when the body's declarations are.
-function artifactIds(data, body, rel, read) {
-  const entry = IDS[rel];
+// `error` when the recorded fields are malformed, `invalid` when the declarations are.
+// `read(path)` returns a pipeline file's text; `list(dir)` the file names of a pipeline folder.
+function artifactIds(data, body, rel, read, list) {
+  const entry = idsEntry(rel);
   const fields = ["ids", "retired-ids"];
   if (!entry) return fields.some((key) => data?.has(key)) ? { error: "ids and retired-ids belong to an artifact with declared ids" } : {};
-  const declared = (id) => entry.declares.includes(wordOf(id));
+  const accepted = (id) => {
+    const p = parseId(id);
+    return p && p.word !== "goal" && (p.prefix === entry.prefix ? entry.declares.includes(p.word) : (entry.carries ?? []).includes(p.word));
+  };
   for (const key of fields) {
     const ids = data?.get(key) ?? [];
-    if (ids.some((id) => !declared(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique declared ids` };
+    if (ids.some((id) => !accepted(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique declared ids` };
   }
+  const tasksOf = (path) => list(`${path.split("/")[0]}/tasks`) ?? [];
+  const current = currentIds(entry, body, tasksOf(rel));
+  if (current.invalid) return current;
   const seen = new Set(data?.get("ids") ?? []);
   const retired = new Set(data?.get("retired-ids") ?? []);
-  const current = new Set([...declaredIds(body)].filter(declared));
-  for (const id of seen) if (!current.has(id)) retired.add(id);
+  for (const id of seen) if (!current.ids.has(id)) retired.add(id);
   for (const id of retired) {
-    if (entry.permanent?.includes(wordOf(id))) return { invalid: `${id} must remain declared` };
+    if (entry.permanent?.includes(parseId(id).word)) return { invalid: `${id} must remain declared` };
     if (!seen.has(id)) return { error: `retired id ${id} is absent from ids` };
-    if (current.has(id)) return { invalid: `retired id ${id} is declared again` };
+    if (current.ids.has(id)) return { invalid: `retired id ${id} is declared again` };
   }
-  const known = new Set([...seen, ...current]);
-  const text = entry.upstream ? read(entry.upstream) : null;
-  const parsed = text === null || text === undefined ? null : parseFrontmatter(text);
-  const upstream = parsed ? knownIds(parsed.data, parsed.body, entry.upstream) : new Set();
+  const known = new Set([...seen, ...current.ids]);
+  const carried = [...known].filter((id) => parseId(id).prefix !== entry.prefix);
+  if (carried.length) {
+    const text = read(entry.upstream);
+    const parsed = text === null || text === undefined ? null : parseFrontmatter(text);
+    const upstream = parsed ? knownIds(parsed.data, parsed.body, entry.upstream, tasksOf(entry.upstream)) : new Set();
+    const missing = carried.find((id) => !upstream.has(id));
+    if (missing) return { invalid: `${missing} is not declared by ${entry.upstream}` };
+  }
   for (const word of entry.declares) {
-    const carried = [...upstream].filter((id) => wordOf(id) === word).map(numberOf);
-    const base = Math.max(0, ...carried);
-    const own = [...known].filter((id) => wordOf(id) === word && !upstream.has(id)).map(numberOf).sort((a, b) => a - b);
-    const gap = own.findIndex((n, i) => n !== base + i + 1);
-    if (gap !== -1) return { invalid: `${word}-${base + gap + 1} is missing: ids are numbered without gaps` };
+    const own = [...known].filter((id) => parseId(id).prefix === entry.prefix && parseId(id).word === word).map(numberOf).sort((a, b) => a - b);
+    const gap = own.findIndex((n, i) => n !== i + 1);
+    if (gap !== -1) return { invalid: `${entry.prefix}-${word}-${gap + 1} is missing: ids are numbered from 1 without gaps` };
   }
-  const projection = new Map([["ids", [...known]], ["retired-ids", [...retired]]]);
+  const projection = new Map([["ids", [...known].filter((id) => parseId(id).word !== "task")], ["retired-ids", [...retired]]]);
   const drift = fields.filter((key) => {
     const stored = data?.get(key) ?? [];
     const expected = projection.get(key);
@@ -323,7 +367,7 @@ function artifactIds(data, body, rel, read) {
   return { projection, drift };
 }
 
-function targetExists(target, read, kind) {
+function targetExists(target, read, list, kind) {
   const found = targetItem(target);
   if (!found) return false;
   const { path, item } = found;
@@ -331,17 +375,17 @@ function targetExists(target, read, kind) {
   if (!item && kind !== "correction") return false;
   const artifact = read(path);
   if (artifact === null || artifact === undefined) return false;
-  const source = item && wordOf(item) === "task" ? `${path.split("/")[0]}/tasks/${item}.md` : path;
+  const source = item && parseId(item).word === "task" ? `${path.split("/")[0]}/tasks/${item}.md` : path;
   const text = source === path ? artifact : read(source);
   if (text === null || text === undefined) return false;
   const parsed = parseFrontmatter(text);
-  const ids = parsed.error ? {} : artifactIds(parsed.data, parsed.body, source, read);
+  const ids = parsed.error ? {} : artifactIds(parsed.data, parsed.body, source, read, list);
   const error = parsed.error ?? ids.error;
   if (error) die(`stamp: INVALID FRONTMATTER ${source}: ${error}`);
   if (ids.invalid) die(`stamp: INVALID IDS ${source}: ${ids.invalid}`);
   if (!item) return true;
-  // #goal addresses a section; other ids address items.
-  if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(outsideFences(parsed.body));
+  // intent-goal addresses a section; other ids address items — a task, the heading of its file.
+  if (item === "intent-goal") return /^## Goal[^\S\n]*$/mi.test(outsideFences(parsed.body));
   return declaredIds(parsed.body).has(item);
 }
 
@@ -431,7 +475,7 @@ export function projectBody(body, rel = "") {
     return targets.every((t) => /^[^#,\s]+(?:#[^#,\s]+)?$/.test(t)) && new Set(targets).size === targets.length;
   }, "<path>[#<id>][, …]");
   if (p.has("target")) p.set("target", p.get("target").split(",").map((t) => t.trim()));
-  const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value) || /^decision-\d+$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
+  const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value) || /^intent-decision-[1-9]\d*$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
   const origins = [];
   for (const value of fixed("Origin")) {
     if (originValid(value)) origins.push(value);
@@ -442,9 +486,9 @@ export function projectBody(body, rel = "") {
   singleton("Outcome", "outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
   const recurs = [];
   for (const value of fixed("Prior finding")) {
-    const match = value.match(/^(\S+#[^,\s]+),\s*resolution failed$/);
+    const match = value.match(new RegExp(String.raw`^(\S+#(?:${PREFIX})-finding-[1-9]\d*),\s*resolution failed$`));
     if (match) recurs.push(match[1]);
-    else malformed(`Prior finding: expected <review>#<issue>, resolution failed, got: ${value}`);
+    else malformed(`Prior finding: expected <review>#<finding id>, resolution failed, got: ${value}`);
   }
   if (recurs.length) p.set("recurs", recurs);
   // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
@@ -453,7 +497,7 @@ export function projectBody(body, rel = "") {
   for (const dep of dependencies) {
     const value = dep[1].trim();
     if (/^none$/i.test(value)) p.set("depends", []);
-    else if (/^task-\d+(\s*,\s*task-\d+)*$/.test(value)) {
+    else if (new RegExp(String.raw`^${TASK_ID}(\s*,\s*${TASK_ID})*$`).test(value)) {
       const ids = value.split(",").map((x) => x.trim());
       if (new Set(ids).size !== ids.length) malformed(`Depends on: duplicate ids: ${value}`);
       else p.set("depends", ids);
@@ -546,7 +590,8 @@ function cmdStamp(args) {
     return source;
   };
   const previousKind = challengeKind(rel, fm);
-  const ids = artifactIds(data, body, rel, (path) => readAt(path)?.text ?? null);
+  const listAt = (dir) => (existsSync(join(base, dir)) ? readdirSync(join(base, dir)) : null);
+  const ids = artifactIds(data, body, rel, (path) => readAt(path)?.text ?? null, listAt);
   if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
   if (ids.invalid) die(`stamp: INVALID IDS ${rel}: ${ids.invalid}`);
   const report = rel.match(REPORT);
@@ -611,8 +656,8 @@ function cmdStamp(args) {
         die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is unrecorded or invalid`);
       const taskFolder = join(base, review.art.phase, "tasks");
       const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
-      const tasks = names.filter((name) => /^task-\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const reports = names.filter((name) => /^task-\d+-report-\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
+      const tasks = names.filter((name) => taskFile(planOf(review.art.phase)).test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
+      const reports = names.filter((name) => REPORT.test(`${review.art.phase}/tasks/${name}`)).map((name) => `${review.art.phase}/tasks/${name}`);
       const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports);
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
     }
@@ -656,7 +701,7 @@ function cmdStamp(args) {
     };
     if (kind) {
       for (const target of targets)
-        if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, kind)) die(`stamp: INVALID TARGET ${target}`);
+        if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, listAt, kind)) die(`stamp: INVALID TARGET ${target}`);
     }
   }
   const targetError = targetRepresentationErrors(rel, fm, body)[0];
@@ -977,6 +1022,7 @@ async function cmdCheck(args) {
   // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
   // A file whose recorded fields differ from its body's projection contradicts the tree.
   const texts = new Map();
+  const listIn = (dir) => tree.list().filter((rel) => rel.startsWith(`${dir}/`) && !rel.slice(dir.length + 1).includes("/")).map((rel) => basename(rel));
   const all = tree
     .list()
     .sort()
@@ -984,7 +1030,7 @@ async function cmdCheck(args) {
       const text = tree.read(rel);
       texts.set(rel, text);
       const { data: parsed, body, error: parseError } = parseFrontmatter(text);
-      const ids = parseError ? {} : artifactIds(parsed, body, rel, (path) => tree.read(path));
+      const ids = parseError ? {} : artifactIds(parsed, body, rel, (path) => tree.read(path), listIn);
       const data = parsed ?? new Map();
       const frontmatterError = parseError || ids.error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
       const drift = frontmatterError ? [] : [...mirrorDrift(data, body, rel), ...(ids.drift ?? [])];
@@ -1028,7 +1074,7 @@ async function cmdCheck(args) {
 
   // Task files and their latest reports.
   const taskFiles = all
-    .filter((d) => /^[^/]+\/tasks\/task-\d+\.md$/.test(d.rel))
+    .filter((d) => d.rel.split("/")[1] === "tasks" && d.rel.split("/").length === 3 && planOf(d.rel.split("/")[0]) && taskFile(planOf(d.rel.split("/")[0])).test(d.name))
     .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends") ?? []) }));
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
@@ -1446,7 +1492,7 @@ async function cmdCheck(args) {
       continue;
     }
     // Build and document: the phase's task files, their latest reports, then the phase review.
-    const planTasks = taskFiles.filter((t) => t.phase === art.phase).sort((x, y) => Number(x.id.slice(1)) - Number(y.id.slice(1)));
+    const planTasks = taskFiles.filter((t) => t.phase === art.phase).sort((x, y) => numberOf(x.id) - numberOf(y.id));
     const phaseReports = [...reports.values()].filter((t) => t.phase === art.phase);
     const latestOf = (id) => phaseReports.find((t) => t.id === id);
     const isDone = (id) => {

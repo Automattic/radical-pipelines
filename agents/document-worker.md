@@ -78,7 +78,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 Frontmatter on the report is written by the orchestrator, never by you.
 
 ```markdown
-# Task report: task-<n> — <task title>, attempt <k>
+# Task report: document-task-<n> — <task title>, attempt <k>
 
 Outcome: completed | failed | blocked
 

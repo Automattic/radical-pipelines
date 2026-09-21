@@ -32,13 +32,13 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#issue-<n>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#document-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
 The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Issues** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce documentation false to the shipped code, miss a required surface, leave a guardrail unsatisfied, or break a rule under **Rules**.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce documentation false to the shipped code, miss a required surface, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
@@ -58,7 +58,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Scope** — the plan stays within the spec and design doc.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; its sections agree; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two workers would produce documentation of the same scope and shape.
-- **Labeling** — every load-bearing claim is verified with a citation or assumed with `assumption-<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own experiments as evidence is a finding — except a reproduced task report.
+- **Labeling** — every load-bearing claim is verified with a citation or assumed with `document-assumption-<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own experiments as evidence is a finding — except a reproduced task report.
 - **Minimal artifacts** — every "none" the plan claims — no risks, no alternatives, no affected areas — rests on a recorded sweep that came back empty.
 
 **Checking**
@@ -76,9 +76,9 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Findings**
 
 - Be specific: name the task, the surface, the gap.
-- Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real issues, approve when the plan survives your checks.
+- Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real defects, approve when the plan survives your checks.
 - You review the plan only: never rewrite it, and the documentation's wording is not your concern.
-- Declare exactly one verdict: `approved` when nothing you verify objects; `rejected` for must-fix findings, one issue per defect class; `unsatisfiable` with `Target: <path>#<id>` when corroborating a contradicts-input disposition.
+- Declare exactly one verdict: `approved` when nothing you verify objects; `rejected` for must-fix findings, one finding per defect class; `unsatisfiable` with `Target: <path>#<id>` when corroborating a contradicts-input disposition.
 
 # Protocol
 
@@ -107,15 +107,15 @@ Origin: <challenge path>
 
 ## Non-blocking findings
 
-## Issues
+## Findings
 
-### issue-1: <title>
+### document-finding-1: <title>
 
 <!-- When it is one; omit otherwise. -->
-Prior finding: <review>#issue-<n>, resolution failed
+Prior finding: <review>#document-finding-<n>, resolution failed
 
 **What's wrong:** …
-**Where:** task-<n> …
+**Where:** document-task-<n> …
 **Suggestion:** …
 **Why it matters:** …
 ```
