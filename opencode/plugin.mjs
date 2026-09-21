@@ -4732,7 +4732,7 @@ function buildStatusTool({ env, readServiceRecordOverride, requestFn }) {
   return {
     name: "rp_status",
     description:
-      "Report the plugin version, the ledger of one pipeline's agents (pipeline_slug), of one session (session), or of every RP session, and the recent errors that concern them.",
+      "Report the plugin version, the ledger of one pipeline's agents (pipeline_slug), of one session (session), or of every RP session, and the recent errors: under a scope, those of its sessions and those naming no session; unscoped, all of them.",
     output: ANY_OUTPUT_SCHEMA,
     input: {
       type: "object",
