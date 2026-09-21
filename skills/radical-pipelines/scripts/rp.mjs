@@ -281,7 +281,7 @@ function idsEntry(rel) {
 }
 // A file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
 function strayTaskFile(rel) {
-  const m = rel.match(/^([^/]+)\/tasks\/([^/]+)$/);
+  const m = rel.match(/^([^/]+)\/tasks\/([^/]+\.md)$/);
   const plan = m && planOf(m[1]);
   return plan && !taskFile(plan).test(m[2]) && !reportOf(rel) ? `${m[2]} is not a ${plan.prefix} task or its report` : null;
 }
@@ -514,10 +514,12 @@ export function projectBody(body, rel = "") {
   singleton("Outcome", "outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
   const recurs = [];
   for (const value of fixed("Prior finding")) {
-    const match = value.match(new RegExp(String.raw`^((\S+)#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
-    const review = match && reviewArtifact(match[2]);
-    if (review && match[2].startsWith(`${review.art.phase}/`) && prefixOf(review.art.phase) === parseId(match[3]).prefix) recurs.push(match[1]);
-    else malformed(`Prior finding: expected <review>#<finding id of the review's phase>, resolution failed, got: ${value}`);
+    const match = value.match(new RegExp(String.raw`^(([^/#\s.][^/#\s]*(?:/[^/#\s.][^/#\s]*){1,2})#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
+    const cited = match && reviewArtifact(match[2]), citing = reviewArtifact(rel);
+    const prior = cited && match[2].startsWith(`${cited.art.phase}/`) && prefixOf(cited.art.phase) === parseId(match[3]).prefix
+      && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
+    if (prior) recurs.push(match[1]);
+    else malformed(`Prior finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
   }
   if (recurs.length) p.set("recurs", recurs);
   // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids

@@ -1742,12 +1742,22 @@ process.stdout.write(output);
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n\n### spec-finding-1: Gap\n");
     rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
     write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec.md#spec-finding-1, resolution failed\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID Prior finding: expected <review>#<finding id of the review's phase>/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID Prior finding: expected <an earlier review of this kind>#<finding id of its phase>/);
     write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID PRIOR FINDING 1-spec\/spec-review-1\.md#spec-finding-2: the review declares no such finding/);
+    for (const value of ["1-spec/spec-review-2.md#spec-finding-1", "1-spec/spec-review-3.md#spec-finding-1", "1-spec/../1-spec/spec-review-1.md#spec-finding-1", "1-spec/build-review-1.md#spec-finding-1"]) {
+      write(root, "1-spec/spec-review-2.md", `# Review\n\nVerdict: rejected\nPrior finding: ${value}, resolution failed\n`);
+      assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID Prior finding: expected <an earlier review of this kind>/);
+    }
     write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("recurs"), ["1-spec/spec-review-1.md#spec-finding-1"]);
+  });
+
+  test("a non-Markdown file in a tasks folder is outside the tree", () => {
+    write(root, "3-build/tasks/notes.txt", "scratch\n");
+    assert.match(rp(root, "stamp", P("3-build/tasks/notes.txt"), "--mirror"), /nothing to mirror/);
+    assert.doesNotMatch(check(root), /INVALID IDS/);
   });
 
   test("a task target is declared by its file, under its phase's prefix", () => {
@@ -1791,7 +1801,7 @@ process.stdout.write(output);
 
   test("a prior finding names a finding of the review's phase", () => {
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-0.md#build-finding-1, resolution failed\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID Prior finding: expected <review>#<finding id of the review's phase>/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID Prior finding: expected <an earlier review of this kind>#<finding id of its phase>/);
   });
 
   test("a lane artifact declares ids like its root", () => {
@@ -3035,7 +3045,7 @@ process.stdout.write(output);
       ["Verdict: approved with caveats", /Verdict: expected approved \| rejected \| unsatisfiable/],
       ["Outcome: done", /Outcome: expected completed \| failed \| blocked/],
       ["Target: 1-spec\/spec.md##spec-requirement-1", /Target: expected <path>\[#<id>\]/],
-      ["Prior finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /Prior finding: expected <review>#<finding id of the review's phase>, resolution failed/],
+      ["Prior finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /Prior finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed/],
       ["Origin: owner request", /Origin: expected issue <reference>, a source declaration, or a path/],
       ["Origin: PROJECT-42", /Origin: expected issue <reference>, a source declaration, or a path/],
       ["Brief:", /Brief: expected text/],
@@ -3046,8 +3056,9 @@ process.stdout.write(output);
       assert.match(check(root, "--target-phase", "1"), /frontier INVALID LINE 1-spec\/bad\.md/);
     }
     rmSync(join(root, P("1-spec/bad.md")));
-    write(root, "1-spec/spec-review-1.md", "# Good\n\nVerdict: unsatisfiable\nOutcome: failed\nTarget: 1-spec/spec.md#spec-requirement-1\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\nOrigin: intent-decision-1\nOrigin: 0-intent/correction-1.md\nBrief: focused\n\n### spec-finding-1: Same\n");
-    rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
+    write(root, "1-spec/spec-review-1.md", "# Earlier\n\nVerdict: rejected\n\n### spec-finding-1: Gap\n");
+    write(root, "1-spec/spec-review-2.md", "# Good\n\nVerdict: unsatisfiable\nOutcome: failed\nTarget: 1-spec/spec.md#spec-requirement-1\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\nOrigin: intent-decision-1\nOrigin: 0-intent/correction-1.md\nBrief: focused\n");
+    rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID LINE/);
 
     write(root, "0-intent/intent.md", "Origin: issue PROJECT-42 canonical reference\n\n# Intent\n\n## Goal\n\nOriginal.\n");
