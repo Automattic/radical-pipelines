@@ -55,12 +55,12 @@ export async function run(ctx) {
     assert.equal(Object.hasOwn(status, "pin"), false);
     assert.ok(Array.isArray(status.ledger));
     assert.ok(Array.isArray(status.recentErrors));
-    assert.ok(Array.isArray(status.recentLoopTicks));
+    assert.ok(Array.isArray(status.readFailures));
   });
 
   await runCheck(results, "rp_status's ledger reflects a spawned session recognized via its durable title", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
-    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "status-check-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "status-check-run" });
+    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "status-check-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug: "status-check-run" });
     const childID = spawnResult.text;
 
     // Wait for the child's first turn so the durable rp: title is asserted
@@ -74,29 +74,49 @@ export async function run(ctx) {
     assert.equal(row.name, "status-check-child");
     assert.equal(row.agent, "helper");
     assert.equal(row.directory, projectDir);
+    assert.equal(row.pipelineSlug, "status-check-run");
+  });
+
+  await runCheck(results, "rp_status scoped to a pipeline slug reports that pipeline's sessions alone", async () => {
+    const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
+    const spawn = async (name, pipeline_slug) => {
+      const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name, agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug });
+      await pollForTitle(server, result.text, `rp:${pipeline_slug}:${name}`);
+      return result.text;
+    };
+    const mine = await spawn("scope-child", "scope-pipeline-a");
+    const theirs = await spawn("scope-child", "scope-pipeline-b");
+
+    const scoped = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status", { pipeline_slug: "scope-pipeline-a" })).text);
+    assert.ok(scoped.ledger.some((r) => r.sessionID === mine), "the pipeline's own session is reported");
+    assert.ok(scoped.ledger.every((r) => r.pipelineSlug === "scope-pipeline-a"), `expected only scope-pipeline-a rows, got: ${JSON.stringify(scoped.ledger.map((r) => r.pipelineSlug))}`);
+    assert.ok(!scoped.ledger.some((r) => r.sessionID === theirs), "another pipeline's session is not");
+    assert.ok(scoped.ledger.every((r) => !Object.hasOwn(r, "lastText")), "a pipeline scope reads no transcript");
+
+    const one = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status", { session: theirs })).text);
+    assert.deepEqual(one.ledger.map((r) => r.sessionID), [theirs]);
+    assert.ok(Object.hasOwn(one.ledger[0], "lastText"), "a session scope reads the transcript");
   });
 
   await runCheck(results, "rp_status's ledger row carries the child's liveness facts: activity, last turn, newest text, last send", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
-    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "liveness-check-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", run: "liveness-check-run" });
+    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "liveness-check-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug: "liveness-check-run" });
     const childID = spawnResult.text;
     await pollForTitle(server, childID, "rp:liveness-check-run:liveness-check-child");
     // The child's plain first turn has ended (the title is asserted on its
     // first terminal event); it has messaged nobody yet.
     await waitForIdle(server, childID);
 
-    const idle = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status")).text);
-    const idleRow = idle.ledger.find((r) => r.sessionID === childID);
+    const status = async () => {
+      const payload = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status", { session: childID })).text);
+      return payload.ledger.find((r) => r.sessionID === childID);
+    };
+    const idleRow = await status();
     assert.ok(idleRow, `expected rp_status's ledger to include the spawned child ${childID}`);
-    assert.equal(idleRow.run, "liveness-check-run", "the row names its run, so an orchestrator can filter the ledger to its own");
     assert.equal(idleRow.running, false);
     assert.equal(idleRow.lastTurn?.outcome, "succeeded", `expected a succeeded last turn, got: ${JSON.stringify(idleRow.lastTurn)}`);
-    assert.ok(idleRow.turns >= 1, `expected at least one ended turn, got: ${idleRow.turns}`);
     assert.ok(Number.isFinite(idleRow.lastTurn.endedAt));
-    assert.ok(
-      idleRow.activity >= idleRow.updated,
-      `expected activity (${idleRow.activity}) to be no earlier than updated (${idleRow.updated})`,
-    );
+    assert.ok(Number.isFinite(idleRow.activity));
     assert.equal(idleRow.lastText?.excerpt, PLAIN_REPLY_TEXT, `expected the newest assistant text, got: ${JSON.stringify(idleRow.lastText)}`);
     assert.ok(Number.isFinite(idleRow.lastText.at));
     assert.equal(idleRow.lastSend, undefined, "a child that has messaged nobody carries no lastSend");
@@ -105,11 +125,10 @@ export async function run(ctx) {
     await driveToolCall(server, childID, "rp_send", { to: orchestrator.id, message: "Completion declared." });
     await waitForIdle(server, childID);
 
-    const reported = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status")).text);
-    const reportedRow = reported.ledger.find((r) => r.sessionID === childID);
+    const reportedRow = await status();
     assert.equal(reportedRow.lastSend?.to, orchestrator.id, `expected lastSend to name the spawner, got: ${JSON.stringify(reportedRow.lastSend)}`);
     assert.ok(Number.isFinite(reportedRow.lastSend.at));
-    assert.ok(reportedRow.turns > idleRow.turns, "the reporting turn ended too");
+    assert.ok(reportedRow.lastTurn.endedAt > idleRow.lastTurn.endedAt, "the reporting turn ended too");
 
     // An interrupted turn ends too, with its own outcome: `POST /interrupt`
     // emits `session.execution.interrupted`, never succeeded/failed.
@@ -120,10 +139,9 @@ export async function run(ctx) {
     await slowTurn.catch(() => {});
     await waitForIdle(server, childID);
 
-    const interrupted = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status")).text);
-    const interruptedRow = interrupted.ledger.find((r) => r.sessionID === childID);
+    const interruptedRow = await status();
     assert.equal(interruptedRow.lastTurn?.outcome, "interrupted", `expected an interrupted last turn, got: ${JSON.stringify(interruptedRow.lastTurn)}`);
-    assert.equal(interruptedRow.turns, reportedRow.turns + 1);
+    assert.ok(interruptedRow.lastTurn.endedAt > reportedRow.lastTurn.endedAt);
   });
 }
 

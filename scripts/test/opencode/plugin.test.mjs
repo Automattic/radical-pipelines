@@ -35,6 +35,7 @@ import plugin, {
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
+  recordError,
   recordSend,
   recordSessionEventActivity,
   readServiceRecordFile,
@@ -385,12 +386,28 @@ describe("rp_spawn", () => {
           model: "anthropic/claude-3-opus",
           directory: "/repo/worktree",
           prompt: "begin",
-          run: "144-opencode-support",
+          pipeline_slug: "144-opencode-support",
         },
         { sessionID: "ses_orchestrator" },
       ),
       /Unknown RP agent "not-a-real-agent"/,
     );
+    assert.equal(sessions.size, 0);
+  });
+
+  test("rejects a pipeline slug that is not one path segment without _ or the title separator, before any session.create", async () => {
+    const { ctx, tools, sessions } = createFakeCtx({ agents: ["radical-pipelines/spec-reviewer"] });
+    await setup(ctx, isolatedDeps({ env: {} }));
+
+    for (const pipeline_slug of [undefined, "", "bad_name", "a/b", "a:b", "a b"]) {
+      await assert.rejects(
+        () => tools.get("rp_spawn").execute(
+          { name: "spec-reviewer-1", agent: "spec-reviewer", model: "anthropic/claude-3-opus", directory: "/repo/worktree", prompt: "begin", pipeline_slug },
+          { sessionID: "ses_orchestrator" },
+        ),
+        /Invalid pipeline slug/,
+      );
+    }
     assert.equal(sessions.size, 0);
   });
 
@@ -412,7 +429,7 @@ describe("rp_spawn", () => {
         model: "anthropic/claude-3-opus#thinking",
         directory: "/repo/worktree",
         prompt: "begin the review",
-        run: "144-opencode-support",
+        pipeline_slug: "144-opencode-support",
       },
       { sessionID: "ses_orchestrator" },
     );
@@ -432,7 +449,7 @@ describe("rp_spawn", () => {
 
     assert.deepEqual(lookupSpawn(sessionID), {
       name: "spec-reviewer-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
       directory: "/repo/worktree",
       repoRoot: "/repo/worktree-repo-root",
@@ -577,7 +594,7 @@ describe("the access boundary is wired into what setup registers", () => {
     const tools = registerTools();
     recordSpawn("ses_wired_agent", {
       name: "build-worker-tdd wired",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_wired_orchestrator",
     });
     recordSessionParent({ type: "session.created", data: { sessionID: "ses_wired_agent" } });
@@ -680,7 +697,7 @@ describe("rp_send", () => {
     // it, including its completion declaration.
     recordSpawn("ses_worker", {
       name: "build-writer-edit",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_its_spawner",
     });
 
@@ -714,7 +731,7 @@ describe("rp_send", () => {
       ["ses_helper", "helper-q1"],
       ["ses_requester", "correction-lead"],
     ]) {
-      recordSpawn(id, { name, run: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
+      recordSpawn(id, { name, pipelineSlug: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
     }
 
     let captured;
@@ -740,7 +757,7 @@ describe("rp_send", () => {
     sessions.set("ses_receiver", { id: "ses_receiver" });
     recordSpawn("ses_sender", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -870,7 +887,7 @@ describe("rp_send", () => {
     sessions.set("ses_sender2", { id: "ses_sender2" });
     recordSpawn("ses_sender2", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -889,7 +906,7 @@ describe("rp_send", () => {
     sessions.set("ses_its_spawner_rec", { id: "ses_its_spawner_rec" });
     recordSpawn("ses_sender_rec", {
       name: "spec-producer-1",
-      run: "276-activity-reporting",
+      pipelineSlug: "276-activity-reporting",
       spawner: "ses_its_spawner_rec",
     });
 
@@ -3660,6 +3677,10 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
       ),
       `expected an observable busy tick, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
     );
+    globalThis[LOOP_TICK_LOG_KEY].push({ loopID: "loop_other", targetSession: "ses_other", at: 1, outcome: "busy" });
+    const listed = (await tools.get("rp_loop_list").execute({}, {})).output;
+    assert.ok(listed[0].recentTicks.length >= 1, "a listed loop carries its own recent ticks");
+    assert.ok(listed[0].recentTicks.every((tick) => tick.loopID === loopID), "and none of another loop's");
 
     active = false;
     await delay(60);
@@ -3908,7 +3929,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_evt", { id: "ses_child_evt" });
     recordSpawn("ses_child_evt", {
       name: "worker",
-      run: "258-agent-declared-completion",
+      pipelineSlug: "258-agent-declared-completion",
       spawner: "ses_spawner_evt",
     });
 
@@ -3960,7 +3981,7 @@ describe("terminal-event listener", () => {
     for (const id of ["ses_child_term", "ses_child_other"]) {
       recordSpawn(id, {
         name: id === "ses_child_term" ? "worker" : "bystander",
-        run: "267-steer-inter-agent-messages",
+        pipelineSlug: "267-steer-inter-agent-messages",
         spawner: "ses_spawner_term",
       });
     }
@@ -4013,7 +4034,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_twice", { id: "ses_child_twice" });
     recordSpawn("ses_child_twice", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_twice",
     });
 
@@ -4068,7 +4089,7 @@ describe("terminal-event listener", () => {
       sessions.set("ses_child_held", { id: "ses_child_held" });
       recordSpawn("ses_child_held", {
         name: "worker",
-        run: "267-steer-inter-agent-messages",
+        pipelineSlug: "267-steer-inter-agent-messages",
         spawner: "ses_spawner_held",
       });
 
@@ -4133,7 +4154,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_iso", { id: "ses_child_iso" });
     recordSpawn("ses_child_iso", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_iso",
     });
 
@@ -4198,7 +4219,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_win", { id: "ses_child_win" });
     recordSpawn("ses_child_win", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_win",
     });
 
@@ -4292,7 +4313,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_stall", { id: "ses_child_stall" });
     recordSpawn("ses_child_stall", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_stall",
     });
 
@@ -4349,7 +4370,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_two", { id: "ses_child_two" });
     recordSpawn("ses_child_two", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_two",
     });
 
@@ -4418,7 +4439,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_adopt", { id: "ses_child_adopt" });
     recordSpawn("ses_child_adopt", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_adopt",
     });
 
@@ -4509,7 +4530,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_mask", { id: "ses_child_mask" });
     recordSpawn("ses_child_mask", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_mask",
     });
 
@@ -4547,7 +4568,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_race", { id: "ses_child_race" });
     recordSpawn("ses_child_race", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_race",
     });
 
@@ -4641,7 +4662,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_alive", { id: "ses_child_alive" });
     recordSpawn("ses_child_alive", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_alive",
     });
 
@@ -4682,7 +4703,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_title", { id: "ses_child_title" });
     recordSpawn("ses_child_title", {
       name: "worker-title",
-      run: "258-agent-declared-completion",
+      pipelineSlug: "258-agent-declared-completion",
       spawner: "ses_spawner_title",
     });
 
@@ -4724,7 +4745,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_int", { id: "ses_child_int" });
     recordSpawn("ses_child_int", {
       name: "worker-interrupted",
-      run: "276-activity-reporting",
+      pipelineSlug: "276-activity-reporting",
       spawner: "ses_spawner_int",
     });
 
@@ -4766,7 +4787,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_success_log", { id: "ses_child_success_log" });
     recordSpawn("ses_child_success_log", {
       name: "worker-success-log",
-      run: "247-observable-health-loops",
+      pipelineSlug: "247-observable-health-loops",
       spawner: "ses_spawner_success_log",
     });
 
@@ -4785,7 +4806,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_cause", { id: "ses_child_cause" });
     recordSpawn("ses_child_cause", {
       name: "worker-cause",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_spawner_cause",
     });
 
@@ -4937,7 +4958,7 @@ describe("buildLedgerRows", () => {
   test("maps recognized session records into ledger rows and omits unrecognized ones", () => {
     recordSpawn("ses_ledger_1", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -4960,7 +4981,7 @@ describe("buildLedgerRows", () => {
           title: "some other title",
         },
       ],
-      (id) => (id === "ses_ledger_1" ? { name: "spec-lead", run: "144-opencode-support", spawner: "x" } : undefined),
+      (id) => (id === "ses_ledger_1" ? { name: "spec-lead", pipelineSlug: "144-opencode-support", spawner: "x" } : undefined),
       new Set(["ses_ledger_1"]),
       () => 2,
     );
@@ -4968,19 +4989,17 @@ describe("buildLedgerRows", () => {
     assert.deepEqual(rows, [
       {
         name: "spec-lead",
-        run: "144-opencode-support",
+        pipelineSlug: "144-opencode-support",
         sessionID: "ses_ledger_1",
         agent: "spec-lead",
         model: "anthropic/claude-3-opus",
         directory: "/repo/worktree",
-        updated: 123,
         activity: 123,
         running: true,
         pending: 2,
         permissions: [],
         currentTool: undefined,
         lastTurn: undefined,
-        turns: undefined,
         lastSend: undefined,
         lastText: undefined,
       },
@@ -5027,18 +5046,18 @@ describe("buildLedgerRows", () => {
     );
 
     assert.deepEqual(
-      rows.map((row) => [row.sessionID, row.updated, row.activity]),
+      rows.map((row) => [row.sessionID, row.activity]),
       [
-        ["ses_tooling", 100, 5_000],
-        ["ses_stale_event", 100, 100],
-        ["ses_unobserved", 100, 100],
-        ["ses_no_time", undefined, 7],
-        ["ses_trickling", 100, 9_000],
+        ["ses_tooling", 5_000],
+        ["ses_stale_event", 100],
+        ["ses_unobserved", 100],
+        ["ses_no_time", 7],
+        ["ses_trickling", 9_000],
       ],
     );
   });
 
-  test("maps the plugin's own per-session observations — last turn, turn count, last send, last text — onto the row", () => {
+  test("maps the plugin's own per-session observations — last turn, last send, last text — onto the row", () => {
     const rows = buildLedgerRows(
       [
         {
@@ -5063,7 +5082,6 @@ describe("buildLedgerRows", () => {
     );
 
     assert.deepEqual(rows[0].lastTurn, { endedAt: 900, outcome: "succeeded" });
-    assert.equal(rows[0].turns, 3);
     assert.deepEqual(rows[0].lastSend, { at: 800, to: "ses_orchestrator" });
     assert.deepEqual(rows[0].lastText, { at: 899, excerpt: "Let me wait for the sweep to complete." });
   });
@@ -5105,10 +5123,10 @@ describe("buildStatusPayload", () => {
     assert.deepEqual(result.recentErrors, []);
   });
 
-  test("reads the session list, active set, and per-session pending counts, permissions, and newest text through the reach helper and the injected HTTP client", async () => {
+  test("a session scope reads the session list, active set, and that session's pending count, permissions, and newest text through the reach helper and the injected HTTP client", async () => {
     recordSpawn("ses_status_1", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -5187,6 +5205,7 @@ describe("buildStatusPayload", () => {
     };
 
     const result = await buildStatusPayload({
+      session: "ses_status_1",
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
@@ -5195,12 +5214,11 @@ describe("buildStatusPayload", () => {
     assert.equal(result.ledger.length, 1);
     assert.deepEqual(result.ledger[0], {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       sessionID: "ses_status_1",
       agent: "spec-lead",
       model: "anthropic/claude-3-opus",
       directory: "/repo",
-      updated: 42,
       activity: 42,
       running: true,
       pending: 1,
@@ -5213,17 +5231,89 @@ describe("buildStatusPayload", () => {
       ],
       currentTool: undefined,
       lastTurn: undefined,
-      turns: undefined,
       lastSend: undefined,
       lastText: { at: 950, excerpt: "Reading the review now." },
     });
     assert.deepEqual(result.readFailures, []);
   });
 
+  test("a pipeline scope reports that pipeline's sessions alone, reading no transcript, and narrows the errors to them plus those naming no session", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
+    recordSpawn("ses_scope_a1", { name: "spec-lead", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
+    recordSpawn("ses_scope_a2", { name: "spec-reviewer-1", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
+    recordSpawn("ses_scope_b1", { name: "spec-lead", pipelineSlug: "pipeline-b", spawner: "ses_orch_b" });
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_a1", at: 1 });
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_b1", at: 2 });
+    recordError({ type: "listener.lost", error: "boom", at: 3 });
+
+    const record = (id, slug, name) => ({
+      id,
+      agent: "spec-lead",
+      model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+      location: { directory: `/${slug}` },
+      time: { updated: 1 },
+      title: `rp:${slug}:${name}`,
+    });
+    const reads = [];
+    const requestFn = async (url) => {
+      reads.push(url.pathname);
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              record("ses_scope_a1", "pipeline-a", "spec-lead"),
+              record("ses_scope_b1", "pipeline-b", "spec-lead"),
+              record("ses_scope_a2", "pipeline-a", "spec-reviewer-1"),
+            ],
+          },
+        };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+    const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
+
+    const scoped = await buildStatusPayload({ pipelineSlug: "pipeline-a", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(
+      scoped.ledger.map((row) => [row.sessionID, row.pipelineSlug]),
+      [
+        ["ses_scope_a1", "pipeline-a"],
+        ["ses_scope_a2", "pipeline-a"],
+      ],
+    );
+    assert.ok(scoped.ledger.every((row) => !Object.hasOwn(row, "lastText")));
+    assert.deepEqual(
+      reads.filter((path) => path.includes("ses_scope_b1") || path.endsWith("/message")),
+      [],
+      "no per-session read for another pipeline's session, and no transcript read at all",
+    );
+    assert.deepEqual(
+      scoped.recentErrors.map((entry) => entry.type),
+      ["session.execution.failed", "listener.lost"],
+    );
+    assert.equal(scoped.recentErrors[0].sessionID, "ses_scope_a1");
+
+    const unscoped = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(
+      unscoped.ledger.map((row) => row.sessionID),
+      ["ses_scope_a1", "ses_scope_b1", "ses_scope_a2"],
+    );
+    assert.equal(unscoped.recentErrors.length, 3);
+
+    const missing = await buildStatusPayload({ pipelineSlug: "pipeline-c", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(missing.ledger, []);
+    assert.deepEqual(missing.recentErrors.map((entry) => entry.type), ["listener.lost"]);
+
+    await assert.rejects(
+      () => buildStatusPayload({ pipelineSlug: "pipeline-a", session: "ses_scope_a1", env, readServiceRecord: () => null, requestFn }),
+      /pipeline_slug or session, not both/,
+    );
+  });
+
   test("folds the plugin's in-process observations — progress events, turn ends, sends — into the row", async () => {
     recordSpawn("ses_status_obs", {
       name: "spec-reviewer-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     recordSessionEventActivity(
@@ -5264,18 +5354,16 @@ describe("buildStatusPayload", () => {
     });
 
     const row = result.ledger[0];
-    assert.equal(row.updated, 1_000);
     assert.equal(row.activity, 5_000, "a tool event newer than `updated` is the liveness signal");
     assert.deepEqual(row.lastTurn, { endedAt: 4_000, outcome: "succeeded" });
-    assert.equal(row.turns, 1);
     assert.deepEqual(row.lastSend, { at: 3_000, to: "ses_orchestrator" });
-    assert.equal(row.lastText, undefined, "an empty message page yields no text");
+    assert.equal(Object.hasOwn(row, "lastText"), false, "the transcript is read only for a session scope");
   });
 
   test("folds raw provider progress into activity when it is the newest evidence", async () => {
     recordSpawn("ses_status_raw", {
       name: "build-writer-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     const generation = recordRawResponseStart("ses_status_raw", 6_000);
@@ -5314,7 +5402,7 @@ describe("buildStatusPayload", () => {
   test("reads the deeper message page only when the first is full and textless, and reports the searched depth when both are", async () => {
     recordSpawn("ses_status_deep", {
       name: "build-writer-2",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     const toolStep = (i) => ({
@@ -5358,27 +5446,33 @@ describe("buildStatusPayload", () => {
     };
     const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
 
-    const found = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
+    const found = await buildStatusPayload({ session: "ses_status_deep", env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(messageReads, [20, 100], "the deeper page is read only after a full, textless first page");
     assert.deepEqual(found.ledger[0].lastText, { at: 901, excerpt: "Tests green." });
 
     messageReads.length = 0;
     deepPageHasText = false;
-    const silent = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
+    const silent = await buildStatusPayload({ session: "ses_status_deep", env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(messageReads, [20, 100]);
     assert.deepEqual(silent.ledger[0].lastText, { olderThan: 100 }, "a textless deep page reports how far the search reached");
     assert.deepEqual(silent.readFailures, []);
+
+    messageReads.length = 0;
+    const emptyPage = (url) =>
+      url.pathname === "/api/session" ? requestFn(url) : { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    const mute = await buildStatusPayload({ session: "ses_status_deep", env, readServiceRecord: () => null, requestFn: emptyPage });
+    assert.equal(mute.ledger[0].lastText, null, "a short, textless transcript holds no text");
   });
 
   test("reports failed server reads in readFailures, aggregated per endpoint and status, instead of rendering them as idle and healthy", async () => {
     recordSpawn("ses_status_f1", {
       name: "spec-researcher-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     recordSpawn("ses_status_f2", {
       name: "spec-researcher-2",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -5427,7 +5521,6 @@ describe("buildStatusPayload", () => {
       [
         { endpoint: "active", status: 500, count: 1 },
         { endpoint: "inbox", status: 404, count: 2 },
-        { endpoint: "message", status: 404, count: 2 },
         { endpoint: "permission", status: 404, count: 2 },
       ],
     );
@@ -5436,7 +5529,7 @@ describe("buildStatusPayload", () => {
   test("reports thrown server reads as transport failures while preserving the partial ledger", async () => {
     recordSpawn("ses_status_transport", {
       name: "spec-researcher-transport",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     const requestFn = async (url) => {
@@ -5460,6 +5553,7 @@ describe("buildStatusPayload", () => {
     };
 
     const result = await buildStatusPayload({
+      session: "ses_status_transport",
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,

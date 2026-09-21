@@ -233,7 +233,7 @@ describe("onPermissionAsked", () => {
     const requestID = uniqueID("per");
     recordSpawn(sessionID, {
       name: "build-writer-1",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",
@@ -266,7 +266,7 @@ describe("onPermissionAsked", () => {
     const requestID = uniqueID("per");
     recordSpawn(sessionID, {
       name: "build-writer-2",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch_fwd",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",
@@ -292,7 +292,7 @@ describe("onPermissionAsked", () => {
     const sessionID = uniqueID("ses_child");
     recordSpawn(sessionID, {
       name: "build-writer-3",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch_fork",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",
@@ -316,7 +316,7 @@ describe("onPermissionAsked", () => {
     const requestID = uniqueID("per");
     recordSpawn(sessionID, {
       name: "build-writer-replyfail",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch_replyfail",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",
@@ -351,7 +351,7 @@ describe("onPermissionAsked", () => {
     const requestID = uniqueID("per");
     recordSpawn(sessionID, {
       name: "build-writer-transport",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch_transport",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",
@@ -379,7 +379,7 @@ describe("onPermissionAsked", () => {
     const sessionID = uniqueID("ses_child");
     recordSpawn(sessionID, {
       name: "build-writer-4",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch_nosrv",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",
@@ -412,7 +412,7 @@ describe("onPermissionAsked", () => {
     const requestID = uniqueID("per");
     recordSpawn(sessionID, {
       name: "build-writer-5",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch_dup",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",
@@ -481,7 +481,7 @@ describe("replyToPermission", () => {
 describe("current-tool tracking", () => {
   test("tracks a ledger session's tool from input.started through called, exposing name, target, and start time, and clears it on success", () => {
     const sessionID = uniqueID("ses_tool");
-    recordSpawn(sessionID, { name: "w", run: "r", spawner: "s" });
+    recordSpawn(sessionID, { name: "w", pipelineSlug: "r", spawner: "s" });
 
     onToolEvent({
       type: "session.tool.input.started",
@@ -512,7 +512,7 @@ describe("current-tool tracking", () => {
 
   test("a failed call clears the current tool too, and a stale completion for another call does not", () => {
     const sessionID = uniqueID("ses_tool");
-    recordSpawn(sessionID, { name: "w", run: "r", spawner: "s" });
+    recordSpawn(sessionID, { name: "w", pipelineSlug: "r", spawner: "s" });
 
     onToolEvent({
       type: "session.tool.called",
@@ -555,7 +555,7 @@ describe("wired through setup", () => {
     const requestID = uniqueID("per");
     recordSpawn(sessionID, {
       name: "spec-researcher-1",
-      run: "run-a",
+      pipelineSlug: "run-a",
       spawner: "ses_orch_wired",
       directory: "/main/.worktrees/wt",
       repoRoot: "/main",

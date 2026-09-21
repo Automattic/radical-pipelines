@@ -14,13 +14,13 @@ describe("recordSpawn / lookupSpawn", () => {
   test("looking up a recorded spawn by session ID returns its entry", () => {
     recordSpawn("ses_lookup_1", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
     assert.deepEqual(lookupSpawn("ses_lookup_1"), {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
   });
@@ -35,25 +35,25 @@ describe("resolveCurrentSpawn (latest-wins per name)", () => {
     const name = "spec-reviewer-latest-wins";
     recordSpawn("ses_respawn_old", {
       name,
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     recordSpawn("ses_respawn_new", {
       name,
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
     assert.deepEqual(resolveCurrentSpawn(name), {
       sessionID: "ses_respawn_new",
       name,
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
     assert.deepEqual(lookupSpawn("ses_respawn_old"), {
       name,
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
   });
@@ -73,15 +73,15 @@ describe("formatAttribution", () => {
 });
 
 describe("formatTitle / parseTitle", () => {
-  test("round-trips run and name through the durable title format", () => {
+  test("round-trips pipeline slug and name through the durable title format", () => {
     const title = formatTitle({
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       name: "spec-lead",
     });
 
     assert.equal(title, "rp:144-opencode-support:spec-lead");
     assert.deepEqual(parseTitle(title), {
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       name: "spec-lead",
     });
   });
