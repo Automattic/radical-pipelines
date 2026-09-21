@@ -26,6 +26,7 @@ import * as pluginAndMaterialization from "./checks/plugin-and-materialization.m
 import * as spawnAndMessaging from "./checks/spawn-and-messaging.mjs";
 import * as healthLoop from "./checks/health-loop.mjs";
 import * as toolAccess from "./checks/tool-access.mjs";
+import * as permission from "./checks/permission.mjs";
 import * as status from "./checks/status.mjs";
 import * as interruptAndModelSwitch from "./checks/interrupt-and-model-switch.mjs";
 import * as authRecovery from "./checks/auth-recovery.mjs";
@@ -39,6 +40,7 @@ const CORE_CHECK_GROUPS = [
   ["Spawn, seat, ledger, title, messaging, termination", spawnAndMessaging],
   ["Health loop", healthLoop],
   ["Tool access tiers", toolAccess],
+  ["Permission adjudication", permission],
   ["Status", status],
   ["Interrupt and model switch", interruptAndModelSwitch],
   ["Auth-error recovery", authRecovery],
