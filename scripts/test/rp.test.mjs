@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
@@ -20,6 +20,41 @@ function write(root, rel, contents) {
   const path = join(root, P(rel));
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, contents);
+  refreshPlan(root, rel);
+}
+// A plan declares its tasks by their files: a recorded plan keeps its ids current as task files land.
+function refreshPlan(root, rel) {
+  const m = rel.match(/^(3-build|4-document)\/tasks\/(build|document)-task-[1-9]\d*\.md$/);
+  if (!m) return;
+  const plan = m[1] === "3-build" ? "3-build/build-plan.md" : "4-document/document-plan.md";
+  const file = join(root, P(plan));
+  if (!existsSync(file)) return;
+  const { data, body } = parseFrontmatter(readFileSync(file, "utf8"));
+  const ids = declaredIn(root, plan, body);
+  const fields = Object.fromEntries(data ?? []);
+  if (ids.length) fields.ids = ids; else delete fields.ids;
+  writeFileSync(file, `---\n${JSON.stringify(fields, null, 2)}\n---\n${body}`);
+}
+// The prefix and words each artifact originates; a recorded artifact carries its declared ids, its
+// task files, and, downstream, any upstream assumption it names.
+const DECLARES = {
+  "0-intent/intent.md": ["intent", ["constraint", "context", "assumption", "decision"]],
+  "1-spec/spec.md": ["spec", ["requirement", "acceptance-criterion", "assumption"]],
+  "2-design-doc/design-doc.md": ["design-doc", ["decision", "assumption"]],
+  "3-build/build-plan.md": ["build", ["assumption"]],
+  "4-document/document-plan.md": ["document", ["assumption"]],
+};
+function declaredIn(root, rel, body) {
+  const parts = rel.split("/");
+  const [prefix, words] = DECLARES[`${parts[0]}/${parts.at(-1)}`] ?? [null, []];
+  if (!prefix) return [];
+  const prose = body.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[\t ]*$/gm, "");
+  const items = [...prose.matchAll(/^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+[*_`]*((intent|spec|design-doc|build|document)-([a-z-]+?)-[1-9]\d*)(?![A-Za-z0-9-])/gm)];
+  const own = items.filter((m) => m[2] === prefix && words.includes(m[3])).map((m) => m[1]);
+  const carried = prefix === "intent" || prefix === "spec" ? [] : items.filter((m) => m[2] !== prefix && m[3] === "assumption").map((m) => m[1]);
+  const folder = join(root, P(`${parts[0]}/tasks`));
+  const tasks = ["build", "document"].includes(prefix) && existsSync(folder) ? readdirSync(folder).filter((n) => new RegExp(`^${prefix}-task-[1-9]\\d*\\.md$`).test(n)).map((n) => n.replace(/\.md$/, "")) : [];
+  return [...new Set([...own, ...carried, ...tasks])];
 }
 const read = (root, rel) => readFileSync(join(root, P(rel)), "utf8");
 
@@ -84,27 +119,8 @@ describe("rp state tooling", () => {
   function pairs(paths) {
     return paths.map((path) => `${path}@${identity(read(root, path))}`);
   }
-  // The prefix and words each artifact originates; a recorded artifact carries its declared ids and,
-  // downstream, any upstream assumption it names.
-  const DECLARES = {
-    "0-intent/intent.md": ["intent", ["constraint", "context", "assumption", "decision"]],
-    "1-spec/spec.md": ["spec", ["requirement", "acceptance-criterion", "assumption"]],
-    "2-design-doc/design-doc.md": ["design-doc", ["decision", "assumption"]],
-    "3-build/build-plan.md": ["build", ["assumption"]],
-    "4-document/document-plan.md": ["document", ["assumption"]],
-  };
-  function declaredIn(rel, body) {
-    const parts = rel.split("/");
-    const [prefix, words] = DECLARES[`${parts[0]}/${parts.at(-1)}`] ?? [null, []];
-    if (!prefix) return [];
-    const prose = body.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[\t ]*$/gm, "");
-    const items = [...prose.matchAll(/^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+[*_`]*((intent|spec|design-doc|build|document)-([a-z-]+?)-[1-9]\d*)(?![A-Za-z0-9-])/gm)];
-    const own = items.filter((m) => m[2] === prefix && words.includes(m[3])).map((m) => m[1]);
-    const carried = prefix === "intent" || prefix === "spec" ? [] : items.filter((m) => m[2] !== prefix && m[3] === "assumption").map((m) => m[1]);
-    return [...new Set([...own, ...carried])];
-  }
   function registered(rel, fields, body = parseFrontmatter(read(root, rel)).body) {
-    const ids = declaredIn(rel, body);
+    const ids = declaredIn(root, rel, body);
     const data = ids.length && !("ids" in fields) ? { ...fields, ids } : fields;
     write(root, rel, `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`);
   }
@@ -1529,7 +1545,7 @@ process.stdout.write(output);
     });
 
   const DECLARED = ["bullet", "numbered", "heading", "bold", "italic", "code"];
-  for (const [artifact, id, other, source = artifact] of [
+  for (const [artifact, id, other] of [
     ["0-intent/intent.md", "intent-constraint-1", "intent-context-1"],
     ["0-intent/intent.md", "intent-decision-1", "intent-context-1"],
     ["1-spec/spec.md", "spec-requirement-1", "spec-acceptance-criterion-1"],
@@ -1539,8 +1555,6 @@ process.stdout.write(output);
     ["2-design-doc/design-doc.md", "design-doc-assumption-1", "design-doc-decision-1"],
     ["3-build/build-plan.md", "build-assumption-1", "build-task-1"],
     ["4-document/document-plan.md", "document-assumption-1", "document-task-1"],
-    ["3-build/build-plan.md", "build-task-1", "build-assumption-1", "3-build/tasks/build-task-1.md"],
-    ["4-document/document-plan.md", "document-task-1", "document-assumption-1", "4-document/tasks/document-task-1.md"],
   ])
     for (const form of [...DECLARED, "mention", "other item reference", "prefix", "fenced"])
       test(`target declaration: ${artifact}#${id}, ${form}`, () => {
@@ -1557,8 +1571,7 @@ process.stdout.write(output);
           prefix: `- ${id}-old Former item.\n`,
           fenced: `\`\`\`markdown\n- ${id} Item.\n\`\`\`\n`,
         };
-        write(root, artifact, "# Artifact\n");
-        write(root, source, `# Artifact\n\n${declarations[form]}`);
+        write(root, artifact, `# Artifact\n\n${declarations[form]}`);
         write(root, claim, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
         if (DECLARED.includes(form)) {
           rp(root, "stamp", P(claim), "--mirror");
@@ -1662,7 +1675,7 @@ process.stdout.write(output);
         }
       });
 
-  // A plan declares its tasks by their files, numbered from 1.
+  // A plan declares its tasks by their files: numbered from 1, never reused once retired.
   for (const [phase, prefix] of [["3-build", "build"], ["4-document", "document"]])
     for (const [form, files, invalid] of [
       ["one task", ["1"], null],
@@ -1675,16 +1688,82 @@ process.stdout.write(output);
         for (const n of files) write(root, `${phase}/tasks/${prefix}-task-${n}.md`, `# ${prefix}-task-${n}: work\n\n- **Depends on:** none\n`);
         write(root, plan, "# Plan\n");
         if (!invalid) {
-          assert.match(rp(root, "stamp", P(plan), "--mirror"), /nothing to mirror/);
+          rp(root, "stamp", P(plan), "--mirror");
+          assert.deepEqual(parseFrontmatter(read(root, plan)).data.get("ids"), files.map((n) => `${prefix}-task-${n}`));
           assert.doesNotMatch(check(root), /INVALID IDS/);
         } else {
           assert.throws(() => rp(root, "stamp", P(plan), "--mirror"), new RegExp(`INVALID IDS ${plan}: ${invalid}`));
+          assert.match(check(root), new RegExp(`frontier INVALID IDS ${plan}`));
         }
       });
 
+  test("a retired task id is never reused", () => {
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\n- **Depends on:** none\n");
+    rp(root, "stamp", P("3-build/build-plan.md"), "--mirror");
+    rmSync(join(root, P("3-build/tasks/build-task-1.md")));
+    rp(root, "stamp", P("3-build/build-plan.md"), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, "3-build/build-plan.md")).data.get("retired-ids"), ["build-task-1"]);
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: again\n\n- **Depends on:** none\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/build-plan.md"), "--mirror"), /INVALID IDS 3-build\/build-plan\.md: retired id build-task-1 is declared again/);
+  });
+
+  test("a task target is declared by its file, under its phase's prefix", () => {
+    write(root, "3-build/tasks/build-task-1.md", "# Any heading\n\n- **Depends on:** none\n");
+    write(root, "4-document/tasks/build-task-1.md", "# build-task-1\n\n- **Depends on:** none\n");
+    write(root, "4-document/document-plan.md", "# Plan\n");
+    assert.throws(() => correction("4-document/document-plan.md#build-task-1"), /INVALID TARGET 4-document\/document-plan\.md#build-task-1/);
+    correction("3-build/build-plan.md#build-task-1");
+    write(root, "4-document/tasks/build-task-1-report-1.md", "# Report\nOutcome: completed\n");
+    assert.deepEqual(JSON.parse(check(root, "--json")).tasks["4-document"] ?? null, null);
+  });
+
+  test("a review of a phase without tasks stamps beside stray files in its tasks folder", () => {
+    write(root, "1-spec/tasks/build-task-9.md", "# Historical input\n");
+    stampSpec();
+    approveSpec();
+    assert.match(check(root, "--target-phase", "1"), /frontier complete/);
+  });
+
+  for (const [rel, prefix, word, stamped] of [["1-spec/spec-review-1.md", "spec", "finding", true], ["2-design-doc/design-doc-research.md", "design-doc", "question", false]])
+    for (const [form, ids, invalid] of [
+      ["numbered", [1, 2], null],
+      ["a gap", [1, 3], `${prefix}-${word}-2 is missing`],
+      ["twice", [1, 1], `${prefix}-${word}-1 is declared more than once`],
+      ["another phase's", null, null],
+    ])
+      test(`${word}s in ${rel}: ${form}`, () => {
+        const items = ids ? ids.map((n) => `### ${prefix}-${word}-${n}: Entry\n`).join("") : `### build-${word}-1: Entry\n`;
+        write(root, rel, `# File\n\n${stamped ? "Verdict: approved\n" : ""}\n${items}`);
+        if (stamped) {
+          if (invalid) assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), new RegExp(`INVALID IDS ${rel}: ${invalid}`));
+          else rp(root, "stamp", P(rel), "--mirror");
+        }
+        const output = check(root);
+        if (invalid) assert.match(output, new RegExp(`INVALID IDS ${rel}: ${invalid}`));
+        else assert.doesNotMatch(output, /INVALID IDS/);
+      });
+
+  test("ids and retired-ids are recorded on an artifact with history only", () => {
+    registered("1-spec/spec-review-1.md", { verdict: "approved", "ids": ["spec-finding-1"] }, "# Review\n\nVerdict: approved\n\n### spec-finding-1: Entry\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID FRONTMATTER.*recorded ids/);
+  });
+
+  test("a prior finding names a finding of the review's phase", () => {
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-0.md#build-finding-1, resolution failed\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID Prior finding: expected <review>#<finding id of the review's phase>/);
+  });
+
+  test("a lane artifact declares ids like its root", () => {
+    write(root, "1-spec/a/spec.md", "# Spec\n\n- spec-requirement-2 Second only.\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror"), /INVALID IDS 1-spec\/a\/spec\.md: spec-requirement-1 is missing/);
+    write(root, "1-spec/a/spec.md", "# Spec\n\n- spec-requirement-1 First.\n");
+    rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/a/spec.md")).data.get("ids"), ["spec-requirement-1"]);
+  });
+
   test("ids and retired-ids belong to an artifact that declares ids", () => {
     registered("1-spec/spec-research.md", { "ids": ["spec-question-1"] });
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-research.md")), /INVALID FRONTMATTER.*belong to an artifact with declared ids/);
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-research.md")), /INVALID FRONTMATTER.*belong to an artifact with recorded ids/);
     assert.match(check(root), /frontier INVALID FRONTMATTER 1-spec\/spec-research\.md/);
   });
 
@@ -2921,7 +3000,7 @@ process.stdout.write(output);
       ["Verdict: approved with caveats", /Verdict: expected approved \| rejected \| unsatisfiable/],
       ["Outcome: done", /Outcome: expected completed \| failed \| blocked/],
       ["Target: 1-spec\/spec.md##spec-requirement-1", /Target: expected <path>\[#<id>\]/],
-      ["Prior finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /Prior finding: expected <review>#<finding id>, resolution failed/],
+      ["Prior finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /Prior finding: expected <review>#<finding id of the review's phase>, resolution failed/],
       ["Origin: owner request", /Origin: expected issue <reference>, a source declaration, or a path/],
       ["Origin: PROJECT-42", /Origin: expected issue <reference>, a source declaration, or a path/],
       ["Brief:", /Brief: expected text/],

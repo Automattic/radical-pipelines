@@ -96,7 +96,7 @@
     {
       phase: 'phase 4',
       task: 'document-plan-producer',
-      reads: ['tasks/document-task-1-report-1.md', 'spec.md'],
+      reads: ['tasks/build-task-1-report-1.md', 'spec.md'],
       writes: ['document-plan.md', 'tasks/document-task-1.md'],
       runMs: 1100,
       sec: 61,
@@ -106,7 +106,7 @@
     {
       phase: 'phase 4',
       task: 'document-plan-reviewer',
-      reads: ['document-plan.md', 'tasks/document-task-1-report-1.md'],
+      reads: ['document-plan.md', 'tasks/build-task-1-report-1.md'],
       writes: ['document-plan-review-1.md'],
       runMs: 850,
       sec: 33,
@@ -151,7 +151,7 @@
     '3-build/build-plan-review-1.md',
     'src/orchestrator.ts + test',
     '3-build/build-review-1.md',
-    '3-build/tasks/document-task-1-report-1.md',
+    '3-build/tasks/build-task-1-report-1.md',
     '4-document/document-plan.md',
     '4-document/document-plan-review-1.md',
     'README.md, docs/',
