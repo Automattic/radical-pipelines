@@ -16,11 +16,11 @@ function git(root, ...args) {
 }
 const P = (rel) => `${PIPELINE}/${rel}`;
 
-function write(root, rel, contents) {
+function write(root, rel, contents, refresh = true) {
   const path = join(root, P(rel));
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, contents);
-  refreshPlan(root, rel);
+  if (refresh) refreshPlan(root, rel);
 }
 // A plan declares its tasks by their files: a recorded plan keeps its ids current as task files land.
 function refreshPlan(root, rel) {
@@ -43,6 +43,10 @@ const DECLARES = {
   "2-design-doc/design-doc.md": ["design-doc", ["decision", "assumption"]],
   "3-build/build-plan.md": ["build", ["assumption"]],
   "4-document/document-plan.md": ["document", ["assumption"]],
+  "1-spec/spec-research.md": ["spec", ["question"]],
+  "2-design-doc/design-doc-research.md": ["design-doc", ["question"]],
+  "3-build/build-plan-research.md": ["build", ["question"]],
+  "4-document/document-plan-research.md": ["document", ["question"]],
 };
 function declaredIn(root, rel, body) {
   const parts = rel.split("/");
@@ -493,6 +497,7 @@ process.stdout.write(output);
 
   test("--mirror copies Verdict, Brief, Target, Outcome, Prior finding, Depends on, and every Origin line", () => {
     stampSpec();
+    write(root, "1-spec/spec-review-0.md", "# Review\n\nVerdict: rejected\n\n### spec-finding-1: One\n\n### spec-finding-2: Two\n");
     write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: unsatisfiable\nBrief: security\nTarget: 0-intent/intent.md#intent-goal\n\n### spec-finding-1\n\nPrior finding: 1-spec/spec-review-0.md#spec-finding-2, resolution failed\n");
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const fm = read(root, "1-spec/spec-review-1.md");
@@ -1707,6 +1712,44 @@ process.stdout.write(output);
     assert.throws(() => rp(root, "stamp", P("3-build/build-plan.md"), "--mirror"), /INVALID IDS 3-build\/build-plan\.md: retired id build-task-1 is declared again/);
   });
 
+  test("a new task file makes a recorded plan's ids stale", () => {
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\n- **Depends on:** none\n");
+    rp(root, "stamp", P("3-build/build-plan.md"), "--mirror");
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** none\n", false);
+    assert.match(check(root), /mirror\s+3-build\/build-plan\.md\s+differs from the body: ids[\s\S]*frontier stamp 3-build\/build-plan\.md/);
+  });
+
+  test("a misnamed file in a plan's tasks folder is invalid", () => {
+    write(root, "4-document/document-plan.md", "# Plan\n");
+    write(root, "4-document/tasks/build-task-1-report-1.md", "# Report\nOutcome: completed\n");
+    assert.throws(() => rp(root, "stamp", P("4-document/tasks/build-task-1-report-1.md"), "--mirror"), /INVALID IDS 4-document\/tasks\/build-task-1-report-1\.md: build-task-1-report-1\.md is not a document task or its report/);
+    assert.match(check(root), /frontier INVALID IDS 4-document\/tasks\/build-task-1-report-1\.md/);
+  });
+
+  test("a record keeps the history of its questions", () => {
+    const record = "1-spec/spec-research.md";
+    write(root, record, "# Research\n\n### spec-question-1: First?\n");
+    rp(root, "stamp", P(record), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, record)).data.get("ids"), ["spec-question-1"]);
+    registered(record, { ...Object.fromEntries(parseFrontmatter(read(root, record)).data) }, "# Research\n");
+    rp(root, "stamp", P(record), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, record)).data.get("retired-ids"), ["spec-question-1"]);
+    registered(record, { ...Object.fromEntries(parseFrontmatter(read(root, record)).data), ids: ["spec-question-1"] }, "# Research\n\n### spec-question-1: Another?\n");
+    assert.throws(() => rp(root, "stamp", P(record), "--mirror"), /INVALID IDS 1-spec\/spec-research\.md: retired id spec-question-1 is declared again/);
+  });
+
+  test("a prior finding names a review of its phase that declares the finding", () => {
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n\n### spec-finding-1: Gap\n");
+    rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec.md#spec-finding-1, resolution failed\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID Prior finding: expected <review>#<finding id of the review's phase>/);
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID PRIOR FINDING 1-spec\/spec-review-1\.md#spec-finding-2: the review declares no such finding/);
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\n");
+    rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("recurs"), ["1-spec/spec-review-1.md#spec-finding-1"]);
+  });
+
   test("a task target is declared by its file, under its phase's prefix", () => {
     write(root, "3-build/tasks/build-task-1.md", "# Any heading\n\n- **Depends on:** none\n");
     write(root, "4-document/tasks/build-task-1.md", "# build-task-1\n\n- **Depends on:** none\n");
@@ -1724,7 +1767,7 @@ process.stdout.write(output);
     assert.match(check(root, "--target-phase", "1"), /frontier complete/);
   });
 
-  for (const [rel, prefix, word, stamped] of [["1-spec/spec-review-1.md", "spec", "finding", true], ["2-design-doc/design-doc-research.md", "design-doc", "question", false]])
+  for (const [rel, prefix, word] of [["1-spec/spec-review-1.md", "spec", "finding"], ["2-design-doc/design-doc-research.md", "design-doc", "question"]])
     for (const [form, ids, invalid] of [
       ["numbered", [1, 2], null],
       ["a gap", [1, 3], `${prefix}-${word}-2 is missing`],
@@ -1733,11 +1776,9 @@ process.stdout.write(output);
     ])
       test(`${word}s in ${rel}: ${form}`, () => {
         const items = ids ? ids.map((n) => `### ${prefix}-${word}-${n}: Entry\n`).join("") : `### build-${word}-1: Entry\n`;
-        write(root, rel, `# File\n\n${stamped ? "Verdict: approved\n" : ""}\n${items}`);
-        if (stamped) {
-          if (invalid) assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), new RegExp(`INVALID IDS ${rel}: ${invalid}`));
-          else rp(root, "stamp", P(rel), "--mirror");
-        }
+        write(root, rel, `# File\n\n${word === "finding" ? "Verdict: approved\n" : ""}\n${items}`);
+        if (invalid) assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), new RegExp(`INVALID IDS ${rel}: ${invalid}`));
+        else rp(root, "stamp", P(rel), "--mirror");
         const output = check(root);
         if (invalid) assert.match(output, new RegExp(`INVALID IDS ${rel}: ${invalid}`));
         else assert.doesNotMatch(output, /INVALID IDS/);
@@ -1759,12 +1800,6 @@ process.stdout.write(output);
     write(root, "1-spec/a/spec.md", "# Spec\n\n- spec-requirement-1 First.\n");
     rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/a/spec.md")).data.get("ids"), ["spec-requirement-1"]);
-  });
-
-  test("ids and retired-ids belong to an artifact that declares ids", () => {
-    registered("1-spec/spec-research.md", { "ids": ["spec-question-1"] });
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-research.md")), /INVALID FRONTMATTER.*belong to an artifact with recorded ids/);
-    assert.match(check(root), /frontier INVALID FRONTMATTER 1-spec\/spec-research\.md/);
   });
 
   for (const kind of ["constraint", "context", "assumption", "decision"])
@@ -3011,7 +3046,7 @@ process.stdout.write(output);
       assert.match(check(root, "--target-phase", "1"), /frontier INVALID LINE 1-spec\/bad\.md/);
     }
     rmSync(join(root, P("1-spec/bad.md")));
-    write(root, "1-spec/spec-review-1.md", "# Good\n\nVerdict: unsatisfiable\nOutcome: failed\nTarget: 1-spec/spec.md#spec-requirement-1\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\nOrigin: intent-decision-1\nOrigin: 0-intent/correction-1.md\nBrief: focused\n");
+    write(root, "1-spec/spec-review-1.md", "# Good\n\nVerdict: unsatisfiable\nOutcome: failed\nTarget: 1-spec/spec.md#spec-requirement-1\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\nOrigin: intent-decision-1\nOrigin: 0-intent/correction-1.md\nBrief: focused\n\n### spec-finding-1: Same\n");
     rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
     assert.doesNotMatch(check(root, "--target-phase", "1"), /INVALID LINE/);
 

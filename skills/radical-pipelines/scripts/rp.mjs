@@ -276,8 +276,14 @@ function idsEntry(rel) {
   if (root) return root;
   const prefix = prefixOf(m[1]);
   if (prefix && reviewArtifact(rel)?.art.phase === m[1]) return { prefix, declares: ["finding"], history: false };
-  if (prefix && ARTIFACTS.some((a) => a.phase === m[1] && basename(a.record) === m[3])) return { prefix, declares: ["question"], history: false };
+  if (prefix && ARTIFACTS.some((a) => a.phase === m[1] && basename(a.record) === m[3])) return { prefix, declares: ["question"] };
   return null;
+}
+// A file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
+function strayTaskFile(rel) {
+  const m = rel.match(/^([^/]+)\/tasks\/([^/]+)$/);
+  const plan = m && planOf(m[1]);
+  return plan && !taskFile(plan).test(m[2]) && !reportOf(rel) ? `${m[2]} is not a ${plan.prefix} task or its report` : null;
 }
 const planOf = (phase) => Object.entries(IDS).find(([path, e]) => path.startsWith(`${phase}/`) && e.declares.includes("task"))?.[1] ?? null;
 const taskFile = (entry) => new RegExp(String.raw`^${entry.prefix}-task-[1-9]\d*\.md$`);
@@ -326,7 +332,7 @@ function knownIds(data, body, rel, tasks) {
   return new Set([...(data?.get("ids") ?? []), ...(current.ids ?? [])]);
 }
 
-// A review's findings and a record's questions: declared once, numbered from 1, recorded nowhere.
+// A review's findings: declared once, numbered from 1, recorded nowhere — a wave is a new file.
 function declaredOnce(entry, body) {
   const current = currentIds(entry, body, []);
   if (current.invalid) return current;
@@ -344,6 +350,8 @@ function declaredOnce(entry, body) {
 function artifactIds(data, body, rel, read, list) {
   const entry = idsEntry(rel);
   const fields = ["ids", "retired-ids"];
+  const stray = strayTaskFile(rel);
+  if (stray) return { invalid: stray };
   if (!entry || entry.history === false) return fields.some((key) => data?.has(key)) ? { error: "ids and retired-ids belong to an artifact with recorded ids" } : entry ? declaredOnce(entry, body) : {};
   const accepted = (id) => {
     const p = parseId(id);
@@ -507,7 +515,8 @@ export function projectBody(body, rel = "") {
   const recurs = [];
   for (const value of fixed("Prior finding")) {
     const match = value.match(new RegExp(String.raw`^((\S+)#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
-    if (match && prefixOf(match[2].split("/")[0]) === parseId(match[3]).prefix) recurs.push(match[1]);
+    const review = match && reviewArtifact(match[2]);
+    if (review && match[2].startsWith(`${review.art.phase}/`) && prefixOf(review.art.phase) === parseId(match[3]).prefix) recurs.push(match[1]);
     else malformed(`Prior finding: expected <review>#<finding id of the review's phase>, resolution failed, got: ${value}`);
   }
   if (recurs.length) p.set("recurs", recurs);
@@ -722,6 +731,11 @@ function cmdStamp(args) {
     if (kind) {
       for (const target of targets)
         if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, listAt, kind)) die(`stamp: INVALID TARGET ${target}`);
+    }
+    for (const prior of fm.get("recurs") ?? []) {
+      const [path, id] = prior.split("#");
+      const text = readable(path);
+      if (text === null || !declaredIds(parseFrontmatter(text).body).has(id)) die(`stamp: INVALID PRIOR FINDING ${prior}: the review declares no such finding`);
     }
   }
   const targetError = targetRepresentationErrors(rel, fm, body)[0];

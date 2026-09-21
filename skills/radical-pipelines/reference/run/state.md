@@ -31,9 +31,9 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `brief`     | reviews                      | the lane's brief, as the review declares it                              |
 | `target`    | challenges                   | non-empty list of `<path>#<id>`; `<path>` for a correction. Only challenges carry `Target:`, `target`, or `target-identity`. |
 | `target-identity` | challenges                   | non-empty list of each target's identity when the challenge landed, aligned with `target` |
-| `ids`, `retired-ids` | intent, spec, design doc, plans | every id the artifact has declared at any stamp, and the subset its body no longer declares. An id declared twice or again after retiring, a gap in the artifact's own numbering, a carried id its upstream lacks, or a retired intent decision is `INVALID IDS`, which its author fixes |
+| `ids`, `retired-ids` | intent, spec, design doc, plans, records | every id the file has declared at any stamp — a plan's tasks by their files — and the subset it no longer declares. An id declared twice or again after retiring, a gap in the file's own numbering, a carried id its upstream lacks, a retired intent decision, or a misnamed file in a plan's tasks folder is `INVALID IDS`, which its author fixes. A review's findings are validated the same way; a wave is a new file, so it records none |
 | `origin`    | anything born from something | `issue <canonical reference>`; an external source; the challenge a review responds to; a list when several |
-| `recurs`    | reviews                      | mirror of `Prior finding: <review>#<finding id>, resolution failed`; the finding's prefix is the review's phase |
+| `recurs`    | reviews                      | mirror of `Prior finding: <review>#<finding id>, resolution failed` — a review of the same phase that declares the finding |
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
 | `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; each commit exists and is stored as its full hash, whatever length the body wrote |
 | `head`      | files with pins              | the commit a stamp with pins observed: the diff base for the next delta review or convergence |
