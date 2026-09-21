@@ -528,15 +528,26 @@ function appendSpawnProtocol(prompt, spawnerID) {
 const TITLE_PREFIX = "rp:";
 
 /**
- * Reject a value that cannot be a pipeline slug — one path segment without
- * `_` — or that the durable title could not carry (`:` is its separator).
+ * Reject a value that is not a pipeline slug: one path segment, a valid git
+ * ref, without `_`. A valid ref carries no `:`, so the durable title's
+ * separator is safe.
  *
  * @param {*} slug The `pipeline_slug` argument to check.
+ * @param {typeof execFileSync} [exec] Runs `git check-ref-format`; defaults to
+ *   `child_process.execFileSync`.
  * @returns {void}
  */
-function assertPipelineSlug(slug) {
-  if (typeof slug !== "string" || !/^[^/_:\s]+$/.test(slug)) {
-    throw new Error(`Invalid pipeline slug ${JSON.stringify(slug)}: one path segment without "_" or ":"`);
+function assertPipelineSlug(slug, exec = execFileSync) {
+  const validRef = () => {
+    try {
+      exec("git", ["check-ref-format", "--branch", slug], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (typeof slug !== "string" || slug.length === 0 || slug.includes("/") || slug.includes("_") || !validRef()) {
+    throw new Error(`Invalid pipeline slug ${JSON.stringify(slug)}: one path segment, a valid git ref, without "_"`);
   }
 }
 
@@ -2029,11 +2040,11 @@ function latestOf(first, ...rest) {
  *   rawProgressAtFor?: (sessionID: string) => number | undefined,
  *   turnsFor?: (sessionID: string) => { turns: number, lastTurn: object } | undefined,
  *   lastSendFor?: (sessionID: string) => { at: number, to: string } | undefined,
- *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  * }} [observations] Resolvers for the plugin's own per-session observations
  *   (see `lastSessionEventAt`, `lastRawSessionProgressAt`, `turnsFor`,
  *   `lastSendFor`, `extractLastText`); each defaults to none.
- * @returns {Array<{name: string, pipelineSlug: string, sessionID: string, agent: string, model: string, directory: string, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, lastSend: object | undefined, lastText: object | undefined}>}
+ * @returns {Array<{name: string, pipelineSlug: string, sessionID: string, agent: string, model: string, directory: string, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, lastSend: object | undefined, lastText: object | null | undefined}>}
  *   One row per session record RP recognizes as its own, in `sessionRecords`
  *   order; records RP does not recognize (neither ledger nor `rp:` title)
  *   are omitted. `activity` is the latest of the record's `updated` — which
@@ -2096,7 +2107,33 @@ function buildLedgerRows(
  * @returns {boolean}
  */
 function errorInScope(entry, sessionIDs) {
-  return typeof entry?.sessionID !== "string" || sessionIDs.has(entry.sessionID);
+  return entry.sessionID === undefined || sessionIDs.has(entry.sessionID);
+}
+
+/**
+ * The sessions a status scope covers, independent of what the server lists:
+ * the one session of a `session` scope, or every session the ledger records
+ * for the pipeline. A session known only by its durable title joins through
+ * its live record.
+ *
+ * @param {{ pipelineSlug?: string, session?: string }} scope
+ * @param {Array<{ id: string }>} liveRecords The in-scope session records
+ *   the server returned.
+ * @returns {Set<string>}
+ */
+function scopedSessionIDs({ pipelineSlug, session }, liveRecords) {
+  const ids = new Set(liveRecords.map((record) => record.id));
+  if (session !== undefined) {
+    ids.add(session);
+  }
+  if (pipelineSlug !== undefined) {
+    for (const [sessionID, entry] of getLedger().bySessionID) {
+      if (entry.pipelineSlug === pipelineSlug) {
+        ids.add(sessionID);
+      }
+    }
+  }
+  return ids;
 }
 
 /**
@@ -2249,15 +2286,13 @@ async function buildStatusPayload({
       lastTextFor: (id) => lastTexts.get(id),
     },
   );
-  const scopedSessionIDs = new Set(sessionRecords.map((record) => record.id));
+  const scoped = pipelineSlug !== undefined || session !== undefined;
+  const inScopeIDs = scopedSessionIDs({ pipelineSlug, session }, sessionRecords);
 
   return shapeStatus({
     pluginVersion: PLUGIN_ID,
     ledgerEntries,
-    errorLog:
-      pipelineSlug === undefined && session === undefined
-        ? getErrorLog()
-        : getErrorLog().filter((entry) => errorInScope(entry, scopedSessionIDs)),
+    errorLog: scoped ? getErrorLog().filter((entry) => errorInScope(entry, inScopeIDs)) : getErrorLog(),
     readFailures: [...failures.values()],
   });
 }
@@ -3618,7 +3653,7 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     currentTool: object | undefined,
  *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
  *     lastSend: { at: number, to: string } | undefined,
- *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  *   }>,
  *   errorLog: Array<*>,
  *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
@@ -4702,15 +4737,15 @@ function buildStatusTool({ env, readServiceRecordOverride, requestFn }) {
   return {
     name: "rp_status",
     description:
-      "Report the plugin version, the ledger of one pipeline's agents or one session, and the recent errors that concern them.",
+      "Report the plugin version, the ledger of one pipeline's agents (pipeline_slug), of one session (session), or of every RP session, and the recent errors that concern them.",
     output: ANY_OUTPUT_SCHEMA,
     input: {
       type: "object",
       properties: {
-        pipeline_slug: { type: "string", description: "Report the agents of this pipeline." },
+        pipeline_slug: { type: "string", description: "Report the agents of this pipeline. Excludes session." },
         session: {
           type: "string",
-          description: "Report this one session, with its newest assistant text.",
+          description: "Report this one session, with its newest assistant text. Excludes pipeline_slug.",
         },
       },
     },

@@ -395,11 +395,11 @@ describe("rp_spawn", () => {
     assert.equal(sessions.size, 0);
   });
 
-  test("rejects a pipeline slug that is not one path segment without _ or the title separator, before any session.create", async () => {
+  test("rejects a pipeline slug that is not one path segment, a valid git ref, without _, before any session.create", async () => {
     const { ctx, tools, sessions } = createFakeCtx({ agents: ["radical-pipelines/spec-reviewer"] });
     await setup(ctx, isolatedDeps({ env: {} }));
 
-    for (const pipeline_slug of [undefined, "", "bad_name", "a/b", "a:b", "a b"]) {
+    for (const pipeline_slug of [undefined, "", "bad_name", "a/b", "a:b", "a b", "-bad", "a..b", "a.lock", "."]) {
       await assert.rejects(
         () => tools.get("rp_spawn").execute(
           { name: "spec-reviewer-1", agent: "spec-reviewer", model: "anthropic/claude-3-opus", directory: "/repo/worktree", prompt: "begin", pipeline_slug },
@@ -3699,8 +3699,14 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     assert.deepEqual((await tools.get("rp_loop_list").execute({}, {})).output, []);
 
     const countAfterCancel = promptCalls.length;
+    const ticksAfterCancel = globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length;
     await delay(60);
     assert.equal(promptCalls.length, countAfterCancel, "a cancelled loop must not tick again");
+    assert.equal(
+      globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length,
+      ticksAfterCancel,
+      "nor record a tick",
+    );
   });
 
   test("records a failed outcome when server resolution throws before the tick starts", async () => {
@@ -5242,9 +5248,15 @@ describe("buildStatusPayload", () => {
     recordSpawn("ses_scope_a1", { name: "spec-lead", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
     recordSpawn("ses_scope_a2", { name: "spec-reviewer-1", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
     recordSpawn("ses_scope_b1", { name: "spec-lead", pipelineSlug: "pipeline-b", spawner: "ses_orch_b" });
+    // Recorded, then gone from the server: a dead agent whose failure the
+    // pipeline still needs.
+    recordSpawn("ses_scope_a_gone", { name: "helper-1", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
     recordError({ type: "session.execution.failed", sessionID: "ses_scope_a1", at: 1 });
     recordError({ type: "session.execution.failed", sessionID: "ses_scope_b1", at: 2 });
     recordError({ type: "listener.lost", error: "boom", at: 3 });
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_gone", at: 4 });
+    // Known by title alone, as after a daemon restart.
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_titled", at: 5 });
 
     const record = (id, slug, name) => ({
       id,
@@ -5265,6 +5277,7 @@ describe("buildStatusPayload", () => {
               record("ses_scope_a1", "pipeline-a", "spec-lead"),
               record("ses_scope_b1", "pipeline-b", "spec-lead"),
               record("ses_scope_a2", "pipeline-a", "spec-reviewer-1"),
+              record("ses_scope_a_titled", "pipeline-a", "spec-reviewer-2"),
             ],
           },
         };
@@ -5279,6 +5292,7 @@ describe("buildStatusPayload", () => {
       [
         ["ses_scope_a1", "pipeline-a"],
         ["ses_scope_a2", "pipeline-a"],
+        ["ses_scope_a_titled", "pipeline-a"],
       ],
     );
     assert.ok(scoped.ledger.every((row) => !Object.hasOwn(row, "lastText")));
@@ -5288,21 +5302,47 @@ describe("buildStatusPayload", () => {
       "no per-session read for another pipeline's session, and no transcript read at all",
     );
     assert.deepEqual(
-      scoped.recentErrors.map((entry) => entry.type),
-      ["session.execution.failed", "listener.lost"],
+      scoped.recentErrors.map((entry) => entry.sessionID),
+      ["ses_scope_a1", undefined, "ses_scope_a_gone", "ses_scope_a_titled"],
+      "the pipeline's errors — of live, gone, and title-only sessions — and the sessionless ones",
     );
-    assert.equal(scoped.recentErrors[0].sessionID, "ses_scope_a1");
+
+    const one = await buildStatusPayload({ session: "ses_scope_a_gone", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(one.ledger, [], "a session the server no longer lists has no row");
+    assert.deepEqual(
+      one.recentErrors.map((entry) => entry.sessionID),
+      [undefined, "ses_scope_a_gone"],
+      "but keeps its errors",
+    );
+
+    const foreign = await buildStatusPayload({ session: "ses_someone_elses", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(foreign.ledger, []);
+    assert.deepEqual(foreign.recentErrors.map((entry) => entry.type), ["listener.lost"]);
 
     const unscoped = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(
       unscoped.ledger.map((row) => row.sessionID),
-      ["ses_scope_a1", "ses_scope_b1", "ses_scope_a2"],
+      ["ses_scope_a1", "ses_scope_b1", "ses_scope_a2", "ses_scope_a_titled"],
     );
-    assert.equal(unscoped.recentErrors.length, 3);
+    assert.equal(unscoped.recentErrors.length, 5);
 
     const missing = await buildStatusPayload({ pipelineSlug: "pipeline-c", env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(missing.ledger, []);
     assert.deepEqual(missing.recentErrors.map((entry) => entry.type), ["listener.lost"]);
+
+    const unlisted = await buildStatusPayload({
+      pipelineSlug: "pipeline-a",
+      env,
+      readServiceRecord: () => null,
+      requestFn: async (url) => (url.pathname === "/api/session" ? { status: 500, body: undefined } : requestFn(url)),
+    });
+    assert.deepEqual(unlisted.ledger, []);
+    assert.deepEqual(unlisted.readFailures, [{ endpoint: "session", status: 500, count: 1 }]);
+    assert.deepEqual(
+      unlisted.recentErrors.map((entry) => entry.sessionID),
+      ["ses_scope_a1", undefined, "ses_scope_a_gone"],
+      "a failed session list still yields the recorded sessions' errors",
+    );
 
     await assert.rejects(
       () => buildStatusPayload({ pipelineSlug: "pipeline-a", session: "ses_scope_a1", env, readServiceRecord: () => null, requestFn }),
