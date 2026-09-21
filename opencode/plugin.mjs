@@ -2111,10 +2111,10 @@ function errorInScope(entry, sessionIDs) {
 }
 
 /**
- * The sessions a status scope covers, independent of what the server lists:
- * the one session of a `session` scope, or every session the ledger records
- * for the pipeline. A session known only by its durable title joins through
- * its live record.
+ * The sessions a status scope covers: those RP recognizes — recorded in the
+ * ledger, or live under a durable title — that the scope selects. The
+ * ledger's part is independent of what the server lists, so a recorded
+ * session the server no longer returns stays in scope.
  *
  * @param {{ pipelineSlug?: string, session?: string }} scope
  * @param {Array<{ id: string }>} liveRecords The in-scope session records
@@ -2123,14 +2123,9 @@ function errorInScope(entry, sessionIDs) {
  */
 function scopedSessionIDs({ pipelineSlug, session }, liveRecords) {
   const ids = new Set(liveRecords.map((record) => record.id));
-  if (session !== undefined) {
-    ids.add(session);
-  }
-  if (pipelineSlug !== undefined) {
-    for (const [sessionID, entry] of getLedger().bySessionID) {
-      if (entry.pipelineSlug === pipelineSlug) {
-        ids.add(sessionID);
-      }
+  for (const [sessionID, entry] of getLedger().bySessionID) {
+    if (session !== undefined ? sessionID === session : entry.pipelineSlug === pipelineSlug) {
+      ids.add(sessionID);
     }
   }
   return ids;
