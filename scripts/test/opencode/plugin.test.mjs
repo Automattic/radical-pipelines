@@ -5257,6 +5257,10 @@ describe("buildStatusPayload", () => {
     recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_gone", at: 4 });
     // Known by title alone, as after a daemon restart.
     recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_titled", at: 5 });
+    // Not RP's: neither recorded nor titled.
+    recordError({ type: "skill.resupply.unreadable", sessionID: "ses_someone_elses", at: 6 });
+    // Naming a session, however malformed, is never sessionless.
+    recordError({ type: "session.execution.failed", sessionID: 42, at: 7 });
 
     const record = (id, slug, name) => ({
       id,
@@ -5278,6 +5282,7 @@ describe("buildStatusPayload", () => {
               record("ses_scope_b1", "pipeline-b", "spec-lead"),
               record("ses_scope_a2", "pipeline-a", "spec-reviewer-1"),
               record("ses_scope_a_titled", "pipeline-a", "spec-reviewer-2"),
+              { ...record("ses_someone_elses", "x", "y"), title: "Fix the flaky test" },
             ],
           },
         };
@@ -5315,16 +5320,20 @@ describe("buildStatusPayload", () => {
       "but keeps its errors",
     );
 
+    const titled = await buildStatusPayload({ session: "ses_scope_a_titled", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(titled.ledger.map((row) => row.sessionID), ["ses_scope_a_titled"]);
+    assert.deepEqual(titled.recentErrors.map((entry) => entry.sessionID), [undefined, "ses_scope_a_titled"]);
+
     const foreign = await buildStatusPayload({ session: "ses_someone_elses", env, readServiceRecord: () => null, requestFn });
-    assert.deepEqual(foreign.ledger, []);
-    assert.deepEqual(foreign.recentErrors.map((entry) => entry.type), ["listener.lost"]);
+    assert.deepEqual(foreign.ledger, [], "a session RP does not recognize has no row");
+    assert.deepEqual(foreign.recentErrors.map((entry) => entry.type), ["listener.lost"], "and no errors");
 
     const unscoped = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(
       unscoped.ledger.map((row) => row.sessionID),
       ["ses_scope_a1", "ses_scope_b1", "ses_scope_a2", "ses_scope_a_titled"],
     );
-    assert.equal(unscoped.recentErrors.length, 5);
+    assert.equal(unscoped.recentErrors.length, 7, "an unscoped call reports every error");
 
     const missing = await buildStatusPayload({ pipelineSlug: "pipeline-c", env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(missing.ledger, []);
