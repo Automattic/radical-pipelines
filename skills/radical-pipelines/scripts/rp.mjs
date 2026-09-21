@@ -1194,8 +1194,8 @@ async function cmdCheck(args) {
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const { root, abs } = repositoryFor(folder);
   containedPath("check", root, abs);
-  const pipelineName = basename(abs);
-  if (!/^[^/_]+$/.test(pipelineName)) die(`check: pipeline folder name must be one segment without / or _: ${pipelineName || folder}`);
+  const pipelineSlug = basename(abs);
+  if (!/^[^/_]+$/.test(pipelineSlug)) die(`check: pipeline slug must be one segment without / or _: ${pipelineSlug || folder}`);
   const pipelineRel = relative(root, abs);
   const rev = (r, what) => {
     try {

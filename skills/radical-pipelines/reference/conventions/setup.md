@@ -18,9 +18,13 @@ Interview the required rows one at a time, then offer each optional row. Mark ea
 
 Where issues live; how to read the body and comments, create, modify, and comment; the canonical reference written as `Origin: issue <reference>`.
 
-### Branch naming (required)
+### Pipeline slug (required)
 
-How the issue-derived slug in `../run/state.md` § Names is formed. It distinguishes issues. Suggested: `<issue-id>-<short-description>`.
+How the pipeline slug in `../run/state.md` § Names is derived from the issue. It distinguishes issues. Suggested: `<issue-id>-<short-description>`.
+
+### Pipeline branch format (optional)
+
+The pipeline branch as a template over `<pipeline slug>`. Default: `<pipeline slug>`.
 
 ### Worktree folder root (required)
 
@@ -72,14 +76,14 @@ Wait for confirmation, then re-run `git remote -v` and confirm the assignment.
 
 **Define the upstream PR transformation.** Ask the owner for:
 
-- **Upstream branch format**: the name of the cherry-pick branch pushed to `upstream` as the PR source. Can be derived from the slug.
+- **Upstream branch format**: the name of the cherry-pick branch pushed to `upstream` as the PR source. Can be derived from the pipeline slug.
 - **Upstream commit format**: the message format used for the cherry-picked clean commits. Should follow upstream's contribution guidelines. Can be derived from the fork's commit format.
 
 These are consulted by the orchestrator only, at PR time. They are never passed down to agents.
 
 Suggested defaults:
 
-- Upstream branch: the slug.
+- Upstream branch: the pipeline slug.
 - Upstream commit: `<commit-description>` (no agent attribution).
 
 Capture:
@@ -126,7 +130,7 @@ Keep `.rp.md` to the conventions above. Include other discovered facts or instru
 
 1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
 2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
-3. On the artifact base branch, write human-readable `.rp.md` with frontmatter `{ "conventions": 2 }`, shared fact sections, and a section headed by the active tool's name for its project facts.
+3. On the artifact base branch, write human-readable `.rp.md` with frontmatter `{ "conventions": 3 }`, shared fact sections, and a section headed by the active tool's name for its project facts.
 4. With permission, append the worktree folder root entry to `.gitignore`.
 5. Commit the approved `.rp.md` on that branch, co-committing `.gitignore` when changed. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
 6. Report whether `.rp.md` was created or updated and whether setup is complete.

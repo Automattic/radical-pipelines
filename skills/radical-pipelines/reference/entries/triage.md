@@ -42,9 +42,9 @@ Prepare every route of a run before starting it. Address every worktree by absol
 
 **A new pipeline**
 
-1. Slug per the **Branch naming** convention and `../run/state.md` § Names.
+1. Pipeline slug and branch per `../run/state.md` § Names.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
-3. `<pipelines folder root>/<slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `Origin: starts-from` records the starting branch and `Origin: re-attempts` the prior pipeline slug.
+3. `<pipelines folder root>/<pipeline slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `Origin: starts-from` records the starting branch and `Origin: re-attempts` the prior pipeline's slug.
 4. Commit following the **Commit format** convention; `rp stamp <intent> --mirror`; commit the stamp in that format.
 
 Every branch and worktree you create — the pipeline's here, a lane's later — fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.

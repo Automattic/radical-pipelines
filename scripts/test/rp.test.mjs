@@ -3434,7 +3434,7 @@ process.stdout.write(output);
     const invalid = ".pipelines/bad_name";
     mkdirSync(join(root, invalid, "0-intent"), { recursive: true });
     writeFileSync(join(root, invalid, "0-intent/intent.md"), "# Intent\n");
-    assert.throws(() => rp(root, "check", invalid, "--base", "main"), /pipeline folder name must be one segment without \/ or _/);
+    assert.throws(() => rp(root, "check", invalid, "--base", "main"), /pipeline slug must be one segment without \/ or _/);
     configure({ targetPhase: 1 });
     assert.match(check(root), /frontier complete/);
   });
