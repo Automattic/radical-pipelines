@@ -24,7 +24,7 @@ How the pipeline slug in `../run/state.md` § Names is derived from the issue. I
 
 ### Pipeline branch format (optional)
 
-The pipeline branch as a template over `<pipeline slug>`. Default: `<pipeline slug>`.
+The pipeline branch as a template over `<pipeline slug>`.
 
 ### Worktree folder root (required)
 
