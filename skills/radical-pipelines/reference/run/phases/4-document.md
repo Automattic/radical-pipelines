@@ -4,7 +4,7 @@ Plans and writes the documentation the shipped code needs — internal and exter
 
 ## Artifacts
 
-`4-document/document-plan.md` with `4-document/tasks/T<n>.md`, `4-document/document-plan-research.md`, plan reviews, `4-document/tasks/T<n>-report-<k>.md`, the documentation on the branch, document reviews.
+`4-document/document-plan.md` with `4-document/tasks/task-<n>.md`, `4-document/document-plan-research.md`, plan reviews, `4-document/tasks/task-<n>-report-<k>.md`, the documentation on the branch, document reviews.
 
 ## Profiles
 

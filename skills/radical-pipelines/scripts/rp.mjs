@@ -65,7 +65,7 @@ export function parseFrontmatter(raw) {
 }
 
 function validateFrontmatter(data) {
-  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "target", "target-identity", "intent-ids", "retired-ids"]);
+  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "target", "target-identity", "ids", "retired-ids"]);
   const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
   const strings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
   const errors = [];
@@ -135,7 +135,7 @@ function readPipelineFile(abs) {
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
-const REPORT = /^([^/]+)\/tasks\/(T\d+)-report-(\d+)\.md$/;
+const REPORT = /^([^/]+)\/tasks\/(task-\d+)-report-(\d+)\.md$/;
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
 const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
 // The artifacts, in phase order, with what each one requires as pins.
@@ -249,30 +249,72 @@ function laneReferences(data) {
   return new Map((data?.get("lane-packages") ?? []).map(([artifact, binding, reference]) =>
     [artifact, { binding: pinPackage(binding), reference: pinPackage(reference) }]));
 }
-const TARGET_ID = /^(?:0-intent\/intent\.md#(?:goal|constraint-[1-9]\d*|decision-[1-9]\d*)|1-spec\/spec\.md#(?:R|A)[1-9]\d*|2-design-doc\/design-doc\.md#(?:D|A)[1-9]\d*|(?:3-build\/build-plan|4-document\/document-plan)\.md#(?:A|T)[1-9]\d*)$/;
-
-function declaredIds(body) {
-  return new Set([...outsideFences(body).matchAll(/^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+([A-Za-z][\w-]*)/gm)].map((m) => m[1]));
+// Ids are `<word>-<n>`, one word per concept. An artifact originates the words it declares; a word
+// its upstream also declares is carried from there. A challenge targets an artifact's declared
+// words, `task` in a plan, and the intent's owner territory.
+const ID = /^([a-z]+)-([1-9]\d*)$/;
+const IDS = {
+  "0-intent/intent.md": { declares: ["constraint", "context", "hypothesis", "decision"], claimable: ["goal", "constraint", "decision"], permanent: ["decision"] },
+  "1-spec/spec.md": { declares: ["requirement", "criterion", "assumption"] },
+  "2-design-doc/design-doc.md": { declares: ["choice", "assumption"], upstream: "1-spec/spec.md" },
+  "3-build/build-plan.md": { declares: ["assumption"], upstream: "2-design-doc/design-doc.md", tasks: true },
+  "4-document/document-plan.md": { declares: ["assumption"], upstream: "3-build/build-plan.md", tasks: true },
+};
+const wordOf = (id) => (id === "goal" ? "goal" : id.match(ID)?.[1]);
+const numberOf = (id) => Number(id.match(ID)[2]);
+const claimableWords = (path) => IDS[path]?.claimable ?? [...IDS[path].declares, ...(IDS[path].tasks ? ["task"] : [])];
+// A target's item, when its path and word are in the vocabulary.
+function targetItem(target) {
+  const [path, item] = target.split("#");
+  if (!IDS[path]) return null;
+  return item === undefined || claimableWords(path).includes(wordOf(item)) ? { path, item } : null;
 }
 
-function intentIds(data, body, rel) {
-  const fields = ["intent-ids", "retired-ids"];
-  if (rel !== "0-intent/intent.md") return fields.some((key) => data?.has(key)) ? { error: "intent-ids and retired-ids belong to the intent" } : {};
-  const valid = (id) => /^(?:constraint|context|assumption|decision)-[1-9]\d*$/.test(id);
+// Inline formatting marks that may wrap a declared value without being part of it.
+const MARKS = "[*_`]*";
+const ITEM = new RegExp(String.raw`^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+${MARKS}([a-z]+-[1-9]\d*)(?![A-Za-z0-9-])`, "gm");
+function declaredIds(body) {
+  return new Set([...outsideFences(body).matchAll(ITEM)].map((m) => m[1]));
+}
+
+// Every id an artifact has declared: those recorded by a stamp and those its body declares now.
+function knownIds(data, body, rel) {
+  const declared = (id) => IDS[rel].declares.includes(wordOf(id));
+  return new Set([...(data?.get("ids") ?? []), ...[...declaredIds(body)].filter(declared)]);
+}
+
+// The `ids` and `retired-ids` projection of an artifact, or why its declarations are invalid:
+// `error` when the recorded fields are malformed, `invalid` when the body's declarations are.
+function artifactIds(data, body, rel, read) {
+  const entry = IDS[rel];
+  const fields = ["ids", "retired-ids"];
+  if (!entry) return fields.some((key) => data?.has(key)) ? { error: "ids and retired-ids belong to an artifact with declared ids" } : {};
+  const declared = (id) => entry.declares.includes(wordOf(id));
   for (const key of fields) {
     const ids = data?.get(key) ?? [];
-    if (ids.some((id) => !valid(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique intent item ids` };
+    if (ids.some((id) => !declared(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique declared ids` };
   }
-  const seen = new Set(data?.get("intent-ids") ?? []);
+  const seen = new Set(data?.get("ids") ?? []);
   const retired = new Set(data?.get("retired-ids") ?? []);
-  const current = new Set([...declaredIds(body)].filter(valid));
+  const current = new Set([...declaredIds(body)].filter(declared));
   for (const id of seen) if (!current.has(id)) retired.add(id);
   for (const id of retired) {
-    if (id.startsWith("decision-")) return { error: `decision id ${id} must remain active` };
-    if (!seen.has(id)) return { error: `retired id ${id} is absent from intent-ids` };
-    if (current.has(id)) return { error: `retired id ${id} is declared again` };
+    if (entry.permanent?.includes(wordOf(id))) return { invalid: `${id} must remain declared` };
+    if (!seen.has(id)) return { error: `retired id ${id} is absent from ids` };
+    if (current.has(id)) return { invalid: `retired id ${id} is declared again` };
   }
-  const projection = new Map([["intent-ids", [...new Set([...seen, ...current])]], ["retired-ids", [...retired]]]);
+  const known = new Set([...seen, ...current]);
+  const text = entry.upstream ? read(entry.upstream) : null;
+  const parsed = text === null || text === undefined ? null : parseFrontmatter(text);
+  const upstream = parsed ? knownIds(parsed.data, parsed.body, entry.upstream) : new Set();
+  for (const word of entry.declares) {
+    const carried = [...upstream].filter((id) => wordOf(id) === word).map(numberOf);
+    const base = Math.max(0, ...carried);
+    const own = [...known].filter((id) => wordOf(id) === word && !upstream.has(id)).map(numberOf).sort((a, b) => a - b);
+    const gap = own.findIndex((n, i) => n !== base + i + 1);
+    if (gap !== -1) return { invalid: `${word}-${base + gap + 1} is missing: ids are numbered without gaps` };
+  }
+  const projection = new Map([["ids", [...known]], ["retired-ids", [...retired]]]);
   const drift = fields.filter((key) => {
     const stored = data?.get(key) ?? [];
     const expected = projection.get(key);
@@ -282,19 +324,23 @@ function intentIds(data, body, rel) {
 }
 
 function targetExists(target, read, kind) {
-  const [path, item] = target.split("#");
+  const found = targetItem(target);
+  if (!found) return false;
+  const { path, item } = found;
   if (kind !== "claim" && !ARTIFACTS.some((a) => a.path === path)) return false;
-  if (!TARGET_ID.test(target) && !(kind === "correction" && !item && ARTIFACTS.some((a) => a.path === path))) return false;
+  if (!item && kind !== "correction") return false;
   const artifact = read(path);
   if (artifact === null || artifact === undefined) return false;
-  const source = /^T\d+$/.test(item) ? `${path.split("/")[0]}/tasks/${item}.md` : path;
+  const source = item && wordOf(item) === "task" ? `${path.split("/")[0]}/tasks/${item}.md` : path;
   const text = source === path ? artifact : read(source);
   if (text === null || text === undefined) return false;
   const parsed = parseFrontmatter(text);
-  const error = parsed.error ?? intentIds(parsed.data, parsed.body, source).error;
+  const ids = parsed.error ? {} : artifactIds(parsed.data, parsed.body, source, read);
+  const error = parsed.error ?? ids.error;
   if (error) die(`stamp: INVALID FRONTMATTER ${source}: ${error}`);
+  if (ids.invalid) die(`stamp: INVALID IDS ${source}: ${ids.invalid}`);
   if (!item) return true;
-  // #goal addresses a section; other textual ids address items.
+  // #goal addresses a section; other ids address items.
   if (item === "goal") return /^## Goal[^\S\n]*$/mi.test(outsideFences(parsed.body));
   return declaredIds(parsed.body).has(item);
 }
@@ -403,11 +449,11 @@ export function projectBody(body, rel = "") {
   if (recurs.length) p.set("recurs", recurs);
   // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
   // separated by commas — nothing else on the line. Anything else is malformed, never mined.
-  const dependencies = [...structural.matchAll(/^[^\S\n]*(?:-[^\S\n]*)?\*?\*?Depends on:\*?\*?[^\S\n]*(.*)$/gm)];
+  const dependencies = [...structural.matchAll(new RegExp(String.raw`^[\t ]*(?:[-*+][\t ]+)?${MARKS}Depends on:${MARKS}[\t ]*(.*)$`, "gm"))];
   for (const dep of dependencies) {
     const value = dep[1].trim();
     if (/^none$/i.test(value)) p.set("depends", []);
-    else if (/^T\d+(\s*,\s*T\d+)*$/.test(value)) {
+    else if (/^task-\d+(\s*,\s*task-\d+)*$/.test(value)) {
       const ids = value.split(",").map((x) => x.trim());
       if (new Set(ids).size !== ids.length) malformed(`Depends on: duplicate ids: ${value}`);
       else p.set("depends", ids);
@@ -417,7 +463,7 @@ export function projectBody(body, rel = "") {
   // commit hash — after a bullet or a backtick — whatever follows it.
   const commits = structural.match(/^## Commits[^\S\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   if (commits) {
-    const hashes = [...commits[1].matchAll(/^[^\S\n]*(?:[-*][^\S\n]*)?`?([0-9a-f]{7,40})\b/gm)].map((m) => m[1]);
+    const hashes = [...commits[1].matchAll(new RegExp(String.raw`^[\t ]*(?:[-*+][\t ]+)?${MARKS}([0-9a-f]{7,40})\b`, "gm"))].map((m) => m[1]);
     if (hashes.length) p.set("commits", hashes);
   }
   const report = rel.match(REPORT);
@@ -500,8 +546,9 @@ function cmdStamp(args) {
     return source;
   };
   const previousKind = challengeKind(rel, fm);
-  const ids = intentIds(data, body, rel);
+  const ids = artifactIds(data, body, rel, (path) => readAt(path)?.text ?? null);
   if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
+  if (ids.invalid) die(`stamp: INVALID IDS ${rel}: ${ids.invalid}`);
   const report = rel.match(REPORT);
   const relParts = rel.split("/");
   const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
@@ -564,8 +611,8 @@ function cmdStamp(args) {
         die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is unrecorded or invalid`);
       const taskFolder = join(base, review.art.phase, "tasks");
       const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
-      const tasks = names.filter((name) => /^T\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const reports = names.filter((name) => /^T\d+-report-\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
+      const tasks = names.filter((name) => /^task-\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
+      const reports = names.filter((name) => /^task-\d+-report-\d+\.md$/.test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
       const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports);
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
     }
@@ -937,14 +984,14 @@ async function cmdCheck(args) {
       const text = tree.read(rel);
       texts.set(rel, text);
       const { data: parsed, body, error: parseError } = parseFrontmatter(text);
-      const ids = parseError ? {} : intentIds(parsed, body, rel);
+      const ids = parseError ? {} : artifactIds(parsed, body, rel, (path) => tree.read(path));
       const data = parsed ?? new Map();
       const frontmatterError = parseError || ids.error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
       const drift = frontmatterError ? [] : [...mirrorDrift(data, body, rel), ...(ids.drift ?? [])];
       if (drift.length) for (const k of MIRRORS) data.delete(k);
       const lane = rel.match(/^([^/]+)\/([^/]+)\/(?!tasks\/)[^/]+$/);
       const scope = lane && lane[2] !== "tasks" ? `${lane[1]}/${lane[2]}/` : "";
-      return { rel, name: rel.split("/").pop(), data, scope, drift, frontmatterError, malformed: projectBody(body, rel).get("malformed") ?? [] };
+      return { rel, name: rel.split("/").pop(), data, scope, drift, frontmatterError, invalidIds: ids.invalid ?? null, malformed: projectBody(body, rel).get("malformed") ?? [] };
     });
 
   const identityOf = (rel) => {
@@ -981,7 +1028,7 @@ async function cmdCheck(args) {
 
   // Task files and their latest reports.
   const taskFiles = all
-    .filter((d) => /^[^/]+\/tasks\/T\d+\.md$/.test(d.rel))
+    .filter((d) => /^[^/]+\/tasks\/task-\d+\.md$/.test(d.rel))
     .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends") ?? []) }));
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
@@ -1141,6 +1188,11 @@ async function cmdCheck(args) {
     lines.push(`INVALID LINE ${d.rel}: ${d.malformed.join("; ")}`);
     take(`INVALID LINE ${d.rel}`);
   }
+  for (const d of all.filter((d) => d.invalidIds)) {
+    out.contradictions.push({ path: d.rel, invalid: [d.invalidIds] });
+    lines.push(`INVALID IDS ${d.rel}: ${d.invalidIds}`);
+    take(`INVALID IDS ${d.rel}`);
+  }
   for (const d of all.filter((d) => d.drift.length)) {
     out.contradictions.push({ path: d.rel, mirrors: d.drift });
     lines.push(`mirror   ${d.rel}  differs from the body: ${d.drift.join(", ")}`);
@@ -1271,7 +1323,7 @@ async function cmdCheck(args) {
         claims.push(c);
       }
     }
-  const ownerTerritory = (target) => /^0-intent\/intent\.md#(goal|constraint-\d+|decision-\d+)$/.test(target);
+  const ownerTerritory = (target) => targetItem(target)?.path === "0-intent/intent.md" && Boolean(targetItem(target).item);
   for (const c of claims) {
     const scoped = inScopePhase(c.targetPath);
     if (c.state === "pending") c.state = !scoped ? "pending, beyond the target phase" : ownerTerritory(c.target) ? "PENDING — owner escalation" : "PENDING";

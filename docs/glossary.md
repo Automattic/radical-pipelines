@@ -4,7 +4,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 
 - **Agents** — The project convention configuring each profile's model and named lanes, with their briefs and materials.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: the branch pipelines start from, merge into, and count their own commits after.
-- **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `A<n>` and stays in the open-assumption register until verified or fallen.
+- **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable `assumption-<n>` and stays in the open-assumption register until verified or fallen.
 - **Base** — The commit a pipeline's own commits follow: the merge-base of its branch with the branch its intent `starts-from`, else with the artifact base branch (`rp check --base`).
 - **Blocker** — A report of malformed materials, unreadable input, or a broken environment. A worker reports it before its first write; a producer or reviewer may report it whenever found.
 - **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
@@ -48,7 +48,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
 - **Target** — What a challenge's evidence contradicts: a `<path>#<id>` clause for a claim or a failed report; one or more artifacts, whole or by clause, for a correction.
 - **Target phase** — The highest phase a run executes before stopping.
-- **Task report** — A per-attempt worker report, `tasks/T<n>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.
+- **Task report** — A per-attempt worker report, `tasks/task-<n>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.
 - **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
 - **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
 - **Wave** — One review of an artifact by every one of its lanes, numbered per artifact; closed when every lane's review is stamped and fresh.

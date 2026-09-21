@@ -4,7 +4,7 @@ Plans the work as tasks, executes them, verifies the result against the plan, th
 
 ## Artifacts
 
-`3-build/build-plan.md` with `3-build/tasks/T<n>.md`, `3-build/build-plan-research.md`, plan reviews, `3-build/tasks/T<n>-report-<k>.md`, the code on the branch, build reviews.
+`3-build/build-plan.md` with `3-build/tasks/task-<n>.md`, `3-build/build-plan-research.md`, plan reviews, `3-build/tasks/task-<n>-report-<k>.md`, the code on the branch, build reviews.
 
 ## Profiles
 

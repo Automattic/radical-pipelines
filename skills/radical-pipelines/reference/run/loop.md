@@ -24,7 +24,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
-| `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
+| `INVALID LINE <path>` / `INVALID IDS <path>`         | The file's author fixes it                                                                                     |
 | `invalid plan: …`                                    | The plan producer, mode Converge                                                                             |
 | `challenges or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |

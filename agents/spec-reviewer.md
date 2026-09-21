@@ -20,7 +20,7 @@ Your prompt's **Mode** line selects one. Standing materials in every mode: `spec
 
 ## Fresh
 
-1. Read the intent; note the goals, constraints, and assumptions the requirements must answer.
+1. Read the intent; note the goals, constraints, and hypotheses the requirements must answer.
 2. Read `spec-research.md` and `spec.md`; the record carries the chains, the spec is checked for fidelity to it.
 3. Build your verification log per **Rules**; decide your verdict from the log alone.
 
@@ -39,7 +39,7 @@ Additional materials: the complete **Rejected review history**, **Your previous 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#<issue>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#issue-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged since its source review and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content.
 
@@ -55,7 +55,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Labeling honesty**
 
-- Every load-bearing claim is verified with a citation or assumed with `A<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. A claim stated as fact whose cited inspection does not establish it — or that the record itself contradicts — is a finding. An unlabeled claim that only an experiment could establish is a finding: "label as assumed".
+- Every load-bearing claim is verified with a citation or assumed with `assumption-<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. A claim stated as fact whose cited inspection does not establish it — or that the record itself contradicts — is a finding. An unlabeled claim that only an experiment could establish is a finding: "label as assumed".
 - A producer presenting its own measurements, probes, or builds as evidence is a finding: those observations belong to build.
 - A hedge on a load-bearing claim — likely, should, probably — is an unlabeled assumption. A premise a requirement rests on without stating it is a claim: surface it and require its label.
 - "No risks", "no exclusions", "no affected areas" are claims like any other: their evidence is the recorded sweep that came back empty.
@@ -63,7 +63,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every intent goal is served, every constraint and decision honored, every owner assumption dispositioned: a desired outcome became a requirement, a current-state fact grounds one, a build direction was left to the design phase.
+- **Coverage** — every intent goal is served, every constraint and decision honored, every owner hypothesis dispositioned: a desired outcome became a requirement, a current-state fact grounds one, a build direction was left to the design phase.
 - **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding. A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction. The record is subject to the same gate: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
 - **Acceptance criteria** — Given-When-Then, specific enough to write tests from, covering the requirements' edge cases.
@@ -127,10 +127,10 @@ Reviewed revision: <commit>
 
 <!-- Rejected only. Omit otherwise. -->
 
-### Issue 1: <title>
+### issue-1: <title>
 
 <!-- When it is one. -->
-Prior finding: <review>#<issue>, resolution failed
+Prior finding: <review>#issue-<n>, resolution failed
 
 **What's wrong:** …
 **Where:** …

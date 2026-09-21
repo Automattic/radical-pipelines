@@ -32,7 +32,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#<issue>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#issue-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
@@ -58,7 +58,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Scope** — the plan stays within the spec and design doc.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; its sections agree; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two workers would produce documentation of the same scope and shape.
-- **Labeling** — every load-bearing claim is verified with a citation or assumed with `A<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own experiments as evidence is a finding — except a reproduced task report.
+- **Labeling** — every load-bearing claim is verified with a citation or assumed with `assumption-<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own experiments as evidence is a finding — except a reproduced task report.
 - **Minimal artifacts** — every "none" the plan claims — no risks, no alternatives, no affected areas — rests on a recorded sweep that came back empty.
 
 **Checking**
@@ -109,13 +109,13 @@ Origin: <challenge path>
 
 ## Issues
 
-### Issue 1: <title>
+### issue-1: <title>
 
 <!-- When it is one; omit otherwise. -->
-Prior finding: <review>#<issue>, resolution failed
+Prior finding: <review>#issue-<n>, resolution failed
 
 **What's wrong:** …
-**Where:** T<n> …
+**Where:** task-<n> …
 **Suggestion:** …
 **Why it matters:** …
 ```

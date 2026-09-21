@@ -31,11 +31,11 @@ Make one open invitation for anything else worth telling later agents — a hard
 
 - Binding must or must-not → **Constraints**.
 - Links, prior decisions, motivation → **Context**.
-- Beliefs about cause, current state, or approach → **Assumptions / directions to explore**.
+- Beliefs about cause, current state, or approach → **Hypotheses**.
 
 ### 4. Reflect hypotheses as open
 
-When the owner offers a direction or belief, record it under Assumptions and say so plainly: "I'll note that as something to explore, not a requirement; later phases may confirm or correct it." The issue is the owner's best current understanding, not ground truth. Downstream phases must satisfy the intent or surface evidence against a premise, rather than silently substitute another goal.
+When the owner offers a direction or belief, record it under Hypotheses and say so plainly: "I'll note that as something to explore, not a requirement; later phases may confirm or correct it." The issue is the owner's best current understanding, not ground truth. Downstream phases must satisfy the intent or surface evidence against a premise, rather than silently substitute another goal.
 
 ### 5. Search for related issues
 
