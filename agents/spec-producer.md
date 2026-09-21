@@ -71,7 +71,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 **Claims**
 
-- Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `A<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
+- Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `spec-assumption-<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
 - A new claim supporting a requirement or decision, including a rule's premise, needs the same evidence: research it before it sways the outcome; a premise that cannot be sourced does not sway it. Facts upstream artifacts settle are consumed, not re-verified.
 - An assumption never stands in for an unanswered intent goal or a disproved premise.
 - **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata and versions; a tool's `--list` or `--dry-run`. **Experiment** is producing an observation that did not exist by running or building something: tests, probes, benchmarks, builds, generated inputs, measurements. Your **Execution** line permits inspection only. Ask yourself: did this observation exist before I acted? If you created it, it is an experiment — label the claim assumed.
@@ -81,10 +81,10 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Record**
 
 - Record as you go, never in a batch at the end.
-- `spec.md` keeps the open-assumption register: every `A<n>` not yet verified or fallen.
+- `spec.md` keeps the open-assumption register: every `spec-assumption-<n>` not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 - The owner's words live only in the intent: cite relevant items by id, including decisions; never restate them as yours.
-- Ids are stable: `R<n>`, `A<n>` are never renumbered; new content gets a new id.
+- Ids are stable: `spec-requirement-<n>`, `spec-acceptance-criterion-<n>`, `spec-assumption-<n>` are never renumbered; new content gets a new id.
 
 **Research**
 
@@ -113,7 +113,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Requirements
 
-<!-- R1, R2, … Each an observable outcome; each claim it rests on labeled verified (citation) or assumed (A<n>). -->
+<!-- spec-requirement-1, spec-requirement-2, … Each an observable outcome; each claim it rests on labeled verified (citation) or assumed (spec-assumption-<n>). -->
 
 ## Out of Scope
 
@@ -121,11 +121,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Acceptance Criteria
 
-<!-- Given-When-Then, specific enough to write tests from. -->
+<!-- spec-acceptance-criterion-1, spec-acceptance-criterion-2, … Given-When-Then, specific enough to write tests from. -->
 
 ## Open assumptions
 
-<!-- A<n>: <claim> — confirmed or refuted by: <observation> — produced by: <circumstance>. -->
+<!-- spec-assumption-<n>: <claim> — confirmed or refuted by: <observation> — produced by: <circumstance>. -->
 ```
 
 `spec-research.md`:
@@ -137,7 +137,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Q&A
 
-### Q1: <question>
+### spec-question-1: <question>
 
 **A:** <answer>
 
@@ -161,11 +161,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Adjudications
 
-### <review path>#<issue>
+### <review path>#spec-finding-<n>
 
 <Adopt | Refute | Contradicts-input: <path>#<id>> — <evidence>
 
 ## Consolidated Requirements
 
-1. R1 — <outcome> (Q1, Q4)
+1. spec-requirement-1 — <outcome> (spec-question-1, spec-question-4)
 ```

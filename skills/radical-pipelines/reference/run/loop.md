@@ -24,7 +24,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
-| `INVALID LINE <path>`                                | The file's author fixes it                                                                                     |
+| `INVALID LINE <path>` / `INVALID IDS <path>`         | The file's author fixes it                                                                                     |
 | `invalid plan: …`                                    | The plan producer, mode Converge                                                                             |
 | `challenges or claims still adjudicated, awaiting approval` | A review wave of each report line's adjudicating artifact                                                |
 | `unclaimed commits: …`                               | Work reached the branch outside a task: tell the owner; a task report claims it or it is reverted             |
@@ -50,7 +50,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 After every agent commit, stamp before anyone consumes the result and before terminating the agent. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
 
-- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every challenge it adjudicated. Each task file of a plan: `rp stamp <task> --mirror`.
+- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every challenge it adjudicated; its record: `rp stamp <record> --mirror`. Each task file of a plan: `rp stamp <task> --mirror`.
 - A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a challenge declares `Origin:` in its body.
 - A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. Later stamps preserve that package.
 - A named lane's artifact or review: `--set lane=<the lane's fingerprint>` too.

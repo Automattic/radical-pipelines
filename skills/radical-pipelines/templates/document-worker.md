@@ -12,7 +12,7 @@ Execute
 
 ## Materials
 
-- Task: <tasks/T<n>.md path>
+- Task: <tasks/document-task-<n>.md path>
 - Dependencies: <one line per task file it depends on: path>
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
