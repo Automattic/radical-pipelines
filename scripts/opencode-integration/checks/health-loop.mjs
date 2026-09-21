@@ -100,7 +100,7 @@ export async function run(ctx) {
     );
   });
 
-  await runCheck(results, "rp_loop_list carries a loop's recent tick outcomes; rp_loop_cancel removes it and stops further ticks", async () => {
+  await runCheck(results, "rp_loop_list carries a loop's recent tick outcomes; after rp_loop_cancel the loop is unlisted and its target receives no further prompt", async () => {
     const ticks = await loopTicks(server, controller.id, loopID);
     assert.ok(
       ticks.some((tick) => tick.outcome === "busy" && typeof tick.lastActivity === "number"),
