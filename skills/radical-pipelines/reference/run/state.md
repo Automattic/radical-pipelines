@@ -70,7 +70,7 @@ A file records its package when first consumed and records a new package only af
 
 ## Owner territory
 
-`0-intent/intent.md` is the only file that carries the owner's words: the issue as written, and every later decision quoted under `## Decisions`. Owner territory is what the work must satisfy: its Goal, Constraints, and Decisions. Records cite the intent; they never hold owner words of their own.
+`0-intent/intent.md` is the only file that carries the owner's decisions: the issue as synthesized, and every later decision under `## Decisions`. Owner territory is what the work must satisfy: its Goal, Constraints, and Decisions. Records cite the intent; they never hold owner decisions of their own.
 
 ## The frontier
 

@@ -41,7 +41,7 @@ Every item other than the Goal is a bullet. In `intent.md`, `#goal` addresses th
 
 ## Decisions
 
-The intent is the only file that carries the owner's words. The issue's sections change only by synthesis from the issue; every decision the owner makes afterwards — a direction at triage, an answer in an assisted session, an answer to an escalation — is appended when approved under `## Decisions` with the next `decision-<n>`: the words quoted verbatim, then what they answer (the run, the question, or the claim's path). Records cite each decision by id beside the question it answers.
+The intent is the only file that carries the owner's decisions. The issue's sections change only by synthesis from the issue; every decision the owner makes afterwards that changes what the work must satisfy is appended when approved under `## Decisions`, one entry per question answered, with the next `decision-<n>`: the ruling, stated so the entry reads without the exchange it came from, then `Origin:` — the source it was given in. Records cite each decision by id beside the question it answers.
 
 ## Authoring discipline
 
@@ -65,4 +65,4 @@ Origin: <source>
 <summary>
 ```
 
-The owner's words, when the correction carries any, are a decision in the intent; `Origin:` names it. Summarize the request in your own words.
+The owner's ruling, when the correction carries one, is a decision in the intent; `Origin:` names it. Summarize the request in your own words.
