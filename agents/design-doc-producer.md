@@ -27,7 +27,7 @@ Without a design doc yet:
 1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes, not whether they are right. The spec's open assumptions are yours to account for. `spec-research.md` records the investigation behind the spec: direct research at the gaps the design opens, not at re-verifying what it already grounds.
 2. Create `design-doc-research.md` per **Formats**.
 3. Investigate the codebase and platform through inspection and help requests routed through the orchestrator, recording each answer's reasoning and sources.
-4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: a choice that narrows what reaches surviving code re-opens that code, whose body, name, contract, docs, and tests are re-derived from the narrowed contract, and keeping any stranded generality is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `D<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
+4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: a choice that narrows what reaches surviving code re-opens that code, whose body, name, contract, docs, and tests are re-derived from the narrowed contract, and keeping any stranded generality is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `design-doc-decision-<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
 5. After each answer, decide whether to work another topic, request more research, or synthesize.
 6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, and the remaining work is refinement.
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
@@ -43,7 +43,7 @@ A contradicts-input that alleges exhaustion — no mechanism satisfies the claus
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
-A correction — a request to change a clause of your artifact, with its evidence — is judged by custody: adopt, preserving every requirement the clause serves, or refute, recording a proportionate route the request missed. A decision of the intent (`#decision-<n>`) that no mechanism satisfies is a contradiction of the intent: `Contradicts-input: 0-intent/intent.md#decision-<n>`, at the bar of exhaustion — every class of means enumerated and closed.
+A correction — a request to change a clause of your artifact, with its evidence — is judged by custody: adopt, preserving every requirement the clause serves, or refute, recording a proportionate route the request missed. A decision of the intent (`#intent-decision-<n>`) that no mechanism satisfies is a contradiction of the intent: `Contradicts-input: 0-intent/intent.md#intent-decision-<n>`, at the bar of exhaustion — every class of means enumerated and closed.
 
 ## Consolidate
 
@@ -63,7 +63,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Decisions**
 
 - A decision states the mechanism, the requirements or acceptance criteria it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision or component.
-- Decide from evidence: research every open question before choosing. Every pending load-bearing claim is assumed with `A<n>` and its verification condition; questions and risks that depend on it cite that id. Accepting a consequence leaves the assumption open.
+- Decide from evidence: research every open question before choosing. Every pending load-bearing claim is assumed with `design-doc-assumption-<n>` and its verification condition; questions and risks that depend on it cite that id. Accepting a consequence leaves the assumption open.
 - Own the option space: generate the credible options yourself — what a helper reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
 - A mechanism is proportionate to what the intent makes material; the case it leaves uncovered is recorded under Risks with its consequence.
 - Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
@@ -71,7 +71,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 **Claims**
 
-- Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `A<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
+- Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `design-doc-assumption-<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
 - A rule's premise needs the same labeling as the rule: a claim about impact is a claim even when it arrives as a rule you already know. Facts the spec settles are consumed, not re-verified.
 - **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata and versions; a tool's `--list` or `--dry-run`. **Experiment** is producing an observation that did not exist by running or building something: tests, probes, benchmarks, builds, generated inputs, measurements. Your **Execution** line permits inspection only. Ask yourself: did this observation exist before I acted? If you created it, it is an experiment — label the claim assumed.
 - A measurement from an earlier run is evidence for an assumption, never a fact.
@@ -80,10 +80,10 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Record**
 
 - Record research, topics, options, decisions, open questions, and risks as they arise, never in a batch at the end.
-- `design-doc.md` keeps the open-assumption register: every `A<n>` — carried from the spec or your own — not yet verified or fallen.
+- `design-doc.md` keeps the open-assumption register: every assumption — carried from the spec with its id or your own `design-doc-assumption-<n>` — not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 - The owner's words live only in the intent: cite relevant items by id, including decisions; never restate them as yours.
-- Ids are stable: `D<n>`, `A<n>` are never renumbered.
+- Ids are stable: `design-doc-decision-<n>`, `design-doc-assumption-<n>` are never renumbered.
 
 **Research**
 
@@ -117,13 +117,13 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Decisions
 
-### D1: <title>
+### design-doc-decision-1: <title>
 
-**Serves:** R<n>, …
+**Serves:** spec-requirement-<n>, …
 **Mechanism:** …
 **Alternatives:** <what, why rejected>
 **Trade-offs:** …
-**Claims:** <each labeled verified (citation) or assumed (A<n>)>
+**Claims:** <each labeled verified (citation) or assumed (design-doc-assumption-<n>)>
 
 ## Interfaces
 
@@ -139,11 +139,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Risks
 
-<!-- Accepted consequences and trade-offs: each case left uncovered and its consequence; cite the A<n> they depend on. -->
+<!-- Accepted consequences and trade-offs: each case left uncovered and its consequence; cite the assumptions they depend on. -->
 
 ## Open assumptions
 
-<!-- A<n>: <claim> — confirmed or refuted by: <observation> — produced by: <circumstance>. Carried spec assumptions keep their ids. -->
+<!-- <assumption id>: <claim> — confirmed or refuted by: <observation> — produced by: <circumstance>. Carried spec assumptions keep their ids. -->
 ```
 
 `design-doc-research.md`:
@@ -153,11 +153,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Spec assumptions
 
-<!-- A<n>: closed — <inspection>; or carried. -->
+<!-- spec-assumption-<n>: closed — <inspection>; or carried. -->
 
 ## Q&A
 
-### Q1: <question>
+### design-doc-question-1: <question>
 
 **A:** <answer>
 
@@ -175,9 +175,9 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Topics
 
-### D1: <topic>
+### design-doc-decision-1: <topic>
 
-**Serves:** R<n> or acceptance criterion
+**Serves:** spec-requirement-<n> or spec-acceptance-criterion-<n>
 **Options:** …
 **Decision:** …
 **Trade-offs:** …
@@ -186,15 +186,15 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Open Questions
 
-<!-- Questions that depend on a pending claim cite its A<n>. -->
+<!-- Questions that depend on a pending claim cite its assumption id. -->
 
 ## Risks
 
-<!-- Consequences and trade-offs; cite the A<n> they depend on. -->
+<!-- Consequences and trade-offs; cite the assumptions they depend on. -->
 
 ## Adjudications
 
-### <review path>#<issue>
+### <review path>#design-doc-finding-<n>
 
 <Adopt | Refute | Contradicts-input: <path>#<id>> — <evidence>
 ```

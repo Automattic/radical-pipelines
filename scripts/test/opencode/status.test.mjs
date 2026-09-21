@@ -1,88 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, test } from "node:test";
+import { describe, test } from "node:test";
 
 import {
   appendToErrorLog,
-  comparePinnedBuild,
-  readPinManifest,
   shapeStatus,
 } from "../../../opencode/plugin.mjs";
-
-describe("comparePinnedBuild", () => {
-  test("a running build equal to the pinned cli reports a match", () => {
-    assert.equal(
-      comparePinnedBuild("0.0.0-next-15772", "0.0.0-next-15772"),
-      "match",
-    );
-  });
-
-  test("any other running build reports a mismatch flagged as outside the verified surface", () => {
-    assert.equal(
-      comparePinnedBuild("0.0.0-next-99999", "0.0.0-next-15772"),
-      "outside the verified surface",
-    );
-  });
-
-  test("a null running build reports not determinable rather than throwing", () => {
-    assert.doesNotThrow(() => comparePinnedBuild(null, "0.0.0-next-15772"));
-    assert.equal(
-      comparePinnedBuild(null, "0.0.0-next-15772"),
-      "not determinable",
-    );
-  });
-
-  test("an undefined running build reports not determinable rather than throwing", () => {
-    assert.doesNotThrow(() =>
-      comparePinnedBuild(undefined, "0.0.0-next-15772"),
-    );
-    assert.equal(
-      comparePinnedBuild(undefined, "0.0.0-next-15772"),
-      "not determinable",
-    );
-  });
-
-  test("an unknown running build reports not determinable", () => {
-    assert.equal(
-      comparePinnedBuild("unknown", "0.0.0-next-15772"),
-      "not determinable",
-    );
-  });
-});
-
-describe("readPinManifest", () => {
-  let root;
-  let manifestPath;
-
-  beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "pin-manifest-"));
-    manifestPath = join(root, "pin.json");
-  });
-
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
-  });
-
-  test("reads and parses the manifest at a given path", () => {
-    writeFileSync(
-      manifestPath,
-      JSON.stringify({ cli: "0.0.0-next-1", plugin: "0.0.0-next-1" }),
-    );
-
-    assert.deepEqual(readPinManifest(manifestPath), {
-      cli: "0.0.0-next-1",
-      plugin: "0.0.0-next-1",
-    });
-  });
-
-  test("defaults to this repository's opencode/pin.json", () => {
-    const pin = readPinManifest();
-    assert.equal(typeof pin.cli, "string");
-    assert.equal(typeof pin.plugin, "string");
-  });
-});
 
 describe("appendToErrorLog", () => {
   test("appends within the cap without dropping anything", () => {
@@ -122,10 +44,9 @@ describe("appendToErrorLog", () => {
 });
 
 describe("shapeStatus", () => {
-  test("includes the plugin version, pin comparison, mapped ledger rows, recent errors, and loop ticks", () => {
+  test("includes the plugin version, mapped ledger rows, recent errors, and loop ticks", () => {
     const result = shapeStatus({
       pluginVersion: "radical-pipelines@1.2.3",
-      pinComparison: "match",
       ledgerEntries: [
         {
           name: "spec-lead",
@@ -153,7 +74,6 @@ describe("shapeStatus", () => {
 
     assert.deepEqual(result, {
       pluginVersion: "radical-pipelines@1.2.3",
-      pin: "match",
       ledger: [
         {
           name: "spec-lead",
@@ -184,7 +104,6 @@ describe("shapeStatus", () => {
   test("carries provided read failures through to the shaped result", () => {
     const result = shapeStatus({
       pluginVersion: "v",
-      pinComparison: "match",
       ledgerEntries: [],
       errorLog: [],
       readFailures: [{ endpoint: "active", status: 500, count: 1 }],
@@ -196,7 +115,6 @@ describe("shapeStatus", () => {
   test("maps one ledger row per provided ledger entry, preserving order", () => {
     const result = shapeStatus({
       pluginVersion: "v",
-      pinComparison: "not determinable",
       ledgerEntries: [
         {
           name: "a",
@@ -232,7 +150,6 @@ describe("shapeStatus", () => {
   test("an empty ledger and error log shape an empty ledger and empty recent-errors log", () => {
     const result = shapeStatus({
       pluginVersion: "v",
-      pinComparison: "match",
       ledgerEntries: [],
       errorLog: [],
     });

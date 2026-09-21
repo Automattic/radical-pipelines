@@ -1,6 +1,6 @@
 name: opencode integration
 
-# The hermetic suite against the pinned opencode build, on every pull request.
+# The isolated suite against the latest stable opencode release, on every pull request.
 on:
   pull_request:
 
@@ -24,12 +24,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      - name: Cache the pinned opencode CLI
-        uses: actions/cache@v6
-        with:
-          path: ${{ runner.temp }}/rp-opencode-integration-cache
-          key: opencode-cli-${{ hashFiles('opencode/pin.json') }}
 
       - run: npm run test:opencode
         env:

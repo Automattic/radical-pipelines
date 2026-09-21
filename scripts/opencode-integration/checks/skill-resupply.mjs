@@ -65,7 +65,7 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".."
 /** The re-supplied form of the packaged skill: its id, base directory, and registered body. */
 const RESUPPLIED = (() => {
   const skill = readSkillDirectory(join(REPO_ROOT, "skills")).find((candidate) => candidate.id === "radical-pipelines");
-  return `Skill: radical-pipelines\nBase directory: ${dirname(skill.location)}\n\n${skill.content}`;
+  return `Skill: radical-pipelines\nBase directory: ${dirname(skill.path)}\n\n${skill.content}`;
 })();
 
 /**

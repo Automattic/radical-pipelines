@@ -31,7 +31,6 @@ import plugin, {
   lookupSpawn,
   observeHttpResponse,
   promoteInboxItem,
-  readCliVersion,
   readPackageVersion,
   recordGenerationID,
   recordRawResponseStart,
@@ -45,7 +44,6 @@ import plugin, {
   requestServer,
   resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
-  resolveRunningBuild,
   resolveServer,
   runLoopTick,
   sessionReadError,
@@ -96,17 +94,15 @@ function createFakeCtx({
     "radical-pipelines/helper",
     "radical-pipelines/build-worker-tdd",
   ],
-  legacySkillDraft = false,
 } = {}) {
   const tools = new Map();
   const addedSkills = [];
-  const skillSources = [];
   const sessions = new Map();
   let nextID = 1;
 
   // Matches the real ctx.event.subscribe() contract: a zero-argument call
   // returning an AsyncIterable, consumed via `for await` — not a
-  // callback-registration API. Verified live against the pinned build (a
+  // callback-registration API. Verified live against opencode (a
   // callback-style stub masked the listener never actually running).
   let subscribeCalls = 0;
   let hookRegistrations = 0;
@@ -135,40 +131,28 @@ function createFakeCtx({
         fn(api);
       },
     },
-    // Matches the real ctx.skill.transform() draft contract: current builds
-    // take fully-formed skills through add(); builds up to the previously
-    // pinned one exposed source() instead, and calling it on a current build
-    // dies with "sources.source is not a function". `legacySkillDraft` models
-    // the older shape so both paths stay covered.
     skill: {
       transform(fn) {
-        const api = legacySkillDraft
-          ? {
-              source(src) {
-                skillSources.push(src);
-                return api;
-              },
-            }
-          : {
-              list: () => [...addedSkills],
-              add(skill) {
-                addedSkills.push(skill);
-                return api;
-              },
-              update() {
-                return api;
-              },
-              remove() {
-                return api;
-              },
-            };
+        const api = {
+          list: () => [...addedSkills],
+          add(skill) {
+            addedSkills.push(skill);
+            return api;
+          },
+          update() {
+            return api;
+          },
+          remove() {
+            return api;
+          },
+        };
         fn(api);
       },
     },
     agent: {
       // Matches the real ctx.agent.list() contract: async, envelope-wrapped
       // ({ location, data: Array<AgentInfo> }), verified live against the
-      // pinned build (a synchronous plain-array stub masked a real TypeError).
+      // tested runtime (a synchronous plain-array stub masked a real TypeError).
       async list() {
         return { data: agents };
       },
@@ -183,7 +167,7 @@ function createFakeCtx({
         if (!sessions.has(sessionID)) {
           // Matches the real ctx.session.prompt rejection for a dead target:
           // name/_tag "Session.NotFoundError" (with a dot), no HTTP status —
-          // verified live against the pinned build.
+          // verified live against opencode.
           const error = new Error("Session.NotFoundError");
           error.name = "Session.NotFoundError";
           error._tag = "Session.NotFoundError";
@@ -226,7 +210,6 @@ function createFakeCtx({
     ctx,
     tools,
     addedSkills,
-    skillSources,
     sessions,
     pushEvent,
     hooks,
@@ -290,19 +273,8 @@ describe("setup: tool and skill registration", () => {
     const skill = addedSkills[0];
     assert.equal(skill.name, "radical-pipelines");
     assert.match(skill.description, /autonomous software engineering pipeline/);
-    assert.ok(skill.location.endsWith("skills/radical-pipelines/SKILL.md"));
+    assert.ok(skill.path.endsWith("skills/radical-pipelines/SKILL.md"));
     assert.ok(skill.content.startsWith("# Radical Pipelines"));
-  });
-
-  test("falls back to the directory source on builds whose draft still offers it", async () => {
-    const { ctx, addedSkills, skillSources } = createFakeCtx({ legacySkillDraft: true });
-
-    await setup(ctx, isolatedDeps({ env: {} }));
-
-    assert.equal(addedSkills.length, 0);
-    assert.equal(skillSources.length, 1);
-    assert.equal(skillSources[0].type, "directory");
-    assert.ok(skillSources[0].path.endsWith("skills"));
   });
 
   test("the registered context hook re-supplies the packaged skill to a session continuing from a checkpoint", async () => {
@@ -333,7 +305,7 @@ describe("setup: tool and skill registration", () => {
     await hooks.get("context")(after);
     const [block] = after.system;
     const skill = addedSkills.find((candidate) => candidate.id === "radical-pipelines");
-    assert.ok(block.text.includes(`Skill: radical-pipelines\nBase directory: ${dirname(skill.location)}\n\n${skill.content}`));
+    assert.ok(block.text.includes(`Skill: radical-pipelines\nBase directory: ${dirname(skill.path)}\n\n${skill.content}`));
   });
 
   test("calling setup twice subscribes to events exactly once", async () => {
@@ -480,7 +452,7 @@ describe("rp_spawn", () => {
     // A session outlives its turn: an agent that ends its turn to "wait" for
     // detached work is parked until a message arrives — observed live. A
     // managed background command's completion does arrive as such a message
-    // (verified against the pinned build), but only if the command finishes:
+    // (verified against opencode), but only if the command finishes:
     // background commands carry no timeout by default.
     assert.match(result, /## RP turns \(opencode\)/);
     assert.match(result, /Ending your turn is a stop: only a message resumes this session/);
@@ -1309,7 +1281,7 @@ describe("interruptSession", () => {
     };
 
     await interruptSession(server, "ses_1", requestFn);
-    assert.deepEqual(calls, [{ path: "/api/session/ses_1/interrupt?continue=true", method: "POST" }]);
+    assert.deepEqual(calls, [{ path: "/api/session/ses_1/interrupt?resume=true", method: "POST" }]);
   });
 
   test("throws on a non-2xx response", async () => {
@@ -1320,15 +1292,15 @@ describe("interruptSession", () => {
 describe("promoteInboxItem", () => {
   const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
 
-  test("posts the queue-to-steer promotion for the given inbox item", async () => {
+  test("updates the given inbox item's delivery to steer", async () => {
     const calls = [];
     const requestFn = async (url, init) => {
-      calls.push({ path: url.pathname, method: init.method });
+      calls.push({ path: url.pathname, method: init.method, body: JSON.parse(init.body) });
       return { status: 204 };
     };
 
     await promoteInboxItem(server, "ses_1", "inb_1", requestFn);
-    assert.deepEqual(calls, [{ path: "/api/session/ses_1/inbox/inb_1/steer", method: "POST" }]);
+    assert.deepEqual(calls, [{ path: "/api/session/ses_1/inbox/inb_1", method: "PATCH", body: { delivery: "steer" } }]);
   });
 
   test("throws on a non-2xx response", async () => {
@@ -1394,7 +1366,7 @@ describe("superviseEvents teardown", () => {
     await delay(5);
     abort.abort();
     await supervisor;
-    assert.ok(returned, "teardown must close the pinned iterator via return()");
+    assert.ok(returned, "teardown must close the live iterator via return()");
   });
 });
 
@@ -1471,7 +1443,7 @@ describe("recordTurnEnd / turnsFor", () => {
     recordTurnEnd({ type: "session.execution.failed", properties: { sessionID: "ses_turns" } }, 2_000);
     assert.deepEqual(turnsFor("ses_turns"), { turns: 2, lastTurn: { endedAt: 2_000, outcome: "failed" } });
 
-    // An interrupt ends the turn too — verified live against the pinned
+    // An interrupt ends the turn too — verified live against the tested
     // build: `POST /interrupt` emits `session.execution.interrupted`, with no
     // succeeded/failed event — without being a failure to announce.
     recordTurnEnd({ type: "session.execution.interrupted", data: { sessionID: "ses_turns" } }, 3_000);
@@ -1520,7 +1492,7 @@ describe("recordSend / lastSendFor", () => {
 describe("extractLastText", () => {
   test("returns the newest assistant message's last non-empty text part, trimmed, stamped with the message's completion time", () => {
     // Newest first, as `getSessionMessages` returns them. Text parts carry no
-    // time of their own in the pinned projection.
+    // time of their own in the session projection.
     const messages = [
       { type: "user", time: { created: 900 }, text: "[from orchestrator] status?" },
       {
@@ -1636,7 +1608,7 @@ describe("observeHttpResponse / lastRawSessionProgressAt", () => {
     );
   });
 
-  test("captures projected tool ids across pinned provider protocols, decoding JSON escapes", async () => {
+  test("captures projected tool ids across provider protocols, decoding JSON escapes", async () => {
     const encoder = new TextEncoder();
     const chunks = [
       // Open Responses: the projected tool-part id is `call_id`, not `id`.
@@ -4730,7 +4702,7 @@ describe("terminal-event listener", () => {
     pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_title" } });
     await delay(10);
     assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title/rename");
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title");
     assert.equal(
       renames[0].init.body,
       JSON.stringify({ title: "rp:258-agent-declared-completion:worker-title" }),
@@ -4778,7 +4750,7 @@ describe("terminal-event listener", () => {
     await delay(10);
 
     assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int/rename");
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int");
     assert.equal(renames[0].init.body, JSON.stringify({ title: "rp:276-activity-reporting:worker-interrupted" }));
     assert.equal(promptCalls.length, 0, "an interrupt is a deliberate stop, not a failure to announce");
     assert.deepEqual(globalThis[ERROR_LOG_KEY], []);
@@ -5024,7 +4996,7 @@ describe("buildLedgerRows", () => {
       time: { updated },
       title: `rp:144-opencode-support:${id}`,
     });
-    // The pinned build moves `time.updated` only when the session receives
+    // opencode moves `time.updated` only when the session receives
     // input — verified live: a 6-second tool call and the turn's end left it
     // untouched — so a long working turn looks frozen through `updated`
     // alone.
@@ -5119,55 +5091,16 @@ describe("buildLedgerRows", () => {
   });
 });
 
-describe("resolveRunningBuild", () => {
-  test("prefers the service record's version and never calls the CLI fallback", () => {
-    const result = resolveRunningBuild({ version: "0.0.0-next-1" }, () => {
-      throw new Error("must not be called");
-    });
-    assert.equal(result, "0.0.0-next-1");
-  });
-
-  test("falls back to the injected CLI-version reader when there is no service record", () => {
-    assert.equal(resolveRunningBuild(null, () => "0.0.0-next-2"), "0.0.0-next-2");
-  });
-
-  test("reports unknown when neither the record nor the CLI fallback yield a version", () => {
-    assert.equal(resolveRunningBuild(null, () => null), "unknown");
-  });
-});
-
-describe("readCliVersion", () => {
-  test("strips the real CLI's leading 'opencode2 v' and trims the output", () => {
-    // The real `opencode2 --version` prints "opencode2 v<build>\n" — verified
-    // live against the pinned build — not the bare build string alone.
-    assert.equal(readCliVersion(() => "opencode2 v0.0.0-next-15772\n"), "0.0.0-next-15772");
-  });
-
-  test("returns the output unchanged when it carries no 'opencode2 v' prefix", () => {
-    assert.equal(readCliVersion(() => "0.0.0-next-15772\n"), "0.0.0-next-15772");
-  });
-
-  test("returns null when exec throws (e.g. the binary is missing)", () => {
-    assert.equal(
-      readCliVersion(() => {
-        throw new Error("command not found");
-      }),
-      null,
-    );
-  });
-});
-
 describe("buildStatusPayload", () => {
-  test("returns an empty ledger and a pin comparison without touching the network when the server cannot be resolved", async () => {
+  test("returns an empty ledger without touching the network when the server cannot be resolved", async () => {
     globalThis[ERROR_LOG_KEY] = [];
     const result = await buildStatusPayload({
       env: {},
       readServiceRecord: () => null,
-      readCliVersion: () => "0.0.0-next-unknown-build",
     });
 
     assert.equal(result.ledger.length, 0);
-    assert.equal(result.pin, "outside the verified surface");
+    assert.equal(Object.hasOwn(result, "pin"), false);
     assert.equal(typeof result.pluginVersion, "string");
     assert.deepEqual(result.recentErrors, []);
   });
@@ -5180,7 +5113,7 @@ describe("buildStatusPayload", () => {
     });
 
     // Every opencode HTTP GET response envelopes its payload as
-    // `{ data: ... }` — verified live against the pinned build.
+    // `{ data: ... }` — verified live against opencode.
     const requestFn = async (url) => {
       if (url.pathname === "/api/session") {
         return {
@@ -5257,7 +5190,6 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     assert.equal(result.ledger.length, 1);
@@ -5329,7 +5261,6 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     const row = result.ledger[0];
@@ -5375,7 +5306,6 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     assert.equal(result.ledger[0].activity, 9_000);
@@ -5428,13 +5358,13 @@ describe("buildStatusPayload", () => {
     };
     const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
 
-    const found = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    const found = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(messageReads, [20, 100], "the deeper page is read only after a full, textless first page");
     assert.deepEqual(found.ledger[0].lastText, { at: 901, excerpt: "Tests green." });
 
     messageReads.length = 0;
     deepPageHasText = false;
-    const silent = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    const silent = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(messageReads, [20, 100]);
     assert.deepEqual(silent.ledger[0].lastText, { olderThan: 100 }, "a textless deep page reports how far the search reached");
     assert.deepEqual(silent.readFailures, []);
@@ -5483,7 +5413,6 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     assert.equal(result.ledger.length, 2);
@@ -5534,7 +5463,6 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-beta-17595",
     });
 
     assert.equal(result.ledger.length, 1);

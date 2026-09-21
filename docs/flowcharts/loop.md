@@ -18,7 +18,7 @@ flowchart TD
     C -->|no task files| NOTASK["Re-dispatch the plan producer"]
     C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]
     C -->|INVALID FRONTMATTER| FRONTMATTER["Orchestrator repairs the frontmatter, then re-stamps the file"]
-    C -->|INVALID LINE| LINE["Have the file's author fix it"]
+    C -->|INVALID LINE or IDS| LINE["Have the file's author fix it"]
     C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Converge"]
     C -->|adjudicated challenges or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
     C -->|unclaimed commits| UNCLAIMED["Tell the owner: claim them in a report or revert them"]

@@ -39,7 +39,7 @@ For a failed task report, reproduce its evidence first — this is the one exper
 
 - **Replan** — the task was under-specified, mistyped, missing a dependency, or its acceptance unreachable: rewrite its file, or split it into new files, keeping ids stable.
 - **Re-dispatch** — the evidence does not reproduce, or the worker misread the block: say why; an identical second failure is not re-dispatched without new evidence.
-- **Contradicts-input** — a mapped assumption fell (`Verifies: A<n>`), or a spec or design claim is false: `Contradicts-input: <path>#<id>` with the report as evidence.
+- **Contradicts-input** — a mapped assumption fell (`Verifies: <assumption id>`), or a spec or design claim is false: `Contradicts-input: <path>#<id>` with the report as evidence.
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
@@ -49,20 +49,20 @@ A review rejection changes only the tasks its findings require; other tasks stay
 
 **Tasks**
 
-- A task is a file, `tasks/T<n>.md`, small enough that a worker executes it without making a design decision — parts a worker could complete and verify separately are separate tasks — and self-contained: that file and the tasks it depends on are the worker's only inputs. An e2e task carries the flows it automates.
+- A task is a file, `tasks/build-task-<n>.md`, small enough that a worker executes it without making a design decision — parts a worker could complete and verify separately are separate tasks — and self-contained: that file and the tasks it depends on are the worker's only inputs. An e2e task carries the flows it automates.
 - `Type` routes it to its worker. `tdd` — a change with behavior to test, proven by new unit tests derived from its Acceptance. `e2e` — realizes the flows it carries over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, never the behavior under test. `edit` — preserves observable behavior and existing assertion contracts while changing their representation; verified by inspection and the guardrails.
 - Every task has one or more acceptance criteria — observable, verifiable, scoped to the task — stating what must be true when it is done: they translate the acceptance criterion the task traces to into task-level checks, describe what, not how it is verified, and never contradict it. Even a trivial task has one.
 - Name exact files: real paths from the codebase, never "the auth module".
 - Describe the change; never write the implementation. Which unit tests a `tdd` task writes stays the worker's choice.
 - The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope. Documentation is the document phase's; no documentation tasks.
-- Every open assumption of the design doc maps to the task that verifies it, `Verifies: A<n>` with the assumption's observation and circumstance copied into the task; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
+- Every open assumption of the design doc maps to the task that verifies it, `Verifies: <assumption id>` with the assumption's observation and circumstance copied into the task; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
 - Every task traces to the requirements, decisions, or flows it serves. Every acceptance criterion and every decision is served by at least one task.
-- Ids are stable: `T<n>` is never renumbered; corrective and new tasks are new files.
+- Ids are stable: `build-task-<n>` is never renumbered; corrective and new tasks are new files.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
 
 **Claims**
 
-- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `A<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence.
+- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `build-assumption-<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence.
 
 **Record**
 
@@ -94,18 +94,18 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Assumptions
 
-<!-- A<n>: <claim> — Verifies: T<n> | carried, Verifies: — (<reason>) -->
+<!-- <assumption id>: <claim> — Verifies: build-task-<n> | carried, Verifies: — (<reason>) -->
 
 ## Order
 
-<!-- - T1
-     - T2 <- T1 -->
+<!-- - build-task-1
+     - build-task-2 <- build-task-1 -->
 ```
 
-`tasks/T<n>.md`:
+`tasks/build-task-<n>.md`:
 
 ```markdown
-# T<n>: <title>
+# build-task-<n>: <title>
 
 - **Goal:** …
 - **Type:** tdd | e2e | edit
@@ -113,12 +113,12 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
   - **Flow 1: <title>**   <!-- e2e only -->
     - **Steps:** …
     - **Expected:** …
-    - **Traces to:** acceptance criterion <id> | edge case <description>
+    - **Traces to:** spec-acceptance-criterion-<n> | edge case <description>
 - **Files:** …
 - **Changes:** …
-- **Depends on:** none | <comma-separated T<n> ids>
-- **Verifies:** A<n> — <the assumption's observation and circumstance> | —
-- **Traces to:** R<n> / D<n> / Flow <n>
+- **Depends on:** none | <comma-separated build-task-<n> ids>
+- **Verifies:** <assumption id> — <the assumption's observation and circumstance> | —
+- **Traces to:** spec-requirement-<n> / design-doc-decision-<n> / Flow <n>
 - **Acceptance:**
   - <observable property>
 ```
@@ -138,7 +138,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Adjudications
 
-### <review path>#<issue> | <task report path>
+### <review path>#build-finding-<n> | <task report path>
 
 <Adopt | Refute | Replan | Re-dispatch | Contradicts-input: <path>#<id>> — <evidence>
 ```

@@ -37,11 +37,11 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 A vague idea with only a Title and Goal is complete.
 
-Every item other than the Goal is a bullet. In `intent.md`, `#goal` addresses the Goal section and each bullet opens with its id — `constraint-<n>`, `context-<n>`, `assumption-<n>`, `decision-<n>` — assigned in order of creation and never reused.
+Every item other than the Goal is a bullet opening with its id (`../run/state.md` § Names), assigned in order of creation.
 
 ## Decisions
 
-The intent carries the owner's directions about the work. The issue's sections change only by synthesis from the issue; append each later work direction — at triage, in an assisted session, or in answer to an escalation — under `## Decisions` with the next `decision-<n>`: the approved words quoted verbatim, then what they answer (the run, the question, or the claim's path). Records cite each decision by id beside the question it answers.
+The intent is the only file that carries the owner's decisions. The issue's sections change only by synthesis from the issue; every decision the owner makes afterwards that changes what the work must satisfy is appended when approved under `## Decisions`, one entry per question answered, with the next `intent-decision-<n>`: the ruling, stated so the entry reads without the exchange it came from, then `Origin:` — the source it was given in. Records cite each decision by id beside the question it answers.
 
 ## Authoring discipline
 
@@ -65,4 +65,4 @@ Origin: <source>
 <summary>
 ```
 
-The owner's words, when the correction carries any, are a decision in the intent; `Origin:` names it. Summarize the request in your own words.
+The owner's ruling, when the correction carries one, is a decision in the intent; `Origin:` names it. Summarize the request in your own words.

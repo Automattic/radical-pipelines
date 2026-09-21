@@ -12,7 +12,7 @@ Execute
 
 ## Materials
 
-- Task: <tasks/T<n>.md path>
+- Task: <tasks/build-task-<n>.md path>
 - Dependencies: <one line per task file it depends on: path>
 - Your previous report: <path>   <!-- later attempts -->
 - Adjudication: <record path — section>   <!-- corrective task or re-dispatch -->
