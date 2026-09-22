@@ -12,7 +12,10 @@
   "scripts": {
     "release:version": "changeset version && node scripts/sync-version.mjs && npm install --package-lock-only --no-audit --no-fund",
     "test": "node --test 'scripts/test/**/*.test.mjs'",
-    "test:opencode": "node scripts/opencode-integration/run.mjs"
+    "test:rp": "node --test scripts/test/rp.test.mjs",
+    "test:opencode": "node scripts/opencode-integration/run.mjs",
+    "test:opencode-unit": "node --test 'scripts/test/opencode/*.test.mjs'",
+    "test:release": "node --test scripts/test/ci-workflow.test.mjs scripts/test/check-version-sync.test.mjs scripts/test/release-version-script.test.mjs scripts/test/sync-version.test.mjs scripts/test/validate-changesets.test.mjs scripts/test/version-sync.e2e.test.mjs"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.0",
