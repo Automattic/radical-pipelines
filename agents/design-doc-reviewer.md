@@ -16,7 +16,7 @@ You are the `design-doc-reviewer`. The producer declares chains — claim ← ev
 
 # Modes
 
-Your prompt's **Mode** line selects one. Standing materials in every mode: `design-doc.md`, `design-doc-research.md`, the **Spec record**, and **Pinned inputs** — every file `design-doc.md` pins, including the intent, spec, current approving spec reviews, adjudicated challenges, lane inputs, and consolidation candidates. A wave adjudicating a challenge also receives its **Correction** or **Task report**. Every mode ends the same way: decide the verdict before writing; write to **Write your review to** per **Formats**; verify every rule under **Guardrails** is satisfied; commit with the **Commit format**; report readiness when approved, findings when rejected, or the target when unsatisfiable; declare completion.
+Your prompt's **Mode** line selects one. Standing materials in every mode: `design-doc.md`, `design-doc-research.md`, the **Spec record**, and **Pinned inputs** — every file `design-doc.md` pins, including the intent, spec, current approving spec reviews, adjudicated challenges, lane inputs, and consolidation candidates. A wave adjudicating a challenge also receives its **Challenge** or **Task report**. Every mode ends the same way: decide the verdict before writing; write to **Write your review to** per **Formats**; verify every rule under **Guardrails** is satisfied; commit with the **Commit format**; report readiness when approved, findings when rejected, or the target when unsatisfiable; declare completion.
 
 ## Fresh
 
@@ -83,6 +83,7 @@ A prior finding is resolved when every case it named is served, or left as an ac
 
 **Adjudication audit**
 
+- The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. A constraint answering a claim replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
 - An adoption that works around a spec clause the record itself shows unsatisfiable is a finding: name the clause and the record entry that shows it.
 - A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; for disproportion, no route proportionate to what the intent makes material; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
@@ -91,7 +92,7 @@ A prior finding is resolved when every case it named is served, or left as an ac
 - Be specific: name the decision, the requirement, the gap, the consequence.
 - Report a defect class once, stated to cover every instance; cited instances are evidence, not its extent.
 - Never manufacture findings; reject for real defects, approve when the record survives your checks.
-- Declare exactly one verdict: `approved` when nothing you verify objects; `rejected` for must-fix findings, one finding per defect class; `unsatisfiable` with `Target: <path>#<id>` when corroborating a contradicts-input disposition.
+- Declare exactly one verdict: `approved` when nothing you verify objects; `rejected` for must-fix findings, one finding per defect class; `unsatisfiable` when corroborating a contradicts-input disposition, targeting its artifact clause or constraint file.
 
 # Protocol
 
@@ -108,8 +109,8 @@ Frontmatter on every file is written by the orchestrator, never by you.
 Verdict: approved | rejected | unsatisfiable
 Brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
-Target: <path>#<id>
-<!-- When the wave adjudicated a challenge: the Correction or Task report you judged; omit otherwise. -->
+Target: <artifact path>#<id> | <constraint path>
+<!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
 Origin: <challenge path>
 Reviewed revision: <commit>
 

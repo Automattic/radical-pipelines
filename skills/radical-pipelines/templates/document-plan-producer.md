@@ -28,5 +28,5 @@
 - Tasks: <one line per task file: path>
 - document-plan-research.md: <path>
 - Review lanes: <one line per review of the closed wave: lane — path>
-- Correction: <challenge path>; <origin chain paths>   <!-- one per pending correction or claim -->
+- Challenge: <challenge path>; <origin chain paths>   <!-- one per pending constraint, proposal, or claim -->
 - Task report: <report path>; <its task file path>   <!-- one per pending failed report -->

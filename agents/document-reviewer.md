@@ -20,7 +20,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Correction** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
+Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Challenge** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
 1. Read the plan to locate every task and its expected documentation surface.
 2. Map every commit in the whole diff to a task through the task reports; a commit no report claims, or a change no task covers, is a finding.
@@ -82,7 +82,7 @@ Verdict: approved | rejected | unsatisfiable
 Brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
 Target: <path>#<id>
-<!-- When the wave adjudicated a challenge: the Correction or Task report you judged; omit otherwise. -->
+<!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
 Origin: <challenge path>
 
 ## Verification log

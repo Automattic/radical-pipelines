@@ -20,7 +20,7 @@
 - spec.md: <path>
 - spec-research.md: <path>
 - Pinned inputs: <one line per file spec.md pins: intent, adjudicated challenges, lane inputs, consolidation candidates>
-- Correction: <challenge path>   <!-- when this wave adjudicates a correction -->
+- Challenge: <challenge path>   <!-- when this wave adjudicates one -->
 - Task report: <challenge path>   <!-- when this wave adjudicates a failed task report -->
 
 <!-- Consolidation: additions -->

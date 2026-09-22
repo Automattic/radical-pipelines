@@ -22,7 +22,7 @@ Standing materials, inherited by every mode: the **Spec**, **Design doc**, and *
 
 ## Converge
 
-Materials: the standing materials and, each present when it applies, **Input changes** — every changed input with its diff; **Review lanes** — the closed wave's review files; **Corrections** and **Task reports** — every pending challenge on `document-plan.md`, with the files its `origin` chain leads through; and, with a plan already written, `document-plan.md`, its **Tasks**, and its record.
+Materials: the standing materials and, each present when it applies, **Input changes** — every changed input with its diff; **Review lanes** — the closed wave's review files; **Challenges** and **Task reports** — every pending challenge on `document-plan.md`, with the files its `origin` chain leads through; and, with a plan already written, `document-plan.md`, its **Tasks**, and its record.
 
 Without a plan yet:
 
@@ -33,7 +33,9 @@ Without a plan yet:
 
 With a plan, work delta-scoped: completed tasks stay as they are — a change to their output is a corrective task you add.
 
-For every finding of the review lanes and every correction, give each exactly one disposition, recorded under `## Adjudications`: **Adopt** (revise the plan with the corrective tasks needed), **Refute** (record the evidence that shows the finding wrong; the plan does not change), or **Contradicts-input** — the finding cannot be adopted because the design doc, the spec, or the build plan asserts something the shipped code contradicts: `Contradicts-input: <path>#<id>` with the evidence in the record. Admissible only citing such evidence; mandatory once your record contains the disproof.
+For every finding and challenge other than a failed task report, record exactly one disposition under `## Adjudications`: **Adopt** (revise the plan with the corrective tasks needed), **Refute** (record the evidence against it), or **Contradicts-input** (an input obligation cannot be satisfied: `Contradicts-input: <path>#<id>` for a clause, `<path>` for a constraint file, with the evidence).
+
+The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
 For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition: **Replan** (the task was under-specified, its surface misnamed, or its acceptance unreachable), **Re-dispatch** (the evidence does not reproduce, or the worker misread the task; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover — target the design doc when the code is right, the build plan when the code is wrong: `Contradicts-input: <path>#<id>` with the report as evidence).
 
@@ -58,7 +60,7 @@ You may research and decide new content — always in service of a named finding
 
 **Record**
 
-- Record as you go. The owner's words live only in the intent: cite its items, never restate them as yours.
+- Record as you go. Cite the owner's phase-0 sources by path and item id; keep their authority distinct from your conclusions.
 
 **Research**
 
