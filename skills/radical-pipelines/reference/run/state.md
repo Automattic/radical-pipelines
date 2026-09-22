@@ -48,7 +48,7 @@ The file remains with a merged pipeline. It records no fact about whether a run 
 
 Current authored changes are the checkpoint in the pipeline's **base tree**, followed by the authored changes from base to inspected tip. Occurrences are numbered per patch from 1 across that sequence. The checkpoint, `changes/index.json`, is a JSON array of occurrence pins in commit order; absent means empty. A phase review's initial stamp records the current sequence as the prospective checkpoint.
 
-`changes/occurrences/<identity>.json` records an occurrence as `{patchId, occurrence, source, material}`; `material` is a pin. An unchanged observed commit reuses its material; a matching patch id and occurrence number retains its recorded observation after a rewrite. The change package contains the checkpoint, every current occurrence file, and their pinned material. Referenced immutable files must match their pins.
+`changes/occurrences/<identity>.json` records an occurrence as `{patchId, occurrence, source, material}`; `material` is a pin. Resolve recorded change pins individually before computing current changes; ordered observation lists retain duplicates. An unchanged observed commit reuses its material; a matching patch id and occurrence number retains its recorded observation after a rewrite. The change package contains the checkpoint, every current occurrence file, and their pinned material. Referenced immutable files must match their pins.
 
 `changes/<patch-id>.json` retains the first immutable material for a patch. A report or phase-review stamp records the material it names. Its fields are:
 
@@ -76,8 +76,8 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `origin`    | anything born from something | `issue <canonical reference>`; an external source; the challenge a review responds to; a list when several |
 | `recurs`    | reviews                      | mirror of `Prior finding: <review>#<finding id>, resolution failed` — an earlier review of the same kind that declares the finding |
 | `depends`   | tasks                        | mirror of `Depends on:` — the task ids it waits for                      |
-| `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; resolve new declarations to full hashes |
-| `changes`   | task reports                 | material pins observed for `commits`, in order, omitting empty changes; retained while the declaration matches |
+| `commits`   | task reports                 | mirror of `## Commits` — every line that starts with a commit hash, after a bullet or a backtick; resolve new declarations to full hashes; their authored changes belong to the current pipeline |
+| `changes`   | task reports                 | occurrence pins observed for `commits`, in order, omitting empty changes; retained while the declaration matches |
 | `head`      | artifacts and artifact reviews | the commit a stamp with pins observed: the diff base for the next artifact delta review or convergence |
 | `lane`      | a production lane's artifact; a named review lane's review | the fingerprint derived from `run-config.md` and the file's path                     |
 | `attempt`, `outcome` | task reports        | the attempt, from the filename; `completed` \| `failed` \| `blocked`     |

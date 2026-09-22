@@ -3566,7 +3566,7 @@ process.stdout.write(output);
     else write(root, "0-intent/context.md", "Other evidence.\n");
     const oldCommit = commitAll("own work");
     write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n- ${oldCommit}\n`);
-    rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror");
+    rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
     review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
     commitAll("report and approval");
     const before = authoredState();
@@ -3729,13 +3729,13 @@ process.stdout.write(output);
     const merged = commitAll("resolve");
     const rootCommit = git(root, "rev-list", "--max-parents=0", "HEAD").trim();
     write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n- ${rootCommit}\n- ${own}\n- ${merged}\n`);
-    rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror");
+    rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
     const fm = parseFrontmatter(read(root, chain.reports[0])).data;
     assert.deepEqual(fm.get("commits"), [rootCommit, own, merged]);
-    assert.deepEqual(fm.get("changes"), pairs(authoredState().authoredChanges.map((c) => c.material)));
+    assert.deepEqual(fm.get("changes"), pairs(authoredState().authoredChanges.map((c) => c.path)));
     assert.equal(fm.has("head"), false);
     write(root, chain.reports[0], read(root, chain.reports[0]).replace(`- ${own}\n`, ""));
-    rp(root, "stamp", P(chain.reports[0]), "--mirror");
+    rp(root, "stamp", P(chain.reports[0]), "--mirror", "--base", "main");
     assert.deepEqual(parseFrontmatter(read(root, chain.reports[0])).data.get("changes"), [fm.get("changes")[1]]);
   });
 
@@ -4023,7 +4023,7 @@ process.stdout.write(output);
       assert.throws(() => rp(root, ...args), /material differs from its pin/);
   });
 
-  for (const driver of ["configured", "unavailable", "captured"])
+  for (const driver of ["configured", "unavailable", "captured", "report-captured"])
     test(`automatic merge: ${driver} custom driver preserves declared semantics`, () => {
       const chain = authoredFixture();
       writeFileSync(join(root, ".gitattributes"), "source.txt merge=custom\n");
@@ -4039,14 +4039,64 @@ process.stdout.write(output);
       commitAll("ours");
       git(root, "merge", "--no-ff", "--no-commit", "other");
       assert.equal(readFileSync(join(root, "source.txt"), "utf8"), "custom-result\n");
-      if (driver === "captured") writeFileSync(join(root, "source.txt"), "manual-result\n");
+      if (driver.endsWith("captured")) writeFileSync(join(root, "source.txt"), "manual-result\n");
       const merge = commitAll("custom merge");
       if (driver === "captured") review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+      if (driver === "report-captured") {
+        write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n- ${merge}\n`);
+        rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
+      }
       if (driver !== "configured") {
         git(root, "config", "merge.custom.driver", "/nonexistent-rp-merge-driver %O %A %B");
         if (driver === "captured") assert.equal(authoredState().complete, true);
+        else if (driver === "report-captured") {
+          assert.equal(authoredState().frontier, "build review");
+          assert.ok(JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json")).some((change) => change.commit === merge));
+          const later = "3-build/tasks/build-task-1-report-2.md";
+          write(root, later, `# Report\nOutcome: completed\n\n## Commits\n- ${merge}\n`);
+          rp(root, "stamp", P(later), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
+          review("3-build/build-review-2.md", "approved", [...chain.phasePackages[2], later]);
+          assert.equal(authoredState().complete, true);
+        }
         else assert.throws(() => check(root), /automatic merge unavailable/);
       } else assert.equal(authoredState().authoredChanges.some((change) => change.commit === merge), false);
+    });
+
+  for (const readable of [true, false])
+    test(`recorded observations: report order and duplicate pins are retained, readable=${readable}`, () => {
+      const chain = authoredFixture();
+      writeFileSync(join(root, "source.txt"), "changed\n");
+      const first = commitAll("first application");
+      git(root, "revert", "--no-edit", first);
+      const inverse = git(root, "rev-parse", "HEAD").trim();
+      git(root, "cherry-pick", first);
+      const second = git(root, "rev-parse", "HEAD").trim();
+      const commits = [first, inverse, second, second];
+      write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n${commits.map((commit) => `- ${commit}\n`).join("")}`);
+      const args = ["stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror"];
+      assert.throws(() => rp(root, ...args), /--base <ref> is required/);
+      rp(root, ...args, "--base", "main");
+      const pins = parseFrontmatter(read(root, chain.reports[0])).data.get("changes");
+      assert.equal(pins.length, 4);
+      assert.equal(pins[2], pins[3]);
+      const observations = pins.map((pin) => JSON.parse(read(root, pin.split("@")[0])));
+      assert.deepEqual(observations.map((value) => value.source.commit), commits);
+      assert.equal(observations[0].material, observations[2].material);
+      assert.notEqual(pins[0], pins[2]);
+      if (!readable) {
+        rmSync(join(root, P(pins[2].split("@")[0])));
+        for (const command of [["check", PIPELINE, "--base", "main"], ["diff", PIPELINE, "--base", "main"], ["stamp", P(chain.reports[0]), "--mirror"]])
+          assert.throws(() => rp(root, ...command), /missing occurrence/);
+      } else {
+        const cases = [first, inverse, second].map((commit) => `*" ${commit} -- "*`).join("|");
+        const { env } = gitShim(`case " $* " in *" --raw "*) case " $* " in ${cases}) echo 'recorded commit recomputed' >&2; exit 2;; esac;; esac`);
+        for (const command of ["check", "diff"]) {
+          const output = JSON.parse(execFileSync(process.execPath, [RP, command, PIPELINE, "--base", "main", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+          const changes = command === "check" ? output.authoredChanges : output;
+          assert.deepEqual(changes.map((change) => change.commit), [first, inverse, second]);
+          if (command === "check") assert.equal(output.complete, false);
+        }
+      }
     });
 
   test("change paths: non-UTF-8 names retain their exact Git bytes", () => {
@@ -4199,12 +4249,12 @@ process.stdout.write(output);
       shas.push(git(root, "rev-parse", "--short=10", "HEAD").trim());
     }
     write(root, "3-build/tasks/build-task-1-report-1.md", `# Task report\n\nOutcome: completed\n\n## Commits\n\n- ${shas[0]} — first\n\`${shas[1]}\` second, in backticks\n${shas[2]} third, plain\n\n## Checks\n\n- 1234567 is not a commit: prose stays prose\n`);
-    rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
+    rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror", "--base", "main");
     // Short hashes in the body are stored canonical: the full hash.
     const full = shas.map((s) => git(root, "rev-parse", s).trim());
     assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("commits"), full);
     configure({ targetPhase: 3 });
-    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("changes"), pairs(JSON.parse(check(root, "--json")).authoredChanges.map(({ material }) => material)));
+    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("changes"), pairs(JSON.parse(check(root, "--json")).authoredChanges.map(({ path }) => path)));
     write(root, "3-build/tasks/build-task-2-report-1.md", "# Task report\n\nOutcome: completed\n\n## Commits\n\n- 0badc0ffee1 — never made\n");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2-report-1.md"), "--reviewed", P("3-build/tasks/build-task-2.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror"), /names a commit that does not exist or is ambiguous: 0badc0ffee1/);
   });

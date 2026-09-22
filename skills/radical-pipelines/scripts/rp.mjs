@@ -81,7 +81,7 @@ function validateFrontmatter(data) {
     else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
       errors.push(`${key} must be a string or list of strings`);
     if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
-    if (key === "changes" && strings(value) && value.some((pin) => !materialPinParts(pin))) errors.push("changes must contain material pins");
+    if (key === "changes" && strings(value) && value.some((pin) => !occurrencePinParts(pin))) errors.push("changes must contain occurrence pins");
   }
   return errors.join("; ") || null;
 }
@@ -147,15 +147,32 @@ const changePackage = (changes, checkpoint) => new Map([
   ...changes.flatMap(({ occurrencePin, materialPin }) => [occurrencePin, materialPin].map((pin) => { const p = pinParts(pin); return [p.path, p.sha]; })),
 ]);
 const publicChange = ({ commit, patchId, occurrence, occurrencePin, observation, material }) => ({ commit, patchId, occurrence, material: changePath(patchId), ...(occurrencePin ? { path: pinParts(occurrencePin).path } : {}), source: observation?.source ?? material.source });
-const materialReferences = (data) => [...new Set([
+const materialReferences = (data) => [
   data.get("pins"), data.get("reviewed"), data.get("changes"),
   ...(data.get("lane-packages") ?? []).flatMap(([, binding, reference]) => [binding, reference]),
-].flatMap((pins) => [...(pinPackage(pins) ?? [])]).filter(([path]) => MATERIAL_PATH.test(path) || OCCURRENCE_PATH.test(path)).map(([path, id]) => `${path}@${id}`))];
+].flatMap((pins) => pins ?? []).filter((pin) => { const p = typeof pin === "string" && pinParts(pin); return p && (MATERIAL_PATH.test(p.path) || OCCURRENCE_PATH.test(p.path)); });
 function materialPinParts(pin) {
   if (typeof pin !== "string") return null;
   const parts = pinParts(pin);
   const path = parts && MATERIAL_PATH.exec(parts.path);
   return path && IDENTITY.test(parts.sha) ? { ...parts, patchId: path[1] } : null;
+}
+
+function occurrencePinParts(pin) {
+  const p = typeof pin === "string" && pinParts(pin);
+  const path = p && OCCURRENCE_PATH.exec(p.path);
+  return path && path[1] === p.sha ? p : null;
+}
+
+const artifactFiles = (paths) => paths.filter((path) => path !== "run-config.md");
+function readChangePins(read, paths) {
+  return artifactFiles(paths).flatMap((path) => {
+    const raw = read(path);
+    if (raw === null) throw new Error(`${path}: missing recorded file`);
+    const parsed = parseFrontmatter(raw.toString("utf8"));
+    if (parsed.error) throw new Error(`${path}: INVALID FRONTMATTER: ${parsed.error}`);
+    return materialReferences(parsed.data ?? new Map());
+  });
 }
 
 function changeDelta(changes, reviewed) {
@@ -366,9 +383,15 @@ function authoredChanges(base, tip, { root, pipelinesRoot, observed = new Map() 
   } catch (error) { throw new Error(`authored changes ${base}..${tip}: ${error.message}`); }
 }
 
-function changeStore(root, read) {
+function changeStore(root, read, pins = []) {
   const cache = new Map();
   const identities = new Map();
+  const observed = new Map();
+  const observe = (source, patchId, material) => {
+    const prior = observed.get(source.commit);
+    if (prior && (prior.patchId !== patchId || prior.source.base !== source.base || JSON.stringify(prior.source.parents) !== JSON.stringify(source.parents))) throw new Error(`${source.commit}: conflicting recorded observations`);
+    observed.set(source.commit, { source, patchId, material });
+  };
   const get = (patchId, required = true) => {
     if (cache.has(patchId)) return cache.get(patchId);
     const path = changePath(patchId);
@@ -404,12 +427,12 @@ function changeStore(root, read) {
     if (!p) throw new Error(`invalid material pin: ${pin}`);
     const material = get(p.patchId);
     if (materialPin(p.patchId) !== pin) throw new Error(`${p.path}: material differs from its pin`);
+    observe(material.source, p.patchId, material);
     return material;
   };
   const occurrenceAt = (pin) => {
-    const p = typeof pin === "string" && pinParts(pin);
-    const path = p && OCCURRENCE_PATH.exec(p.path);
-    if (!path || path[1] !== p.sha) throw new Error(`invalid occurrence pin: ${pin}`);
+    const p = occurrencePinParts(pin);
+    if (!p) throw new Error(`invalid occurrence pin: ${pin}`);
     const raw = read(p.path);
     if (raw === null) throw new Error(`${p.path}: missing occurrence`);
     if (byteIdentity(raw) !== p.sha) throw new Error(`${p.path}: occurrence differs from its pin`);
@@ -417,9 +440,13 @@ function changeStore(root, read) {
     try { observation = JSON.parse(raw.toString("utf8")); }
     catch (error) { throw new Error(`${p.path}: ${error.message}`); }
     if (!jsonObject(observation, ["patchId", "occurrence", "source", "material"]) || typeof observation.patchId !== "string" || !PATCH_ID.test(observation.patchId) || !Number.isSafeInteger(observation.occurrence) || observation.occurrence < 1 || !validSource(observation.source) || materialPinParts(observation.material)?.patchId !== observation.patchId) throw new Error(`${p.path}: invalid occurrence`);
-    return { commit: observation.source.commit, patchId: observation.patchId, occurrence: observation.occurrence, source: observation.source, material: materialAt(observation.material), materialPin: observation.material, observation, occurrencePin: pin };
+    const material = materialAt(observation.material);
+    observe(observation.source, observation.patchId, material);
+    return { commit: observation.source.commit, patchId: observation.patchId, occurrence: observation.occurrence, source: observation.source, material, materialPin: observation.material, observation, occurrencePin: pin };
   };
-  return { get, materialPin, materialAt, occurrenceAt, resolve: (pin) => OCCURRENCE_PATH.test(pinParts(pin)?.path ?? "") ? occurrenceAt(pin) : materialAt(pin) };
+  const resolve = (pin) => OCCURRENCE_PATH.test(pinParts(pin)?.path ?? "") ? occurrenceAt(pin) : materialAt(pin);
+  for (const pin of pins) resolve(pin);
+  return { get, materialPin, materialAt, occurrenceAt, resolve, observed };
 }
 
 function changeCheckpoint(read, path, stored) {
@@ -452,29 +479,31 @@ function materialSelection(stored) {
   };
 }
 
-async function currentChanges(root, abs, tip, intent, baseRef, command, read) {
+async function currentChanges(root, abs, tip, intent, baseRef, command, read, pins = []) {
   const base = artifactBase(root, tip, intent, baseRef, command);
-  const stored = changeStore(root, read);
+  const stored = changeStore(root, read, pins);
   const recorded = new Map(changeCheckpoint(read, CHANGE_CHECKPOINT, stored).map((change) => [changeMember(change.patchId, change.occurrence), change]));
   const history = await treeReader(root, join(abs, CHANGE_FOLDER), base, true);
   const historyRead = (path) => history?.read(path, true) ?? null;
   const historyStore = changeStore(root, (path) => historyRead(path.slice(CHANGE_FOLDER.length + 1)));
   const retained = changeCheckpoint(historyRead, "index.json", historyStore).map((change) => stored.occurrenceAt(change.occurrencePin));
-  const observed = new Map([...recorded.values(), ...retained].map((change) => [change.source.commit, change]));
-  const live = authoredChanges(base, tip, { root, pipelinesRoot: relative(root, dirname(abs)) || ".", observed });
+  const live = authoredChanges(base, tip, { root, pipelinesRoot: relative(root, dirname(abs)) || ".", observed: stored.observed });
   const occurrences = new Map();
   const select = materialSelection(stored);
+  const byCommit = new Map(retained.map((change) => [change.commit, change]));
   const changes = [...retained, ...live].map((change) => {
     const occurrence = (occurrences.get(change.patchId) ?? 0) + 1;
     occurrences.set(change.patchId, occurrence);
-    const prior = change.occurrencePin ? change : recorded.get(changeMember(change.patchId, occurrence));
-    if (prior) return { ...prior, commit: change.commit };
+    if (change.occurrencePin) return change;
     const { material, materialPin } = select(change);
     const observation = { patchId: change.patchId, occurrence, source: change.source, material: materialPin };
     const id = identity(renderJSON(observation));
-    return { ...change, occurrence, material, materialPin, observation, occurrencePin: `${occurrencePath(id)}@${id}` };
+    const current = { ...change, occurrence, material, materialPin, observation, occurrencePin: `${occurrencePath(id)}@${id}` };
+    byCommit.set(change.commit, current);
+    const prior = recorded.get(changeMember(change.patchId, occurrence));
+    return prior ? { ...prior, commit: change.commit } : current;
   });
-  return { base, changes, stored };
+  return { base, changes, stored, byCommit };
 }
 
 function recordChanges(root, abs, changes, checkpoint = false) {
@@ -1266,6 +1295,9 @@ async function cmdStamp(args) {
     const file = containedPath("stamp", root, join(base, path));
     return existsSync(file) ? readFileSync(file) : null;
   };
+  let changeState;
+  const inspectChanges = async () => changeState ??= await currentChanges(root, base, "HEAD", readAt("0-intent/intent.md")?.data, args.base, "stamp", readChanges,
+    readChangePins(readChanges, walk(base).filter((entry) => entry.type === "blob" && entry.rel.endsWith(".md")).map((entry) => entry.rel)));
   const materials = [];
   let checkpoint = null;
   const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
@@ -1330,7 +1362,7 @@ async function cmdStamp(args) {
   }
   if (args.reviewed.length) {
     if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
-    const changes = phaseReview ? (await currentChanges(root, base, "HEAD", readAt("0-intent/intent.md")?.data, args.base, "stamp", readChanges)).changes : [];
+    const changes = phaseReview ? (await inspectChanges()).changes : [];
     if (phaseReview) {
       materials.push(...changes);
       checkpoint = changes;
@@ -1411,12 +1443,15 @@ async function cmdStamp(args) {
     });
     fm.set("commits", canonical);
     if (report) {
-      const observed = canonical.flatMap((commit) => authoredChanges(`${commit}^@`, commit, changeContext));
-      const stored = changeStore(root, readChanges);
-      const select = materialSelection(stored);
-      for (const change of observed) Object.assign(change, select(change));
+      const state = await inspectChanges();
+      const observed = canonical.flatMap((commit) => {
+        const change = state.byCommit.get(commit);
+        if (change) return [change];
+        if (authoredChanges(`${commit}^@`, commit, { ...changeContext, observed: state.stored.observed }).length) die(`stamp: reported change is outside the current pipeline: ${commit}`);
+        return [];
+      });
       materials.push(...observed);
-      fm.set("changes", observed.map((change) => change.materialPin));
+      fm.set("changes", observed.map((change) => change.occurrencePin));
     }
   } else if (report) fm.delete("changes");
   if (report) {
@@ -1655,9 +1690,7 @@ async function cmdCheck(args) {
   // A file whose recorded fields differ from its body's projection contradicts the tree.
   const texts = new Map();
   const listIn = (dir) => tree.list().filter((rel) => rel.startsWith(`${dir}/`) && !rel.slice(dir.length + 1).includes("/")).map((rel) => basename(rel));
-  const all = tree
-    .list()
-    .filter((rel) => rel !== "run-config.md")
+  const all = artifactFiles(tree.list())
     .sort()
     .map((rel) => {
       const text = tree.read(rel);
@@ -1856,10 +1889,9 @@ async function cmdCheck(args) {
 
   // Facts about branch commits require a valid representation and a real merge-base.
   const tip = ref ?? rev("HEAD", "HEAD");
-  const authored = await currentChanges(root, abs, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check", (path) => tree.read(path, true));
+  const authored = await currentChanges(root, abs, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check", (path) => tree.read(path, true), all.flatMap((doc) => materialReferences(doc.data)));
   const base = authored.base;
   changes = authored.changes;
-  for (const doc of all) for (const pin of materialReferences(doc.data)) authored.stored.resolve(pin);
   out.base = base.slice(0, SHORT);
   out.authoredChanges = changes.map(publicChange);
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
@@ -2166,7 +2198,8 @@ async function cmdDiff(args) {
   const raw = tree.read("0-intent/intent.md");
   const intent = raw === null ? { data: null } : parseFrontmatter(raw);
   if (intent.error || (intent.data && mirrorDrift(intent.data, intent.body, "0-intent/intent.md").length)) die("diff: intent must have valid current frontmatter");
-  const state = await currentChanges(root, abs, tip, intent.data, args.base, "diff", (path) => tree.read(path, true));
+  const read = (path) => tree.read(path, true);
+  const state = await currentChanges(root, abs, tip, intent.data, args.base, "diff", read, readChangePins(read, tree.list()));
   let selected = state.changes.map((change) => ({ ...change, status: "added" }));
   if (args.review) {
     const file = containedPath("diff", root, resolve(root, args.review));
@@ -2177,7 +2210,6 @@ async function cmdDiff(args) {
     const review = text === null ? null : parseFrontmatter(text);
     const reviewed = pinPackage(review?.data?.get("reviewed"));
     if (role.scope || !role.review || role.review.prefix !== role.art.review || !reviewed || !VERDICTS.has(review.data.get("verdict")) || mirrorDrift(review.data, review.body, path).length) die(`diff: invalid phase review: ${path}`);
-    for (const pin of materialReferences(review.data)) state.stored.resolve(pin);
     const delta = changeDelta(state.changes, reviewed);
     const added = new Set(delta.added.map(({ path }) => path));
     selected = [
