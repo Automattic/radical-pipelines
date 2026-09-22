@@ -7,7 +7,7 @@ flowchart TD
     A["Run rp check"] --> STATUS["Treat complete-through-phase as status; read frontier"]
     STATUS --> B["Take the first frontier item"]
     B --> C{"Frontier"}
-    C -->|claim: owner escalation| OE["Surface the dossier and pause"]
+    C -->|claim: owner escalation| OE["Close-out with the dossier"]
     C -->|converge artifact| S["Dispatch producer: Converge with its input changes, the closed wave's reviews, and its pending challenges"]
     C -->|stamp file| ST["Stamp its pins or mirrors"]
     C -->|review wave| RW["Run the review-wave procedure"]
