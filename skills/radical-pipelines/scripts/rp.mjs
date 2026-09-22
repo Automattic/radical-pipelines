@@ -65,7 +65,7 @@ export function parseFrontmatter(raw, validate = validateFrontmatter) {
 }
 
 function validateFrontmatter(data) {
-  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "target", "target-identity", "ids", "retired-ids"]);
+  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "changes", "target", "target-identity", "ids", "retired-ids"]);
   const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
   const strings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
   const errors = [];
@@ -80,6 +80,7 @@ function validateFrontmatter(data) {
     else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
       errors.push(`${key} must be a string or list of strings`);
     if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
+    if (key === "changes" && strings(value) && value.some((id) => !PATCH_ID.test(id))) errors.push("changes must contain patch ids");
   }
   return errors.join("; ") || null;
 }
@@ -135,6 +136,73 @@ function readPipelineFile(abs) {
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
+const PATCH_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const CHANGE_PREFIX = "authored-change:";
+const changeMember = (patchId, occurrence) => `${CHANGE_PREFIX}${patchId}:${occurrence}`;
+const changePackage = (changes) => new Map(changes.map(({ patchId, occurrence }) => [changeMember(patchId, occurrence), patchId]));
+function packageIdentityValid(path, id) {
+  if (!path.startsWith(CHANGE_PREFIX)) return IDENTITY.test(id);
+  const occurrence = path.slice(path.lastIndexOf(":") + 1);
+  return PATCH_ID.test(id) && /^[1-9]\d*$/.test(occurrence) && path === changeMember(id, occurrence);
+}
+
+function changeDelta(changes, reviewed) {
+  const current = changePackage(changes);
+  return {
+    added: changes.filter(({ patchId, occurrence }) => !reviewed?.has(changeMember(patchId, occurrence))),
+    removed: [...(reviewed?.keys() ?? [])].filter((path) => path.startsWith(CHANGE_PREFIX) && !current.has(path)),
+  };
+}
+
+function artifactBase(root, tip, intent, baseRef, command) {
+  const startsFrom = [].concat(intent?.get("origin") ?? []).map((o) => o.match(/^starts-from\s+(\S+)$/)?.[1]).find(Boolean);
+  const reference = startsFrom || baseRef || die(`${command}: --base <ref> is required — the artifact base branch — unless the intent declares starts-from`);
+  let base;
+  try {
+    base = execFileSync("git", ["rev-parse", "--verify", "--quiet", `${reference}^{commit}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch { die(`${command}: ${startsFrom ? "the starts-from branch" : "--base"} does not resolve: ${reference}`); }
+  try {
+    return execFileSync("git", ["merge-base", base, tip], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch { die(`${command}: no merge-base between ${reference} and ${tip}`); }
+}
+
+// One authored-change computation serves review packages, deltas, and report landing facts.
+function authoredChanges(base, tip, { root, pipelinesRoot }) {
+  const git = (args, input) => execFileSync("git", args, { cwd: root, input, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] });
+  try {
+    const history = git(["rev-list", "--reverse", "--topo-order", "--parents", tip, "--not", base]).toString("ascii").trim();
+    const occurrences = new Map();
+    return (history ? history.split("\n") : []).flatMap((line) => {
+      const [commit, ...parents] = line.split(" ");
+      if (![commit, ...parents].every((oid) => PATCH_ID.test(oid))) throw new Error("invalid commit history");
+      if (parents.length > 2) throw new Error(`${commit}: automatic merge requires two parents`);
+      let from = parents[0];
+      if (parents.length === 2) {
+        let merge;
+        try {
+          merge = git(["-c", "merge.conflictStyle=merge", "merge-tree", "--write-tree", ...parents]);
+        } catch (error) {
+          if (error.status !== 1 || !error.stdout) throw error;
+          merge = error.stdout;
+        }
+        from = merge.toString("ascii").split("\n")[0];
+        if (!PATCH_ID.test(from)) throw new Error(`${commit}: invalid automatic merge tree`);
+      }
+      let diff = git(["-c", "core.quotePath=true", "diff-tree", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--no-relative", "--src-prefix=a/", "--dst-prefix=b/", "--diff-algorithm=myers", "--no-indent-heuristic", "--inter-hunk-context=0", "--binary", "--full-index", "--unified=3", "-r", "-p", ...(from ? [from, commit] : ["--root", commit]), "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
+      if (!diff.length) return [];
+      // Conflict-marker labels are parent addresses, not authored bytes.
+      if (parents.length === 2) diff = Buffer.from(diff.toString("latin1")
+        .replace(new RegExp(`^(-<+) ${parents[0]}$`, "gm"), "$1 parent-1")
+        .replace(new RegExp(`^(->+) ${parents[1]}$`, "gm"), "$1 parent-2"), "latin1");
+      const output = git(["patch-id", "--verbatim"], diff).toString("ascii").trim().split(" ");
+      if (output.length !== 2 || !output.every((oid) => PATCH_ID.test(oid))) throw new Error(`${commit}: invalid patch-id output`);
+      const patchId = output[0];
+      const occurrence = (occurrences.get(patchId) ?? 0) + 1;
+      occurrences.set(patchId, occurrence);
+      return [{ commit, patchId, occurrence }];
+    });
+  } catch (error) { throw new Error(`authored changes ${base}..${tip}: ${error.message}`); }
+}
 const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
 let REPORT, reportOf; // `<phase>/tasks/<task id>-report-<k>.md`, defined with the id vocabulary below.
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
@@ -314,7 +382,7 @@ function reviewPackageMembers(art, prefix, scope, pinned, tasks, reports) {
 function pinPackage(entries) {
   if (!Array.isArray(entries) || !entries.length) return null;
   const parts = entries.map((entry) => typeof entry === "string" ? pinParts(entry) : null);
-  if (parts.some((p) => !p?.path || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
+  if (parts.some((p) => !p?.path || !packageIdentityValid(p.path, p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
   return new Map(parts.map((p) => [p.path, p.sha]));
 }
 
@@ -330,7 +398,7 @@ function equalPackages(a, b, differences = null) {
   let equal = true;
   for (const [source, other, otherPairs] of [[a, b, right], [b, a, left]]) {
     for (const pair of source) {
-      if (!IDENTITY.test(pair[1]) || !otherPairs.has(JSON.stringify(pair))) {
+      if (!packageIdentityValid(...pair) || !otherPairs.has(JSON.stringify(pair))) {
         equal = false;
         if (differences) {
           if (!other.has(pair[0])) differences.members = true;
@@ -344,14 +412,15 @@ function equalPackages(a, b, differences = null) {
 
 const packagePins = (p) => [...p].map(([path, sha]) => `${path}@${sha}`);
 const projectPackage = (p, paths) => p && new Map(paths.map((path) => [path, p.get(path)]));
+const reviewProjection = (p, paths) => paths === null ? p : p && new Map([...projectPackage(p, paths), ...[...p].filter(([path]) => path.startsWith(CHANGE_PREFIX))]);
 const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
 
-function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks = [], reports = []) {
+function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks = [], reports = [], changes = []) {
   if (!consumed) return null;
   const record = scope ? `${scope}${basename(art.record)}` : art.record;
   const inputs = new Map([...consumed].filter(([path]) => path !== record));
   const members = reviewPackageMembers(art, prefix, scope, [...new Set([...inputs.keys(), ...art.requires])], tasks, reports);
-  return new Map(members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]));
+  return new Map([...members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]), ...(prefix === art.review ? changePackage(changes) : [])]);
 }
 
 const reviewLanesFor = (configuration, prefix) => [{ id: "", fingerprint: null, materials: null }, ...(configuration.decl[prefix]?.review ?? [])];
@@ -383,7 +452,7 @@ function evaluateWave(configuration, prefix, scope, wave, { reference, required 
     const review = reviews[index];
     if (!review || !VERDICTS.has(review.data.get("verdict")) || !laneMatches(review, lanes[index].fingerprint)) return invalid;
     const paths = materialPathsFor(configuration, prefix, scope, lanes[index].id);
-    if (!equalPackages(pinPackage(review.data.get("reviewed")), paths === null ? reference : projectPackage(reference, paths))) return invalid;
+    if (!equalPackages(pinPackage(review.data.get("reviewed")), reviewProjection(reference, paths))) return invalid;
   }
   const valid = reviews.every((review) => review.data.get("verdict") === "approved");
   const applicable = equalPackages(reference, required);
@@ -418,7 +487,7 @@ function authoritativeReviewContext(configuration, prefix, scope, inspect) {
   const tasks = plan ? markdown.filter((path) => path.startsWith(`${art.phase}/tasks/`) && taskFile(plan).test(basename(path))) : [];
   const reports = markdown.filter((path) => reportOf(path) && path.startsWith(`${art.phase}/`));
   return {
-    reference: artifactReviewPackage(art, prefix, scope, pinPackage(artifact?.data?.get("pins")), inspect.identityOf, tasks, reports),
+    reference: artifactReviewPackage(art, prefix, scope, pinPackage(artifact?.data?.get("pins")), inspect.identityOf, tasks, reports, inspect.changesOf?.() ?? []),
     binding: null,
     closed: false,
   };
@@ -443,7 +512,7 @@ function validateRunConfiguration(configuration, inspect, command) {
 }
 
 // The pins-by-file table, shared by stamp and every live currency predicate.
-function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf }) {
+function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf, changesOf = () => [] }) {
   const currentPackage = (paths) => new Map([...new Set(paths)].map((path) => [path, identityOf(path)]));
   const report = reportOf(prefix);
   if (report) {
@@ -476,7 +545,7 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
   }
   return {
     inputs,
-    review: ready ? artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase)) : null,
+    review: ready ? artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase), changesOf()) : null,
     ready,
   };
 }
@@ -815,13 +884,12 @@ export function projectBody(body, rel = "") {
 export function mirrorDrift(data, body, rel) {
   const p = projectBody(body, rel);
   const norm = (v) => JSON.stringify(v === undefined ? [] : [].concat(v));
-  // Commits are stored canonical; the body may name them short. A body hash matches by prefix.
-  const commitsMatch = () => {
-    const bodyHashes = [].concat(p.get("commits") ?? []);
-    const stored = [].concat(data.get("commits") ?? []);
-    return bodyHashes.length === stored.length && bodyHashes.every((h, i) => stored[i].startsWith(h));
-  };
-  return MIRRORS.filter((k) => (k === "commits" ? !commitsMatch() : norm(p.get(k)) !== norm(data.get(k))));
+  return MIRRORS.filter((k) => (k === "commits" ? !commitsMatch(p.get(k), data.get(k)) : norm(p.get(k)) !== norm(data.get(k))));
+}
+
+// Commits are stored canonical; a body may name the same commits by abbreviation.
+function commitsMatch(bodyHashes = [], stored = []) {
+  return bodyHashes.length === stored.length && bodyHashes.every((h, i) => stored[i].startsWith(h));
 }
 
 // A command path: lexically inside the repository, with no symlinked component.
@@ -873,6 +941,8 @@ function cmdStamp(args) {
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
   const { data, body } = parsedFrontmatter;
   const fm = data ?? new Map();
+  const landedCommits = fm.get("commits") ?? [];
+  const landedChanges = fm.get("changes") ?? [];
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
   const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, ownerFile(rel) || fm.get("target-identity")?.[i]]));
@@ -889,6 +959,8 @@ function cmdStamp(args) {
   const report = reportOf(rel);
   const relParts = rel.split("/");
   const role = pipelineFileRole(rel);
+  const phaseReview = role.review?.prefix === role.art?.review && Boolean(role.review);
+  const changeContext = { root, pipelinesRoot: relative(root, dirname(base)) || "." };
   const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
   const siblingRecord = artifact ? `${relParts.slice(0, -1).join("/")}/${basename(artifact.record)}` : null;
 
@@ -951,7 +1023,8 @@ function cmdStamp(args) {
   }
   if (args.reviewed.length) {
     if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
-    const reviewed = pinList(args.reviewed);
+    const changes = phaseReview ? authoredChanges(artifactBase(root, "HEAD", readAt("0-intent/intent.md")?.data, args.base, "stamp"), "HEAD", changeContext) : [];
+    const reviewed = [...pinList(args.reviewed), ...packagePins(changePackage(changes))];
     const review = reviewArtifact(rel);
     if (review && rel.startsWith(`${review.art.phase}/`) && !review.lane) {
       const scope = rel.split("/").length === 3 ? `${dirname(rel)}/` : "";
@@ -965,7 +1038,7 @@ function cmdStamp(args) {
       const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
       const tasks = names.filter((name) => planOf(review.art.phase) && taskFile(planOf(review.art.phase)).test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
       const reports = names.filter((name) => reportOf(`${review.art.phase}/tasks/${name}`)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports);
+      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports, changes);
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
     }
     fm.set("reviewed", reviewed);
@@ -985,7 +1058,7 @@ function cmdStamp(args) {
         .filter(({ name, match }) => {
           const priorRel = `${report[1]}/tasks/${name}`;
           const parsed = readAt(priorRel);
-          return pinPackage(parsed.data?.get("reviewed")) && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && IDENTITY.test(parsed.data.get("head")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
+          return pinPackage(parsed.data?.get("reviewed")) && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
         })
         .map(({ match }) => Number(match[1]));
       const next = Math.max(0, ...prior) + 1;
@@ -1012,8 +1085,11 @@ function cmdStamp(args) {
   }
   const targetError = targetRepresentationErrors(rel, fm, body)[0];
   if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: ${targetError.field}`}: ${targetError.reason}`);
-  // A report names commits that already exist; they are stored canonical (full hash).
-  if (fm.has("commits")) {
+  // Preserve observed changes while the commit declaration remains the same.
+  if (report && landedCommits.length && commitsMatch(fm.get("commits"), landedCommits)) {
+    fm.set("commits", landedCommits);
+    fm.set("changes", landedChanges);
+  } else if (fm.has("commits")) {
     const canonical = [].concat(fm.get("commits") ?? []).map((h) => {
       try {
         return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, encoding: "utf8" }).trim();
@@ -1022,11 +1098,13 @@ function cmdStamp(args) {
       }
     });
     fm.set("commits", canonical);
-  }
+    if (report) fm.set("changes", canonical.flatMap((commit) => authoredChanges(`${commit}^@`, commit, changeContext).map(({ patchId }) => patchId)));
+  } else if (report) fm.delete("changes");
   if (report) {
     fm.set("attempt", report[3]);
   }
-  if (consumed) {
+  if (phaseReview || report) fm.delete("head");
+  else if (consumed) {
     try {
       fm.set("head", execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim().slice(0, SHORT));
     } catch {
@@ -1301,12 +1379,14 @@ async function cmdCheck(args) {
     .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends") ?? []) }));
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
+  let changes = [];
   const reportFilesOf = (phase) => all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
 
   const inspection = {
     list: () => all.map((doc) => doc.rel),
     document: (path) => all.find((doc) => doc.rel === path) ?? null,
     identityOf,
+    changesOf: () => changes,
   };
   validateRunConfiguration(configuration, inspection, "check");
 
@@ -1319,7 +1399,7 @@ async function cmdCheck(args) {
   const reviewFresh = (r, prefix, sc) => {
     const { required: packageMap } = contextOf(prefix, sc);
     const paths = materialPathsFor(configuration, prefix, sc, r.lane);
-    return equalPackages(pinPackage(r.data.get("reviewed")), paths === null ? packageMap : projectPackage(packageMap, paths));
+    return equalPackages(pinPackage(r.data.get("reviewed")), reviewProjection(packageMap, paths));
   };
   const waveValidity = (prefix, sc, wave, context = contextOf(prefix, sc)) => {
     return evaluateWave(configuration, prefix, sc, wave, context, inspection);
@@ -1342,6 +1422,7 @@ async function cmdCheck(args) {
   const packageContext = {
     identityOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf,
     dependsOf: (task) => taskFiles.find((t) => t.rel === task)?.deps ?? [],
+    changesOf: () => changes,
   };
   for (const t of all.filter((d) => reportOf(d.rel))) {
     const [, phase, id, k] = reportOf(t.rel);
@@ -1451,14 +1532,10 @@ async function cmdCheck(args) {
 
   // Facts about branch commits require a valid representation and a real merge-base.
   const tip = ref ?? rev("HEAD", "HEAD");
-  const startsFrom = [].concat(all.find((d) => d.rel === "0-intent/intent.md")?.data.get("origin") ?? []).map((o) => o.match(/^starts-from\s+(\S+)$/)?.[1]).find(Boolean);
-  const baseRef = startsFrom ? rev(startsFrom, "the starts-from branch") : args.base ? rev(args.base, "--base") : die("check: --base <ref> is required — the artifact base branch — unless the intent declares starts-from");
-  let base;
-  try {
-    base = execFileSync("git", ["merge-base", baseRef, tip], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  } catch {
-    die(`check: no merge-base between ${startsFrom ?? args.base} and ${args.ref ?? "HEAD"}`);
-  }
+  const base = artifactBase(root, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check");
+  changes = authoredChanges(base, tip, { root, pipelinesRoot: dirname(pipelineRel) || "." });
+  out.base = base.slice(0, SHORT);
+  out.authoredChanges = changes;
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath.startsWith("0-intent/") || phaseOfTarget(targetPath) <= configuration.targetPhase;
   const inputStateOf = (doc, art, sc, fingerprint = null) => {
@@ -1716,11 +1793,11 @@ async function cmdCheck(args) {
       take(`${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}`);
       stopped = true;
     }
-    // Phase review: names the plan, its record, its inputs, every task, and every report.
+    // Phase review: the plan package, reports, and authored changes.
     const rl = laneStates(art.review, "");
     const e = episodeOf(art.review, "");
     const rApproved = waveValidity(art.review, "", latestWaveOf(art.review, "")).current;
-    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => x), approved: rApproved, episode: e.episode, recurs: e.recurs };
+    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => ({ ...x, diff: changeDelta(changes, pinPackage(review?.data.get("reviewed"))) })), approved: rApproved, episode: e.episode, recurs: e.recurs };
     if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
     lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
     if (!rApproved) {
@@ -1729,18 +1806,6 @@ async function cmdCheck(args) {
     } else {
       phaseDone(phaseNo);
     }
-  }
-
-  // Every commit after the base outside the pipelines folder is claimed by a task report.
-  const pipelinesRoot = pipelineRel.split("/").slice(0, -1).join("/") || ".";
-  const onBranch = execFileSync("git", ["log", "--format=%H", `${base}..${tip}`, "--", ".", `:(exclude)${pipelinesRoot}`], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
-  const claimed = all.filter((d) => reportOf(d.rel)).flatMap((d) => [].concat(d.data.get("commits") ?? []));
-  const unclaimed = onBranch.filter((h) => !claimed.some((c) => h.startsWith(c)));
-  out.base = base.slice(0, SHORT);
-  out.unclaimedCommits = unclaimed;
-  if (unclaimed.length) {
-    lines.push(`commits  unclaimed by any task report: ${unclaimed.map((h) => h.slice(0, 7)).join(", ")}`);
-    take(`unclaimed commits: ${unclaimed.map((h) => h.slice(0, 7)).join(", ")}`);
   }
 
   // 4. Counters and completion.
@@ -1760,7 +1825,7 @@ async function cmdCheck(args) {
 // --- cli --------------------------------------------------------------------
 
 const COMMAND_OPTIONS = {
-  stamp: new Set(["--pin", "--reviewed", "--mirror"]),
+  stamp: new Set(["--pin", "--reviewed", "--mirror", "--base"]),
   check: new Set(["--json", "--ref", "--base"]),
 };
 
@@ -1794,14 +1859,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
       `rp — Radical Pipelines state tooling
 
 Usage:
-  node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror]
+  node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror] [--base <ref>]
   node rp.mjs check <pipeline-folder> --base <ref> [--ref <branch>] [--json]
 
 stamp writes frontmatter: pins, review pins (immutable), the lane derived from
 the path and run-config.md, --mirror copies of body declarations (Verdict, Brief, Target,
 Origin, Outcome — completed | failed | blocked — Prior finding, a task's
-Depends on, a report's Commits), and head — the commit
-a stamp with pins observed. Identity is the first 12 hexadecimal characters of
+Depends on, a report's Commits), authored changes, and head — the diff base
+for artifact reviews and convergence. Phase review stamps add authored changes
+using --base unless the intent declares starts-from. Identity is the first 12 hexadecimal characters of
 git's blob hash of every body byte: stamping never
 changes it. check reports the frontier: contradictions, owner escalations,
 then phases in order up to the target — converge artifacts, review waves, tasks,

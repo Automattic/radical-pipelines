@@ -40,7 +40,6 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; use the model recorded in `run-config.md`'s body.
 - `Execution:` in the Seat is `inspection only` for producers and plan reviewers; `full` for workers and the build and document reviewers. A helper shares its requester's Worktree, Branch, and Execution.
-- A build or document review's fresh **Diff** is every authored change since the base.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
@@ -50,13 +49,13 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 After every agent commit, stamp before anyone consumes the result and before terminating the agent. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every challenge it adjudicated; its record: `rp stamp <record> --mirror`. Each task file of a plan: `rp stamp <task> --mirror`.
-- A review's initial stamp: `rp stamp <review> --reviewed <each package member> --mirror`. A phase review's stamp adds every authored change after the base. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a challenge declares `Origin:` in its body.
+- A review's initial stamp: `rp stamp <review> --reviewed <each package file> --mirror`; add `--base <base branch>` for a phase review, whose stamp adds authored-change members. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a challenge declares `Origin:` in its body.
 - A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. Later stamps preserve that package.
 - Commit the stamps on top of the landing.
 
-## Delta materials
+## Review diffs
 
-A Delta review receives **Your previous review**, **Adjudication** — every record entry written since — and the **Diff** from that review's `head` to `HEAD` over everything the review names: artifact, record, tasks, reports, and pinned inputs. Build and document Diffs are the authored changes the previous review's package lacks.
+A Delta review receives **Your previous review** and **Adjudication** — every record entry written since. An artifact review's **Diff** runs from its previous review's `head` to `HEAD` over its named materials. A phase review's **Diff** contains the authored changes reported by `rp check --json`: all for Fresh; the lane's added and removed members for Delta.
 
 ## Review waves
 
@@ -64,7 +63,7 @@ A wave reviews one artifact at one identity; one wave at a time per artifact; it
 
 1. Freeze: no producer works on the artifact until the wave closes.
 2. The implicit lane runs in the pipeline worktree. Named lanes: create `<pipeline branch>-<phase>-review-<lane>` branches and worktrees at the same commit, one reviewer each, in parallel.
-3. Each reviewer gets its **Brief** and, on a re-review, **Your previous review**, the **Diff** from its `head`, and the **Adjudication**.
+3. Each reviewer gets its **Brief** and materials for its mode.
 4. Land: merge the review-lane branches into the branch the wave runs on (disjoint files, no conflicts), remove their worktrees and branches, stamp every review.
 5. Close: any `rejected` → adjudication; every lane `approved` → done; an `unsatisfiable` with no `rejected` → the claim stands, `rp check` routes it. An approval from a lane means nothing in its brief objects.
 
