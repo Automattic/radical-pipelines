@@ -1,6 +1,6 @@
 # opencode
 
-These mechanics use the Radical Pipelines plugin.
+These mechanics use the Radical Pipelines plugin, whose `rp_` tools are direct tools of your session.
 
 ## Spawn
 
