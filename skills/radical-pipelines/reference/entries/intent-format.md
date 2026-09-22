@@ -9,7 +9,7 @@ At the top of `0-intent/intent.md`, before the title, write these plain machine-
 ```text
 Origin: issue <canonical reference>
 Origin: starts-from <branch>
-Origin: re-attempts <slug>
+Origin: re-attempts <pipeline slug>
 ```
 
 The issue line is required. Add either later line when applicable. The canonical reference follows **Issues**.

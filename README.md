@@ -158,21 +158,22 @@ opencode reports plugin ids, not versions, so RP surfaces its own version:
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": 2`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": 3`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
-| Convention            | What it covers                                                                                     | Required |
-| --------------------- | -------------------------------------------------------------------------------------------------- | -------- |
-| Issues                | Issue storage, operations, and the canonical issue reference                                       | Yes      |
-| Branch naming         | How one issue-derived slug, also used as the pipeline branch name, is named                          | Yes      |
-| Pipelines folder root | Where pipeline folders live                                                                        | No       |
-| Artifact storage      | Whether artifacts live in the project's repository or a fork, and the artifact base branch          | Yes      |
-| Worktree folder root  | Where worktrees live                                                                                | Yes      |
-| Commit format         | How agents write commits                                                                            | No       |
-| PR format             | How pull request titles and descriptions are written                                                | No       |
-| Guardrails            | Rules the project's agents must satisfy                                                             | No       |
-| Lifecycle hooks       | Prose instructions run at defined pipeline moments                                                  | No       |
-| Agents                | Defaults for profile models and named lanes                                                          | No       |
-| Health monitoring     | Health-loop interval and stall threshold                                                             | No       |
+| Convention             | What it covers                                                                             | Required |
+| ---------------------- | ------------------------------------------------------------------------------------------ | -------- |
+| Issues                 | Issue storage, operations, and the canonical issue reference                               | Yes      |
+| Pipeline slug          | How the pipeline's identifier is derived from its issue                                    | Yes      |
+| Pipeline branch format | The pipeline branch as a template over the slug; default the slug itself                   | No       |
+| Pipelines folder root  | Where pipeline folders live                                                                | No       |
+| Artifact storage       | Whether artifacts live in the project's repository or a fork, and the artifact base branch | Yes      |
+| Worktree folder root   | Where worktrees live                                                                       | Yes      |
+| Commit format          | How agents write commits                                                                   | No       |
+| PR format              | How pull request titles and descriptions are written                                       | No       |
+| Guardrails             | Rules the project's agents must satisfy                                                    | No       |
+| Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
+| Agents                 | Defaults for profile models and named lanes                                                | No       |
+| Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 

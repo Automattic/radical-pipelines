@@ -5,7 +5,7 @@ A recurring health loop watches an autonomous run: agents stall, messages get lo
 ## Tick prompt
 
 ```
-Health tick for pipeline <slug> on branch <branch>, worktree <path>: run `reference/conventions/health-monitoring.md` § Each tick.
+Health tick for pipeline <pipeline slug> on branch <pipeline branch>, worktree <path>: run `reference/conventions/health-monitoring.md` § Each tick.
 ```
 
 ## Each tick
