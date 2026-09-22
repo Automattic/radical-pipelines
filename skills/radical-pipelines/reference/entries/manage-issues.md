@@ -9,7 +9,6 @@ The issue is the source of phase-0 intent. Author it using the schema, rendering
 ## Rules
 
 - Every issue operation — reading, creating, modifying, commenting — goes through **Issues**.
-- Write to the tracker only after the owner approves the rendered draft.
 
 ## Steps
 
@@ -31,19 +30,15 @@ Make one open invitation for anything else worth telling later agents — a hard
 
 - Binding must or must-not → **Constraints**.
 - Links, prior decisions, motivation → **Context**.
-- Beliefs about cause, current state, or approach → **Assumptions / directions to explore**.
+- Directions or hypotheses to investigate → **Proposals**.
 
-### 4. Reflect hypotheses as open
-
-When the owner offers a direction or belief, record it under Assumptions and say so plainly: "I'll note that as something to explore, not a requirement; later phases may confirm or correct it." The issue is the owner's best current understanding, not ground truth. Downstream phases must satisfy the intent or surface evidence against a premise, rather than silently substitute another goal.
-
-### 5. Search for related issues
+### 4. Search for related issues
 
 When creating, search through **Issues** for issues related to the draft goal. Present matches with the draft, distinguishing possible duplicates from useful links. The discovery scan (`../run/state.md` § Discovery) annotates each match with its existing pipelines and state. The owner chooses to proceed, modify an existing issue, or link one in Context.
 
-### 6. Draft, confirm, write
+### 5. Write
 
-Render the issue, omitting empty sections, and show it to the owner. On approval, create or modify it through **Issues**.
+Create or modify the issue through **Issues**.
 
 ## Close out
 

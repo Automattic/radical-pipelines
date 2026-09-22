@@ -14,7 +14,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `frontier`                                           | Dispatch                                                                                                       |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
-| `converge <artifact>`                                | Its producer, mode Converge, with what the artifact's line lists: the package change under **Input changes**, the closed wave's reviews under **Review lanes**, every pending challenge under **Corrections** or **Task reports** — for a build or document review's rejection, the phase's plan producer, whose adoptions are corrective tasks |
+| `converge <artifact>`                                | Its producer, mode Converge, with what the artifact's line lists: the package change under **Input changes**, the closed wave's reviews under **Review lanes**, every pending challenge under **Challenges** or **Task reports** — for a build or document review's rejection, the phase's plan producer, whose adoptions are corrective tasks |
 | `stamp <file>`                                       | Its initial package is unrecorded, or its mirrors no longer project its body: § Stamp on landing               |
 | `review wave <artifact>`                             | A review wave                                                                                                  |
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
@@ -77,6 +77,6 @@ A production lane declared in `run-config.md` is a sub-pipeline of one artifact.
 
 ## Owner escalation
 
-A pending claim targets the intent. Fire `escalation-raised`; the run stops through close-out with the dossier: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. When the owner answers, write the answer into `intent.md` as a decision (`../entries/intent-format.md`); `rp stamp` it with `--mirror`; commit.
+A pending claim targets owner territory. Fire `escalation-raised`; the run stops through close-out with the dossier: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. Explain the choice and its consequences in the owner's terms. Record the answer through `../entries/intent-format.md` § Later input; commit, `rp stamp <input> --mirror`, and commit the stamp.
 
-You write no verdict and open no correction on your own initiative.
+You write no verdict and originate no constraint or proposal.

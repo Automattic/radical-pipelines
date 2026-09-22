@@ -27,13 +27,13 @@
 - Spec: <spec.md path>; <spec-research.md path>; <approving spec review paths>
 - design-doc.md: <path>
 - design-doc-research.md: <path>
+- Challenge: <challenge path>; <origin chain: review and record paths>   <!-- one per pending constraint, proposal, or claim -->
+- Task report: <challenge path>; <origin chain: review and record paths>   <!-- one per pending failed report -->
 
 <!-- Converge: additions, each when it applies -->
 - Lane inputs: <one line per consumed lane: artifact path; record path; approving review paths>   <!-- production lanes with `after` -->
 - Input changes: <package change>
 - Review lanes: <one line per review of the closed wave: lane — path>
-- Correction: <challenge path>; <origin chain: review and record paths>   <!-- one per pending correction or claim -->
-- Task report: <challenge path>; <origin chain: review and record paths>   <!-- one per pending failed report -->
 - Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
 
 <!-- Consolidate: additions -->
