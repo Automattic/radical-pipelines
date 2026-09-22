@@ -5,7 +5,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
-> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Follow this file again as at first sight. A run under way resumes its workflow without triage, and before dispatching, checks through your tool's mechanics which agents are already working.
+> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Follow this file again as at first sight, reading anew every file it leads to. A run under way resumes its workflow without triage, and before dispatching, checks through your tool's mechanics which agents are already working.
 
 ## Overview
 
