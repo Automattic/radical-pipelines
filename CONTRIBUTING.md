@@ -16,7 +16,15 @@ Use Node.js 22 or newer.
 npm test
 ```
 
-This runs the `node --test 'scripts/test/**/*.test.mjs'` suite (the `sync-version`, changeset-validator, and version-drift-guard tests, including the end-to-end coverage of the version-sync flow). There is no `lint` or `typecheck` step — this repo has none.
+This runs the `node --test 'scripts/test/**/*.test.mjs'` suite. There is no `lint` or `typecheck` step — this repo has none.
+
+Each CI check has its own script running its slice of that suite:
+
+```bash
+npm run test:rp # the orchestrator core (`scripts/test/rp.test.mjs`)
+npm run test:opencode-unit # the opencode plugin (`scripts/test/opencode/`)
+npm run test:release # the release tooling (changeset validator, version-sync flow, CI workflow)
+```
 
 ### The opencode integration suite
 
@@ -38,15 +46,19 @@ The project has a single version. The source of truth is the root `package.json`
 
 ## Adding a changeset
 
-We use [changesets](https://github.com/changesets/changesets) to manage version bumps and the changelog. A pull request that touches release-relevant files must include a changeset; CI enforces this (see [The changeset gate (CI)](#the-changeset-gate-ci)).
+We use [changesets](https://github.com/changesets/changesets) to manage version bumps and the changelog. A pull request that touches release-relevant files must include a changeset; CI enforces this (see [CI (pull requests)](#ci-pull-requests)).
 
-### The changeset gate (CI)
+### CI (pull requests)
 
-The **Changeset Gate** workflow (`.github/workflows/changeset-gate.yml`) runs on every pull request, whatever its base branch, and runs **three independent checks**. The PR **fails if any check fails**:
+The **CI** workflow (`.github/workflows/ci.yml`) runs on every pull request, whatever its base branch, and runs **four independent checks**. The PR **fails if any check fails**:
 
-1. **Shape** — `node scripts/validate-changesets.mjs` validates every staged `.changeset/*.md` file (rejecting malformed front matter, unknown bump types, and — while pre-1.0 — `major` bumps; see [Pre-1.0 policy](#pre-10-policy)).
-2. **Version drift** — a version-sync guard that asserts the project's version is consistent across all four version-bearing locations: `package.json`, `.claude-plugin/plugin.json`, and `package-lock.json`'s two recorded-version fields (its top-level `version` and the root package's `packages[""].version`). It fails the PR if any of those disagree — for example a hand-edited `package.json`, or a lockfile left frozen at an older version. On failure it reports an actionable message naming the offending file(s) (and, for the lockfile, which field) alongside the conflicting version(s), so you can see exactly what to reconcile. It passes silently when all four agree. The release flow keeps these in sync automatically (see [Versioning policy](#versioning-policy)); this check is the safety net for drift introduced outside that flow.
-3. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is the PR's base branch) fails when a release-relevant change has no changeset.
+1. **changeset** — `npm run test:release` (the unit tests pinning the release tooling), then three gate steps:
+   1. **Shape** — `node scripts/validate-changesets.mjs` validates every staged `.changeset/*.md` file (rejecting malformed front matter, unknown bump types, and — while pre-1.0 — `major` bumps; see [Pre-1.0 policy](#pre-10-policy)).
+   2. **Version drift** — a version-sync guard that asserts the project's version is consistent across all four version-bearing locations: `package.json`, `.claude-plugin/plugin.json`, and `package-lock.json`'s two recorded-version fields (its top-level `version` and the root package's `packages[""].version`). It fails the PR if any of those disagree — for example a hand-edited `package.json`, or a lockfile left frozen at an older version. On failure it reports an actionable message naming the offending file(s) (and, for the lockfile, which field) alongside the conflicting version(s), so you can see exactly what to reconcile. It passes silently when all four agree. The release flow keeps these in sync automatically (see [Versioning policy](#versioning-policy)); this check is the safety net for drift introduced outside that flow.
+   3. **Presence** — `npx changeset status --since=origin/<base>` (where `<base>` is the PR's base branch) fails when a release-relevant change has no changeset.
+2. **rp** — `npm run test:rp`, the orchestrator core unit tests.
+3. **opencode-plugin** — `npm run test:opencode-unit`, the opencode plugin unit tests.
+4. **opencode-integration** — `npm run test:opencode`, the hermetic integration suite against the latest stable opencode release.
 
 The auto-generated `changeset-release/trunk` Version Packages PR is **exempt** (the job-level `if:` condition skips it), so it does not need a changeset of its own. Every other PR — including [Dependabot](#dependency-bump-prs) — is gated normally.
 
@@ -229,10 +241,10 @@ These are the GitHub repository settings the release automation depends on. They
 
 These are optional and are deliberately **not** applied as part of this work (branch protection is a repository setting, not a code change):
 
-- **Branch protection on `trunk`** with required reviews and the Changeset Gate as a **required status check**. If adopted:
+- **Branch protection on `trunk`** with required reviews and the CI checks as **required status checks**. If adopted:
   - Allow `github-actions[bot]` to push `changeset-release/trunk`.
   - Keep human review on the Version Packages PR; prohibit self-approval.
-  - The gate's bot-PR exemption (the job-level `if:` already shipped in `changeset-gate.yml`) becomes mandatory — and it already handles this: a job skipped by a conditional reports its status as **Success**, so the skipped Version-PR gate run does not block the required check. No extra work is needed.
+  - The CI bot-PR exemption (the job-level `if:` already shipped in `ci.yml`) becomes mandatory — and it already handles this: a job skipped by a conditional reports its status as **Success**, so the skipped Version-PR CI run does not block the required checks. No extra work is needed.
 - Optionally, the `@changesets/bot` GitHub App can be installed to leave **non-blocking** educational comments on PRs about changesets. It **complements** the gate; it does not replace it.
 
 ## Local GITHUB_TOKEN
