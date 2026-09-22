@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines.
 // Zero dependencies. Serves the spec in ../reference/run/state.md; everything
-// it does can be done with bare git. Commands: stamp, check.
+// it does can be done with bare git. Commands: stamp, check, diff.
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
@@ -139,7 +140,15 @@ const IDENTITY = /^[0-9a-f]{12}$/;
 const PATCH_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const CHANGE_PREFIX = "authored-change:";
 const changeMember = (patchId, occurrence) => `${CHANGE_PREFIX}${patchId}:${occurrence}`;
-const changePackage = (changes) => new Map(changes.map(({ patchId, occurrence }) => [changeMember(patchId, occurrence), patchId]));
+const changePackage = (changes, checkpoint) => new Map([
+  ...(checkpoint === undefined ? [] : [[CHANGE_CHECKPOINT, checkpoint]]),
+  ...changes.map(({ patchId, occurrence }) => [changeMember(patchId, occurrence), patchId]),
+]);
+const publicChange = ({ commit, patchId, occurrence }) => ({ commit, patchId, occurrence, material: changePath(patchId) });
+const materialReferences = (data) => [...new Set([
+  ...(data.get("changes") ?? []),
+  ...[...(pinPackage(data.get("reviewed"))?.keys() ?? [])].filter((path) => path.startsWith(CHANGE_PREFIX)).map((path) => path.slice(CHANGE_PREFIX.length).split(":")[0]),
+])];
 function packageIdentityValid(path, id) {
   if (!path.startsWith(CHANGE_PREFIX)) return IDENTITY.test(id);
   const occurrence = path.slice(path.lastIndexOf(":") + 1);
@@ -149,7 +158,7 @@ function packageIdentityValid(path, id) {
 function changeDelta(changes, reviewed) {
   const current = changePackage(changes);
   return {
-    added: changes.filter(({ patchId, occurrence }) => !reviewed?.has(changeMember(patchId, occurrence))),
+    added: changes.filter(({ patchId, occurrence }) => !reviewed?.has(changeMember(patchId, occurrence))).map(publicChange),
     removed: [...(reviewed?.keys() ?? [])].filter((path) => path.startsWith(CHANGE_PREFIX) && !current.has(path)),
   };
 }
@@ -166,42 +175,211 @@ function artifactBase(root, tip, intent, baseRef, command) {
   } catch { die(`${command}: no merge-base between ${reference} and ${tip}`); }
 }
 
+const CHANGE_FOLDER = "changes";
+const CHANGE_CHECKPOINT = `${CHANGE_FOLDER}/index.json`;
+const renderCheckpoint = (changes) => `${JSON.stringify(changes.map((change) => change.patchId), null, 2)}\n`;
+const changePath = (patchId) => `${CHANGE_FOLDER}/${patchId}.json`;
+const gitBytes = (root, args, input, env = process.env) => execFileSync("git", args, { cwd: root, input, env, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] });
+const DIFF_OPTIONS = ["-c", "core.quotePath=true", "diff-tree", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--no-relative", "--ignore-submodules=none", "--src-prefix=a/", "--dst-prefix=b/", "--diff-algorithm=myers", "--no-indent-heuristic", "--inter-hunk-context=0", "--binary", "--full-index", "--no-abbrev", "--unified=3", "-r"];
+
+const objectStores = new Map();
+function isolatedGit(root, action) {
+  if (!objectStores.has(root)) objectStores.set(root, {
+    objects: resolve(root, gitBytes(root, ["rev-parse", "--git-path", "objects"]).toString("utf8").trim()),
+    format: gitBytes(root, ["rev-parse", "--show-object-format"]).toString("ascii").trim(),
+  });
+  const { objects, format } = objectStores.get(root);
+  if (!["sha1", "sha256"].includes(format)) throw new Error("unsupported Git object format");
+  const directory = mkdtempSync(join(tmpdir(), "rp-change-"));
+  const env = {
+    ...process.env, GIT_DIR: join(directory, ".git"), GIT_WORK_TREE: directory,
+    GIT_INDEX_FILE: undefined, GIT_COMMON_DIR: undefined, GIT_NAMESPACE: undefined,
+    GIT_OBJECT_DIRECTORY: objects, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null",
+    GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_COUNT: "0", GIT_CONFIG_PARAMETERS: undefined, GIT_ATTR_NOSYSTEM: "1",
+    GIT_AUTHOR_NAME: "RP", GIT_AUTHOR_EMAIL: "rp@example.invalid", GIT_COMMITTER_NAME: "RP", GIT_COMMITTER_EMAIL: "rp@example.invalid",
+  };
+  const git = (args, input) => gitBytes(directory, ["-c", "core.hooksPath=/dev/null", "-c", "init.templateDir=", "-c", "commit.gpgsign=false", ...args], input, env);
+  try {
+    git(["init", "--quiet", `--object-format=${format}`]);
+    return action(git);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+function patchIdentity(root, patch) {
+  const output = gitBytes(root, ["patch-id", "--verbatim"], patch).toString("ascii").trim().split(" ");
+  if (output.length !== 2 || !output.every((oid) => PATCH_ID.test(oid))) throw new Error("invalid patch-id output");
+  return output[0];
+}
+
+// Git's default automatic merge of the same ordered parents, without running hooks.
+function automaticMerge(root, parents) {
+  return isolatedGit(root, (git) => {
+    git(["checkout", "--quiet", "--force", "--detach", parents[0]]);
+    let tree;
+    if (parents.length === 2) {
+      let output;
+      try { output = git(["-c", "merge.conflictStyle=merge", "merge-tree", "--write-tree", ...parents]); }
+      catch (error) {
+        if (error.status !== 1 || !error.stdout) throw error;
+        output = error.stdout;
+      }
+      tree = output.toString("ascii").split("\n")[0];
+    } else {
+      try { git(["merge", "--no-commit", "--no-ff", "--no-edit", ...parents.slice(1)]); }
+      catch (error) { throw new Error(`automatic merge unavailable: ${error.stderr?.toString("utf8").trim() || error.message}`); }
+      tree = git(["write-tree"]).toString("ascii").trim();
+    }
+    if (!PATCH_ID.test(tree)) throw new Error("invalid automatic merge tree");
+    return tree;
+  });
+}
+
+function materialPatch(root, files) {
+  return isolatedGit(root, (git) => {
+    const trees = ["before", "after"].map((side) => {
+      git(["read-tree", "--empty"]);
+      const entries = files.filter((file) => file[side]).map((file) => {
+        const entry = file[side];
+        const oid = entry.mode === "160000" ? entry.oid : git(["hash-object", "-w", "--stdin"], Buffer.from(entry.bytes, "base64")).toString("ascii").trim();
+        if (oid !== entry.oid) throw new Error(`change material blob differs: ${file.path} (${side})`);
+        return `${entry.mode} ${oid}\t${file.path}\0`;
+      }).join("");
+      git(["update-index", "-z", "--index-info"], entries);
+      return git(["write-tree"]).toString("ascii").trim();
+    });
+    git(["read-tree", "--empty"]);
+    return git([...DIFF_OPTIONS, "-p", ...trees]);
+  });
+}
+
+const materialDigest = (payload) => createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+
+function changeMaterial(root, base, commit, pipelinesRoot, parents = []) {
+  const raw = gitBytes(root, [...DIFF_OPTIONS, "--no-patch", "--raw", "-z", ...(base ? [base, commit] : ["--root", commit]), "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
+  if (!raw.length) return null;
+  const records = raw.toString("utf8").split("\0");
+  if (!Buffer.from(raw.toString("utf8")).equals(raw) || records.pop() !== "" || records.length % 2) throw new Error("invalid change paths");
+  const files = [];
+  for (let i = 0; i < records.length; i += 2) {
+    const metadata = records[i].match(/^:(000000|100644|100755|120000|160000) (000000|100644|100755|120000|160000) ([0-9a-f]+) ([0-9a-f]+) [AMDT]$/);
+    if (!metadata || !metadata.slice(3).every((oid) => PATCH_ID.test(oid))) throw new Error("invalid change metadata");
+    const path = records[i + 1];
+    const entry = (mode, oid, before) => {
+      if (mode === "000000") return null;
+      if (mode === "160000") return { mode, oid };
+      let bytes = gitBytes(root, ["cat-file", "blob", oid]);
+      if (before && parents.length > 1) {
+        let text = bytes.toString("latin1");
+        for (const [index, parent] of parents.entries()) text = text.replace(new RegExp(`^(<{7,}|>{7,}) ${parent}$`, "gm"), `$1 parent-${index + 1}`);
+        bytes = Buffer.from(text, "latin1");
+        oid = gitBytes(root, ["hash-object", "-w", "--stdin"], bytes).toString("ascii").trim();
+      }
+      return { mode, oid, bytes: bytes.toString("base64") };
+    };
+    files.push({ path, before: entry(metadata[1], metadata[3], true), after: entry(metadata[2], metadata[4], false) });
+  }
+  const patch = materialPatch(root, files);
+  if (!patch.length) return null;
+  const payload = { patchId: patchIdentity(root, patch), patch: patch.toString("base64"), files, source: { commit, parents, base } };
+  return { ...payload, digest: materialDigest(payload) };
+}
+
 // One authored-change computation serves review packages, deltas, and report landing facts.
 function authoredChanges(base, tip, { root, pipelinesRoot }) {
-  const git = (args, input) => execFileSync("git", args, { cwd: root, input, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] });
   try {
-    const history = git(["rev-list", "--reverse", "--topo-order", "--parents", tip, "--not", base]).toString("ascii").trim();
-    const occurrences = new Map();
+    const history = gitBytes(root, ["rev-list", "--reverse", "--topo-order", "--parents", tip, "--not", base]).toString("ascii").trim();
     return (history ? history.split("\n") : []).flatMap((line) => {
       const [commit, ...parents] = line.split(" ");
       if (![commit, ...parents].every((oid) => PATCH_ID.test(oid))) throw new Error("invalid commit history");
-      if (parents.length > 2) throw new Error(`${commit}: automatic merge requires two parents`);
-      let from = parents[0];
-      if (parents.length === 2) {
-        let merge;
-        try {
-          merge = git(["-c", "merge.conflictStyle=merge", "merge-tree", "--write-tree", ...parents]);
-        } catch (error) {
-          if (error.status !== 1 || !error.stdout) throw error;
-          merge = error.stdout;
-        }
-        from = merge.toString("ascii").split("\n")[0];
-        if (!PATCH_ID.test(from)) throw new Error(`${commit}: invalid automatic merge tree`);
-      }
-      let diff = git(["-c", "core.quotePath=true", "diff-tree", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--no-relative", "--src-prefix=a/", "--dst-prefix=b/", "--diff-algorithm=myers", "--no-indent-heuristic", "--inter-hunk-context=0", "--binary", "--full-index", "--unified=3", "-r", "-p", ...(from ? [from, commit] : ["--root", commit]), "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
-      if (!diff.length) return [];
-      // Conflict-marker labels are parent addresses, not authored bytes.
-      if (parents.length === 2) diff = Buffer.from(diff.toString("latin1")
-        .replace(new RegExp(`^(-<+) ${parents[0]}$`, "gm"), "$1 parent-1")
-        .replace(new RegExp(`^(->+) ${parents[1]}$`, "gm"), "$1 parent-2"), "latin1");
-      const output = git(["patch-id", "--verbatim"], diff).toString("ascii").trim().split(" ");
-      if (output.length !== 2 || !output.every((oid) => PATCH_ID.test(oid))) throw new Error(`${commit}: invalid patch-id output`);
-      const patchId = output[0];
-      const occurrence = (occurrences.get(patchId) ?? 0) + 1;
-      occurrences.set(patchId, occurrence);
-      return [{ commit, patchId, occurrence }];
+      const from = parents.length > 1 ? automaticMerge(root, parents) : parents[0] ?? null;
+      const material = changeMaterial(root, from, commit, pipelinesRoot, parents);
+      return material ? [{ commit, patchId: material.patchId, material }] : [];
     });
   } catch (error) { throw new Error(`authored changes ${base}..${tip}: ${error.message}`); }
+}
+
+function changeStore(root, read) {
+  const cache = new Map();
+  const get = (patchId, required = true) => {
+    if (cache.has(patchId)) return cache.get(patchId);
+    const path = changePath(patchId);
+    const raw = read(path);
+    if (raw === null && !required) return null;
+    try {
+      if (raw === null) throw new Error("missing material");
+      const data = JSON.parse(raw.toString("utf8"));
+      const object = (value, keys) => value && !Array.isArray(value) && typeof value === "object" && Object.keys(value).every((key) => keys.includes(key));
+      const encoded = (value) => typeof value === "string" && Buffer.from(value, "base64").toString("base64") === value;
+      if (!object(data, ["patchId", "patch", "files", "source", "digest"]) || data.patchId !== patchId || !encoded(data.patch) || !Array.isArray(data.files) || !data.files.length) throw new Error("invalid material");
+      if (!object(data.source, ["commit", "parents", "base"]) || !PATCH_ID.test(data.source.commit) || !Array.isArray(data.source.parents) || !data.source.parents.every((oid) => typeof oid === "string" && PATCH_ID.test(oid)) || !(data.source.base === null || (typeof data.source.base === "string" && PATCH_ID.test(data.source.base)))) throw new Error("invalid provenance");
+      const paths = new Set();
+      for (const file of data.files) {
+        if (!object(file, ["path", "before", "after"]) || typeof file.path !== "string" || file.path.includes("\0") || file.path.split("/").some((part) => !part || part === "." || part === "..") || paths.has(file.path) || (!file.before && !file.after)) throw new Error("invalid material path");
+        paths.add(file.path);
+        for (const entry of [file.before, file.after]) {
+          if (entry === null) continue;
+          if (!object(entry, ["mode", "oid", "bytes"]) || !["100644", "100755", "120000", "160000"].includes(entry.mode) || typeof entry.oid !== "string" || !PATCH_ID.test(entry.oid) || (entry.mode === "160000" ? Object.hasOwn(entry, "bytes") : !encoded(entry.bytes))) throw new Error("invalid material entry");
+        }
+      }
+      const payload = { patchId: data.patchId, patch: data.patch, files: data.files, source: data.source };
+      if (data.digest !== materialDigest(payload)) throw new Error("material digest differs");
+      const patch = Buffer.from(data.patch, "base64");
+      if (patchIdentity(root, patch) !== patchId || !materialPatch(root, data.files).equals(patch)) throw new Error("material patch differs");
+      cache.set(patchId, data);
+      return data;
+    } catch (error) { throw new Error(`${path}: ${error.message}`); }
+  };
+  return { get };
+}
+
+function changeCheckpoint(read, path) {
+  const raw = read(path);
+  if (raw === null) return [];
+  try {
+    const ids = JSON.parse(raw.toString("utf8"));
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string" && PATCH_ID.test(id))) throw new Error("expected patch ids");
+    return ids;
+  } catch (error) { throw new Error(`${path}: invalid change checkpoint: ${error.message}`); }
+}
+
+async function currentChanges(root, abs, tip, intent, baseRef, command, read) {
+  const base = artifactBase(root, tip, intent, baseRef, command);
+  const stored = changeStore(root, read);
+  for (const id of changeCheckpoint(read, CHANGE_CHECKPOINT)) stored.get(id);
+  const history = await treeReader(root, join(abs, CHANGE_FOLDER), base, true);
+  const historyRead = (path) => history?.read(path, true) ?? null;
+  const historyStore = changeStore(root, (path) => historyRead(path.slice(CHANGE_FOLDER.length + 1)));
+  const retained = changeCheckpoint(historyRead, "index.json").map((patchId) => {
+    const material = historyStore.get(patchId);
+    if (stored.get(patchId).digest !== material.digest) throw new Error(`${changePath(patchId)}: retained material changed`);
+    return { commit: material.source.commit, patchId, material };
+  });
+  const live = authoredChanges(base, tip, { root, pipelinesRoot: relative(root, dirname(abs)) || "." });
+  const occurrences = new Map();
+  const changes = [...retained, ...live].map((change) => {
+    const occurrence = (occurrences.get(change.patchId) ?? 0) + 1;
+    occurrences.set(change.patchId, occurrence);
+    return { ...change, material: stored.get(change.patchId, false) ?? change.material, occurrence };
+  });
+  return { base, changes, stored };
+}
+
+function recordChanges(root, abs, changes, checkpoint = false) {
+  const stored = changeStore(root, (path) => {
+    const file = containedPath("stamp", root, join(abs, path));
+    return existsSync(file) ? readFileSync(file) : null;
+  });
+  for (const change of changes) {
+    const path = containedPath("stamp", root, join(abs, changePath(change.patchId)));
+    if (stored.get(change.patchId, false)) continue;
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, `${JSON.stringify(change.material, null, 2)}\n`, { flag: "wx" });
+  }
+  if (checkpoint) {
+    const path = containedPath("stamp", root, join(abs, CHANGE_CHECKPOINT));
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, renderCheckpoint(changes));
+  }
 }
 const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
 let REPORT, reportOf; // `<phase>/tasks/<task id>-report-<k>.md`, defined with the id vocabulary below.
@@ -412,7 +590,7 @@ function equalPackages(a, b, differences = null) {
 
 const packagePins = (p) => [...p].map(([path, sha]) => `${path}@${sha}`);
 const projectPackage = (p, paths) => p && new Map(paths.map((path) => [path, p.get(path)]));
-const reviewProjection = (p, paths) => paths === null ? p : p && new Map([...projectPackage(p, paths), ...[...p].filter(([path]) => path.startsWith(CHANGE_PREFIX))]);
+const reviewProjection = (p, paths) => paths === null ? p : p && new Map([...projectPackage(p, paths), ...[...p].filter(([path]) => path === CHANGE_CHECKPOINT || path.startsWith(CHANGE_PREFIX))]);
 const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
 
 function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks = [], reports = [], changes = []) {
@@ -420,7 +598,7 @@ function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks =
   const record = scope ? `${scope}${basename(art.record)}` : art.record;
   const inputs = new Map([...consumed].filter(([path]) => path !== record));
   const members = reviewPackageMembers(art, prefix, scope, [...new Set([...inputs.keys(), ...art.requires])], tasks, reports);
-  return new Map([...members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]), ...(prefix === art.review ? changePackage(changes) : [])]);
+  return new Map([...members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]), ...(prefix === art.review ? changePackage(changes, identityOf(CHANGE_CHECKPOINT)) : [])]);
 }
 
 const reviewLanesFor = (configuration, prefix) => [{ id: "", fingerprint: null, materials: null }, ...(configuration.decl[prefix]?.review ?? [])];
@@ -930,7 +1108,7 @@ function mirrorBody(body, fm, rel, identityOf) {
   else fm.set("target-identity", p.get("target").map((target) => previous.get(target) || identityOf(target.split("#")[0]) || ""));
 }
 
-function cmdStamp(args) {
+async function cmdStamp(args) {
   const file = args._[0] || die("stamp: missing <file>");
   const { root, abs } = repositoryFor(file);
   if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
@@ -961,6 +1139,12 @@ function cmdStamp(args) {
   const role = pipelineFileRole(rel);
   const phaseReview = role.review?.prefix === role.art?.review && Boolean(role.review);
   const changeContext = { root, pipelinesRoot: relative(root, dirname(base)) || "." };
+  const readChanges = (path) => {
+    const file = containedPath("stamp", root, join(base, path));
+    return existsSync(file) ? readFileSync(file) : null;
+  };
+  const materials = [];
+  let checkpoint = null;
   const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
   const siblingRecord = artifact ? `${relParts.slice(0, -1).join("/")}/${basename(artifact.record)}` : null;
 
@@ -1023,8 +1207,13 @@ function cmdStamp(args) {
   }
   if (args.reviewed.length) {
     if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
-    const changes = phaseReview ? authoredChanges(artifactBase(root, "HEAD", readAt("0-intent/intent.md")?.data, args.base, "stamp"), "HEAD", changeContext) : [];
-    const reviewed = [...pinList(args.reviewed), ...packagePins(changePackage(changes))];
+    const changes = phaseReview ? (await currentChanges(root, base, "HEAD", readAt("0-intent/intent.md")?.data, args.base, "stamp", readChanges)).changes : [];
+    if (phaseReview) {
+      materials.push(...changes);
+      checkpoint = changes;
+    }
+    const checkpointIdentity = phaseReview ? identity(renderCheckpoint(changes)) : undefined;
+    const reviewed = [...pinList(args.reviewed), ...packagePins(changePackage(changes, checkpointIdentity))];
     const review = reviewArtifact(rel);
     if (review && rel.startsWith(`${review.art.phase}/`) && !review.lane) {
       const scope = rel.split("/").length === 3 ? `${dirname(rel)}/` : "";
@@ -1038,7 +1227,7 @@ function cmdStamp(args) {
       const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
       const tasks = names.filter((name) => planOf(review.art.phase) && taskFile(planOf(review.art.phase)).test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
       const reports = names.filter((name) => reportOf(`${review.art.phase}/tasks/${name}`)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports, changes);
+      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => path === CHANGE_CHECKPOINT && phaseReview ? checkpointIdentity : readAt(path)?.identity ?? null, tasks, reports, changes);
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
     }
     fm.set("reviewed", reviewed);
@@ -1098,7 +1287,11 @@ function cmdStamp(args) {
       }
     });
     fm.set("commits", canonical);
-    if (report) fm.set("changes", canonical.flatMap((commit) => authoredChanges(`${commit}^@`, commit, changeContext).map(({ patchId }) => patchId)));
+    if (report) {
+      const observed = canonical.flatMap((commit) => authoredChanges(`${commit}^@`, commit, changeContext));
+      materials.push(...observed);
+      fm.set("changes", observed.map(({ patchId }) => patchId));
+    }
   } else if (report) fm.delete("changes");
   if (report) {
     fm.set("attempt", report[3]);
@@ -1122,6 +1315,10 @@ function cmdStamp(args) {
     return;
   }
 
+  const stored = changeStore(root, readChanges);
+  for (const id of materialReferences(fm))
+    if (!stored.get(id, false) && !materials.some((change) => change.patchId === id)) throw new Error(`${changePath(id)}: missing material`);
+  recordChanges(root, base, materials, checkpoint !== null);
   writeFileSync(abs, renderFrontmatter(fm, body));
   process.stdout.write(`stamped ${relative(root, abs)}\n`);
 }
@@ -1188,7 +1385,7 @@ function gitStream(root, args, input) {
 }
 
 // A tree to read the pipeline from: the working tree, or a ref (`--ref`).
-async function treeReader(root, abs, ref) {
+async function treeReader(root, abs, ref, optional = false) {
   const pipelineRel = relative(root, abs);
   if (!ref) {
     let entries;
@@ -1231,6 +1428,7 @@ async function treeReader(root, abs, ref) {
     await listing.finished;
     throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
   }
+  if (!entries.length && optional) return null;
   const contents = new Map();
   const reader = indexedTreeReader(entries, ({ rel }) => contents.get(rel), `${ref}:${pipelineRel}`);
   const regular = entries.filter((e) => e.type === "blob");
@@ -1532,10 +1730,12 @@ async function cmdCheck(args) {
 
   // Facts about branch commits require a valid representation and a real merge-base.
   const tip = ref ?? rev("HEAD", "HEAD");
-  const base = artifactBase(root, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check");
-  changes = authoredChanges(base, tip, { root, pipelinesRoot: dirname(pipelineRel) || "." });
+  const authored = await currentChanges(root, abs, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check", (path) => tree.read(path, true));
+  const base = authored.base;
+  changes = authored.changes;
+  for (const doc of all) for (const id of materialReferences(doc.data)) authored.stored.get(id);
   out.base = base.slice(0, SHORT);
-  out.authoredChanges = changes;
+  out.authoredChanges = changes.map(publicChange);
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath.startsWith("0-intent/") || phaseOfTarget(targetPath) <= configuration.targetPhase;
   const inputStateOf = (doc, art, sc, fingerprint = null) => {
@@ -1822,11 +2022,86 @@ async function cmdCheck(args) {
   process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
 }
 
+function physicalPath(path) {
+  let parent = path;
+  while (!existsSync(parent)) parent = dirname(parent);
+  return resolve(realpathSync(parent), relative(parent, path));
+}
+
+// Read-only review material; derived files are written only to an explicit output directory.
+async function cmdDiff(args) {
+  const folder = args._[0] || die("diff: missing <pipeline-folder>");
+  if (args.review && args.liveNet) die("diff: --review and --live-net select different diffs");
+  const { root, abs } = repositoryFor(folder);
+  containedPath("diff", root, abs);
+  pipelineSlugOf(abs);
+  const tip = gitBytes(root, ["rev-parse", "--verify", `${args.ref ?? "HEAD"}^{commit}`]).toString("ascii").trim();
+  const tree = await treeReader(root, abs, args.ref ? tip : null);
+  const raw = tree.read("0-intent/intent.md");
+  const intent = raw === null ? { data: null } : parseFrontmatter(raw);
+  if (intent.error || (intent.data && mirrorDrift(intent.data, intent.body, "0-intent/intent.md").length)) die("diff: intent must have valid current frontmatter");
+  const state = await currentChanges(root, abs, tip, intent.data, args.base, "diff", (path) => tree.read(path, true));
+  let selected = state.changes.map((change) => ({ ...change, status: "added" }));
+  if (args.review) {
+    const file = containedPath("diff", root, resolve(root, args.review));
+    const path = relative(abs, file);
+    if (path.startsWith("../") || isAbsolute(path)) die("diff: review must be inside the pipeline");
+    const role = pipelineFileRole(path);
+    const text = tree.read(path);
+    const review = text === null ? null : parseFrontmatter(text);
+    const reviewed = pinPackage(review?.data?.get("reviewed"));
+    if (role.scope || !role.review || role.review.prefix !== role.art.review || !reviewed || !VERDICTS.has(review.data.get("verdict")) || mirrorDrift(review.data, review.body, path).length) die(`diff: invalid phase review: ${path}`);
+    for (const id of materialReferences(review.data)) state.stored.get(id);
+    const delta = changeDelta(state.changes, reviewed);
+    const added = new Set(delta.added.map(({ patchId, occurrence }) => changeMember(patchId, occurrence)));
+    selected = [
+      ...state.changes.filter(({ patchId, occurrence }) => added.has(changeMember(patchId, occurrence))).map((change) => ({ ...change, status: "added" })),
+      ...delta.removed.map((member) => {
+        const [patchId, number] = member.slice(CHANGE_PREFIX.length).split(":");
+        const material = state.stored.get(patchId);
+        return { commit: material.source.commit, patchId, occurrence: Number(number), material, status: "removed" };
+      }),
+    ];
+  } else if (args.liveNet) {
+    const material = changeMaterial(root, state.base, tip, relative(root, dirname(abs)) || ".");
+    selected = material ? [{ commit: tip, patchId: material.patchId, occurrence: 1, material, status: "net" }] : [];
+  }
+  const rows = selected.map((change) => ({ ...publicChange(change), member: changeMember(change.patchId, change.occurrence), status: change.status, content: change.material }));
+  const patches = rows.map((row) => Buffer.concat([
+    ...(args.liveNet ? [] : [Buffer.from(`# ${row.status} ${row.member}\n`)]),
+    Buffer.from(row.content.patch, "base64"),
+  ]));
+  if (args.output) {
+    const output = physicalPath(resolve(args.output));
+    const pipeline = physicalPath(abs);
+    if (output === pipeline || output.startsWith(`${pipeline}/`)) die("diff: output must be outside the pipeline");
+    if (existsSync(output)) die(`diff: output already exists: ${output}`);
+    mkdirSync(output, { recursive: true });
+    for (const [index, row] of rows.entries()) {
+      const directory = join(output, String(index + 1));
+      mkdirSync(directory);
+      writeFileSync(join(directory, "change.json"), `${JSON.stringify(row.content, null, 2)}\n`);
+      writeFileSync(join(directory, "change.patch"), Buffer.from(row.content.patch, "base64"));
+      for (const file of row.content.files) for (const side of ["before", "after"]) {
+        const entry = file[side];
+        if (!entry) continue;
+        const path = join(directory, side, file.path);
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, entry.mode === "160000" ? `${entry.oid}\n` : Buffer.from(entry.bytes, "base64"), { mode: entry.mode === "100755" ? 0o755 : 0o644 });
+      }
+    }
+    writeFileSync(join(output, "diff.patch"), Buffer.concat(patches));
+    writeFileSync(join(output, "index.json"), `${JSON.stringify(rows.map(({ content, ...row }, index) => ({ ...row, material: `${index + 1}/change.json`, source: content.source })), null, 2)}\n`);
+  }
+  process.stdout.write(args.json ? `${JSON.stringify(rows, null, 2)}\n` : Buffer.concat(patches));
+}
+
 // --- cli --------------------------------------------------------------------
 
 const COMMAND_OPTIONS = {
   stamp: new Set(["--pin", "--reviewed", "--mirror", "--base"]),
   check: new Set(["--json", "--ref", "--base"]),
+  diff: new Set(["--json", "--ref", "--base", "--review", "--live-net", "--output"]),
 };
 
 function parseArgs(command, argv) {
@@ -1845,6 +2120,9 @@ function parseArgs(command, argv) {
     else if (a === "--json") args.json = true;
     else if (a === "--ref") args.ref = value();
     else if (a === "--base") args.base = value();
+    else if (a === "--review") args.review = value();
+    else if (a === "--live-net") args.liveNet = true;
+    else if (a === "--output") args.output = value();
     else if (a.startsWith("--")) die(`unknown option: ${a}`);
     else args._.push(a);
   }
@@ -1861,6 +2139,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror] [--base <ref>]
   node rp.mjs check <pipeline-folder> --base <ref> [--ref <branch>] [--json]
+  node rp.mjs diff <pipeline-folder> --base <ref> [--ref <branch>] [--review <file> | --live-net] [--output <folder>] [--json]
 
 stamp writes frontmatter: pins, review pins (immutable), the lane derived from
 the path and run-config.md, --mirror copies of body declarations (Verdict, Brief, Target,
@@ -1876,6 +2155,10 @@ pipeline's own commits follow its merge-base with the inspected ref, or with the
 branch the intent starts-from when it declares one. run-config.md supplies the
 workflow, target phase, and named lanes. Each named lane's fingerprint derives
 from its id, brief, materials, and after fields.
+diff renders authored-change material; --review selects added and removed members,
+--live-net selects the net change from the base. --output writes patches and both
+sides of changed files outside the pipeline. Stamps retain change material and
+phase reviews record the checkpoint inherited by a continuation from the base.
 Spec: ../reference/run/state.md
 `,
     );
@@ -1887,11 +2170,15 @@ Spec: ../reference/run/state.md
     const args = parseArgs(cmd, rest);
   switch (cmd) {
     case "stamp":
-      try { cmdStamp(args); }
+      try { await cmdStamp(args); }
       catch (error) { die(error.message); }
       break;
     case "check":
       try { await cmdCheck(args); }
+      catch (error) { die(error.message); }
+      break;
+    case "diff":
+      try { await cmdDiff(args); }
       catch (error) { die(error.message); }
       break;
   }

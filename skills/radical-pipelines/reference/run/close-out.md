@@ -28,7 +28,7 @@ When the pull request already exists, update its description the same way.
 Consult the **Artifact storage** convention for the remotes and the upstream branch and commit formats, then:
 
 1. Generate a clean branch name for `upstream` from the upstream branch format — separate from the fork branch — and create the branch at `upstream`'s main branch.
-2. Reproduce, oldest first, the pipeline's authored changes after its base (`state.md`), committing in the upstream format.
+2. Apply `rp diff <pipeline folder> --base <base branch> --live-net` to the clean branch, reconcile with upstream, and commit in the upstream format.
 3. Push the clean branch directly to `upstream`.
 4. Open the pull request in `upstream` from that clean branch. Its source branch lives in `upstream`, not in the fork — viewers of the pull request never see the fork.
 

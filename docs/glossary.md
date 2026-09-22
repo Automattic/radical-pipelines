@@ -3,10 +3,10 @@
 The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined here: no synonyms or alternate notation.
 
 - **Agents** — The project convention supplying defaults for profile models and named lanes.
-- **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: the branch pipelines start from, merge into, and count their own commits after.
+- **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: where pipelines start and merge.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable assumption id and stays in the open-assumption register until verified or fallen.
 - **Authored change** — What a commit introduces outside the pipelines folder: a single-parent commit's diff, or a merge commit's difference from the automatic merge of its parents; identified by its patch id.
-- **Base** — The commit a pipeline's own commits follow: the merge-base of its branch with the branch its intent `starts-from`, else with the artifact base branch (`rp check --base`).
+- **Base** — The merge-base of the inspected tip with the branch its intent `starts-from`, else with the artifact base branch (`rp check --base`).
 - **Blocker** — A report of malformed materials, unreadable input, or a broken environment. A worker reports it before its first write; a producer or reviewer may report it whenever found.
 - **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
 - **Challenge** — A constraint file, proposal file, `unsatisfiable` verdict, or fresh failed task report asking for work on its targets; adjudicated on a target when that target pins it, resolved there by its current approving wave or a corroborated escalation. Resolution is per target; the whole challenge resolves when every target does. An owner claim is resolved by its owner's answer.
@@ -38,7 +38,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Owner territory** — The intent's Goal and constraints, and later constraint files: what the work must satisfy.
 - **Phase** — One pipeline stage: Intent, Spec, Design doc, Build, or Document.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
-- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope challenge and claim is resolved, and every authored change after its base is covered by its phase review.
+- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope challenge and claim is resolved, and every current authored change is covered by its phase review.
 - **Pipeline branch** — The branch a pipeline's commits land on: the **Pipeline branch format** convention applied to its slug, with `_<n>` appended for work on the pipeline once merged. Lane branches extend it.
 - **Pipeline branch format** — The project convention giving the pipeline branch as a template over `<pipeline slug>`, defaulting to the slug itself.
 - **Pipeline slug** — The project convention deriving a pipeline's identifier from its issue, and that identifier: one path segment, a valid git ref, without `_`, naming the pipeline folder.
@@ -49,7 +49,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Run configuration** — The workflow, target phase, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
 - **Seating** — Starting a spawned agent inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
-- **Shipped code** — The code, tests, and inline API documentation the build phase committed on the pipeline branch.
+- **Shipped code** — The code, tests, and inline API documentation covered by the build review on the pipeline branch.
 - **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
 - **Target** — What a challenge addresses: an artifact clause or constraint file for a claim; its task for a failed report; one or more phase artifacts, whole or by clause, for a constraint or proposal.

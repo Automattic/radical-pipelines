@@ -27,7 +27,7 @@
 - Pinned inputs: <one line per file pinned by document-plan.md: path>   <!-- current approving input reviews, adjudicated challenges, production-lane inputs -->
 - Challenge: <challenge path>; <origin chain paths>   <!-- when this wave judges one -->
 - Task report: <report path>; <its task file path>   <!-- when this wave judges one -->
-- Diff: <authored changes for this mode>
+- Diff: <diff.patch path>; <index.json path>; <materialized file paths>
 
 <!-- Delta: the Fresh materials, plus -->
 - Your previous review: <path>
