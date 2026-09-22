@@ -23,7 +23,7 @@
 - Tasks: <one line per task file: path>
 - build-plan-research.md: <path>
 - Pinned inputs: <one line per file pinned by build-plan.md: path>   <!-- current approving input reviews, adjudicated challenges, production-lane inputs -->
-- Correction: <challenge path>; <origin chain paths>   <!-- when this wave judges one -->
+- Challenge: <challenge path>; <origin chain paths>   <!-- when this wave judges one -->
 - Task report: <report path>; <its task file path>   <!-- when this wave judges one -->
 
 <!-- Delta: the Fresh materials plus -->

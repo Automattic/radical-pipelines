@@ -15,10 +15,11 @@ flowchart TD
     F -->|No| APPROVED["The artifact is approved"]
     D -->|Unsatisfiable and no rejection| G["Pending claim"]
     G --> H{"Target in owner territory?"}
-    H -->|Yes| I["Pause the pipeline and assemble the dossier"]
+    H -->|Yes| I["Close-out and assemble the dossier"]
     I --> J["Give the owner the claim, evidence chain, and options"]
-    J --> K["Write the answer into intent.md as a decision; stamp and commit"]
-    K --> CHANGED["The target identity changes"]
+    J --> K["Present the synthesized answer for approval; record a constraint citing the claim; stamp and commit"]
+    K --> ANSWERED["The owner claim is answered; the new constraint is pending on its targets"]
+    ANSWERED --> N
     H -->|No| N["Dispatch the target producer: Converge"]
     N --> O{"Producer disposition"}
     O -->|Adopt| P["Change the target"]
@@ -28,6 +29,5 @@ flowchart TD
     Q --> S
     R --> S
     S --> A
-    RESOLVED --> CASCADE
-    CHANGED --> CASCADE["Converge stale downstream artifacts"]
+    RESOLVED --> CASCADE["Converge stale downstream artifacts"]
 ```

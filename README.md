@@ -24,7 +24,7 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 
 The phases are:
 
-- **Phase 0. Intent.** The initial request and any corrections.
+- **Phase 0. Intent.** The initial request, binding constraints, and proposals to investigate.
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
 - **Phase 3. Build.** The build plan and its tasks, the code with the unit and end-to-end tests the tasks call for, and behavior verification.
@@ -32,11 +32,13 @@ The phases are:
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
-In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every commit the pipeline made outside the pipelines folder root is claimed by a task report. State is computed from the tree, and corrections target the artifacts their request contradicts — the build plan for observed product behavior, the document plan for documentation, a named clause for a requirement or decision — each adjudicating its part while the changed identities make downstream pins stale and drive a cascade. Requirements cover the cases the intent makes material; a design mechanism is proportionate to that, and the case it leaves uncovered is recorded with its consequence and judged by it. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — the product was not observed and the report names what prevented it, for the orchestrator to restore before the next attempt.
+In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every commit the pipeline made outside the pipelines folder root is claimed by a task report. State is computed from the tree. Later input is recorded in phase 0 as one `constraint-<n>.md` per binding ruling or `proposal-<n>.md` per request to investigate, each with `Target:` and `Origin:`. Proposals may be adopted or refuted with evidence; constraints must be satisfied. The earliest target is handled first, and each target resolves its part through consumption and an approving review wave. A Build input therefore starts at Build; changed artifact identities drive the normal downstream cascade. Requirements cover the cases the intent makes material; a design mechanism is proportionate to that, and the case it leaves uncovered is recorded with its consequence and judged by it. An unsatisfiable input travels as a claim to its target; only the intent's Goal and constraints, including constraint files, require the owner's ruling. A constraint citing an owner claim answers it and returns work to the artifact that raised it. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — the product was not observed and the report names what prevented it, for the orchestrator to restore before the next attempt.
+
+Every orchestrator synthesis of incoming work is shown to the owner as it will be recorded, in plain language, explaining what is binding, what remains open to investigation, and what it affects. The owner approves that synthesis before it is written, including input from pull-request reviews and CI. An issue already in intent format, with no comments, references, links, or attachments to synthesize, is copied directly. Approving a proposal authorizes investigation, not its proposed outcome.
 
 The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow. Each pipeline records its workflow, target phase, and lanes in `run-config.md`; the file remains with the merged pipeline.
 
-The pipeline is **autonomous by default, assisted when needed.** After triage, an autonomous run proceeds without questions until an owner escalation. The Spec and Design doc phases can instead run in assisted mode.
+The pipeline is **autonomous by default, assisted when needed.** After triage, questions are reserved for owner escalations and approval of incoming work. The Spec and Design doc phases can instead run in assisted mode.
 
 It is **inspectable.** Every phase produces artifacts your team can review before the final PR.
 
@@ -45,7 +47,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 ## What this unlocks
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
-- **Compounding quality.** When a pipeline produces a bad result, the correction targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
+- **Compounding quality.** When a pipeline produces a bad result, incoming work targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
 - **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 

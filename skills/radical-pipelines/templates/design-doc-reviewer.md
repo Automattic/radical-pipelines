@@ -21,7 +21,7 @@
 - design-doc-research.md: <path>
 - Spec record: <spec-research.md path>
 - Pinned inputs: <one line per file design-doc.md pins: intent, spec.md, current approving spec reviews, adjudicated challenges, lane inputs, consolidation candidates>
-- Correction: <challenge path>   <!-- when this wave adjudicates a correction -->
+- Challenge: <challenge path>   <!-- when this wave adjudicates one -->
 - Task report: <challenge path>   <!-- when this wave adjudicates a failed task report -->
 
 <!-- Consolidation: additions -->
