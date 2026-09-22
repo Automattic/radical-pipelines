@@ -106,17 +106,6 @@ export async function run(ctx) {
     assert.doesNotMatch(roleText(await plainTurn(server, stub, sessionID), "system"), /context was checkpointed/);
   });
 
-  await runCheck(results, "skill re-supply: rp_status lists the session with its activated skill", async () => {
-    const status = await driveToolCall(server, sessionID, "rp_status", {});
-    assert.equal(status.error, undefined, `rp_status failed: ${status.error?.message}`);
-    const activations = status.structuredJSON?.skillActivations ?? [];
-    assert.deepEqual(
-      activations.find((entry) => entry.sessionID === sessionID),
-      { sessionID, skills: ["radical-pipelines"] },
-      `expected ${sessionID} among ${JSON.stringify(activations)}`,
-    );
-  });
-
   await runCheck(results, "skill re-supply: a skill attached to the prompt is an activation too", async () => {
     const session = await createSession(server, {
       agent: "build",

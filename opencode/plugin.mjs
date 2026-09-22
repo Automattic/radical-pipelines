@@ -94,7 +94,7 @@ const LEDGER_KEY = Symbol.for("radical-pipelines.opencode.ledger");
  * Fetch the process-wide spawn ledger, creating it on first use.
  *
  * @returns {{
- *   bySessionID: Map<string, { name: string, run: string, spawner: string, directory?: string, repoRoot?: string | null }>,
+ *   bySessionID: Map<string, { name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }>,
  *   currentByName: Map<string, string>,
  * }} The singleton ledger. `bySessionID` holds every recorded spawn keyed by
  *   session ID, so any session ID that was ever recorded stays individually
@@ -120,8 +120,8 @@ function getLedger() {
  * `lookupSpawn`).
  *
  * @param {string} sessionID The session ID opencode assigned to the spawn.
- * @param {{ name: string, run: string, spawner: string, directory?: string, repoRoot?: string | null }} entry
- *   The spawned instance's run-unique name, the run it belongs to, the
+ * @param {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }} entry
+ *   The spawned instance's pipeline-unique name, the slug of the pipeline it belongs to, the
  *   session ID of the agent that spawned it, the directory the session is
  *   seated in, and the root of the repository containing that seat (`null`
  *   when it could not be resolved).
@@ -137,7 +137,7 @@ function recordSpawn(sessionID, entry) {
  * Look up a recorded spawn by its session ID.
  *
  * @param {string} sessionID The session ID to look up.
- * @returns {{ name: string, run: string, spawner: string, directory?: string, repoRoot?: string | null } | undefined}
+ * @returns {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null } | undefined}
  *   The entry recorded for `sessionID`, or `undefined` if no spawn was ever
  *   recorded under that session ID.
  */
@@ -151,8 +151,8 @@ function lookupSpawn(sessionID) {
  * When multiple spawns have shared the same `name` (a re-spawn), this
  * returns the most recently recorded one.
  *
- * @param {string} name The run-unique instance name to resolve.
- * @returns {{ sessionID: string, name: string, run: string, spawner: string } | undefined}
+ * @param {string} name The pipeline-unique instance name to resolve.
+ * @returns {{ sessionID: string, name: string, pipelineSlug: string, spawner: string } | undefined}
  *   The current entry for `name` (including its session ID), or `undefined`
  *   if no spawn has ever been recorded under that name.
  */
@@ -528,24 +528,48 @@ function appendSpawnProtocol(prompt, spawnerID) {
 const TITLE_PREFIX = "rp:";
 
 /**
- * Format the durable session title used to reconstruct ledger state.
+ * Reject a value that is not a pipeline slug: one path segment, a valid git
+ * ref, without `_`. A valid ref carries no `:`, so the durable title's
+ * separator is safe.
  *
- * The title is asserted onto the session (surviving daemon restarts) so the
- * ledger can be rebuilt from `run` and `name` alone.
- *
- * @param {{ run: string, name: string }} identity The run identifier and the
- *   run-unique instance name.
- * @returns {string} The title, formatted as `"rp:<run>:<name>"`.
+ * @param {*} slug The `pipeline_slug` argument to check.
+ * @param {typeof execFileSync} [exec] Runs `git check-ref-format`; defaults to
+ *   `child_process.execFileSync`.
+ * @returns {void}
  */
-function formatTitle({ run, name }) {
-  return `${TITLE_PREFIX}${run}:${name}`;
+function assertPipelineSlug(slug, exec = execFileSync) {
+  const validRef = () => {
+    try {
+      exec("git", ["check-ref-format", "--branch", slug], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (typeof slug !== "string" || slug.length === 0 || slug.includes("/") || slug.includes("_") || !validRef()) {
+    throw new Error(`Invalid pipeline slug ${JSON.stringify(slug)}: one path segment, a valid git ref, without "_"`);
+  }
 }
 
 /**
- * Parse a durable session title back into its run and instance name.
+ * Format the durable session title used to reconstruct ledger state.
+ *
+ * The title is asserted onto the session (surviving daemon restarts) so the
+ * ledger can be rebuilt from `pipelineSlug` and `name` alone.
+ *
+ * @param {{ pipelineSlug: string, name: string }} identity The pipeline slug and the
+ *   pipeline-unique instance name.
+ * @returns {string} The title, formatted as `"rp:<pipeline slug>:<name>"`.
+ */
+function formatTitle({ pipelineSlug, name }) {
+  return `${TITLE_PREFIX}${pipelineSlug}:${name}`;
+}
+
+/**
+ * Parse a durable session title back into its pipeline slug and instance name.
  *
  * @param {string} title The session title to parse.
- * @returns {{ run: string, name: string } | undefined} The parsed `{ run,
+ * @returns {{ pipelineSlug: string, name: string } | undefined} The parsed `{ pipelineSlug,
  *   name }`, or `undefined` when `title` lacks the `rp:` prefix.
  */
 function parseTitle(title) {
@@ -558,7 +582,7 @@ function parseTitle(title) {
     return undefined;
   }
   return {
-    run: rest.slice(0, separatorIndex),
+    pipelineSlug: rest.slice(0, separatorIndex),
     name: rest.slice(separatorIndex + 1),
   };
 }
@@ -1906,11 +1930,11 @@ async function interruptSession(server, sessionID, requestFn) {
  *
  * @param {{ id: string, title?: string }} record A session record
  *   (`GET /api/session`).
- * @param {(sessionID: string) => { name: string, run: string, spawner: string } | undefined} lookup
+ * @param {(sessionID: string) => { name: string, pipelineSlug: string, spawner: string } | undefined} lookup
  *   Resolves a session ID to its recorded ledger entry (see `lookupSpawn`).
  *   A record whose ID isn't found this way falls back to `parseTitle` on its
  *   `title`, so restart-surviving sessions are still recognized.
- * @returns {{ name: string, run: string, spawner?: string } | null | undefined}
+ * @returns {{ name: string, pipelineSlug: string, spawner?: string } | null | undefined}
  *   The entry, or nothing when the record is neither in the ledger nor
  *   `rp:`-titled.
  */
@@ -1997,8 +2021,9 @@ function latestOf(first, ...rest) {
  * the plugin's own in-memory spawn ledger.
  *
  * @param {Array<{ id: string, agent: string, model: object, location?: {directory: string}, time?: {updated: *}, title?: string }>} sessionRecords
- *   Every session opencode currently knows about (`GET /api/session`).
- * @param {(sessionID: string) => { name: string, run: string, spawner: string } | undefined} lookup
+ *   The session records to report (`GET /api/session`, already narrowed to
+ *   the status call's scope).
+ * @param {(sessionID: string) => { name: string, pipelineSlug: string, spawner: string } | undefined} lookup
  *   Resolves a session ID to its recorded ledger entry (see
  *   `recognizeSession`).
  * @param {Set<string> | null} activeSessionIDs Session IDs opencode reports
@@ -2015,11 +2040,11 @@ function latestOf(first, ...rest) {
  *   rawProgressAtFor?: (sessionID: string) => number | undefined,
  *   turnsFor?: (sessionID: string) => { turns: number, lastTurn: object } | undefined,
  *   lastSendFor?: (sessionID: string) => { at: number, to: string } | undefined,
- *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  * }} [observations] Resolvers for the plugin's own per-session observations
  *   (see `lastSessionEventAt`, `lastRawSessionProgressAt`, `turnsFor`,
  *   `lastSendFor`, `extractLastText`); each defaults to none.
- * @returns {Array<{name: string, run: string, sessionID: string, agent: string, model: string, directory: string, updated: *, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, turns: number | undefined, lastSend: object | undefined, lastText: object | undefined}>}
+ * @returns {Array<{name: string, pipelineSlug: string, sessionID: string, agent: string, model: string, directory: string, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, lastSend: object | undefined, lastText: object | null | undefined}>}
  *   One row per session record RP recognizes as its own, in `sessionRecords`
  *   order; records RP does not recognize (neither ledger nor `rp:` title)
  *   are omitted. `activity` is the latest of the record's `updated` — which
@@ -2050,22 +2075,19 @@ function buildLedgerRows(
       continue;
     }
     const updated = record.time?.updated;
-    const turnRecord = turnsForFn(record.id);
     rows.push({
       name: entry.name,
-      run: entry.run,
+      pipelineSlug: entry.pipelineSlug,
       sessionID: record.id,
       agent: displayAgentName(record.agent),
       model: record.model ? formatModelString(record.model) : record.model,
       directory: record.location?.directory,
-      updated,
       activity: latestOf(updated, lastEventAtFor(record.id), rawProgressAtFor(record.id)),
       running: activeSessionIDs?.has(record.id),
       pending: pendingCountFor(record.id),
       permissions: permissionsFor(record.id),
       currentTool: currentToolForFn(record.id),
-      lastTurn: turnRecord?.lastTurn,
-      turns: turnRecord?.turns,
+      lastTurn: turnsForFn(record.id)?.lastTurn,
       lastSend: lastSendForFn(record.id),
       lastText: lastTextFor(record.id),
     });
@@ -2074,14 +2096,55 @@ function buildLedgerRows(
 }
 
 /**
- * Gather and shape the full `rp_status` payload.
+ * Whether an error-log entry concerns one of the sessions in scope.
  *
- * Reads the ledger snapshot and per-session pending counts over the reach
- * helper and the HTTP client (never an `opencode api` shell-out); when the
- * server cannot be resolved, the ledger comes back empty rather than firing
- * requests blind.
+ * An entry naming a session is that session's; an entry naming none (a lost
+ * listener, a failed hook, a loop that lost its server) concerns every
+ * scope.
+ *
+ * @param {object} entry An error-log entry.
+ * @param {Set<string>} sessionIDs The sessions in scope.
+ * @returns {boolean}
+ */
+function errorInScope(entry, sessionIDs) {
+  return entry.sessionID === undefined || sessionIDs.has(entry.sessionID);
+}
+
+/**
+ * The sessions a status scope covers: those RP recognizes — recorded in the
+ * ledger, or live under a durable title — that the scope selects. The
+ * ledger's part is independent of what the server lists, so a recorded
+ * session the server no longer returns stays in scope.
+ *
+ * @param {{ pipelineSlug?: string, session?: string }} scope
+ * @param {Array<{ id: string }>} liveRecords The in-scope session records
+ *   the server returned.
+ * @returns {Set<string>}
+ */
+function scopedSessionIDs({ pipelineSlug, session }, liveRecords) {
+  const ids = new Set(liveRecords.map((record) => record.id));
+  for (const [sessionID, entry] of getLedger().bySessionID) {
+    if (session !== undefined ? sessionID === session : entry.pipelineSlug === pipelineSlug) {
+      ids.add(sessionID);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Gather and shape the `rp_status` payload for one scope.
+ *
+ * The scope is one pipeline (`pipelineSlug`), one session (`session`), or
+ * everything RP recognizes. Reads the ledger snapshot and per-session
+ * pending counts over the reach helper and the HTTP client (never an
+ * `opencode api` shell-out); when the server cannot be resolved, the ledger
+ * comes back empty rather than firing requests blind. Per-session reads run
+ * only for the sessions in scope, and the transcript — the newest assistant
+ * text — is read only for the single session of a `session` scope.
  *
  * @param {{
+ *   pipelineSlug?: string,
+ *   session?: string,
  *   env?: Record<string, string | undefined>,
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
@@ -2090,10 +2153,15 @@ function buildLedgerRows(
  * @returns {Promise<object>} The shaped status payload (see `shapeStatus`).
  */
 async function buildStatusPayload({
+  pipelineSlug,
+  session,
   env = process.env,
   readServiceRecord: readServiceRecordOverride,
   requestFn,
 } = {}) {
+  if (pipelineSlug !== undefined && session !== undefined) {
+    throw new Error("rp_status takes pipeline_slug or session, not both");
+  }
   const readRecord = readServiceRecordOverride ?? readServiceRecordFile;
 
   const server = resolveServer({ env, readServiceRecord: readRecord });
@@ -2132,21 +2200,29 @@ async function buildStatusPayload({
     }
     return null;
   };
+  const inScope = (record) => {
+    const entry = recognizeSession(record, lookupSpawn);
+    if (!entry) {
+      return false;
+    }
+    if (session !== undefined) {
+      return record.id === session;
+    }
+    return pipelineSlug === undefined || entry.pipelineSlug === pipelineSlug;
+  };
 
   if (server) {
     // Every opencode HTTP GET response envelopes its payload as
     // `{ data: ... }` — verified live against opencode.
     const sessionsResponse = await readEndpoint("session", "/api/session");
     if (sessionsResponse) {
-      sessionRecords = sessionsResponse.body?.data ?? [];
+      sessionRecords = (sessionsResponse.body?.data ?? []).filter(inScope);
     }
     const activeResponse = await readEndpoint("active", "/api/session/active");
     if (activeResponse) {
       activeIDs = new Set(Object.keys(activeResponse.body?.data ?? {}));
     }
-    // Per-session reads only for the sessions that become rows: the list
-    // spans every project the server knows.
-    for (const record of sessionRecords.filter((record) => recognizeSession(record, lookupSpawn))) {
+    for (const record of sessionRecords) {
       const inboxResponse = await readEndpoint("inbox", `/api/session/${record.id}/inbox`);
       if (inboxResponse) {
         pendingCounts.set(record.id, (inboxResponse.body?.data ?? []).length);
@@ -2165,6 +2241,9 @@ async function buildStatusPayload({
           })),
         );
       }
+      if (session === undefined) {
+        continue;
+      }
       // Newest text: a cheap page first, the deeper one only when the first
       // is full and textless (a long run of tool-only steps).
       const firstPage = await readEndpoint(
@@ -2182,7 +2261,7 @@ async function buildStatusPayload({
             lastText = extractLastText(deepPage.body?.data ?? [], LAST_TEXT_DEEP_PAGE);
           }
         }
-        lastTexts.set(record.id, lastText);
+        lastTexts.set(record.id, lastText ?? null);
       }
     }
   }
@@ -2202,16 +2281,14 @@ async function buildStatusPayload({
       lastTextFor: (id) => lastTexts.get(id),
     },
   );
+  const scoped = pipelineSlug !== undefined || session !== undefined;
+  const inScopeIDs = scopedSessionIDs({ pipelineSlug, session }, sessionRecords);
 
   return shapeStatus({
     pluginVersion: PLUGIN_ID,
     ledgerEntries,
-    errorLog: getErrorLog(),
-    loopTickLog: getLoopTickLog(),
+    errorLog: scoped ? getErrorLog().filter((entry) => errorInScope(entry, inScopeIDs)) : getErrorLog(),
     readFailures: [...failures.values()],
-    skillActivations: [...getSkillActivations()]
-      .filter(([, record]) => record.skills.length > 0)
-      .map(([sessionID, record]) => ({ sessionID, skills: record.skills })),
   });
 }
 
@@ -2990,7 +3067,7 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
         server,
         "PATCH",
         `/api/session/${sessionID}`,
-        { title: formatTitle({ run: entry.run, name: entry.name }) },
+        { title: formatTitle({ pipelineSlug: entry.pipelineSlug, name: entry.name }) },
         requestFn,
       );
       if (response.status < 200 || response.status >= 300) {
@@ -3559,93 +3636,73 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   pluginVersion: string,
  *   ledgerEntries: Array<{
  *     name: string,
- *     run: string,
+ *     pipelineSlug: string,
  *     sessionID: string,
  *     agent: string,
  *     model: string,
  *     directory: string,
- *     updated: string | number,
  *     activity: string | number,
  *     running?: boolean,
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
  *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
- *     turns: number | undefined,
  *     lastSend: { at: number, to: string } | undefined,
- *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  *   }>,
  *   errorLog: Array<*>,
- *   loopTickLog?: Array<*>,
  *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
- *   skillActivations?: Array<{sessionID: string, skills: string[]}>,
  * }} input The status payload's components. `pluginVersion` identifies the
- *   running plugin build; `ledgerEntries` is one row per
- *   live spawn (see `buildLedgerRows`); `errorLog` and `loopTickLog` are
- *   bounded recent-event rings; `readFailures` lists the server reads that
+ *   running plugin build; `ledgerEntries` is one row per live spawn in scope
+ *   (see `buildLedgerRows`); `errorLog` is the bounded recent-errors ring,
+ *   narrowed to the scope; `readFailures` lists the server reads that
  *   failed while gathering the ledger — a non-empty list means the ledger's
  *   `running`/`pending`/`permissions`/`lastText` fields are incomplete, not
- *   that the sessions are idle; `skillActivations` lists the sessions that
- *   activated a packaged skill, which is re-supplied to them after a
- *   checkpoint.
+ *   that the sessions are idle.
  * @returns {{
  *   pluginVersion: string,
  *   ledger: Array<{
  *     name: string,
- *     run: string,
+ *     pipelineSlug: string,
  *     sessionID: string,
  *     agent: string,
  *     model: string,
  *     directory: string,
- *     updated: string | number,
  *     activity: string | number,
  *     running?: boolean,
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
  *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
- *     turns: number | undefined,
  *     lastSend: { at: number, to: string } | undefined,
- *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *     lastText?: { at: number | undefined, excerpt: string } | { olderThan: number } | null,
  *   }>,
  *   recentErrors: Array<*>,
- *   recentLoopTicks: Array<*>,
  *   readFailures: Array<{endpoint: string, status: number | "transport", count: number}>,
- *   skillActivations: Array<{sessionID: string, skills: string[]}>,
- * }} The shaped `rp_status` result.
+ * }} The shaped `rp_status` result. A row carries `lastText` only when the
+ *   transcript was read (a `session` scope): `null` when it holds no text.
  */
-function shapeStatus({
-  pluginVersion,
-  ledgerEntries,
-  errorLog,
-  loopTickLog = [],
-  readFailures = [],
-  skillActivations = [],
-}) {
+function shapeStatus({ pluginVersion, ledgerEntries, errorLog, readFailures = [] }) {
   return {
     pluginVersion,
     ledger: ledgerEntries.map((entry) => ({
       name: entry.name,
-      run: entry.run,
+      pipelineSlug: entry.pipelineSlug,
       sessionID: entry.sessionID,
       agent: entry.agent,
       model: entry.model,
       directory: entry.directory,
-      updated: entry.updated,
       activity: entry.activity,
       running: entry.running,
       pending: entry.pending,
       permissions: entry.permissions,
       currentTool: entry.currentTool,
       lastTurn: entry.lastTurn,
-      turns: entry.turns,
       lastSend: entry.lastSend,
-      lastText: entry.lastText,
+      ...(entry.lastText !== undefined ? { lastText: entry.lastText } : {}),
     })),
     recentErrors: errorLog,
-    recentLoopTicks: loopTickLog,
     readFailures,
-    skillActivations,
   };
 }
 
@@ -4267,16 +4324,17 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles =
     input: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Run-unique instance name." },
+        name: { type: "string", description: "Pipeline-unique instance name." },
         agent: { type: "string", description: "RP agent profile name." },
         model: { type: "string", description: "provider/model[#variant] convention string." },
         directory: { type: "string", description: "Absolute directory the session is seated in." },
         prompt: { type: "string", description: "Initial prompt posted to the spawned session." },
-        run: { type: "string", description: "Run branch name." },
+        pipeline_slug: { type: "string", description: "Pipeline slug." },
       },
-      required: ["name", "agent", "model", "directory", "prompt", "run"],
+      required: ["name", "agent", "model", "directory", "prompt", "pipeline_slug"],
     },
-    async execute({ name, agent, model, directory, prompt, run }, toolCtx) {
+    async execute({ name, agent, model, directory, prompt, pipeline_slug }, toolCtx) {
+      assertPipelineSlug(pipeline_slug);
       if (!rpProfiles.has(agent)) {
         throw new Error(`Unknown RP agent "${agent}"`);
       }
@@ -4292,7 +4350,7 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles =
       });
       recordSpawn(session.id, {
         name,
-        run,
+        pipelineSlug: pipeline_slug,
         spawner: toolCtx.sessionID,
         directory,
         repoRoot: resolveRepoRootFn(directory),
@@ -4613,11 +4671,17 @@ function buildLoopStartTool({ registryPath, tick }) {
 function buildLoopListTool(registryPath) {
   return {
     name: "rp_loop_list",
-    description: "List every currently registered health loop.",
+    description: "List every currently registered health loop with its recent ticks.",
     output: ANY_OUTPUT_SCHEMA,
     input: { type: "object", properties: {} },
     async execute() {
-      return toToolResult(listLoopEntries(registryPath));
+      const ticks = getLoopTickLog();
+      return toToolResult(
+        listLoopEntries(registryPath).map((entry) => ({
+          ...entry,
+          recentTicks: ticks.filter((tick) => tick.loopID === entry.id),
+        })),
+      );
     },
   };
 }
@@ -4667,12 +4731,24 @@ function buildLoopCancelTool(registryPath) {
 function buildStatusTool({ env, readServiceRecordOverride, requestFn }) {
   return {
     name: "rp_status",
-    description: "Report plugin version, ledger snapshot, recent errors, and health-loop ticks.",
+    description:
+      "Report the plugin version, the ledger of one pipeline's agents (pipeline_slug), of one session (session), or of every RP session, and the recent errors: under a scope, those of its sessions and those naming no session; unscoped, all of them.",
     output: ANY_OUTPUT_SCHEMA,
-    input: { type: "object", properties: {} },
-    async execute() {
+    input: {
+      type: "object",
+      properties: {
+        pipeline_slug: { type: "string", description: "Report the agents of this pipeline. Excludes session." },
+        session: {
+          type: "string",
+          description: "Report this one session, with its newest assistant text. Excludes pipeline_slug.",
+        },
+      },
+    },
+    async execute({ pipeline_slug, session } = {}) {
       return toToolResult(
         await buildStatusPayload({
+          pipelineSlug: pipeline_slug,
+          session,
           env,
           readServiceRecord: readServiceRecordOverride,
           requestFn,
@@ -5087,6 +5163,7 @@ export {
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
+  recordError,
   recordSend,
   recordSessionEventActivity,
   recordSessionParent,

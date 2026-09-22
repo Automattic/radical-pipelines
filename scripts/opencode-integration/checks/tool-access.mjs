@@ -126,7 +126,7 @@ export async function run(ctx) {
         model: "stub/stub-model",
         directory: projectDir,
         prompt: "report readiness",
-        run: "suite-run",
+        pipeline_slug: "suite-run",
       });
       const agentID = spawned.text;
       assert.ok(agentID?.startsWith("ses_"), `expected rp_spawn to return a session ID, got: ${agentID}`);

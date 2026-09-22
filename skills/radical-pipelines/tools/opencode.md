@@ -6,12 +6,12 @@ These mechanics use the Radical Pipelines plugin.
 
 Call `rp_spawn` with:
 
-- `name`: run-unique instance name.
+- `name`: pipeline-unique instance name.
 - `agent`: plain RP profile name; the plugin resolves it to `radical-pipelines/<name>`.
 - `model`: `provider/model[#variant]`.
 - `directory`: absolute worktree path.
 - `prompt`: filled prompt template.
-- `run`: pipeline branch.
+- `pipeline_slug`: the pipeline slug.
 
 The plugin regenerates the profiles in opencode's global `agents/radical-pipelines/` folder during setup. `name` is `<profile> <pipeline slug>-<n>` (`<pipeline slug>-<lane>-<n>` in a lane), `<n>` counting that profile's instances in the pipeline; the returned session ID is the address for messages. `directory` fixes its working directory for the session's lifetime. The **Worktree folder root** must be inside the repository; `.worktrees/` qualifies.
 
@@ -34,8 +34,8 @@ On an agent's completion declaration, call `rp_terminate` with its session ID.
 ## Health loop
 
 - Launch with `rp_loop_start`, passing the interval in milliseconds and tick prompt. The target defaults to the calling session. Ticks fire while idle and steer after two intervals without activity.
-- List with `rp_loop_list`; cancel with `rp_loop_cancel` and the loop ID. A loop retires when its target session no longer exists.
-- Inspect with `rp_status`. It reports `pluginVersion`, `ledger`, `recentErrors`, `recentLoopTicks`, `readFailures`, and `skillActivations` — the sessions that activated the skill, which the plugin re-supplies to them after a context checkpoint. Each ledger row includes `name`, `run`, `sessionID`, `agent`, `model`, `directory`, `updated`, `activity`, `running`, `pending`, `permissions`, `currentTool`, `lastTurn`, `turns`, `lastSend`, and `lastText`. `activity` includes input, tool, and model progress; `updated` moves on input. `lastText` contains the newest text excerpt or `olderThan`. Turn and send observations live in daemon memory and may be absent after restart. `readFailures` means the affected liveness fields are incomplete.
+- List with `rp_loop_list`, each loop with its `recentTicks`; cancel with `rp_loop_cancel` and the loop ID. A loop retires when its target session no longer exists.
+- Inspect with `rp_status`, passing `session`; pass `pipeline_slug` when the session shows a problem or the tick reports on the pipeline.
 
 ## Models
 
