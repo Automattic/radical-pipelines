@@ -33,7 +33,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Origin** — The source from which something was born: an issue reference, an external source, or a challenge it responds to.
 - **Outcome** — A task report's conclusion: `completed`; `failed`, the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, the product was not observed and the report names what prevented it.
 - **Owner** — The human running the pipeline; talks only to the orchestrator.
-- **Owner escalation** — A pipeline pause and evidence dossier caused by a pending claim that targets the intent; the owner's answer is written into the intent as a decision.
+- **Owner escalation** — The run's stop, with an evidence dossier, caused by a pending claim that targets the intent; the owner's answer is written into the intent as a decision.
 - **Owner territory** — The intent's Goal, Constraints, and Decisions — what the work must satisfy; the intent is the only file that carries the owner's decisions.
 - **Phase** — One pipeline stage: Intent, Spec, Design doc, Build, or Document.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
