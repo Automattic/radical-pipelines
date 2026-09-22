@@ -3550,8 +3550,8 @@ process.stdout.write(output);
       review("3-build/build-review-security-2.md", "approved", material);
       assert.equal(authoredState().complete, true);
       const stamped = parseFrontmatter(read(root, "3-build/build-review-security-2.md")).data;
-      assert.equal(stamped.get("reviewed").filter((pin) => pin.startsWith("authored-change:")).length, 1);
-      stamped.set("reviewed", stamped.get("reviewed").filter((pin) => !pin.startsWith("authored-change:")));
+      assert.equal(stamped.get("reviewed").filter((pin) => pin.startsWith("changes/occurrences/")).length, 1);
+      stamped.set("reviewed", stamped.get("reviewed").filter((pin) => !pin.startsWith("changes/occurrences/")));
       registered("3-build/build-review-security-2.md", Object.fromEntries(stamped));
       assert.equal(authoredState().complete, false);
     });
@@ -3693,7 +3693,7 @@ process.stdout.write(output);
     const removed = authoredState();
     assert.equal(removed.frontier, "build review");
     assert.deepEqual(removed.buildReview.lanes[0].diff.added, []);
-    assert.deepEqual(removed.buildReview.lanes[0].diff.removed, [`authored-change:${state.authoredChanges[2].patchId}:2`]);
+    assert.deepEqual(removed.buildReview.lanes[0].diff.removed, pairs([state.authoredChanges[2].path]));
   });
 
   test("authored changes: both phase reviews cover documentation changes in phase order", () => {
@@ -3732,7 +3732,7 @@ process.stdout.write(output);
     rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror");
     const fm = parseFrontmatter(read(root, chain.reports[0])).data;
     assert.deepEqual(fm.get("commits"), [rootCommit, own, merged]);
-    assert.deepEqual(fm.get("changes"), authoredState().authoredChanges.map((c) => c.patchId));
+    assert.deepEqual(fm.get("changes"), pairs(authoredState().authoredChanges.map((c) => c.material)));
     assert.equal(fm.has("head"), false);
     write(root, chain.reports[0], read(root, chain.reports[0]).replace(`- ${own}\n`, ""));
     rp(root, "stamp", P(chain.reports[0]), "--mirror");
@@ -3819,10 +3819,11 @@ process.stdout.write(output);
     commitAll("temporary change");
     review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
     commitAll("approve temporary change");
-    const [{ material }] = authoredState().authoredChanges;
-    const bytes = read(root, material), checkpoint = read(root, "changes/index.json");
+    const [{ material, path }] = authoredState().authoredChanges;
+    const bytes = read(root, material), checkpoint = read(root, "changes/index.json"), observed = read(root, path);
     git(root, "reset", "--hard", start);
     write(root, material, bytes);
+    write(root, path, observed);
     assert.deepEqual(authoredState().authoredChanges, []);
     assert.equal(authoredState().complete, true);
     write(root, "changes/index.json", checkpoint);
@@ -3838,10 +3839,11 @@ process.stdout.write(output);
     review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
     commitAll("review removed change");
     const reviewBytes = read(root, "3-build/build-review-2.md");
-    const [{ material, patchId }] = authoredState().authoredChanges;
-    const materialBytes = read(root, material);
+    const [{ material, patchId, path }] = authoredState().authoredChanges;
+    const materialBytes = read(root, material), observed = read(root, path);
     git(root, "reset", "--hard", start);
     write(root, material, materialBytes);
+    write(root, path, observed);
     write(root, "3-build/build-review-2.md", reviewBytes);
     commitAll("retained review history");
     const clone = join(root, ".git", "material-clone");
@@ -3913,7 +3915,7 @@ process.stdout.write(output);
         if (mutation === "digest") data.digest = "bad";
         if (mutation === "blob") data.files[0].before.bytes = Buffer.from("wrong bytes").toString("base64");
         if (mutation === "patch") data.patch = Buffer.from(Buffer.from(data.patch, "base64").toString("utf8").replace("@@ -1", "@@ -9")).toString("base64");
-        if (mutation === "path") data.files[0].path = "../escape";
+        if (mutation === "path") data.files[0].path = Buffer.from("../escape").toString("base64");
         if (mutation !== "digest") {
           const { patchId, patch, files, source } = data;
           data.digest = createHash("sha256").update(JSON.stringify({ patchId, patch, files, source })).digest("hex");
@@ -3982,6 +3984,120 @@ process.stdout.write(output);
     git(root, "merge", "--no-ff", "other", "-m", "automatic union");
     const merge = git(root, "rev-parse", "HEAD").trim();
     assert.equal(authoredState().authoredChanges.some((change) => change.commit === merge), false);
+  });
+
+  test("change provenance: each repeated occurrence keeps its own source after integration", () => {
+    const chain = authoredFixture();
+    writeFileSync(join(root, "source.txt"), "changed\n");
+    const first = commitAll("first application");
+    git(root, "revert", "--no-edit", first);
+    const inverse = git(root, "rev-parse", "HEAD").trim();
+    git(root, "cherry-pick", first);
+    const second = git(root, "rev-parse", "HEAD").trim();
+    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+    commitAll("cover each occurrence");
+    git(root, "checkout", "--quiet", "main");
+    git(root, "merge", "--no-ff", "demo", "-m", "integrate");
+    const state = authoredState();
+    assert.equal(state.complete, true);
+    assert.deepEqual(state.authoredChanges.map((change) => change.source.commit), [first, inverse, second]);
+    assert.deepEqual(state.authoredChanges.map((change) => change.commit), [first, inverse, second]);
+    assert.notEqual(state.authoredChanges[0].path, state.authoredChanges[2].path);
+    assert.equal(state.authoredChanges[0].material, state.authoredChanges[2].material);
+    const rows = JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json"));
+    assert.deepEqual(rows.map((row) => row.source.commit), [first, inverse, second]);
+  });
+
+  test("change provenance: a self-consistent material edit breaks its external binding", () => {
+    const chain = authoredFixture();
+    writeFileSync(join(root, "source.txt"), "changed\n");
+    commitAll("change");
+    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+    const [{ material }] = authoredState().authoredChanges;
+    const data = JSON.parse(read(root, material));
+    data.source.commit = "1".repeat(40);
+    const { patchId, patch, files, source } = data;
+    data.digest = createHash("sha256").update(JSON.stringify({ patchId, patch, files, source })).digest("hex");
+    write(root, material, JSON.stringify(data));
+    for (const args of [["check", PIPELINE, "--base", "main"], ["diff", PIPELINE, "--base", "main"], ["stamp", P("3-build/build-review-2.md"), "--mirror"]])
+      assert.throws(() => rp(root, ...args), /material differs from its pin/);
+  });
+
+  for (const driver of ["configured", "unavailable", "captured"])
+    test(`automatic merge: ${driver} custom driver preserves declared semantics`, () => {
+      const chain = authoredFixture();
+      writeFileSync(join(root, ".gitattributes"), "source.txt merge=custom\n");
+      writeFileSync(join(root, "source.txt"), "base\n");
+      commitAll("driver baseline");
+      git(root, "branch", "-f", "main", "HEAD");
+      git(root, "config", "merge.custom.driver", "echo custom-result > %A");
+      git(root, "checkout", "--quiet", "-b", "other");
+      writeFileSync(join(root, "source.txt"), "theirs\n");
+      commitAll("theirs");
+      git(root, "checkout", "--quiet", "demo");
+      writeFileSync(join(root, "source.txt"), "ours\n");
+      commitAll("ours");
+      git(root, "merge", "--no-ff", "--no-commit", "other");
+      assert.equal(readFileSync(join(root, "source.txt"), "utf8"), "custom-result\n");
+      if (driver === "captured") writeFileSync(join(root, "source.txt"), "manual-result\n");
+      const merge = commitAll("custom merge");
+      if (driver === "captured") review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+      if (driver !== "configured") {
+        git(root, "config", "merge.custom.driver", "/nonexistent-rp-merge-driver %O %A %B");
+        if (driver === "captured") assert.equal(authoredState().complete, true);
+        else assert.throws(() => check(root), /automatic merge unavailable/);
+      } else assert.equal(authoredState().authoredChanges.some((change) => change.commit === merge), false);
+    });
+
+  test("change paths: non-UTF-8 names retain their exact Git bytes", () => {
+    const chain = authoredFixture();
+    const name = Buffer.from([0x66, 0xff, 0x2e, 0x74, 0x78, 0x74]);
+    const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: root, input: "byte-named content\n", encoding: "utf8" }).trim();
+    execFileSync("git", ["update-index", "-z", "--index-info"], { cwd: root, input: Buffer.concat([Buffer.from(`100644 ${blob}\t`), name, Buffer.from([0])]) });
+    git(root, "commit", "--quiet", "-m", "byte-named entry");
+    const rows = JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json"));
+    assert.equal(rows.length, 1);
+    assert.deepEqual(Buffer.from(rows[0].content.files[0].path, "base64"), name);
+    assert.match(Buffer.from(rows[0].content.patch, "base64").toString("utf8"), /\\377/);
+    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+    assert.equal(authoredState().complete, true);
+    const probe = Buffer.concat([Buffer.from(join(root, ".git", "probe-")), name]);
+    let supported = true;
+    try { writeFileSync(probe, "probe"); rmSync(probe); }
+    catch (error) { if (!["EILSEQ", "EINVAL"].includes(error.code)) throw error; supported = false; }
+    const output = join(root, ".git", "byte-material");
+    if (supported) {
+      rp(root, "diff", PIPELINE, "--base", "main", "--output", output);
+      const file = Buffer.concat([Buffer.from(`${join(output, "1", "after")}/`), name]);
+      assert.equal(readFileSync(file, "utf8"), "byte-named content\n");
+    } else assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", "--output", output), /EILSEQ|EINVAL/);
+  });
+
+  test("change history: upstream software projection and artifact-base integration are distinct", () => {
+    const chain = authoredFixture();
+    const upstream = join(root, ".git", "upstream");
+    mkdirSync(upstream);
+    git(upstream, "init", "--quiet", "--initial-branch=main");
+    git(upstream, "config", "user.name", "Upstream");
+    git(upstream, "config", "user.email", "upstream@example.com");
+    for (const file of ["source.txt", "binary.dat"]) writeFileSync(join(upstream, file), readFileSync(join(root, file)));
+    git(upstream, "add", "-A");
+    git(upstream, "commit", "--quiet", "-m", "baseline");
+    writeFileSync(join(root, "source.txt"), "delivered change\n");
+    commitAll("change");
+    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+    commitAll("approved state");
+    const patch = rp(root, "diff", PIPELINE, "--base", "main", "--live-net");
+    execFileSync("git", ["apply", "--index", "--binary"], { cwd: upstream, input: patch });
+    git(upstream, "commit", "--quiet", "-m", "change");
+    assert.equal(readFileSync(join(upstream, "source.txt"), "utf8"), "delivered change\n");
+    assert.equal(existsSync(join(upstream, ".pipelines")), false);
+    assert.equal(git(root, "ls-tree", "main", P("changes/index.json")), "");
+    git(root, "checkout", "--quiet", "main");
+    git(root, "merge", "--no-ff", "demo", "-m", "integrate state");
+    git(root, "checkout", "--quiet", "-b", "continue-from-artifact-base");
+    assert.equal(authoredState().complete, true);
+    assert.equal(authoredState().authoredChanges.length, 1);
   });
 
   test("a fixed line is mirrored whole or not at all: prose after Depends on is INVALID, never mined", () => {
@@ -4088,7 +4204,7 @@ process.stdout.write(output);
     const full = shas.map((s) => git(root, "rev-parse", s).trim());
     assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("commits"), full);
     configure({ targetPhase: 3 });
-    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("changes"), JSON.parse(check(root, "--json")).authoredChanges.map(({ patchId }) => patchId));
+    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("changes"), pairs(JSON.parse(check(root, "--json")).authoredChanges.map(({ material }) => material)));
     write(root, "3-build/tasks/build-task-2-report-1.md", "# Task report\n\nOutcome: completed\n\n## Commits\n\n- 0badc0ffee1 — never made\n");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2-report-1.md"), "--reviewed", P("3-build/tasks/build-task-2.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror"), /names a commit that does not exist or is ambiguous: 0badc0ffee1/);
   });

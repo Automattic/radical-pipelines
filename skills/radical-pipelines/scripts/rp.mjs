@@ -81,7 +81,7 @@ function validateFrontmatter(data) {
     else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
       errors.push(`${key} must be a string or list of strings`);
     if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
-    if (key === "changes" && strings(value) && value.some((id) => !PATCH_ID.test(id))) errors.push("changes must contain patch ids");
+    if (key === "changes" && strings(value) && value.some((pin) => !materialPinParts(pin))) errors.push("changes must contain material pins");
   }
   return errors.join("; ") || null;
 }
@@ -138,28 +138,31 @@ function readPipelineFile(abs) {
 
 const IDENTITY = /^[0-9a-f]{12}$/;
 const PATCH_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const CHANGE_PREFIX = "authored-change:";
-const changeMember = (patchId, occurrence) => `${CHANGE_PREFIX}${patchId}:${occurrence}`;
+const changeMember = (patchId, occurrence) => `${patchId}:${occurrence}`;
+const MATERIAL_PATH = /^changes\/([0-9a-f]{40}|[0-9a-f]{64})\.json$/;
+const OCCURRENCE_PATH = /^changes\/occurrences\/([0-9a-f]{12})\.json$/;
+const changeFile = (path) => path === CHANGE_CHECKPOINT || MATERIAL_PATH.test(path) || OCCURRENCE_PATH.test(path);
 const changePackage = (changes, checkpoint) => new Map([
   ...(checkpoint === undefined ? [] : [[CHANGE_CHECKPOINT, checkpoint]]),
-  ...changes.map(({ patchId, occurrence }) => [changeMember(patchId, occurrence), patchId]),
+  ...changes.flatMap(({ occurrencePin, materialPin }) => [occurrencePin, materialPin].map((pin) => { const p = pinParts(pin); return [p.path, p.sha]; })),
 ]);
-const publicChange = ({ commit, patchId, occurrence }) => ({ commit, patchId, occurrence, material: changePath(patchId) });
+const publicChange = ({ commit, patchId, occurrence, occurrencePin, observation, material }) => ({ commit, patchId, occurrence, material: changePath(patchId), ...(occurrencePin ? { path: pinParts(occurrencePin).path } : {}), source: observation?.source ?? material.source });
 const materialReferences = (data) => [...new Set([
-  ...(data.get("changes") ?? []),
-  ...[...(pinPackage(data.get("reviewed"))?.keys() ?? [])].filter((path) => path.startsWith(CHANGE_PREFIX)).map((path) => path.slice(CHANGE_PREFIX.length).split(":")[0]),
-])];
-function packageIdentityValid(path, id) {
-  if (!path.startsWith(CHANGE_PREFIX)) return IDENTITY.test(id);
-  const occurrence = path.slice(path.lastIndexOf(":") + 1);
-  return PATCH_ID.test(id) && /^[1-9]\d*$/.test(occurrence) && path === changeMember(id, occurrence);
+  data.get("pins"), data.get("reviewed"), data.get("changes"),
+  ...(data.get("lane-packages") ?? []).flatMap(([, binding, reference]) => [binding, reference]),
+].flatMap((pins) => [...(pinPackage(pins) ?? [])]).filter(([path]) => MATERIAL_PATH.test(path) || OCCURRENCE_PATH.test(path)).map(([path, id]) => `${path}@${id}`))];
+function materialPinParts(pin) {
+  if (typeof pin !== "string") return null;
+  const parts = pinParts(pin);
+  const path = parts && MATERIAL_PATH.exec(parts.path);
+  return path && IDENTITY.test(parts.sha) ? { ...parts, patchId: path[1] } : null;
 }
 
 function changeDelta(changes, reviewed) {
   const current = changePackage(changes);
   return {
-    added: changes.filter(({ patchId, occurrence }) => !reviewed?.has(changeMember(patchId, occurrence))).map(publicChange),
-    removed: [...(reviewed?.keys() ?? [])].filter((path) => path.startsWith(CHANGE_PREFIX) && !current.has(path)),
+    added: changes.filter(({ occurrencePin }) => { const p = pinParts(occurrencePin); return reviewed?.get(p.path) !== p.sha; }).map(publicChange),
+    removed: [...(reviewed ?? [])].filter(([path, id]) => OCCURRENCE_PATH.test(path) && current.get(path) !== id).map(([path, id]) => `${path}@${id}`),
   };
 }
 
@@ -177,13 +180,49 @@ function artifactBase(root, tip, intent, baseRef, command) {
 
 const CHANGE_FOLDER = "changes";
 const CHANGE_CHECKPOINT = `${CHANGE_FOLDER}/index.json`;
-const renderCheckpoint = (changes) => `${JSON.stringify(changes.map((change) => change.patchId), null, 2)}\n`;
+const renderJSON = (value) => `${JSON.stringify(value, null, 2)}\n`;
+const renderCheckpoint = (changes) => renderJSON(changes.map((change) => change.occurrencePin));
 const changePath = (patchId) => `${CHANGE_FOLDER}/${patchId}.json`;
+const occurrencePath = (id) => `${CHANGE_FOLDER}/occurrences/${id}.json`;
+const jsonObject = (value, keys) => value && !Array.isArray(value) && typeof value === "object" && Object.keys(value).every((key) => keys.includes(key));
+const encodedBytes = (value) => typeof value === "string" && Buffer.from(value, "base64").toString("base64") === value;
+const validSource = (source) => jsonObject(source, ["commit", "parents", "base"]) && typeof source.commit === "string" && PATCH_ID.test(source.commit) && Array.isArray(source.parents) && source.parents.every((oid) => typeof oid === "string" && PATCH_ID.test(oid)) && (source.base === null || (typeof source.base === "string" && PATCH_ID.test(source.base)));
 const gitBytes = (root, args, input, env = process.env) => execFileSync("git", args, { cwd: root, input, env, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] });
 const DIFF_OPTIONS = ["-c", "core.quotePath=true", "diff-tree", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--no-relative", "--ignore-submodules=none", "--src-prefix=a/", "--dst-prefix=b/", "--diff-algorithm=myers", "--no-indent-heuristic", "--inter-hunk-context=0", "--binary", "--full-index", "--no-abbrev", "--unified=3", "-r"];
 
 const objectStores = new Map();
-function isolatedGit(root, action) {
+function optionalBytes(path) {
+  if (path === null) return null;
+  try { return readFileSync(path); }
+  catch (error) { if (error.code === "ENOENT") return null; throw error; }
+}
+
+function mergeEnvironment(root) {
+  let raw;
+  try { raw = gitBytes(root, ["config", "--null", "--get-regexp", "^(merge\\.|filter\\.|core\\.(autocrlf|eol|safecrlf|checkroundtripencoding)$)"]); }
+  catch (error) { if (error.status !== 1 || error.stderr?.length) throw error; raw = Buffer.alloc(0); }
+  const settings = raw.toString("utf8").split("\0").filter(Boolean).map((entry) => {
+    const at = entry.indexOf("\n");
+    return at < 0 ? [entry, "true"] : [entry.slice(0, at), entry.slice(at + 1)];
+  });
+  const pathBytes = (args) => {
+    let value;
+    try { value = gitBytes(root, args); }
+    catch (error) { if (args[0] === "var" && error.status === 1 && !error.stdout?.length && !error.stderr?.length) return null; throw error; }
+    if (value.at(-1) !== 10) throw new Error("invalid Git attribute path");
+    const path = value.subarray(0, -1);
+    if (!path.length) return null;
+    return isAbsolute(path.toString("utf8")) ? path : Buffer.concat([Buffer.from(`${root}${sep}`), path]);
+  };
+  const global = ["GIT_ATTR_SYSTEM", "GIT_ATTR_GLOBAL"].map((name) => optionalBytes(pathBytes(["var", name]))).filter((bytes) => bytes !== null);
+  return {
+    settings,
+    globalAttributes: Buffer.concat(global.flatMap((bytes) => [bytes, Buffer.from("\n")])),
+    infoAttributes: optionalBytes(pathBytes(["rev-parse", "--git-path", "info/attributes"])),
+  };
+}
+
+function isolatedGit(root, action, configuration = {}) {
   if (!objectStores.has(root)) objectStores.set(root, {
     objects: resolve(root, gitBytes(root, ["rev-parse", "--git-path", "objects"]).toString("utf8").trim()),
     format: gitBytes(root, ["rev-parse", "--show-object-format"]).toString("ascii").trim(),
@@ -199,10 +238,34 @@ function isolatedGit(root, action) {
     GIT_AUTHOR_NAME: "RP", GIT_AUTHOR_EMAIL: "rp@example.invalid", GIT_COMMITTER_NAME: "RP", GIT_COMMITTER_EMAIL: "rp@example.invalid",
   };
   const git = (args, input) => gitBytes(directory, ["-c", "core.hooksPath=/dev/null", "-c", "init.templateDir=", "-c", "commit.gpgsign=false", ...args], input, env);
+  const trace = join(directory, ".git", "merge-driver-status");
   try {
     git(["init", "--quiet", `--object-format=${format}`]);
+    git(["config", "core.attributesFile", "/dev/null"]);
+    for (const [key, value] of configuration.settings ?? []) {
+      const quotedTrace = `'${trace.replace(/'/g, `'"'"'`).replace(/%/g, "%%")}'`;
+      const setting = /^merge\..+\.driver$/i.test(key) ? `echo start >>${quotedTrace}\n(\n${value}\n)\nstatus=$?\necho end:$status >>${quotedTrace}\nexit $status` : value;
+      git(["config", "--add", key, setting]);
+    }
+    if (configuration.globalAttributes !== undefined) {
+      const path = join(directory, ".git", "global-attributes");
+      writeFileSync(path, configuration.globalAttributes);
+      git(["config", "core.attributesFile", path]);
+    }
+    if (configuration.infoAttributes) {
+      const path = join(directory, ".git", "info", "attributes");
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, configuration.infoAttributes);
+    }
     return action(git);
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally {
+    try {
+      const events = optionalBytes(trace)?.toString("ascii").trim().split("\n") ?? [];
+      const starts = events.filter((event) => event === "start").length;
+      const ends = events.filter((event) => /^end:\d+$/.test(event));
+      if (events.length !== starts + ends.length || starts !== ends.length || ends.some((event) => Number(event.slice(4)) >= 126)) throw new Error("automatic merge unavailable: merge driver execution failed");
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  }
 }
 
 function patchIdentity(root, patch) {
@@ -231,7 +294,7 @@ function automaticMerge(root, parents) {
     }
     if (!PATCH_ID.test(tree)) throw new Error("invalid automatic merge tree");
     return tree;
-  });
+  }, mergeEnvironment(root));
 }
 
 function materialPatch(root, files) {
@@ -242,9 +305,9 @@ function materialPatch(root, files) {
         const entry = file[side];
         const oid = entry.mode === "160000" ? entry.oid : git(["hash-object", "-w", "--stdin"], Buffer.from(entry.bytes, "base64")).toString("ascii").trim();
         if (oid !== entry.oid) throw new Error(`change material blob differs: ${file.path} (${side})`);
-        return `${entry.mode} ${oid}\t${file.path}\0`;
-      }).join("");
-      git(["update-index", "-z", "--index-info"], entries);
+        return Buffer.concat([Buffer.from(`${entry.mode} ${oid}\t`), Buffer.from(file.path, "base64"), Buffer.from([0])]);
+      });
+      git(["update-index", "-z", "--index-info"], Buffer.concat(entries));
       return git(["write-tree"]).toString("ascii").trim();
     });
     git(["read-tree", "--empty"]);
@@ -257,20 +320,20 @@ const materialDigest = (payload) => createHash("sha256").update(JSON.stringify(p
 function changeMaterial(root, base, commit, pipelinesRoot, parents = []) {
   const raw = gitBytes(root, [...DIFF_OPTIONS, "--no-patch", "--raw", "-z", ...(base ? [base, commit] : ["--root", commit]), "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
   if (!raw.length) return null;
-  const records = raw.toString("utf8").split("\0");
-  if (!Buffer.from(raw.toString("utf8")).equals(raw) || records.pop() !== "" || records.length % 2) throw new Error("invalid change paths");
+  const records = raw.toString("latin1").split("\0");
+  if (records.pop() !== "" || records.length % 2) throw new Error("invalid change paths");
   const files = [];
   for (let i = 0; i < records.length; i += 2) {
     const metadata = records[i].match(/^:(000000|100644|100755|120000|160000) (000000|100644|100755|120000|160000) ([0-9a-f]+) ([0-9a-f]+) [AMDT]$/);
     if (!metadata || !metadata.slice(3).every((oid) => PATCH_ID.test(oid))) throw new Error("invalid change metadata");
-    const path = records[i + 1];
+    const path = Buffer.from(records[i + 1], "latin1").toString("base64");
     const entry = (mode, oid, before) => {
       if (mode === "000000") return null;
       if (mode === "160000") return { mode, oid };
       let bytes = gitBytes(root, ["cat-file", "blob", oid]);
       if (before && parents.length > 1) {
         let text = bytes.toString("latin1");
-        for (const [index, parent] of parents.entries()) text = text.replace(new RegExp(`^(<{7,}|>{7,}) ${parent}$`, "gm"), `$1 parent-${index + 1}`);
+        for (const [index, parent] of parents.entries()) text = text.replace(new RegExp(`^(<+|>+) ${parent}$`, "gm"), `$1 parent-${index + 1}`);
         bytes = Buffer.from(text, "latin1");
         oid = gitBytes(root, ["hash-object", "-w", "--stdin"], bytes).toString("ascii").trim();
       }
@@ -285,21 +348,27 @@ function changeMaterial(root, base, commit, pipelinesRoot, parents = []) {
 }
 
 // One authored-change computation serves review packages, deltas, and report landing facts.
-function authoredChanges(base, tip, { root, pipelinesRoot }) {
+function authoredChanges(base, tip, { root, pipelinesRoot, observed = new Map() }) {
   try {
     const history = gitBytes(root, ["rev-list", "--reverse", "--topo-order", "--parents", tip, "--not", base]).toString("ascii").trim();
     return (history ? history.split("\n") : []).flatMap((line) => {
       const [commit, ...parents] = line.split(" ");
       if (![commit, ...parents].every((oid) => PATCH_ID.test(oid))) throw new Error("invalid commit history");
+      const recorded = observed.get(commit);
+      if (recorded) {
+        if (JSON.stringify(recorded.source.parents) !== JSON.stringify(parents)) throw new Error(`${commit}: recorded parents differ`);
+        return [{ commit, patchId: recorded.patchId, material: recorded.material, source: recorded.source }];
+      }
       const from = parents.length > 1 ? automaticMerge(root, parents) : parents[0] ?? null;
       const material = changeMaterial(root, from, commit, pipelinesRoot, parents);
-      return material ? [{ commit, patchId: material.patchId, material }] : [];
+      return material ? [{ commit, patchId: material.patchId, material, source: material.source }] : [];
     });
   } catch (error) { throw new Error(`authored changes ${base}..${tip}: ${error.message}`); }
 }
 
 function changeStore(root, read) {
   const cache = new Map();
+  const identities = new Map();
   const get = (patchId, required = true) => {
     if (cache.has(patchId)) return cache.get(patchId);
     const path = changePath(patchId);
@@ -308,17 +377,16 @@ function changeStore(root, read) {
     try {
       if (raw === null) throw new Error("missing material");
       const data = JSON.parse(raw.toString("utf8"));
-      const object = (value, keys) => value && !Array.isArray(value) && typeof value === "object" && Object.keys(value).every((key) => keys.includes(key));
-      const encoded = (value) => typeof value === "string" && Buffer.from(value, "base64").toString("base64") === value;
-      if (!object(data, ["patchId", "patch", "files", "source", "digest"]) || data.patchId !== patchId || !encoded(data.patch) || !Array.isArray(data.files) || !data.files.length) throw new Error("invalid material");
-      if (!object(data.source, ["commit", "parents", "base"]) || !PATCH_ID.test(data.source.commit) || !Array.isArray(data.source.parents) || !data.source.parents.every((oid) => typeof oid === "string" && PATCH_ID.test(oid)) || !(data.source.base === null || (typeof data.source.base === "string" && PATCH_ID.test(data.source.base)))) throw new Error("invalid provenance");
+      if (!jsonObject(data, ["patchId", "patch", "files", "source", "digest"]) || data.patchId !== patchId || !encodedBytes(data.patch) || !Array.isArray(data.files) || !data.files.length) throw new Error("invalid material");
+      if (!validSource(data.source)) throw new Error("invalid provenance");
       const paths = new Set();
       for (const file of data.files) {
-        if (!object(file, ["path", "before", "after"]) || typeof file.path !== "string" || file.path.includes("\0") || file.path.split("/").some((part) => !part || part === "." || part === "..") || paths.has(file.path) || (!file.before && !file.after)) throw new Error("invalid material path");
+        const path = encodedBytes(file?.path) ? Buffer.from(file.path, "base64").toString("latin1") : "";
+        if (!jsonObject(file, ["path", "before", "after"]) || !path || path.includes("\0") || path.split("/").some((part) => !part || part === "." || part === "..") || paths.has(file.path) || (!file.before && !file.after)) throw new Error("invalid material path");
         paths.add(file.path);
         for (const entry of [file.before, file.after]) {
           if (entry === null) continue;
-          if (!object(entry, ["mode", "oid", "bytes"]) || !["100644", "100755", "120000", "160000"].includes(entry.mode) || typeof entry.oid !== "string" || !PATCH_ID.test(entry.oid) || (entry.mode === "160000" ? Object.hasOwn(entry, "bytes") : !encoded(entry.bytes))) throw new Error("invalid material entry");
+          if (!jsonObject(entry, ["mode", "oid", "bytes"]) || !["100644", "100755", "120000", "160000"].includes(entry.mode) || typeof entry.oid !== "string" || !PATCH_ID.test(entry.oid) || (entry.mode === "160000" ? Object.hasOwn(entry, "bytes") : !encodedBytes(entry.bytes))) throw new Error("invalid material entry");
         }
       }
       const payload = { patchId: data.patchId, patch: data.patch, files: data.files, source: data.source };
@@ -326,40 +394,85 @@ function changeStore(root, read) {
       const patch = Buffer.from(data.patch, "base64");
       if (patchIdentity(root, patch) !== patchId || !materialPatch(root, data.files).equals(patch)) throw new Error("material patch differs");
       cache.set(patchId, data);
+      identities.set(patchId, byteIdentity(raw));
       return data;
     } catch (error) { throw new Error(`${path}: ${error.message}`); }
   };
-  return { get };
+  const materialPin = (patchId) => { get(patchId); return `${changePath(patchId)}@${identities.get(patchId)}`; };
+  const materialAt = (pin) => {
+    const p = materialPinParts(pin);
+    if (!p) throw new Error(`invalid material pin: ${pin}`);
+    const material = get(p.patchId);
+    if (materialPin(p.patchId) !== pin) throw new Error(`${p.path}: material differs from its pin`);
+    return material;
+  };
+  const occurrenceAt = (pin) => {
+    const p = typeof pin === "string" && pinParts(pin);
+    const path = p && OCCURRENCE_PATH.exec(p.path);
+    if (!path || path[1] !== p.sha) throw new Error(`invalid occurrence pin: ${pin}`);
+    const raw = read(p.path);
+    if (raw === null) throw new Error(`${p.path}: missing occurrence`);
+    if (byteIdentity(raw) !== p.sha) throw new Error(`${p.path}: occurrence differs from its pin`);
+    let observation;
+    try { observation = JSON.parse(raw.toString("utf8")); }
+    catch (error) { throw new Error(`${p.path}: ${error.message}`); }
+    if (!jsonObject(observation, ["patchId", "occurrence", "source", "material"]) || typeof observation.patchId !== "string" || !PATCH_ID.test(observation.patchId) || !Number.isSafeInteger(observation.occurrence) || observation.occurrence < 1 || !validSource(observation.source) || materialPinParts(observation.material)?.patchId !== observation.patchId) throw new Error(`${p.path}: invalid occurrence`);
+    return { commit: observation.source.commit, patchId: observation.patchId, occurrence: observation.occurrence, source: observation.source, material: materialAt(observation.material), materialPin: observation.material, observation, occurrencePin: pin };
+  };
+  return { get, materialPin, materialAt, occurrenceAt, resolve: (pin) => OCCURRENCE_PATH.test(pinParts(pin)?.path ?? "") ? occurrenceAt(pin) : materialAt(pin) };
 }
 
-function changeCheckpoint(read, path) {
+function changeCheckpoint(read, path, stored) {
   const raw = read(path);
   if (raw === null) return [];
   try {
-    const ids = JSON.parse(raw.toString("utf8"));
-    if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string" && PATCH_ID.test(id))) throw new Error("expected patch ids");
-    return ids;
+    const pins = JSON.parse(raw.toString("utf8"));
+    if (!Array.isArray(pins)) throw new Error("expected occurrence pins");
+    const counts = new Map();
+    return pins.map((pin) => {
+      const change = stored.occurrenceAt(pin);
+      const next = (counts.get(change.patchId) ?? 0) + 1;
+      if (change.occurrence !== next) throw new Error("occurrences must be numbered in sequence per patch");
+      counts.set(change.patchId, next);
+      return change;
+    });
   } catch (error) { throw new Error(`${path}: invalid change checkpoint: ${error.message}`); }
+}
+
+function materialSelection(stored) {
+  const selected = new Map();
+  return (change) => {
+    if (!selected.has(change.patchId)) {
+      const existing = stored.get(change.patchId, false);
+      const material = existing ?? change.material;
+      const materialPin = existing ? stored.materialPin(change.patchId) : `${changePath(change.patchId)}@${identity(renderJSON(material))}`;
+      selected.set(change.patchId, { material, materialPin });
+    }
+    return selected.get(change.patchId);
+  };
 }
 
 async function currentChanges(root, abs, tip, intent, baseRef, command, read) {
   const base = artifactBase(root, tip, intent, baseRef, command);
   const stored = changeStore(root, read);
-  for (const id of changeCheckpoint(read, CHANGE_CHECKPOINT)) stored.get(id);
+  const recorded = new Map(changeCheckpoint(read, CHANGE_CHECKPOINT, stored).map((change) => [changeMember(change.patchId, change.occurrence), change]));
   const history = await treeReader(root, join(abs, CHANGE_FOLDER), base, true);
   const historyRead = (path) => history?.read(path, true) ?? null;
   const historyStore = changeStore(root, (path) => historyRead(path.slice(CHANGE_FOLDER.length + 1)));
-  const retained = changeCheckpoint(historyRead, "index.json").map((patchId) => {
-    const material = historyStore.get(patchId);
-    if (stored.get(patchId).digest !== material.digest) throw new Error(`${changePath(patchId)}: retained material changed`);
-    return { commit: material.source.commit, patchId, material };
-  });
-  const live = authoredChanges(base, tip, { root, pipelinesRoot: relative(root, dirname(abs)) || "." });
+  const retained = changeCheckpoint(historyRead, "index.json", historyStore).map((change) => stored.occurrenceAt(change.occurrencePin));
+  const observed = new Map([...recorded.values(), ...retained].map((change) => [change.source.commit, change]));
+  const live = authoredChanges(base, tip, { root, pipelinesRoot: relative(root, dirname(abs)) || ".", observed });
   const occurrences = new Map();
+  const select = materialSelection(stored);
   const changes = [...retained, ...live].map((change) => {
     const occurrence = (occurrences.get(change.patchId) ?? 0) + 1;
     occurrences.set(change.patchId, occurrence);
-    return { ...change, material: stored.get(change.patchId, false) ?? change.material, occurrence };
+    const prior = change.occurrencePin ? change : recorded.get(changeMember(change.patchId, occurrence));
+    if (prior) return { ...prior, commit: change.commit };
+    const { material, materialPin } = select(change);
+    const observation = { patchId: change.patchId, occurrence, source: change.source, material: materialPin };
+    const id = identity(renderJSON(observation));
+    return { ...change, occurrence, material, materialPin, observation, occurrencePin: `${occurrencePath(id)}@${id}` };
   });
   return { base, changes, stored };
 }
@@ -371,9 +484,19 @@ function recordChanges(root, abs, changes, checkpoint = false) {
   });
   for (const change of changes) {
     const path = containedPath("stamp", root, join(abs, changePath(change.patchId)));
-    if (stored.get(change.patchId, false)) continue;
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, `${JSON.stringify(change.material, null, 2)}\n`, { flag: "wx" });
+    if (!stored.get(change.patchId, false)) {
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, renderJSON(change.material), { flag: "wx" });
+    }
+    if (change.materialPin) stored.materialAt(change.materialPin);
+    if (change.occurrencePin) {
+      const entry = containedPath("stamp", root, join(abs, pinParts(change.occurrencePin).path));
+      if (!existsSync(entry)) {
+        mkdirSync(dirname(entry), { recursive: true });
+        writeFileSync(entry, renderJSON(change.observation), { flag: "wx" });
+      }
+      stored.occurrenceAt(change.occurrencePin);
+    }
   }
   if (checkpoint) {
     const path = containedPath("stamp", root, join(abs, CHANGE_CHECKPOINT));
@@ -560,7 +683,7 @@ function reviewPackageMembers(art, prefix, scope, pinned, tasks, reports) {
 function pinPackage(entries) {
   if (!Array.isArray(entries) || !entries.length) return null;
   const parts = entries.map((entry) => typeof entry === "string" ? pinParts(entry) : null);
-  if (parts.some((p) => !p?.path || !packageIdentityValid(p.path, p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
+  if (parts.some((p) => !p?.path || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
   return new Map(parts.map((p) => [p.path, p.sha]));
 }
 
@@ -576,7 +699,7 @@ function equalPackages(a, b, differences = null) {
   let equal = true;
   for (const [source, other, otherPairs] of [[a, b, right], [b, a, left]]) {
     for (const pair of source) {
-      if (!packageIdentityValid(...pair) || !otherPairs.has(JSON.stringify(pair))) {
+      if (!IDENTITY.test(pair[1]) || !otherPairs.has(JSON.stringify(pair))) {
         equal = false;
         if (differences) {
           if (!other.has(pair[0])) differences.members = true;
@@ -590,7 +713,7 @@ function equalPackages(a, b, differences = null) {
 
 const packagePins = (p) => [...p].map(([path, sha]) => `${path}@${sha}`);
 const projectPackage = (p, paths) => p && new Map(paths.map((path) => [path, p.get(path)]));
-const reviewProjection = (p, paths) => paths === null ? p : p && new Map([...projectPackage(p, paths), ...[...p].filter(([path]) => path === CHANGE_CHECKPOINT || path.startsWith(CHANGE_PREFIX))]);
+const reviewProjection = (p, paths) => paths === null ? p : p && new Map([...projectPackage(p, paths), ...[...p].filter(([path]) => changeFile(path))]);
 const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
 
 function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks = [], reports = [], changes = []) {
@@ -1289,8 +1412,11 @@ async function cmdStamp(args) {
     fm.set("commits", canonical);
     if (report) {
       const observed = canonical.flatMap((commit) => authoredChanges(`${commit}^@`, commit, changeContext));
+      const stored = changeStore(root, readChanges);
+      const select = materialSelection(stored);
+      for (const change of observed) Object.assign(change, select(change));
       materials.push(...observed);
-      fm.set("changes", observed.map(({ patchId }) => patchId));
+      fm.set("changes", observed.map((change) => change.materialPin));
     }
   } else if (report) fm.delete("changes");
   if (report) {
@@ -1316,8 +1442,8 @@ async function cmdStamp(args) {
   }
 
   const stored = changeStore(root, readChanges);
-  for (const id of materialReferences(fm))
-    if (!stored.get(id, false) && !materials.some((change) => change.patchId === id)) throw new Error(`${changePath(id)}: missing material`);
+  for (const pin of materialReferences(fm))
+    if (!materials.some((change) => change.materialPin === pin || change.occurrencePin === pin)) stored.resolve(pin);
   recordChanges(root, base, materials, checkpoint !== null);
   writeFileSync(abs, renderFrontmatter(fm, body));
   process.stdout.write(`stamped ${relative(root, abs)}\n`);
@@ -1733,7 +1859,7 @@ async function cmdCheck(args) {
   const authored = await currentChanges(root, abs, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check", (path) => tree.read(path, true));
   const base = authored.base;
   changes = authored.changes;
-  for (const doc of all) for (const id of materialReferences(doc.data)) authored.stored.get(id);
+  for (const doc of all) for (const pin of materialReferences(doc.data)) authored.stored.resolve(pin);
   out.base = base.slice(0, SHORT);
   out.authoredChanges = changes.map(publicChange);
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
@@ -2051,22 +2177,18 @@ async function cmdDiff(args) {
     const review = text === null ? null : parseFrontmatter(text);
     const reviewed = pinPackage(review?.data?.get("reviewed"));
     if (role.scope || !role.review || role.review.prefix !== role.art.review || !reviewed || !VERDICTS.has(review.data.get("verdict")) || mirrorDrift(review.data, review.body, path).length) die(`diff: invalid phase review: ${path}`);
-    for (const id of materialReferences(review.data)) state.stored.get(id);
+    for (const pin of materialReferences(review.data)) state.stored.resolve(pin);
     const delta = changeDelta(state.changes, reviewed);
-    const added = new Set(delta.added.map(({ patchId, occurrence }) => changeMember(patchId, occurrence)));
+    const added = new Set(delta.added.map(({ path }) => path));
     selected = [
-      ...state.changes.filter(({ patchId, occurrence }) => added.has(changeMember(patchId, occurrence))).map((change) => ({ ...change, status: "added" })),
-      ...delta.removed.map((member) => {
-        const [patchId, number] = member.slice(CHANGE_PREFIX.length).split(":");
-        const material = state.stored.get(patchId);
-        return { commit: material.source.commit, patchId, occurrence: Number(number), material, status: "removed" };
-      }),
+      ...state.changes.filter(({ occurrencePin }) => added.has(pinParts(occurrencePin).path)).map((change) => ({ ...change, status: "added" })),
+      ...delta.removed.map((pin) => ({ ...state.stored.occurrenceAt(pin), status: "removed" })),
     ];
   } else if (args.liveNet) {
     const material = changeMaterial(root, state.base, tip, relative(root, dirname(abs)) || ".");
     selected = material ? [{ commit: tip, patchId: material.patchId, occurrence: 1, material, status: "net" }] : [];
   }
-  const rows = selected.map((change) => ({ ...publicChange(change), member: changeMember(change.patchId, change.occurrence), status: change.status, content: change.material }));
+  const rows = selected.map((change) => ({ ...publicChange(change), member: change.occurrencePin ?? null, status: change.status, content: change.material }));
   const patches = rows.map((row) => Buffer.concat([
     ...(args.liveNet ? [] : [Buffer.from(`# ${row.status} ${row.member}\n`)]),
     Buffer.from(row.content.patch, "base64"),
@@ -2085,13 +2207,20 @@ async function cmdDiff(args) {
       for (const file of row.content.files) for (const side of ["before", "after"]) {
         const entry = file[side];
         if (!entry) continue;
-        const path = join(directory, side, file.path);
-        mkdirSync(dirname(path), { recursive: true });
-        writeFileSync(path, entry.mode === "160000" ? `${entry.oid}\n` : Buffer.from(entry.bytes, "base64"), { mode: entry.mode === "100755" ? 0o755 : 0o644 });
+        const parts = Buffer.from(file.path, "base64").toString("latin1").split("/").map((part) => Buffer.from(part, "latin1"));
+        let parent = Buffer.from(join(directory, side));
+        mkdirSync(parent, { recursive: true });
+        for (const [index, part] of parts.entries()) {
+          if (part.includes(Buffer.from(sep))) throw new Error("diff: material path cannot be represented on this filesystem");
+          const path = Buffer.concat([parent, Buffer.from(sep), part]);
+          if (index === parts.length - 1) writeFileSync(path, entry.mode === "160000" ? `${entry.oid}\n` : Buffer.from(entry.bytes, "base64"), { mode: entry.mode === "100755" ? 0o755 : 0o644 });
+          else mkdirSync(path, { recursive: true });
+          parent = path;
+        }
       }
     }
     writeFileSync(join(output, "diff.patch"), Buffer.concat(patches));
-    writeFileSync(join(output, "index.json"), `${JSON.stringify(rows.map(({ content, ...row }, index) => ({ ...row, material: `${index + 1}/change.json`, source: content.source })), null, 2)}\n`);
+    writeFileSync(join(output, "index.json"), `${JSON.stringify(rows.map(({ content, ...row }, index) => ({ ...row, material: `${index + 1}/change.json` })), null, 2)}\n`);
   }
   process.stdout.write(args.json ? `${JSON.stringify(rows, null, 2)}\n` : Buffer.concat(patches));
 }
@@ -2150,9 +2279,9 @@ using --base unless the intent declares starts-from. Identity is the first 12 he
 git's blob hash of every body byte: stamping never
 changes it. check reports the frontier: contradictions, owner escalations,
 then phases in order up to the target — converge artifacts, review waves, tasks,
-and completion. --base names the artifact base branch: the
-pipeline's own commits follow its merge-base with the inspected ref, or with the
-branch the intent starts-from when it declares one. run-config.md supplies the
+and completion. --base names the artifact base branch used for the merge-base
+with the inspected ref; the intent's starts-from branch prevails when declared.
+run-config.md supplies the
 workflow, target phase, and named lanes. Each named lane's fingerprint derives
 from its id, brief, materials, and after fields.
 diff renders authored-change material; --review selects added and removed members,
