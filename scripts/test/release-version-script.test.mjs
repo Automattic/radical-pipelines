@@ -43,13 +43,27 @@ describe("release:version npm script", () => {
     assert.equal(JSON.stringify(PKG, null, 2) + "\n", RAW);
   });
 
-  test("no other script is altered, aside from the additive test:opencode entry", () => {
+  test("no other script is altered, aside from the additive per-suite entries", () => {
     assert.deepEqual(Object.keys(PKG.scripts).sort(), [
       "release:version",
       "test",
       "test:opencode",
+      "test:opencode-unit",
+      "test:release",
+      "test:rp",
     ]);
     assert.equal(PKG.scripts.test, "node --test 'scripts/test/**/*.test.mjs'");
+  });
+
+  test("each per-suite script runs its own slice of the fixed test gate", () => {
+    assert.equal(PKG.scripts["test:rp"], "node --test scripts/test/rp.test.mjs");
+    assert.equal(PKG.scripts["test:opencode-unit"], "node --test 'scripts/test/opencode/*.test.mjs'");
+    for (const script of ["test:rp", "test:opencode-unit", "test:release"]) {
+      assert.ok(
+        !PKG.scripts[script].includes("opencode-integration"),
+        `${script} must never run the opencode integration suite`,
+      );
+    }
   });
 
   test("test:opencode is not referenced by the fixed test script, and its glob excludes the opencode integration suite", () => {
