@@ -986,6 +986,44 @@ process.stdout.write(output);
         assert.equal(read(root, "0-intent/intent.md"), original);
       });
 
+  for (const phase of [0, 1, 2, 3])
+    for (const placement of ["whole artifact", "clause", "multiple targets", "other artifact"])
+      test(`owner answer targets: phase ${phase + 1}, ${placement}`, () => {
+        const chain = frontierChain();
+        const artifact = chain.artifacts[phase], otherPhase = (phase + 1) % 4;
+        const other = chain.artifacts[otherPhase], intent = "0-intent/intent.md";
+        const claim = chain.reviews[phase].replace("review-1", "review-2");
+        const ownerTarget = `${intent}#intent-goal`;
+        registered(claim, {
+          reviewed: pairs(chain.packages[phase]), verdict: "unsatisfiable",
+          target: [ownerTarget], "target-identity": [identity(read(root, intent))],
+        }, `# Review\nVerdict: unsatisfiable\nTarget: ${ownerTarget}\n`);
+        const clause = `${artifact}#${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][phase]}`;
+        const targets = {
+          "whole artifact": [artifact], clause: [clause],
+          "multiple targets": [other, clause], "other artifact": [other],
+        }[placement];
+        const answer = ownerInput("constraint", 1, targets, claim);
+        configure({ targetPhase: phase + 1 });
+        const state = JSON.parse(check(root, "--json"));
+        if (placement === "other artifact") {
+          assert.equal(state.claims[0].state, "PENDING — owner escalation");
+          assert.equal(state.frontier, `claim ${claim} → ${ownerTarget} (owner escalation)`);
+          assert.deepEqual(state.artifacts[phase].materials.challenges, []);
+          assert.equal(state.challenges[0].inScope, otherPhase < phase);
+        } else {
+          assert.equal(state.claims[0].state, `resolved (answered by ${answer})`);
+          const first = placement === "multiple targets" ? Math.min(phase, otherPhase) : phase;
+          assert.equal(state.frontier, `converge ${chain.artifacts[first]}`);
+          assert.deepEqual(state.artifacts[phase].materials.challenges, [answer]);
+        }
+        git(root, "add", "-A");
+        git(root, "commit", "--quiet", "-m", "record owner answer targets");
+        const atRef = JSON.parse(check(root, "--ref", "HEAD", "--json"));
+        assert.deepEqual(atRef.claims, state.claims);
+        assert.equal(atRef.frontier, state.frontier);
+      });
+
   test("answering one owner's claim leaves the other lane's claim pending", () => {
     const chain = frontierChain(), plan = chain.artifacts[2];
     const first = ownerInput("constraint", 1, [plan]), second = ownerInput("constraint", 2, [plan]);

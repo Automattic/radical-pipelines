@@ -59,4 +59,4 @@ Origin: <source>
 <ruling or request, including its evidence>
 ```
 
-Set `Target:` by what the statement concerns: product behavior → build plan; documentation → document plan; requirements → spec; mechanisms → design doc; a named clause → that clause. A whole-artifact target may precede the artifact. `Origin:` names the source. An answer to an owner escalation names the claim's review and targets its phase's root artifact; it replaces the challenged obligation within those targets. Records cite the input's path beside the question it answers.
+Set `Target:` by what the statement concerns: product behavior → build plan; documentation → document plan; requirements → spec; mechanisms → design doc; a named clause → that clause. A whole-artifact target may precede the artifact. `Origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. Records cite the input's path beside the question it answers.

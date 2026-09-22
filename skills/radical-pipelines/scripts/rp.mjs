@@ -715,6 +715,13 @@ function targetPairs(rel, data) {
   }));
 }
 
+function ownerAnswer(review, documents) {
+  const artifact = reviewArtifact(review)?.art.path;
+  return documents.find((doc) => ownerFile(doc.rel) === "constraint"
+    && [].concat(doc.data.get("origin") ?? []).includes(review)
+    && targetPairs(doc.rel, doc.data).some(({ targetPath }) => targetPath === artifact));
+}
+
 // Keep line positions while hiding Markdown fenced code from structural readers.
 function outsideFences(text) {
   let fence = null;
@@ -1477,12 +1484,10 @@ async function cmdCheck(args) {
 
   // pending → adjudicated (the target pins it) → resolved (the target approved
   // carrying the pin), or resolved by escalation (a closed wave of the target
-  // corroborated an unsatisfiable verdict citing it). Owner territory adjudicates
-  // a claim by a constraint whose origin names it.
-  const constraints = all.filter((d) => challengeKind(d.rel, d.data) === "constraint");
+  // corroborated an unsatisfiable verdict citing it). Owner territory resolves through its answer.
   const resolutionOf = (item) => {
     if (ownerTerritory(item.target)) {
-      const answer = constraints.find((d) => [].concat(d.data.get("origin") ?? []).includes(item.rel));
+      const answer = ownerAnswer(item.rel, all);
       return answer ? { state: "resolved", detail: `answered by ${answer.rel}` } : { state: "pending" };
     }
     const targetArtifact = ARTIFACTS.find((x) => x.path === item.targetPath);
