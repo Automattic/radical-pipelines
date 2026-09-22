@@ -36,7 +36,7 @@ flowchart TD
     LINE --> LAND
     INVALIDPLAN --> LAND
     AWAITING --> LAND
-    LAND --> STAMP["Stamp before publication; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
+    LAND --> STAMP["Stamp before publication, deriving lanes from paths and run-config.md; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
     STAMP --> A
     ST --> A
     UNCLAIMED --> A

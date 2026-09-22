@@ -25,4 +25,4 @@ Turns the intent into testable requirements: what the feature does, observably, 
 
 ## Lanes
 
-Production lanes (policy) run `spec-producer` Converge per `../loop.md` § Production lanes, then `spec-producer` Consolidate and a Consolidation review wave.
+Production lanes run `spec-producer` Converge per `../loop.md` § Production lanes, then `spec-producer` Consolidate and a Consolidation review wave.

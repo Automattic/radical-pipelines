@@ -26,7 +26,7 @@ flowchart TD
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
     ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
     QUESTION --> GROUP
-    GROUP --> CONFIRM["Ask once: each route or the deciding question, each run's workflow, target phase, lanes, and remaining questions"]
+    GROUP --> CONFIRM["Propose the current configuration or Agents defaults; ask once about workflow, target, lanes, models, and remaining questions"]
     R1 --> GROUP["Group routes by pipeline into runs"]
     R2 --> GROUP
     R3 --> GROUP
@@ -42,7 +42,7 @@ flowchart TD
     PREP --> P3["Ensure the continuation branch and worktree exist"]
     PREP --> P4["Modify the issue; re-synthesize the intent; commit and stamp"]
     P4 --> P3
-    P1A --> DIRECTIONS["Record the run's directions as decisions in its intent; stamp and commit"]
+    P1A --> DIRECTIONS["Record work directions in the intent; write run-config.md; stamp and commit"]
     P2A --> DIRECTIONS
     P3 --> DIRECTIONS
     DIRECTIONS --> START["Fire run-started"]
