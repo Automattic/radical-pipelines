@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
@@ -31,11 +31,11 @@ import plugin, {
   lookupSpawn,
   observeHttpResponse,
   promoteInboxItem,
-  readCliVersion,
   readPackageVersion,
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
+  recordError,
   recordSend,
   recordSessionEventActivity,
   readServiceRecordFile,
@@ -45,7 +45,6 @@ import plugin, {
   requestServer,
   resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
-  resolveRunningBuild,
   resolveServer,
   runLoopTick,
   sessionReadError,
@@ -93,24 +92,23 @@ async function clearAllLoopTimers() {
 function createFakeCtx({
   agents = [
     "radical-pipelines/spec-reviewer",
-    "radical-pipelines/researcher",
+    "radical-pipelines/helper",
     "radical-pipelines/build-worker-tdd",
   ],
-  legacySkillDraft = false,
 } = {}) {
   const tools = new Map();
   const addedSkills = [];
-  const skillSources = [];
   const sessions = new Map();
   let nextID = 1;
 
   // Matches the real ctx.event.subscribe() contract: a zero-argument call
   // returning an AsyncIterable, consumed via `for await` — not a
-  // callback-registration API. Verified live against the pinned build (a
+  // callback-registration API. Verified live against opencode (a
   // callback-style stub masked the listener never actually running).
   let subscribeCalls = 0;
   let hookRegistrations = 0;
   let hookDisposals = 0;
+  const hooks = new Map();
   const eventQueue = [];
   const eventWaiters = [];
 
@@ -134,40 +132,28 @@ function createFakeCtx({
         fn(api);
       },
     },
-    // Matches the real ctx.skill.transform() draft contract: current builds
-    // take fully-formed skills through add(); builds up to the previously
-    // pinned one exposed source() instead, and calling it on a current build
-    // dies with "sources.source is not a function". `legacySkillDraft` models
-    // the older shape so both paths stay covered.
     skill: {
       transform(fn) {
-        const api = legacySkillDraft
-          ? {
-              source(src) {
-                skillSources.push(src);
-                return api;
-              },
-            }
-          : {
-              list: () => [...addedSkills],
-              add(skill) {
-                addedSkills.push(skill);
-                return api;
-              },
-              update() {
-                return api;
-              },
-              remove() {
-                return api;
-              },
-            };
+        const api = {
+          list: () => [...addedSkills],
+          add(skill) {
+            addedSkills.push(skill);
+            return api;
+          },
+          update() {
+            return api;
+          },
+          remove() {
+            return api;
+          },
+        };
         fn(api);
       },
     },
     agent: {
       // Matches the real ctx.agent.list() contract: async, envelope-wrapped
       // ({ location, data: Array<AgentInfo> }), verified live against the
-      // pinned build (a synchronous plain-array stub masked a real TypeError).
+      // tested runtime (a synchronous plain-array stub masked a real TypeError).
       async list() {
         return { data: agents };
       },
@@ -182,7 +168,7 @@ function createFakeCtx({
         if (!sessions.has(sessionID)) {
           // Matches the real ctx.session.prompt rejection for a dead target:
           // name/_tag "Session.NotFoundError" (with a dot), no HTTP status —
-          // verified live against the pinned build.
+          // verified live against opencode.
           const error = new Error("Session.NotFoundError");
           error.name = "Session.NotFoundError";
           error._tag = "Session.NotFoundError";
@@ -191,9 +177,10 @@ function createFakeCtx({
         return { sessionID, text, delivery };
       },
       // Matches the real ctx.session.hook contract: registers a model hook
-      // and resolves to a disposable Registration.
-      async hook() {
+      // by name and resolves to a disposable Registration.
+      async hook(name, callback) {
         hookRegistrations += 1;
+        hooks.set(name, callback);
         return {
           dispose: async () => {
             hookDisposals += 1;
@@ -224,9 +211,9 @@ function createFakeCtx({
     ctx,
     tools,
     addedSkills,
-    skillSources,
     sessions,
     pushEvent,
+    hooks,
     get subscribeCalls() {
       return subscribeCalls;
     },
@@ -287,19 +274,39 @@ describe("setup: tool and skill registration", () => {
     const skill = addedSkills[0];
     assert.equal(skill.name, "radical-pipelines");
     assert.match(skill.description, /autonomous software engineering pipeline/);
-    assert.ok(skill.location.endsWith("skills/radical-pipelines/SKILL.md"));
+    assert.ok(skill.path.endsWith("skills/radical-pipelines/SKILL.md"));
     assert.ok(skill.content.startsWith("# Radical Pipelines"));
   });
 
-  test("falls back to the directory source on builds whose draft still offers it", async () => {
-    const { ctx, addedSkills, skillSources } = createFakeCtx({ legacySkillDraft: true });
+  test("the registered context hook re-supplies the packaged skill to a session continuing from a checkpoint", async () => {
+    globalThis[Symbol.for("radical-pipelines.opencode.skillActivations")]?.clear();
+    const { ctx, hooks, addedSkills } = createFakeCtx();
+    await setup(
+      ctx,
+      isolatedDeps({
+        env: {},
+        readServiceRecord: () => ({ url: "http://127.0.0.1:1", password: "pw" }),
+        requestFn: async () => ({ status: 200, body: { data: [], cursor: { next: null } } }),
+      }),
+    );
+    await delay(0);
 
-    await setup(ctx, isolatedDeps({ env: {} }));
+    const loaded = {
+      sessionID: "ses_wired_orchestrator",
+      system: [],
+      messages: [
+        { role: "assistant", content: [{ type: "tool-call", id: "c1", name: "skill", input: { id: "radical-pipelines" } }] },
+        { role: "tool", content: [{ type: "tool-result", id: "c1", name: "skill", result: { type: "text", value: "…" } }] },
+      ],
+    };
+    await hooks.get("context")(loaded);
+    assert.deepEqual(loaded.system, [], "nothing to re-supply while the activation is in the active context");
 
-    assert.equal(addedSkills.length, 0);
-    assert.equal(skillSources.length, 1);
-    assert.equal(skillSources[0].type, "directory");
-    assert.ok(skillSources[0].path.endsWith("skills"));
+    const after = { sessionID: "ses_wired_orchestrator", system: [], messages: [] };
+    await hooks.get("context")(after);
+    const [block] = after.system;
+    const skill = addedSkills.find((candidate) => candidate.id === "radical-pipelines");
+    assert.ok(block.text.includes(`Skill: radical-pipelines\nBase directory: ${dirname(skill.path)}\n\n${skill.content}`));
   });
 
   test("calling setup twice subscribes to events exactly once", async () => {
@@ -324,7 +331,7 @@ describe("setup: tool and skill registration", () => {
 
     await cleanup();
     assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "cleanup must clear the once-guard");
-    assert.equal(first.hookDisposals, 1, "the location's own hook must be disposed");
+    assert.equal(first.hookDisposals, 2, "every one of the location's own hooks must be disposed");
 
     // A reloaded plugin's setup must be able to re-arm the observers.
     const second = createFakeCtx();
@@ -333,7 +340,7 @@ describe("setup: tool and skill registration", () => {
     await secondCleanup();
   });
 
-  test("every location registers its own raw-liveness hook, and cleanup ownership is reference-counted", async () => {
+  test("every location registers its own session hooks, and cleanup ownership is reference-counted", async () => {
     delete globalThis[SETUP_ONCE_KEY];
 
     const first = createFakeCtx();
@@ -341,17 +348,17 @@ describe("setup: tool and skill registration", () => {
     const firstCleanup = await setup(first.ctx, isolatedDeps({ env: {} }));
     const secondCleanup = await setup(second.ctx, isolatedDeps({ env: {} }));
 
-    // The hook is location-scoped: the once-guard must not swallow the
-    // second location's registration.
+    // The hooks are location-scoped: the once-guard must not swallow the
+    // second location's registrations.
     await delay(0);
-    assert.equal(first.hookRegistrations, 1);
-    assert.equal(second.hookRegistrations, 1, "the second location must get its own hook");
+    assert.deepEqual([...first.hooks.keys()].sort(), ["context", "http.response"]);
+    assert.equal(second.hookRegistrations, 2, "the second location must get its own hooks");
 
-    // A non-owner location's cleanup disposes only its own hook, never the
-    // shared observers or another location's registration.
+    // A non-owner location's cleanup disposes only its own hooks, never the
+    // shared observers or another location's registrations.
     await secondCleanup();
-    assert.equal(second.hookDisposals, 1);
-    assert.equal(first.hookDisposals, 0, "another location's hook must survive");
+    assert.equal(second.hookDisposals, 2);
+    assert.equal(first.hookDisposals, 0, "another location's hooks must survive");
     assert.ok(globalThis[SETUP_ONCE_KEY], "the shared observers must survive while a location is live");
 
     // Double-invoking one cleanup must not release another's reference.
@@ -359,7 +366,7 @@ describe("setup: tool and skill registration", () => {
     assert.ok(globalThis[SETUP_ONCE_KEY], "a repeated cleanup must not double-release");
 
     await firstCleanup();
-    assert.equal(first.hookDisposals, 1);
+    assert.equal(first.hookDisposals, 2);
     assert.equal(globalThis[SETUP_ONCE_KEY], undefined, "the last location's cleanup tears down the shared resources");
   });
 });
@@ -379,12 +386,28 @@ describe("rp_spawn", () => {
           model: "anthropic/claude-3-opus",
           directory: "/repo/worktree",
           prompt: "begin",
-          run: "144-opencode-support",
+          pipeline_slug: "144-opencode-support",
         },
         { sessionID: "ses_orchestrator" },
       ),
       /Unknown RP agent "not-a-real-agent"/,
     );
+    assert.equal(sessions.size, 0);
+  });
+
+  test("rejects a pipeline slug that is not one path segment, a valid git ref, without _, before any session.create", async () => {
+    const { ctx, tools, sessions } = createFakeCtx({ agents: ["radical-pipelines/spec-reviewer"] });
+    await setup(ctx, isolatedDeps({ env: {} }));
+
+    for (const pipeline_slug of [undefined, "", "bad_name", "a/b", "a:b", "a b", "-bad", "a..b", "a.lock", "."]) {
+      await assert.rejects(
+        () => tools.get("rp_spawn").execute(
+          { name: "spec-reviewer-1", agent: "spec-reviewer", model: "anthropic/claude-3-opus", directory: "/repo/worktree", prompt: "begin", pipeline_slug },
+          { sessionID: "ses_orchestrator" },
+        ),
+        /Invalid pipeline slug/,
+      );
+    }
     assert.equal(sessions.size, 0);
   });
 
@@ -406,7 +429,7 @@ describe("rp_spawn", () => {
         model: "anthropic/claude-3-opus#thinking",
         directory: "/repo/worktree",
         prompt: "begin the review",
-        run: "144-opencode-support",
+        pipeline_slug: "144-opencode-support",
       },
       { sessionID: "ses_orchestrator" },
     );
@@ -426,7 +449,7 @@ describe("rp_spawn", () => {
 
     assert.deepEqual(lookupSpawn(sessionID), {
       name: "spec-reviewer-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
       directory: "/repo/worktree",
       repoRoot: "/repo/worktree-repo-root",
@@ -446,7 +469,7 @@ describe("rp_spawn", () => {
     // A session outlives its turn: an agent that ends its turn to "wait" for
     // detached work is parked until a message arrives — observed live. A
     // managed background command's completion does arrive as such a message
-    // (verified against the pinned build), but only if the command finishes:
+    // (verified against opencode), but only if the command finishes:
     // background commands carry no timeout by default.
     assert.match(result, /## RP turns \(opencode\)/);
     assert.match(result, /Ending your turn is a stop: only a message resumes this session/);
@@ -571,7 +594,7 @@ describe("the access boundary is wired into what setup registers", () => {
     const tools = registerTools();
     recordSpawn("ses_wired_agent", {
       name: "build-worker-tdd wired",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_wired_orchestrator",
     });
     recordSessionParent({ type: "session.created", data: { sessionID: "ses_wired_agent" } });
@@ -674,7 +697,7 @@ describe("rp_send", () => {
     // it, including its completion declaration.
     recordSpawn("ses_worker", {
       name: "build-writer-edit",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_its_spawner",
     });
 
@@ -701,14 +724,14 @@ describe("rp_send", () => {
   test("delivers agent-to-agent with steer, not only to and from the orchestrator", async () => {
     const { ctx, tools, sessions } = createFakeCtx();
     await setup(ctx, isolatedDeps({ env: {} }));
-    sessions.set("ses_researcher", { id: "ses_researcher" });
+    sessions.set("ses_helper", { id: "ses_helper" });
     sessions.set("ses_requester", { id: "ses_requester" });
-    // Both ends are RP spawns: the requester/researcher pair, not the spawner.
+    // Both ends are RP spawns: the requester/helper pair, not the spawner.
     for (const [id, name] of [
-      ["ses_researcher", "researcher-q1"],
+      ["ses_helper", "helper-q1"],
       ["ses_requester", "correction-lead"],
     ]) {
-      recordSpawn(id, { name, run: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
+      recordSpawn(id, { name, pipelineSlug: "267-steer-inter-agent-messages", spawner: "ses_orchestrator" });
     }
 
     let captured;
@@ -720,11 +743,11 @@ describe("rp_send", () => {
 
     await tools
       .get("rp_send")
-      .execute({ to: "ses_requester", message: "Q1 answer" }, { sessionID: "ses_researcher" });
+      .execute({ to: "ses_requester", message: "Q1 answer" }, { sessionID: "ses_helper" });
 
     assert.equal(captured.sessionID, "ses_requester");
     assert.equal(captured.delivery, "steer");
-    assert.ok(captured.text.startsWith("[from researcher-q1 (ses_researcher)]"));
+    assert.ok(captured.text.startsWith("[from helper-q1 (ses_helper)]"));
   });
 
   test("delivers with steer and prefixes the attribution derived from toolCtx.sessionID, not message content", async () => {
@@ -734,7 +757,7 @@ describe("rp_send", () => {
     sessions.set("ses_receiver", { id: "ses_receiver" });
     recordSpawn("ses_sender", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -864,7 +887,7 @@ describe("rp_send", () => {
     sessions.set("ses_sender2", { id: "ses_sender2" });
     recordSpawn("ses_sender2", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -883,7 +906,7 @@ describe("rp_send", () => {
     sessions.set("ses_its_spawner_rec", { id: "ses_its_spawner_rec" });
     recordSpawn("ses_sender_rec", {
       name: "spec-producer-1",
-      run: "276-activity-reporting",
+      pipelineSlug: "276-activity-reporting",
       spawner: "ses_its_spawner_rec",
     });
 
@@ -1275,7 +1298,7 @@ describe("interruptSession", () => {
     };
 
     await interruptSession(server, "ses_1", requestFn);
-    assert.deepEqual(calls, [{ path: "/api/session/ses_1/interrupt?continue=true", method: "POST" }]);
+    assert.deepEqual(calls, [{ path: "/api/session/ses_1/interrupt?resume=true", method: "POST" }]);
   });
 
   test("throws on a non-2xx response", async () => {
@@ -1286,15 +1309,15 @@ describe("interruptSession", () => {
 describe("promoteInboxItem", () => {
   const server = { baseURL: "http://127.0.0.1:4096", password: "pw" };
 
-  test("posts the queue-to-steer promotion for the given inbox item", async () => {
+  test("updates the given inbox item's delivery to steer", async () => {
     const calls = [];
     const requestFn = async (url, init) => {
-      calls.push({ path: url.pathname, method: init.method });
+      calls.push({ path: url.pathname, method: init.method, body: JSON.parse(init.body) });
       return { status: 204 };
     };
 
     await promoteInboxItem(server, "ses_1", "inb_1", requestFn);
-    assert.deepEqual(calls, [{ path: "/api/session/ses_1/inbox/inb_1/steer", method: "POST" }]);
+    assert.deepEqual(calls, [{ path: "/api/session/ses_1/inbox/inb_1", method: "PATCH", body: { delivery: "steer" } }]);
   });
 
   test("throws on a non-2xx response", async () => {
@@ -1360,7 +1383,7 @@ describe("superviseEvents teardown", () => {
     await delay(5);
     abort.abort();
     await supervisor;
-    assert.ok(returned, "teardown must close the pinned iterator via return()");
+    assert.ok(returned, "teardown must close the live iterator via return()");
   });
 });
 
@@ -1437,7 +1460,7 @@ describe("recordTurnEnd / turnsFor", () => {
     recordTurnEnd({ type: "session.execution.failed", properties: { sessionID: "ses_turns" } }, 2_000);
     assert.deepEqual(turnsFor("ses_turns"), { turns: 2, lastTurn: { endedAt: 2_000, outcome: "failed" } });
 
-    // An interrupt ends the turn too — verified live against the pinned
+    // An interrupt ends the turn too — verified live against the tested
     // build: `POST /interrupt` emits `session.execution.interrupted`, with no
     // succeeded/failed event — without being a failure to announce.
     recordTurnEnd({ type: "session.execution.interrupted", data: { sessionID: "ses_turns" } }, 3_000);
@@ -1486,7 +1509,7 @@ describe("recordSend / lastSendFor", () => {
 describe("extractLastText", () => {
   test("returns the newest assistant message's last non-empty text part, trimmed, stamped with the message's completion time", () => {
     // Newest first, as `getSessionMessages` returns them. Text parts carry no
-    // time of their own in the pinned projection.
+    // time of their own in the session projection.
     const messages = [
       { type: "user", time: { created: 900 }, text: "[from orchestrator] status?" },
       {
@@ -1602,7 +1625,7 @@ describe("observeHttpResponse / lastRawSessionProgressAt", () => {
     );
   });
 
-  test("captures projected tool ids across pinned provider protocols, decoding JSON escapes", async () => {
+  test("captures projected tool ids across provider protocols, decoding JSON escapes", async () => {
     const encoder = new TextEncoder();
     const chunks = [
       // Open Responses: the projected tool-part id is `call_id`, not `id`.
@@ -3654,6 +3677,10 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
       ),
       `expected an observable busy tick, got: ${JSON.stringify(globalThis[LOOP_TICK_LOG_KEY])}`,
     );
+    globalThis[LOOP_TICK_LOG_KEY].push({ loopID: "loop_other", targetSession: "ses_other", at: 1, outcome: "busy" });
+    const listed = (await tools.get("rp_loop_list").execute({}, {})).output;
+    assert.ok(listed[0].recentTicks.length >= 1, "a listed loop carries its own recent ticks");
+    assert.ok(listed[0].recentTicks.every((tick) => tick.loopID === loopID), "and none of another loop's");
 
     active = false;
     await delay(60);
@@ -3672,8 +3699,14 @@ describe("rp_loop_start / rp_loop_list / rp_loop_cancel (wired through setup)", 
     assert.deepEqual((await tools.get("rp_loop_list").execute({}, {})).output, []);
 
     const countAfterCancel = promptCalls.length;
+    const ticksAfterCancel = globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length;
     await delay(60);
     assert.equal(promptCalls.length, countAfterCancel, "a cancelled loop must not tick again");
+    assert.equal(
+      globalThis[LOOP_TICK_LOG_KEY].filter((tick) => tick.loopID === loopID).length,
+      ticksAfterCancel,
+      "nor record a tick",
+    );
   });
 
   test("records a failed outcome when server resolution throws before the tick starts", async () => {
@@ -3902,7 +3935,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_evt", { id: "ses_child_evt" });
     recordSpawn("ses_child_evt", {
       name: "worker",
-      run: "258-agent-declared-completion",
+      pipelineSlug: "258-agent-declared-completion",
       spawner: "ses_spawner_evt",
     });
 
@@ -3954,7 +3987,7 @@ describe("terminal-event listener", () => {
     for (const id of ["ses_child_term", "ses_child_other"]) {
       recordSpawn(id, {
         name: id === "ses_child_term" ? "worker" : "bystander",
-        run: "267-steer-inter-agent-messages",
+        pipelineSlug: "267-steer-inter-agent-messages",
         spawner: "ses_spawner_term",
       });
     }
@@ -4007,7 +4040,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_twice", { id: "ses_child_twice" });
     recordSpawn("ses_child_twice", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_twice",
     });
 
@@ -4062,7 +4095,7 @@ describe("terminal-event listener", () => {
       sessions.set("ses_child_held", { id: "ses_child_held" });
       recordSpawn("ses_child_held", {
         name: "worker",
-        run: "267-steer-inter-agent-messages",
+        pipelineSlug: "267-steer-inter-agent-messages",
         spawner: "ses_spawner_held",
       });
 
@@ -4127,7 +4160,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_iso", { id: "ses_child_iso" });
     recordSpawn("ses_child_iso", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_iso",
     });
 
@@ -4192,7 +4225,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_win", { id: "ses_child_win" });
     recordSpawn("ses_child_win", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_win",
     });
 
@@ -4286,7 +4319,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_stall", { id: "ses_child_stall" });
     recordSpawn("ses_child_stall", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_stall",
     });
 
@@ -4343,7 +4376,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_two", { id: "ses_child_two" });
     recordSpawn("ses_child_two", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_two",
     });
 
@@ -4412,7 +4445,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_adopt", { id: "ses_child_adopt" });
     recordSpawn("ses_child_adopt", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_adopt",
     });
 
@@ -4503,7 +4536,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_mask", { id: "ses_child_mask" });
     recordSpawn("ses_child_mask", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_mask",
     });
 
@@ -4541,7 +4574,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_race", { id: "ses_child_race" });
     recordSpawn("ses_child_race", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_race",
     });
 
@@ -4635,7 +4668,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_alive", { id: "ses_child_alive" });
     recordSpawn("ses_child_alive", {
       name: "worker",
-      run: "267-steer-inter-agent-messages",
+      pipelineSlug: "267-steer-inter-agent-messages",
       spawner: "ses_spawner_alive",
     });
 
@@ -4676,7 +4709,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_title", { id: "ses_child_title" });
     recordSpawn("ses_child_title", {
       name: "worker-title",
-      run: "258-agent-declared-completion",
+      pipelineSlug: "258-agent-declared-completion",
       spawner: "ses_spawner_title",
     });
 
@@ -4696,7 +4729,7 @@ describe("terminal-event listener", () => {
     pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_title" } });
     await delay(10);
     assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title/rename");
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title");
     assert.equal(
       renames[0].init.body,
       JSON.stringify({ title: "rp:258-agent-declared-completion:worker-title" }),
@@ -4718,7 +4751,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_int", { id: "ses_child_int" });
     recordSpawn("ses_child_int", {
       name: "worker-interrupted",
-      run: "276-activity-reporting",
+      pipelineSlug: "276-activity-reporting",
       spawner: "ses_spawner_int",
     });
 
@@ -4744,7 +4777,7 @@ describe("terminal-event listener", () => {
     await delay(10);
 
     assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int/rename");
+    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int");
     assert.equal(renames[0].init.body, JSON.stringify({ title: "rp:276-activity-reporting:worker-interrupted" }));
     assert.equal(promptCalls.length, 0, "an interrupt is a deliberate stop, not a failure to announce");
     assert.deepEqual(globalThis[ERROR_LOG_KEY], []);
@@ -4760,7 +4793,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_success_log", { id: "ses_child_success_log" });
     recordSpawn("ses_child_success_log", {
       name: "worker-success-log",
-      run: "247-observable-health-loops",
+      pipelineSlug: "247-observable-health-loops",
       spawner: "ses_spawner_success_log",
     });
 
@@ -4779,7 +4812,7 @@ describe("terminal-event listener", () => {
     sessions.set("ses_child_cause", { id: "ses_child_cause" });
     recordSpawn("ses_child_cause", {
       name: "worker-cause",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_spawner_cause",
     });
 
@@ -4931,7 +4964,7 @@ describe("buildLedgerRows", () => {
   test("maps recognized session records into ledger rows and omits unrecognized ones", () => {
     recordSpawn("ses_ledger_1", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -4954,7 +4987,7 @@ describe("buildLedgerRows", () => {
           title: "some other title",
         },
       ],
-      (id) => (id === "ses_ledger_1" ? { name: "spec-lead", run: "144-opencode-support", spawner: "x" } : undefined),
+      (id) => (id === "ses_ledger_1" ? { name: "spec-lead", pipelineSlug: "144-opencode-support", spawner: "x" } : undefined),
       new Set(["ses_ledger_1"]),
       () => 2,
     );
@@ -4962,19 +4995,17 @@ describe("buildLedgerRows", () => {
     assert.deepEqual(rows, [
       {
         name: "spec-lead",
-        run: "144-opencode-support",
+        pipelineSlug: "144-opencode-support",
         sessionID: "ses_ledger_1",
         agent: "spec-lead",
         model: "anthropic/claude-3-opus",
         directory: "/repo/worktree",
-        updated: 123,
         activity: 123,
         running: true,
         pending: 2,
         permissions: [],
         currentTool: undefined,
         lastTurn: undefined,
-        turns: undefined,
         lastSend: undefined,
         lastText: undefined,
       },
@@ -4990,7 +5021,7 @@ describe("buildLedgerRows", () => {
       time: { updated },
       title: `rp:144-opencode-support:${id}`,
     });
-    // The pinned build moves `time.updated` only when the session receives
+    // opencode moves `time.updated` only when the session receives
     // input — verified live: a 6-second tool call and the turn's end left it
     // untouched — so a long working turn looks frozen through `updated`
     // alone.
@@ -5021,18 +5052,18 @@ describe("buildLedgerRows", () => {
     );
 
     assert.deepEqual(
-      rows.map((row) => [row.sessionID, row.updated, row.activity]),
+      rows.map((row) => [row.sessionID, row.activity]),
       [
-        ["ses_tooling", 100, 5_000],
-        ["ses_stale_event", 100, 100],
-        ["ses_unobserved", 100, 100],
-        ["ses_no_time", undefined, 7],
-        ["ses_trickling", 100, 9_000],
+        ["ses_tooling", 5_000],
+        ["ses_stale_event", 100],
+        ["ses_unobserved", 100],
+        ["ses_no_time", 7],
+        ["ses_trickling", 9_000],
       ],
     );
   });
 
-  test("maps the plugin's own per-session observations — last turn, turn count, last send, last text — onto the row", () => {
+  test("maps the plugin's own per-session observations — last turn, last send, last text — onto the row", () => {
     const rows = buildLedgerRows(
       [
         {
@@ -5057,7 +5088,6 @@ describe("buildLedgerRows", () => {
     );
 
     assert.deepEqual(rows[0].lastTurn, { endedAt: 900, outcome: "succeeded" });
-    assert.equal(rows[0].turns, 3);
     assert.deepEqual(rows[0].lastSend, { at: 800, to: "ses_orchestrator" });
     assert.deepEqual(rows[0].lastText, { at: 899, excerpt: "Let me wait for the sweep to complete." });
   });
@@ -5085,68 +5115,29 @@ describe("buildLedgerRows", () => {
   });
 });
 
-describe("resolveRunningBuild", () => {
-  test("prefers the service record's version and never calls the CLI fallback", () => {
-    const result = resolveRunningBuild({ version: "0.0.0-next-1" }, () => {
-      throw new Error("must not be called");
-    });
-    assert.equal(result, "0.0.0-next-1");
-  });
-
-  test("falls back to the injected CLI-version reader when there is no service record", () => {
-    assert.equal(resolveRunningBuild(null, () => "0.0.0-next-2"), "0.0.0-next-2");
-  });
-
-  test("reports unknown when neither the record nor the CLI fallback yield a version", () => {
-    assert.equal(resolveRunningBuild(null, () => null), "unknown");
-  });
-});
-
-describe("readCliVersion", () => {
-  test("strips the real CLI's leading 'opencode2 v' and trims the output", () => {
-    // The real `opencode2 --version` prints "opencode2 v<build>\n" — verified
-    // live against the pinned build — not the bare build string alone.
-    assert.equal(readCliVersion(() => "opencode2 v0.0.0-next-15772\n"), "0.0.0-next-15772");
-  });
-
-  test("returns the output unchanged when it carries no 'opencode2 v' prefix", () => {
-    assert.equal(readCliVersion(() => "0.0.0-next-15772\n"), "0.0.0-next-15772");
-  });
-
-  test("returns null when exec throws (e.g. the binary is missing)", () => {
-    assert.equal(
-      readCliVersion(() => {
-        throw new Error("command not found");
-      }),
-      null,
-    );
-  });
-});
-
 describe("buildStatusPayload", () => {
-  test("returns an empty ledger and a pin comparison without touching the network when the server cannot be resolved", async () => {
+  test("returns an empty ledger without touching the network when the server cannot be resolved", async () => {
     globalThis[ERROR_LOG_KEY] = [];
     const result = await buildStatusPayload({
       env: {},
       readServiceRecord: () => null,
-      readCliVersion: () => "0.0.0-next-unknown-build",
     });
 
     assert.equal(result.ledger.length, 0);
-    assert.equal(result.pin, "outside the verified surface");
+    assert.equal(Object.hasOwn(result, "pin"), false);
     assert.equal(typeof result.pluginVersion, "string");
     assert.deepEqual(result.recentErrors, []);
   });
 
-  test("reads the session list, active set, and per-session pending counts, permissions, and newest text through the reach helper and the injected HTTP client", async () => {
+  test("a session scope reads the session list, active set, and that session's pending count, permissions, and newest text through the reach helper and the injected HTTP client", async () => {
     recordSpawn("ses_status_1", {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
     // Every opencode HTTP GET response envelopes its payload as
-    // `{ data: ... }` — verified live against the pinned build.
+    // `{ data: ... }` — verified live against opencode.
     const requestFn = async (url) => {
       if (url.pathname === "/api/session") {
         return {
@@ -5220,21 +5211,20 @@ describe("buildStatusPayload", () => {
     };
 
     const result = await buildStatusPayload({
+      session: "ses_status_1",
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     assert.equal(result.ledger.length, 1);
     assert.deepEqual(result.ledger[0], {
       name: "spec-lead",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       sessionID: "ses_status_1",
       agent: "spec-lead",
       model: "anthropic/claude-3-opus",
       directory: "/repo",
-      updated: 42,
       activity: 42,
       running: true,
       pending: 1,
@@ -5247,17 +5237,132 @@ describe("buildStatusPayload", () => {
       ],
       currentTool: undefined,
       lastTurn: undefined,
-      turns: undefined,
       lastSend: undefined,
       lastText: { at: 950, excerpt: "Reading the review now." },
     });
     assert.deepEqual(result.readFailures, []);
   });
 
+  test("a pipeline scope reports that pipeline's sessions alone, reading no transcript, and narrows the errors to them plus those naming no session", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
+    recordSpawn("ses_scope_a1", { name: "spec-lead", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
+    recordSpawn("ses_scope_a2", { name: "spec-reviewer-1", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
+    recordSpawn("ses_scope_b1", { name: "spec-lead", pipelineSlug: "pipeline-b", spawner: "ses_orch_b" });
+    // Recorded, then gone from the server: a dead agent whose failure the
+    // pipeline still needs.
+    recordSpawn("ses_scope_a_gone", { name: "helper-1", pipelineSlug: "pipeline-a", spawner: "ses_orch_a" });
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_a1", at: 1 });
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_b1", at: 2 });
+    recordError({ type: "listener.lost", error: "boom", at: 3 });
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_gone", at: 4 });
+    // Known by title alone, as after a daemon restart.
+    recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_titled", at: 5 });
+    // Not RP's: neither recorded nor titled.
+    recordError({ type: "skill.resupply.unreadable", sessionID: "ses_someone_elses", at: 6 });
+    // Naming a session, however malformed, is never sessionless.
+    recordError({ type: "session.execution.failed", sessionID: 42, at: 7 });
+
+    const record = (id, slug, name) => ({
+      id,
+      agent: "spec-lead",
+      model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
+      location: { directory: `/${slug}` },
+      time: { updated: 1 },
+      title: `rp:${slug}:${name}`,
+    });
+    const reads = [];
+    const requestFn = async (url) => {
+      reads.push(url.pathname);
+      if (url.pathname === "/api/session") {
+        return {
+          status: 200,
+          body: {
+            data: [
+              record("ses_scope_a1", "pipeline-a", "spec-lead"),
+              record("ses_scope_b1", "pipeline-b", "spec-lead"),
+              record("ses_scope_a2", "pipeline-a", "spec-reviewer-1"),
+              record("ses_scope_a_titled", "pipeline-a", "spec-reviewer-2"),
+              { ...record("ses_someone_elses", "x", "y"), title: "Fix the flaky test" },
+            ],
+          },
+        };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+    const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
+
+    const scoped = await buildStatusPayload({ pipelineSlug: "pipeline-a", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(
+      scoped.ledger.map((row) => [row.sessionID, row.pipelineSlug]),
+      [
+        ["ses_scope_a1", "pipeline-a"],
+        ["ses_scope_a2", "pipeline-a"],
+        ["ses_scope_a_titled", "pipeline-a"],
+      ],
+    );
+    assert.ok(scoped.ledger.every((row) => !Object.hasOwn(row, "lastText")));
+    assert.deepEqual(
+      reads.filter((path) => path.includes("ses_scope_b1") || path.endsWith("/message")),
+      [],
+      "no per-session read for another pipeline's session, and no transcript read at all",
+    );
+    assert.deepEqual(
+      scoped.recentErrors.map((entry) => entry.sessionID),
+      ["ses_scope_a1", undefined, "ses_scope_a_gone", "ses_scope_a_titled"],
+      "the pipeline's errors — of live, gone, and title-only sessions — and the sessionless ones",
+    );
+
+    const one = await buildStatusPayload({ session: "ses_scope_a_gone", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(one.ledger, [], "a session the server no longer lists has no row");
+    assert.deepEqual(
+      one.recentErrors.map((entry) => entry.sessionID),
+      [undefined, "ses_scope_a_gone"],
+      "but keeps its errors",
+    );
+
+    const titled = await buildStatusPayload({ session: "ses_scope_a_titled", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(titled.ledger.map((row) => row.sessionID), ["ses_scope_a_titled"]);
+    assert.deepEqual(titled.recentErrors.map((entry) => entry.sessionID), [undefined, "ses_scope_a_titled"]);
+
+    const foreign = await buildStatusPayload({ session: "ses_someone_elses", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(foreign.ledger, [], "a session RP does not recognize has no row");
+    assert.deepEqual(foreign.recentErrors.map((entry) => entry.type), ["listener.lost"], "and no errors");
+
+    const unscoped = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(
+      unscoped.ledger.map((row) => row.sessionID),
+      ["ses_scope_a1", "ses_scope_b1", "ses_scope_a2", "ses_scope_a_titled"],
+    );
+    assert.equal(unscoped.recentErrors.length, 7, "an unscoped call reports every error");
+
+    const missing = await buildStatusPayload({ pipelineSlug: "pipeline-c", env, readServiceRecord: () => null, requestFn });
+    assert.deepEqual(missing.ledger, []);
+    assert.deepEqual(missing.recentErrors.map((entry) => entry.type), ["listener.lost"]);
+
+    const unlisted = await buildStatusPayload({
+      pipelineSlug: "pipeline-a",
+      env,
+      readServiceRecord: () => null,
+      requestFn: async (url) => (url.pathname === "/api/session" ? { status: 500, body: undefined } : requestFn(url)),
+    });
+    assert.deepEqual(unlisted.ledger, []);
+    assert.deepEqual(unlisted.readFailures, [{ endpoint: "session", status: 500, count: 1 }]);
+    assert.deepEqual(
+      unlisted.recentErrors.map((entry) => entry.sessionID),
+      ["ses_scope_a1", undefined, "ses_scope_a_gone"],
+      "a failed session list still yields the recorded sessions' errors",
+    );
+
+    await assert.rejects(
+      () => buildStatusPayload({ pipelineSlug: "pipeline-a", session: "ses_scope_a1", env, readServiceRecord: () => null, requestFn }),
+      /pipeline_slug or session, not both/,
+    );
+  });
+
   test("folds the plugin's in-process observations — progress events, turn ends, sends — into the row", async () => {
     recordSpawn("ses_status_obs", {
       name: "spec-reviewer-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     recordSessionEventActivity(
@@ -5295,22 +5400,19 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     const row = result.ledger[0];
-    assert.equal(row.updated, 1_000);
     assert.equal(row.activity, 5_000, "a tool event newer than `updated` is the liveness signal");
     assert.deepEqual(row.lastTurn, { endedAt: 4_000, outcome: "succeeded" });
-    assert.equal(row.turns, 1);
     assert.deepEqual(row.lastSend, { at: 3_000, to: "ses_orchestrator" });
-    assert.equal(row.lastText, undefined, "an empty message page yields no text");
+    assert.equal(Object.hasOwn(row, "lastText"), false, "the transcript is read only for a session scope");
   });
 
   test("folds raw provider progress into activity when it is the newest evidence", async () => {
     recordSpawn("ses_status_raw", {
       name: "build-writer-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     const generation = recordRawResponseStart("ses_status_raw", 6_000);
@@ -5341,7 +5443,6 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     assert.equal(result.ledger[0].activity, 9_000);
@@ -5350,7 +5451,7 @@ describe("buildStatusPayload", () => {
   test("reads the deeper message page only when the first is full and textless, and reports the searched depth when both are", async () => {
     recordSpawn("ses_status_deep", {
       name: "build-writer-2",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     const toolStep = (i) => ({
@@ -5394,27 +5495,33 @@ describe("buildStatusPayload", () => {
     };
     const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
 
-    const found = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    const found = await buildStatusPayload({ session: "ses_status_deep", env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(messageReads, [20, 100], "the deeper page is read only after a full, textless first page");
     assert.deepEqual(found.ledger[0].lastText, { at: 901, excerpt: "Tests green." });
 
     messageReads.length = 0;
     deepPageHasText = false;
-    const silent = await buildStatusPayload({ env, readServiceRecord: () => null, requestFn, readCliVersion: () => "x" });
+    const silent = await buildStatusPayload({ session: "ses_status_deep", env, readServiceRecord: () => null, requestFn });
     assert.deepEqual(messageReads, [20, 100]);
     assert.deepEqual(silent.ledger[0].lastText, { olderThan: 100 }, "a textless deep page reports how far the search reached");
     assert.deepEqual(silent.readFailures, []);
+
+    messageReads.length = 0;
+    const emptyPage = (url) =>
+      url.pathname === "/api/session" ? requestFn(url) : { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    const mute = await buildStatusPayload({ session: "ses_status_deep", env, readServiceRecord: () => null, requestFn: emptyPage });
+    assert.equal(mute.ledger[0].lastText, null, "a short, textless transcript holds no text");
   });
 
   test("reports failed server reads in readFailures, aggregated per endpoint and status, instead of rendering them as idle and healthy", async () => {
     recordSpawn("ses_status_f1", {
       name: "spec-researcher-1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     recordSpawn("ses_status_f2", {
       name: "spec-researcher-2",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
 
@@ -5449,7 +5556,6 @@ describe("buildStatusPayload", () => {
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-next-15772",
     });
 
     assert.equal(result.ledger.length, 2);
@@ -5464,7 +5570,6 @@ describe("buildStatusPayload", () => {
       [
         { endpoint: "active", status: 500, count: 1 },
         { endpoint: "inbox", status: 404, count: 2 },
-        { endpoint: "message", status: 404, count: 2 },
         { endpoint: "permission", status: 404, count: 2 },
       ],
     );
@@ -5473,7 +5578,7 @@ describe("buildStatusPayload", () => {
   test("reports thrown server reads as transport failures while preserving the partial ledger", async () => {
     recordSpawn("ses_status_transport", {
       name: "spec-researcher-transport",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
     });
     const requestFn = async (url) => {
@@ -5497,10 +5602,10 @@ describe("buildStatusPayload", () => {
     };
 
     const result = await buildStatusPayload({
+      session: "ses_status_transport",
       env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
       readServiceRecord: () => null,
       requestFn,
-      readCliVersion: () => "0.0.0-beta-17595",
     });
 
     assert.equal(result.ledger.length, 1);

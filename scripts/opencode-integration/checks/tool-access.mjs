@@ -122,11 +122,11 @@ export async function run(ctx) {
     async () => {
       const spawned = await driveToolCall(server, root.id, "rp_spawn", {
         name: "suite-tool-access-agent",
-        agent: "researcher",
+        agent: "helper",
         model: "stub/stub-model",
         directory: projectDir,
         prompt: "report readiness",
-        run: "suite-run",
+        pipeline_slug: "suite-run",
       });
       const agentID = spawned.text;
       assert.ok(agentID?.startsWith("ses_"), `expected rp_spawn to return a session ID, got: ${agentID}`);

@@ -8,7 +8,7 @@ flowchart TD
     B --> C{"What does the owner want?"}
     C --> D["Create or modify an issue"]
     C --> E["Inspect pipelines"]
-    C --> F["Work on an issue or correction"]
+    C --> F["Work on an issue or later input"]
     C --> M["Open, merge, or close a pipeline's pull request"]
     D --> G["Manage issues"]
     E --> H["Report"]

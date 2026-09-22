@@ -89,7 +89,7 @@ describe("recordSessionParent / resolveToolAccess", () => {
   test("a spawned agent is limited to sending", async () => {
     recordSpawn("ses_access_agent", {
       name: "build-worker-tdd 1",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_access_orchestrator",
     });
     recordSessionParent({ type: "session.created", data: { sessionID: "ses_access_agent" } });
@@ -115,7 +115,7 @@ describe("recordSessionParent / resolveToolAccess", () => {
   test("a subagent of a spawned agent stays a subagent: parentage outranks the ledger", async () => {
     recordSpawn("ses_access_both", {
       name: "build-worker-tdd 2",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_access_orchestrator",
     });
     recordSessionParent({
@@ -281,7 +281,7 @@ describe("guardTool", () => {
   test("a spawned agent reaches rp_send and nothing else", async () => {
     recordSpawn("ses_guard_agent", {
       name: "build-worker-tdd 3",
-      run: "144-opencode-support",
+      pipelineSlug: "144-opencode-support",
       spawner: "ses_guard_orchestrator",
     });
     recordSessionParent({ type: "session.created", data: { sessionID: "ses_guard_agent" } });

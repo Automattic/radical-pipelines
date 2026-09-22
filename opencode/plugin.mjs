@@ -94,7 +94,7 @@ const LEDGER_KEY = Symbol.for("radical-pipelines.opencode.ledger");
  * Fetch the process-wide spawn ledger, creating it on first use.
  *
  * @returns {{
- *   bySessionID: Map<string, { name: string, run: string, spawner: string, directory?: string, repoRoot?: string | null }>,
+ *   bySessionID: Map<string, { name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }>,
  *   currentByName: Map<string, string>,
  * }} The singleton ledger. `bySessionID` holds every recorded spawn keyed by
  *   session ID, so any session ID that was ever recorded stays individually
@@ -120,8 +120,8 @@ function getLedger() {
  * `lookupSpawn`).
  *
  * @param {string} sessionID The session ID opencode assigned to the spawn.
- * @param {{ name: string, run: string, spawner: string, directory?: string, repoRoot?: string | null }} entry
- *   The spawned instance's run-unique name, the run it belongs to, the
+ * @param {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }} entry
+ *   The spawned instance's pipeline-unique name, the slug of the pipeline it belongs to, the
  *   session ID of the agent that spawned it, the directory the session is
  *   seated in, and the root of the repository containing that seat (`null`
  *   when it could not be resolved).
@@ -137,7 +137,7 @@ function recordSpawn(sessionID, entry) {
  * Look up a recorded spawn by its session ID.
  *
  * @param {string} sessionID The session ID to look up.
- * @returns {{ name: string, run: string, spawner: string, directory?: string, repoRoot?: string | null } | undefined}
+ * @returns {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null } | undefined}
  *   The entry recorded for `sessionID`, or `undefined` if no spawn was ever
  *   recorded under that session ID.
  */
@@ -151,8 +151,8 @@ function lookupSpawn(sessionID) {
  * When multiple spawns have shared the same `name` (a re-spawn), this
  * returns the most recently recorded one.
  *
- * @param {string} name The run-unique instance name to resolve.
- * @returns {{ sessionID: string, name: string, run: string, spawner: string } | undefined}
+ * @param {string} name The pipeline-unique instance name to resolve.
+ * @returns {{ sessionID: string, name: string, pipelineSlug: string, spawner: string } | undefined}
  *   The current entry for `name` (including its session ID), or `undefined`
  *   if no spawn has ever been recorded under that name.
  */
@@ -443,7 +443,7 @@ function agentExists(agentList, agentID) {
  * Tags observed on a dead-target session error, across the two shapes it
  * appears in: the in-process `ctx.session.prompt` rejection (`name`/`_tag`
  * `"Session.NotFoundError"`, no HTTP status — verified live against the
- * pinned build) and the raw HTTP response body (`_tag: "SessionNotFoundError"`,
+ * tested runtime) and the raw HTTP response body (`_tag: "SessionNotFoundError"`,
  * no dot, alongside a 404 status).
  */
 const SESSION_NOT_FOUND_TAGS = new Set(["Session.NotFoundError", "SessionNotFoundError"]);
@@ -507,7 +507,7 @@ function formatAttribution(sender) {
  *
  * The turn rule exists because an opencode session outlives its turn: an
  * idle session resumes only on an inbox item. Verified live against the
- * pinned build: a `shell` call with `background: true` ends the turn and its
+ * tested runtime: a `shell` call with `background: true` ends the turn and its
  * completion later arrives as an inbox item that starts a new execution — so
  * awaiting it is a legitimate reason to end the turn — but background
  * commands carry no timeout by default, so a hung one never completes and
@@ -528,24 +528,48 @@ function appendSpawnProtocol(prompt, spawnerID) {
 const TITLE_PREFIX = "rp:";
 
 /**
- * Format the durable session title used to reconstruct ledger state.
+ * Reject a value that is not a pipeline slug: one path segment, a valid git
+ * ref, without `_`. A valid ref carries no `:`, so the durable title's
+ * separator is safe.
  *
- * The title is asserted onto the session (surviving daemon restarts) so the
- * ledger can be rebuilt from `run` and `name` alone.
- *
- * @param {{ run: string, name: string }} identity The run identifier and the
- *   run-unique instance name.
- * @returns {string} The title, formatted as `"rp:<run>:<name>"`.
+ * @param {*} slug The `pipeline_slug` argument to check.
+ * @param {typeof execFileSync} [exec] Runs `git check-ref-format`; defaults to
+ *   `child_process.execFileSync`.
+ * @returns {void}
  */
-function formatTitle({ run, name }) {
-  return `${TITLE_PREFIX}${run}:${name}`;
+function assertPipelineSlug(slug, exec = execFileSync) {
+  const validRef = () => {
+    try {
+      exec("git", ["check-ref-format", "--branch", slug], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (typeof slug !== "string" || slug.length === 0 || slug.includes("/") || slug.includes("_") || !validRef()) {
+    throw new Error(`Invalid pipeline slug ${JSON.stringify(slug)}: one path segment, a valid git ref, without "_"`);
+  }
 }
 
 /**
- * Parse a durable session title back into its run and instance name.
+ * Format the durable session title used to reconstruct ledger state.
+ *
+ * The title is asserted onto the session (surviving daemon restarts) so the
+ * ledger can be rebuilt from `pipelineSlug` and `name` alone.
+ *
+ * @param {{ pipelineSlug: string, name: string }} identity The pipeline slug and the
+ *   pipeline-unique instance name.
+ * @returns {string} The title, formatted as `"rp:<pipeline slug>:<name>"`.
+ */
+function formatTitle({ pipelineSlug, name }) {
+  return `${TITLE_PREFIX}${pipelineSlug}:${name}`;
+}
+
+/**
+ * Parse a durable session title back into its pipeline slug and instance name.
  *
  * @param {string} title The session title to parse.
- * @returns {{ run: string, name: string } | undefined} The parsed `{ run,
+ * @returns {{ pipelineSlug: string, name: string } | undefined} The parsed `{ pipelineSlug,
  *   name }`, or `undefined` when `title` lacks the `rp:` prefix.
  */
 function parseTitle(title) {
@@ -558,7 +582,7 @@ function parseTitle(title) {
     return undefined;
   }
   return {
-    run: rest.slice(0, separatorIndex),
+    pipelineSlug: rest.slice(0, separatorIndex),
     name: rest.slice(separatorIndex + 1),
   };
 }
@@ -1081,7 +1105,7 @@ function recordFailedProbe(state) {
  *   per target (`withTargetLock`), skipping targets another loop already
  *   interrupted after this suspicion began, and a final
  *   fingerprint-and-liveness revalidation runs inside the lock immediately
- *   before the interrupt. The interrupt runs with `continue=true`, after
+ *   before the interrupt. The interrupt runs with `resume=true`, after
  *   promoting any parked queue copy of the prompt so the resumed execution
  *   delivers it, and clears the skip window so the freed target is
  *   re-probed on the next tick. Recovery is never delayed by coalescing or
@@ -1460,7 +1484,7 @@ async function runActiveTick(
         return { outcome: "skipped", reason: "dead-stream-suspected", lastActivity };
       }
       // A parked queue copy would out-survive the interrupt
-      // (`continue=true` resumes steering input while queued prompts stay
+      // (`resume=true` resumes steering input while queued prompts stay
       // parked) and then coalesce every later tick: promote it first so
       // the resumed execution delivers it.
       const inbox = await readInbox(server, entry.targetSession);
@@ -1559,7 +1583,7 @@ function resolveServiceRecordDir(env) {
 /**
  * Read and parse opencode's service record from disk, when one exists.
  *
- * The service record is written only while a daemon (`opencode2 service
+ * The service record is written only while a daemon (`opencode service
  * start`) runs — a `serve` process writes none — so a missing record is the
  * normal `serve`/harness case, not an error.
  *
@@ -1714,7 +1738,7 @@ function requestServer(server, method, path, body, requestFn = fetchRequest) {
  * reads `GET /api/session/active`, whose body envelopes the object keyed by
  * the session IDs currently running as `{ data: {...} }` — every opencode
  * HTTP GET response is wrapped in this `data` envelope, verified live against
- * the pinned build.
+ * the tested runtime.
  *
  * @param {{ baseURL: string, password: string }} server A server resolved by
  *   `resolveServer`.
@@ -1862,18 +1886,18 @@ async function getSessionMessages(server, sessionID, requestFn) {
 async function promoteInboxItem(server, sessionID, inboxID, requestFn) {
   const response = await requestServer(
     server,
-    "POST",
-    `/api/session/${sessionID}/inbox/${inboxID}/steer`,
-    undefined,
+    "PATCH",
+    `/api/session/${sessionID}/inbox/${inboxID}`,
+    { delivery: "steer" },
     requestFn,
   );
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(`POST /api/session/${sessionID}/inbox/${inboxID}/steer returned ${response.status}`);
+    throw new Error(`PATCH /api/session/${sessionID}/inbox/${inboxID} returned ${response.status}`);
   }
 }
 
 /**
- * Interrupt a session's in-flight execution. With `continue=true` execution
+ * Interrupt a session's in-flight execution. With `resume=true` execution
  * resumes with pending steering input and next-in-line control items;
  * queued prompts stay parked until the session next idles.
  *
@@ -1892,7 +1916,7 @@ async function interruptSession(server, sessionID, requestFn) {
   const response = await requestServer(
     server,
     "POST",
-    `/api/session/${sessionID}/interrupt?continue=true`,
+    `/api/session/${sessionID}/interrupt?resume=true`,
     undefined,
     requestFn,
   );
@@ -1902,58 +1926,15 @@ async function interruptSession(server, sessionID, requestFn) {
 }
 
 /**
- * Read the running opencode build's best-effort version string via
- * `opencode2 --version`.
- *
- * Used as `rp_status`'s fallback when no service record (and so no `version`
- * field) is available — the `serve` harness case, which writes no record.
- *
- * @param {(command: string, args: string[], options: object) => string} [exec]
- *   Injectable process-execution function; defaults to
- *   `child_process.execFileSync`. Injected in tests so a missing/failing
- *   `opencode2` binary is never actually invoked.
- * @returns {string | null} The bare build string (e.g. `"0.0.0-next-<N>"`),
- *   or `null` when the command could not be run (e.g. the binary is not
- *   installed). The real CLI prints `"opencode2 v<build>"` — verified
- *   live — so that leading `"opencode2 v"` is stripped; without it, this
- *   would never equal the pin manifest's bare build string.
- */
-function readCliVersion(exec = execFileSync) {
-  try {
-    return exec("opencode2", ["--version"], { encoding: "utf8" }).trim().replace(/^opencode2\s+v/, "");
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Resolve the running opencode build string for the pin comparison.
- *
- * @param {{ version?: string } | null} serviceRecord The service record read
- *   by `readServiceRecordFile` (present only while a daemon runs), or `null`.
- * @param {() => string | null} readCliVersionFn Best-effort fallback reading
- *   `opencode2 --version` (see `readCliVersion`); called only when
- *   `serviceRecord` carries no `version`.
- * @returns {string} `serviceRecord.version` when present; else whatever
- *   `readCliVersionFn` returns; else `"unknown"`.
- */
-function resolveRunningBuild(serviceRecord, readCliVersionFn) {
-  if (serviceRecord && serviceRecord.version) {
-    return serviceRecord.version;
-  }
-  return readCliVersionFn() ?? "unknown";
-}
-
-/**
  * Resolve the ledger entry a session record belongs to, when RP recognizes it.
  *
  * @param {{ id: string, title?: string }} record A session record
  *   (`GET /api/session`).
- * @param {(sessionID: string) => { name: string, run: string, spawner: string } | undefined} lookup
+ * @param {(sessionID: string) => { name: string, pipelineSlug: string, spawner: string } | undefined} lookup
  *   Resolves a session ID to its recorded ledger entry (see `lookupSpawn`).
  *   A record whose ID isn't found this way falls back to `parseTitle` on its
  *   `title`, so restart-surviving sessions are still recognized.
- * @returns {{ name: string, run: string, spawner?: string } | null | undefined}
+ * @returns {{ name: string, pipelineSlug: string, spawner?: string } | null | undefined}
  *   The entry, or nothing when the record is neither in the ledger nor
  *   `rp:`-titled.
  */
@@ -1987,7 +1968,7 @@ const LAST_TEXT_DEEP_PAGE = 100;
  * non-empty text part and returns that message's last such part, trimmed and
  * truncated to `LAST_TEXT_EXCERPT_CAP`. The timestamp is the message's
  * completion time, or its creation time while it is still in flight — text
- * parts carry no time of their own in the pinned projection. A full page
+ * parts carry no time of their own in the session projection. A full page
  * without text is inconclusive and says so; only a short page proves the
  * session never spoke.
  *
@@ -2040,8 +2021,9 @@ function latestOf(first, ...rest) {
  * the plugin's own in-memory spawn ledger.
  *
  * @param {Array<{ id: string, agent: string, model: object, location?: {directory: string}, time?: {updated: *}, title?: string }>} sessionRecords
- *   Every session opencode currently knows about (`GET /api/session`).
- * @param {(sessionID: string) => { name: string, run: string, spawner: string } | undefined} lookup
+ *   The session records to report (`GET /api/session`, already narrowed to
+ *   the status call's scope).
+ * @param {(sessionID: string) => { name: string, pipelineSlug: string, spawner: string } | undefined} lookup
  *   Resolves a session ID to its recorded ledger entry (see
  *   `recognizeSession`).
  * @param {Set<string> | null} activeSessionIDs Session IDs opencode reports
@@ -2058,15 +2040,15 @@ function latestOf(first, ...rest) {
  *   rawProgressAtFor?: (sessionID: string) => number | undefined,
  *   turnsFor?: (sessionID: string) => { turns: number, lastTurn: object } | undefined,
  *   lastSendFor?: (sessionID: string) => { at: number, to: string } | undefined,
- *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *   lastTextFor?: (sessionID: string) => { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  * }} [observations] Resolvers for the plugin's own per-session observations
  *   (see `lastSessionEventAt`, `lastRawSessionProgressAt`, `turnsFor`,
  *   `lastSendFor`, `extractLastText`); each defaults to none.
- * @returns {Array<{name: string, run: string, sessionID: string, agent: string, model: string, directory: string, updated: *, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, turns: number | undefined, lastSend: object | undefined, lastText: object | undefined}>}
+ * @returns {Array<{name: string, pipelineSlug: string, sessionID: string, agent: string, model: string, directory: string, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, lastSend: object | undefined, lastText: object | null | undefined}>}
  *   One row per session record RP recognizes as its own, in `sessionRecords`
  *   order; records RP does not recognize (neither ledger nor `rp:` title)
  *   are omitted. `activity` is the latest of the record's `updated` — which
- *   the pinned build moves only when the session receives input — the
+ *   opencode moves only when the session receives input — the
  *   session's last observed progress event, and its last raw provider byte
  *   (a streaming tool call's partial arguments emit no event), so it covers
  *   tool and model progress within a turn.
@@ -2093,22 +2075,19 @@ function buildLedgerRows(
       continue;
     }
     const updated = record.time?.updated;
-    const turnRecord = turnsForFn(record.id);
     rows.push({
       name: entry.name,
-      run: entry.run,
+      pipelineSlug: entry.pipelineSlug,
       sessionID: record.id,
       agent: displayAgentName(record.agent),
       model: record.model ? formatModelString(record.model) : record.model,
       directory: record.location?.directory,
-      updated,
       activity: latestOf(updated, lastEventAtFor(record.id), rawProgressAtFor(record.id)),
       running: activeSessionIDs?.has(record.id),
       pending: pendingCountFor(record.id),
       permissions: permissionsFor(record.id),
       currentTool: currentToolForFn(record.id),
-      lastTurn: turnRecord?.lastTurn,
-      turns: turnRecord?.turns,
+      lastTurn: turnsForFn(record.id)?.lastTurn,
       lastSend: lastSendForFn(record.id),
       lastText: lastTextFor(record.id),
     });
@@ -2117,37 +2096,75 @@ function buildLedgerRows(
 }
 
 /**
- * Gather and shape the full `rp_status` payload.
+ * Whether an error-log entry concerns one of the sessions in scope.
  *
- * Reads the ledger snapshot and per-session pending counts over the reach
- * helper and the HTTP client (never an `opencode2 api` shell-out); when the
- * server cannot be resolved, the ledger comes back empty rather than firing
- * requests blind.
+ * An entry naming a session is that session's; an entry naming none (a lost
+ * listener, a failed hook, a loop that lost its server) concerns every
+ * scope.
+ *
+ * @param {object} entry An error-log entry.
+ * @param {Set<string>} sessionIDs The sessions in scope.
+ * @returns {boolean}
+ */
+function errorInScope(entry, sessionIDs) {
+  return entry.sessionID === undefined || sessionIDs.has(entry.sessionID);
+}
+
+/**
+ * The sessions a status scope covers: those RP recognizes — recorded in the
+ * ledger, or live under a durable title — that the scope selects. The
+ * ledger's part is independent of what the server lists, so a recorded
+ * session the server no longer returns stays in scope.
+ *
+ * @param {{ pipelineSlug?: string, session?: string }} scope
+ * @param {Array<{ id: string }>} liveRecords The in-scope session records
+ *   the server returned.
+ * @returns {Set<string>}
+ */
+function scopedSessionIDs({ pipelineSlug, session }, liveRecords) {
+  const ids = new Set(liveRecords.map((record) => record.id));
+  for (const [sessionID, entry] of getLedger().bySessionID) {
+    if (session !== undefined ? sessionID === session : entry.pipelineSlug === pipelineSlug) {
+      ids.add(sessionID);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Gather and shape the `rp_status` payload for one scope.
+ *
+ * The scope is one pipeline (`pipelineSlug`), one session (`session`), or
+ * everything RP recognizes. Reads the ledger snapshot and per-session
+ * pending counts over the reach helper and the HTTP client (never an
+ * `opencode api` shell-out); when the server cannot be resolved, the ledger
+ * comes back empty rather than firing requests blind. Per-session reads run
+ * only for the sessions in scope, and the transcript — the newest assistant
+ * text — is read only for the single session of a `session` scope.
  *
  * @param {{
+ *   pipelineSlug?: string,
+ *   session?: string,
  *   env?: Record<string, string | undefined>,
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- *   readCliVersion?: () => string | null,
  * }} [options] `env` defaults to `process.env`; `readServiceRecord` defaults
- *   to `readServiceRecordFile`; `requestFn` defaults to the real HTTP client;
- *   `readCliVersion` defaults to the real `opencode2 --version` reader.
+ *   to `readServiceRecordFile`; `requestFn` defaults to the real HTTP client.
  * @returns {Promise<object>} The shaped status payload (see `shapeStatus`).
  */
 async function buildStatusPayload({
+  pipelineSlug,
+  session,
   env = process.env,
   readServiceRecord: readServiceRecordOverride,
   requestFn,
-  readCliVersion: readCliVersionOverride,
 } = {}) {
+  if (pipelineSlug !== undefined && session !== undefined) {
+    throw new Error("rp_status takes pipeline_slug or session, not both");
+  }
   const readRecord = readServiceRecordOverride ?? readServiceRecordFile;
-  const readVersion = readCliVersionOverride ?? readCliVersion;
 
   const server = resolveServer({ env, readServiceRecord: readRecord });
-  const pin = readPinManifest();
-  const serviceRecord = readRecord(env);
-  const runningBuild = resolveRunningBuild(serviceRecord, readVersion);
-  const pinComparison = comparePinnedBuild(runningBuild, pin.cli);
 
   let sessionRecords = [];
   let activeIDs = null;
@@ -2183,21 +2200,29 @@ async function buildStatusPayload({
     }
     return null;
   };
+  const inScope = (record) => {
+    const entry = recognizeSession(record, lookupSpawn);
+    if (!entry) {
+      return false;
+    }
+    if (session !== undefined) {
+      return record.id === session;
+    }
+    return pipelineSlug === undefined || entry.pipelineSlug === pipelineSlug;
+  };
 
   if (server) {
     // Every opencode HTTP GET response envelopes its payload as
-    // `{ data: ... }` — verified live against the pinned build.
+    // `{ data: ... }` — verified live against opencode.
     const sessionsResponse = await readEndpoint("session", "/api/session");
     if (sessionsResponse) {
-      sessionRecords = sessionsResponse.body?.data ?? [];
+      sessionRecords = (sessionsResponse.body?.data ?? []).filter(inScope);
     }
     const activeResponse = await readEndpoint("active", "/api/session/active");
     if (activeResponse) {
       activeIDs = new Set(Object.keys(activeResponse.body?.data ?? {}));
     }
-    // Per-session reads only for the sessions that become rows: the list
-    // spans every project the server knows.
-    for (const record of sessionRecords.filter((record) => recognizeSession(record, lookupSpawn))) {
+    for (const record of sessionRecords) {
       const inboxResponse = await readEndpoint("inbox", `/api/session/${record.id}/inbox`);
       if (inboxResponse) {
         pendingCounts.set(record.id, (inboxResponse.body?.data ?? []).length);
@@ -2216,6 +2241,9 @@ async function buildStatusPayload({
           })),
         );
       }
+      if (session === undefined) {
+        continue;
+      }
       // Newest text: a cheap page first, the deeper one only when the first
       // is full and textless (a long run of tool-only steps).
       const firstPage = await readEndpoint(
@@ -2233,7 +2261,7 @@ async function buildStatusPayload({
             lastText = extractLastText(deepPage.body?.data ?? [], LAST_TEXT_DEEP_PAGE);
           }
         }
-        lastTexts.set(record.id, lastText);
+        lastTexts.set(record.id, lastText ?? null);
       }
     }
   }
@@ -2253,13 +2281,13 @@ async function buildStatusPayload({
       lastTextFor: (id) => lastTexts.get(id),
     },
   );
+  const scoped = pipelineSlug !== undefined || session !== undefined;
+  const inScopeIDs = scopedSessionIDs({ pipelineSlug, session }, sessionRecords);
 
   return shapeStatus({
     pluginVersion: PLUGIN_ID,
-    pinComparison,
     ledgerEntries,
-    errorLog: getErrorLog(),
-    loopTickLog: getLoopTickLog(),
+    errorLog: scoped ? getErrorLog().filter((entry) => errorInScope(entry, inScopeIDs)) : getErrorLog(),
     readFailures: [...failures.values()],
   });
 }
@@ -2714,7 +2742,7 @@ function lastRawSessionProgressAt(sessionID) {
 /**
  * Pattern extracting identifier values from a response's decoded bytes.
  *
- * Pinned provider protocols project the tool-part id from different raw
+ * Provider protocols project the tool-part id from different raw
  * fields — Chat's `id`, Open Responses' `call_id`, Bedrock's `toolUseId` —
  * so every id-suffixed key's string value is captured, and the quoted JSON
  * token is decoded so escaped values (`"call_\u0031"`) match their
@@ -2805,7 +2833,7 @@ const PROGRESS_EVENT_PREFIXES = [
  *
  * Fed by the plugin's event subscription. This signal is strictly a *veto*
  * for the dead-stream guard — observed progress defers an interrupt, but
- * silence never authorizes one (the pinned build emits no events for
+ * silence never authorizes one (opencode emits no events for
  * partial argument chunks, and the observer itself can lag or fail), so a
  * missing or stale entry carries no weight on its own; authorization comes
  * from the wall-clock confirmation window (see `runLoopTick`).
@@ -3035,13 +3063,16 @@ async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }
     }
     const server = resolveServer({ env, readServiceRecord });
     if (server) {
-      await requestServer(
+      const response = await requestServer(
         server,
-        "POST",
-        `/api/session/${sessionID}/rename`,
-        { title: formatTitle({ run: entry.run, name: entry.name }) },
+        "PATCH",
+        `/api/session/${sessionID}`,
+        { title: formatTitle({ pipelineSlug: entry.pipelineSlug, name: entry.name }) },
         requestFn,
       );
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`PATCH /api/session/${sessionID} returned ${response.status}`);
+      }
       titled.add(sessionID);
     }
   };
@@ -3179,7 +3210,8 @@ function formatPermissionForward(entry, request) {
  * @param {{ baseURL: string, password: string }} server A server resolved by
  *   `resolveServer`.
  * @param {{ sessionID: string, requestID: string, reply: "once" | "reject", message?: string }} input
- *   The reply. `message` on a reject reaches the asking agent as corrective
+ *   The reply, carrying the skill's term for it; the route's body names it
+ *   `decision`. `message` on a reject reaches the asking agent as corrective
  *   feedback instead of aborting its turn.
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
  *   Injectable request function, forwarded to `requestServer`.
@@ -3190,7 +3222,7 @@ function replyToPermission(server, { sessionID, requestID, reply, message }, req
     server,
     "POST",
     `/api/session/${sessionID}/permission/${requestID}/reply`,
-    message === undefined ? { reply } : { reply, message },
+    message === undefined ? { decision: reply } : { decision: reply, message },
     requestFn,
   );
 }
@@ -3564,51 +3596,6 @@ function materializeAgents(
 }
 
 /**
- * Absolute path to the pin manifest, resolved relative to this module's
- * location so it resolves correctly regardless of the process's working
- * directory.
- *
- * Serves as `readPinManifest`'s default `manifestPath`; tests inject their
- * own path instead of relying on this constant.
- */
-const DEFAULT_PIN_MANIFEST_PATH = fileURLToPath(
-  new URL("./pin.json", import.meta.url),
-);
-
-/**
- * Read and parse the pin manifest declaring the exact `@opencode-ai/cli`
- * build (and `@opencode-ai/plugin` version) this layer targets.
- *
- * @param {string} [manifestPath] Absolute path to the manifest JSON file.
- *   Defaults to `opencode/pin.json` alongside this module.
- * @returns {{ cli: string, plugin: string }} The parsed manifest.
- */
-function readPinManifest(manifestPath = DEFAULT_PIN_MANIFEST_PATH) {
-  return JSON.parse(readFileSync(manifestPath, "utf8"));
-}
-
-/**
- * Compare a running opencode build against the pinned build.
- *
- * @param {string | null | undefined} runningBuild The build string reported
- *   by the running installation (e.g. from `opencode2 --version` or the
- *   service record), or a nullish value or the literal `"unknown"` when it
- *   could not be read (e.g. a `serve` process exposes no service record).
- * @param {string} pinnedCli The pinned `@opencode-ai/cli` build string (the
- *   pin manifest's `cli` field, see `readPinManifest`).
- * @returns {"match" | "outside the verified surface" | "not determinable"}
- *   `"match"` when `runningBuild` equals `pinnedCli`; `"not determinable"`
- *   when `runningBuild` is nullish or `"unknown"` rather than a real build
- *   string; otherwise `"outside the verified surface"`.
- */
-function comparePinnedBuild(runningBuild, pinnedCli) {
-  if (runningBuild == null || runningBuild === "unknown") {
-    return "not determinable";
-  }
-  return runningBuild === pinnedCli ? "match" : "outside the verified surface";
-}
-
-/**
  * Default cap for the in-memory recent-errors ring `appendToErrorLog`
  * maintains.
  */
@@ -3641,100 +3628,80 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  * Shape the `rp_status` tool result from its component inputs.
  *
  * Pure: every input is supplied by the caller — the plugin's `rp_status`
- * handler gathers the plugin version, the pin comparison (see
- * `comparePinnedBuild`), the ledger snapshot, and the error log (see
+ * handler gathers the plugin version, the ledger snapshot, and the error log (see
  * `appendToErrorLog`) from their respective sources — so this function
  * performs no I/O of its own.
  *
  * @param {{
  *   pluginVersion: string,
- *   pinComparison: "match" | "outside the verified surface" | "not determinable",
  *   ledgerEntries: Array<{
  *     name: string,
- *     run: string,
+ *     pipelineSlug: string,
  *     sessionID: string,
  *     agent: string,
  *     model: string,
  *     directory: string,
- *     updated: string | number,
  *     activity: string | number,
  *     running?: boolean,
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
  *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
- *     turns: number | undefined,
  *     lastSend: { at: number, to: string } | undefined,
- *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  *   }>,
  *   errorLog: Array<*>,
- *   loopTickLog?: Array<*>,
  *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
  * }} input The status payload's components. `pluginVersion` identifies the
- *   running plugin build; `pinComparison` is the result of comparing the
- *   running opencode build against the pin; `ledgerEntries` is one row per
- *   live spawn (see `buildLedgerRows`); `errorLog` and `loopTickLog` are
- *   bounded recent-event rings; `readFailures` lists the server reads that
+ *   running plugin build; `ledgerEntries` is one row per live spawn in scope
+ *   (see `buildLedgerRows`); `errorLog` is the bounded recent-errors ring,
+ *   narrowed to the scope; `readFailures` lists the server reads that
  *   failed while gathering the ledger — a non-empty list means the ledger's
  *   `running`/`pending`/`permissions`/`lastText` fields are incomplete, not
  *   that the sessions are idle.
  * @returns {{
  *   pluginVersion: string,
- *   pin: "match" | "outside the verified surface" | "not determinable",
  *   ledger: Array<{
  *     name: string,
- *     run: string,
+ *     pipelineSlug: string,
  *     sessionID: string,
  *     agent: string,
  *     model: string,
  *     directory: string,
- *     updated: string | number,
  *     activity: string | number,
  *     running?: boolean,
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
  *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
- *     turns: number | undefined,
  *     lastSend: { at: number, to: string } | undefined,
- *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | undefined,
+ *     lastText?: { at: number | undefined, excerpt: string } | { olderThan: number } | null,
  *   }>,
  *   recentErrors: Array<*>,
- *   recentLoopTicks: Array<*>,
  *   readFailures: Array<{endpoint: string, status: number | "transport", count: number}>,
- * }} The shaped `rp_status` result.
+ * }} The shaped `rp_status` result. A row carries `lastText` only when the
+ *   transcript was read (a `session` scope): `null` when it holds no text.
  */
-function shapeStatus({
-  pluginVersion,
-  pinComparison,
-  ledgerEntries,
-  errorLog,
-  loopTickLog = [],
-  readFailures = [],
-}) {
+function shapeStatus({ pluginVersion, ledgerEntries, errorLog, readFailures = [] }) {
   return {
     pluginVersion,
-    pin: pinComparison,
     ledger: ledgerEntries.map((entry) => ({
       name: entry.name,
-      run: entry.run,
+      pipelineSlug: entry.pipelineSlug,
       sessionID: entry.sessionID,
       agent: entry.agent,
       model: entry.model,
       directory: entry.directory,
-      updated: entry.updated,
       activity: entry.activity,
       running: entry.running,
       pending: entry.pending,
       permissions: entry.permissions,
       currentTool: entry.currentTool,
       lastTurn: entry.lastTurn,
-      turns: entry.turns,
       lastSend: entry.lastSend,
-      lastText: entry.lastText,
+      ...(entry.lastText !== undefined ? { lastText: entry.lastText } : {}),
     })),
     recentErrors: errorLog,
-    recentLoopTicks: loopTickLog,
     readFailures,
   };
 }
@@ -3777,7 +3744,7 @@ const SKILLS_SOURCE_DIR = fileURLToPath(new URL("../skills", import.meta.url));
  * Split a skill file into its YAML frontmatter fields and its markdown body.
  *
  * Only the scalar fields opencode reads off a skill are recognized (`name`,
- * `description`, `slash`); anything else in the block is ignored. A file
+ * `description`, `autoinvoke`); anything else in the block is ignored. A file
  * without a leading `---` fence has no frontmatter and is all body.
  *
  * @param {string} source Raw file contents.
@@ -3816,7 +3783,7 @@ function parseSkillFrontmatter(source) {
  * @param {string} directory Absolute path to the skills directory.
  * @param {{ exists?: (path: string) => boolean, read?: (path: string) => string, list?: (path: string) => string[] }} [io]
  *   Injection seam for tests; defaults to the real filesystem.
- * @returns {Array<{ id: string, name: string, description?: string, slash?: boolean, location: string, content: string }>}
+ * @returns {Array<{ id: string, name: string, description?: string, autoinvoke?: boolean, path: string, content: string }>}
  *   Skills sorted by id. An absent or unreadable directory yields `[]`.
  */
 function readSkillDirectory(
@@ -3850,15 +3817,395 @@ function readSkillDirectory(
       ...(frontmatter.description === undefined
         ? {}
         : { description: frontmatter.description }),
-      ...(frontmatter.slash === undefined
+      ...(frontmatter.autoinvoke === undefined
         ? {}
-        : { slash: frontmatter.slash === "true" }),
-      location: file.path,
+        : { autoinvoke: frontmatter.autoinvoke === "true" }),
+      path: file.path,
       content,
     });
   }
 
   return skills.sort((left, right) => (left.id < right.id ? -1 : 1));
+}
+
+/**
+ * `globalThis` key backing the per-session record of activated skills.
+ *
+ * Shares the re-import rationale of `LEDGER_KEY`. Each entry lists the
+ * packaged skills a session has been seen to activate, and whether what a
+ * checkpoint sealed away has been recovered from its stored history.
+ */
+const SKILL_ACTIVATIONS_KEY = Symbol.for("radical-pipelines.opencode.skillActivations");
+
+/**
+ * Fetch the process-wide skill-activation records, creating them on first use.
+ *
+ * @returns {Map<string, { skills: string[], recovered: boolean }>} Session
+ *   ID to the ids of the packaged skills it activated, in first-seen order,
+ *   and whether its sealed history has been read.
+ */
+function getSkillActivations() {
+  if (!globalThis[SKILL_ACTIVATIONS_KEY]) {
+    globalThis[SKILL_ACTIVATIONS_KEY] = new Map();
+  }
+  return globalThis[SKILL_ACTIVATIONS_KEY];
+}
+
+/**
+ * `globalThis` key backing the sealed-history reads in flight, one per
+ * session, so concurrent requests of a session await the same read.
+ */
+const SKILL_RECOVERIES_KEY = Symbol.for("radical-pipelines.opencode.skillRecoveries");
+
+/**
+ * Fetch the in-flight sealed-history reads, creating the map on first use.
+ *
+ * @returns {Map<string, Promise<string[]>>}
+ */
+function getSkillRecoveries() {
+  if (!globalThis[SKILL_RECOVERIES_KEY]) {
+    globalThis[SKILL_RECOVERIES_KEY] = new Map();
+  }
+  return globalThis[SKILL_RECOVERIES_KEY];
+}
+
+/**
+ * Upper bound on held skill-activation records. Every root session the hook
+ * sees gets one; the oldest is evicted past this bound and, if it still
+ * matters, derived again from the session's stored history.
+ */
+const SKILL_ACTIVATIONS_CAP = 4096;
+
+/**
+ * Hold a session's skill-activation record, evicting the oldest past the cap.
+ *
+ * @param {string} sessionID
+ * @param {{ skills: string[], recovered: boolean }} record
+ * @returns {void}
+ */
+function holdSkillActivations(sessionID, record) {
+  const records = getSkillActivations();
+  records.set(sessionID, record);
+  while (records.size > SKILL_ACTIVATIONS_CAP) {
+    records.delete(records.keys().next().value);
+  }
+}
+
+/**
+ * Drop a deleted session's skill-activation record.
+ *
+ * @param {object} event The event received from `ctx.event.subscribe`.
+ * @returns {void}
+ */
+function forgetSkillActivations(event) {
+  if (event?.type === "session.deleted" && typeof event.data?.sessionID === "string") {
+    getSkillActivations().delete(event.data.sessionID);
+  }
+}
+
+/**
+ * The skill activations in a session's stored history, oldest first: a
+ * completed `skill` tool call, a `skill` message, or a skill attached to a
+ * user prompt.
+ *
+ * @param {Array<object>} messages `Session.Message.Info` records.
+ * @returns {Generator<string>} The activated skill ids, repeats included.
+ */
+function* storedSkillActivations(messages) {
+  for (const message of messages) {
+    if (message.type === "skill") {
+      yield message.skill;
+    }
+    if (message.type === "user") {
+      for (const skill of message.skills ?? []) {
+        yield skill.id;
+      }
+    }
+    if (message.type === "assistant") {
+      for (const part of message.content ?? []) {
+        if (part.type === "tool" && part.name === "skill" && part.state?.status === "completed") {
+          yield part.state.input.id;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * The skill activations in the messages a model request carries — the
+ * active context, as the `context` hook sees it: a `skill` tool call whose
+ * `tool-result` part has a `result.type` other than `error`, or a user text
+ * part opening with the `<skill_content name="…">` tag opencode renders a
+ * skill attached to a prompt with.
+ *
+ * @param {Array<{ role: string, content: string | Array<object> }>} messages
+ * @param {Array<{ id: string, name: string }>} skills The packaged skills.
+ * @returns {Generator<string>} The activated skill ids, repeats included.
+ */
+function* activeSkillActivations(messages, skills) {
+  const succeeded = new Set();
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) {
+      continue;
+    }
+    for (const part of message.content) {
+      if (part.type === "tool-result" && part.result?.type !== "error") {
+        succeeded.add(part.id);
+      }
+    }
+  }
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) {
+      continue;
+    }
+    for (const part of message.content) {
+      if (message.role === "user" && part.type === "text") {
+        const attached = skills.find((skill) => part.text?.startsWith(`<skill_content name="${skill.name}">`));
+        if (attached) {
+          yield attached.id;
+        }
+      }
+      if (message.role === "assistant" && part.type === "tool-call" && part.name === "skill" && succeeded.has(part.id)) {
+        yield part.input?.id;
+      }
+    }
+  }
+}
+
+/**
+ * Keep the packaged skills among activations, in first-seen order without
+ * repeats.
+ *
+ * @param {Iterable<string>} activations Skill ids, as activated.
+ * @param {Array<{ id: string }>} skills The packaged skills.
+ * @returns {string[]}
+ */
+function packagedSkillActivations(activations, skills) {
+  const ids = new Set(skills.map((skill) => skill.id));
+  const result = [];
+  for (const id of activations) {
+    if (ids.has(id) && !result.includes(id)) {
+      result.push(id);
+    }
+  }
+  return result;
+}
+
+/**
+ * Page size for `listSessionMessages`.
+ */
+const SESSION_MESSAGES_PAGE = 200;
+
+/**
+ * Read a session's whole stored history, oldest first, following the
+ * server's cursors. Earlier messages remain stored after a checkpoint, so
+ * this sees what the active context no longer does.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session to read.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ *   Injectable request function, forwarded to `requestServer`.
+ * @returns {Promise<Array<object>>} Every `Session.Message.Info` record.
+ * @throws {Error} On a non-2xx response or a malformed page.
+ */
+async function listSessionMessages(server, sessionID, requestFn) {
+  const messages = [];
+  let path = `/api/session/${sessionID}/message?order=asc&limit=${SESSION_MESSAGES_PAGE}`;
+  while (path) {
+    const response = await requestServer(server, "GET", path, undefined, requestFn);
+    if (response.status < 200 || response.status >= 300) {
+      throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
+    }
+    const page = sessionMessagesPage(response.body, sessionID);
+    messages.push(...page.data);
+    const next = page.cursor?.next;
+    path = next
+      ? `/api/session/${sessionID}/message?cursor=${encodeURIComponent(next)}&limit=${SESSION_MESSAGES_PAGE}`
+      : undefined;
+  }
+  return messages;
+}
+
+/**
+ * Validate one page of `GET /api/session/:id/message`: a `data` array of
+ * well-formed records, and a `cursor` that is absent or an object whose
+ * `next` is absent, null, or a string. Anything else cannot be read.
+ *
+ * @param {*} body The parsed response body.
+ * @param {string} sessionID The session read, for the error.
+ * @returns {{ data: Array<object>, cursor?: { next?: string | null } }}
+ * @throws {Error} On a malformed page.
+ */
+function sessionMessagesPage(body, sessionID) {
+  const cursor = body?.cursor;
+  const wellFormed =
+    Array.isArray(body?.data) &&
+    body.data.every(isWellFormedStoredMessage) &&
+    (cursor === undefined ||
+      (typeof cursor === "object" &&
+        cursor !== null &&
+        (cursor.next === undefined || cursor.next === null || typeof cursor.next === "string")));
+  if (!wellFormed) {
+    throw new Error(`GET /api/session/${sessionID}/message returned a malformed page`);
+  }
+  return body;
+}
+
+/**
+ * Decide whether a stored message carries, well-formed, every field
+ * `storedSkillActivations` and `readSealedSkillActivations` consume: a
+ * string `type`; a `compaction` has a string `status`; a `skill` has a
+ * string `skill`; a `user` has no `skills` or an array of objects with a
+ * string `id`; an `assistant` has no `content` or an array of parts with a
+ * string `type`, where a `tool` part has a string `name` and a `state`
+ * object with a string `status`, and a completed `skill` call has an input
+ * object with a string `id`.
+ *
+ * @param {*} message
+ * @returns {boolean}
+ */
+function isWellFormedStoredMessage(message) {
+  if (typeof message?.type !== "string") {
+    return false;
+  }
+  if (message.type === "compaction") {
+    return typeof message.status === "string";
+  }
+  if (message.type === "skill") {
+    return typeof message.skill === "string";
+  }
+  if (message.type === "user") {
+    return (
+      message.skills === undefined ||
+      (Array.isArray(message.skills) && message.skills.every((skill) => typeof skill?.id === "string"))
+    );
+  }
+  if (message.type === "assistant") {
+    return message.content === undefined || (Array.isArray(message.content) && message.content.every(isWellFormedStoredPart));
+  }
+  return true;
+}
+
+/**
+ * The part clause of `isWellFormedStoredMessage`.
+ *
+ * @param {*} part
+ * @returns {boolean}
+ */
+function isWellFormedStoredPart(part) {
+  if (typeof part?.type !== "string") {
+    return false;
+  }
+  if (part.type !== "tool") {
+    return true;
+  }
+  const { name, state } = part;
+  if (typeof name !== "string" || typeof state !== "object" || state === null || typeof state.status !== "string") {
+    return false;
+  }
+  return name !== "skill" || state.status !== "completed" || typeof state.input?.id === "string";
+}
+
+/**
+ * Derive a session's activations from its stored history: what the last
+ * completed checkpoint has sealed away from the active context. A session
+ * without a checkpoint has nothing sealed.
+ *
+ * @param {{ baseURL: string, password: string }} server A resolved server.
+ * @param {string} sessionID The session to read.
+ * @param {Array<{ id: string }>} skills The packaged skills.
+ * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
+ * @returns {Promise<string[]>}
+ * @throws {Error} When the history cannot be read.
+ */
+async function readSealedSkillActivations(server, sessionID, skills, requestFn) {
+  const messages = await listSessionMessages(server, sessionID, requestFn);
+  const last = messages.findLastIndex((message) => message.type === "compaction" && message.status === "completed");
+  return packagedSkillActivations(storedSkillActivations(messages.slice(0, Math.max(last, 0))), skills);
+}
+
+/**
+ * Render the skills re-supplied to a session that continues from a
+ * checkpoint, each as the `skill` tool presented it: its body and its base
+ * directory, current as registered.
+ *
+ * @param {Array<{ id: string, path: string, content: string }>} skills
+ * @returns {string}
+ */
+function renderSkillResupply(skills) {
+  return [
+    "This session's context was checkpointed. The skill it had loaded is re-supplied here.",
+    ...skills.map((skill) => `Skill: ${skill.id}\nBase directory: ${dirname(skill.path)}\n\n${skill.content}`),
+  ].join("\n\n");
+}
+
+/**
+ * The context hook: keep a session's skill across checkpoints.
+ *
+ * Compaction summarizes the transcript and drops instructions the assistant
+ * was given rather than told — an activated skill among them — so a session
+ * that continues from a checkpoint has lost it. Every request shows its
+ * active context; the activations it shows are added to the session's
+ * record. A request that no longer carries a recorded activation is
+ * continuing from a checkpoint: the skill's body is re-supplied in
+ * `system`, as the tool's own compaction re-supplies invoked skills.
+ *
+ * What a checkpoint sealed is not in any request: until a session's stored
+ * history has been read, it is read — once, shared by the requests that
+ * arrive meanwhile, and again on the next request when it fails or the
+ * server is unreachable; meanwhile the record serves as far as it goes. A
+ * spawned agent never activates the skill and is skipped without a read.
+ *
+ * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
+ *   The `context` hook event.
+ * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function }} deps
+ * @returns {Promise<void>}
+ */
+async function onContext(event, { server, skills, requestFn }) {
+  const { sessionID } = event;
+  if (lookupSpawn(sessionID)) {
+    return;
+  }
+  const observed = packagedSkillActivations(activeSkillActivations(event.messages, skills), skills);
+  const records = getSkillActivations();
+  let record = records.get(sessionID);
+  if (!record) {
+    record = { skills: [], recovered: false };
+    holdSkillActivations(sessionID, record);
+  }
+  record.skills = packagedSkillActivations([...record.skills, ...observed], skills);
+  if (!record.recovered && server) {
+    const recoveries = getSkillRecoveries();
+    let recovery = recoveries.get(sessionID);
+    if (!recovery) {
+      recovery = readSealedSkillActivations(server, sessionID, skills, requestFn)
+        .catch((error) => {
+          recordError({ type: "skill.resupply.unreadable", sessionID, error: String(error), at: Date.now() });
+          throw error;
+        })
+        .finally(() => recoveries.delete(sessionID));
+      recoveries.set(sessionID, recovery);
+    }
+    const sealed = await recovery.catch(() => undefined);
+    // The session may have been deleted meanwhile; its record is gone and
+    // stays gone.
+    record = records.get(sessionID);
+    if (!record) {
+      return;
+    }
+    if (sealed) {
+      record.skills = packagedSkillActivations([...sealed, ...record.skills], skills);
+      record.recovered = true;
+    }
+  }
+  const lacking = record.skills.filter((id) => !observed.includes(id));
+  if (lacking.length === 0) {
+    return;
+  }
+  event.system.push({
+    type: "text",
+    text: renderSkillResupply(skills.filter((skill) => lacking.includes(skill.id))),
+  });
 }
 
 /**
@@ -3977,16 +4324,17 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles =
     input: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Run-unique instance name." },
+        name: { type: "string", description: "Pipeline-unique instance name." },
         agent: { type: "string", description: "RP agent profile name." },
         model: { type: "string", description: "provider/model[#variant] convention string." },
         directory: { type: "string", description: "Absolute directory the session is seated in." },
         prompt: { type: "string", description: "Initial prompt posted to the spawned session." },
-        run: { type: "string", description: "Run branch name." },
+        pipeline_slug: { type: "string", description: "Pipeline slug." },
       },
-      required: ["name", "agent", "model", "directory", "prompt", "run"],
+      required: ["name", "agent", "model", "directory", "prompt", "pipeline_slug"],
     },
-    async execute({ name, agent, model, directory, prompt, run }, toolCtx) {
+    async execute({ name, agent, model, directory, prompt, pipeline_slug }, toolCtx) {
+      assertPipelineSlug(pipeline_slug);
       if (!rpProfiles.has(agent)) {
         throw new Error(`Unknown RP agent "${agent}"`);
       }
@@ -4002,7 +4350,7 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles =
       });
       recordSpawn(session.id, {
         name,
-        run,
+        pipelineSlug: pipeline_slug,
         spawner: toolCtx.sessionID,
         directory,
         repoRoot: resolveRepoRootFn(directory),
@@ -4323,11 +4671,17 @@ function buildLoopStartTool({ registryPath, tick }) {
 function buildLoopListTool(registryPath) {
   return {
     name: "rp_loop_list",
-    description: "List every currently registered health loop.",
+    description: "List every currently registered health loop with its recent ticks.",
     output: ANY_OUTPUT_SCHEMA,
     input: { type: "object", properties: {} },
     async execute() {
-      return toToolResult(listLoopEntries(registryPath));
+      const ticks = getLoopTickLog();
+      return toToolResult(
+        listLoopEntries(registryPath).map((entry) => ({
+          ...entry,
+          recentTicks: ticks.filter((tick) => tick.loopID === entry.id),
+        })),
+      );
     },
   };
 }
@@ -4370,24 +4724,34 @@ function buildLoopCancelTool(registryPath) {
  *   env: Record<string, string | undefined>,
  *   readServiceRecordOverride?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- *   readCliVersionOverride?: () => string | null,
  * }} deps Passed through to `buildStatusPayload`.
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride }) {
+function buildStatusTool({ env, readServiceRecordOverride, requestFn }) {
   return {
     name: "rp_status",
-    description: "Report plugin version, pin comparison, ledger snapshot, recent errors, and health-loop ticks.",
+    description:
+      "Report the plugin version, the ledger of one pipeline's agents (pipeline_slug), of one session (session), or of every RP session, and the recent errors: under a scope, those of its sessions and those naming no session; unscoped, all of them.",
     output: ANY_OUTPUT_SCHEMA,
-    input: { type: "object", properties: {} },
-    async execute() {
+    input: {
+      type: "object",
+      properties: {
+        pipeline_slug: { type: "string", description: "Report the agents of this pipeline. Excludes session." },
+        session: {
+          type: "string",
+          description: "Report this one session, with its newest assistant text. Excludes pipeline_slug.",
+        },
+      },
+    },
+    async execute({ pipeline_slug, session } = {}) {
       return toToolResult(
         await buildStatusPayload({
+          pipelineSlug: pipeline_slug,
+          session,
           env,
           readServiceRecord: readServiceRecordOverride,
           requestFn,
-          readCliVersion: readCliVersionOverride,
         }),
       );
     },
@@ -4436,8 +4800,7 @@ async function consumeEvents(ctx, onEvent, onIterator) {
  * Keep the event subscription alive for the daemon's lifetime, resubscribing
  * whenever the stream ends or fails, until the signal aborts.
  *
- * The pinned subscribe API accepts no cancellation options, so teardown
- * retains the live iterator and closes it with `return()` when the signal
+ * Teardown retains the live iterator and closes it with `return()` when the signal
  * aborts — otherwise a cleaned-up supervisor would stay blocked on `next()`
  * forever while a reloaded plugin starts another.
  *
@@ -4503,7 +4866,6 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  *   env?: Record<string, string | undefined>,
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- *   readCliVersion?: () => string | null,
  *   agentsSourceDir?: string,
  *   agentsTargetDir?: string,
  *   resolveRepoRootFn?: (directory: string) => string | null,
@@ -4511,8 +4873,7 @@ async function superviseEvents(ctx, onEvent, { delayMs = 1_000, maxRestarts = In
  * }} [deps] Injectable dependencies, absent in opencode's real invocation
  *   (`setup(ctx)`) and supplied only by offline tests: `env` and
  *   `readServiceRecord` reach `resolveServer`; `requestFn` reaches the HTTP
- *   client; `readCliVersion` reaches the pin-comparison fallback;
- *   `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
+ *   client; `agentsSourceDir`/`agentsTargetDir` reach `materializeAgents`;
  *   `resolveRepoRootFn` reaches `rp_spawn`; `exists` reaches the permission
  *   mediator's redirect check.
  * @returns {Promise<() => Promise<void>>} Resolves once this location's tools
@@ -4527,7 +4888,6 @@ async function setup(ctx, deps = {}) {
     env = process.env,
     readServiceRecord: readServiceRecordOverride,
     requestFn,
-    readCliVersion: readCliVersionOverride,
     agentsSourceDir,
     agentsTargetDir,
     resolveRepoRootFn,
@@ -4639,22 +4999,14 @@ async function setup(ctx, deps = {}) {
     tools.add(guard(buildLoopStartTool({ registryPath, tick })));
     tools.add(guard(buildLoopListTool(registryPath)));
     tools.add(guard(buildLoopCancelTool(registryPath)));
-    tools.add(guard(buildStatusTool({ env, readServiceRecordOverride, requestFn, readCliVersionOverride })));
+    tools.add(guard(buildStatusTool({ env, readServiceRecordOverride, requestFn })));
     tools.add(guard(buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })));
     return tools;
   });
 
-  // Builds up to the previously pinned one took a directory source; newer ones
-  // dropped `source` from the draft and take fully-formed skills through
-  // `add`. Probing the draft keeps one plugin working on both, rather than
-  // dying with "sources.source is not a function" on whichever build the
-  // owner happens to run.
+  const packagedSkills = readSkillDirectory(SKILLS_SOURCE_DIR);
   await ctx.skill.transform((skills) => {
-    if (typeof skills.source === "function") {
-      skills.source({ type: "directory", path: SKILLS_SOURCE_DIR });
-      return skills;
-    }
-    for (const skill of readSkillDirectory(SKILLS_SOURCE_DIR)) {
+    for (const skill of packagedSkills) {
       skills.add(skill);
     }
     return skills;
@@ -4669,6 +5021,7 @@ async function setup(ctx, deps = {}) {
       async (event) => {
         recordSessionEventActivity(event);
         recordSessionParent(event);
+        forgetSkillActivations(event);
         onToolEvent(event);
         recordTurnEnd(event);
         await onPermissionAsked(event, {
@@ -4696,22 +5049,37 @@ async function setup(ctx, deps = {}) {
   // The raw-liveness observer, registered per location: `ctx.session.hook`
   // is location-scoped, so the once-guarded resources above must not own
   // it — every location tees its own provider responses (see
-  // `observeHttpResponse`). Pinned registration inserts the callback
+  // `observeHttpResponse`). Registration inserts the callback
   // synchronously with no failure channel; the guard below still records
   // the unexpected, and the dead-stream gate treats uncovered targets as
   // unobservable rather than silent, so escalation is disabled wherever
   // this hook is missing. A hook landing late cannot retroactively tee a
   // response whose headers already passed; coverage returns only with the
   // next response the hook actually observes.
-  const hookRegistration = Promise.resolve()
-    .then(() => ctx.session.hook("http.response", observeHttpResponse))
-    .catch((error) => {
-      recordError({ type: "observer.hook.failed", error: String(error), at: Date.now() });
-      return undefined;
-    });
+  //
+  // The skill re-supply hook is registered the same way: `context` sees
+  // every model request and gives a session continuing from a checkpoint
+  // its skill back. It works from the skills read at registration.
+  const registerHook = (name, callback) =>
+    Promise.resolve()
+      .then(() => ctx.session.hook(name, callback))
+      .catch((error) => {
+        recordError({ type: "observer.hook.failed", hook: name, error: String(error), at: Date.now() });
+        return undefined;
+      });
+  const hookRegistrations = [
+    registerHook("http.response", observeHttpResponse),
+    registerHook("context", (event) =>
+      onContext(event, {
+        server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
+        skills: packagedSkills,
+        requestFn,
+      }),
+    ),
+  ];
 
   // The plugin API invokes the returned cleanup when unloading a location:
-  // dispose only this location's hook, and tear the shared observer and
+  // dispose only this location's hooks, and tear the shared observer and
   // timers down only when the last live location releases them — clearing
   // the once-guard so a reloaded plugin's setup can re-arm everything.
   let cleaned = false;
@@ -4720,8 +5088,9 @@ async function setup(ctx, deps = {}) {
       return;
     }
     cleaned = true;
-    const registration = await hookRegistration;
-    await Promise.resolve(registration?.dispose?.()).catch(() => {});
+    for (const registration of await Promise.all(hookRegistrations)) {
+      await Promise.resolve(registration?.dispose?.()).catch(() => {});
+    }
     shared.refs -= 1;
     if (shared.refs <= 0 && globalThis[SETUP_ONCE_KEY] === shared) {
       delete globalThis[SETUP_ONCE_KEY];
@@ -4735,6 +5104,7 @@ async function setup(ctx, deps = {}) {
 export default { id: PLUGIN_ID, setup };
 
 export {
+  activeSkillActivations,
   addLoopEntry,
   agentExists,
   appendSpawnProtocol,
@@ -4744,7 +5114,6 @@ export {
   buildBasicAuthHeader,
   buildLedgerRows,
   buildStatusPayload,
-  comparePinnedBuild,
   currentToolFor,
   deleteLoopEntry,
   disarmLoopTimer,
@@ -4755,11 +5124,14 @@ export {
   formatPermissionForward,
   formatRedirectMessage,
   formatStructuredError,
+  forgetSkillActivations,
   formatTitle,
   getSessionInbox,
   getSessionMessages,
   getSessionUpdatedAt,
+  getSkillActivations,
   guardTool,
+  holdSkillActivations,
   interruptSession,
   isDeadStreamMessage,
   isSessionActive,
@@ -4770,25 +5142,28 @@ export {
   lastSessionEventAt,
   lastTargetInterruptAt,
   listLoopEntries,
+  listSessionMessages,
   lookupSpawn,
   materializeAgents,
   observeHttpResponse,
+  onContext,
   onPermissionAsked,
   onToolEvent,
+  packagedSkillActivations,
   parseModelString,
   parsePermissionAsked,
   parseSkillFrontmatter,
   parseTitle,
   promoteInboxItem,
-  readCliVersion,
   readPackageVersion,
-  readPinManifest,
+  readSealedSkillActivations,
   readServiceRecordFile,
   readSessionParentage,
   readSkillDirectory,
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
+  recordError,
   recordSend,
   recordSessionEventActivity,
   recordSessionParent,
@@ -4796,6 +5171,7 @@ export {
   recordTargetInterrupt,
   recordTurnEnd,
   redirectTargets,
+  renderSkillResupply,
   replyToPermission,
   requestServer,
   resolveAgentsTargetDir,
@@ -4803,13 +5179,13 @@ export {
   resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
   resolveRepoRoot,
-  resolveRunningBuild,
   resolveServer,
   resolveToolAccess,
   runLoopTick,
   sessionReadError,
   setup,
   shapeStatus,
+  storedSkillActivations,
   superviseEvents,
   terminalEventError,
   terminalEventSessionID,

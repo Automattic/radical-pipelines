@@ -2,6 +2,38 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 3
+
+Migrate from version 2.
+
+### Renames
+
+| Existing section | New heading     |
+| ---------------- | --------------- |
+| `Branch naming`  | `Pipeline slug` |
+
+Reword its body to describe the slug.
+
+### Additions
+
+- `Pipeline branch format`, optional: the pipeline branch as a template over `<pipeline slug>`.
+
+## 2
+
+Migrate from version 1.
+
+### Frontmatter
+
+Rewrite the frontmatter as a JSON object.
+
+### Renames
+
+In `Agents`, the `researcher` block becomes `helper`.
+
+### Removals
+
+- `researcher` from every `Guardrails` block's `agents`, dropping a block left with none.
+
 ## 1
 
 Migrate from version 0.
@@ -49,10 +81,10 @@ Keep one `researcher` row, asking the owner which existing research value to ret
 
 ### Pipelines
 
-Pipelines in the previous layout (`<slug>/base/…`) are closed: discovery reads `<slug>/0-intent/intent.md`, so they are neither live nor continued. Further work on their issue starts a new pipeline.
+Pipelines in the previous layout (`<pipeline slug>/base/…`) are closed: discovery reads `<pipeline slug>/0-intent/intent.md`, so they are neither live nor continued. Further work on their issue starts a new pipeline.
 
 ### Additions
 
 - `Agents`, optional: model per profile and named lanes (replaces `Agent models`).
 - `Artifact storage`, required, gains the artifact base branch.
-- Frontmatter stamp `conventions: 1`.
+- Frontmatter schema stamp 1.

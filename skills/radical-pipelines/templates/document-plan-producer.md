@@ -12,26 +12,21 @@
 
 ## Mode
 
-<Synthesize | Adjudicate>
+<Converge>
 
 ## Materials
 
-- Research: <researcher answer>   <!-- when a research request preceded this dispatch; any mode -->
 - Spec: <spec.md path>; <its approving review paths>
 - Design doc: <design-doc.md path>; <its approving review paths>
 - Build plan: <build-plan.md path>; <its approving review paths>; <its tasks and reports>; <approving build review path>
 - Task reports: <one line per report: path>   <!-- none when empty -->
 - Phase folder: <one line per existing file: path>
 
-<!-- Synthesize adds -->
-- Input changes: <package change>   <!-- re-synthesis only -->
-- Correction: <challenge path>; <origin chain paths>   <!-- re-synthesis: one per pending challenge -->
-- Task report: <challenge path>; <origin chain paths>   <!-- re-synthesis: one per pending failed report -->
-
-<!-- Adjudicate adds one Correction or Task report line per pending challenge, plus the current plan package -->
-- document-plan.md: <path>
+<!-- Converge: additions, each when it applies -->
+- Input changes: <package change>
+- document-plan.md: <path>   <!-- with its tasks and record, once written -->
 - Tasks: <one line per task file: path>
 - document-plan-research.md: <path>
-- Review lanes: <one line per review: lane — path>
-- Correction: <challenge path>; <origin chain paths>
-- Task report: <report path>; <its task file path>
+- Review lanes: <one line per review of the closed wave: lane — path>
+- Challenge: <challenge path>; <origin chain paths>   <!-- one per pending constraint, proposal, or claim -->
+- Task report: <report path>; <its task file path>   <!-- one per pending failed report -->

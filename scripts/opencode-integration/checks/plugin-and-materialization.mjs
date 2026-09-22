@@ -75,8 +75,8 @@ export async function run(ctx) {
     const found = skills.find((s) => s.id === "radical-pipelines");
     assert.ok(found, `expected a "radical-pipelines" skill among: ${JSON.stringify(skills.map((s) => s.id))}`);
     assert.ok(
-      found.location.endsWith(join("skills", "radical-pipelines", "SKILL.md")),
-      `expected the skill's location to point at the repo's own SKILL.md, got: ${found.location}`,
+      found.path.endsWith(join("skills", "radical-pipelines", "SKILL.md")),
+      `expected the skill's path to point at the repo's own SKILL.md, got: ${found.path}`,
     );
   });
 
@@ -101,7 +101,7 @@ export async function run(ctx) {
   });
 
   await runCheck(results, "agent materialization: materialized bytes match the source profile exactly", async () => {
-    const fileName = "researcher.md";
+    const fileName = "helper.md";
     const sourceBytes = readFileSync(join(AGENTS_SOURCE_DIR, fileName), "utf8");
     const materializedPath = join(materializedAgentsDir, fileName);
     await pollUntil(async () => existsSync(materializedPath), {

@@ -14,24 +14,20 @@
  * Run only at release cadence, with network access, via:
  *   node scripts/opencode-integration/run.mjs --network-smoke
  *
- * The specifier defaults to this package's own release tag
- * (`github:Automattic/radical-pipelines#v<package.json version>`); override
+ * The specifier defaults to `github:Automattic/radical-pipelines`; override
  * with `RP_OPENCODE_SMOKE_SPECIFIER` to smoke-test an unreleased ref.
  */
 
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { runCheck } from "../lib/check-runner.mjs";
 import { createSession, listPlugins, prompt, waitForAssistantFinish } from "../lib/api-client.mjs";
 import { startServe, stopServe } from "../lib/sandbox.mjs";
 
-const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
-
 /**
  * Resolve the github specifier to smoke-test: an explicit override, else
- * this package's own release tag.
+ * the documented installation source.
  *
  * @returns {string}
  */
@@ -39,8 +35,7 @@ function resolveSpecifier() {
   if (process.env.RP_OPENCODE_SMOKE_SPECIFIER) {
     return process.env.RP_OPENCODE_SMOKE_SPECIFIER;
   }
-  const version = JSON.parse(readFileSync(join(REPO_ROOT, "package.json"), "utf8")).version;
-  return `github:Automattic/radical-pipelines#v${version}`;
+  return "github:Automattic/radical-pipelines";
 }
 
 /**
@@ -65,7 +60,6 @@ export async function run(ctx) {
     JSON.stringify(
       {
         $schema: "https://opencode.ai/config.json",
-        autoupdate: false,
         plugins: [specifier],
       },
       null,
@@ -121,9 +115,9 @@ export async function run(ctx) {
       const result = await driveViaRealModel(
         server,
         orchestrator.id,
-        "Call the rp_spawn tool with name=\"smoke-child\", agent=\"researcher\", model=\"opencode/hy3-free\", directory=" +
+        "Call the rp_spawn tool with name=\"smoke-child\", agent=\"helper\", model=\"opencode/hy3-free\", directory=" +
           JSON.stringify(smokeProjectDir) +
-          ", prompt=\"say hello\", run=\"smoke-run\". Report only the returned session id, nothing else.",
+          ", prompt=\"say hello\", pipeline_slug=\"smoke-run\". Report only the returned session id, nothing else.",
       );
       assert.ok(result.includes("ses_"), `expected a spawned session id in the reply, got: ${result}`);
     });

@@ -2,8 +2,8 @@
 /**
  * opencode integration suite.
  *
- * The hermetic, pinned integration suite that exercises the RP coordination
- * layer against exactly the pinned `@opencode-ai/cli` build, in an
+ * The integration suite exercises the RP coordination
+ * layer against the latest stable `@opencode/cli` release, in an
  * XDG-isolated sandbox, offline (an OpenAI-compatible SSE stub provider
  * backs every core-flow turn at zero cost). Lives outside `scripts/test/`,
  * so the fixed `npm test` gate never runs it.
@@ -12,25 +12,26 @@
  *   node scripts/opencode-integration/run.mjs                 # core suite (offline, hermetic)
  *   node scripts/opencode-integration/run.mjs --network-smoke # + the release-cadence network smoke path
  *
- * The core suite requires no network access beyond the pinned CLI's
- * one-time install (cached by exact version under the OS temp directory —
- * a repeat run with the same pin never touches the network again). The
+ * The core suite needs npm access to resolve the current release and install
+ * it when absent from the version-keyed cache under the OS temp directory. The
  * `--network-smoke` path additionally requires network access to GitHub and
  * to opencode's hosted free-model endpoint.
  */
 
 import { reportSummary } from "./lib/check-runner.mjs";
-import { createSandbox, destroySandbox, ensurePinnedCli, readPinManifest, startServe, stopServe, STUB_PORT } from "./lib/sandbox.mjs";
+import { createSandbox, destroySandbox, ensureCli, startServe, stopServe, STUB_PORT } from "./lib/sandbox.mjs";
 import { startStubProvider } from "./lib/stub-provider.mjs";
 
 import * as pluginAndMaterialization from "./checks/plugin-and-materialization.mjs";
 import * as spawnAndMessaging from "./checks/spawn-and-messaging.mjs";
 import * as healthLoop from "./checks/health-loop.mjs";
 import * as toolAccess from "./checks/tool-access.mjs";
-import * as statusAndPin from "./checks/status-and-pin.mjs";
+import * as permission from "./checks/permission.mjs";
+import * as status from "./checks/status.mjs";
 import * as interruptAndModelSwitch from "./checks/interrupt-and-model-switch.mjs";
 import * as authRecovery from "./checks/auth-recovery.mjs";
 import * as networkErrorProbe from "./checks/network-error-probe.mjs";
+import * as skillResupply from "./checks/skill-resupply.mjs";
 import * as networkSmoke from "./checks/network-smoke.mjs";
 
 /** Check groups run in every invocation: the hermetic, offline core path. */
@@ -39,20 +40,21 @@ const CORE_CHECK_GROUPS = [
   ["Spawn, seat, ledger, title, messaging, termination", spawnAndMessaging],
   ["Health loop", healthLoop],
   ["Tool access tiers", toolAccess],
-  ["Status and pin comparison", statusAndPin],
+  ["Permission adjudication", permission],
+  ["Status", status],
   ["Interrupt and model switch", interruptAndModelSwitch],
   ["Auth-error recovery", authRecovery],
   ["Tool-call network-error probe", networkErrorProbe],
+  ["Skill re-supply across a checkpoint", skillResupply],
 ];
 
 async function main() {
   const networkSmokeRequested = process.argv.includes("--network-smoke");
   const keepSandbox = process.env.RP_OPENCODE_SUITE_KEEP_SANDBOX === "1";
 
-  const pin = readPinManifest();
-  console.log(`Pinned opencode build: ${pin.cli} (plugin API ${pin.plugin})`);
-  console.log("Resolving pinned CLI (installing on first use, cached by exact version)...");
-  const { binDir, opencodeBin } = await ensurePinnedCli(pin);
+  console.log("Resolving the latest stable CLI (installing on first use, cached by exact version)...");
+  const { version, binDir, opencodeBin } = await ensureCli();
+  console.log(`opencode release: ${version}`);
 
   const { sandboxDir, projectDir, xdgConfigHome, env } = createSandbox();
   console.log(`Sandbox: ${sandboxDir}`);
@@ -72,7 +74,7 @@ async function main() {
     env,
     binDir,
     opencodeBin,
-    pin,
+    version,
     results,
   };
 

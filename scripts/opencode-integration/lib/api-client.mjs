@@ -4,7 +4,7 @@
  *
  * Every opencode HTTP GET (and most POST) response envelopes its payload as
  * `{ data: ... }` (some additionally carry `location`) — verified live
- * against the pinned build. This client unwraps that envelope once, here,
+ * against opencode. This client unwraps that envelope once, here,
  * so no check has to re-derive it.
  */
 
@@ -17,9 +17,9 @@ import { nativeToolPrompt } from "./stub-provider.mjs";
  * process.
  *
  * @param {{ baseURL: string, password: string }} server
- * @param {"GET"|"POST"} method
+ * @param {"GET"|"POST"|"PATCH"|"DELETE"} method
  * @param {string} path
- * @param {*} [body] JSON-serializable request body (POST only).
+ * @param {*} [body] JSON-serializable request body.
  * @returns {Promise<{ status: number, body: * }>}
  */
 export function request(server, method, path, body) {
@@ -184,6 +184,46 @@ export async function interrupt(server, sessionID) {
 export async function switchModel(server, sessionID, model) {
   const response = await request(server, "POST", `/api/session/${sessionID}/model`, { model });
   return response.status;
+}
+
+/**
+ * Give a session its own permission ruleset, so a check decides what the
+ * session asks about rather than inheriting the sandbox's defaults.
+ *
+ * @param {{baseURL:string,password:string}} server
+ * @param {string} sessionID
+ * @param {Array<{ action: string, resource: string, effect: "allow"|"deny"|"ask" }>} permissions
+ * @returns {Promise<number>} The HTTP status (204 on success).
+ */
+export async function setSessionPermissions(server, sessionID, permissions) {
+  const response = await request(server, "PATCH", `/api/session/${sessionID}`, { permissions });
+  return response.status;
+}
+
+/**
+ * Evaluate an action against a session's ruleset, raising a pending
+ * permission request when the ruleset asks about it.
+ *
+ * @param {{baseURL:string,password:string}} server
+ * @param {string} sessionID
+ * @param {{ action: string, resources: string[] }} ask
+ * @returns {Promise<{ id: string, effect: "allow"|"deny"|"ask" }>}
+ */
+export async function createPermissionRequest(server, sessionID, { action, resources }) {
+  const response = await request(server, "POST", `/api/session/${sessionID}/permission`, { action, resources });
+  return data(response);
+}
+
+/**
+ * Read a session's still-pending permission requests.
+ *
+ * @param {{baseURL:string,password:string}} server
+ * @param {string} sessionID
+ * @returns {Promise<Array<object>>}
+ */
+export async function getPermissionRequests(server, sessionID) {
+  const response = await request(server, "GET", `/api/session/${sessionID}/permission`);
+  return data(response) ?? [];
 }
 
 /**

@@ -3,12 +3,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, test } from "node:test";
 
-/** Absolute path to the pull-request changeset gate workflow. */
+/** Absolute path to the pull-request CI workflow. */
 const WORKFLOW_PATH = fileURLToPath(
-  new URL("../../.github/workflows/changeset-gate.yml", import.meta.url),
+  new URL("../../.github/workflows/ci.yml", import.meta.url),
 );
 
-/** Raw text of the changeset gate workflow (formatting-preserving read). */
+/** Raw text of the CI workflow (formatting-preserving read). */
 const RAW = readFileSync(WORKFLOW_PATH, "utf8");
 
 /** Workflow lines, trailing newline excluded so the last entry is real content. */
@@ -26,7 +26,65 @@ function lineIndex(needle) {
   return LINES.findIndex((line) => line.trim() === needle);
 }
 
-describe("changeset-gate.yml drift guard wiring", () => {
+/**
+ * Number of lines whose trimmed text equals `needle`. Used to assert a step
+ * or guard is present in every job exactly once.
+ *
+ * @param {string} needle - Exact trimmed line text to count.
+ * @returns {number} Count of matching lines.
+ */
+function lineCount(needle) {
+  return LINES.filter((line) => line.trim() === needle).length;
+}
+
+/** The four jobs the CI workflow must define, in order. */
+const JOBS = ["changeset:", "rp:", "opencode-plugin:", "opencode-integration:"];
+
+describe("ci.yml pull-request checks", () => {
+  test("the workflow defines exactly the four checks", () => {
+    // Job names are the 2-space-indented keys inside the top-level `jobs:` block.
+    const jobsIdx = LINES.indexOf("jobs:");
+    assert.ok(jobsIdx !== -1, "expected a top-level `jobs:` block");
+    const jobHeaders = LINES.slice(jobsIdx + 1)
+      .filter((line) => /^ {2}\w[\w-]*:$/.test(line))
+      .map((line) => line.trim());
+    assert.deepEqual(jobHeaders, JOBS, "only the four checks may exist");
+  });
+
+  test("every job carries the bot-PR exemption", () => {
+    assert.equal(
+      lineCount("if: github.head_ref != 'changeset-release/trunk' # bot-PR exemption"),
+      JOBS.length,
+      "each job must exempt the Version Packages PR",
+    );
+  });
+
+  test("every job sets up Node 22 with the npm cache", () => {
+    assert.equal(lineCount("node-version: 22"), JOBS.length);
+    assert.equal(lineCount("cache: npm"), JOBS.length);
+  });
+
+  test("every job installs before testing", () => {
+    assert.equal(lineCount("- run: npm ci"), JOBS.length);
+  });
+
+  test("each job runs its own suite", () => {
+    assert.ok(lineIndex("- run: npm run test:release") !== -1, "changeset runs test:release");
+    assert.ok(lineIndex("- run: npm run test:rp") !== -1, "rp runs test:rp");
+    assert.ok(
+      lineIndex("- run: npm run test:opencode-unit") !== -1,
+      "opencode-plugin runs test:opencode-unit",
+    );
+    assert.ok(
+      lineIndex("- run: npm run test:opencode") !== -1,
+      "opencode-integration runs test:opencode",
+    );
+  });
+
+  test("the changeset job fetches full history for the base comparison", () => {
+    assert.ok(lineIndex("fetch-depth: 0") !== -1, "checkout must fetch all refs");
+  });
+
   test("the changeset job runs the drift guard", () => {
     assert.ok(
       lineIndex("run: node scripts/check-version-sync.mjs") !== -1,
@@ -43,16 +101,17 @@ describe("changeset-gate.yml drift guard wiring", () => {
     );
   });
 
-  test("the drift guard runs after `npm ci` and `npm test`", () => {
-    // `npm ci`/`npm test` are bare inline-`run` list items (`- run: …`), whereas
-    // the named steps place `run:` on its own line; match either form.
+  test("the drift guard runs after `npm ci` and `npm run test:release`", () => {
+    // `npm ci`/`npm run test:release` are bare inline-`run` list items
+    // (`- run: …`), whereas the named steps place `run:` on its own line;
+    // match either form.
     const ciIdx = lineIndex("- run: npm ci");
-    const testIdx = lineIndex("- run: npm test");
+    const testIdx = lineIndex("- run: npm run test:release");
     const guardIdx = lineIndex("run: node scripts/check-version-sync.mjs");
 
-    assert.ok(ciIdx !== -1 && testIdx !== -1, "expected `npm ci` and `npm test` steps");
+    assert.ok(ciIdx !== -1 && testIdx !== -1, "expected `npm ci` and `test:release` steps");
     assert.ok(guardIdx > ciIdx, "drift guard must run after `npm ci`");
-    assert.ok(guardIdx > testIdx, "drift guard must run after `npm test`");
+    assert.ok(guardIdx > testIdx, "drift guard must run after `test:release`");
   });
 
   test("the drift guard is adjacent to the changeset-shape validation step", () => {
@@ -69,11 +128,12 @@ describe("changeset-gate.yml drift guard wiring", () => {
     );
   });
 
-  test("the job-level bot-PR exemption is unchanged", () => {
+  test("the require-a-changeset step is unaltered", () => {
     assert.ok(
-      lineIndex("if: github.head_ref != 'changeset-release/trunk' # bot-PR exemption") !==
-        -1,
-      "the changeset job `if` exemption must remain verbatim",
+      lineIndex(
+        "run: npx changeset status --since=origin/${{ github.event.pull_request.base.ref }}",
+      ) !== -1,
+      "the existing changeset-status step must remain verbatim",
     );
   });
 
@@ -87,7 +147,7 @@ describe("changeset-gate.yml drift guard wiring", () => {
 
   test("the concurrency block is unchanged", () => {
     assert.ok(
-      lineIndex("group: changeset-gate-${{ github.head_ref || github.ref }}") !== -1,
+      lineIndex("group: ci-${{ github.head_ref || github.ref }}") !== -1,
       "concurrency `group` must remain",
     );
     assert.ok(
@@ -96,30 +156,11 @@ describe("changeset-gate.yml drift guard wiring", () => {
     );
   });
 
-  test("the require-a-changeset step is unaltered", () => {
-    assert.ok(
-      lineIndex(
-        "run: npx changeset status --since=origin/${{ github.event.pull_request.base.ref }}",
-      ) !== -1,
-      "the existing changeset-status step must remain verbatim",
-    );
-  });
-
-  test("the workflow defines exactly one job: changeset", () => {
-    // Job names are the 2-space-indented keys inside the top-level `jobs:` block.
-    const jobsIdx = LINES.indexOf("jobs:");
-    assert.ok(jobsIdx !== -1, "expected a top-level `jobs:` block");
-    const jobHeaders = LINES.slice(jobsIdx + 1)
-      .filter((line) => /^ {2}\w[\w-]*:$/.test(line))
-      .map((line) => line.trim());
-    assert.deepEqual(jobHeaders, ["changeset:"], "only the `changeset` job may exist");
-  });
-
   test("the workflow is well-formed YAML: every step is a single mapping entry", () => {
     // A built-in structural check (the project ships no YAML parser): each step
     // begins with a `- ` list marker and the file uses consistent 2-space indent.
     const stepMarkers = LINES.filter((line) => /^ {6}- /.test(line)).length;
-    assert.ok(stepMarkers >= 5, "expected the gate's full set of steps to remain");
+    assert.ok(stepMarkers >= 19, "expected all four jobs' steps to remain");
     // No tab characters: tabs are illegal indentation in YAML.
     assert.ok(!RAW.includes("\t"), "YAML indentation must not contain tab characters");
     // The file ends in exactly one trailing newline.

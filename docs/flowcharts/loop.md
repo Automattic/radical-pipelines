@@ -7,14 +7,10 @@ flowchart TD
     A["Run rp check"] --> STATUS["Treat complete-through-phase as status; read frontier"]
     STATUS --> B["Take the first frontier item"]
     B --> C{"Frontier"}
-    C -->|challenge, target inputs current| T["Dispatch target producer: Adjudicate"]
-    C -->|claim: owner escalation| OE["Surface the dossier and pause"]
-    C -->|claim, target inputs current| CL["Dispatch target producer: Adjudicate"]
-    C -->|synthesize artifact| S["Dispatch producer: Synthesize"]
+    C -->|claim: owner escalation| OE["Close-out with the dossier"]
+    C -->|converge artifact| S["Dispatch producer: Converge with its input changes, the closed wave's reviews, and its pending challenges"]
     C -->|stamp file| ST["Stamp its pins or mirrors"]
-    C -->|re-synthesize artifact| RS["Dispatch producer: Synthesize with input changes and pending challenges"]
     C -->|review wave| RW["Run the review-wave procedure"]
-    C -->|adjudicate artifact| ADJ["Dispatch producer: Adjudicate with every review lane"]
     C -->|consolidate artifact| CON["Dispatch producer: Consolidate"]
     C -->|task| TASK["Dispatch its worker"]
     C -->|blocked task| BLOCKED["Restore what the report names; dispatch its worker"]
@@ -22,18 +18,13 @@ flowchart TD
     C -->|no task files| NOTASK["Re-dispatch the plan producer"]
     C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]
     C -->|INVALID FRONTMATTER| FRONTMATTER["Orchestrator repairs the frontmatter, then re-stamps the file"]
-    C -->|INVALID LINE| LINE["Have the file's author fix it"]
-    C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Adjudicate"]
-    C -->|tasks held| HELD["Dispatch the plan producer: Adjudicate with failed reports"]
+    C -->|INVALID LINE or IDS| LINE["Have the file's author fix it"]
+    C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Converge"]
     C -->|adjudicated challenges or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
     C -->|undeclared lane or symlink| DEFECT["Stop and tell the owner"]
     C -->|complete| CLOSE["Close-out"]
-    T --> LAND["Verify and land agent commits"]
-    CL --> LAND
-    S --> LAND
-    RS --> LAND
+    S --> LAND["Verify and land agent commits"]
     RW --> LAND
-    ADJ --> LAND
     CON --> LAND
     TASK --> LAND
     BLOCKED --> LAND
@@ -43,9 +34,8 @@ flowchart TD
     FRONTMATTER --> A
     LINE --> LAND
     INVALIDPLAN --> LAND
-    HELD --> LAND
     AWAITING --> LAND
-    LAND --> STAMP["Stamp before publication; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
+    LAND --> STAMP["Stamp before publication, deriving lanes from paths and run-config.md; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
     STAMP --> A
     ST --> A
 ```

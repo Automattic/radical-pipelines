@@ -1,7 +1,7 @@
 /**
  * Health-loop start/list, recent-busy skip, stale-running steer, observable
  * outcomes, cancellation, and restart survival, driven against the sandbox's
- * running `serve` process through the real `rp_loop_*` and `rp_status` tools.
+ * running `serve` process through the real `rp_loop_*` tools.
  */
 
 import assert from "node:assert/strict";
@@ -100,16 +100,8 @@ export async function run(ctx) {
     );
   });
 
-  await runCheck(results, "rp_loop_cancel stops further ticks, while rp_status retains their outcomes", async () => {
-    const cancelResult = await driveToolCall(server, controller.id, "rp_loop_cancel", { id: loopID });
-    assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
-
-    const listResult = await driveToolCall(server, controller.id, "rp_loop_list");
-    const entries = JSON.parse(listResult.text);
-    assert.ok(!entries.some((e) => e.id === loopID), "expected the cancelled loop to be gone from rp_loop_list");
-
-    const statusResult = await driveToolCall(server, controller.id, "rp_status");
-    const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter((tick) => tick.loopID === loopID);
+  await runCheck(results, "rp_loop_list carries a loop's recent tick outcomes; after rp_loop_cancel the loop is unlisted and its target receives no further prompt", async () => {
+    const ticks = await loopTicks(server, controller.id, loopID);
     assert.ok(
       ticks.some((tick) => tick.outcome === "busy" && typeof tick.lastActivity === "number"),
       `expected an observable busy outcome with last activity, got: ${JSON.stringify(ticks)}`,
@@ -119,12 +111,22 @@ export async function run(ctx) {
       `expected an observable stale-running injection, got: ${JSON.stringify(ticks)}`,
     );
 
+    const cancelResult = await driveToolCall(server, controller.id, "rp_loop_cancel", { id: loopID });
+    assert.deepEqual(cancelResult.structuredJSON, { cancelled: true });
+
+    const listResult = await driveToolCall(server, controller.id, "rp_loop_list");
+    const entries = JSON.parse(listResult.text);
+    assert.ok(!entries.some((e) => e.id === loopID), "expected the cancelled loop to be gone from rp_loop_list");
+
+    // A tick in flight at cancel time may still land; after one interval
+    // none is, so two further intervals must inject nothing.
+    const markers = async () =>
+      (await getMessages(server, target.id)).filter((message) => message.type === "user" && message.text === marker).length +
+      (await getInbox(server, target.id)).filter((item) => item.payload?.text === marker).length;
+    await delay(1_200);
+    const settled = await markers();
     await delay(2_200);
-    const statusAfter = await driveToolCall(server, controller.id, "rp_status");
-    const ticksAfter = (statusAfter.structuredJSON?.recentLoopTicks ?? []).filter(
-      (tick) => tick.loopID === loopID,
-    );
-    assert.equal(ticksAfter.length, ticks.length, "expected no further tick outcomes after cancel");
+    assert.equal(await markers(), settled, "expected no further injection after cancel");
   });
 
   await runCheck(
@@ -148,10 +150,7 @@ export async function run(ctx) {
         // inject -> fail -> classify -> skip -> re-inject -> fail -> escalate.
         const ticks = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, "rp_status");
-            const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-              (tick) => tick.loopID === backoffLoopID,
-            );
+            const observed = await loopTicks(server, controller.id, backoffLoopID);
             return observed.some(
               (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
             )
@@ -201,10 +200,7 @@ export async function run(ctx) {
 
         const ticks = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, "rp_status");
-            const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-              (tick) => tick.loopID === recordlessLoopID,
-            );
+            const observed = await loopTicks(server, controller.id, recordlessLoopID);
             return observed.some(
               (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
             )
@@ -258,10 +254,7 @@ export async function run(ctx) {
 
         const ticks = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, "rp_status");
-            const observed = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-              (tick) => tick.loopID === slowLoopID,
-            );
+            const observed = await loopTicks(server, controller.id, slowLoopID);
             return observed.some(
               (tick) => tick.outcome === "skipped" && tick.reason === "failed-probe" && tick.level >= 2,
             )
@@ -309,10 +302,7 @@ export async function run(ctx) {
 
         const promotedTick = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, "rp_status");
-            return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
-              (tick) => tick.loopID === promoLoopID && tick.outcome === "promoted",
-            );
+            return (await loopTicks(server, controller.id, promoLoopID)).find((tick) => tick.outcome === "promoted");
           },
           { timeoutMs: 15_000, intervalMs: 400, label: "a queue-to-steer promotion tick" },
         );
@@ -372,7 +362,7 @@ export async function run(ctx) {
         );
 
         // Park a queue copy of the monitor prompt behind the hung turn: the
-        // interrupt must not strand it (`continue=true` leaves queued
+        // interrupt must not strand it (`resume=true` leaves queued
         // prompts parked), so the confirming tick promotes it to steer
         // first.
         await prompt(server, hung.id, deadMarker, { delivery: "queue" });
@@ -385,10 +375,7 @@ export async function run(ctx) {
         let observedTicks = [];
         const interruptedTick = await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, "rp_status");
-            observedTicks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-              (tick) => tick.loopID === deadLoopID,
-            );
+            observedTicks = await loopTicks(server, controller.id, deadLoopID);
             return observedTicks.find((tick) => tick.outcome === "interrupted" && tick.reason === "dead-stream");
           },
           { timeoutMs: 30_000, intervalMs: 400, label: "a dead-stream interrupted tick" },
@@ -466,10 +453,7 @@ export async function run(ctx) {
         // projection) or this check proves nothing.
         await pollUntil(
           async () => {
-            const statusResult = await driveToolCall(server, controller.id, "rp_status");
-            return (statusResult.structuredJSON?.recentLoopTicks ?? []).find(
-              (tick) => tick.loopID === trickleLoopID && tick.reason === "dead-stream-suspected",
-            );
+            return (await loopTicks(server, controller.id, trickleLoopID)).find((tick) => tick.reason === "dead-stream-suspected");
           },
           { timeoutMs: 15_000, intervalMs: 300, label: "the healthy trickle to be suspected" },
         );
@@ -489,10 +473,7 @@ export async function run(ctx) {
         );
         assert.ok(finished.finish, "the trickled tool call must complete as a normal turn");
 
-        const statusResult = await driveToolCall(server, controller.id, "rp_status");
-        const ticks = (statusResult.structuredJSON?.recentLoopTicks ?? []).filter(
-          (tick) => tick.loopID === trickleLoopID,
-        );
+        const ticks = await loopTicks(server, controller.id, trickleLoopID);
         assert.ok(
           !ticks.some((tick) => tick.outcome === "interrupted"),
           `a healthy stream must never be interrupted, got: ${JSON.stringify(ticks)}`,
@@ -564,4 +545,18 @@ export async function run(ctx) {
       assert.ok(!entriesAfterCancel.some((e) => e.id === survivorLoopID), "expected the leftover loop to be gone after cancel");
     },
   );
+}
+
+/**
+ * A loop's recent tick outcomes as `rp_loop_list` reports them; none once the
+ * loop is gone.
+ *
+ * @param {object} server
+ * @param {string} sessionID The session driving the tool call.
+ * @param {string} loopID
+ * @returns {Promise<Array<object>>}
+ */
+async function loopTicks(server, sessionID, loopID) {
+  const result = await driveToolCall(server, sessionID, "rp_loop_list");
+  return JSON.parse(result.text).find((entry) => entry.id === loopID)?.recentTicks ?? [];
 }

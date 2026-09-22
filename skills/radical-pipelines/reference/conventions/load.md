@@ -12,23 +12,24 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 
 ## Conventions
 
-| Convention            | What it covers                                                                                                                        | Required |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Issues                | Issue trackers; read, create, modify, and comment operations; the canonical issue-reference format for `Origin:` lines              | Yes      |
-| Branch naming         | How the issue-derived slug in `../run/state.md` § Names is formed                                                                                  | Yes      |
-| Pipelines folder root | The root containing pipeline folders; default `.pipelines/`                                                                           | No       |
-| Artifact storage      | Whether `.rp.md` and the pipelines folder live in the project's repository (`artifacts-in-repo`) or a fork (`artifacts-in-fork`), and the artifact base branch: the branch pipelines start from and count their own commits after — the repository's main branch, or the fork's base branch, declared | Yes      |
-| Worktree folder root  | The root containing worktrees                                                                                                         | Yes      |
-| Commit format         | Commit message rules; absent, an imperative subject line                                                                              | No       |
-| PR format             | Pull request title and description rules                                                                                               | No       |
-| Guardrails            | Rules agents must satisfy                                                                                                              | No       |
-| Lifecycle hooks       | Instructions run at defined moments                                                                                                    | No       |
-| Agents                | Model per profile and the lanes it adds, with their briefs and materials (`agents.md`)                                                 | No       |
-| Health monitoring     | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                          | No       |
+| Convention             | What it covers                                                                                                                                                                                                                                                                                        | Required |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Issues                 | Issue trackers; read, create, modify, and comment operations; the canonical issue-reference format for `Origin:` lines                                                                                                                                                                                | Yes      |
+| Pipeline slug          | How the pipeline slug in `../run/state.md` § Names is derived from the issue                                                                                                                                                                                                                          | Yes      |
+| Pipeline branch format | The pipeline branch as a template over `<pipeline slug>`; default `<pipeline slug>`                                                                                                                                                                                                                   | No       |
+| Pipelines folder root  | The root containing pipeline folders; default `.pipelines/`                                                                                                                                                                                                                                           | No       |
+| Artifact storage       | Whether `.rp.md` and the pipelines folder live in the project's repository (`artifacts-in-repo`) or a fork (`artifacts-in-fork`), and the artifact base branch: the branch pipelines start from and count their own commits after — the repository's main branch, or the fork's base branch, declared | Yes      |
+| Worktree folder root   | The root containing worktrees                                                                                                                                                                                                                                                                         | Yes      |
+| Commit format          | Commit message rules; absent, an imperative subject line                                                                                                                                                                                                                                              | No       |
+| PR format              | Pull request title and description rules                                                                                                                                                                                                                                                              | No       |
+| Guardrails             | Rules agents must satisfy                                                                                                                                                                                                                                                                             | No       |
+| Lifecycle hooks        | Instructions run at defined moments                                                                                                                                                                                                                                                                   | No       |
+| Agents                 | Defaults for profile models and named lanes (`agents.md`)                                                                                                                                                                                                                                             | No       |
+| Health monitoring      | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                                                                                                                                                                                           | No       |
 
 ## Schema stamp
 
-The `.rp.md` frontmatter line `conventions: <N>` records the schema version. The current version is 1.
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 3.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

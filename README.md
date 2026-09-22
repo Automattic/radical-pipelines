@@ -24,7 +24,7 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 
 The phases are:
 
-- **Phase 0. Intent.** The initial request and any corrections.
+- **Phase 0. Intent.** The initial request, binding constraints, and proposals to investigate.
 - **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
 - **Phase 2. Design doc.** Architecture and technical decisions.
 - **Phase 3. Build.** The build plan and its tasks, the code with the unit and end-to-end tests the tasks call for, and behavior verification.
@@ -32,11 +32,13 @@ The phases are:
 
 Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
 
-In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every authored change it made — what each commit introduces outside the pipelines folder root, a merge only its conflict resolution — is covered by its phase review. State is computed from the tree, and corrections target the artifacts their request contradicts — the build plan for observed product behavior, the document plan for documentation, a named clause for a requirement or decision — each adjudicating its part while the changed identities make downstream pins stale and drive a cascade. Requirements cover the cases the intent makes material; a design mechanism is proportionate to that, and the case it leaves uncovered is recorded with its consequence and judged by it. When an artifact cannot satisfy a false input, the contradiction travels as an `unsatisfiable` verdict to that target and, if necessary, up to the owner. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — the product was not observed and the report names what prevented it, for the orchestrator to restore before the next attempt.
+In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and every authored change it made — what each commit introduces outside the pipelines folder root, a merge only its conflict resolution — is covered by its phase review. State is computed from the tree. Later input is recorded in phase 0 as one `constraint-<n>.md` per binding ruling or `proposal-<n>.md` per request to investigate, each with `Target:` and `Origin:`. Proposals may be adopted or refuted with evidence; constraints must be satisfied. The earliest target is handled first, and each target resolves its part through consumption and an approving review wave. A Build input therefore starts at Build; changed artifact identities drive the normal downstream cascade. Requirements cover the cases the intent makes material; a design mechanism is proportionate to that, and the case it leaves uncovered is recorded with its consequence and judged by it. An unsatisfiable input travels as a claim to its target; only the intent's Goal and constraints, including constraint files, require the owner's ruling. A constraint answers an owner claim when it cites that claim and targets the root artifact of the phase that raised it, returning work there. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — the product was not observed and the report names what prevented it, for the orchestrator to restore before the next attempt.
 
-The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow.
+Every orchestrator synthesis of incoming work is shown to the owner as it will be recorded, in plain language, explaining what is binding, what remains open to investigation, and what it affects. The owner approves that synthesis before it is written, including input from pull-request reviews and CI. An issue already in intent format, with no comments, references, links, or attachments to synthesize, is copied directly. Approving a proposal authorizes investigation, not its proposed outcome.
 
-The pipeline is **autonomous by default, assisted when needed.** After triage, an autonomous run proceeds without questions until an owner escalation. The Spec and Design doc phases can instead run in assisted mode.
+The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow. Each pipeline records its workflow, target phase, and lanes in `run-config.md`; the file remains with the merged pipeline.
+
+The pipeline is **autonomous by default, assisted when needed.** After triage, questions are reserved for owner escalations and approval of incoming work. The Spec and Design doc phases can instead run in assisted mode.
 
 It is **inspectable.** Every phase produces artifacts your team can review before the final PR.
 
@@ -45,7 +47,7 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 ## What this unlocks
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
-- **Compounding quality.** When a pipeline produces a bad result, the correction targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
+- **Compounding quality.** When a pipeline produces a bad result, incoming work targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
 - **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
@@ -101,77 +103,79 @@ The plugin currently bundles:
 
 Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
+A long run outlives its context: when Claude Code compacts a session, it re-injects the body of every invoked skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage, checking which agents are already working before dispatching. No hook is needed.
+
 The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
 ## opencode plugin install
 
-opencode installs plugins from its global config rather than from a marketplace. Radical Pipelines is distributed as a pinned Git specifier that opencode resolves through its own npm resolver, so installing it is a config edit followed by one restart. The target is opencode v2 (the public beta, the `opencode2` binary), verified against one exact pinned build recorded in [`opencode/pin.json`](./opencode/pin.json).
+Radical Pipelines supports stable opencode v2 (the `opencode` binary). Install it through opencode's global plugin configuration using its Git source.
 
-Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, pinned to a release tag, and disable opencode's auto-update:
+Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`:
 
 ```jsonc
 {
-  "plugins": ["github:Automattic/radical-pipelines#v<X.Y.Z>"],
-  "autoupdate": false
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["github:Automattic/radical-pipelines"]
 }
 ```
 
-Replace `v<X.Y.Z>` with the RP release tag to install; RP tags every release `v<version>`. Then restart the opencode service once:
+Then restart the opencode service:
 
 ```bash
-opencode2 service restart
+opencode service restart
 ```
 
 A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. After the restart:
 
-- The `radical-pipelines` skill is invokable — the plugin registers the packaged skill tree as a skill source by reference, unmodified.
+- The `radical-pipelines` skill is invokable — the plugin registers the packaged skills with their source paths and content.
+- A session that activated the skill gets it back after opencode's context compaction, which summarizes the transcript and drops an activated skill with it. Every model request shows the plugin the session's active context, and the plugin records the activation it sees there — a successful `skill` tool call, or the skill attached to a prompt. A request that no longer carries a recorded activation is continuing from a checkpoint, and the plugin re-supplies the skill's body as system text, as Claude Code does for invoked skills; the skill's own opening instruction then makes the session follow the skill again and recompute state. Once the session activates the skill again, the re-supply stops. What a checkpoint sealed is in no request, so a session's stored history is read once — shared by requests that arrive meanwhile, and again on the next request when it fails or the server is unreachable, recording `skill.resupply.unreadable` and serving what the session's requests have shown meanwhile; a malformed history is a failed read, never an empty one. A deleted session's record is dropped and the records are capped.
 - The plugin regenerates RP's profiles in opencode's global `agents/radical-pipelines/` folder, where they register as `radical-pipelines/<name>`; `rp_spawn` accepts the plain RP profile name.
 - Every agent spawned with `rp_spawn` receives the opencode messaging protocol and its spawner's session ID automatically, so its required reports and messages — including its completion declaration, which always goes to the spawner — are routed with `rp_send` rather than left in its transcript. The same protocol tells it that an ended turn is a stop: only a message resumes the session — a reply it awaits, or the completion notice of a background command it gave a `timeout` (background commands carry none by default, so a hung one never reports back) — and anything else it waits on holds its turn, with foreground commands that have a timeout and progress compared between checks, instead of parking on detached work nothing can wake it for.
 - A spawned agent's failed turn is announced to the spawner with its cause, unless `rp_terminate` has successfully deleted that agent's session — every terminal event for a deleted session is suppressed.
 - A spawned agent's read outside its worktree raises a permission request that the plugin announces to the spawner; reads that resolve inside the worktree are redirected without asking. The spawner answers with `rp_permission_reply`.
 - `rp_terminate` deletes a finished agent's session so it cannot linger or receive more work.
-- `rp_status` reports each spawned session with its `run` and its liveness facts: `activity` (the latest of `updated`, which opencode moves only when the session receives input, the session's last observed tool or model progress event, and its last raw provider byte), `lastTurn` (`succeeded`, `failed`, or `interrupted`) and `turns`, `lastSend` (its last `rp_send` and recipient), and `lastText` (its newest assistant text, or how many messages were searched without finding one) — enough to tell a working, a waiting, and a stopped agent apart. `lastTurn`, `turns`, and `lastSend` live in the daemon's memory: after a restart they are absent until observed again — unknown, not never — and `activity` falls back to `updated` until progress is observed; `run`, `lastText`, and the rest are read back from the durable session store.
-- Health-loop ticks skip recently active sessions, steer into sessions with no activity for two intervals, and remain observable through `rp_status`. A tick never duplicates a prompt whose predecessor is still undelivered or unanswered — a parked queue copy facing a running session is promoted to steer delivery in place; each injection is judged by the turn that answers it, and when that turn only fails (network outage, provider quota exhaustion) the loop backs off exponentially — up to ~8 intervals between probes — while still inspecting the target every tick and resuming normal cadence on the first success; and a target stuck on a dead provider stream — a frozen tool call, with no tool executing anywhere in the message, whose own response (identified by its provider call id in the teed bytes of each location's provider responses) produced no bytes and no progress events for a one-hour confirmation window (an accepted, documented heuristic: silence cannot prove death, so a totally silent live stream outlasting the window would be interrupted — a case beyond observed provider behavior) — is interrupted exactly once across all loops, with any parked monitor copy made steerable first, so the monitor prompt reaches the freed session on the next delivery. Under the plugin's single-observer assumption (no other plugin consumes through its tee and then substitutes the response without cancelling it), a stream whose response identity is established is never interrupted while it produces bytes — bounded only by the instant between the final revalidation and the session-scoped interrupt request, the tightest window the pinned API offers. Traffic whose identity cannot be established — never observed, or observed but with the projected tool id unmatched in its consumed bytes — is unknown coverage and is never escalated.
-- Health-loop server requests time out after 10 seconds. A tick still pending after two minutes records `timeout` in `rp_status` and re-arms; cancelling a loop returns as soon as it is disarmed instead of waiting for its active tick. A tick that finds its target session gone retires the loop and records `loop.retired`, rather than failing again on every interval for as long as the daemon runs.
+- `rp_status` reports the spawned sessions of one pipeline (`pipeline_slug`), one session (`session`), or all of them, each with its `pipelineSlug` and its liveness facts: `activity` (the latest of opencode's `updated`, which moves only when the session receives input, the session's last observed tool or model progress event, and its last raw provider byte), `lastTurn` (`succeeded`, `failed`, or `interrupted`), and `lastSend` (its last `rp_send` and recipient) — enough to tell a working, a waiting, and a stopped agent apart; a `session` scope also reads that session's transcript for `lastText` (its newest assistant text, how many messages were searched without finding one, or `null` when it holds none). Server reads run only for the sessions in scope, and under a scope `recentErrors` narrows to the sessions RP recognizes in it, recorded or live, plus the errors naming no session; an unscoped call reports every recent error. `lastTurn` and `lastSend` live in the daemon's memory: after a restart they are absent until observed again — unknown, not never — and `activity` falls back to `updated` until progress is observed; `pipelineSlug`, `lastText`, and the rest are read back from the durable session store.
+- Health-loop ticks skip recently active sessions, steer into sessions with no activity for two intervals, and remain observable through `rp_loop_list`, which lists each loop with its recent ticks. A tick never duplicates a prompt whose predecessor is still undelivered or unanswered — a parked queue copy facing a running session is promoted to steer delivery in place; each injection is judged by the turn that answers it, and when that turn only fails (network outage, provider quota exhaustion) the loop backs off exponentially — up to ~8 intervals between probes — while still inspecting the target every tick and resuming normal cadence on the first success; and a target stuck on a dead provider stream — a frozen tool call, with no tool executing anywhere in the message, whose own response (identified by its provider call id in the teed bytes of each location's provider responses) produced no bytes and no progress events for a one-hour confirmation window (an accepted, documented heuristic: silence cannot prove death, so a totally silent live stream outlasting the window would be interrupted — a case beyond observed provider behavior) — is interrupted exactly once across all loops, with any parked monitor copy made steerable first, so the monitor prompt reaches the freed session on the next delivery. Under the plugin's single-observer assumption (no other plugin consumes through its tee and then substitutes the response without cancelling it), a stream whose response identity is established is never interrupted while it produces bytes — bounded only by the instant between the final revalidation and the session-scoped interrupt request, the tightest window the API offers. Traffic whose identity cannot be established — never observed, or observed but with the projected tool id unmatched in its consumed bytes — is unknown coverage and is never escalated.
+- Health-loop server requests time out after 10 seconds. A tick still pending after two minutes records a `timeout` tick and re-arms; cancelling a loop returns as soon as it is disarmed instead of waiting for its active tick. A tick that finds its target session gone retires the loop and records `loop.retired`, rather than failing again on every interval for as long as the daemon runs.
 - The plugin's tools are scoped to the session calling them, by two facts a caller cannot forge: the parentage opencode reports when a session is created, and the ledger RP writes when it spawns. The orchestrator — which nothing spawned — and the owner's own session reach every tool; an agent spawned with `rp_spawn` reaches `rp_send`, which is all its profile needs; and a subagent, created by a session delegating inside its own turn, reaches none and is told to return its findings to whoever delegated to it. Parentage normally arrives on the event stream, but an event can be missed — the subscription replays no history, and a dropped stream resubscribes rather than recovering what fell in the gap — so a session RP has not seen is asked about, once, against the durable session store rather than assumed unparented. Any read that does not answer — an unreachable server, but equally one that replies 500 or 404 — leaves the question open, and an unclassifiable caller is then treated as a root session, because refusing every one of them would stop the orchestrator too. The ledger lives in daemon memory, so after a restart a spawned agent widens to the orchestrator's set until it is spawned again.
-- opencode's auto-update is disabled, holding the installation on the verified build.
-
-`autoupdate: false` matters because RP verifies against one exact opencode build, not the moving `next` tag. That build lives in [`opencode/pin.json`](./opencode/pin.json), which pins both the `@opencode-ai/cli` build the `opencode2` binary comes from and the `@opencode-ai/plugin` package version the plugin is written against. Any opencode build other than the pin is outside RP's verified surface.
 
 ### Updating
 
-To move to a newer RP release, change the pinned tag in the same `plugins` entry to the newer `v<version>` release tag — keeping `autoupdate: false` — and restart:
+Update the configured Git plugin and restart:
 
 ```bash
-opencode2 service restart
+opencode plugin update github:Automattic/radical-pipelines
+opencode service restart
 ```
 
-opencode resolves the new tag into its own cache entry and the plugin refreshes the materialized agents during setup, so the newer skill and agents take effect after the restart. Only a pinned tag refreshes this way: a moving ref (a branch name in place of a `v<version>` tag) resolves once and never refreshes, which is why the procedure always pins a tag.
+The plugin refreshes its packaged skill and materialized agents during setup. Use `opencode plugin check` to check for available plugin updates.
 
 ### Checking the installed version
 
 opencode reports plugin ids, not versions, so RP surfaces its own version:
 
-- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version; its `pin` field compares the running opencode build against `opencode/pin.json` — `match` when they are equal, `outside the verified surface` when the running build differs from the pin, and `not determinable` when the running build cannot be read; and `recentLoopTicks` retains recent health-loop outcomes separately from `recentErrors`.
-- opencode's HTTP API reports the same id: `opencode2 api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
+- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version.
+- opencode's HTTP API reports the same id: `opencode api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter carries `conventions: 1`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": 3`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
-| Convention            | What it covers                                                                                     | Required |
-| --------------------- | -------------------------------------------------------------------------------------------------- | -------- |
-| Issues                | Issue storage, operations, and the canonical issue reference                                       | Yes      |
-| Branch naming         | How one issue-derived slug, also used as the pipeline branch name, is named                          | Yes      |
-| Pipelines folder root | Where pipeline folders live                                                                        | No       |
-| Artifact storage      | Whether artifacts live in the project's repository or a fork, and the artifact base branch          | Yes      |
-| Worktree folder root  | Where worktrees live                                                                                | Yes      |
-| Commit format         | How agents write commits                                                                            | No       |
-| PR format             | How pull request titles and descriptions are written                                                | No       |
-| Guardrails            | Rules the project's agents must satisfy                                                             | No       |
-| Lifecycle hooks       | Prose instructions run at defined pipeline moments                                                  | No       |
-| Agents                | Model per profile and the lanes it adds, with their briefs and materials                             | No       |
-| Health monitoring     | Health-loop interval and stall threshold                                                             | No       |
+| Convention             | What it covers                                                                             | Required |
+| ---------------------- | ------------------------------------------------------------------------------------------ | -------- |
+| Issues                 | Issue storage, operations, and the canonical issue reference                               | Yes      |
+| Pipeline slug          | How the pipeline's identifier is derived from its issue                                    | Yes      |
+| Pipeline branch format | The pipeline branch as a template over the slug; default the slug itself                   | No       |
+| Pipelines folder root  | Where pipeline folders live                                                                | No       |
+| Artifact storage       | Whether artifacts live in the project's repository or a fork, and the artifact base branch | Yes      |
+| Worktree folder root   | Where worktrees live                                                                       | Yes      |
+| Commit format          | How agents write commits                                                                   | No       |
+| PR format              | How pull request titles and descriptions are written                                       | No       |
+| Guardrails             | Rules the project's agents must satisfy                                                    | No       |
+| Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
+| Agents                 | Defaults for profile models and named lanes                                                | No       |
+| Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
