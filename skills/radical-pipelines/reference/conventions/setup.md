@@ -72,7 +72,7 @@ Wait for confirmation, then re-run `git remote -v` and confirm the assignment.
 
 **Recommend the standard remote names.** Recommend naming the fork remote `origin` and the canonical repository's remote `upstream`, unless they already are. Never rename a remote without the owner's explicit approval; if they decline, record the current names.
 
-**Declare the artifact base branch.** The fork's branch pipelines start from, merge into, and count their own commits after — declared explicitly, since it need not be the fork's main branch.
+**Declare the artifact base branch.** The fork's branch pipelines start from and merge into — declared explicitly, since it need not be the fork's main branch.
 
 **Define the upstream PR transformation.** Ask the owner for:
 

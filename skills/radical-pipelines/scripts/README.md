@@ -1,22 +1,23 @@
 # `rp`
 
-`rp` reports and stamps body-identity state for Radical Pipelines. The file or folder argument selects its repository and worktree, independent of the process directory. The [state specification](../reference/run/state.md) defines everything it computes.
+`rp` reports and stamps body-identity state and renders review material for Radical Pipelines. The file or folder argument selects its repository and worktree, independent of the process directory. The [state specification](../reference/run/state.md) defines everything it computes.
 
 ## `stamp`
 
 ```text
-node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror]
+node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror] [--base <ref>]
 ```
 
 - `--pin` records the inputs an artifact consumed; the set replaces the previous one. An artifact cannot pin its sibling record. Consolidation also captures `lane-packages` from the candidates; re-stamping the root preserves references bound to the same consumed lane pins.
 - `--reviewed` fixes the package a review or task report names; later stamps preserve it. A task report's attempt follows the last report with a valid landed package and metadata.
+- Stamps recording authored changes take `--base` as for `check`. Reports record occurrence pins for their commits; phase reviews record the checkpoint and add the change package automatically, including for filtered lanes. Both use the [recorded observations](../reference/run/state.md#authored-change-material).
 - A named lane's artifact or review receives the fingerprint derived from its path and `run-config.md`. The implicit lane receives none.
 - A stamp with no pins, mirrors, or landing facts to record succeeds with `nothing to mirror` and leaves the file untouched.
-- `--mirror` rewrites every mirror from the body's declarations outside Markdown code fences — `Verdict:`, `Brief:`, `Target:`, `Origin:`, `Outcome:` (`completed` | `failed` | `blocked`), `Prior finding:`, `Depends on:`, a report's `## Commits` — replacing the previous set. It may repair an already-pinned review or report without consuming its package again. Every commit `## Commits` names must exist and resolve unambiguously; it is stored as its full hash. [Frontmatter](../reference/run/state.md#frontmatter) defines its format and field types. Every fixed line is accepted whole in its grammar or rejected as `INVALID <field>`; `Verdict`, `Brief`, `Target`, and `Outcome` occur once.
+- `--mirror` rewrites every mirror from the body's declarations outside Markdown code fences — `Verdict:`, `Brief:`, `Target:`, `Origin:`, `Outcome:` (`completed` | `failed` | `blocked`), `Prior finding:`, `Depends on:`, a report's `## Commits` — replacing the previous set. It may repair an already-pinned review or report without consuming its package again. New commit declarations must resolve unambiguously and are stored as full hashes; observations in `changes` are retained while the declaration matches. [Frontmatter](../reference/run/state.md#frontmatter) defines its format and field types. Every fixed line is accepted whole in its grammar or rejected as `INVALID <field>`; `Verdict`, `Brief`, `Target`, and `Outcome` occur once.
 - `Target:` is comma-separated. Its mirrors follow [Frontmatter](../reference/run/state.md#frontmatter); retained targets keep their landing identities. `check` reports invalid existing frontmatter as `INVALID FRONTMATTER` before computing facts, while absent frontmatter leaves declarations pending stamp. Stamp validates new targets together under the [challenge definition](../reference/run/state.md#terms). A failed report's target is its own task, derived from the report path and supplied implicitly when `Target:` is absent.
 - Every stamp of a file with declared ids projects `ids` and `retired-ids` from its body ([frontmatter](../reference/run/state.md#frontmatter)) and validates them: declared once, never reused, the ids it originates numbered without gaps from 1, a carried assumption declared by its upstream artifact, a plan's tasks by their files — a misnamed Markdown file in a plan's tasks folder is invalid. A review's findings are validated the same way without a mirror. A body-side violation is `INVALID IDS` in both `stamp` and `check`; a malformed recorded list is `INVALID FRONTMATTER`. A stored history that differs from its body-derived projection makes `stamp <file>` the frontier before downstream state is computed.
 - A challenge's target is validated when first stamped: its id opens a bullet or heading outside code fences, `#intent-goal` names the Goal section, and a task by its file. A `Prior finding:` names an earlier review of the same kind that declares the finding. `check` then computes resolution over the recorded target even after its item is removed.
-- `head`, the commit the stamp observed, is recorded only when the stamp carries `--pin` or `--reviewed`.
+- `head` is recorded on artifact and artifact-review stamps carrying `--pin` or `--reviewed`, as the diff base for convergence or artifact delta review.
 - Identity is the first 12 hexadecimal characters of the body's git blob hash, byte for byte, for every pinnable file. Stamping preserves it. Paths with a symlinked component are refused.
 
 ```sh
@@ -29,7 +30,7 @@ node skills/radical-pipelines/scripts/rp.mjs stamp .pipelines/demo/1-spec/spec.m
 node rp.mjs check <pipeline-folder> --base <ref> [--ref <ref>] [--json]
 ```
 
-- `--base` names the artifact base branch: the pipeline's own commits — those a task report must claim — follow its merge-base with the inspected ref. The branch the intent `starts-from` prevails when it declares one; otherwise `--base` is required. A base that does not resolve is an error.
+- `--base` names the artifact base branch used to select the base. The branch the intent `starts-from` prevails when it declares one; otherwise `--base` is required. A base that does not resolve is an error. [Authored-change material](../reference/run/state.md#authored-change-material) defines retained and live membership.
 - `run-config.md` supplies the workflow, target phase, and named lanes. Its body is ignored. Missing or invalid configuration stops the command.
 - `--ref` reads the pipeline's exact paths and identities from a commit instead of the working tree; the commit range is the same. One streamed `git cat-file --batch` process supplies cached object bytes without a subprocess output-size limit. Tree metadata and batch headers must match their complete grammars.
 - `--json` emits machine-readable state, including `configuration` with lane fingerprints. `challenges` has one entry per (challenge, target), in each file's target order, with its state and `inScope`; entries for one target artifact share adjudication and resolution. `challengeResolved` is true when every target artifact is resolved.
@@ -39,8 +40,24 @@ node rp.mjs check <pipeline-folder> --base <ref> [--ref <ref>] [--json]
 
 Both readers require a pipeline directory. Unlisted members may be unwritten; listed documents must be readable regular files. Read failures stop the check before facts, naming the ref or worktree and path.
 
+Authored changes use ordinary file pins. `authoredChanges` lists `{commit, patchId, occurrence, path, material, source}`: `path` names the pinned occurrence file; `source` is its recorded provenance. Each phase-review lane's `diff` lists `added` changes and `removed` occurrence pins relative to its previous review. With no previous review, all changes are added. Package equality governs coverage.
+
+The [authored-change rule](../reference/run/state.md#terms) defines the diff and identity. The computation requires Git with `merge-tree --write-tree` and `git var GIT_ATTR_SYSTEM` / `GIT_ATTR_GLOBAL`. Automatic merges use an isolated, hook-free worktree with the effective merge settings and attribute sources. Unavailable drivers, an unavailable automatic result, unreadable history, or malformed material stop computation.
+
 ```sh
 node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo --base main
 ```
 
-The report lists contradictions first — malformed files, mirror drift, undeclared lanes, symlinks — and stops before facts whose representation is invalid. Otherwise it lists challenges, claims, and every phase up to the target: production lanes, artifacts, tasks with their latest reports, phase reviews, unclaimed commits — and names the frontier. Missing consolidation references require consolidation. Episodes count from the last current approval under the [wave validity and currency definition](../reference/run/state.md#terms).
+The report lists contradictions first — malformed files, mirror drift, undeclared lanes, symlinks — and stops before facts whose representation is invalid. Otherwise it lists challenges, claims, and every phase up to the target: production lanes, artifacts, tasks with their latest reports, phase reviews — and names the frontier. Missing consolidation references require consolidation. Episodes count from the last current approval under the [wave validity and currency definition](../reference/run/state.md#terms).
+
+## `diff`
+
+```text
+node rp.mjs diff <pipeline-folder> --base <ref> [--ref <ref>] [--review <file> | --live-net] [--output <folder>] [--json]
+```
+
+Render every current authored change for a Fresh review. `--review` selects additions and removals relative to that phase review; its file argument is absolute or repository-relative. Removed entries show the original patch with a `removed` label. `--json` includes the occurrence pin, status, its own `source`, and complete stored material as `content`.
+
+`--output` creates a new directory outside the pipeline containing `diff.patch`, an `index.json` locating each material, and numbered folders with each `change.json`, `change.patch`, and `before`/`after` files. Symlinks are represented by files containing their target bytes; gitlinks by their object ids. Source commits are unnecessary for retained material.
+
+`--live-net` emits the net diff from the selected base to the inspected tip, outside the pipelines folder, for upstream integration. It excludes the retained checkpoint's history. Apply this net change to the upstream branch and reconcile differences there; individual authored patches are review material.

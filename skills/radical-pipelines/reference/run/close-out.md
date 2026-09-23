@@ -28,18 +28,18 @@ When the pull request already exists, update its description the same way.
 Consult the **Artifact storage** convention for the remotes and the upstream branch and commit formats, then:
 
 1. Generate a clean branch name for `upstream` from the upstream branch format — separate from the fork branch — and create the branch at `upstream`'s main branch.
-2. Cherry-pick, oldest first, the pipeline's own commits outside the pipelines folder — those after its base (`state.md`), the set `rp check` holds task reports to.
-3. Rewrite the cherry-picked commit messages to the upstream commit format.
-4. Push the clean branch directly to `upstream`.
-5. Open the pull request in `upstream` from that clean branch. Its source branch lives in `upstream`, not in the fork — viewers of the pull request never see the fork.
+2. Apply `rp diff <pipeline folder> --base <base branch> --live-net` to the clean branch, reconcile with upstream, and commit in the upstream format.
+3. Push the clean branch directly to `upstream`.
+4. Open the pull request in `upstream` from that clean branch. Its source branch lives in `upstream`, not in the fork — viewers of the pull request never see the fork.
 
 ### Merge the pull request
 
 1. Fire `before-merging-pr`.
 2. Merge it with your own tools.
-3. Fire `after-merging-pr` and report the outcome.
+3. Ensure the pipeline branch is merged into the artifact base and pushed.
+4. Fire `after-merging-pr` and report the outcome.
 
-When the owner merged it themselves and reports it, fire `after-merging-pr` and report the outcome.
+When the owner reports the pull request merged, continue at step 3.
 
 ### Close without merging
 
