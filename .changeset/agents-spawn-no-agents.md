@@ -1,5 +1,0 @@
----
-"@automattic/radical-pipelines": minor
----
-
-BREAKING: Replace the `researcher` with a `helper` — one profile that does one bounded piece of work for the agent that asked (an answer, an observation, or a change) under that agent's Seat, its Execution line the requester's, committing nothing and deciding nothing — and give workers the help request the producers and reviewers already have, so a worker hands over pieces of a large task instead of carrying every read, run, and auxiliary change in its own context. Every profile's Seat states that the agent spawns no agents: agents were reading the request mechanism as the tool's own delegation and launching unprofiled helpers of their own — on models the owner never chose, outside the ledger, the health loop, permission mediation, and the Execution line. The plan producers and reviewers gain a sizing rule: parts a worker could complete and verify separately are separate tasks. The `.rp.md` conventions format moves to version 2: the `Agents` block `researcher` becomes `helper`.
