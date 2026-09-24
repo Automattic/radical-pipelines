@@ -2148,6 +2148,7 @@ function scopedSessionIDs({ pipelineSlug, session }, liveRecords) {
  *   env?: Record<string, string | undefined>,
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ *   now?: () => number,
  * }} [options] `env` defaults to `process.env`; `readServiceRecord` defaults
  *   to `readServiceRecordFile`; `requestFn` defaults to the real HTTP client.
  * @returns {Promise<object>} The shaped status payload (see `shapeStatus`).
@@ -2158,6 +2159,7 @@ async function buildStatusPayload({
   env = process.env,
   readServiceRecord: readServiceRecordOverride,
   requestFn,
+  now = Date.now,
 } = {}) {
   if (pipelineSlug !== undefined && session !== undefined) {
     throw new Error("rp_status takes pipeline_slug or session, not both");
@@ -2188,10 +2190,14 @@ async function buildStatusPayload({
     }
   };
   const ok = (response) => response.status >= 200 && response.status < 300;
-  const readEndpoint = async (endpoint, path) => {
+  const readEndpoint = async (endpoint, path, valid = Array.isArray) => {
     try {
       const response = await requestServer(server, "GET", path, undefined, requestFn);
       if (ok(response)) {
+        if (!valid(response.body?.data)) {
+          noteFailure(endpoint, "malformed");
+          return null;
+        }
         return response;
       }
       noteFailure(endpoint, response.status);
@@ -2216,25 +2222,39 @@ async function buildStatusPayload({
     // `{ data: ... }` — verified live against opencode.
     const sessionsResponse = await readEndpoint("session", "/api/session");
     if (sessionsResponse) {
-      sessionRecords = (sessionsResponse.body?.data ?? []).filter(inScope);
+      const records = sessionsResponse.body.data;
+      if (records.every((record) => record && typeof record.id === "string")) {
+        sessionRecords = records.filter(inScope);
+      } else {
+        noteFailure("session", "malformed");
+      }
     }
-    const activeResponse = await readEndpoint("active", "/api/session/active");
+    const activeResponse = await readEndpoint(
+      "active", "/api/session/active",
+      (data) => data !== null && typeof data === "object" && !Array.isArray(data),
+    );
     if (activeResponse) {
-      activeIDs = new Set(Object.keys(activeResponse.body?.data ?? {}));
+      activeIDs = new Set(Object.keys(activeResponse.body.data));
     }
     for (const record of sessionRecords) {
+      if (!Number.isFinite(record.time?.updated)) {
+        noteFailure("activity", "malformed");
+      }
       const inboxResponse = await readEndpoint("inbox", `/api/session/${record.id}/inbox`);
       if (inboxResponse) {
-        pendingCounts.set(record.id, (inboxResponse.body?.data ?? []).length);
+        pendingCounts.set(record.id, inboxResponse.body.data.length);
       }
       const permissionsResponse = await readEndpoint(
         "permission",
         `/api/session/${record.id}/permission`,
+        (data) => Array.isArray(data) && data.every((item) =>
+          item && typeof item.id === "string" && typeof item.action === "string" &&
+          Array.isArray(item.resources) && item.resources.every((resource) => typeof resource === "string")),
       );
       if (permissionsResponse) {
         pendingPermissions.set(
           record.id,
-          (permissionsResponse.body?.data ?? []).map((item) => ({
+          permissionsResponse.body.data.map((item) => ({
             id: item.id,
             action: item.action,
             resources: item.resources,
@@ -2251,19 +2271,21 @@ async function buildStatusPayload({
         `/api/session/${record.id}/message?limit=${LAST_TEXT_PAGE}`,
       );
       if (firstPage) {
-        let lastText = extractLastText(firstPage.body?.data ?? [], LAST_TEXT_PAGE);
+        let lastText = extractLastText(firstPage.body.data, LAST_TEXT_PAGE);
         if (lastText?.olderThan !== undefined) {
           const deepPage = await readEndpoint(
             "message",
             `/api/session/${record.id}/message?limit=${LAST_TEXT_DEEP_PAGE}`,
           );
           if (deepPage) {
-            lastText = extractLastText(deepPage.body?.data ?? [], LAST_TEXT_DEEP_PAGE);
+            lastText = extractLastText(deepPage.body.data, LAST_TEXT_DEEP_PAGE);
           }
         }
         lastTexts.set(record.id, lastText ?? null);
       }
     }
+  } else {
+    noteFailure("server", "unreachable");
   }
 
   const ledgerEntries = buildLedgerRows(
@@ -2289,6 +2311,8 @@ async function buildStatusPayload({
     ledgerEntries,
     errorLog: scoped ? getErrorLog().filter((entry) => errorInScope(entry, inScopeIDs)) : getErrorLog(),
     readFailures: [...failures.values()],
+    pipelineSlug,
+    now: now(),
   });
 }
 
@@ -2493,13 +2517,19 @@ function getErrorLog() {
 }
 
 /**
- * Append an entry to the process-wide recent-errors ring.
+ * Record a diagnostic event with its severity and observation time.
  *
  * @param {*} entry The entry to append (see `appendToErrorLog`).
+ * @param {"info" | "error"} [level] Successful lifecycle events default to info.
  * @returns {void}
  */
+function recordDiagnostic(entry, level = "info") {
+  globalThis[ERROR_LOG_KEY] = appendToErrorLog(getErrorLog(), { at: Date.now(), ...entry, level });
+}
+
+/** Record a failed operation in the diagnostic log. */
 function recordError(entry) {
-  globalThis[ERROR_LOG_KEY] = appendToErrorLog(getErrorLog(), entry);
+  recordDiagnostic(entry, "error");
 }
 
 /** `globalThis` key backing the bounded recent health-loop tick log. */
@@ -3317,7 +3347,7 @@ async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn
         response = { status: "transport" };
       }
       if (response.status >= 200 && response.status < 300) {
-        recordError({
+        recordDiagnostic({
           type: "permission.redirected",
           sessionID: request.sessionID,
           requestID: request.requestID,
@@ -3336,7 +3366,7 @@ async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn
     }
   }
 
-  recordError({
+  recordDiagnostic({
     type: "permission.forwarded",
     sessionID: request.sessionID,
     requestID: request.requestID,
@@ -3624,6 +3654,23 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
   return next.length > cap ? next.slice(next.length - cap) : next;
 }
 
+/** Maximum length of a health check's failure cause. */
+const ERROR_SUMMARY_CAP = 200;
+
+/** Keep the failure's identity, time, and bounded cause for health checks. */
+function summarizeError(entry) {
+  const cause = entry.error ?? entry.reason ?? entry.status;
+  const text = cause === undefined ? undefined : formatStructuredError(cause).replace(/\s+/g, " ").trim();
+  return {
+    type: entry.type,
+    ...(entry.sessionID !== undefined ? { sessionID: entry.sessionID } : {}),
+    at: entry.at,
+    ...(text === undefined ? {} : {
+      error: text.length > ERROR_SUMMARY_CAP ? `${text.slice(0, ERROR_SUMMARY_CAP)}…` : text,
+    }),
+  };
+}
+
 /**
  * Shape the `rp_status` tool result from its component inputs.
  *
@@ -3651,7 +3698,9 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  *   }>,
  *   errorLog: Array<*>,
- *   readFailures?: Array<{endpoint: string, status: number | "transport", count: number}>,
+ *   readFailures?: Array<{endpoint: string, status: number | string, count: number}>,
+ *   pipelineSlug?: string,
+ *   now?: number,
  * }} input The status payload's components. `pluginVersion` identifies the
  *   running plugin build; `ledgerEntries` is one row per live spawn in scope
  *   (see `buildLedgerRows`); `errorLog` is the bounded recent-errors ring,
@@ -3659,30 +3708,26 @@ function appendToErrorLog(log, entry, cap = DEFAULT_ERROR_LOG_CAP) {
  *   failed while gathering the ledger — a non-empty list means the ledger's
  *   `running`/`pending`/`permissions`/`lastText` fields are incomplete, not
  *   that the sessions are idle.
- * @returns {{
- *   pluginVersion: string,
- *   ledger: Array<{
- *     name: string,
- *     pipelineSlug: string,
- *     sessionID: string,
- *     agent: string,
- *     model: string,
- *     directory: string,
- *     activity: string | number,
- *     running?: boolean,
- *     pending?: number,
- *     permissions?: Array<{id: string, action: string, resources: string[]}>,
- *     currentTool: object | undefined,
- *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
- *     lastSend: { at: number, to: string } | undefined,
- *     lastText?: { at: number | undefined, excerpt: string } | { olderThan: number } | null,
- *   }>,
- *   recentErrors: Array<*>,
- *   readFailures: Array<{endpoint: string, status: number | "transport", count: number}>,
- * }} The shaped `rp_status` result. A row carries `lastText` only when the
- *   transcript was read (a `session` scope): `null` when it holds no text.
+ * @returns {object} A pipeline scope carries health fields and failure
+ *   summaries; other scopes carry diagnostic rows and the full event log.
+ *   `lastText` is present only when a session scope read the transcript.
  */
-function shapeStatus({ pluginVersion, ledgerEntries, errorLog, readFailures = [] }) {
+function shapeStatus({ pluginVersion, ledgerEntries, errorLog, readFailures = [], pipelineSlug, now = Date.now() }) {
+  if (pipelineSlug !== undefined) {
+    return {
+      ledger: ledgerEntries.map((entry) => ({
+        sessionID: entry.sessionID,
+        running: entry.running ?? null,
+        secondsSinceActivity: Number.isFinite(entry.activity)
+          ? Math.max(0, Math.floor((now - entry.activity) / 1000))
+          : null,
+        pending: entry.pending ?? null,
+        permissions: entry.permissions ?? null,
+      })),
+      recentErrors: errorLog.filter((entry) => entry.level === "error").map(summarizeError),
+      readFailures,
+    };
+  }
   return {
     pluginVersion,
     ledger: ledgerEntries.map((entry) => ({
@@ -4732,15 +4777,15 @@ function buildStatusTool({ env, readServiceRecordOverride, requestFn }) {
   return {
     name: "rp_status",
     description:
-      "Report the plugin version, the ledger of one pipeline's agents (pipeline_slug), of one session (session), or of every RP session, and the recent errors: under a scope, those of its sessions and those naming no session; unscoped, all of them.",
+      "Report compact pipeline health (pipeline_slug), detailed session diagnostics (session), or all RP sessions and the plugin version (unscoped). Scoped reports include their sessions' events and events naming no session; pipeline health includes only failure summaries. readFailures marks incomplete status reads.",
     output: ANY_OUTPUT_SCHEMA,
     input: {
       type: "object",
       properties: {
-        pipeline_slug: { type: "string", description: "Report the agents of this pipeline. Excludes session." },
+        pipeline_slug: { type: "string", description: "Health overview: sessionID, running, secondsSinceActivity, pending, permissions, and failure summaries. Excludes session." },
         session: {
           type: "string",
-          description: "Report this one session, with its newest assistant text. Excludes pipeline_slug.",
+          description: "Investigate one session: identity, configuration, activity timestamp, execution details, newest assistant text, and full diagnostic events. Excludes pipeline_slug.",
         },
       },
     },
@@ -4921,7 +4966,7 @@ async function setup(ctx, deps = {}) {
         // or the loop keeps ticking on a target that is gone.
         void disarmLoopTimer(entry.id);
         deleteLoopEntry(registryPath, entry.id);
-        recordError({
+        recordDiagnostic({
           type: "loop.retired",
           loopID: entry.id,
           targetSession: entry.targetSession,
@@ -5163,6 +5208,7 @@ export {
   recordGenerationID,
   recordRawResponseStart,
   recordRawSessionProgress,
+  recordDiagnostic,
   recordError,
   recordSend,
   recordSessionEventActivity,

@@ -6,8 +6,9 @@ The autonomous workflow. You enter from triage with a pipeline folder, branch, a
 
 1. Run `rp check <worktree's absolute pipeline folder> --base <base branch>`.
 2. Dispatch what resolves its `frontier` line (table below).
-3. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches (`before-`/`after-merging-lanes`), fire `phase-completed` when a phase becomes complete, then give the owner a one-line report naming the phase, its artifacts, and anything worth surfacing. `phase-started` fires the first time a step dispatches into a phase, and again when work on it resumes.
-4. Go to 1.
+3. When waiting on agents, end your turn with health monitoring active; incoming messages or health ticks resume the run.
+4. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches (`before-`/`after-merging-lanes`), fire `phase-completed` when a phase becomes complete, then give the owner a one-line report naming the phase, its artifacts, and anything worth surfacing. `phase-started` fires the first time a step dispatches into a phase, and again when work on it resumes.
+5. Go to 1.
 
 The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and materials of each phase.
 

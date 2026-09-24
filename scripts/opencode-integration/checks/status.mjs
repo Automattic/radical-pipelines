@@ -77,7 +77,7 @@ export async function run(ctx) {
     assert.equal(row.pipelineSlug, "status-check-run");
   });
 
-  await runCheck(results, "rp_status scoped to a pipeline slug reports that pipeline's sessions alone", async () => {
+  await runCheck(results, "rp_status provides compact pipeline health and detailed session diagnostics", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
     const spawn = async (name, pipeline_slug) => {
       const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name, agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug });
@@ -85,16 +85,27 @@ export async function run(ctx) {
       return result.text;
     };
     const mine = await spawn("scope-child", "scope-pipeline-a");
+    const other = await spawn("scope-second-child", "scope-pipeline-a");
     const theirs = await spawn("scope-child", "scope-pipeline-b");
 
     const scoped = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status", { pipeline_slug: "scope-pipeline-a" })).text);
-    assert.ok(scoped.ledger.some((r) => r.sessionID === mine), "the pipeline's own session is reported");
-    assert.ok(scoped.ledger.every((r) => r.pipelineSlug === "scope-pipeline-a"), `expected only scope-pipeline-a rows, got: ${JSON.stringify(scoped.ledger.map((r) => r.pipelineSlug))}`);
-    assert.ok(!scoped.ledger.some((r) => r.sessionID === theirs), "another pipeline's session is not");
-    assert.ok(scoped.ledger.every((r) => !Object.hasOwn(r, "lastText")), "a pipeline scope reads no transcript");
+    assert.deepEqual(scoped.ledger.map((row) => row.sessionID).sort(), [mine, other].sort());
+    assert.equal(Object.hasOwn(scoped, "pluginVersion"), false);
+    assert.deepEqual(scoped.readFailures, []);
+    for (const row of scoped.ledger) {
+      assert.deepEqual(Object.keys(row).sort(), ["sessionID", "running", "secondsSinceActivity", "pending", "permissions"].sort());
+      assert.equal(typeof row.running, "boolean");
+      assert.ok(Number.isInteger(row.secondsSinceActivity) && row.secondsSinceActivity >= 0);
+      assert.equal(row.pending, 0);
+      assert.deepEqual(row.permissions, []);
+    }
 
     const one = JSON.parse((await driveToolCall(server, orchestrator.id, "rp_status", { session: theirs })).text);
     assert.deepEqual(one.ledger.map((r) => r.sessionID), [theirs]);
+    assert.equal(one.ledger[0].pipelineSlug, "scope-pipeline-b");
+    assert.equal(one.ledger[0].directory, projectDir);
+    assert.ok(Number.isFinite(one.ledger[0].activity));
+    assert.equal(typeof one.pluginVersion, "string");
     assert.ok(Object.hasOwn(one.ledger[0], "lastText"), "a session scope reads the transcript");
   });
 
