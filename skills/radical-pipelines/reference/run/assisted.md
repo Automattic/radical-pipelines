@@ -8,7 +8,7 @@ You drive one phase — spec or design doc — directly with the owner through Q
 - One question, one topic at a time. Never answer your own questions or decide on the owner's behalf; suggest options when the owner is unsure, and read the codebase first when it would ground the question.
 - Record every question, option, trade-off, and decision as it happens, never in batches. For owner answers, follow `../entries/intent-format.md` § Later input.
 - Nothing passes a gate — the end of Q&A, out-of-scope confirmation, approval — without the owner's explicit confirmation.
-- The guardrails naming the phase's profiles apply to your work: surface them to the owner and satisfy them.
+- The guardrails and resources naming the phase's profiles are yours: surface the guardrails to the owner and satisfy them.
 
 ## Steps
 

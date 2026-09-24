@@ -2,6 +2,14 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 4
+
+Migrate from version 3.
+
+### Additions
+
+- `Resources`, optional: what agents have available and how to use it. Offer to move what a `Guardrails` rule describes as available into a resource, leaving the rule its obligation.
+
 ## 3
 
 Migrate from version 2.

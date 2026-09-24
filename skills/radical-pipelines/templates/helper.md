@@ -3,6 +3,7 @@
 - Worktree: <absolute path>
 - Branch: <branch>
 - Guardrails: <rules | none>
+- Resources: <resources | none>
 - Execution: <the requester's>
 
 ## Mode
