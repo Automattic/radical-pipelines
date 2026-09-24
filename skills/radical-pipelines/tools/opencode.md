@@ -35,7 +35,7 @@ On an agent's completion declaration, call `rp_terminate` with its session ID.
 
 - Launch with `rp_loop_start`, passing the interval in milliseconds and tick prompt. The target defaults to the calling session. Ticks fire while idle and steer after two intervals without activity.
 - List with `rp_loop_list`, each loop with its `recentTicks`; cancel with `rp_loop_cancel` and the loop ID. A loop retires when its target session no longer exists.
-- On health ticks, call `rp_status` with `pipeline_slug`; use `session` to investigate an agent. Resolve `readFailures` before treating a check as healthy; `null` health fields are unknown.
+- On health ticks, call `rp_status` with `pipeline_slug`. If the overview suggests a [health issue](../reference/conventions/health-monitoring.md#each-tick), inspect the affected agent with `session` before recovery. An unreadable status makes the check inconclusive.
 
 ## Models
 
