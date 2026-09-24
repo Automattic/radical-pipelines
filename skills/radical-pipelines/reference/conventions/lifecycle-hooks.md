@@ -15,6 +15,8 @@ Report a failed instruction to the owner and continue. An instruction marked **b
 | `after-creating-branch`        | A pipeline branch or lane branch is created                                                             |
 | `before-creating-worktree`     | A worktree is about to be created or recreated — the pipeline's or a lane's                             |
 | `after-creating-worktree`      | A worktree is created or recreated                                                                      |
+| `before-removing-worktree`     | A worktree is about to be removed                                                                       |
+| `after-removing-worktree`      | A worktree is removed                                                                                   |
 | `phase-started`                | Work on a phase begins or resumes                                                                       |
 | `phase-completed`              | A phase becomes complete, phase 0 included, before the next dispatch                                    |
 | `before-merging-lanes`         | Lane branches are about to be merged into the branch their work belongs to                              |

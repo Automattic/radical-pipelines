@@ -23,13 +23,14 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Commit format          | Commit message rules; absent, an imperative subject line                                                                                                                                                                                                                                              | No       |
 | PR format              | Pull request title and description rules                                                                                                                                                                                                                                                              | No       |
 | Guardrails             | Rules agents must satisfy                                                                                                                                                                                                                                                                             | No       |
+| Resources              | What agents have available and how to use it                                                                                                                                                                                                                                                          | No       |
 | Lifecycle hooks        | Instructions run at defined moments                                                                                                                                                                                                                                                                   | No       |
 | Agents                 | Defaults for profile models and named lanes (`agents.md`)                                                                                                                                                                                                                                             | No       |
 | Health monitoring      | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                                                                                                                                                                                           | No       |
 
 ## Schema stamp
 
-`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 3.
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 4.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

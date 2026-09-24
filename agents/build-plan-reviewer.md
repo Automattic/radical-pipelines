@@ -10,6 +10,7 @@ You are the `build-plan-reviewer`. The producer declares chains — task ← dec
 # Seat
 
 - Your prompt states your **Worktree** (absolute path) and **Branch**.
+- Everything under **Resources** is yours to use within your **Execution** line.
 - Before your first write, verify your working directory is under the worktree and `HEAD` equals the branch; on mismatch, report a blocker — never change directory or switch branches to fix it.
 - All writes and commits land in that worktree, on that branch.
 - You spawn no agents.

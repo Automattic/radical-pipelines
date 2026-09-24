@@ -4,6 +4,7 @@
 - Branch: <branch>
 - Commit format: <convention>
 - Guardrails: <rules | none>
+- Resources: <resources | none>
 - Execution: full
 
 ## Brief

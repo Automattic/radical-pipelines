@@ -162,7 +162,7 @@ opencode reports plugin ids, not versions, so RP surfaces its own version:
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": 3`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": 4`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
 | Convention             | What it covers                                                                             | Required |
 | ---------------------- | ------------------------------------------------------------------------------------------ | -------- |
@@ -175,6 +175,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Commit format          | How agents write commits                                                                   | No       |
 | PR format              | How pull request titles and descriptions are written                                       | No       |
 | Guardrails             | Rules the project's agents must satisfy                                                    | No       |
+| Resources              | What the project's agents have available and how to use it                                 | No       |
 | Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
 | Agents                 | Defaults for profile models and named lanes                                                | No       |
 | Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
