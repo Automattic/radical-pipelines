@@ -3,6 +3,8 @@ import { describe, test } from "node:test";
 
 import {
   appendToErrorLog,
+  recordDiagnostic,
+  recordError,
   shapeStatus,
 } from "../../../opencode/plugin.mjs";
 
@@ -44,6 +46,79 @@ describe("appendToErrorLog", () => {
 });
 
 describe("shapeStatus", () => {
+  test("pipeline health preserves decision signals while detailed status preserves diagnostic context", () => {
+    const permissions = [{ id: "per_1", action: "external_directory", resources: ["/shared/*"] }];
+    const entries = [
+      {
+        sessionID: "ses_active", name: "worker run-1", pipelineSlug: "run", agent: "worker",
+        model: "provider/model", directory: "/repo/worktree", activity: 100_001,
+        running: true, pending: 0, permissions: [],
+        currentTool: { tool: "shell", target: "npm test", since: 100_000 },
+        lastTurn: { outcome: "succeeded", endedAt: 80_000 },
+        lastSend: { to: "ses_orchestrator", at: 90_000 },
+        lastText: { at: 100_000, excerpt: "Running tests." },
+      },
+      { sessionID: "ses_stale", activity: 0, running: true, pending: 1, permissions: [] },
+      { sessionID: "ses_stopped", activity: 110_000, running: false, pending: 0, permissions: [] },
+      { sessionID: "ses_blocked", activity: 0, running: true, pending: 0, permissions },
+    ];
+    const input = { pluginVersion: "v", ledgerEntries: entries, errorLog: [], now: 112_000 };
+    const health = shapeStatus({ ...input, pipelineSlug: "run" });
+    assert.deepEqual(health, {
+      ledger: [
+        { sessionID: "ses_active", running: true, secondsSinceActivity: 11, pending: 0, permissions: [] },
+        { sessionID: "ses_stale", running: true, secondsSinceActivity: 112, pending: 1, permissions: [] },
+        { sessionID: "ses_stopped", running: false, secondsSinceActivity: 2, pending: 0, permissions: [] },
+        { sessionID: "ses_blocked", running: true, secondsSinceActivity: 112, pending: 0, permissions },
+      ],
+      recentErrors: [],
+      readFailures: [],
+    });
+    const detailed = shapeStatus(input);
+    assert.equal(detailed.pluginVersion, "v");
+    assert.deepEqual(detailed.ledger[0], entries[0]);
+  });
+
+  test("health activity age distinguishes missing evidence from recent activity and tolerates clock skew", () => {
+    const readFailures = [{ endpoint: "active", status: 500, count: 1 }];
+    const result = shapeStatus({
+      pipelineSlug: "run", now: 10_000, errorLog: [], readFailures,
+      ledgerEntries: [undefined, null, NaN, Infinity, "1000", 9_999, 10_000, 10_001].map((activity, i) => ({
+        sessionID: `ses_${i}`, activity,
+      })),
+    });
+    assert.deepEqual(result.ledger.map((row) => row.secondsSinceActivity), [null, null, null, null, null, 0, 0, 0]);
+    assert.ok(result.ledger.every((row) => row.running === null && row.pending === null && row.permissions === null));
+    assert.deepEqual(result.readFailures, readFailures);
+  });
+
+  test("health includes bounded failure summaries while detailed scopes retain every diagnostic event", () => {
+    const logKey = Symbol.for("radical-pipelines.opencode.errorLog");
+    globalThis[logKey] = [];
+    const events = [
+      { type: "permission.forwarded", sessionID: "ses_a", at: 1, requestID: "per_1", resources: ["/shared/*"] },
+      { type: "session.execution.failed", sessionID: "ses_a", at: 2, error: { type: "auth", message: "Sign in\nagain", detail: "full details" } },
+      { type: "listener.lost", at: 3, error: "x".repeat(300), internal: "full details" },
+      { type: "permission.redirect.failed", sessionID: "ses_a", at: 4, status: 503, requestID: "per_1" },
+      { type: "loop.tick.skipped", at: 5, reason: "server unreachable", loopID: "loop_1" },
+      { type: "loop.tick.timeout", at: 6, timeoutMs: 120_000 },
+    ];
+    recordDiagnostic(events[0]);
+    events.slice(1).forEach(recordError);
+    const errorLog = globalThis[logKey];
+    const input = { pluginVersion: "v", ledgerEntries: [], errorLog };
+    assert.deepEqual(shapeStatus({ ...input, pipelineSlug: "run" }).recentErrors, [
+      { type: "session.execution.failed", sessionID: "ses_a", at: 2, error: "auth: Sign in again" },
+      { type: "listener.lost", at: 3, error: `${"x".repeat(200)}…` },
+      { type: "permission.redirect.failed", sessionID: "ses_a", at: 4, error: "503" },
+      { type: "loop.tick.skipped", at: 5, error: "server unreachable" },
+      { type: "loop.tick.timeout", at: 6 },
+    ]);
+    assert.deepEqual(shapeStatus(input).recentErrors, events.map((event, i) => ({
+      ...event, level: i === 0 ? "info" : "error",
+    })));
+  });
+
   test("includes the plugin version, mapped ledger rows, recent errors, and read failures", () => {
     const result = shapeStatus({
       pluginVersion: "radical-pipelines@1.2.3",

@@ -5116,7 +5116,7 @@ describe("buildLedgerRows", () => {
 });
 
 describe("buildStatusPayload", () => {
-  test("returns an empty ledger without touching the network when the server cannot be resolved", async () => {
+  test("reports unavailable status without touching the network when the server cannot be resolved", async () => {
     globalThis[ERROR_LOG_KEY] = [];
     const result = await buildStatusPayload({
       env: {},
@@ -5127,6 +5127,7 @@ describe("buildStatusPayload", () => {
     assert.equal(Object.hasOwn(result, "pin"), false);
     assert.equal(typeof result.pluginVersion, "string");
     assert.deepEqual(result.recentErrors, []);
+    assert.deepEqual(result.readFailures, [{ endpoint: "server", status: "unreachable", count: 1 }]);
   });
 
   test("a session scope reads the session list, active set, and that session's pending count, permissions, and newest text through the reach helper and the injected HTTP client", async () => {
@@ -5291,15 +5292,16 @@ describe("buildStatusPayload", () => {
     };
     const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
 
-    const scoped = await buildStatusPayload({ pipelineSlug: "pipeline-a", env, readServiceRecord: () => null, requestFn });
+    const scoped = await buildStatusPayload({ pipelineSlug: "pipeline-a", env, readServiceRecord: () => null, requestFn, now: () => 6_001 });
     assert.deepEqual(
-      scoped.ledger.map((row) => [row.sessionID, row.pipelineSlug]),
+      scoped.ledger,
       [
-        ["ses_scope_a1", "pipeline-a"],
-        ["ses_scope_a2", "pipeline-a"],
-        ["ses_scope_a_titled", "pipeline-a"],
+        { sessionID: "ses_scope_a1", running: false, secondsSinceActivity: 6, pending: 0, permissions: [] },
+        { sessionID: "ses_scope_a2", running: false, secondsSinceActivity: 6, pending: 0, permissions: [] },
+        { sessionID: "ses_scope_a_titled", running: false, secondsSinceActivity: 6, pending: 0, permissions: [] },
       ],
     );
+    assert.equal(Object.hasOwn(scoped, "pluginVersion"), false);
     assert.ok(scoped.ledger.every((row) => !Object.hasOwn(row, "lastText")));
     assert.deepEqual(
       reads.filter((path) => path.includes("ses_scope_b1") || path.endsWith("/message")),
@@ -5407,6 +5409,12 @@ describe("buildStatusPayload", () => {
     assert.deepEqual(row.lastTurn, { endedAt: 4_000, outcome: "succeeded" });
     assert.deepEqual(row.lastSend, { at: 3_000, to: "ses_orchestrator" });
     assert.equal(Object.hasOwn(row, "lastText"), false, "the transcript is read only for a session scope");
+    const health = await buildStatusPayload({
+      pipelineSlug: "144-opencode-support",
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null, requestFn, now: () => 10_000,
+    });
+    assert.equal(health.ledger[0].secondsSinceActivity, 5);
   });
 
   test("folds raw provider progress into activity when it is the newest evidence", async () => {
@@ -5446,6 +5454,12 @@ describe("buildStatusPayload", () => {
     });
 
     assert.equal(result.ledger[0].activity, 9_000);
+    const health = await buildStatusPayload({
+      pipelineSlug: "144-opencode-support",
+      env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+      readServiceRecord: () => null, requestFn, now: () => 10_000,
+    });
+    assert.equal(health.ledger[0].secondsSinceActivity, 1);
   });
 
   test("reads the deeper message page only when the first is full and textless, and reports the searched depth when both are", async () => {
@@ -5573,6 +5587,66 @@ describe("buildStatusPayload", () => {
         { endpoint: "permission", status: 404, count: 2 },
       ],
     );
+  });
+
+  test("health and diagnostic scopes preserve unknown facts for HTTP, transport, and malformed reads", async () => {
+    const id = "ses_status_unknown";
+    const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
+    const record = { id, agent: "worker", title: "rp:status-unknown:worker", time: { updated: 42 } };
+    const endpoints = [
+      ["active", "running", "/api/session/active"],
+      ["inbox", "pending", `/api/session/${id}/inbox`],
+      ["permission", "permissions", `/api/session/${id}/permission`],
+    ];
+    for (const pipeline of [true, false]) {
+      const scope = pipeline ? { pipelineSlug: "status-unknown" } : { session: id };
+      for (const [endpoint, field, path] of endpoints) {
+        for (const failure of [503, "transport", "malformed"]) {
+          const requestFn = async (url) => {
+            if (url.pathname === path) {
+              if (failure === "transport") throw new Error("connection lost");
+              return failure === "malformed" ? { status: 200, body: {} } : { status: failure };
+            }
+            const data = url.pathname === "/api/session" ? [record] : url.pathname === "/api/session/active" ? {} : [];
+            return { status: 200, body: { data } };
+          };
+          const result = await buildStatusPayload({ ...scope, env, readServiceRecord: () => null, requestFn });
+          assert.equal(result.ledger[0][field], pipeline ? null : undefined, `${endpoint}: ${failure}`);
+          assert.deepEqual(result.readFailures, [{ endpoint, status: failure, count: 1 }]);
+        }
+      }
+    }
+  });
+
+  test("malformed health sources and an unreachable server are explicit failures rather than healthy defaults", async () => {
+    const scope = { pipelineSlug: "status-malformed", readServiceRecord: () => null, now: () => 10_000 };
+    const unreachable = await buildStatusPayload({ ...scope, env: {} });
+    assert.deepEqual(unreachable.readFailures, [{ endpoint: "server", status: "unreachable", count: 1 }]);
+    const record = { id: "ses_malformed", agent: "worker", title: "rp:status-malformed:worker", time: { updated: 1000 } };
+    const cases = [
+      ["session", {}, null],
+      ["session", [null], null],
+      ["session", [{ ...record, id: null }], null],
+      ["active", [], "running"],
+      ["inbox", { length: 0 }, "pending"],
+      ["permission", [null], "permissions"],
+      ["permission", [{ id: "per_1", action: "read", resources: "not an array" }], "permissions"],
+      ["activity", [{ ...record, time: {} }], "secondsSinceActivity"],
+    ];
+    for (const [endpoint, malformed, field] of cases) {
+      const result = await buildStatusPayload({
+        ...scope, env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        requestFn: async (url) => {
+          const path = url.pathname.split("/").at(-1);
+          const data = path === endpoint || (endpoint === "activity" && path === "session")
+            ? malformed : path === "session" ? [record] : path === "active" ? {} : [];
+          return { status: 200, body: { data } };
+        },
+      });
+      if (field) assert.equal(result.ledger[0][field], null, endpoint);
+      else assert.deepEqual(result.ledger, []);
+      assert.deepEqual(result.readFailures, [{ endpoint, status: "malformed", count: 1 }]);
+    }
   });
 
   test("reports thrown server reads as transport failures while preserving the partial ledger", async () => {
