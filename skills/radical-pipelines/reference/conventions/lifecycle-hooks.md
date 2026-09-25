@@ -2,7 +2,7 @@
 
 At each configured moment in either workflow, run the project's prose instructions with the pipeline, run, and phase context. Include the route at `run-started` and the cause at `run-ended`.
 
-Report a failed instruction to the owner and continue. An instruction marked **blocking** stops the run through normal close-out; `run-ended` still fires.
+Report a failed instruction to the owner and continue. An instruction marked **blocking** stops the run through normal close-out; if already closing out, continue with the remaining actions. `run-ended` still fires.
 
 ## Hook points
 
