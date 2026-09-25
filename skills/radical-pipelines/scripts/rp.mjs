@@ -5,7 +5,7 @@
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync, readdirSync, lstatSync, realpathSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, openSync, closeSync, existsSync, readdirSync, lstatSync, realpathSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -201,7 +201,18 @@ const occurrencePath = (id) => `${CHANGE_FOLDER}/occurrences/${id}.json`;
 const jsonObject = (value, keys) => value && !Array.isArray(value) && typeof value === "object" && Object.keys(value).every((key) => keys.includes(key));
 const encodedBytes = (value) => typeof value === "string" && Buffer.from(value, "base64").toString("base64") === value;
 const validSource = (source) => jsonObject(source, ["commit", "parents", "base"]) && typeof source.commit === "string" && PATCH_ID.test(source.commit) && Array.isArray(source.parents) && source.parents.every((oid) => typeof oid === "string" && PATCH_ID.test(oid)) && (source.base === null || (typeof source.base === "string" && PATCH_ID.test(source.base)));
-const gitBytes = (root, args, input, env = process.env) => execFileSync("git", args, { cwd: root, input, env, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] });
+// Git reads its input from a file: a synchronous child can stall reading piped input to its end.
+function gitBytes(root, args, input, env = process.env) {
+  const run = (stdin) => execFileSync("git", args, { cwd: root, env, maxBuffer: Infinity, stdio: [stdin, "pipe", "pipe"] });
+  if (input === undefined) return run("ignore");
+  const directory = mkdtempSync(join(tmpdir(), "rp-input-"));
+  try {
+    const path = join(directory, "input");
+    writeFileSync(path, input);
+    const fd = openSync(path, "r");
+    try { return run(fd); } finally { closeSync(fd); }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
 const DIFF_OPTIONS = ["-c", "core.quotePath=true", "diff-tree", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--no-color", "--no-renames", "--no-relative", "--ignore-submodules=none", "--src-prefix=a/", "--dst-prefix=b/", "--diff-algorithm=myers", "--no-indent-heuristic", "--inter-hunk-context=0", "--binary", "--full-index", "--no-abbrev", "--unified=3", "-r"];
 
 const objectStores = new Map();
