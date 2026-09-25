@@ -141,11 +141,8 @@ const PATCH_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const changeMember = (patchId, occurrence) => `${patchId}:${occurrence}`;
 const MATERIAL_PATH = /^changes\/([0-9a-f]{40}|[0-9a-f]{64})\.json$/;
 const OCCURRENCE_PATH = /^changes\/occurrences\/([0-9a-f]{12})\.json$/;
-const changeFile = (path) => path === CHANGE_CHECKPOINT || MATERIAL_PATH.test(path) || OCCURRENCE_PATH.test(path);
-const changePackage = (changes, checkpoint) => new Map([
-  ...(checkpoint === undefined ? [] : [[CHANGE_CHECKPOINT, checkpoint]]),
-  ...changes.flatMap(({ occurrencePin, materialPin }) => [occurrencePin, materialPin].map((pin) => { const p = pinParts(pin); return [p.path, p.sha]; })),
-]);
+const changeFile = (path) => MATERIAL_PATH.test(path) || OCCURRENCE_PATH.test(path);
+const changePackage = (changes) => new Map(changes.flatMap(({ occurrencePin, materialPin }) => [occurrencePin, materialPin].map((pin) => { const p = pinParts(pin); return [p.path, p.sha]; })));
 const publicChange = ({ commit, patchId, occurrence, occurrencePin, observation, material }) => ({ commit, patchId, occurrence, material: changePath(patchId), ...(occurrencePin ? { path: pinParts(occurrencePin).path } : {}), source: observation?.source ?? material.source });
 const materialReferences = (data) => [
   data.get("pins"), data.get("reviewed"), data.get("changes"),
@@ -544,6 +541,15 @@ const ARTIFACTS = [
   { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
   { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
 ];
+// A phase review covers every current authored change except those a later phase's reports record.
+function reviewedChanges(prefix, { changes, stored }, reports) {
+  const phaseOf = (phase) => ARTIFACTS.findIndex((art) => art.phase === phase);
+  const phase = ARTIFACTS.findIndex((art) => art.review === prefix);
+  if (phase < 0) return [];
+  const later = new Set(reports.filter(({ rel }) => phaseOf(reportOf(rel)[1]) > phase).flatMap(({ data }) =>
+    (data?.get("changes") ?? []).map((pin) => { const change = stored.occurrenceAt(pin); return changeMember(change.patchId, change.occurrence); })));
+  return changes.filter((change) => !later.has(changeMember(change.patchId, change.occurrence)));
+}
 const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
 const RESERVED_LANE_IDS = new Set(["tasks"]);
 const LANE_PROFILES = new Map([
@@ -750,7 +756,7 @@ function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks =
   const record = scope ? `${scope}${basename(art.record)}` : art.record;
   const inputs = new Map([...consumed].filter(([path]) => path !== record));
   const members = reviewPackageMembers(art, prefix, scope, [...new Set([...inputs.keys(), ...art.requires])], tasks, reports);
-  return new Map([...members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]), ...(prefix === art.review ? changePackage(changes, identityOf(CHANGE_CHECKPOINT)) : [])]);
+  return new Map([...members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]), ...changePackage(changes)]);
 }
 
 const reviewLanesFor = (configuration, prefix) => [{ id: "", fingerprint: null, materials: null }, ...(configuration.decl[prefix]?.review ?? [])];
@@ -817,7 +823,7 @@ function authoritativeReviewContext(configuration, prefix, scope, inspect) {
   const tasks = plan ? markdown.filter((path) => path.startsWith(`${art.phase}/tasks/`) && taskFile(plan).test(basename(path))) : [];
   const reports = markdown.filter((path) => reportOf(path) && path.startsWith(`${art.phase}/`));
   return {
-    reference: artifactReviewPackage(art, prefix, scope, pinPackage(artifact?.data?.get("pins")), inspect.identityOf, tasks, reports, inspect.changesOf?.() ?? []),
+    reference: artifactReviewPackage(art, prefix, scope, pinPackage(artifact?.data?.get("pins")), inspect.identityOf, tasks, reports, inspect.changesOf?.(prefix) ?? []),
     binding: null,
     closed: false,
   };
@@ -875,7 +881,7 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
   }
   return {
     inputs,
-    review: ready ? artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase), changesOf()) : null,
+    review: ready ? artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase), changesOf(prefix)) : null,
     ready,
   };
 }
@@ -1362,13 +1368,15 @@ async function cmdStamp(args) {
   }
   if (args.reviewed.length) {
     if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
-    const changes = phaseReview ? (await inspectChanges()).changes : [];
+    let changes = [];
     if (phaseReview) {
-      materials.push(...changes);
-      checkpoint = changes;
+      const state = await inspectChanges();
+      const reports = walk(base).filter((entry) => entry.type === "blob" && reportOf(entry.rel)).map((entry) => ({ rel: entry.rel, data: readAt(entry.rel).data }));
+      changes = reviewedChanges(role.review.prefix, state, reports);
+      materials.push(...state.changes);
+      checkpoint = state.changes;
     }
-    const checkpointIdentity = phaseReview ? identity(renderCheckpoint(changes)) : undefined;
-    const reviewed = [...pinList(args.reviewed), ...packagePins(changePackage(changes, checkpointIdentity))];
+    const reviewed = [...pinList(args.reviewed), ...packagePins(changePackage(changes))];
     const review = reviewArtifact(rel);
     if (review && rel.startsWith(`${review.art.phase}/`) && !review.lane) {
       const scope = rel.split("/").length === 3 ? `${dirname(rel)}/` : "";
@@ -1382,7 +1390,7 @@ async function cmdStamp(args) {
       const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
       const tasks = names.filter((name) => planOf(review.art.phase) && taskFile(planOf(review.art.phase)).test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
       const reports = names.filter((name) => reportOf(`${review.art.phase}/tasks/${name}`)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => path === CHANGE_CHECKPOINT && phaseReview ? checkpointIdentity : readAt(path)?.identity ?? null, tasks, reports, changes);
+      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports, changes);
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
     }
     fm.set("reviewed", reviewed);
@@ -1736,14 +1744,15 @@ async function cmdCheck(args) {
     .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends") ?? []) }));
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
-  let changes = [];
+  let authored = null;
   const reportFilesOf = (phase) => all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
+  const changesOf = (prefix) => authored ? reviewedChanges(prefix, authored, all.filter((d) => reportOf(d.rel))) : [];
 
   const inspection = {
     list: () => all.map((doc) => doc.rel),
     document: (path) => all.find((doc) => doc.rel === path) ?? null,
     identityOf,
-    changesOf: () => changes,
+    changesOf,
   };
   validateRunConfiguration(configuration, inspection, "check");
 
@@ -1779,7 +1788,7 @@ async function cmdCheck(args) {
   const packageContext = {
     identityOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf,
     dependsOf: (task) => taskFiles.find((t) => t.rel === task)?.deps ?? [],
-    changesOf: () => changes,
+    changesOf,
   };
   for (const t of all.filter((d) => reportOf(d.rel))) {
     const [, phase, id, k] = reportOf(t.rel);
@@ -1889,11 +1898,10 @@ async function cmdCheck(args) {
 
   // Facts about branch commits require a valid representation and a real merge-base.
   const tip = ref ?? rev("HEAD", "HEAD");
-  const authored = await currentChanges(root, abs, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check", (path) => tree.read(path, true), all.flatMap((doc) => materialReferences(doc.data)));
+  authored = await currentChanges(root, abs, tip, all.find((d) => d.rel === "0-intent/intent.md")?.data, args.base, "check", (path) => tree.read(path, true), all.flatMap((doc) => materialReferences(doc.data)));
   const base = authored.base;
-  changes = authored.changes;
   out.base = base.slice(0, SHORT);
-  out.authoredChanges = changes.map(publicChange);
+  out.authoredChanges = authored.changes.map(publicChange);
   const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
   const inScopePhase = (targetPath) => targetPath.startsWith("0-intent/") || phaseOfTarget(targetPath) <= configuration.targetPhase;
   const inputStateOf = (doc, art, sc, fingerprint = null) => {
@@ -2155,7 +2163,7 @@ async function cmdCheck(args) {
     const rl = laneStates(art.review, "");
     const e = episodeOf(art.review, "");
     const rApproved = waveValidity(art.review, "", latestWaveOf(art.review, "")).current;
-    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => ({ ...x, diff: changeDelta(changes, pinPackage(review?.data.get("reviewed"))) })), approved: rApproved, episode: e.episode, recurs: e.recurs };
+    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => ({ ...x, diff: changeDelta(changesOf(art.review), pinPackage(review?.data.get("reviewed"))) })), approved: rApproved, episode: e.episode, recurs: e.recurs };
     if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
     lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
     if (!rApproved) {
@@ -2189,7 +2197,8 @@ function physicalPath(path) {
 // Read-only review material; derived files are written only to an explicit output directory.
 async function cmdDiff(args) {
   const folder = args._[0] || die("diff: missing <pipeline-folder>");
-  if (args.review && args.liveNet) die("diff: --review and --live-net select different diffs");
+  if ([args.review, args.phase, args.liveNet].filter(Boolean).length > 1) die("diff: --review, --phase, and --live-net select different diffs");
+  if (args.phase && !ARTIFACTS.some((art) => art.review === args.phase)) die(`diff: --phase names a phase review: ${ARTIFACTS.filter((art) => art.review).map((art) => art.review).join(" | ")}`);
   const { root, abs } = repositoryFor(folder);
   containedPath("diff", root, abs);
   pipelineSlugOf(abs);
@@ -2200,7 +2209,8 @@ async function cmdDiff(args) {
   if (intent.error || (intent.data && mirrorDrift(intent.data, intent.body, "0-intent/intent.md").length)) die("diff: intent must have valid current frontmatter");
   const read = (path) => tree.read(path, true);
   const state = await currentChanges(root, abs, tip, intent.data, args.base, "diff", read, readChangePins(read, tree.list()));
-  let selected = state.changes.map((change) => ({ ...change, status: "added" }));
+  const changesOf = (prefix) => reviewedChanges(prefix, state, tree.list().filter((rel) => reportOf(rel)).map((rel) => ({ rel, data: parseFrontmatter(tree.read(rel)).data })));
+  let selected = (args.phase ? changesOf(args.phase) : state.changes).map((change) => ({ ...change, status: "added" }));
   if (args.review) {
     const file = containedPath("diff", root, resolve(root, args.review));
     const path = relative(abs, file);
@@ -2210,10 +2220,11 @@ async function cmdDiff(args) {
     const review = text === null ? null : parseFrontmatter(text);
     const reviewed = pinPackage(review?.data?.get("reviewed"));
     if (role.scope || !role.review || role.review.prefix !== role.art.review || !reviewed || !VERDICTS.has(review.data.get("verdict")) || mirrorDrift(review.data, review.body, path).length) die(`diff: invalid phase review: ${path}`);
-    const delta = changeDelta(state.changes, reviewed);
+    const changes = changesOf(role.review.prefix);
+    const delta = changeDelta(changes, reviewed);
     const added = new Set(delta.added.map(({ path }) => path));
     selected = [
-      ...state.changes.filter(({ occurrencePin }) => added.has(pinParts(occurrencePin).path)).map((change) => ({ ...change, status: "added" })),
+      ...changes.filter(({ occurrencePin }) => added.has(pinParts(occurrencePin).path)).map((change) => ({ ...change, status: "added" })),
       ...delta.removed.map((pin) => ({ ...state.stored.occurrenceAt(pin), status: "removed" })),
     ];
   } else if (args.liveNet) {
@@ -2262,7 +2273,7 @@ async function cmdDiff(args) {
 const COMMAND_OPTIONS = {
   stamp: new Set(["--pin", "--reviewed", "--mirror", "--base"]),
   check: new Set(["--json", "--ref", "--base"]),
-  diff: new Set(["--json", "--ref", "--base", "--review", "--live-net", "--output"]),
+  diff: new Set(["--json", "--ref", "--base", "--review", "--phase", "--live-net", "--output"]),
 };
 
 function parseArgs(command, argv) {
@@ -2282,6 +2293,7 @@ function parseArgs(command, argv) {
     else if (a === "--ref") args.ref = value();
     else if (a === "--base") args.base = value();
     else if (a === "--review") args.review = value();
+    else if (a === "--phase") args.phase = value();
     else if (a === "--live-net") args.liveNet = true;
     else if (a === "--output") args.output = value();
     else if (a.startsWith("--")) die(`unknown option: ${a}`);
@@ -2300,7 +2312,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror] [--base <ref>]
   node rp.mjs check <pipeline-folder> --base <ref> [--ref <branch>] [--json]
-  node rp.mjs diff <pipeline-folder> --base <ref> [--ref <branch>] [--review <file> | --live-net] [--output <folder>] [--json]
+  node rp.mjs diff <pipeline-folder> --base <ref> [--ref <branch>] [--review <file> | --phase <build|document> | --live-net] [--output <folder>] [--json]
 
 stamp writes frontmatter: pins, review pins (immutable), the lane derived from
 the path and run-config.md, --mirror copies of body declarations (Verdict, Brief, Target,
@@ -2317,7 +2329,7 @@ run-config.md supplies the
 workflow, target phase, and named lanes. Each named lane's fingerprint derives
 from its id, brief, materials, and after fields.
 diff renders authored-change material; --review selects added and removed members,
---live-net selects the net change from the base. --output writes patches and both
+--phase the changes a Fresh review of that phase covers, --live-net selects the net change from the base. --output writes patches and both
 sides of changed files outside the pipeline. Stamps retain change material and
 phase reviews record the checkpoint inherited by a continuation from the base.
 Spec: ../reference/run/state.md

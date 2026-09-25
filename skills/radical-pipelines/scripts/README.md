@@ -53,10 +53,10 @@ The report lists contradictions first — malformed files, mirror drift, undecla
 ## `diff`
 
 ```text
-node rp.mjs diff <pipeline-folder> --base <ref> [--ref <ref>] [--review <file> | --live-net] [--output <folder>] [--json]
+node rp.mjs diff <pipeline-folder> --base <ref> [--ref <ref>] [--review <file> | --phase <build|document> | --live-net] [--output <folder>] [--json]
 ```
 
-Render every current authored change for a Fresh review. `--review` selects additions and removals relative to that phase review; its file argument is absolute or repository-relative. Removed entries show the original patch with a `removed` label. `--json` includes the occurrence pin, status, its own `source`, and complete stored material as `content`.
+Render every current authored change. `--phase` selects the change package of a Fresh review of that phase. `--review` selects additions to and removals from that phase review's change package; its file argument is absolute or repository-relative. Removed entries show the original patch with a `removed` label. `--json` includes the occurrence pin, status, its own `source`, and complete stored material as `content`.
 
 `--output` creates a new directory outside the pipeline containing `diff.patch`, an `index.json` locating each material, and numbered folders with each `change.json`, `change.patch`, and `before`/`after` files. Symlinks are represented by files containing their target bytes; gitlinks by their object ids. Source commits are unnecessary for retained material.
 

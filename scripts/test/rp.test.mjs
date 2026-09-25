@@ -132,11 +132,6 @@ describe("rp state tooling", () => {
     return paths.map((path) => `${path}@${identity(read(root, path))}`);
   }
   function registered(rel, fields, body = parseFrontmatter(read(root, rel)).body) {
-    if (/^(?:3-build\/build|4-document\/document)-review-/.test(rel) && Array.isArray(fields.reviewed)) {
-      const checkpoint = "changes/index.json";
-      if (!existsSync(join(root, P(checkpoint)))) write(root, checkpoint, "[]\n");
-      if (!fields.reviewed.some((pin) => pin.startsWith(`${checkpoint}@`))) fields = { ...fields, reviewed: [...fields.reviewed, ...pairs([checkpoint])] };
-    }
     const ids = declaredIn(root, rel, body);
     const data = ids.length && !("ids" in fields) ? { ...fields, ids } : fields;
     write(root, rel, `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`);
@@ -3716,6 +3711,33 @@ process.stdout.write(output);
     assert.equal(authoredState().complete, true);
   });
 
+  for (const recorder of ["no report", "a Build report", "a Document report"])
+    test(`authored changes: phase-review coverage of a change recorded by ${recorder}`, () => {
+      const chain = authoredFixture(4);
+      writeFileSync(join(root, "README.md"), "New documentation.\n");
+      const commit = commitAll("documentation");
+      const index = { "a Build report": 0, "a Document report": 1 }[recorder];
+      if (index !== undefined) {
+        registered(chain.reports[index], { reviewed: pairs([chain.tasks[index]]), outcome: "completed", attempt: "1" }, `# Report\nOutcome: completed\n\n## Commits\n- ${commit}\n`);
+        rp(root, "stamp", P(chain.reports[index]), "--mirror", "--base", "main");
+      }
+      const buildCovers = index !== 1;
+      const state = authoredState();
+      assert.deepEqual(state.buildReview.lanes[0].diff.added.map((c) => c.commit), buildCovers ? [commit] : []);
+      assert.deepEqual(state.documentReview.lanes[0].diff.added.map((c) => c.commit), [commit]);
+      assert.equal(state.buildReview.approved, !buildCovers);
+      assert.equal(state.frontier, buildCovers ? "build review" : "document review");
+      const diff = (...selection) => JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", ...selection, "--json")).map((row) => row.commit);
+      assert.deepEqual(diff("--review", P("3-build/build-review-1.md")), buildCovers ? [commit] : []);
+      assert.deepEqual(diff("--review", P("4-document/document-review-1.md")), [commit]);
+      const fresh = state.authoredChanges.map((c) => c.commit);
+      assert.deepEqual(diff("--phase", "build"), buildCovers ? fresh : fresh.filter((c) => c !== commit));
+      assert.deepEqual(diff("--phase", "document"), fresh);
+      if (buildCovers) return;
+      review("4-document/document-review-2.md", "approved", chain.phasePackages[3]);
+      assert.equal(authoredState().complete, true);
+    });
+
   test("authored changes: reports observe each named commit, including root and merge resolutions", () => {
     const chain = authoredFixture();
     writeFileSync(join(root, "source.txt"), "ours\n");
@@ -3812,7 +3834,7 @@ process.stdout.write(output);
     assert.equal(authoredState().complete, true);
   });
 
-  test("change history: prospective checkpoints and unused material do not assert membership", () => {
+  test("change history: prospective checkpoints and unused material neither assert membership nor govern coverage", () => {
     const chain = authoredFixture();
     const start = git(root, "rev-parse", "HEAD").trim();
     writeFileSync(join(root, "source.txt"), "temporary change\n");
@@ -3828,7 +3850,7 @@ process.stdout.write(output);
     assert.equal(authoredState().complete, true);
     write(root, "changes/index.json", checkpoint);
     assert.deepEqual(authoredState().authoredChanges, []);
-    assert.equal(authoredState().complete, false, "changing the pinned checkpoint withdraws coverage");
+    assert.equal(authoredState().complete, true);
   });
 
   test("change material: removed changes remain inspectable after their commits disappear", () => {
@@ -3873,6 +3895,14 @@ process.stdout.write(output);
     git(root, "config", "diff.orderFile", join(root, ".git", "order"));
     assert.deepEqual(JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json")), before);
     assert.equal(authoredState().complete, true);
+  });
+
+  test("change material: diff takes one selection, and --phase names a phase review", () => {
+    authoredFixture();
+    for (const selection of [["--phase", "build", "--live-net"], ["--phase", "build", "--review", P("3-build/build-review-1.md")], ["--review", P("3-build/build-review-1.md"), "--live-net"]])
+      assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", ...selection), /select different diffs/);
+    for (const phase of ["build-plan", "spec", "3-build"])
+      assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", "--phase", phase), /--phase names a phase review/);
   });
 
   test("change material: binary content, modes, deletions, and links materialize both sides", () => {

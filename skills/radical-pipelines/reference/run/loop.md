@@ -56,7 +56,7 @@ After every agent commit, stamp before anyone consumes the result and before ter
 
 ## Review diffs
 
-A Delta review receives **Your previous review** and **Adjudication** — every record entry written since. An artifact review's **Diff** runs from its previous review's `head` to `HEAD` over its named materials. For a phase review, run `rp diff <pipeline folder> --base <base branch> --output <temporary folder>`; add `--review <previous review>` for Delta. Pass its `diff.patch`, `index.json`, and the materialized files as **Diff**.
+A Delta review receives **Your previous review** and **Adjudication** — every record entry written since. An artifact review's **Diff** runs from its previous review's `head` to `HEAD` over its named materials. For a phase review, run `rp diff <pipeline folder> --base <base branch> --output <temporary folder>` with `--phase <build | document>` for Fresh, `--review <previous review>` for Delta. Pass its `diff.patch`, `index.json`, and the materialized files as **Diff**.
 
 ## Review waves
 

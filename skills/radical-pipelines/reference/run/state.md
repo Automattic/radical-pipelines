@@ -48,7 +48,7 @@ The file remains with a merged pipeline. It records no fact about whether a run 
 
 Current authored changes are the checkpoint in the pipeline's **base tree**, followed by the authored changes from base to inspected tip. Occurrences are numbered per patch from 1 across that sequence. The checkpoint, `changes/index.json`, is a JSON array of occurrence pins in commit order; absent means empty. A phase review's initial stamp records the current sequence as the prospective checkpoint.
 
-`changes/occurrences/<identity>.json` records an occurrence as `{patchId, occurrence, source, material}`; `material` is a pin. Resolve recorded change pins individually before computing current changes; ordered observation lists retain duplicates. An unchanged observed commit reuses its material; a matching patch id and occurrence number retains its recorded observation after a rewrite. The change package contains the checkpoint, every current occurrence file, and their pinned material. Referenced immutable files must match their pins.
+`changes/occurrences/<identity>.json` records an occurrence as `{patchId, occurrence, source, material}`; `material` is a pin. Resolve recorded change pins individually before computing current changes; ordered observation lists retain duplicates. An unchanged observed commit reuses its material; a matching patch id and occurrence number retains its recorded observation after a rewrite. A phase review's change package contains every current occurrence file except those a later phase's reports record, and their pinned material. Referenced immutable files must match their pins.
 
 `changes/<patch-id>.json` retains the first immutable material for a patch. A report or phase-review stamp records the material it names. Its fields are:
 
