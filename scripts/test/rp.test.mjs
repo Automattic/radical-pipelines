@@ -3727,9 +3727,12 @@ process.stdout.write(output);
       assert.deepEqual(state.documentReview.lanes[0].diff.added.map((c) => c.commit), [commit]);
       assert.equal(state.buildReview.approved, !buildCovers);
       assert.equal(state.frontier, buildCovers ? "build review" : "document review");
-      const diff = (wave) => JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--review", P(wave), "--json")).map((row) => row.commit);
-      assert.deepEqual(diff("3-build/build-review-1.md"), buildCovers ? [commit] : []);
-      assert.deepEqual(diff("4-document/document-review-1.md"), [commit]);
+      const diff = (...selection) => JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", ...selection, "--json")).map((row) => row.commit);
+      assert.deepEqual(diff("--review", P("3-build/build-review-1.md")), buildCovers ? [commit] : []);
+      assert.deepEqual(diff("--review", P("4-document/document-review-1.md")), [commit]);
+      const fresh = state.authoredChanges.map((c) => c.commit);
+      assert.deepEqual(diff("--phase", "build"), buildCovers ? fresh : fresh.filter((c) => c !== commit));
+      assert.deepEqual(diff("--phase", "document"), fresh);
       if (buildCovers) return;
       review("4-document/document-review-2.md", "approved", chain.phasePackages[3]);
       assert.equal(authoredState().complete, true);
@@ -3892,6 +3895,14 @@ process.stdout.write(output);
     git(root, "config", "diff.orderFile", join(root, ".git", "order"));
     assert.deepEqual(JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json")), before);
     assert.equal(authoredState().complete, true);
+  });
+
+  test("change material: diff takes one selection, and --phase names a phase review", () => {
+    authoredFixture();
+    for (const selection of [["--phase", "build", "--live-net"], ["--phase", "build", "--review", P("3-build/build-review-1.md")], ["--review", P("3-build/build-review-1.md"), "--live-net"]])
+      assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", ...selection), /select different diffs/);
+    for (const phase of ["build-plan", "spec", "3-build"])
+      assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", "--phase", phase), /--phase names a phase review/);
   });
 
   test("change material: binary content, modes, deletions, and links materialize both sides", () => {

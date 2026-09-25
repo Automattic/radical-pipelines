@@ -2197,7 +2197,8 @@ function physicalPath(path) {
 // Read-only review material; derived files are written only to an explicit output directory.
 async function cmdDiff(args) {
   const folder = args._[0] || die("diff: missing <pipeline-folder>");
-  if (args.review && args.liveNet) die("diff: --review and --live-net select different diffs");
+  if ([args.review, args.phase, args.liveNet].filter(Boolean).length > 1) die("diff: --review, --phase, and --live-net select different diffs");
+  if (args.phase && !ARTIFACTS.some((art) => art.review === args.phase)) die(`diff: --phase names a phase review: ${ARTIFACTS.filter((art) => art.review).map((art) => art.review).join(" | ")}`);
   const { root, abs } = repositoryFor(folder);
   containedPath("diff", root, abs);
   pipelineSlugOf(abs);
@@ -2208,7 +2209,8 @@ async function cmdDiff(args) {
   if (intent.error || (intent.data && mirrorDrift(intent.data, intent.body, "0-intent/intent.md").length)) die("diff: intent must have valid current frontmatter");
   const read = (path) => tree.read(path, true);
   const state = await currentChanges(root, abs, tip, intent.data, args.base, "diff", read, readChangePins(read, tree.list()));
-  let selected = state.changes.map((change) => ({ ...change, status: "added" }));
+  const changesOf = (prefix) => reviewedChanges(prefix, state, tree.list().filter((rel) => reportOf(rel)).map((rel) => ({ rel, data: parseFrontmatter(tree.read(rel)).data })));
+  let selected = (args.phase ? changesOf(args.phase) : state.changes).map((change) => ({ ...change, status: "added" }));
   if (args.review) {
     const file = containedPath("diff", root, resolve(root, args.review));
     const path = relative(abs, file);
@@ -2218,7 +2220,7 @@ async function cmdDiff(args) {
     const review = text === null ? null : parseFrontmatter(text);
     const reviewed = pinPackage(review?.data?.get("reviewed"));
     if (role.scope || !role.review || role.review.prefix !== role.art.review || !reviewed || !VERDICTS.has(review.data.get("verdict")) || mirrorDrift(review.data, review.body, path).length) die(`diff: invalid phase review: ${path}`);
-    const changes = reviewedChanges(role.review.prefix, state, tree.list().filter((rel) => reportOf(rel)).map((rel) => ({ rel, data: parseFrontmatter(tree.read(rel)).data })));
+    const changes = changesOf(role.review.prefix);
     const delta = changeDelta(changes, reviewed);
     const added = new Set(delta.added.map(({ path }) => path));
     selected = [
@@ -2271,7 +2273,7 @@ async function cmdDiff(args) {
 const COMMAND_OPTIONS = {
   stamp: new Set(["--pin", "--reviewed", "--mirror", "--base"]),
   check: new Set(["--json", "--ref", "--base"]),
-  diff: new Set(["--json", "--ref", "--base", "--review", "--live-net", "--output"]),
+  diff: new Set(["--json", "--ref", "--base", "--review", "--phase", "--live-net", "--output"]),
 };
 
 function parseArgs(command, argv) {
@@ -2291,6 +2293,7 @@ function parseArgs(command, argv) {
     else if (a === "--ref") args.ref = value();
     else if (a === "--base") args.base = value();
     else if (a === "--review") args.review = value();
+    else if (a === "--phase") args.phase = value();
     else if (a === "--live-net") args.liveNet = true;
     else if (a === "--output") args.output = value();
     else if (a.startsWith("--")) die(`unknown option: ${a}`);
@@ -2309,7 +2312,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror] [--base <ref>]
   node rp.mjs check <pipeline-folder> --base <ref> [--ref <branch>] [--json]
-  node rp.mjs diff <pipeline-folder> --base <ref> [--ref <branch>] [--review <file> | --live-net] [--output <folder>] [--json]
+  node rp.mjs diff <pipeline-folder> --base <ref> [--ref <branch>] [--review <file> | --phase <build|document> | --live-net] [--output <folder>] [--json]
 
 stamp writes frontmatter: pins, review pins (immutable), the lane derived from
 the path and run-config.md, --mirror copies of body declarations (Verdict, Brief, Target,
@@ -2326,7 +2329,7 @@ run-config.md supplies the
 workflow, target phase, and named lanes. Each named lane's fingerprint derives
 from its id, brief, materials, and after fields.
 diff renders authored-change material; --review selects added and removed members,
---live-net selects the net change from the base. --output writes patches and both
+--phase the changes a Fresh review of that phase covers, --live-net selects the net change from the base. --output writes patches and both
 sides of changed files outside the pipeline. Stamps retain change material and
 phase reviews record the checkpoint inherited by a continuation from the base.
 Spec: ../reference/run/state.md
