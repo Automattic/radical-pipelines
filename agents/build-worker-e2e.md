@@ -46,7 +46,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 **Evidence**
 
 - Exercise each `Verifies` condition and record its outcome under `## Checks` before completing.
-- A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption.
+- A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption. It may add what you observed toward the cause and the observation that would tell the candidate causes apart.
 - Your **Execution** line permits everything: tests, builds, probes. Evidence you produced is the reason this phase exists.
 
 **Help**
@@ -90,5 +90,5 @@ Outcome: completed | failed | blocked
 
 ## Evidence
 
-<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant. Blocked: what kept you from observing the product. -->
+<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what kept you from observing the product. -->
 ```

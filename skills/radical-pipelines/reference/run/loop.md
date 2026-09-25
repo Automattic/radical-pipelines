@@ -35,12 +35,12 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 ## Dispatch
 
-- Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by `run-config.md`'s lane `materials`. A named lane's **Brief** is its configured brief verbatim; the implicit lane has none.
-- Every message to an agent names what it must do next.
+- Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by `run-config.md`'s lane `materials`. A named lane's **Brief** is its configured brief verbatim; the implicit lane has none. The prompt is the filled template, nothing added.
+- Every message to an agent states facts and names what it must do next; judgment about the work reaches agents only through their materials.
 - A producer receives each required input package. A package change provides **Input changes** for convergence.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; use the model recorded in `run-config.md`'s body.
-- `Execution:` in the Seat is `inspection only` for producers and plan reviewers; `full` for workers and the build and document reviewers. `Guardrails:` and `Resources:` carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, resolving every value their prose leaves to you. A helper shares its requester's Seat.
+- `Execution:` in the Seat is `experiment` for a line `rp check` ends with `(experiment)`; otherwise `inspection only` for producers and plan reviewers, `full` for workers and the build and document reviewers. `Guardrails:` and `Resources:` carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, resolving every value their prose leaves to you. A helper shares its requester's Seat.
 - Compute review filenames and task-report paths yourself (`state.md` § Names) and pass them under **Write your review to** / **Write your report to**.
 - Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each.
 - A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.

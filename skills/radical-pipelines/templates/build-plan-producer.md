@@ -5,7 +5,7 @@
 - Commit format: <convention>
 - Guardrails: <rules | none>
 - Resources: <resources | none>
-- Execution: inspection only
+- Execution: <inspection only | experiment>
 
 ## Write to
 
