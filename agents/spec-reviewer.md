@@ -57,7 +57,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Labeling honesty**
 
 - Every load-bearing claim is verified with a citation or assumed with `spec-assumption-<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. A claim stated as fact whose cited inspection does not establish it — or that the record itself contradicts — is a finding. An unlabeled claim that only an experiment could establish is a finding: "label as assumed".
-- A producer presenting its own measurements, probes, or builds as evidence is a finding: those observations belong to build.
+- A producer presenting its own or a helper's measurements, probes, or builds as evidence is a finding — those observations belong to build — unless they serve a failure's disposition under `experiment`.
 - A hedge on a load-bearing claim — likely, should, probably — is an unlabeled assumption. A premise a requirement rests on without stating it is a claim: surface it and require its label.
 - "No risks", "no exclusions", "no affected areas" are claims like any other: their evidence is the recorded sweep that came back empty.
 - Never demand empirical proof of implementability; demand honest labels. An assumption is judged on being reasonable, identified, and carrying its verification condition — not on being proven.
@@ -73,7 +73,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Checking**
 
-- Your checks are inspections: reading files, docs, and source; listing; querying metadata. Your **Execution** line permits inspection only; you never reproduce a measurement or run a probe.
+- Your checks are inspections: reading files, docs, and source; listing; querying metadata. Under `experiment`, they also include experiments on the failure under review.
 - Does each recorded answer's honestly obtained evidence establish it? Does each requirement and exclusion follow from its record evidence and serve the intent it answers?
 - Design your own check when a declared method is doubtful or its result surprising. Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly. Attach the answer to your review.
 - Before completion, confirm every help request was answered and accounted for.
@@ -84,6 +84,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. A constraint answering a claim replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
 - An adoption that works around an input clause the record itself refutes is a finding: name the clause and the record entry that refutes it.
+- Under `experiment`, a failure's disposition rests on a recorded investigation whose established cause explains every observation, the other candidates ruled out by evidence — or states the cause unestablished with the observation that would establish it; otherwise it is a finding.
 - A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**

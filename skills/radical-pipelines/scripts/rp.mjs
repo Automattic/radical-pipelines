@@ -1928,6 +1928,7 @@ async function cmdCheck(args) {
   // pending → adjudicated (the target pins it) → resolved (the target approved
   // carrying the pin), or resolved by escalation (a closed wave of the target
   // corroborated an unsatisfiable verdict citing it). Owner territory resolves through its answer.
+  const adjudicated = (item) => !!pinPackage(pinsByPath.get(item.targetPath))?.has(item.rel);
   const resolutionOf = (item) => {
     if (ownerTerritory(item.target)) {
       const answer = ownerAnswer(item.rel, all);
@@ -1939,17 +1940,20 @@ async function cmdCheck(args) {
     for (const l of lanes)
       if (l.review && challengeKind(l.review.rel, l.review.data) === "claim" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
         return { state: "resolved", detail: `escalated by ${l.review.rel}` };
-    const pinned = pinPackage(pinsByPath.get(item.targetPath))?.has(item.rel);
-    if (!pinned) return { state: "pending" };
+    if (!adjudicated(item)) return { state: "pending" };
     const approved = waveValidity(targetArtifact.prefix, "", latestWaveOf(targetArtifact.prefix, "")).current;
     return approved ? { state: "resolved", detail: `${item.targetPath} approved carrying it` } : { state: "adjudicated", detail: `by ${item.targetPath}, awaiting approval` };
   };
 
-  // 1. Challenges: constraints, proposals, and fresh failed task reports.
+  // 1. Challenges: constraints, proposals, and failed task reports — a report stops being one when
+  // its task changes before its target adjudicates it.
   const challenges = [
     ...all.filter((d) => ownerFile(d.rel)).flatMap((d) => targetPairs(d.rel, d.data).map((t) => ({ ...t, kind: ownerFile(d.rel) }))),
-    ...[...reports.values()].filter((t) => challengeKind(t.rel, t.data) === "failed report" && t.fresh).flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` }))),
-  ].map((t) => ({ ...t, resolution: resolutionOf(t) }));
+    ...[...reports.values()].filter((t) => challengeKind(t.rel, t.data) === "failed report").flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` })).filter((pair) => t.fresh || adjudicated(pair))),
+  ].map((t) => {
+    const resolution = resolutionOf(t);
+    return { ...t, resolution, unresolved: resolution.state !== "resolved" };
+  });
   let unresolvedInScope = false;
   for (const t of challenges) {
     const res = t.resolution;
@@ -1958,7 +1962,7 @@ async function cmdCheck(args) {
     const challengeResolved = challenges.filter((pair) => pair.rel === t.rel).every((pair) => pair.resolution.state === "resolved");
     out.challenges.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped, challengeResolved });
     lines.push(`challenge ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
-    if (res.state !== "resolved" && scoped) unresolvedInScope = true;
+    if (t.unresolved && scoped) unresolvedInScope = true;
   }
 
   // 2. Claims: an unsatisfiable verdict whose wave closed with no rejection.
@@ -1980,6 +1984,7 @@ async function cmdCheck(args) {
         const cur = identityOf(c.targetPath);
         const unchanged = equalPackages(new Map([[c.targetPath, c.targetIdentity]]), new Map([[c.targetPath, cur]]));
         const res = resolutionOf(c);
+        c.adjudicated = res.state === "adjudicated";
         if (later) c.state = "superseded (its lane reviewed again)";
         else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
         else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
@@ -1994,11 +1999,25 @@ async function cmdCheck(args) {
   for (const c of claims) {
     const scoped = inScopePhase(c.targetPath);
     if (c.state === "pending") c.state = !scoped ? "pending, beyond the target phase" : ownerTerritory(c.target) ? "PENDING — owner escalation" : "PENDING";
+    // A claim is unresolved while its target has adjudicated it, or while it persists: until resolved, superseded, or moot.
+    c.unresolved = c.adjudicated || !/^(resolved|superseded|moot)/.test(c.state);
     out.claims.push({ review: c.rel, target: c.target, state: c.state, inScope: scoped });
     lines.push(`claim    ${c.rel} → ${c.target}  ${c.state}`);
     if (c.state === "PENDING — owner escalation") take(`claim ${c.rel} → ${c.target} (owner escalation)`);
-    if (!/^(resolved|superseded|moot|pending, beyond)/.test(c.state) && scoped) unresolvedInScope = true;
+    if (c.unresolved && scoped) unresolvedInScope = true;
   }
+
+  // Under experiment: an artifact while a challenge unresolved on it is a failed task report or has
+  // one in its `origin` chain. An origin that names no pipeline file ends its chain.
+  const failedInOriginChain = (rel, seen = new Set()) => {
+    if (seen.has(rel)) return false;
+    seen.add(rel);
+    const doc = all.find((d) => d.rel === rel);
+    return !!doc && (challengeKind(rel, doc.data) === "failed report"
+      || [].concat(doc.data.get("origin") ?? []).some((origin) => failedInOriginChain(origin.split("#")[0], seen)));
+  };
+  const underExperiment = (art) => [...challenges, ...claims].some((c) => c.unresolved && c.targetPath === art.path && failedInOriginChain(c.rel));
+  const dispatch = (action, path, art) => `${action} ${path}${underExperiment(art) ? " (experiment)" : ""}`;
 
   // 3. Phases in order, up to the target; a phase's production lanes come before its root artifact.
   const pendingChallenges = [...challenges.filter((t) => t.resolution.state === "pending"), ...claims.filter((c) => c.state.startsWith("PENDING"))];
@@ -2038,8 +2057,8 @@ async function cmdCheck(args) {
     const approved = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc)).current;
     return { state, stale, inputChanges, lanes, approved, episode: e.episode, recurs: e.recurs };
   };
-  const nextFor = (path, st, convergence) =>
-    st.state === "unstamped" ? `stamp ${path}` : convergence.needed ? `converge ${path}` : (unstampedReview(st.lanes) ?? `review wave ${path}`);
+  const nextFor = (art, path, st, convergence) =>
+    st.state === "unstamped" ? `stamp ${path}` : convergence.needed ? dispatch("converge", path, art) : (unstampedReview(st.lanes) ?? dispatch("review wave", path, art));
   let through = 0;
   let stopped = false;
   const phaseDone = (phaseNo) => {
@@ -2078,7 +2097,7 @@ async function cmdCheck(args) {
       const { inputChanges, ...laneState } = st;
       out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...laneState, materials: closed ? undefined : convergence.materials, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed });
       lines.push(`lane     ${sc}${name}  ${closed ? "closed" : st.state.toUpperCase()}${!closed && st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${!closed && waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${closed ? "" : convergence.text}`);
-      if (!closed && !ok && !waiting.length) take(nextFor(`${sc}${name}`, st, convergence));
+      if (!closed && !ok && !waiting.length) take(nextFor(art, `${sc}${name}`, st, convergence));
       if (st.episode || st.recurs.length) out.counters[`${sc}${art.prefix}`] = { episode: st.episode, recurs: st.recurs };
     }
     const laneCandidates = laneScopes.filter(laneApproved).map((sc) => ({ lane: sc, package: [...lanePackage(sc).keys()] }));
@@ -2086,27 +2105,27 @@ async function cmdCheck(args) {
     const renderCandidates = () => lines.push(`Lane candidates  ${laneCandidates.map((candidate) => `${candidate.lane}: ${candidate.package.join(", ")}`).join("; ")}`);
     if (!rootExists) {
       const convergence = convergenceOf(art, "", { state: "missing" });
-      out.artifacts.push({ artifact: art.path, state: "missing", materials: convergence.materials, consolidate: laneScopes.length ? lanesReady : undefined, ...(lanesReady ? { laneCandidates } : {}) });
+      out.artifacts.push({ artifact: art.path, state: "missing", experiment: underExperiment(art), materials: convergence.materials, consolidate: laneScopes.length ? lanesReady : undefined, ...(lanesReady ? { laneCandidates } : {}) });
       lines.push(`artifact ${art.path}  MISSING${laneScopes.length ? (lanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}${convergence.text}`);
       if (laneScopes.length && lanesReady) {
         renderCandidates();
         take(`consolidate ${art.path}`);
       }
-      else if (!laneScopes.length) take(`converge ${art.path}`);
+      else if (!laneScopes.length) take(dispatch("converge", art.path, art));
       stopped = true;
       continue;
     }
     const st = artifactState(all.find((d) => d.rel === art.path), art, "");
     const convergence = convergenceOf(art, "", st);
     const { inputChanges, ...artifact } = st;
-    out.artifacts.push({ artifact: art.path, ...artifact, materials: convergence.materials, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
+    out.artifacts.push({ artifact: art.path, ...artifact, experiment: underExperiment(art), materials: convergence.materials, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
     if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
     lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${convergence.text}`);
     if (st.state !== "fresh" || !st.approved || needsConsolidation || convergence.needed) {
       if (lanesReady && needsConsolidation) {
         renderCandidates();
         take(`consolidate ${art.path}`);
-      } else take(nextFor(art.path, st, convergence));
+      } else take(nextFor(art, art.path, st, convergence));
       stopped = true;
     }
     if (!art.review) {
@@ -2167,7 +2186,7 @@ async function cmdCheck(args) {
     if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
     lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
     if (!rApproved) {
-      take(unstampedReview(rl) ?? (convergence.phaseRejected ? `converge ${art.path}` : `${art.review} review`));
+      take(unstampedReview(rl) ?? (convergence.phaseRejected ? dispatch("converge", art.path, art) : `${art.review} review`));
       stopped = true;
     } else {
       phaseDone(phaseNo);

@@ -58,12 +58,12 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Scope** — the plan stays within the spec and the design doc; a task that adds functionality, redesigns, or prescribes which unit tests to write, or that produces or updates documentation, is a finding.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity and clarity** — `build-plan.md` reflects `build-plan-research.md`; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two workers executing the plan independently would produce the same changes in the same order.
-- **Labeling** — every load-bearing claim is verified with a citation or assumed with `build-assumption-<n>` and its verification condition; a hedge is an unlabeled assumption; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own experiments as evidence is a finding — except a reproduced task report.
+- **Labeling** — every load-bearing claim is verified with a citation or assumed with `build-assumption-<n>` and its verification condition; a hedge is an unlabeled assumption; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own or a helper's experiments as evidence is a finding, unless they serve a failure's disposition under `experiment`.
 - **Minimal artifacts** — every "none" the plan claims — no risks, no alternatives, no affected areas — rests on a recorded sweep that came back empty.
 
 **Checking**
 
-- Your checks are inspections. Your **Execution** line permits inspection only.
+- Your checks are inspections; under `experiment`, also experiments on the failure under review.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly. Attach the answer to your review.
 - Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the inputs the artifact started from.
 - Evidence settles what it checked, not more: never re-litigate a grounded decision for preference.
@@ -72,6 +72,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. A constraint answering a claim replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
 - An adoption or a replan that works around a design or spec clause the record itself refutes — or a fallen assumption — is a finding: name the clause and the record entry that refutes it.
+- Under `experiment`, a failure's disposition rests on a recorded investigation whose established cause explains every observation, the other candidates ruled out by evidence — or states the cause unestablished with the observation that would establish it; otherwise it is a finding.
 - A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**

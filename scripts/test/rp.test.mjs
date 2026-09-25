@@ -820,7 +820,7 @@ process.stdout.write(output);
         assert.equal(state.challenges.length, enabled && fresh ? 1 : 0);
         assert.equal(state.tasks["3-build"].next, "build-task-1");
         assert.deepEqual(state.artifacts[2].materials.taskReports, enabled && fresh ? [report] : []);
-        if (fresh) assert.equal(state.frontier, enabled ? "converge 3-build/build-plan.md" : "task 3-build/build-task-1");
+        if (fresh) assert.equal(state.frontier, enabled ? "converge 3-build/build-plan.md (experiment)" : "task 3-build/build-task-1");
       });
 
   for (const enabled of [true, false])
@@ -1145,12 +1145,83 @@ process.stdout.write(output);
         const state = JSON.parse(check(root, "--json"));
         assert.deepEqual(state.contradictions, []);
         assert.equal(state.challenges[0].state, "pending");
-        const expected = currency === "current" ? `converge ${artifact}`
+        const expected = currency === "current" ? `converge ${artifact} (experiment)`
           : currency === "stale input" ? `converge ${chain.artifacts[targetIndex - 1]}`
           : targetIndex === 2 ? "review wave 2-design-doc/design-doc.md" : "build review";
         assert.equal(state.frontier, expected);
         assert.deepEqual(state.artifacts.find((a) => a.artifact === artifact).materials.taskReports, [report]);
       });
+
+  // Under experiment: a challenge unresolved on the artifact is a failed task report or reaches one through `origin`.
+  const EXPERIMENT_KINDS = [
+    ["failed report", true], ["failed report, task replanned", true], ["claim ← failed report", true], ["claim ← claim ← failed report", true],
+    ["proposal", false], ["claim ← blocked report", false], ["claim ← completed report", false], ["claim ← claim ← itself", false],
+  ];
+  for (const targetIndex of [1, 2])
+    for (const [kind, experimental] of EXPERIMENT_KINDS.filter(([kind]) => targetIndex === 2 || !kind.startsWith("failed report")))
+      for (const state of ["pending", "adjudicated", "adjudicated, rejected wave", "resolved"])
+        test(`under experiment: ${kind} on phase ${targetIndex + 1}, ${state}`, () => {
+          const chain = frontierChain();
+          const artifact = chain.artifacts[targetIndex];
+          const phase = kind.startsWith("failed report") ? 2 : targetIndex + 1;
+          const report = chain.reports[phase - 2], task = chain.tasks[phase - 2], taskArtifact = chain.artifacts[phase];
+          const outcome = kind.match(/(failed|blocked|completed) report/)?.[1];
+          if (outcome === "failed") {
+            const target = `${taskArtifact}#${task.split("/").at(-1).replace(/\.md$/, "")}`;
+            registered(report, { reviewed: pairs([task]), outcome, attempt: "1", target: [target], "target-identity": [identity(read(root, taskArtifact))] }, "# Report\nOutcome: failed\n");
+          } else if (outcome) registered(report, { reviewed: pairs([task]), outcome, attempt: "1" }, `# Report\nOutcome: ${outcome}\n`);
+          const claim = (path, target, origin, reviewed) => registered(path, { reviewed: pairs(reviewed), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, target.split("#")[0]))], origin }, `# Review\nVerdict: unsatisfiable\nTarget: ${target}\nOrigin: ${origin}\n`);
+          const clause = `${artifact}#${targetIndex === 1 ? "design-doc-decision-1" : "build-assumption-1"}`;
+          let challenge = report;
+          if (kind === "proposal") challenge = ownerInput("proposal", 1, [clause]);
+          else if (kind.startsWith("claim")) {
+            let origin = report;
+            challenge = chain.reviews[phase].replace("review-1", "review-2");
+            if (kind.startsWith("claim ← claim")) {
+              origin = `${chain.artifacts[phase].split("/")[0]}/${phase === 2 ? "build" : "document"}-review-2.md`;
+              claim(origin, `${taskArtifact}#${phase === 2 ? "build" : "document"}-assumption-1`, kind.endsWith("itself") ? challenge : report, chain.phasePackages[phase]);
+            }
+            claim(challenge, clause, origin, chain.packages[phase]);
+          }
+          const wave = chain.reviews[targetIndex].replace("review-1", "review-2");
+          if (state !== "pending") registered(artifact, { pins: pairs([...chain.inputs[targetIndex], challenge]) });
+          // A replan changes the task: after adjudication the report remains a challenge; before it, it stops being one.
+          const replanned = kind.endsWith("task replanned");
+          if (replanned) registered(task, { depends: [] }, "# build-task-1 replanned\nDepends on: none\n");
+          if (state === "adjudicated, rejected wave") registeredVerdict(wave, pairs([...chain.packages[targetIndex], challenge]), "rejected");
+          if (state === "resolved") {
+            registeredVerdict(wave, pairs([...chain.packages[targetIndex], challenge]));
+            ownerInput("constraint", 1, [artifact]);
+          }
+          const snapshot = JSON.parse(check(root, "--json"));
+          assert.deepEqual(snapshot.contradictions, []);
+          const unadjudicated = replanned && state === "pending";
+          const suffix = experimental && state !== "resolved" && !unadjudicated ? " (experiment)" : "";
+          assert.equal(snapshot.frontier, `${state === "adjudicated" || unadjudicated ? "review wave" : "converge"} ${artifact}${suffix}`);
+          assert.equal(snapshot.artifacts[targetIndex].experiment, !!suffix);
+          if (replanned) assert.deepEqual(snapshot.challenges.filter((c) => c.path === report).map((c) => c.state), unadjudicated ? [] : [state === "resolved" ? "resolved" : "adjudicated"]);
+          assert.ok(check(root).split("\n").includes(`frontier ${snapshot.frontier}`));
+        });
+
+  for (const origin of ["3-build/tasks/build-task-1-report-1.md", "issue 9"])
+    test(`under experiment: production lanes of a root challenged from ${origin}`, () => {
+      configure({ targetPhase: 1, lanes: [standard.a, standard.b] });
+      const task = "3-build/tasks/build-task-1.md", report = "3-build/tasks/build-task-1-report-1.md", intent = "0-intent/intent.md";
+      registered(task, { depends: [] }, "# Task\nDepends on: none\n");
+      registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), target: ["3-build/build-plan.md#build-task-1"], "target-identity": [identity(read(root, "3-build/build-plan.md"))] }, "# Report\nOutcome: failed\n");
+      for (const id of ["a", "b"]) {
+        const artifact = `1-spec/${id}/spec.md`, record = `1-spec/${id}/spec-research.md`;
+        registered(artifact, { pins: pairs([intent]), lane: FPS[id] }, "# Spec\n- spec-requirement-1 Outcome.\n");
+        write(root, record, "# Research\n");
+        registeredVerdict(`1-spec/${id}/spec-review-1.md`, pairs([artifact, record, intent]));
+      }
+      const input = ownerInput("proposal", 1, ["1-spec/spec.md"], origin);
+      const suffix = origin === report ? " (experiment)" : "";
+      const frontier = () => JSON.parse(check(root, "--json")).frontier;
+      assert.equal(frontier(), `converge 1-spec/a/spec.md${suffix}`);
+      registered("1-spec/a/spec.md", { pins: pairs([intent, input]), lane: FPS.a });
+      assert.equal(frontier(), `review wave 1-spec/a/spec.md${suffix}`);
+    });
 
   test("a pending non-owner claim follows the earlier phase's review wave", () => {
     const chain = frontierChain();
@@ -1238,13 +1309,13 @@ process.stdout.write(output);
     registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([chain.tasks[0]]), target: [`${plan}#build-task-1`], "target-identity": [identity(read(root, plan))] }, "# Report\nOutcome: failed\n");
     appendFileSync(join(root, P(chain.context)), "\nChanged input.\n");
     const state = JSON.parse(check(root, "--json"));
-    assert.equal(state.frontier, `converge ${plan}`);
+    assert.equal(state.frontier, `converge ${plan} (experiment)`);
     assert.deepEqual(state.artifacts[2].materials, {
       inputChanges: { added: [], removed: [], changed: [chain.context], ready: true },
       reviewLanes: [], challenges: [proposal], taskReports: [report],
     });
     const lines = check(root).split("\n");
-    assert.deepEqual(lines.filter((line) => line.startsWith("frontier ")), [`frontier converge ${plan}`]);
+    assert.deepEqual(lines.filter((line) => line.startsWith("frontier ")), [`frontier converge ${plan} (experiment)`]);
     const line = lines.find((line) => line.startsWith(`artifact ${plan} `));
     assert.match(line, /Input changes: changed \[0-intent\/context\.md\]/);
     assert.match(line, /Challenges: 0-intent\/proposal-1\.md/);
