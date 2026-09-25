@@ -110,7 +110,7 @@ Checks and judgment rules the project's work must satisfy. Offer to inspect the 
 
 ### Resources (optional)
 
-Offer to inspect the project. Capture the blocks defined in `resources.md`, each saying how to reach, use, and reset it. What you start and stop goes in Lifecycle hooks; a resource agents run themselves says how.
+Offer to inspect the project. Capture the blocks defined in `resources.md`.
 
 ### Lifecycle hooks (optional)
 
