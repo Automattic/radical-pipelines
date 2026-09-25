@@ -1,5 +1,21 @@
 # @automattic/radical-pipelines
 
+## 0.18.0
+
+### Minor Changes
+
+- [#322](https://github.com/Automattic/radical-pipelines/pull/322) [`6ec5c7e`](https://github.com/Automattic/radical-pipelines/commit/6ec5c7e3093277251fbd7d9c976823e9deb4780d) Thanks [@luisherranz](https://github.com/luisherranz)! - Add `before-spawning-agent`, `after-spawning-agent`, `before-terminating-agent`, and `after-terminating-agent` lifecycle hooks, so a project can prepare a per-agent environment before each agent starts and release it when the agent is terminated. The Resources convention now states that a resource's prose is for agents, while what the orchestrator starts, resets, and stops belongs in Lifecycle hooks. A blocking hook instruction that fails during close-out no longer leaves the run stuck: the blocked action is skipped and close-out continues with its remaining actions.
+
+- [#318](https://github.com/Automattic/radical-pipelines/pull/318) [`ec6bf39`](https://github.com/Automattic/radical-pipelines/commit/ec6bf39ef792b68f7bf7ff3921dc40dec17671da) Thanks [@luisherranz](https://github.com/luisherranz)! - Add compact pipeline health checks with elapsed activity and failure summaries, using session scope for detailed investigation.
+
+- [#320](https://github.com/Automattic/radical-pipelines/pull/320) [`ecc9354`](https://github.com/Automattic/radical-pipelines/commit/ecc93540824ca7fd52dbed54ec3debdf9aa621f7) Thanks [@luisherranz](https://github.com/luisherranz)! - Add an optional `Resources` convention: what a project makes available to its agents — environments, services, accounts, data, tools — and how to use them, delivered by profile in a new **Resources** Seat slot alongside **Guardrails**. Guardrails remain the rules an agent must satisfy; a resource is something it may use within its **Execution** line, and no reviewer evaluates it. The orchestrator resolves the values a guardrail's or resource's prose leaves to it, such as a worktree's port, before passing it on, and a helper shares its requester's whole Seat. New `before-removing-worktree` and `after-removing-worktree` lifecycle hooks bracket the removal of a worktree, so a project can stop what it started for a lane's worktree when the lane finishes. Conventions format 4 adds the section; migration offers to move what a guardrail describes as available into a resource.
+
+### Patch Changes
+
+- [#321](https://github.com/Automattic/radical-pipelines/pull/321) [`6cdcaf4`](https://github.com/Automattic/radical-pipelines/commit/6cdcaf4016381cf36ac4d48d01fa84d00800175b) Thanks [@luisherranz](https://github.com/luisherranz)! - A phase review covers every current authored change except those a later phase's reports record, so Document work no longer reopens an approved Build review. The change checkpoint leaves review packages; occurrence pins alone govern coverage. `rp diff --phase <build|document>` renders a Fresh phase review's changes. Existing phase-review approvals need one new review wave.
+
+- [#318](https://github.com/Automattic/radical-pipelines/pull/318) [`ec6bf39`](https://github.com/Automattic/radical-pipelines/commit/ec6bf39ef792b68f7bf7ff3921dc40dec17671da) Thanks [@luisherranz](https://github.com/luisherranz)! - End orchestrator turns while waiting for agents and resume on incoming messages or health ticks instead of continuously polling progress.
+
 ## 0.17.0
 
 ### Minor Changes
