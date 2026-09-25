@@ -17,6 +17,10 @@ Report a failed instruction to the owner and continue. An instruction marked **b
 | `after-creating-worktree`      | A worktree is created or recreated                                                                      |
 | `before-removing-worktree`     | A worktree is about to be removed                                                                       |
 | `after-removing-worktree`      | A worktree is removed                                                                                   |
+| `before-spawning-agent`        | An agent is about to be spawned                                                                         |
+| `after-spawning-agent`         | An agent is spawned                                                                                     |
+| `before-terminating-agent`     | An agent is about to be terminated                                                                      |
+| `after-terminating-agent`      | An agent is terminated                                                                                  |
 | `phase-started`                | Work on a phase begins or resumes                                                                       |
 | `phase-completed`              | A phase becomes complete, phase 0 included, before the next dispatch                                    |
 | `before-merging-lanes`         | Lane branches are about to be merged into the branch their work belongs to                              |
