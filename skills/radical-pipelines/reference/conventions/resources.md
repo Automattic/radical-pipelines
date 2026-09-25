@@ -1,6 +1,6 @@
 # Resources
 
-Resources are what a project makes available to its agents — environments, services, accounts, data, tools — and how to use them. An agent draws on them within its Execution line; what it must satisfy is a guardrail.
+Resources are what a project makes available to its agents — environments, services, accounts, data, tools — and how to use them. An agent draws on them within its Execution line; what it must satisfy is a guardrail. A resource's prose is for agents; what you start, reset, and stop goes in Lifecycle hooks.
 
 ## Format
 
