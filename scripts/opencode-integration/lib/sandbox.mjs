@@ -15,6 +15,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   existsSync,
   mkdirSync,
@@ -284,6 +285,23 @@ export function startServe({ projectDir, env, binDir, opencodeBin }) {
  */
 export function stopServe(child) {
   child.kill();
+}
+
+/**
+ * Restart the sandbox's `serve` process over the same XDG dirs (same on-disk
+ * registries and session store) — a daemon restart between runs.
+ *
+ * @param {{ serveChild: import("node:child_process").ChildProcess, server: object, projectDir: string, env: Record<string,string>, binDir: string, opencodeBin: string }} ctx
+ *   The suite context; its `serveChild` and `server` are replaced.
+ * @returns {Promise<{ baseURL: string, password: string }>} The new server.
+ */
+export async function restartServe(ctx) {
+  stopServe(ctx.serveChild);
+  await delay(1_000);
+  const { child, baseURL, password } = await startServe(ctx);
+  ctx.serveChild = child;
+  ctx.server = { baseURL, password };
+  return ctx.server;
 }
 
 export { STUB_PORT };

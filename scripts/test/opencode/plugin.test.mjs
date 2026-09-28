@@ -24,7 +24,6 @@ import plugin, {
   isDeadStreamMessage,
   isSessionActive,
   isSessionNotFoundError,
-  isTerminalEvent,
   lastRawSessionProgressAt,
   lastSendFor,
   lastSessionEventAt,
@@ -159,9 +158,9 @@ function createFakeCtx({
       },
     },
     session: {
-      async create({ agent, model, location }) {
+      async create({ agent, model, location, metadata }) {
         const id = `ses_${nextID++}`;
-        sessions.set(id, { id, agent, model, location, title: undefined });
+        sessions.set(id, { id, agent, model, location, metadata, title: undefined });
         return { id };
       },
       async prompt({ sessionID, text, delivery }) {
@@ -446,6 +445,11 @@ describe("rp_spawn", () => {
       variant: "thinking",
     });
     assert.deepEqual(created.location, { directory: "/repo/worktree" });
+    assert.deepEqual(
+      created.metadata,
+      { rp: { name: "spec-reviewer-1", pipelineSlug: "144-opencode-support", spawner: "ses_orchestrator" } },
+      "the identity is stored with the session at creation, so it outlives this process",
+    );
 
     assert.deepEqual(lookupSpawn(sessionID), {
       name: "spec-reviewer-1",
@@ -608,6 +612,53 @@ describe("the access boundary is wired into what setup registers", () => {
       .get("rp_loop_list")
       .execute({}, { sessionID: "ses_owner" });
     assert.ok(Array.isArray(sent.output), "a root session still reaches the tool it registered");
+  });
+
+  test("an agent spawned before a restart is restricted and attributed by the identity its stored record carries", async () => {
+    const { ctx, tools, sessions } = createFakeCtx();
+    sessions.set("ses_wired_restart_spawner", { id: "ses_wired_restart_spawner" });
+    const reads = [];
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { XDG_DATA_HOME: freshDir(), RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        resolveRepoRootFn: () => null,
+        requestFn: async (url) => {
+          reads.push(url.pathname);
+          if (url.pathname === "/api/session/ses_wired_survivor") {
+            return {
+              status: 200,
+              body: {
+                data: {
+                  id: "ses_wired_survivor",
+                  title: "An automatic title",
+                  metadata: { rp: { name: "build-worker-tdd survivor", pipelineSlug: "restart-run", spawner: "ses_wired_restart_spawner" } },
+                  location: { directory: "/repo" },
+                },
+              },
+            };
+          }
+          return { status: 200, body: { data: [] } };
+        },
+      }),
+    );
+    let delivered;
+    const originalPrompt = ctx.session.prompt.bind(ctx.session);
+    ctx.session.prompt = async (args) => {
+      delivered = args;
+      return originalPrompt(args);
+    };
+
+    const refused = await tools.get("rp_spawn").execute({}, { sessionID: "ses_wired_survivor" });
+    assert.equal(refused.output.error, "AgentNotPermitted");
+
+    await tools.get("rp_send").execute(
+      { to: "ses_wired_restart_spawner", message: "Completion declared." },
+      { sessionID: "ses_wired_survivor" },
+    );
+    assert.equal(delivered.text, "[from build-worker-tdd survivor (ses_wired_survivor)] Completion declared.");
+    assert.equal(reads.filter((path) => path === "/api/session/ses_wired_survivor").length, 1, "read once, then remembered");
   });
 });
 
@@ -1096,7 +1147,7 @@ describe("HTTP client", () => {
         { baseURL, password: "secret" },
         "POST",
         "/api/session/ses_1/rename",
-        { title: "rp:run:name" },
+        { title: "renamed" },
       );
 
       assert.deepEqual(result, { status: 201, body: { data: { id: "ses_1" } } });
@@ -1104,7 +1155,7 @@ describe("HTTP client", () => {
       assert.equal(received.url, "/api/session/ses_1/rename");
       assert.equal(received.headers.authorization, buildBasicAuthHeader("secret"));
       assert.equal(received.headers["content-type"], "application/json");
-      assert.equal(received.body, JSON.stringify({ title: "rp:run:name" }));
+      assert.equal(received.body, JSON.stringify({ title: "renamed" }));
     } finally {
       await close();
     }
@@ -1186,12 +1237,12 @@ describe("HTTP client", () => {
       { baseURL: "http://127.0.0.1:4096", password: "secret" },
       "POST",
       "/api/session/ses_1/rename",
-      { title: "rp:run:name" },
+      { title: "renamed" },
       requestFn,
     );
 
     assert.equal(calls[0].init.method, "POST");
-    assert.equal(calls[0].init.body, JSON.stringify({ title: "rp:run:name" }));
+    assert.equal(calls[0].init.body, JSON.stringify({ title: "renamed" }));
     assert.equal(calls[0].init.headers["Content-Type"], "application/json");
     assert.equal(calls[0].init.headers["Content-Length"], Buffer.byteLength(calls[0].init.body));
   });
@@ -4702,48 +4753,7 @@ describe("terminal-event listener", () => {
     assert.match(promptCalls[0].text, /worker \(ses_child_alive\) failed a turn/);
   });
 
-  test("re-asserts the child's durable rp: title on its first terminal event only", async () => {
-    const fakeCtx = createFakeCtx();
-    const { ctx, pushEvent, sessions } = fakeCtx;
-    sessions.set("ses_spawner_title", { id: "ses_spawner_title" });
-    sessions.set("ses_child_title", { id: "ses_child_title" });
-    recordSpawn("ses_child_title", {
-      name: "worker-title",
-      pipelineSlug: "258-agent-declared-completion",
-      spawner: "ses_spawner_title",
-    });
-
-    const renames = [];
-    setup(
-      ctx,
-      isolatedDeps({
-        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
-        readServiceRecord: () => null,
-        requestFn: async (url, init) => {
-          renames.push({ url, init });
-          return { status: 204, body: undefined };
-        },
-      }),
-    );
-
-    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_title" } });
-    await delay(10);
-    assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_title");
-    assert.equal(
-      renames[0].init.body,
-      JSON.stringify({ title: "rp:258-agent-declared-completion:worker-title" }),
-    );
-
-    pushEvent({ type: "session.execution.succeeded", data: { sessionID: "ses_child_title" } });
-    await delay(10);
-    assert.equal(renames.length, 1, "a later terminal event must not re-assert the title again");
-  });
-
-  test("an interrupted first turn asserts the durable title too, without a notification or an error-log entry", async () => {
-    // Without this, a child interrupted before its first turn completes has
-    // no `rp:` title, so a daemon restart — which empties the in-memory
-    // ledger — makes it vanish from rp_status.
+  test("an interrupted turn is neither announced nor logged, and the session is left as it is", async () => {
     globalThis[ERROR_LOG_KEY] = [];
     const fakeCtx = createFakeCtx();
     const { ctx, pushEvent, sessions } = fakeCtx;
@@ -4760,14 +4770,14 @@ describe("terminal-event listener", () => {
       promptCalls.push(args);
       return args;
     };
-    const renames = [];
+    const requests = [];
     setup(
       ctx,
       isolatedDeps({
         env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
         readServiceRecord: () => null,
         requestFn: async (url, init) => {
-          renames.push({ url, init });
+          requests.push({ url, init });
           return { status: 204, body: undefined };
         },
       }),
@@ -4776,13 +4786,61 @@ describe("terminal-event listener", () => {
     pushEvent({ type: "session.execution.interrupted", data: { sessionID: "ses_child_int" } });
     await delay(10);
 
-    assert.equal(renames.length, 1);
-    assert.equal(renames[0].url.pathname, "/api/session/ses_child_int");
-    assert.equal(renames[0].init.body, JSON.stringify({ title: "rp:276-activity-reporting:worker-interrupted" }));
+    assert.deepEqual(requests, []);
     assert.equal(promptCalls.length, 0, "an interrupt is a deliberate stop, not a failure to announce");
     assert.deepEqual(globalThis[ERROR_LOG_KEY], []);
-    assert.deepEqual(turnsFor("ses_child_int"), { turns: 1, lastTurn: turnsFor("ses_child_int").lastTurn });
     assert.equal(turnsFor("ses_child_int").lastTurn.outcome, "interrupted");
+  });
+
+  test("a failed turn of an agent spawned before a restart is announced to the spawner its stored record names", async () => {
+    globalThis[ERROR_LOG_KEY] = [];
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent } = fakeCtx;
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+    const reads = [];
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        resolveRepoRootFn: () => "/repo",
+        requestFn: async (url) => {
+          reads.push(url.pathname);
+          return {
+            status: 200,
+            body: {
+              data: {
+                id: "ses_child_survivor",
+                title: "An automatic title",
+                metadata: { rp: { name: "worker-survivor", pipelineSlug: "restart-run", spawner: "ses_spawner_survivor" } },
+                location: { directory: "/repo/.worktrees/w" },
+              },
+            },
+          };
+        },
+      }),
+    );
+
+    for (let turn = 0; turn < 2; turn++) {
+      pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_survivor" } });
+      await delay(10);
+    }
+
+    assert.deepEqual(reads, ["/api/session/ses_child_survivor"], "the stored record is read once");
+    assert.equal(promptCalls.length, 2);
+    assert.equal(promptCalls[0].sessionID, "ses_spawner_survivor");
+    assert.match(promptCalls[0].text, /worker-survivor \(ses_child_survivor\) failed a turn/);
+    assert.deepEqual(lookupSpawn("ses_child_survivor"), {
+      name: "worker-survivor",
+      pipelineSlug: "restart-run",
+      spawner: "ses_spawner_survivor",
+      directory: "/repo/.worktrees/w",
+      repoRoot: "/repo",
+    });
   });
 
   test("a successful terminal event does not enter the recent-errors log", async () => {
@@ -4851,14 +4909,6 @@ describe("terminal-event listener", () => {
     );
     assert.ok(logged, "expected an error-log entry for the failed child");
     assert.deepEqual(logged.error, structuredError);
-  });
-
-  test("ignores non-terminal events and terminal events on sessions RP never spawned", () => {
-    assert.equal(isTerminalEvent({ type: "session.created" }), false);
-    assert.equal(isTerminalEvent({ type: "session.execution.started" }), false);
-    assert.equal(isTerminalEvent({ type: "session.execution.succeeded" }), true);
-    assert.equal(isTerminalEvent({ type: "session.execution.failed" }), true);
-    assert.equal(isTerminalEvent({ type: "session.execution.interrupted" }), true);
   });
 
   test("terminalEventSessionID reads the session ID from the event's data (the shape opencode's terminal events actually carry)", () => {
@@ -4961,13 +5011,7 @@ describe("agentExists / isSessionNotFoundError", () => {
 });
 
 describe("buildLedgerRows", () => {
-  test("maps recognized session records into ledger rows and omits unrecognized ones", () => {
-    recordSpawn("ses_ledger_1", {
-      name: "spec-lead",
-      pipelineSlug: "144-opencode-support",
-      spawner: "ses_orchestrator",
-    });
-
+  test("maps session records carrying a spawn identity into ledger rows and omits the others", () => {
     const rows = buildLedgerRows(
       [
         {
@@ -4976,7 +5020,7 @@ describe("buildLedgerRows", () => {
           model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
           location: { directory: "/repo/worktree" },
           time: { updated: 123 },
-          title: "rp:144-opencode-support:spec-lead",
+          metadata: { rp: { pipelineSlug: "144-opencode-support", name: "spec-lead", spawner: "ses_orchestrator" } },
         },
         {
           id: "ses_unrelated",
@@ -4987,7 +5031,6 @@ describe("buildLedgerRows", () => {
           title: "some other title",
         },
       ],
-      (id) => (id === "ses_ledger_1" ? { name: "spec-lead", pipelineSlug: "144-opencode-support", spawner: "x" } : undefined),
       new Set(["ses_ledger_1"]),
       () => 2,
     );
@@ -5019,7 +5062,7 @@ describe("buildLedgerRows", () => {
       model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
       location: { directory: "/repo" },
       time: { updated },
-      title: `rp:144-opencode-support:${id}`,
+      metadata: { rp: { pipelineSlug: "144-opencode-support", name: id, spawner: "ses_orchestrator" } },
     });
     // opencode moves `time.updated` only when the session receives
     // input — verified live: a 6-second tool call and the turn's end left it
@@ -5040,7 +5083,6 @@ describe("buildLedgerRows", () => {
         record("ses_no_time", undefined),
         record("ses_trickling", 100),
       ],
-      () => undefined,
       new Set(),
       () => 0,
       () => [],
@@ -5072,10 +5114,9 @@ describe("buildLedgerRows", () => {
           model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
           location: { directory: "/repo" },
           time: { updated: 1 },
-          title: "rp:144-opencode-support:spec-producer-1",
+          metadata: { rp: { pipelineSlug: "144-opencode-support", name: "spec-producer-1", spawner: "ses_orchestrator" } },
         },
       ],
-      () => undefined,
       new Set(),
       () => 0,
       () => [],
@@ -5092,7 +5133,7 @@ describe("buildLedgerRows", () => {
     assert.deepEqual(rows[0].lastText, { at: 899, excerpt: "Let me wait for the sweep to complete." });
   });
 
-  test("recognizes a restart-surviving session via its rp: title when the ledger has no entry for it", () => {
+  test("recognizes a session by the identity it carries, whatever its title and whether or not this process recorded it", () => {
     const rows = buildLedgerRows(
       [
         {
@@ -5101,15 +5142,22 @@ describe("buildLedgerRows", () => {
           model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
           location: { directory: "/repo" },
           time: { updated: 1 },
-          title: "rp:144-opencode-support:spec-lead-2",
+          title: "Build task 89 execution report",
+          metadata: { rp: { pipelineSlug: "144-opencode-support", name: "spec-lead-2", spawner: "ses_orchestrator" } },
+        },
+        {
+          id: "ses_titled_only",
+          agent: "radical-pipelines/spec-lead",
+          time: { updated: 1 },
+          title: "rp:144-opencode-support:spec-lead-3",
         },
       ],
-      () => undefined,
       new Set(),
       () => 0,
     );
 
     assert.equal(rows.length, 1);
+    assert.equal(rows[0].sessionID, "ses_after_restart");
     assert.equal(rows[0].name, "spec-lead-2");
     assert.equal(rows[0].agent, "spec-lead");
   });
@@ -5151,7 +5199,7 @@ describe("buildStatusPayload", () => {
                 model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
                 location: { directory: "/repo" },
                 time: { updated: 42 },
-                title: "rp:144-opencode-support:spec-lead",
+                metadata: { rp: { pipelineSlug: "144-opencode-support", name: "spec-lead", spawner: "ses_orchestrator" } },
               },
               // The list spans every project the server knows; a session RP
               // does not recognize gets no per-session reads (any would hit
@@ -5256,9 +5304,9 @@ describe("buildStatusPayload", () => {
     recordError({ type: "session.execution.failed", sessionID: "ses_scope_b1", at: 2 });
     recordError({ type: "listener.lost", error: "boom", at: 3 });
     recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_gone", at: 4 });
-    // Known by title alone, as after a daemon restart.
+    // Known by its stored identity alone, as after a daemon restart.
     recordError({ type: "session.execution.failed", sessionID: "ses_scope_a_titled", at: 5 });
-    // Not RP's: neither recorded nor titled.
+    // Not RP's: neither recorded nor carrying an identity.
     recordError({ type: "skill.resupply.unreadable", sessionID: "ses_someone_elses", at: 6 });
     // Naming a session, however malformed, is never sessionless.
     recordError({ type: "session.execution.failed", sessionID: 42, at: 7 });
@@ -5269,7 +5317,7 @@ describe("buildStatusPayload", () => {
       model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
       location: { directory: `/${slug}` },
       time: { updated: 1 },
-      title: `rp:${slug}:${name}`,
+      metadata: { rp: { pipelineSlug: slug, name, spawner: "ses_orchestrator" } },
     });
     const reads = [];
     const requestFn = async (url) => {
@@ -5283,7 +5331,7 @@ describe("buildStatusPayload", () => {
               record("ses_scope_b1", "pipeline-b", "spec-lead"),
               record("ses_scope_a2", "pipeline-a", "spec-reviewer-1"),
               record("ses_scope_a_titled", "pipeline-a", "spec-reviewer-2"),
-              { ...record("ses_someone_elses", "x", "y"), title: "Fix the flaky test" },
+              { ...record("ses_someone_elses", "x", "y"), metadata: undefined },
             ],
           },
         };
@@ -5311,7 +5359,7 @@ describe("buildStatusPayload", () => {
     assert.deepEqual(
       scoped.recentErrors.map((entry) => entry.sessionID),
       ["ses_scope_a1", undefined, "ses_scope_a_gone", "ses_scope_a_titled"],
-      "the pipeline's errors — of live, gone, and title-only sessions — and the sessionless ones",
+      "the pipeline's errors — of live, gone, and unrecorded sessions — and the sessionless ones",
     );
 
     const one = await buildStatusPayload({ session: "ses_scope_a_gone", env, readServiceRecord: () => null, requestFn });
@@ -5386,7 +5434,7 @@ describe("buildStatusPayload", () => {
                 model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
                 location: { directory: "/repo" },
                 time: { updated: 1_000 },
-                title: "rp:144-opencode-support:spec-reviewer-1",
+                metadata: { rp: { pipelineSlug: "144-opencode-support", name: "spec-reviewer-1", spawner: "ses_orchestrator" } },
               },
             ],
           },
@@ -5438,7 +5486,7 @@ describe("buildStatusPayload", () => {
                 model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
                 location: { directory: "/repo" },
                 time: { updated: 1_000 },
-                title: "rp:144-opencode-support:build-writer-1",
+                metadata: { rp: { pipelineSlug: "144-opencode-support", name: "build-writer-1", spawner: "ses_orchestrator" } },
               },
             ],
           },
@@ -5488,7 +5536,7 @@ describe("buildStatusPayload", () => {
                 model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
                 location: { directory: "/repo" },
                 time: { updated: 1 },
-                title: "rp:144-opencode-support:build-writer-2",
+                metadata: { rp: { pipelineSlug: "144-opencode-support", name: "build-writer-2", spawner: "ses_orchestrator" } },
               },
             ],
           },
@@ -5545,7 +5593,7 @@ describe("buildStatusPayload", () => {
       model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
       location: { directory: "/repo" },
       time: { updated: 42 },
-      title: `rp:144-opencode-support:${name}`,
+      metadata: { rp: { pipelineSlug: "144-opencode-support", name, spawner: "ses_orchestrator" } },
     });
     const requestFn = async (url) => {
       if (url.pathname === "/api/session") {
@@ -5592,7 +5640,7 @@ describe("buildStatusPayload", () => {
   test("health and diagnostic scopes preserve unknown facts for HTTP, transport, and malformed reads", async () => {
     const id = "ses_status_unknown";
     const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
-    const record = { id, agent: "worker", title: "rp:status-unknown:worker", time: { updated: 42 } };
+    const record = { id, agent: "worker", metadata: { rp: { pipelineSlug: "status-unknown", name: "worker", spawner: "ses_orchestrator" } }, time: { updated: 42 } };
     const endpoints = [
       ["active", "running", "/api/session/active"],
       ["inbox", "pending", `/api/session/${id}/inbox`],
@@ -5622,7 +5670,7 @@ describe("buildStatusPayload", () => {
     const scope = { pipelineSlug: "status-malformed", readServiceRecord: () => null, now: () => 10_000 };
     const unreachable = await buildStatusPayload({ ...scope, env: {} });
     assert.deepEqual(unreachable.readFailures, [{ endpoint: "server", status: "unreachable", count: 1 }]);
-    const record = { id: "ses_malformed", agent: "worker", title: "rp:status-malformed:worker", time: { updated: 1000 } };
+    const record = { id: "ses_malformed", agent: "worker", metadata: { rp: { pipelineSlug: "status-malformed", name: "worker", spawner: "ses_orchestrator" } }, time: { updated: 1000 } };
     const cases = [
       ["session", {}, null],
       ["session", [null], null],
@@ -5667,6 +5715,7 @@ describe("buildStatusPayload", () => {
                 model: { providerID: "anthropic", id: "claude-3-opus", variant: "default" },
                 location: { directory: "/repo" },
                 time: { updated: 42 },
+                metadata: { rp: { pipelineSlug: "144-opencode-support", name: "spec-researcher-transport", spawner: "ses_orchestrator" } },
               },
             ],
           },
@@ -5696,6 +5745,66 @@ describe("buildStatusPayload", () => {
         { endpoint: "permission", status: "transport", count: 1 },
       ],
     );
+  });
+});
+
+describe("buildStatusPayload: the session list", () => {
+  const env = { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" };
+  const record = (id, identity = { pipelineSlug: "paged-run", name: id, spawner: "ses_orchestrator" }) => ({
+    id,
+    agent: "worker",
+    time: { updated: 1 },
+    ...(identity && { metadata: { rp: identity } }),
+  });
+
+  /** A paged session list: each cursor names the page after it, as opencode's does. */
+  const pagedList = (pages, { failAt } = {}) => {
+    const listed = [];
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        const index = Number(url.searchParams.get("cursor") ?? 0);
+        listed.push({ cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") });
+        if (index === failAt) return { status: 500, body: undefined };
+        return { status: 200, body: { data: pages[index] ?? [], cursor: { previous: null, next: String(index + 1) } } };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+    return { listed, requestFn };
+  };
+
+  test("reads every page, so an agent past the newest page is still reported", async () => {
+    const { listed, requestFn } = pagedList([
+      [record("ses_paged_1"), record("ses_paged_foreign", null)],
+      [record("ses_paged_2")],
+    ]);
+
+    const result = await buildStatusPayload({ pipelineSlug: "paged-run", env, readServiceRecord: () => null, requestFn });
+
+    assert.deepEqual(result.ledger.map((row) => row.sessionID), ["ses_paged_1", "ses_paged_2"]);
+    assert.deepEqual(listed, [
+      { cursor: null, limit: "500" },
+      { cursor: "1", limit: "500" },
+      { cursor: "2", limit: "500" },
+    ], "pages are followed until one comes back empty");
+    assert.deepEqual(result.readFailures, []);
+  });
+
+  test("a page that cannot be read is a failure, not the end of the list", async () => {
+    const { requestFn } = pagedList([[record("ses_paged_before")], [record("ses_paged_lost")]], { failAt: 1 });
+
+    const result = await buildStatusPayload({ pipelineSlug: "paged-run", env, readServiceRecord: () => null, requestFn });
+
+    assert.deepEqual(result.ledger.map((row) => row.sessionID), ["ses_paged_before"]);
+    assert.deepEqual(result.readFailures, [{ endpoint: "session", status: 500, count: 1 }]);
+  });
+
+  test("a session carrying malformed RP metadata is a failure, and the others are still reported", async () => {
+    const { requestFn } = pagedList([[record("ses_paged_bad", { name: "no slug" }), record("ses_paged_good")]]);
+
+    const result = await buildStatusPayload({ pipelineSlug: "paged-run", env, readServiceRecord: () => null, requestFn });
+
+    assert.deepEqual(result.ledger.map((row) => row.sessionID), ["ses_paged_good"]);
+    assert.deepEqual(result.readFailures, [{ endpoint: "session", status: "malformed", count: 1 }]);
   });
 });
 

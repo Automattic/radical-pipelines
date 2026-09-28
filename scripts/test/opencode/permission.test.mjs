@@ -64,7 +64,13 @@ function uniqueID(prefix) {
 }
 
 /** Build the deps for a direct onPermissionAsked call, recording effects. */
-function permissionDeps({ env = SERVER_ENV, exists = () => true, replyStatus = 204, replyError } = {}) {
+function permissionDeps({
+  env = SERVER_ENV,
+  exists = () => true,
+  replyStatus = 204,
+  replyError,
+  readSession = async () => ({ child: false }),
+} = {}) {
   const prompts = [];
   const requests = [];
   return {
@@ -87,6 +93,7 @@ function permissionDeps({ env = SERVER_ENV, exists = () => true, replyStatus = 2
         return { status: replyStatus, body: undefined };
       },
       exists,
+      readSession,
     },
   };
 }
@@ -395,6 +402,23 @@ describe("onPermissionAsked", () => {
     assert.equal(prompts.length, 1);
   });
 
+  test("forwards an ask from an agent spawned before a restart, identified from its stored record", async () => {
+    const sessionID = uniqueID("ses_survivor");
+    const requestID = uniqueID("per");
+    const { prompts, deps } = permissionDeps({
+      readSession: async () => ({
+        child: false,
+        spawn: { name: "build-writer-survivor", pipelineSlug: "run-a", spawner: "ses_orch_survivor", directory: "/main/.worktrees/wt", repoRoot: "/main" },
+      }),
+    });
+
+    await onPermissionAsked(askedEvent({ requestID, sessionID, resources: ["/etc/*"] }), deps);
+
+    assert.equal(prompts.length, 1);
+    assert.equal(prompts[0].sessionID, "ses_orch_survivor");
+    assert.match(prompts[0].text, /build-writer-survivor/);
+  });
+
   test("ignores an ask on a session RP never spawned", async () => {
     const { prompts, requests, deps } = permissionDeps();
 
@@ -479,9 +503,8 @@ describe("replyToPermission", () => {
 });
 
 describe("current-tool tracking", () => {
-  test("tracks a ledger session's tool from input.started through called, exposing name, target, and start time, and clears it on success", () => {
+  test("tracks a session's tool from input.started through called, exposing name, target, and start time, and clears it on success", () => {
     const sessionID = uniqueID("ses_tool");
-    recordSpawn(sessionID, { name: "w", pipelineSlug: "r", spawner: "s" });
 
     onToolEvent({
       type: "session.tool.input.started",
@@ -512,7 +535,6 @@ describe("current-tool tracking", () => {
 
   test("a failed call clears the current tool too, and a stale completion for another call does not", () => {
     const sessionID = uniqueID("ses_tool");
-    recordSpawn(sessionID, { name: "w", pipelineSlug: "r", spawner: "s" });
 
     onToolEvent({
       type: "session.tool.called",
@@ -531,12 +553,28 @@ describe("current-tool tracking", () => {
     assert.equal(currentToolFor(sessionID), undefined);
   });
 
-  test("ignores tool events on sessions RP never spawned", () => {
+  test("tracks every session, whether or not this process knows it as an agent", () => {
     onToolEvent({
       type: "session.tool.called",
-      properties: { sessionID: "ses_untracked", callID: "call_3", input: {} },
+      properties: { sessionID: "ses_unrecorded", callID: "call_3", input: { command: "ls" } },
     });
-    assert.equal(currentToolFor("ses_untracked"), undefined);
+    assert.equal(currentToolFor("ses_unrecorded").target, "ls");
+  });
+
+  test("a call left open ages out once the tracker grows", () => {
+    onToolEvent(
+      { type: "session.tool.called", properties: { sessionID: "ses_abandoned", callID: "call_old", input: {} } },
+      { now: () => 0 },
+    );
+    const later = 2 * 86_400_000;
+    for (let index = 0; index <= 256; index++) {
+      onToolEvent(
+        { type: "session.tool.called", properties: { sessionID: `ses_busy_${index}`, callID: `call_${index}`, input: {} } },
+        { now: () => later },
+      );
+    }
+    assert.equal(currentToolFor("ses_abandoned"), undefined);
+    assert.equal(currentToolFor("ses_busy_0").since, later);
   });
 
   test("toolTarget extracts the first known input field and truncates long values", () => {

@@ -1,6 +1,7 @@
 /**
  * rp_status's version surface, its ledger rows' liveness
- * facts, and the suite's runtime assertion: the suite reads the running build
+ * facts, recognition of agents across a `serve` restart, and the suite's
+ * runtime assertion: the suite reads the running build
  * directly via `opencode --version` (the same XDG-isolated invocation the
  * harness uses everywhere) and asserts it equals the resolved CLI version.
  */
@@ -15,12 +16,14 @@ import {
   createSession,
   driveToolCall,
   getActiveSessionIDs,
-  getSession,
+  getMessages,
   interrupt,
   pollUntil,
   prompt,
+  waitForAssistantFinish,
   waitForIdle,
 } from "../lib/api-client.mjs";
+import { restartServe } from "../lib/sandbox.mjs";
 import { PLAIN_REPLY_TEXT, slowPrompt } from "../lib/stub-provider.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -58,14 +61,11 @@ export async function run(ctx) {
     assert.ok(Array.isArray(status.readFailures));
   });
 
-  await runCheck(results, "rp_status's ledger reflects a spawned session recognized via its durable title", async () => {
+  await runCheck(results, "rp_status's ledger reflects a spawned session", async () => {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
     const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "status-check-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug: "status-check-run" });
     const childID = spawnResult.text;
-
-    // Wait for the child's first turn so the durable rp: title is asserted
-    // (rp_status recognizes restart-surviving sessions via that title).
-    await pollForTitle(server, childID, "rp:status-check-run:status-check-child");
+    await waitForAssistantFinish(server, childID, "stop");
 
     const statusResult = await driveToolCall(server, orchestrator.id, "rp_status");
     const status = JSON.parse(statusResult.text);
@@ -81,7 +81,7 @@ export async function run(ctx) {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
     const spawn = async (name, pipeline_slug) => {
       const result = await driveToolCall(server, orchestrator.id, "rp_spawn", { name, agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug });
-      await pollForTitle(server, result.text, `rp:${pipeline_slug}:${name}`);
+      await waitForAssistantFinish(server, result.text, "stop");
       return result.text;
     };
     const mine = await spawn("scope-child", "scope-pipeline-a");
@@ -113,9 +113,8 @@ export async function run(ctx) {
     const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
     const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "liveness-check-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug: "liveness-check-run" });
     const childID = spawnResult.text;
-    await pollForTitle(server, childID, "rp:liveness-check-run:liveness-check-child");
-    // The child's plain first turn has ended (the title is asserted on its
-    // first terminal event); it has messaged nobody yet.
+    await waitForAssistantFinish(server, childID, "stop");
+    // The child's plain first turn has ended; it has messaged nobody yet.
     await waitForIdle(server, childID);
 
     const status = async () => {
@@ -154,24 +153,29 @@ export async function run(ctx) {
     assert.equal(interruptedRow.lastTurn?.outcome, "interrupted", `expected an interrupted last turn, got: ${JSON.stringify(interruptedRow.lastTurn)}`);
     assert.ok(interruptedRow.lastTurn.endedAt > reportedRow.lastTurn.endedAt);
   });
-}
 
-/**
- * Poll a session's title until it matches, or time out.
- *
- * @param {object} server
- * @param {string} sessionID
- * @param {string} expectedTitle
- * @returns {Promise<void>}
- */
-async function pollForTitle(server, sessionID, expectedTitle) {
-  const deadline = Date.now() + 20_000;
-  for (;;) {
-    const session = await getSession(server, sessionID);
-    if (session.title === expectedTitle) return;
-    if (Date.now() > deadline) {
-      throw new Error(`Timed out waiting for session ${sessionID}'s title to become "${expectedTitle}" (last seen: "${session.title}")`);
-    }
-    await delay(300);
-  }
+  await runCheck(results, "an agent outliving a `serve` restart is still reported, attributed, and restricted", async () => {
+    const orchestrator = await createSession(server, { agent: "build", directory: projectDir, model: STUB_MODEL });
+    const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", { name: "restart-check-child", agent: "helper", model: "stub/stub-model", directory: projectDir, prompt: "say hello", pipeline_slug: "restart-check-run" });
+    const childID = spawnResult.text;
+    await waitForAssistantFinish(server, childID, "stop");
+
+    // The restart empties the plugin's memory; the session store survives.
+    const restarted = await restartServe(ctx);
+
+    const health = JSON.parse((await driveToolCall(restarted, orchestrator.id, "rp_status", { pipeline_slug: "restart-check-run" })).text);
+    assert.deepEqual(health.ledger.map((row) => row.sessionID), [childID]);
+    assert.deepEqual(health.readFailures, []);
+
+    const refused = await driveToolCall(restarted, childID, "rp_spawn");
+    assert.equal(refused.structuredJSON?.error, "AgentNotPermitted", `expected the surviving agent to stay restricted, got: ${refused.text ?? refused.error?.message}`);
+
+    await driveToolCall(restarted, childID, "rp_send", { to: orchestrator.id, message: "still here after the restart" });
+    await pollUntil(
+      async () => (await getMessages(restarted, orchestrator.id)).find(
+        (m) => m.type === "user" && m.text?.includes(`[from restart-check-child (${childID})] still here after the restart`),
+      ),
+      { label: "the surviving agent's message, attributed by its stored name" },
+    );
+  });
 }
