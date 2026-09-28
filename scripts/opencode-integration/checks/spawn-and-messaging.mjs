@@ -1,5 +1,5 @@
 /**
- * Spawn, seat, identifier, and durable-title mechanics, and
+ * Spawn, seat, identifier, and stored-identity mechanics, and
  * directed messaging in both directions (including the message-failure
  * chain's send-time stage and delivery into a working target), and session termination,
  * driven against the sandbox's running `serve` process via the plugin's real
@@ -93,31 +93,19 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "a successful first turn asserts the child's durable title without notifying the spawner",
+    "the child's stored identity outlives its first turn's automatic title, and a successful turn notifies no one",
     async () => {
-      // The child's own first turn (its initial "say hello" prompt, posted
-      // by rp_spawn) runs against the stub with no directive, so it
-      // completes as a plain turn — triggering the terminal-event listener's
-      // title re-assert.
       await waitForAssistantFinish(server, childID, "stop");
 
-      const title = await pollUntil(
-        async () => {
-          const child = await getSession(server, childID);
-          return child.title === "rp:suite-run:suite-child" ? child.title : undefined;
-        },
-        { timeoutMs: 20_000, label: "the child's durable rp: title to win the auto-title race" },
-      );
-      assert.equal(
-        title,
-        "rp:suite-run:suite-child",
-        "expected the child's durable rp: title to win over opencode's own auto-title",
+      const child = await getSession(server, childID);
+      assert.deepEqual(
+        child.metadata?.rp,
+        { name: "suite-child", pipelineSlug: "suite-run", spawner: orchestrator.id },
+        `expected the identity rp_spawn stored at creation, got: ${JSON.stringify(child.metadata)}`,
       );
 
       // A successful turn is not a completion signal: the spawner must not
-      // have been told the child succeeded. The title re-assert above
-      // happens after the point where the old notification was sent, so by
-      // now an erroneous notification would have been admitted.
+      // have been told the child succeeded.
       const messages = await getMessages(server, orchestrator.id);
       assert.ok(
         !messages.some((m) => m.type === "user" && m.text?.includes(`${childID}) succeeded`)),
@@ -128,13 +116,8 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "an interrupted first turn asserts the child's durable title too, without notifying the spawner",
+    "an interrupted first turn is not announced to the spawner as a failure",
     async () => {
-      // The child's initial prompt makes the stub hold its reply, so the
-      // first turn is still running when it is interrupted: the only turn
-      // end this child ever sees is `session.execution.interrupted`. Without
-      // the title, a daemon restart would drop it from rp_status.
-      //
       // The child's own prompt carries the slow directive, to fire on the
       // child's turn rather than on the orchestrator's driving one.
       const spawnResult = await driveToolCall(server, orchestrator.id, "rp_spawn", {
@@ -142,7 +125,7 @@ export async function run(ctx) {
         agent: "helper",
         model: "stub/stub-model",
         directory: projectDir,
-        prompt: `__RP_SLOW__:8000:__END__ title-interrupt-${Date.now()}`,
+        prompt: `__RP_SLOW__:8000:__END__ interrupt-${Date.now()}`,
         pipeline_slug: "suite-run",
       });
       const interruptedChildID = spawnResult.text;
@@ -154,17 +137,9 @@ export async function run(ctx) {
       const status = (await request(server, "POST", `/api/session/${interruptedChildID}/interrupt`)).status;
       assert.equal(status, 200);
 
-      const title = await pollUntil(
-        async () => {
-          const child = await getSession(server, interruptedChildID);
-          return child.title === "rp:suite-run:suite-interrupted-child" ? child.title : undefined;
-        },
-        { timeoutMs: 20_000, label: "the interrupted child's durable rp: title" },
-      );
-      assert.equal(title, "rp:suite-run:suite-interrupted-child");
-
       const finished = await waitForAssistantFinish(server, interruptedChildID, "error");
       assert.equal(finished.error?.type, "aborted", "the interrupted turn ends as an abort, not a provider failure");
+      await delay(500);
       const messages = await getMessages(server, orchestrator.id);
       assert.ok(
         !messages.some((m) => m.type === "user" && m.text?.includes(`${interruptedChildID}) failed a turn`)),

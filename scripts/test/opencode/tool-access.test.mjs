@@ -3,14 +3,21 @@ import { describe, test } from "node:test";
 
 import {
   guardTool,
-  readSessionParentage,
+  lookupSpawn,
+  readSessionIdentity,
   recordSessionParent,
   recordSpawn,
+  resolveSession,
   resolveToolAccess,
 } from "../../../opencode/plugin.mjs";
 
+/** What `readSession` answers for a stored session of the given parentage. */
+function stored(child) {
+  return child === undefined ? undefined : { child };
+}
+
 /**
- * A `readParentage` that answers nothing and records being consulted.
+ * A `readSession` that answers nothing and records being consulted.
  *
  * Non-consultation is asserted by observing this, never by throwing from
  * the stub: the boundary swallows a failed read by design and falls back to
@@ -22,7 +29,7 @@ function unconsulted() {
   return {
     calls,
     deps: {
-      readParentage: async (sessionID) => {
+      readSession: async (sessionID) => {
         calls.push(sessionID);
         return undefined;
       },
@@ -30,15 +37,15 @@ function unconsulted() {
   };
 }
 
-/** A `readParentage` that answers, and counts how often it was asked. */
+/** A `readSession` that answers, and counts how often it was asked. */
 function asks(answer) {
   const calls = [];
   return {
     calls,
     deps: {
-      readParentage: async (sessionID) => {
+      readSession: async (sessionID) => {
         calls.push(sessionID);
-        return answer;
+        return typeof answer === "object" ? answer : stored(answer);
       },
     },
   };
@@ -162,9 +169,9 @@ describe("resolveToolAccess under concurrency and session lifetime", () => {
       release = resolve;
     });
     const deps = {
-      readParentage: async (sessionID) => {
+      readSession: async (sessionID) => {
         calls.push(sessionID);
-        return held;
+        return stored(await held);
       },
     };
 
@@ -182,7 +189,7 @@ describe("resolveToolAccess under concurrency and session lifetime", () => {
     const held = new Promise((resolve) => {
       release = resolve;
     });
-    const deps = { readParentage: async () => held };
+    const deps = { readSession: async () => stored(await held) };
 
     const waiting = Promise.all([
       resolveToolAccess("ses_race_agreement", deps),
@@ -199,7 +206,7 @@ describe("resolveToolAccess under concurrency and session lifetime", () => {
     const held = new Promise((resolve) => {
       release = resolve;
     });
-    const deps = { readParentage: async () => held };
+    const deps = { readSession: async () => stored(await held) };
 
     const pending = resolveToolAccess("ses_race_event", deps);
     recordSessionParent({
@@ -231,32 +238,92 @@ describe("resolveToolAccess under concurrency and session lifetime", () => {
   });
 });
 
-describe("readSessionParentage", () => {
+describe("readSessionIdentity", () => {
   const server = { baseURL: "http://x", password: "y" };
+  const reply = (data) => async () => ({ status: 200, body: { data } });
+  const identity = { name: "build-worker-tdd 9", pipelineSlug: "144-opencode-support", spawner: "ses_read_orchestrator" };
 
   test("reports the parentage the stored session carries", async () => {
-    assert.equal(
-      await readSessionParentage(server, "ses_read_child", async () => ({
-        status: 200,
-        body: { data: { id: "ses_read_child", parentID: "ses_read_parent" } },
-      })),
-      true,
+    assert.deepEqual(
+      await readSessionIdentity(server, "ses_read_child", reply({ id: "ses_read_child", parentID: "ses_read_parent" })),
+      { child: true },
     );
+    assert.deepEqual(await readSessionIdentity(server, "ses_read_root", reply({ id: "ses_read_root" })), { child: false });
+  });
 
-    assert.equal(
-      await readSessionParentage(server, "ses_read_root", async () => ({
-        status: 200,
-        body: { data: { id: "ses_read_root" } },
-      })),
-      false,
+  test("reports the spawn identity the stored session carries, with its seat", async () => {
+    assert.deepEqual(
+      await readSessionIdentity(
+        server,
+        "ses_read_agent",
+        reply({ id: "ses_read_agent", title: "An automatic title", metadata: { rp: identity }, location: { directory: "/wt" } }),
+      ),
+      { child: false, spawn: { ...identity, directory: "/wt" } },
     );
   });
 
   test("a non-2xx read throws, carrying its status", async () => {
     await assert.rejects(
-      readSessionParentage(server, "ses_read_gone", async () => ({ status: 404, body: undefined })),
+      readSessionIdentity(server, "ses_read_gone", async () => ({ status: 404, body: undefined })),
       (error) => error.status === 404,
     );
+  });
+
+  test("a reply that is not the session asked for, or carries malformed RP metadata, throws", async () => {
+    await assert.rejects(readSessionIdentity(server, "ses_read_empty", reply(undefined)), /no session record/);
+    await assert.rejects(readSessionIdentity(server, "ses_read_other", reply({ id: "ses_read_elsewhere" })), /no session record/);
+    await assert.rejects(
+      readSessionIdentity(server, "ses_read_bad", reply({ id: "ses_read_bad", metadata: { rp: { name: "n" } } })),
+      /malformed RP metadata/,
+    );
+  });
+});
+
+describe("resolveSession: spawn identity", () => {
+  const identity = { name: "build-worker-tdd 7", pipelineSlug: "144-opencode-support", spawner: "ses_resolve_orchestrator" };
+
+  test("a spawned agent this process never saw created is recognized from its stored identity, and recorded", async () => {
+    const asked = asks({ child: false, spawn: { ...identity, directory: "/wt", repoRoot: "/repo" } });
+
+    assert.equal(await resolveToolAccess("ses_resolve_survivor", asked.deps), "send-only");
+    assert.deepEqual(lookupSpawn("ses_resolve_survivor"), { ...identity, directory: "/wt", repoRoot: "/repo" });
+
+    const probe = unconsulted();
+    assert.deepEqual(await resolveSession("ses_resolve_survivor", probe.deps), {
+      child: false,
+      spawn: { ...identity, directory: "/wt", repoRoot: "/repo" },
+    });
+    assert.deepEqual([...asked.calls, ...probe.calls], ["ses_resolve_survivor"], "a resolved session is read once");
+  });
+
+  test("a session this process watched being created is no agent unless rp_spawn recorded it, without a read", async () => {
+    recordSessionParent({ type: "session.created", data: { sessionID: "ses_resolve_watched" } });
+
+    const probe = unconsulted();
+    assert.deepEqual(await resolveSession("ses_resolve_watched", probe.deps), { child: false, spawn: undefined });
+    assert.deepEqual(probe.calls, []);
+  });
+
+  test("an unreadable session is neither classified nor recognized, and is asked about again", async () => {
+    const asked = asks(undefined);
+
+    assert.deepEqual(await resolveSession("ses_resolve_unreadable", asked.deps), { child: undefined, spawn: undefined });
+    assert.deepEqual(await resolveSession("ses_resolve_unreadable", asked.deps), { child: undefined, spawn: undefined });
+    assert.deepEqual(asked.calls, ["ses_resolve_unreadable", "ses_resolve_unreadable"]);
+  });
+
+  test("a read invalidated by a deletion still identifies the caller holding it, but is not recorded", async () => {
+    let release;
+    const held = new Promise((resolve) => {
+      release = resolve;
+    });
+
+    const pending = resolveSession("ses_resolve_deleted", { readSession: () => held });
+    recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_resolve_deleted" } });
+    release({ child: false, spawn: identity });
+
+    assert.deepEqual(await pending, { child: false, spawn: identity });
+    assert.equal(lookupSpawn("ses_resolve_deleted"), undefined);
   });
 });
 
@@ -385,7 +452,7 @@ describe("parentage retention", () => {
     });
 
     // Cold call first, so the classification arrives while the read is open.
-    const pending = resolveToolAccess("ses_deleted_observed", { readParentage: async () => held });
+    const pending = resolveToolAccess("ses_deleted_observed", { readSession: async () => stored(await held) });
     recordSessionParent({
       type: "session.created",
       data: { sessionID: "ses_deleted_observed", parentID: "ses_deleted_observed_parent" },
@@ -426,7 +493,7 @@ describe("parentage retention", () => {
         release = resolve;
       });
 
-      const pending = resolveToolAccess(sessionID, { readParentage: async () => held });
+      const pending = resolveToolAccess(sessionID, { readSession: async () => stored(await held) });
       recordSessionParent({ type: "session.created", data: { sessionID, parentID } });
       recordSessionParent({ type: "session.deleted", data: { sessionID } });
       // The read opened before either event and answers last; the events are
@@ -447,7 +514,7 @@ describe("parentage retention", () => {
       release = resolve;
     });
 
-    const pending = resolveToolAccess("ses_deleted_midread", { readParentage: async () => held });
+    const pending = resolveToolAccess("ses_deleted_midread", { readSession: async () => stored(await held) });
     recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_deleted_midread" } });
     release(false);
     await pending;
@@ -467,11 +534,11 @@ describe("parentage retention", () => {
       release = resolve;
     });
 
-    const pending = resolveToolAccess("ses_deleted_verdict", { readParentage: async () => held });
+    const pending = resolveToolAccess("ses_deleted_verdict", { readSession: async () => stored(await held) });
     recordSessionParent({ type: "session.deleted", data: { sessionID: "ses_deleted_verdict" } });
     // A later caller re-creates the pending slot, so the first read is no
     // longer the tracked one when it settles.
-    void resolveToolAccess("ses_deleted_verdict", { readParentage: () => new Promise(() => {}) });
+    void resolveToolAccess("ses_deleted_verdict", { readSession: () => new Promise(() => {}) });
     release(true);
 
     assert.equal(await pending, "none");

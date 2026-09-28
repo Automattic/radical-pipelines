@@ -79,34 +79,60 @@ function formatModelString({ providerID, id, variant }) {
 }
 
 /**
+ * The session-metadata key under which `rp_spawn` stores a spawned session's
+ * identity. Written once, at creation, so it survives daemon restarts and
+ * every later title change.
+ */
+const SPAWN_METADATA_KEY = "rp";
+
+/**
+ * Read the spawn identity a stored session record carries.
+ *
+ * @param {{ id: string, metadata?: object | null }} record A session record
+ *   (`GET /api/session` or `GET /api/session/:id`).
+ * @returns {{ name: string, pipelineSlug: string, spawner: string } | undefined}
+ *   The identity `rp_spawn` wrote, or `undefined` when the session carries
+ *   none (RP did not spawn it).
+ * @throws {Error} When the record carries RP metadata that is not a
+ *   well-formed identity.
+ */
+function spawnIdentity(record) {
+  const identity = record.metadata?.[SPAWN_METADATA_KEY];
+  if (identity === undefined) {
+    return undefined;
+  }
+  const { name, pipelineSlug, spawner } = identity ?? {};
+  if ([name, pipelineSlug, spawner].some((value) => typeof value !== "string")) {
+    throw new Error(`Session ${record.id} carries malformed RP metadata`);
+  }
+  return { name, pipelineSlug, spawner };
+}
+
+/**
  * `globalThis` key backing the process-wide spawn ledger.
  *
  * opencode may re-import this module under a distinct resolved URL for each
  * per-directory `setup(ctx)` re-run, which would otherwise give each re-run
  * its own module scope and a fresh, empty ledger. Storing the ledger on
  * `globalThis` under a stable key instead means every such re-import shares
- * one ledger for the lifetime of the daemon process; the ledger disappears
- * only when the process (and `globalThis` with it) does.
+ * one ledger for the lifetime of the daemon process.
  */
 const LEDGER_KEY = Symbol.for("radical-pipelines.opencode.ledger");
 
 /**
  * Fetch the process-wide spawn ledger, creating it on first use.
  *
+ * The ledger caches the spawn identities sessions carry in their metadata
+ * (see `spawnIdentity`): `rp_spawn` records each session it creates, and
+ * `resolveSession` records a session it reads.
+ *
  * @returns {{
  *   bySessionID: Map<string, { name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }>,
- *   currentByName: Map<string, string>,
- * }} The singleton ledger. `bySessionID` holds every recorded spawn keyed by
- *   session ID, so any session ID that was ever recorded stays individually
- *   resolvable. `currentByName` maps an instance name to the session ID of
- *   its most recently recorded spawn, implementing latest-wins-per-name.
+ * }} The singleton ledger, keyed by session ID.
  */
 function getLedger() {
   if (!globalThis[LEDGER_KEY]) {
-    globalThis[LEDGER_KEY] = {
-      bySessionID: new Map(),
-      currentByName: new Map(),
-    };
+    globalThis[LEDGER_KEY] = { bySessionID: new Map() };
   }
   return globalThis[LEDGER_KEY];
 }
@@ -114,12 +140,7 @@ function getLedger() {
 /**
  * Record a spawned session in the ledger.
  *
- * Recording a second spawn under the same `name` (a re-spawn) supersedes the
- * older entry as the name's current resolution (see `resolveCurrentSpawn`),
- * while the older session ID remains individually resolvable (see
- * `lookupSpawn`).
- *
- * @param {string} sessionID The session ID opencode assigned to the spawn.
+ * @param {string} sessionID The spawned session's ID.
  * @param {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }} entry
  *   The spawned instance's pipeline-unique name, the slug of the pipeline it belongs to, the
  *   session ID of the agent that spawned it, the directory the session is
@@ -128,41 +149,21 @@ function getLedger() {
  * @returns {void}
  */
 function recordSpawn(sessionID, entry) {
-  const ledger = getLedger();
-  ledger.bySessionID.set(sessionID, entry);
-  ledger.currentByName.set(entry.name, sessionID);
+  getLedger().bySessionID.set(sessionID, entry);
 }
 
 /**
  * Look up a recorded spawn by its session ID.
  *
+ * Answers only from the ledger; `resolveSession` answers for sessions it has
+ * not recorded yet.
+ *
  * @param {string} sessionID The session ID to look up.
  * @returns {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null } | undefined}
- *   The entry recorded for `sessionID`, or `undefined` if no spawn was ever
- *   recorded under that session ID.
+ *   The entry recorded for `sessionID`, or `undefined` if none is.
  */
 function lookupSpawn(sessionID) {
   return getLedger().bySessionID.get(sessionID);
-}
-
-/**
- * Resolve the session currently considered "the" instance for a name.
- *
- * When multiple spawns have shared the same `name` (a re-spawn), this
- * returns the most recently recorded one.
- *
- * @param {string} name The pipeline-unique instance name to resolve.
- * @returns {{ sessionID: string, name: string, pipelineSlug: string, spawner: string } | undefined}
- *   The current entry for `name` (including its session ID), or `undefined`
- *   if no spawn has ever been recorded under that name.
- */
-function resolveCurrentSpawn(name) {
-  const ledger = getLedger();
-  const sessionID = ledger.currentByName.get(name);
-  if (sessionID === undefined) {
-    return undefined;
-  }
-  return { sessionID, ...ledger.bySessionID.get(sessionID) };
 }
 
 /**
@@ -176,7 +177,7 @@ const SESSION_PARENTAGE_KEY = Symbol.for("radical-pipelines.opencode.sessionPare
  *
  * @returns {Map<string, boolean>} Session ID to whether opencode created it
  *   as the child of another session. Absence means unobserved, which is not
- *   the same as unparented (see `resolveToolAccess`).
+ *   the same as unparented (see `resolveSession`).
  */
 function getSessionParentage() {
   if (!globalThis[SESSION_PARENTAGE_KEY]) {
@@ -186,23 +187,23 @@ function getSessionParentage() {
 }
 
 /**
- * `globalThis` key backing the in-flight parentage reads, so concurrent
+ * `globalThis` key backing the in-flight session reads, so concurrent
  * callers asking about one session share a single answer.
  */
-const SESSION_PARENTAGE_PENDING_KEY = Symbol.for("radical-pipelines.opencode.sessionParentagePending");
+const SESSION_READS_PENDING_KEY = Symbol.for("radical-pipelines.opencode.sessionReadsPending");
 
 /**
- * Fetch the in-flight parentage reads, creating the map on first use.
+ * Fetch the in-flight session reads, creating the map on first use.
  *
- * @returns {Map<string, {answer: Promise<boolean | undefined>}>} Session ID
- *   to the read currently answering for it. The wrapper object, not the
- *   promise, is the identity a deletion invalidates.
+ * @returns {Map<string, {answer: Promise<{ child: boolean, spawn?: object } | undefined>, lastKnown?: boolean}>}
+ *   Session ID to the read currently answering for it. The wrapper object,
+ *   not the promise, is the identity a deletion invalidates.
  */
-function getPendingParentage() {
-  if (!globalThis[SESSION_PARENTAGE_PENDING_KEY]) {
-    globalThis[SESSION_PARENTAGE_PENDING_KEY] = new Map();
+function getPendingSessionReads() {
+  if (!globalThis[SESSION_READS_PENDING_KEY]) {
+    globalThis[SESSION_READS_PENDING_KEY] = new Map();
   }
-  return globalThis[SESSION_PARENTAGE_PENDING_KEY];
+  return globalThis[SESSION_READS_PENDING_KEY];
 }
 
 /**
@@ -275,7 +276,7 @@ function recordParentage(sessionID, child) {
  *
  * A session opencode creates with a `parentID` is a subagent: another
  * session delegated to it inside its own turn, and it delivers its result by
- * returning, not by addressing anyone. `resolveToolAccess` needs that fact.
+ * returning, not by addressing anyone. `resolveSession` needs that fact.
  *
  * A creation *without* a `parentID` is recorded too — it is positive
  * evidence of a root session, and recording it spares that session the
@@ -301,7 +302,7 @@ function recordSessionParent(event) {
   // A deleted session's ID answers for nothing, and a daemon that kept every
   // one it ever saw would grow for as long as it runs.
   if (event.type === "session.deleted") {
-    const inFlight = getPendingParentage().get(sessionID);
+    const inFlight = getPendingSessionReads().get(sessionID);
     if (inFlight) {
       // Deletion retires the memo for callers still to come; it does not
       // unclassify the one already waiting on this read. Hand that caller
@@ -314,7 +315,7 @@ function recordSessionParent(event) {
     // Also drop any read still in flight for it: that read began before the
     // deletion and would otherwise reinsert the session it just answered
     // for. `rp_terminate` produces exactly that ordering.
-    getPendingParentage().delete(sessionID);
+    getPendingSessionReads().delete(sessionID);
   }
 }
 
@@ -325,67 +326,59 @@ function recordSessionParent(event) {
 const AGENT_TOOL = "rp_send";
 
 /**
- * Decide which RP tools a calling session may use.
+ * Resolve what RP knows about a session: whether opencode created it as a
+ * subagent, and the spawn identity it carries.
  *
- * Three callers exist, told apart by two facts a caller cannot forge — the
- * parentage opencode reports for the session, and the ledger RP writes when
- * it spawns:
+ * Both facts come from opencode's stored session record, which a caller
+ * cannot forge: its parentage, and the metadata `rp_spawn` writes at
+ * creation (see `spawnIdentity`). Both are normally known without a read: a
+ * session in the ledger is one `rp_spawn` created without a parent, and any
+ * other session this process watched being created carries no identity, its
+ * parentage told by the `session.created` event.
  *
- * - A **subagent** gets none. It returns its result to whoever delegated to
- *   it, which is the contract it was created under; reaching past that to
- *   address a session by ID is not part of its work.
- * - A **spawned agent** gets `rp_send` alone. Driving a run — spawning,
- *   terminating, health loops, answering permission asks — belongs to the
- *   session that spawned it.
- * - **Anything else** — the orchestrator, which nothing spawned, and the
- *   owner's own session — gets all of them.
+ * Any other session is *asked about* rather than assumed: the event
+ * subscription replays no history and resubscribes after a dropped stream
+ * rather than recovering what fell in the gap, and a restart empties the
+ * ledger while the sessions it recorded live on. Otherwise a subagent born in
+ * such a gap would pass for a root session, and a spawned agent that
+ * outlived a restart would pass for no agent at all. The answer is
+ * remembered, so a session is asked about at most once.
  *
- * Parentage is normally already known from the event stream, but an event
- * can be missed: the subscription replays no history, and it resubscribes
- * after a dropped stream rather than recovering what fell in the gap. An
- * unobserved session is therefore *asked about* rather than assumed
- * unparented — otherwise a subagent born in that gap, or one whose first
- * tool call outran its own creation event, would silently hold every tool.
- * The answer is remembered, so a session is asked about at most once.
- *
- * Only an unanswerable question opens the boundary. Any read that fails to
- * answer counts — an unreachable server, and equally one that replies 500 or
- * 404 — after which an unobserved caller is treated as a root session,
- * because refusing every caller RP cannot classify would stop the
- * orchestrator too.
- *
- * The ledger lives in daemon memory, so after a restart a spawned agent
- * reads as unledgered and widens into the last case until it is spawned
- * again. That relaxes a least-privilege boundary, never the subagent one.
- *
- * @param {string} sessionID The calling session's authoritative ID, as
- *   opencode supplies it to a tool's `execute`.
- * @param {{ readParentage: (sessionID: string) => Promise<boolean | undefined> }} deps
- *   `readParentage` answers whether an unobserved session has a parent, or
- *   `undefined` when it cannot be determined.
- * @returns {Promise<"none" | "send-only" | "full">} The caller's access.
+ * @param {string} sessionID The session to resolve.
+ * @param {{ readSession: (sessionID: string) => Promise<{ child: boolean, spawn?: object } | undefined> }} deps
+ *   `readSession` reads the stored session record, or answers `undefined`
+ *   when it cannot be read.
+ * @returns {Promise<{ child: boolean | undefined, spawn: object | undefined }>}
+ *   `child` is `undefined` when the session could not be classified;
+ *   `spawn` is its ledger entry, or `undefined` when it carries none or
+ *   could not be read.
  */
-async function resolveToolAccess(sessionID, { readParentage }) {
+async function resolveSession(sessionID, { readSession }) {
   let child = getSessionParentage().get(sessionID);
+  const recorded = lookupSpawn(sessionID);
+  if (recorded) {
+    return { child: child ?? false, spawn: recorded };
+  }
+  let read;
   if (child === undefined) {
     // One read answers every caller waiting on the same session: separate
     // reads could disagree — an unreadable one beside a successful one —
     // and hand the same caller a different verdict depending on which it
     // happened to hold.
-    const pending = getPendingParentage();
+    const pending = getPendingSessionReads();
     let inFlight = pending.get(sessionID);
     if (!inFlight) {
       inFlight = {};
       inFlight.answer = (async () => {
         try {
-          return await readParentage(sessionID);
+          return await readSession(sessionID);
         } catch {
           return undefined;
         }
       })();
       pending.set(sessionID, inFlight);
     }
-    const read = await inFlight.answer;
+    read = await inFlight.answer;
     // The read stands only if nothing invalidated it while it was open. A
     // deletion drops it from the pending map, and its answer — about a
     // session that no longer exists — is then discarded rather than
@@ -405,7 +398,7 @@ async function resolveToolAccess(sessionID, { readParentage }) {
       // remains true of the caller holding it. Classifying from it is what
       // keeps a session being destroyed mid-call from widening on its way
       // out.
-      const answer = inFlight.lastKnown ?? read;
+      const answer = inFlight.lastKnown ?? read?.child;
       if (answer !== undefined) {
         if (current) {
           recordParentage(sessionID, answer);
@@ -413,11 +406,44 @@ async function resolveToolAccess(sessionID, { readParentage }) {
         child = answer;
       }
     }
+    if (current && read?.spawn) {
+      recordSpawn(sessionID, read.spawn);
+    }
   }
+  return { child, spawn: lookupSpawn(sessionID) ?? read?.spawn };
+}
+
+/**
+ * Decide which RP tools a calling session may use.
+ *
+ * Three callers exist, told apart by what `resolveSession` knows of them:
+ *
+ * - A **subagent** gets none. It returns its result to whoever delegated to
+ *   it, which is the contract it was created under; reaching past that to
+ *   address a session by ID is not part of its work.
+ * - A **spawned agent** gets `rp_send` alone. Driving a run — spawning,
+ *   terminating, health loops, answering permission asks — belongs to the
+ *   session that spawned it.
+ * - **Anything else** — the orchestrator, which nothing spawned, and the
+ *   owner's own session — gets all of them.
+ *
+ * Only an unanswerable question opens the boundary. Any read that fails to
+ * answer counts — an unreachable server, and equally one that replies 500 or
+ * 404 — after which an unclassified caller is treated as a root session,
+ * because refusing every caller RP cannot classify would stop the
+ * orchestrator too.
+ *
+ * @param {string} sessionID The calling session's authoritative ID, as
+ *   opencode supplies it to a tool's `execute`.
+ * @param {{ readSession: Function }} deps Forwarded to `resolveSession`.
+ * @returns {Promise<"none" | "send-only" | "full">} The caller's access.
+ */
+async function resolveToolAccess(sessionID, deps) {
+  const { child, spawn } = await resolveSession(sessionID, deps);
   if (child) {
     return "none";
   }
-  return lookupSpawn(sessionID) ? "send-only" : "full";
+  return spawn ? "send-only" : "full";
 }
 
 /**
@@ -524,13 +550,9 @@ function appendSpawnProtocol(prompt, spawnerID) {
   return `${prompt}\n\n## RP messaging (opencode)\n\n**Spawner identifier:** ${spawnerID}\n\nOnly \`rp_send\` routes a message to another session. Send every message required by your profile with \`rp_send\`: your prompt's **Requester** is the agent ID to address what your profile sends to its requester; the orchestrator is the **Spawner identifier** above. Your own agent ID is this session's ID.\n\n## RP turns (opencode)\n\nEnding your turn is a stop: only a message resumes this session — a reply you await, or the completion notice of a background command you gave a \`timeout\`. Anything else you are waiting on holds your turn: wait with foreground commands that have a timeout, compare progress between checks, and treat unchanged progress as a stall to act on.`;
 }
 
-/** Prefix marking a session title as an RP-managed, reconstructible one. */
-const TITLE_PREFIX = "rp:";
-
 /**
  * Reject a value that is not a pipeline slug: one path segment, a valid git
- * ref, without `_`. A valid ref carries no `:`, so the durable title's
- * separator is safe.
+ * ref, without `_`.
  *
  * @param {*} slug The `pipeline_slug` argument to check.
  * @param {typeof execFileSync} [exec] Runs `git check-ref-format`; defaults to
@@ -549,42 +571,6 @@ function assertPipelineSlug(slug, exec = execFileSync) {
   if (typeof slug !== "string" || slug.length === 0 || slug.includes("/") || slug.includes("_") || !validRef()) {
     throw new Error(`Invalid pipeline slug ${JSON.stringify(slug)}: one path segment, a valid git ref, without "_"`);
   }
-}
-
-/**
- * Format the durable session title used to reconstruct ledger state.
- *
- * The title is asserted onto the session (surviving daemon restarts) so the
- * ledger can be rebuilt from `pipelineSlug` and `name` alone.
- *
- * @param {{ pipelineSlug: string, name: string }} identity The pipeline slug and the
- *   pipeline-unique instance name.
- * @returns {string} The title, formatted as `"rp:<pipeline slug>:<name>"`.
- */
-function formatTitle({ pipelineSlug, name }) {
-  return `${TITLE_PREFIX}${pipelineSlug}:${name}`;
-}
-
-/**
- * Parse a durable session title back into its pipeline slug and instance name.
- *
- * @param {string} title The session title to parse.
- * @returns {{ pipelineSlug: string, name: string } | undefined} The parsed `{ pipelineSlug,
- *   name }`, or `undefined` when `title` lacks the `rp:` prefix.
- */
-function parseTitle(title) {
-  if (!title.startsWith(TITLE_PREFIX)) {
-    return undefined;
-  }
-  const rest = title.slice(TITLE_PREFIX.length);
-  const separatorIndex = rest.indexOf(":");
-  if (separatorIndex === -1) {
-    return undefined;
-  }
-  return {
-    pipelineSlug: rest.slice(0, separatorIndex),
-    name: rest.slice(separatorIndex + 1),
-  };
 }
 
 /**
@@ -1789,19 +1775,23 @@ async function getSessionUpdatedAt(server, sessionID, requestFn) {
 }
 
 /**
- * Read whether a session was created as the child of another.
+ * Read what a stored session record says about the session: whether it was
+ * created as the child of another, and the spawn identity it carries.
  *
- * The durable answer to the question `session.created` normally answers,
- * for the sessions whose event was never seen (see `resolveToolAccess`).
+ * The durable answer for the sessions this process did not watch being
+ * created (see `resolveSession`).
  *
  * @param {{ baseURL: string, password: string }} server A resolved server.
  * @param {string} sessionID The session ID to read.
  * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
  *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<boolean>} `true` when the stored session names a parent.
- * @throws {Error} On a non-2xx response, carrying its status.
+ * @returns {Promise<{ child: boolean, spawn?: { name: string, pipelineSlug: string, spawner: string, directory?: string } }>}
+ *   `child` is `true` when the stored session names a parent; `spawn` is its
+ *   spawn identity (see `spawnIdentity`) with the directory it is seated in.
+ * @throws {Error} On a non-2xx response, carrying its status, or on a record
+ *   that is not a session or carries malformed RP metadata.
  */
-async function readSessionParentage(server, sessionID, requestFn) {
+async function readSessionIdentity(server, sessionID, requestFn) {
   const response = await requestServer(
     server,
     "GET",
@@ -1812,7 +1802,15 @@ async function readSessionParentage(server, sessionID, requestFn) {
   if (response.status < 200 || response.status >= 300) {
     throw sessionReadError(`GET /api/session/${sessionID}`, response.status);
   }
-  return typeof response.body?.data?.parentID === "string";
+  const record = response.body?.data;
+  if (record?.id !== sessionID) {
+    throw new Error(`GET /api/session/${sessionID} returned no session record`);
+  }
+  const identity = spawnIdentity(record);
+  return {
+    child: typeof record.parentID === "string",
+    ...(identity && { spawn: { ...identity, directory: record.location?.directory } }),
+  };
 }
 
 /**
@@ -1925,22 +1923,8 @@ async function interruptSession(server, sessionID, requestFn) {
   }
 }
 
-/**
- * Resolve the ledger entry a session record belongs to, when RP recognizes it.
- *
- * @param {{ id: string, title?: string }} record A session record
- *   (`GET /api/session`).
- * @param {(sessionID: string) => { name: string, pipelineSlug: string, spawner: string } | undefined} lookup
- *   Resolves a session ID to its recorded ledger entry (see `lookupSpawn`).
- *   A record whose ID isn't found this way falls back to `parseTitle` on its
- *   `title`, so restart-surviving sessions are still recognized.
- * @returns {{ name: string, pipelineSlug: string, spawner?: string } | null | undefined}
- *   The entry, or nothing when the record is neither in the ledger nor
- *   `rp:`-titled.
- */
-function recognizeSession(record, lookup) {
-  return lookup(record.id) ?? parseTitle(record.title ?? "");
-}
+/** Page size `rp_status` lists sessions with. */
+const SESSION_LIST_PAGE = 500;
 
 /** Maximum length of a ledger row's `lastText` excerpt. */
 const LAST_TEXT_EXCERPT_CAP = 200;
@@ -2018,14 +2002,11 @@ function latestOf(first, ...rest) {
 
 /**
  * Build the `rp_status` ledger rows from opencode's live session records and
- * the plugin's own in-memory spawn ledger.
+ * the plugin's own per-session observations.
  *
- * @param {Array<{ id: string, agent: string, model: object, location?: {directory: string}, time?: {updated: *}, title?: string }>} sessionRecords
+ * @param {Array<{ id: string, agent: string, model: object, location?: {directory: string}, time?: {updated: *}, metadata?: object }>} sessionRecords
  *   The session records to report (`GET /api/session`, already narrowed to
  *   the status call's scope).
- * @param {(sessionID: string) => { name: string, pipelineSlug: string, spawner: string } | undefined} lookup
- *   Resolves a session ID to its recorded ledger entry (see
- *   `recognizeSession`).
  * @param {Set<string> | null} activeSessionIDs Session IDs opencode reports
  *   running now (see `isSessionActive`), or `null` when the read failed.
  * @param {(sessionID: string) => number} pendingCountFor Resolves a
@@ -2045,9 +2026,9 @@ function latestOf(first, ...rest) {
  *   (see `lastSessionEventAt`, `lastRawSessionProgressAt`, `turnsFor`,
  *   `lastSendFor`, `extractLastText`); each defaults to none.
  * @returns {Array<{name: string, pipelineSlug: string, sessionID: string, agent: string, model: string, directory: string, activity: *, running: boolean | undefined, pending: number | undefined, permissions: Array<object> | undefined, currentTool: object | undefined, lastTurn: object | undefined, lastSend: object | undefined, lastText: object | null | undefined}>}
- *   One row per session record RP recognizes as its own, in `sessionRecords`
- *   order; records RP does not recognize (neither ledger nor `rp:` title)
- *   are omitted. `activity` is the latest of the record's `updated` — which
+ *   One row per session record carrying a spawn identity (see
+ *   `spawnIdentity`), in `sessionRecords` order; other records are omitted.
+ *   `activity` is the latest of the record's `updated` — which
  *   opencode moves only when the session receives input — the
  *   session's last observed progress event, and its last raw provider byte
  *   (a streaming tool call's partial arguments emit no event), so it covers
@@ -2055,7 +2036,6 @@ function latestOf(first, ...rest) {
  */
 function buildLedgerRows(
   sessionRecords,
-  lookup,
   activeSessionIDs,
   pendingCountFor,
   permissionsFor = () => [],
@@ -2070,7 +2050,7 @@ function buildLedgerRows(
 ) {
   const rows = [];
   for (const record of sessionRecords) {
-    const entry = recognizeSession(record, lookup);
+    const entry = spawnIdentity(record);
     if (!entry) {
       continue;
     }
@@ -2112,7 +2092,7 @@ function errorInScope(entry, sessionIDs) {
 
 /**
  * The sessions a status scope covers: those RP recognizes — recorded in the
- * ledger, or live under a durable title — that the scope selects. The
+ * ledger, or live with a spawn identity — that the scope selects. The
  * ledger's part is independent of what the server lists, so a recorded
  * session the server no longer returns stays in scope.
  *
@@ -2207,7 +2187,13 @@ async function buildStatusPayload({
     return null;
   };
   const inScope = (record) => {
-    const entry = recognizeSession(record, lookupSpawn);
+    let entry;
+    try {
+      entry = spawnIdentity(record);
+    } catch {
+      noteFailure("session", "malformed");
+      return false;
+    }
     if (!entry) {
       return false;
     }
@@ -2219,16 +2205,29 @@ async function buildStatusPayload({
 
   if (server) {
     // Every opencode HTTP GET response envelopes its payload as
-    // `{ data: ... }` — verified live against opencode.
-    const sessionsResponse = await readEndpoint("session", "/api/session");
-    if (sessionsResponse) {
-      const records = sessionsResponse.body.data;
-      if (records.every((record) => record && typeof record.id === "string")) {
-        sessionRecords = records.filter(inScope);
-      } else {
-        noteFailure("session", "malformed");
+    // `{ data: ... }` — verified live against opencode. The list is paged
+    // and cannot be filtered by metadata, so every page is read.
+    let cursor;
+    do {
+      const query = `limit=${SESSION_LIST_PAGE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const sessionsResponse = await readEndpoint("session", `/api/session?${query}`);
+      if (!sessionsResponse) {
+        break;
       }
-    }
+      const records = sessionsResponse.body.data;
+      if (!records.every((record) => record && typeof record.id === "string")) {
+        noteFailure("session", "malformed");
+        break;
+      }
+      sessionRecords.push(...records.filter(inScope));
+      // The page names the next one, or `null` at the end of the list.
+      const next = sessionsResponse.body.cursor?.next;
+      if (typeof next !== "string" && next !== null) {
+        noteFailure("session", "malformed");
+        break;
+      }
+      cursor = records.length > 0 ? next : null;
+    } while (cursor);
     const activeResponse = await readEndpoint(
       "active", "/api/session/active",
       (data) => data !== null && typeof data === "object" && !Array.isArray(data),
@@ -2290,7 +2289,6 @@ async function buildStatusPayload({
 
   const ledgerEntries = buildLedgerRows(
     sessionRecords,
-    lookupSpawn,
     activeIDs,
     (id) => pendingCounts.get(id),
     (id) => pendingPermissions.get(id),
@@ -2314,28 +2312,6 @@ async function buildStatusPayload({
     pipelineSlug,
     now: now(),
   });
-}
-
-/**
- * `globalThis` key backing the process-wide set of child session IDs whose
- * durable `rp:` title has been asserted.
- *
- * Enforces "re-assert the title once per child" across every per-directory
- * `setup(ctx)` re-run, the same way `LEDGER_KEY` shares the spawn ledger.
- */
-const TITLED_CHILDREN_KEY = Symbol.for("radical-pipelines.opencode.titledChildren");
-
-/**
- * Fetch the process-wide set of already-titled child session IDs, creating
- * it on first use.
- *
- * @returns {Set<string>} The singleton set.
- */
-function getTitledChildren() {
-  if (!globalThis[TITLED_CHILDREN_KEY]) {
-    globalThis[TITLED_CHILDREN_KEY] = new Set();
-  }
-  return globalThis[TITLED_CHILDREN_KEY];
 }
 
 /**
@@ -2928,26 +2904,9 @@ const TURN_END_OUTCOMES = new Map([
 ]);
 
 /**
- * Event types the terminal-event listener treats as terminal for a session:
- * every turn end, so a child whose first turn is interrupted still gets its
- * durable `rp:` title asserted (and stays reconstructible after a restart).
- */
-const TERMINAL_EVENT_TYPES = new Set(TURN_END_OUTCOMES.keys());
-
-/**
- * Check whether an opencode event is a session-terminal event.
- *
- * @param {{ type?: string }} event The event received from `ctx.event.subscribe`.
- * @returns {boolean} `true` when `event.type` is a terminal execution event.
- */
-function isTerminalEvent(event) {
-  return TERMINAL_EVENT_TYPES.has(event?.type);
-}
-
-/**
  * Extract the session ID a terminal event pertains to.
  *
- * @param {object} event The terminal event (see `isTerminalEvent`).
+ * @param {object} event The terminal event (see `TURN_END_OUTCOMES`).
  * @returns {string | undefined} The event's session ID, read from whichever
  *   of the event's known shapes carries it.
  */
@@ -2960,7 +2919,7 @@ function terminalEventSessionID(event) {
 /**
  * Extract the structured error a failed terminal event carries.
  *
- * @param {object} event The terminal event (see `isTerminalEvent`).
+ * @param {object} event The terminal event (see `TURN_END_OUTCOMES`).
  * @returns {{ type?: string, message?: string } | undefined} The event's
  *   `Session.StructuredError`, read from whichever of the event's known
  *   shapes carries it, or `undefined` when the event carries none.
@@ -3036,75 +2995,52 @@ function turnsFor(sessionID) {
 /**
  * Handle one event delivered to the terminal-event listener.
  *
- * Ignores non-terminal events and terminal events on sessions RP did not
- * spawn. An event on a session `rp_terminate` is deleting goes to
+ * Ignores every event but a failed turn, and failed turns on sessions RP did
+ * not spawn. An event on a session `rp_terminate` is deleting goes to
  * `withheldByTermination`, which discards it once a delete has confirmed —
  * the failure a delete provokes is the expected end of a deliberate shutdown,
  * not a fault to report — and holds it while the outcome is unknown, so a
  * delete that fails still reports what the surviving session raised.
  * A successful turn is not a completion signal — an agent declares its own
- * completion in a message to its spawner — so success events pass silently,
- * and so does an interrupt (a deliberate stop, not a fault).
+ * completion in a message to its spawner — and an interrupt is a deliberate
+ * stop, not a fault.
  * Every failed turn is recorded in the bounded error log (including the
  * structured error it carries, so `rp_status`'s `recentErrors` reports the
  * cause) and announced to the spawner (steer delivery, so a working spawner
- * still receives it) with that cause. The child's durable `rp:` title is
- * re-asserted over the reach helper on its first terminal event.
+ * still receives it) with that cause.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
- * @param {{
- *   ctx: object,
- *   env: Record<string, string | undefined>,
- *   readServiceRecord?: (env: object) => object | null,
- *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
- * }} deps `ctx` supplies `ctx.session.prompt` for the failure announcement;
- *   the rest resolve the server for the title re-assert.
+ * @param {{ ctx: object, readSession: Function }} deps `ctx` supplies
+ *   `ctx.session.prompt` for the failure announcement; `readSession` reaches
+ *   `resolveSession`.
  * @returns {Promise<void>}
  */
-async function onTerminalEvent(event, { ctx, env, readServiceRecord, requestFn }) {
-  if (!isTerminalEvent(event)) {
+async function onTerminalEvent(event, { ctx, readSession }) {
+  if (event?.type !== "session.execution.failed") {
     return;
   }
   const sessionID = terminalEventSessionID(event);
-  const entry = sessionID ? lookupSpawn(sessionID) : undefined;
+  if (typeof sessionID !== "string") {
+    return;
+  }
+  const entry = (await resolveSession(sessionID, { readSession })).spawn;
   if (!entry) {
     return;
   }
   const report = async () => {
-    if (event.type === "session.execution.failed") {
-      const error = terminalEventError(event);
-      const logEntry = { type: event.type, sessionID, at: Date.now() };
-      if (error !== undefined) {
-        logEntry.error = error;
-      }
-      recordError(logEntry);
+    const error = terminalEventError(event);
+    const logEntry = { type: event.type, sessionID, at: Date.now() };
+    if (error !== undefined) {
+      logEntry.error = error;
+    }
+    recordError(logEntry);
 
-      const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
-      await ctx.session.prompt({
-        sessionID: entry.spawner,
-        text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
-        delivery: "steer",
-      });
-    }
-
-    const titled = getTitledChildren();
-    if (titled.has(sessionID)) {
-      return;
-    }
-    const server = resolveServer({ env, readServiceRecord });
-    if (server) {
-      const response = await requestServer(
-        server,
-        "PATCH",
-        `/api/session/${sessionID}`,
-        { title: formatTitle({ pipelineSlug: entry.pipelineSlug, name: entry.name }) },
-        requestFn,
-      );
-      if (response.status < 200 || response.status >= 300) {
-        throw new Error(`PATCH /api/session/${sessionID} returned ${response.status}`);
-      }
-      titled.add(sessionID);
-    }
+    const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
+    await ctx.session.prompt({
+      sessionID: entry.spawner,
+      text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
+      delivery: "steer",
+    });
   };
 
   if (withheldByTermination(sessionID, report)) {
@@ -3302,17 +3238,19 @@ function getHandledPermissions() {
  *   readServiceRecord?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
  *   exists?: (path: string) => boolean,
- * }} deps `ctx` supplies `ctx.session.prompt` for the forward; the rest
- *   resolve the server for the reject reply; `exists` reaches
- *   `redirectTargets`.
+ *   readSession: Function,
+ * }} deps `ctx` supplies `ctx.session.prompt` for the forward; `env`,
+ *   `readServiceRecord` and `requestFn` resolve the server for the reject
+ *   reply; `exists` reaches `redirectTargets`; `readSession` reaches
+ *   `resolveSession`.
  * @returns {Promise<void>}
  */
-async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn, exists }) {
+async function onPermissionAsked(event, { ctx, env, readServiceRecord, requestFn, exists, readSession }) {
   const request = parsePermissionAsked(event);
   if (!request) {
     return;
   }
-  const entry = lookupSpawn(request.sessionID);
+  const entry = (await resolveSession(request.sessionID, { readSession })).spawn;
   if (!entry) {
     return;
   }
@@ -3438,8 +3376,9 @@ function toolTarget(input) {
 /**
  * Track a session's currently executing tool from the tool lifecycle events.
  *
- * Only sessions in the spawn ledger are tracked. `session.tool.input.started`
- * remembers the call's tool name; `session.tool.called` marks the call as
+ * Every session is tracked — the ledger surfaces only the ones RP recognizes
+ * — and entries age out like the other session observations.
+ * `session.tool.input.started` remembers the call's tool name; `session.tool.called` marks the call as
  * the session's current tool (with its target and start time); a matching
  * `session.tool.success`/`session.tool.failed` clears it. Non-tool events
  * are ignored.
@@ -3455,7 +3394,7 @@ function onToolEvent(event, { now = Date.now } = {}) {
   }
   const props = event.properties ?? event.data ?? {};
   const { sessionID, callID } = props;
-  if (!sessionID || !callID || !lookupSpawn(sessionID)) {
+  if (!sessionID || !callID) {
     return;
   }
   const state = getToolState();
@@ -3469,12 +3408,15 @@ function onToolEvent(event, { now = Date.now } = {}) {
   if (type === "session.tool.called") {
     const tool = state.names.get(callID);
     state.names.delete(callID);
+    const since = now();
+    state.current.delete(sessionID);
     state.current.set(sessionID, {
       callID,
       tool,
       target: toolTarget(props.input ?? {}),
-      since: now(),
+      since,
     });
+    pruneSessionObservations(state.current, since, (value) => value.since);
     return;
   }
   if (type === "session.tool.success" || type === "session.tool.failed") {
@@ -4199,16 +4141,17 @@ function renderSkillResupply(skills) {
  * history has been read, it is read — once, shared by the requests that
  * arrive meanwhile, and again on the next request when it fails or the
  * server is unreachable; meanwhile the record serves as far as it goes. A
- * spawned agent never activates the skill and is skipped without a read.
+ * spawned agent never activates the skill and is skipped.
  *
  * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
  *   The `context` hook event.
- * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function }} deps
+ * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function, readSession: Function }} deps
+ *   `readSession` reaches `resolveSession`.
  * @returns {Promise<void>}
  */
-async function onContext(event, { server, skills, requestFn }) {
+async function onContext(event, { server, skills, requestFn, readSession }) {
   const { sessionID } = event;
-  if (lookupSpawn(sessionID)) {
+  if ((await resolveSession(sessionID, { readSession })).spawn) {
     return;
   }
   const observed = packagedSkillActivations(activeSkillActivations(event.messages, skills), skills);
@@ -4294,15 +4237,14 @@ function toToolResult(value) {
  * the same call, or invents a way around it.
  *
  * @param {{name: string, execute: Function}} tool The tool descriptor to wrap.
- * @param {{ readParentage: (sessionID: string) => Promise<boolean | undefined> }} deps
- *   Forwarded to `resolveToolAccess`.
+ * @param {{ readSession: Function }} deps Forwarded to `resolveToolAccess`.
  * @returns {object} The same descriptor with a guarded `execute`.
  */
-function guardTool(tool, { readParentage }) {
+function guardTool(tool, { readSession }) {
   return {
     ...tool,
     async execute(input, toolCtx) {
-      const access = await resolveToolAccess(toolCtx.sessionID, { readParentage });
+      const access = await resolveToolAccess(toolCtx.sessionID, { readSession });
       if (access === "none") {
         return toToolResult({
           status: 403,
@@ -4388,18 +4330,14 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles =
       if (!agentExists(agentList.data, agentID)) {
         throw new Error(`Unknown agent "${agentID}"`);
       }
+      const identity = { name, pipelineSlug: pipeline_slug, spawner: toolCtx.sessionID };
       const session = await ctx.session.create({
         agent: agentID,
         model: parseModelString(model),
         location: { directory },
+        metadata: { [SPAWN_METADATA_KEY]: identity },
       });
-      recordSpawn(session.id, {
-        name,
-        pipelineSlug: pipeline_slug,
-        spawner: toolCtx.sessionID,
-        directory,
-        repoRoot: resolveRepoRootFn(directory),
-      });
+      recordSpawn(session.id, { ...identity, directory, repoRoot: resolveRepoRootFn(directory) });
       await ctx.session.prompt({
         sessionID: session.id,
         text: appendSpawnProtocol(prompt, toolCtx.sessionID),
@@ -4570,14 +4508,16 @@ function buildPermissionReplyTool({ env, readServiceRecordOverride, requestFn })
  *   env?: Record<string, string | undefined>,
  *   readServiceRecordOverride?: (env: object) => object | null,
  *   requestFn?: (url: URL, init: object) => Promise<{status: number, body: *}>,
+ *   readSession?: Function,
  *   now?: () => number,
  * }} [deps] `env`/`readServiceRecordOverride` reach `resolveServer`;
- *   `requestFn` reaches the HTTP client; `now` stamps the sender's
- *   `lastSend` record and defaults to `Date.now`.
+ *   `requestFn` reaches the HTTP client; `readSession` reaches
+ *   `resolveSession`; `now` stamps the sender's `lastSend` record and
+ *   defaults to `Date.now`.
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requestFn, now = Date.now } = {}) {
+function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requestFn, readSession, now = Date.now } = {}) {
   return {
     name: "rp_send",
     description:
@@ -4592,7 +4532,7 @@ function buildSendTool(ctx, { env = process.env, readServiceRecordOverride, requ
       required: ["to", "message"],
     },
     async execute({ to, message }, toolCtx) {
-      const sender = lookupSpawn(toolCtx.sessionID);
+      const sender = (await resolveSession(toolCtx.sessionID, { readSession })).spawn;
       const text = `${formatAttribution({
         name: sender?.name ?? toolCtx.sessionID,
         sessionID: toolCtx.sessionID,
@@ -5007,20 +4947,26 @@ async function setup(ctx, deps = {}) {
   const { written } = materializeAgents(agentsSourceDir, agentsTargetDir ?? resolveAgentsTargetDir(env));
   const rpProfiles = new Set(written.map((name) => basename(name, ".md")));
 
-  // Answers `resolveToolAccess` for a caller whose `session.created` was
-  // never seen. Any read that does not answer — an unreachable server, but
+  // Answers `resolveSession` for a session this process did not watch being
+  // created. Any read that does not answer — an unreachable server, but
   // equally one that replies 500 or 404 — leaves the question unanswered
   // rather than answering it wrongly.
-  const readParentage = async (sessionID) => {
+  const readSession = async (sessionID) => {
     try {
       const server = resolveServer({ env, readServiceRecord: readServiceRecordOverride });
       if (!server) {
         return undefined;
       }
-      return await readSessionParentage(server, sessionID, requestFn);
+      const { child, spawn } = await readSessionIdentity(server, sessionID, requestFn);
+      return {
+        child,
+        ...(spawn && {
+          spawn: { ...spawn, repoRoot: spawn.directory ? (resolveRepoRootFn ?? resolveRepoRoot)(spawn.directory) : null },
+        }),
+      };
     } catch (error) {
       recordError({
-        type: "session.parentage.unreadable",
+        type: "session.unreadable",
         sessionID,
         error: String(error),
         at: Date.now(),
@@ -5037,9 +4983,9 @@ async function setup(ctx, deps = {}) {
     // Direct invocability and who may invoke are separate properties of a
     // registration: the guard decides the caller, `asDirectTool` decides the
     // shape opencode publishes.
-    const guard = (tool) => asDirectTool(guardTool(tool, { readParentage }));
+    const guard = (tool) => asDirectTool(guardTool(tool, { readSession }));
     tools.add(guard(buildSpawnTool(ctx, { resolveRepoRootFn, rpProfiles })));
-    tools.add(guard(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn })));
+    tools.add(guard(buildSendTool(ctx, { env, readServiceRecordOverride, requestFn, readSession })));
     tools.add(guard(buildTerminateTool({ env, readServiceRecordOverride, requestFn })));
     tools.add(guard(buildLoopStartTool({ registryPath, tick })));
     tools.add(guard(buildLoopListTool(registryPath)));
@@ -5075,13 +5021,9 @@ async function setup(ctx, deps = {}) {
           readServiceRecord: readServiceRecordOverride,
           requestFn,
           exists,
+          readSession,
         });
-        await onTerminalEvent(event, {
-          ctx,
-          env,
-          readServiceRecord: readServiceRecordOverride,
-          requestFn,
-        });
+        await onTerminalEvent(event, { ctx, readSession });
       },
       { signal: shared.abort.signal },
     );
@@ -5119,6 +5061,7 @@ async function setup(ctx, deps = {}) {
         server: resolveServer({ env, readServiceRecord: readServiceRecordOverride }),
         skills: packagedSkills,
         requestFn,
+        readSession,
       }),
     ),
   ];
@@ -5170,7 +5113,6 @@ export {
   formatRedirectMessage,
   formatStructuredError,
   forgetSkillActivations,
-  formatTitle,
   getSessionInbox,
   getSessionMessages,
   getSessionUpdatedAt,
@@ -5181,7 +5123,6 @@ export {
   isDeadStreamMessage,
   isSessionActive,
   isSessionNotFoundError,
-  isTerminalEvent,
   lastRawSessionProgressAt,
   lastSendFor,
   lastSessionEventAt,
@@ -5198,12 +5139,11 @@ export {
   parseModelString,
   parsePermissionAsked,
   parseSkillFrontmatter,
-  parseTitle,
   promoteInboxItem,
   readPackageVersion,
   readSealedSkillActivations,
   readServiceRecordFile,
-  readSessionParentage,
+  readSessionIdentity,
   readSkillDirectory,
   recordGenerationID,
   recordRawResponseStart,
@@ -5221,14 +5161,15 @@ export {
   replyToPermission,
   requestServer,
   resolveAgentsTargetDir,
-  resolveCurrentSpawn,
   resolveDeadStreamConfirmMs,
   resolveLoopRegistryPath,
   resolveRepoRoot,
   resolveServer,
+  resolveSession,
   resolveToolAccess,
   runLoopTick,
   sessionReadError,
+  spawnIdentity,
   setup,
   shapeStatus,
   storedSkillActivations,
