@@ -2220,7 +2220,13 @@ async function buildStatusPayload({
         break;
       }
       sessionRecords.push(...records.filter(inScope));
-      cursor = records.length > 0 ? sessionsResponse.body.cursor?.next : undefined;
+      // The page names the next one, or `null` at the end of the list.
+      const next = sessionsResponse.body.cursor?.next;
+      if (typeof next !== "string" && next !== null) {
+        noteFailure("session", "malformed");
+        break;
+      }
+      cursor = records.length > 0 ? next : null;
     } while (cursor);
     const activeResponse = await readEndpoint(
       "active", "/api/session/active",

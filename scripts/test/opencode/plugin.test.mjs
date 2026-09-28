@@ -4163,8 +4163,7 @@ describe("terminal-event listener", () => {
           readServiceRecord: () => null,
           // The session fails on its own — a provider error, say — while the
           // delete that will not succeed is still in flight. Only the delete
-          // emits it; the listener's own title re-assert uses this same
-          // transport.
+          // emits it.
           requestFn: async (url, init) => {
             if (init.method !== "DELETE") {
               return { status: 200, body: undefined };
@@ -5192,6 +5191,7 @@ describe("buildStatusPayload", () => {
         return {
           status: 200,
           body: {
+            cursor: { previous: null, next: null },
             data: [
               {
                 id: "ses_status_1",
@@ -5326,6 +5326,7 @@ describe("buildStatusPayload", () => {
         return {
           status: 200,
           body: {
+            cursor: { previous: null, next: null },
             data: [
               record("ses_scope_a1", "pipeline-a", "spec-lead"),
               record("ses_scope_b1", "pipeline-b", "spec-lead"),
@@ -5427,6 +5428,7 @@ describe("buildStatusPayload", () => {
         return {
           status: 200,
           body: {
+            cursor: { previous: null, next: null },
             data: [
               {
                 id: "ses_status_obs",
@@ -5479,6 +5481,7 @@ describe("buildStatusPayload", () => {
         return {
           status: 200,
           body: {
+            cursor: { previous: null, next: null },
             data: [
               {
                 id: "ses_status_raw",
@@ -5529,6 +5532,7 @@ describe("buildStatusPayload", () => {
         return {
           status: 200,
           body: {
+            cursor: { previous: null, next: null },
             data: [
               {
                 id: "ses_status_deep",
@@ -5600,6 +5604,7 @@ describe("buildStatusPayload", () => {
         return {
           status: 200,
           body: {
+            cursor: { previous: null, next: null },
             data: [
               sessionRecord("ses_status_f1", "spec-researcher-1"),
               sessionRecord("ses_status_f2", "spec-researcher-2"),
@@ -5656,7 +5661,7 @@ describe("buildStatusPayload", () => {
               return failure === "malformed" ? { status: 200, body: {} } : { status: failure };
             }
             const data = url.pathname === "/api/session" ? [record] : url.pathname === "/api/session/active" ? {} : [];
-            return { status: 200, body: { data } };
+            return { status: 200, body: { data, cursor: { previous: null, next: null } } };
           };
           const result = await buildStatusPayload({ ...scope, env, readServiceRecord: () => null, requestFn });
           assert.equal(result.ledger[0][field], pipeline ? null : undefined, `${endpoint}: ${failure}`);
@@ -5688,7 +5693,7 @@ describe("buildStatusPayload", () => {
           const path = url.pathname.split("/").at(-1);
           const data = path === endpoint || (endpoint === "activity" && path === "session")
             ? malformed : path === "session" ? [record] : path === "active" ? {} : [];
-          return { status: 200, body: { data } };
+          return { status: 200, body: { data, cursor: { previous: null, next: null } } };
         },
       });
       if (field) assert.equal(result.ledger[0][field], null, endpoint);
@@ -5708,6 +5713,7 @@ describe("buildStatusPayload", () => {
         return {
           status: 200,
           body: {
+            cursor: { previous: null, next: null },
             data: [
               {
                 id: "ses_status_transport",
@@ -5765,7 +5771,8 @@ describe("buildStatusPayload: the session list", () => {
         const index = Number(url.searchParams.get("cursor") ?? 0);
         listed.push({ cursor: url.searchParams.get("cursor"), limit: url.searchParams.get("limit") });
         if (index === failAt) return { status: 500, body: undefined };
-        return { status: 200, body: { data: pages[index] ?? [], cursor: { previous: null, next: String(index + 1) } } };
+        const page = pages[index] ?? [];
+        return { status: 200, body: { data: page, cursor: { previous: null, next: page.length > 0 ? String(index + 1) : null } } };
       }
       return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
     };
@@ -5797,6 +5804,43 @@ describe("buildStatusPayload: the session list", () => {
     assert.deepEqual(result.ledger.map((row) => row.sessionID), ["ses_paged_before"]);
     assert.deepEqual(result.readFailures, [{ endpoint: "session", status: 500, count: 1 }]);
   });
+
+  test("a page naming no next page ends the list", async () => {
+    const listed = [];
+    const requestFn = async (url) => {
+      if (url.pathname === "/api/session") {
+        listed.push(url.searchParams.get("cursor"));
+        return { status: 200, body: { data: [record("ses_paged_last")], cursor: { previous: null, next: null } } };
+      }
+      return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+    };
+
+    const result = await buildStatusPayload({ pipelineSlug: "paged-run", env, readServiceRecord: () => null, requestFn });
+
+    assert.deepEqual(result.ledger.map((row) => row.sessionID), ["ses_paged_last"]);
+    assert.deepEqual(listed, [null]);
+    assert.deepEqual(result.readFailures, []);
+  });
+
+  for (const [label, cursor] of [
+    ["no cursor", undefined],
+    ["a cursor without next", { previous: null }],
+    ["a next that is not a cursor", { previous: null, next: 2 }],
+  ]) {
+    test(`a page with ${label} is a failure, not the end of the list, and its sessions are still reported`, async () => {
+      const requestFn = async (url) => {
+        if (url.pathname === "/api/session") {
+          return { status: 200, body: { data: [record("ses_paged_uncertain")], ...(cursor && { cursor }) } };
+        }
+        return { status: 200, body: { data: url.pathname === "/api/session/active" ? {} : [] } };
+      };
+
+      const result = await buildStatusPayload({ pipelineSlug: "paged-run", env, readServiceRecord: () => null, requestFn });
+
+      assert.deepEqual(result.ledger.map((row) => row.sessionID), ["ses_paged_uncertain"]);
+      assert.deepEqual(result.readFailures, [{ endpoint: "session", status: "malformed", count: 1 }]);
+    });
+  }
 
   test("a session carrying malformed RP metadata is a failure, and the others are still reported", async () => {
     const { requestFn } = pagedList([[record("ses_paged_bad", { name: "no slug" }), record("ses_paged_good")]]);
