@@ -46,7 +46,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 **Evidence**
 
 - Exercise each `Verifies` condition and record its outcome under `## Checks` before completing.
-- A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption. It may add what you observed toward the cause and the observation that would tell the candidate causes apart.
+- A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption. It may add what you observed toward the cause and the observation that would tell the candidate causes apart. Copy the raw evidence the failure leaves outside the worktree — logs, state that will change or rotate — into the worktree, redacted, and cite it from the report.
 - Your **Execution** line permits everything: tests, builds, probes. Evidence you produced is the reason this phase exists.
 
 **Help**
