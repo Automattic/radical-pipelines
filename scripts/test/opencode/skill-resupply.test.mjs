@@ -227,7 +227,7 @@ describe("renderSkillResupply", () => {
 describe("the context hook", () => {
   const unreachable = async () => assert.fail("the stored history must not be read");
   /** Defaults to an empty stored history: a session's first sighting reads it once. */
-  const deps = (requestFn = fakeServer([]).requestFn) => ({ server, skills, requestFn });
+  const deps = (requestFn = fakeServer([]).requestFn) => ({ server, skills, requestFn, readSession: async () => ({ child: false }) });
   const record = (sessionID) => getSkillActivations().get(sessionID);
 
   beforeEach(() => {
@@ -335,12 +335,22 @@ describe("the context hook", () => {
     assert.equal(getSkillActivations().has("ses_gone"), false);
   });
 
-  test("a spawned agent is skipped without a read", async () => {
+  test("a spawned agent is skipped without reading its history", async () => {
     recordSpawn("ses_agent", { name: "researcher slug-1", pipelineSlug: "slug", spawner: "ses_o" });
     const context = { sessionID: "ses_agent", system: [], messages: [] };
     await onContext(context, deps(unreachable));
     assert.deepEqual(context.system, []);
     assert.equal(getSkillActivations().has("ses_agent"), false);
+  });
+
+  test("an agent spawned before a restart is recognized from its stored record and skipped", async () => {
+    const context = { sessionID: "ses_surviving_agent", system: [], messages: [] };
+    await onContext(context, {
+      ...deps(unreachable),
+      readSession: async () => ({ child: false, spawn: { name: "researcher slug-2", pipelineSlug: "slug", spawner: "ses_o" } }),
+    });
+    assert.deepEqual(context.system, []);
+    assert.equal(getSkillActivations().has("ses_surviving_agent"), false);
   });
 
   test("a history that cannot be read is reported once, read again next time, and does not hide what is known", async () => {

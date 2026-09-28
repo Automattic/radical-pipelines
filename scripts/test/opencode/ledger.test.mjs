@@ -3,11 +3,9 @@ import { describe, test } from "node:test";
 
 import {
   formatAttribution,
-  formatTitle,
   lookupSpawn,
-  parseTitle,
   recordSpawn,
-  resolveCurrentSpawn,
+  spawnIdentity,
 } from "../../../opencode/plugin.mjs";
 
 describe("recordSpawn / lookupSpawn", () => {
@@ -30,39 +28,6 @@ describe("recordSpawn / lookupSpawn", () => {
   });
 });
 
-describe("resolveCurrentSpawn (latest-wins per name)", () => {
-  test("a re-spawn under the same name supersedes the older entry as current, while the old session ID stays individually resolvable", () => {
-    const name = "spec-reviewer-latest-wins";
-    recordSpawn("ses_respawn_old", {
-      name,
-      pipelineSlug: "144-opencode-support",
-      spawner: "ses_orchestrator",
-    });
-    recordSpawn("ses_respawn_new", {
-      name,
-      pipelineSlug: "144-opencode-support",
-      spawner: "ses_orchestrator",
-    });
-
-    assert.deepEqual(resolveCurrentSpawn(name), {
-      sessionID: "ses_respawn_new",
-      name,
-      pipelineSlug: "144-opencode-support",
-      spawner: "ses_orchestrator",
-    });
-
-    assert.deepEqual(lookupSpawn("ses_respawn_old"), {
-      name,
-      pipelineSlug: "144-opencode-support",
-      spawner: "ses_orchestrator",
-    });
-  });
-
-  test("a name that was never recorded resolves to nothing", () => {
-    assert.equal(resolveCurrentSpawn("never-spawned-name"), undefined);
-  });
-});
-
 describe("formatAttribution", () => {
   test("builds the unspoofable delivered-message prefix from the resolved sender", () => {
     assert.equal(
@@ -72,21 +37,35 @@ describe("formatAttribution", () => {
   });
 });
 
-describe("formatTitle / parseTitle", () => {
-  test("round-trips pipeline slug and name through the durable title format", () => {
-    const title = formatTitle({
-      pipelineSlug: "144-opencode-support",
-      name: "spec-lead",
-    });
+describe("spawnIdentity", () => {
+  const identity = { name: "spec-lead", pipelineSlug: "144-opencode-support", spawner: "ses_orchestrator" };
 
-    assert.equal(title, "rp:144-opencode-support:spec-lead");
-    assert.deepEqual(parseTitle(title), {
-      pipelineSlug: "144-opencode-support",
-      name: "spec-lead",
-    });
+  test("reads the identity rp_spawn stored in the session's metadata, whatever the title", () => {
+    assert.deepEqual(
+      spawnIdentity({ id: "ses_meta", title: "An automatic title", metadata: { rp: identity, other: 1 } }),
+      identity,
+    );
   });
 
-  test("parsing a title without the rp: prefix returns nothing", () => {
-    assert.equal(parseTitle("some-other-title"), undefined);
-  });
+  for (const [label, metadata] of [
+    ["no metadata", undefined],
+    ["null metadata", null],
+    ["metadata without an rp key", { other: { name: "x" } }],
+  ]) {
+    test(`a session with ${label} carries no identity`, () => {
+      assert.equal(spawnIdentity({ id: "ses_plain", metadata }), undefined);
+    });
+  }
+
+  for (const [label, rp] of [
+    ["a null identity", null],
+    ["a missing name", { pipelineSlug: "p", spawner: "ses_s" }],
+    ["a missing pipeline slug", { name: "n", spawner: "ses_s" }],
+    ["a missing spawner", { name: "n", pipelineSlug: "p" }],
+    ["a non-string field", { name: 1, pipelineSlug: "p", spawner: "ses_s" }],
+  ]) {
+    test(`RP metadata with ${label} is an error, not an absent identity`, () => {
+      assert.throws(() => spawnIdentity({ id: "ses_bad", metadata: { rp } }), /ses_bad carries malformed RP metadata/);
+    });
+  }
 });

@@ -19,7 +19,7 @@ import {
   pollUntil,
   prompt,
 } from "../lib/api-client.mjs";
-import { startServe, stopServe } from "../lib/sandbox.mjs";
+import { restartServe } from "../lib/sandbox.mjs";
 import { slowPrompt, stallPrompt, tricklePrompt } from "../lib/stub-provider.mjs";
 
 const STUB_MODEL = { providerID: "stub", id: "stub-model" };
@@ -512,19 +512,7 @@ export async function run(ctx) {
       const startResult = await driveToolCall(server, survivor.id, "rp_loop_start", { interval: 100000, prompt: survivorMarker });
       const survivorLoopID = startResult.structuredJSON.id;
 
-      // Restart `serve`: same XDG dirs (same on-disk registry + session DB),
-      // fresh process — simulating a daemon restart between runs.
-      stopServe(ctx.serveChild);
-      await delay(1_000);
-      const { child, baseURL, password } = await startServe({
-        projectDir: ctx.projectDir,
-        env: ctx.env,
-        binDir: ctx.binDir,
-        opencodeBin: ctx.opencodeBin,
-      });
-      ctx.serveChild = child;
-      server = { baseURL, password };
-      ctx.server = server;
+      server = await restartServe(ctx);
 
       // The first project-scoped touch after restart re-arms every
       // registered loop (setup()'s registry-driven re-arm).
