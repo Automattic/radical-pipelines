@@ -36,7 +36,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 ## Dispatch
 
 - Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by `run-config.md`'s lane `materials`. A named lane's **Brief** is its configured brief verbatim; the implicit lane has none. The prompt is the filled template, nothing added.
-- Every message to an agent states facts and names what it must do next; judgment about the work reaches agents only through their materials.
+- A message carries only what you own — the seat and materials you prepared, the permissions you granted, the state of what you dispatched and your records of it, the results of checks you ran — and names what the agent must do next. Send one only in reply to the agent or when something you own changes for it. Everything about the work reaches agents through their materials or helpers.
 - A producer receives each required input package. A package change provides **Input changes** for convergence.
 - Every instance is fresh. A producer never adjudicates a wave it produced for; a reviewer never re-reviews from memory — the Delta mode gets its previous review as a material.
 - Spawn, seat, and terminate per `tools/<tool>.md`; use the model recorded in `run-config.md`'s body.
