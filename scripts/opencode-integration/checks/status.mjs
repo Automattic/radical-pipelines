@@ -167,7 +167,7 @@ export async function run(ctx) {
     assert.deepEqual(health.ledger.map((row) => row.sessionID), [childID]);
     assert.deepEqual(health.readFailures, []);
 
-    const refused = await driveToolCall(restarted, childID, "rp_spawn");
+    const refused = await driveToolCall(restarted, childID, "rp_status");
     assert.equal(refused.structuredJSON?.error, "AgentNotPermitted", `expected the surviving agent to stay restricted, got: ${refused.text ?? refused.error?.message}`);
 
     await driveToolCall(restarted, childID, "rp_send", { to: orchestrator.id, message: "still here after the restart" });
