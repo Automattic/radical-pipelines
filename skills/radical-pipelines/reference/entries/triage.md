@@ -10,7 +10,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check <pipeline folder> --base <base branch>` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, and its pending challenges and owner escalations.
+`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check <pipeline folder>` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, and its pending challenges and owner escalations.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies cannot be reported, proceeds without comment.
 

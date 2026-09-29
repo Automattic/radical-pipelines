@@ -5,13 +5,13 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Agents** — The project convention supplying defaults for profile models and named lanes.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: where pipelines start and merge.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable assumption id and stays in the open-assumption register until verified or fallen.
-- **Authored change** — What a commit introduces outside the pipelines folder: a single-parent commit's diff, or a merge commit's difference from the automatic merge of its parents; identified by its patch id.
-- **Base** — The merge-base of the inspected tip with the branch its intent `starts-from`, else with the artifact base branch (`rp check --base`).
+- **Base** — The merge-base of the inspected tip with the branch its run configuration's `base` names and that branch's upstream, when it has one.
 - **Blocker** — A report of malformed materials, unreadable input, or a broken environment. A worker reports it before its first write; a producer or reviewer may report it whenever found.
 - **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
 - **Challenge** — A constraint file, proposal file, `unsatisfiable` verdict, or fresh failed task report asking for work on its targets; adjudicated on a target when that target pins it, resolved there by its current approving wave or a corroborated escalation. Resolution is per target; the whole challenge resolves when every target does. An owner claim is resolved by its owner's answer.
 - **Claim** — An `unsatisfiable` review verdict with its target. A producer's `Contradicts-input` disposition is one source. A labeled normative statement in an artifact is also called a claim.
 - **Closure action** — A moment the owner invokes on a pipeline — opening or merging its pull request, both performed by the orchestrator, or closing without merging — bracketed by lifecycle hooks. Beyond those steps, work lives in hooks or with the owner.
+- **Code delta** — The code outside the pipelines folder that a phase review has not seen: the tip's difference from the reviewed code merged with the base, not counting work a later phase's task reports record.
 - **Completion predicate** — The file and approval state that marks a phase complete, evaluated from the working tree.
 - **Consolidate** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Consolidation** — A reviewer mode that audits the consolidated artifact against its lane folders, reusing approved checks where their claims and provenance are unchanged.
@@ -29,6 +29,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
 - **Must-fix finding** — A finding that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a delta review rejects.
+- **Net change** — The pipeline's code outside the pipelines folder: the diff from its base to its tip.
 - **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Findings** when rejecting and **Non-blocking findings** when approving.
 - **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a challenge it responds to.
@@ -38,7 +39,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Owner territory** — The intent's Goal and constraints, and later constraint files: what the work must satisfy.
 - **Phase** — One pipeline stage: Intent, Spec, Design doc, Build, or Document.
 - **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
-- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope challenge and claim is resolved, and every current authored change is covered by its phase review.
+- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope challenge and claim is resolved, and no phase review has a code delta.
 - **Pipeline branch** — The branch a pipeline's commits land on: the **Pipeline branch format** convention applied to its slug, with `_<n>` appended for work on the pipeline once merged. Lane branches extend it.
 - **Pipeline branch format** — The project convention giving the pipeline branch as a template over `<pipeline slug>`, defaulting to the slug itself.
 - **Pipeline slug** — The project convention deriving a pipeline's identifier from its issue, and that identifier: one path segment, a valid git ref, without `_`, naming the pipeline folder.
@@ -46,7 +47,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Proposal** — A direction, hypothesis, or report to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `Target:` and `Origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
-- **Run configuration** — The workflow, target phase, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
+- **Run configuration** — The workflow, target phase, base branch, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
 - **Seating** — Starting a spawned agent inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
 - **Shipped code** — The code, tests, and inline API documentation covered by the build review on the pipeline branch.

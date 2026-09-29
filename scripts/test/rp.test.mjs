@@ -63,8 +63,8 @@ function declaredIn(root, rel, body) {
 }
 const read = (root, rel) => readFileSync(join(root, P(rel)), "utf8");
 
-function writeRunConfig(root, { workflow = "autonomous", targetPhase = 4, lanes = [], body = "" } = {}) {
-  write(root, "run-config.md", `---\n${JSON.stringify({ workflow, "target-phase": targetPhase, ...(lanes.length ? { lanes } : {}) }, null, 2)}\n---\n${body}`);
+function writeRunConfig(root, { workflow = "autonomous", targetPhase = 4, base = "main", lanes = [], body = "" } = {}) {
+  write(root, "run-config.md", `---\n${JSON.stringify({ workflow, "target-phase": targetPhase, base, ...(lanes.length ? { lanes } : {}) }, null, 2)}\n---\n${body}`);
 }
 
 function rp(root, ...args) {
@@ -104,8 +104,8 @@ describe("rp state tooling", () => {
     c: lane("spec-producer", "c"),
   };
   const FPS = Object.fromEntries(Object.entries(standard).map(([key, value]) => [key, laneFingerprint(value)]));
-  const configure = ({ workflow = "autonomous", targetPhase = 4, lanes = [], body = "" } = {}) => writeRunConfig(root, { workflow, targetPhase, lanes, body });
-  const check = (fixtureRoot, ...args) => rp(fixtureRoot, "check", PIPELINE, "--base", "main", ...args);
+  const configure = ({ workflow = "autonomous", targetPhase = 4, base = "main", lanes = [], body = "" } = {}) => writeRunConfig(root, { workflow, targetPhase, base, lanes, body });
+  const check = (fixtureRoot, ...args) => rp(fixtureRoot, "check", PIPELINE, ...args);
   beforeEach(() => {
     root = initRepo();
   });
@@ -120,9 +120,28 @@ describe("rp state tooling", () => {
   const DESIGN = ["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md", "0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
   const PLAN_BASE = ["3-build/build-plan.md", "3-build/build-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md"];
 
+  // A phase reviewer commits its review on top of the landed work.
+  function writeReview(rel, contents) {
+    const phase = /^(?:3-build\/build|4-document\/document)-review-/.test(rel);
+    if (phase) commitAll("landed work");
+    write(root, rel, contents);
+    if (phase) commitAll(`review ${rel}`);
+  }
   function review(rel, verdict, reviewed, extra = "") {
-    write(root, rel, `# Review\n\nVerdict: ${verdict}\n${extra}`);
-    rp(root, "stamp", P(rel), ...reviewed.flatMap((f) => ["--reviewed", P(f)]), "--mirror", ...(/\/(?:build|document)-review-/.test(rel) ? ["--base", "main"] : []));
+    writeReview(rel, `# Review\n\nVerdict: ${verdict}\n${extra}`);
+    rp(root, "stamp", P(rel), ...reviewed.flatMap((f) => ["--reviewed", P(f)]), "--mirror");
+    if (/^(?:3-build\/build|4-document\/document)-review-/.test(rel)) commitAll(`stamp ${rel}`);
+  }
+  // A check whose base does not resolve: representation contradictions come first.
+  function checkWithoutBase() {
+    const config = read(root, "run-config.md");
+    write(root, "run-config.md", config.replace('"base": "main"', '"base": "missing-branch"'));
+    try { return JSON.parse(check(root, "--json")); } finally { write(root, "run-config.md", config); }
+  }
+  function commitAll(subject) {
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "--allow-empty", "-m", subject);
+    return git(root, "rev-parse", "HEAD").trim();
   }
   function registeredReview(rel, reviewed, lane = null) {
     const pins = reviewed.map((path) => `${path}@${identity(parseFrontmatter(read(root, path)).body)}`);
@@ -134,7 +153,7 @@ describe("rp state tooling", () => {
   function registered(rel, fields, body = parseFrontmatter(read(root, rel)).body) {
     const ids = declaredIn(root, rel, body);
     const data = ids.length && !("ids" in fields) ? { ...fields, ids } : fields;
-    write(root, rel, `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`);
+    (existsSync(join(root, P(rel))) ? (path, contents) => write(root, path, contents) : writeReview)(rel, `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`);
   }
   function registeredVerdict(rel, pins, verdict = "approved", lane = null) {
     registered(rel, { reviewed: pins, verdict, ...(lane ? { lane } : {}) }, `# Review\n\nVerdict: ${verdict}\n`);
@@ -248,15 +267,14 @@ describe("rp state tooling", () => {
     const docPackage = ["4-document/document-plan.md", "4-document/document-plan-research.md", ...docInputs, docTask];
     registeredVerdict("4-document/document-plan-review-1.md", pairs(docPackage));
     registeredVerdict("4-document/document-review-1.md", pairs([...docPackage, docReport]));
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "complete pipeline");
+    commitAll("complete pipeline");
     assert.equal(git(root, "status", "--porcelain"), "");
     const start = performance.now();
     const { ref: workingRef, ...working } = JSON.parse(check(root, "--json"));
     const worktreeMs = performance.now() - start;
     const { log, env } = gitShim();
     const refStart = performance.now();
-    const { ref: committedRef, ...committed } = JSON.parse(execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8" }));
+    const { ref: committedRef, ...committed } = JSON.parse(execFileSync(process.execPath, [RP, "check", PIPELINE, "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8" }));
     t.diagnostic(`worktree: ${worktreeMs.toFixed(1)} ms; batch ref: ${(performance.now() - refStart).toFixed(1)} ms`);
     assert.equal(working.frontier, "complete");
     assert.equal(working.completeThrough, 4);
@@ -278,7 +296,7 @@ describe("rp state tooling", () => {
     configure({ targetPhase: 1 });
     assert.equal(JSON.parse(check(root, "--json")).complete, true);
     const env = protocolShim("cat-file", "missing", oid);
-    assert.throws(() => execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), (error) => {
+    assert.throws(() => execFileSync(process.execPath, [RP, "check", PIPELINE, "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), (error) => {
       assert.equal(error.status, 1);
       assert.equal(error.stdout, "");
       assert.ok(error.stderr.includes(`cannot read ${ref}:${P(file)}`));
@@ -292,7 +310,7 @@ describe("rp state tooling", () => {
     test(`ref reader: ${failure} aborts with ref and path`, () => {
       const action = failure === "truncated object" ? 'if [ "$1" = "cat-file" ]; then read oid; printf "%s blob 100\\nshort" "$oid"; exit 0; fi' : 'if [ "$1" = "cat-file" ]; then "$RP_REAL_GIT" "$@"; exit 7; fi';
       const { env } = gitShim(action), ref = git(root, "rev-parse", "HEAD").trim();
-      assert.throws(() => execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), (error) => {
+      assert.throws(() => execFileSync(process.execPath, [RP, "check", PIPELINE, "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), (error) => {
         assert.equal(error.status, 1);
         assert.equal(error.stdout, "");
         assert.ok(error.stderr.includes(`cannot read ${ref}:${PIPELINE}/`));
@@ -366,7 +384,7 @@ fs.readFileSync = function(path, ...args) {
 };
 syncBuiltinESMExports();
 `);
-      assert.throws(() => execFileSync(process.execPath, ["--import", preload, RP, "check", PIPELINE, "--base", "main", "--json"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), readFailure(`worktree:${P(file)}`, /ENOENT|no longer a regular file|EACCES/));
+      assert.throws(() => execFileSync(process.execPath, ["--import", preload, RP, "check", PIPELINE, "--json"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), readFailure(`worktree:${P(file)}`, /ENOENT|no longer a regular file|EACCES/));
     });
 
   for (const mode of ["worktree", "ref"])
@@ -425,7 +443,7 @@ process.stdout.write(output);
     for (const mutation of mutations)
       test(`reader protocol: ${command} ${mutation} satisfies the complete grammar or aborts`, () => {
         const env = protocolShim(command, mutation), ref = git(root, "rev-parse", "HEAD").trim();
-        const run = () => execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+        const run = () => execFileSync(process.execPath, [RP, "check", PIPELINE, "--ref", "HEAD", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
         if (mutation === "valid") {
           const { ref: fromCommit, ...committed } = JSON.parse(run());
           const { ref: fromWorktree, ...working } = JSON.parse(check(root, "--json"));
@@ -653,8 +671,7 @@ process.stdout.write(output);
 
   test("representation contradictions are reported before base-dependent state", () => {
     write(root, "1-spec/spec.md", "# Spec\n\nOutcome: not-an-outcome\n");
-    const output = rp(root, "check", PIPELINE, "--base", "missing-branch", "--json");
-    const state = JSON.parse(output);
+    const state = checkWithoutBase();
     assert.equal(state.frontier, "INVALID LINE 1-spec/spec.md");
     assert.deepEqual(state.artifacts, []);
     assert.equal("base" in state, false);
@@ -797,7 +814,7 @@ process.stdout.write(output);
     const script = join(root, ".git", "classified-rp.mjs");
     const source = readFileSync(RP, "utf8");
     writeFileSync(script, excluded ? source.replace("function challengeKind(rel, data) {", `function challengeKind(rel, data) { if (rel === ${JSON.stringify(excluded)}) return null;`) : source);
-    return JSON.parse(execFileSync(process.execPath, [script, "check", PIPELINE, "--base", "main", "--json"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+    return JSON.parse(execFileSync(process.execPath, [script, "check", PIPELINE, "--json"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
   }
 
   for (const enabled of [true, false])
@@ -876,6 +893,7 @@ process.stdout.write(output);
       registeredVerdict(reviews[i], pairs(packages[i]));
       if (i >= 2) registeredVerdict(`${i === 2 ? "3-build/build" : "4-document/document"}-review-1.md`, pairs(phasePackages[i]));
     }
+    commitAll("pipeline");
     return { artifacts, records, reviews, inputs, packages, phasePackages, tasks, reports, context };
   }
 
@@ -949,7 +967,7 @@ process.stdout.write(output);
         };
         const body = `# Input\n${fields.target ? `Target: ${target}\n` : ""}${fields.origin ? "Origin: issue 9\n" : ""}`;
         registered(path, fields, body);
-        const snapshot = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        const snapshot = checkWithoutBase();
         assert.equal(snapshot.frontier, `INVALID FRONTMATTER ${path}`);
         assert.deepEqual(snapshot.challenges, []);
         assert.deepEqual(snapshot.claims, []);
@@ -1453,7 +1471,7 @@ process.stdout.write(output);
         if (["target-identity", "mirrored"].includes(representation)) fields["target-identity"] = [identity(read(root, "1-spec/spec.md"))];
         if (representation === "declaration") {
           write(root, rel, body);
-          const unstamped = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+          const unstamped = checkWithoutBase();
           assert.equal(unstamped.frontier, `stamp ${rel}`);
           assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /only challenges may carry target fields/);
           assert.equal(read(root, rel), body);
@@ -1462,7 +1480,7 @@ process.stdout.write(output);
         const before = read(root, rel);
         assert.throws(() => rp(root, "stamp", P(rel), ...(representation === "mirrored" ? ["--mirror"] : [])), /only challenges may carry target fields/);
         assert.equal(read(root, rel), before);
-        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        const state = checkWithoutBase();
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
         assert.match(state.contradictions[0].invalid, /only challenges may carry target fields/);
         assert.deepEqual(state.challenges, []);
@@ -1485,7 +1503,7 @@ process.stdout.write(output);
         assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*expected its own task/);
         assert.equal(read(root, rel), body);
         registered(rel, { outcome: "failed", attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, target.split("#")[0]))] }, body);
-        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        const state = checkWithoutBase();
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
         assert.match(state.contradictions[0].invalid, /target: expected its own task/);
         assert.deepEqual(state.challenges, []);
@@ -1504,7 +1522,7 @@ process.stdout.write(output);
         assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*only challenges/);
         assert.equal(read(root, rel), body);
         registered(rel, { outcome, attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, plan))] }, body);
-        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        const state = checkWithoutBase();
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
         assert.match(state.contradictions[0].invalid, /target: only challenges/);
         assert.deepEqual(state.challenges, []);
@@ -1518,7 +1536,7 @@ process.stdout.write(output);
       else registered(rel, frontmatter === "empty" ? {} : { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 9" }, body);
       git(root, "add", "-A");
       git(root, "commit", "--quiet", "-m", "record proposal before stamp");
-      const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+      const state = checkWithoutBase();
       assert.equal(state.frontier, `${frontmatter === "absent" ? "stamp" : "INVALID FRONTMATTER"} ${rel}`);
       assert.deepEqual(state.challenges, []);
       assert.deepEqual(state.artifacts, []);
@@ -1548,7 +1566,7 @@ process.stdout.write(output);
         const declaration = kind === "claim" ? "Verdict: unsatisfiable" : kind === "failed report" ? "Outcome: failed" : "Origin: issue 9";
         registered(rel, fields, `# Challenge\n${declaration}\nTarget: ${targets.join(", ")}\n`);
         const before = read(root, rel);
-        const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "missing-branch", "--json"));
+        const state = checkWithoutBase();
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
         assert.match(state.contradictions[0].invalid, /target-identity/);
         assert.deepEqual(state.challenges, []);
@@ -3131,8 +3149,8 @@ process.stdout.write(output);
     git(root, "branch", "other");
     write(root, "1-spec/spec.md", "# Spec\n\nChanged on the working tree.\n");
     configure({ targetPhase: 4 });
-    assert.match(rp(root, "check", PIPELINE, "--base", "main", "--ref", "other"), /frontier complete/);
-    assert.match(rp(root, "check", PIPELINE, "--base", "main"), /approved \(stale\)/);
+    assert.match(rp(root, "check", PIPELINE, "--ref", "other"), /frontier complete/);
+    assert.match(rp(root, "check", PIPELINE), /approved \(stale\)/);
   });
 
   test("stamp and check derive the worktree repository from their argument", () => {
@@ -3145,7 +3163,7 @@ process.stdout.write(output);
       const seatHead = git(seat, "rev-parse", "--short=12", "HEAD").trim();
       rp(root, "stamp", join(seat, P("1-spec/spec.md")), "--pin", P("0-intent/intent.md"));
       assert.equal(parseFrontmatter(readFileSync(join(seat, P("1-spec/spec.md")), "utf8")).data.get("head"), seatHead);
-      assert.deepEqual(JSON.parse(rp(root, "check", join(seat, PIPELINE), "--base", "main", "--json")).authoredChanges.map(({ commit }) => commit.slice(0, 12)), [seatHead]);
+      assert.match(rp(root, "diff", join(seat, PIPELINE)), /^diff --git a\/seat-work\.js b\/seat-work\.js$/m);
     } finally {
       git(root, "worktree", "remove", "--force", seat);
     }
@@ -3269,9 +3287,10 @@ process.stdout.write(output);
     rp(root, "stamp", P("1-spec/a/spec-research.md"), "--mirror");
     assert.equal(parseFrontmatter(read(root, "1-spec/a/spec-research.md")).data.has("lane"), false);
     configure({ targetPhase: 1, lanes: [reviewer, producer] });
-    assert.deepEqual(JSON.parse(rp(root, "check", PIPELINE, "--base", "main", "--json")).configuration, {
+    assert.deepEqual(JSON.parse(rp(root, "check", PIPELINE, "--json")).configuration, {
       workflow: "autonomous",
       targetPhase: 1,
+      base: "main",
       lanes: [
         { ...reviewer, fingerprint: laneFingerprint(reviewer) },
         { ...producer, fingerprint: laneFingerprint(producer) },
@@ -3285,9 +3304,9 @@ process.stdout.write(output);
     stampSpec();
     review("1-spec/spec-review-1.md", "approved", SPEC);
     review("1-spec/spec-review-security-1.md", "approved", SPEC);
-    assert.match(rp(root, "check", PIPELINE, "--base", "main"), /frontier complete/);
+    assert.match(rp(root, "check", PIPELINE), /frontier complete/);
     configure({ targetPhase: 1, lanes: [{ ...reviewer, brief: "Verify accessibility" }] });
-    assert.match(rp(root, "check", PIPELINE, "--base", "main"), /security:approved \(stale\)/);
+    assert.match(rp(root, "check", PIPELINE), /security:approved \(stale\)/);
   });
 
   test("a path naming an undeclared lane is rejected by stamp", () => {
@@ -3310,19 +3329,19 @@ process.stdout.write(output);
     stampSpec();
     review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-goal\n");
     review("1-spec/spec-review-b-1.md", "rejected", SPEC);
-    let output = rp(root, "check", PIPELINE, "--base", "main");
+    let output = rp(root, "check", PIPELINE);
     assert.match(output, /claim\s+1-spec\/spec-review-1\.md .*held \(a lane rejected/);
     assert.match(output, /frontier converge 1-spec\/spec\.md/);
     review("1-spec/spec-review-2.md", "approved", SPEC);
     review("1-spec/spec-review-b-2.md", "approved", SPEC);
-    output = rp(root, "check", PIPELINE, "--base", "main");
+    output = rp(root, "check", PIPELINE);
     assert.match(output, /claim\s+1-spec\/spec-review-1\.md .*superseded \(its lane reviewed again\)/);
     assert.doesNotMatch(output, /PENDING|held|wave open/);
     assert.match(output, /frontier complete/);
   });
 
   test("run configuration validation rejects every malformed field", () => {
-    const run = () => rp(root, "check", PIPELINE, "--base", "main", "--json");
+    const run = () => rp(root, "check", PIPELINE, "--json");
     const raw = (frontmatter, body = "") => write(root, "run-config.md", `---\n${frontmatter}\n---\n${body}`);
     rmSync(join(root, P("run-config.md")));
     assert.throws(run, /missing run-config\.md/);
@@ -3339,6 +3358,7 @@ process.stdout.write(output);
       [{ workflow: "autonomous", "target-phase": 1.5 }, /target-phase/],
       [{ workflow: "autonomous", "target-phase": "1" }, /target-phase/],
       [{ workflow: "autonomous", "target-phase": 1, extra: true }, /unknown key/],
+      ...[undefined, 7, "", " main", "a..b", "HEAD"].map((base) => [{ workflow: "autonomous", "target-phase": 1, base }, /base must be a branch name/]),
       [{ workflow: "autonomous", "target-phase": 1, "": true }, /unknown key/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [] }, /lanes must be non-empty when present/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: {} }, /lanes must be an array/],
@@ -3369,7 +3389,7 @@ process.stdout.write(output);
       [{ workflow: "autonomous", "target-phase": 1, lanes: [standard.security, standard.a, lane("spec-producer", "a-review-security")] }, /same auxiliary branch/],
     ];
     for (const [object, error] of invalid) {
-      raw(JSON.stringify(object));
+      raw(JSON.stringify({ base: "main", ...object }));
       assert.throws(run, error);
     }
     configure({ targetPhase: 3 });
@@ -3405,779 +3425,346 @@ process.stdout.write(output);
     assert.equal(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-2.md")).data.get("attempt"), "2");
   });
 
-  test("a change outside any task is covered by phase review", () => {
-    buildDone();
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "pipeline");
-    writeFileSync(join(root, "src.js"), "console.log(1);\n");
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "hand-made change");
-    configure({ targetPhase: 3 });
-    const output = check(root);
-    assert.match(output, /frontier build review/);
-    review("3-build/build-review-2.md", "approved", [...PLAN_BASE, ...TASKS, "3-build/tasks/build-task-1-report-1.md", "3-build/tasks/build-task-2-report-1.md"]);
-    assert.equal(JSON.parse(check(root, "--json")).complete, true);
-  });
+  // --- code delta ----------------------------------------------------------
 
-  test("a pipeline's own commits follow its base: the starts-from branch when the intent declares one, else --base; an unresolvable base is an error", () => {
-    buildDone();
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "pipeline");
-    writeFileSync(join(root, "lib.js"), "1\n");
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "work of demo");
-    configure({ targetPhase: 3 });
-    assert.match(check(root), /frontier build review/);
-    // A stacked pipeline starts from demo's tip: demo's commits are not its own.
-    const S = ".pipelines/stacked";
-    git(root, "checkout", "--quiet", "-b", "stacked");
-    mkdirSync(join(root, S, "0-intent"), { recursive: true });
-    writeFileSync(join(root, S, "0-intent/intent.md"), "Origin: issue 8\nOrigin: starts-from demo\n\n# Intent\n\n## Goal\n\nStacked.\n");
-    writeFileSync(join(root, S, "run-config.md"), `---\n${JSON.stringify({ workflow: "autonomous", "target-phase": 1 }, null, 2)}\n---\n`);
-    rp(root, "stamp", `${S}/0-intent/intent.md`, "--mirror");
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "stacked intent");
-    assert.deepEqual(JSON.parse(rp(root, "check", S, "--json")).authoredChanges, []);
-    writeFileSync(join(root, "more.js"), "2\n");
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", "work of stacked");
-    const sha = git(root, "rev-parse", "HEAD").trim();
-    for (const args of [[], ["--base", "main"], ["--base", "main", "--ref", "stacked"]])
-      assert.deepEqual(JSON.parse(rp(root, "check", S, ...args, "--json")).authoredChanges.map(({ commit }) => commit), [sha]);
-    // Without starts-from, --base is required and must resolve; a starts-from branch must too.
-    assert.throws(() => rp(root, "check", PIPELINE), /--base <ref> is required/);
-    assert.throws(() => rp(root, "check", PIPELINE, "--base", "nope"), /--base does not resolve: nope/);
-    git(root, "branch", "-D", "demo");
-    assert.throws(() => rp(root, "check", S, "--base", "main"), /the starts-from branch does not resolve: demo/);
-  });
-
-  function commitAll(subject) {
-    git(root, "add", "-A");
-    git(root, "commit", "--quiet", "-m", subject);
-    return git(root, "rev-parse", "HEAD").trim();
-  }
-
-  function authoredFixture(targetPhase = 3) {
+  function codeFixture(targetPhase = 3) {
     writeFileSync(join(root, "source.txt"), "top\ncontext\nvalue\nfooter\n");
-    writeFileSync(join(root, "binary.dat"), Buffer.from([0, 1, 2, 3]));
-    write(root, "0-intent/context.md", "# Context\nOriginal evidence.\n");
+    writeFileSync(join(root, "README.md"), "Documentation.\n");
     commitAll("base content");
     git(root, "branch", "-f", "main", "HEAD");
     const chain = frontierChain();
     configure({ targetPhase });
-    commitAll("approved pipeline");
+    commitAll("configured pipeline");
     return chain;
   }
+  const codeState = () => JSON.parse(check(root, "--json"));
+  const codeDeltaOf = (rel, ...args) => rp(root, "diff", PIPELINE, "--review", P(rel), ...args);
+  const netChange = (...args) => rp(root, "diff", PIPELINE, ...args);
+  const changedFiles = (patch) => [...patch.matchAll(/^diff --git a\/(\S+) /gm)].map((m) => m[1]);
+  function change(file, text, subject = `change ${file}`) {
+    writeFileSync(join(root, file), text);
+    return commitAll(subject);
+  }
+  function onMain(action) {
+    git(root, "checkout", "--quiet", "main");
+    const result = action();
+    git(root, "checkout", "--quiet", "demo");
+    return result;
+  }
+  const patchIdOf = (sha) => execFileSync("git", ["patch-id", "--stable"], { cwd: root, input: git(root, "show", sha), encoding: "utf8" }).split(" ")[0];
 
-  const authoredState = () => JSON.parse(check(root, "--json"));
-
-  for (const kind of ["code", "documentation", "binary", "mode", "rename", "deletion", "pipeline", "clean merge", "code resolution", "artifact resolution"])
-    test(`authored changes: ${kind} governs coverage, delta, and completion`, () => {
-      const chain = authoredFixture();
-      let baseline = authoredState();
-      assert.equal(baseline.complete, true);
-      let commit;
-      if (kind.endsWith("merge") || kind.endsWith("resolution")) {
-        const path = kind === "artifact resolution" ? P("0-intent/context.md") : "source.txt";
-        if (kind.endsWith("resolution")) {
-          writeFileSync(join(root, path), "ours\n");
-          commitAll("branch content");
-          review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-          commitAll("review branch content");
-          baseline = authoredState();
-          assert.equal(baseline.complete, true);
-        }
-        git(root, "checkout", "--quiet", "main");
-        writeFileSync(join(root, path), "theirs\n");
-        commitAll("upstream content");
-        git(root, "checkout", "--quiet", "demo");
-        if (kind.endsWith("resolution")) {
-          assert.throws(() => git(root, "merge", "--no-ff", "main", "-m", "integrate"));
-          writeFileSync(join(root, path), "resolved\n");
-          commit = commitAll("resolved integration");
-        } else {
-          git(root, "merge", "--no-ff", "main", "-m", "integrate");
-          commit = git(root, "rev-parse", "HEAD").trim();
-        }
-      } else {
-        if (kind === "code") writeFileSync(join(root, "source.txt"), "top\ncontext\nchanged\nfooter\n");
-        if (kind === "documentation") writeFileSync(join(root, "README.md"), "Documentation.\n");
-        if (kind === "binary") writeFileSync(join(root, "binary.dat"), Buffer.from([0, 4, 2, 3]));
-        if (kind === "mode") chmodSync(join(root, "source.txt"), 0o755);
-        if (kind === "rename") renameSync(join(root, "source.txt"), join(root, "renamed.txt"));
-        if (kind === "deletion") rmSync(join(root, "source.txt"));
-        if (kind === "pipeline") write(root, "0-intent/context.md", "Other evidence.\n");
-        commit = commitAll(kind);
+  for (const scenario of ["fresh", "clean base merge", "conflicting base merge", "clean rebase", "rebase and prune", "manual edit", "cherry-picked base fix", "cherry-picked base fix then base merge", "change and revert", "code in the review commit"])
+    test(`code delta: ${scenario}`, () => {
+      const chain = codeFixture();
+      let latest = "3-build/build-review-1.md", expected = [];
+      const reviewOwnWork = () => {
+        change("source.txt", "top\ncontext\nown\nfooter\n");
+        latest = "3-build/build-review-2.md";
+        review(latest, "approved", chain.phasePackages[2]);
+      };
+      if (scenario === "clean base merge") {
+        onMain(() => change("upstream.txt", "upstream\n"));
+        git(root, "merge", "--no-ff", "main", "-m", "integrate");
       }
-      const changed = !["pipeline", "clean merge", "artifact resolution"].includes(kind);
-      const state = authoredState();
-      assert.deepEqual(state.authoredChanges.map((c) => c.commit), [...baseline.authoredChanges.map((c) => c.commit), ...(changed ? [commit] : [])]);
-      assert.deepEqual(state.buildReview.lanes[0].diff.added.map((c) => c.commit), changed ? [commit] : []);
-      assert.deepEqual(state.buildReview.lanes[0].diff.removed, []);
-      assert.equal(state.buildReview.approved, !changed);
-      assert.equal(state.artifacts.every((artifact) => artifact.approved), true);
-      assert.equal(state.complete, !changed);
-      assert.equal(state.frontier, changed ? "build review" : "complete");
+      if (scenario === "conflicting base merge") {
+        reviewOwnWork();
+        onMain(() => change("source.txt", "top\ncontext\ntheirs\nfooter\n"));
+        assert.throws(() => git(root, "merge", "--no-ff", "main", "-m", "integrate"));
+        change("source.txt", "top\ncontext\nresolved\nfooter\n", "resolve");
+        expected = ["source.txt"];
+      }
+      if (scenario === "clean rebase" || scenario === "rebase and prune") {
+        reviewOwnWork();
+        const old = git(root, "rev-parse", "HEAD").trim();
+        onMain(() => change("upstream.txt", "upstream\n"));
+        git(root, "rebase", "--quiet", "main");
+        if (scenario === "rebase and prune") {
+          git(root, "reflog", "expire", "--expire=now", "--all");
+          git(root, "gc", "--quiet", "--prune=now");
+          assert.throws(() => git(root, "cat-file", "-e", old));
+        }
+      }
+      if (scenario === "manual edit") {
+        change("manual.txt", "manual\n");
+        expected = ["manual.txt"];
+      }
+      if (scenario.startsWith("cherry-picked base fix")) {
+        const fix = onMain(() => change("fix.txt", "fix\n"));
+        git(root, "cherry-pick", fix);
+        if (scenario.endsWith("merge")) git(root, "merge", "--no-ff", "main", "-m", "integrate");
+        else expected = ["fix.txt"];
+      }
+      if (scenario === "change and revert") {
+        const temporary = change("source.txt", "temporary\n");
+        git(root, "revert", "--no-edit", temporary);
+      }
+      if (scenario === "code in the review commit") {
+        latest = "3-build/build-review-2.md";
+        writeFileSync(join(root, "source.txt"), "together\n");
+        write(root, latest, "# Review\n\nVerdict: approved\n");
+        commitAll("code and review together");
+        rp(root, "stamp", P(latest), ...chain.phasePackages[2].flatMap((f) => ["--reviewed", P(f)]), "--mirror");
+        commitAll("stamp");
+        expected = ["source.txt"];
+      }
+      const state = codeState(), patch = codeDeltaOf(latest);
+      assert.deepEqual(changedFiles(patch), expected);
+      assert.equal(state.buildReview.approved, !expected.length);
+      assert.equal(state.complete, !expected.length);
+      assert.equal(state.frontier, expected.length ? "build review" : "complete");
+      if (scenario === "conflicting base merge") assert.match(patch, /^-<<<<<<< [\s\S]*^\+resolved$/m);
       const { ref, ...atRef } = JSON.parse(check(root, "--ref", "HEAD", "--json"));
       const { ref: worktreeRef, ...atWorktree } = state;
       assert.deepEqual(atRef, atWorktree);
+      assert.equal(codeDeltaOf(latest, "--ref", "HEAD"), patch);
+      if (!expected.length) return;
       review("3-build/build-review-3.md", "approved", chain.phasePackages[2]);
-      assert.equal(authoredState().complete, true);
-      assert.equal(parseFrontmatter(read(root, "3-build/build-review-3.md")).data.has("head"), false);
+      assert.equal(codeState().complete, true);
+    });
+
+  test("code delta: the net change is the pipeline's code since its base", () => {
+    codeFixture();
+    assert.equal(netChange(), "");
+    change("source.txt", "top\ncontext\nown\nfooter\n");
+    onMain(() => change("upstream.txt", "upstream\n"));
+    git(root, "merge", "--no-ff", "main", "-m", "integrate");
+    write(root, "0-intent/context.md", "Other evidence.\n");
+    commitAll("pipeline state");
+    const patch = netChange();
+    assert.deepEqual(changedFiles(patch), ["source.txt"]);
+    assert.match(patch, /^-value\n\+own$/m);
+    assert.equal(netChange("--ref", "HEAD~1"), patch);
+  });
+
+  for (const merge of ["merge", "squash"])
+    test(`code delta: a pipeline integrated into its base by ${merge} continues with only new work`, () => {
+      const chain = codeFixture();
+      change("source.txt", "shipped\n");
+      review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+      git(root, "checkout", "--quiet", "main");
+      if (merge === "merge") git(root, "merge", "--no-ff", "demo", "-m", "integrate pipeline");
+      else {
+        git(root, "merge", "--squash", "demo");
+        commitAll("integrate pipeline");
+      }
+      git(root, "checkout", "--quiet", "-b", "continuation");
+      assert.equal(codeState().complete, true);
+      assert.equal(codeDeltaOf("3-build/build-review-2.md"), "");
+      assert.equal(netChange(), "");
+      change("source.txt", "next\n");
+      const state = codeState(), patch = codeDeltaOf("3-build/build-review-2.md");
+      assert.equal(state.frontier, "build review");
+      assert.deepEqual(changedFiles(patch), ["source.txt"]);
+      assert.match(patch, /^-shipped\n\+next$/m);
+      assert.equal(netChange(), patch);
+      review("3-build/build-review-3.md", "approved", chain.phasePackages[2]);
+      assert.equal(codeState().complete, true);
+    });
+
+  test("code delta: a stacked pipeline's base is its parent branch, then the branch the parent merged into", () => {
+    writeFileSync(join(root, "source.txt"), "base\n");
+    commitAll("base content");
+    git(root, "branch", "-f", "main", "HEAD");
+    git(root, "checkout", "--quiet", "-b", "parent");
+    change("parent.txt", "parent\n");
+    git(root, "checkout", "--quiet", "demo");
+    git(root, "merge", "--quiet", "--ff-only", "parent");
+    const chain = frontierChain();
+    configure({ targetPhase: 3, base: "parent" });
+    change("child.txt", "child\n");
+    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+    const settled = () => {
+      assert.equal(codeState().complete, true);
+      assert.equal(codeDeltaOf("3-build/build-review-2.md"), "");
+      assert.deepEqual(changedFiles(netChange()), ["child.txt"]);
+    };
+    settled();
+    git(root, "checkout", "--quiet", "parent");
+    change("parent-more.txt", "more\n");
+    git(root, "checkout", "--quiet", "demo");
+    git(root, "merge", "--no-ff", "parent", "-m", "integrate parent");
+    settled();
+    onMain(() => git(root, "merge", "--no-ff", "parent", "-m", "integrate parent into main"));
+    settled();
+    configure({ targetPhase: 3, base: "main" });
+    commitAll("base is main");
+    settled();
+    git(root, "merge", "--no-ff", "main", "-m", "integrate main");
+    settled();
+  });
+
+  for (const tracked of [true, false])
+    test(`code delta: the base includes its upstream's commits, tracked=${tracked}`, () => {
+      codeFixture();
+      const remote = join(root, ".git", "remote.git");
+      git(root, "init", "--quiet", "--bare", remote);
+      git(root, "remote", "add", "origin", remote);
+      git(root, "push", "--quiet", "-u", "origin", "main");
+      if (!tracked) git(root, "branch", "--unset-upstream", "main");
+      const upstream = onMain(() => {
+        const commit = change("upstream.txt", "upstream\n");
+        git(root, "push", "--quiet", "origin", "main");
+        git(root, "reset", "--quiet", "--hard", "HEAD~1");
+        return commit;
+      });
+      git(root, "fetch", "--quiet", "origin");
+      git(root, "merge", "--no-ff", upstream, "-m", "integrate upstream");
+      const files = changedFiles(netChange());
+      assert.deepEqual(files, tracked ? [] : ["upstream.txt"]);
+      assert.equal(codeState().complete, tracked);
+      git(root, "branch", "-f", "main", "origin/main");
+      assert.deepEqual(changedFiles(netChange()), []);
+      assert.equal(codeState().complete, true);
+    });
+
+  for (const scenario of ["document task commit", "build task commit", "manual edit during Document", "rebased document commit", "conflicting document replay"])
+    test(`phase order: ${scenario}`, () => {
+      const chain = codeFixture(4);
+      assert.equal(codeState().complete, true);
+      const recordCommits = (index, commits) => {
+        registered(chain.reports[index], { reviewed: pairs([chain.tasks[index]]), outcome: "completed", attempt: "1" }, `# Report\nOutcome: completed\n\n## Commits\n${commits.map((c) => `- ${c}\n`).join("")}`);
+        rp(root, "stamp", P(chain.reports[index]), "--mirror");
+        commitAll("report");
+      };
+      let build = [], document = [];
+      if (scenario === "document task commit") {
+        recordCommits(1, [change("README.md", "Documented.\n")]);
+        document = ["README.md"];
+      }
+      if (scenario === "build task commit") {
+        recordCommits(0, [change("source.txt", "built\n")]);
+        build = document = ["source.txt"];
+      }
+      if (scenario === "manual edit during Document") {
+        recordCommits(1, [change("README.md", "Documented.\n")]);
+        change("manual.txt", "manual\n");
+        build = ["manual.txt"];
+        document = ["README.md", "manual.txt"];
+      }
+      if (scenario === "rebased document commit") {
+        const documented = change("README.md", "Documented.\n");
+        recordCommits(1, [documented]);
+        onMain(() => change("upstream.txt", "upstream\n"));
+        git(root, "rebase", "--quiet", "main");
+        assert.throws(() => git(root, "merge-base", "--is-ancestor", documented, "HEAD"));
+        document = ["README.md"];
+      }
+      if (scenario === "conflicting document replay") {
+        change("README.md", "Manual.\n");
+        recordCommits(1, [change("README.md", "Documented.\n")]);
+        build = document = ["README.md"];
+      }
+      const state = codeState();
+      const buildPatch = codeDeltaOf("3-build/build-review-1.md");
+      assert.deepEqual(changedFiles(buildPatch), build);
+      assert.deepEqual(changedFiles(codeDeltaOf("4-document/document-review-1.md")), document);
+      if (scenario === "conflicting document replay") assert.match(buildPatch, /^-Documentation\.\n\+Documented\.$/m);
+      if (scenario !== "build task commit") assert.equal(state.buildReview.approved, !build.length);
+      else assert.equal(state.buildReview.approved, false);
+      assert.equal(state.documentReview.approved, false);
+      assert.deepEqual(changedFiles(netChange()).sort(), [...new Set([...build, ...document])].sort());
     });
 
   for (const filtered of [false, true])
-    test(`authored changes: every review lane covers code, filtered=${filtered}`, () => {
-      const chain = authoredFixture();
-      configure({ targetPhase: 3, lanes: [lane("build-reviewer", "security", filtered ? { materials: [chain.artifacts[2]] } : {})] });
+    test(`code delta: every review lane's code governs, filtered=${filtered}`, () => {
+      const chain = codeFixture();
+      const security = lane("build-reviewer", "security", filtered ? { materials: [chain.artifacts[2]] } : {});
       const material = filtered ? [chain.artifacts[2]] : chain.phasePackages[2];
+      configure({ targetPhase: 3, lanes: [security] });
+      commitAll("security lane");
       review("3-build/build-review-security-1.md", "approved", material);
-      commitAll("named review lane");
-      writeFileSync(join(root, "source.txt"), "changed\n");
-      const commit = commitAll("new code");
-      const stale = authoredState();
+      assert.equal(codeState().complete, true);
+      change("source.txt", "changed\n");
+      const stale = codeState();
       assert.equal(stale.buildReview.approved, false);
-      for (const candidate of stale.buildReview.lanes) {
-        assert.equal(candidate.fresh, false);
-        assert.deepEqual(candidate.diff.added.map((c) => c.commit), [commit]);
-      }
+      assert.deepEqual(stale.buildReview.lanes.map((l) => l.fresh), [false, false]);
       review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
+      assert.equal(codeState().complete, false);
       review("3-build/build-review-security-2.md", "approved", material);
-      assert.equal(authoredState().complete, true);
-      const stamped = parseFrontmatter(read(root, "3-build/build-review-security-2.md")).data;
-      assert.equal(stamped.get("reviewed").filter((pin) => pin.startsWith("changes/occurrences/")).length, 1);
-      stamped.set("reviewed", stamped.get("reviewed").filter((pin) => !pin.startsWith("changes/occurrences/")));
-      registered("3-build/build-review-security-2.md", Object.fromEntries(stamped));
-      assert.equal(authoredState().complete, false);
+      assert.equal(codeState().complete, true);
+      change("source.txt", "changed again\n");
+      assert.deepEqual(codeState().buildReview.lanes.map((l) => l.fresh), [false, false]);
     });
 
-  for (const hasChange of [true, false]) test(`authored changes: rebase preserves coverage and landing facts, authored=${hasChange}`, () => {
-    const chain = authoredFixture();
-    const source = `top\n${"context\n".repeat(8)}value\nfooter\n`;
-    writeFileSync(join(root, "source.txt"), source);
-    commitAll("baseline");
-    git(root, "branch", "-f", "main", "HEAD");
-    if (hasChange) writeFileSync(join(root, "source.txt"), source.replace("value", "changed"));
-    else write(root, "0-intent/context.md", "Other evidence.\n");
-    const oldCommit = commitAll("own work");
-    write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n- ${oldCommit}\n`);
-    rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    commitAll("report and approval");
-    const before = authoredState();
-    assert.equal(before.complete, true);
-    git(root, "checkout", "--quiet", "main");
-    writeFileSync(join(root, "source.txt"), `upstream\n${source}`);
-    commitAll("upstream context");
-    git(root, "checkout", "--quiet", "demo");
-    git(root, "rebase", "main");
-    const after = authoredState();
-    assert.equal(after.complete, true);
-    assert.deepEqual(after.authoredChanges.map((c) => c.patchId), before.authoredChanges.map((c) => c.patchId));
-    if (hasChange) assert.notEqual(after.authoredChanges[0].commit, oldCommit);
-    assert.deepEqual(after.buildReview.lanes[0].diff, { added: [], removed: [] });
+  test("code delta: an unresolvable base, missing merge-base, or failed merge stops the computation", () => {
+    const chain = codeFixture();
+    const run = (...args) => rp(root, ...args);
+    configure({ targetPhase: 3, base: "absent" });
+    assert.throws(() => run("check", PIPELINE), /base does not resolve: absent/);
+    assert.throws(() => run("diff", PIPELINE), /base does not resolve: absent/);
+    const island = git(root, "commit-tree", git(root, "mktree").trim() || "4b825dc642cb6eb9a060e54bf8d69288fbee4904", "-m", "island").trim();
+    git(root, "branch", "island", island);
+    configure({ targetPhase: 3, base: "island" });
+    assert.throws(() => run("check", PIPELINE), /no merge-base between island/);
+    configure({ targetPhase: 3 });
+    const { env } = gitShim(`case " $* " in *" merge-tree "*) echo 'merge failure' >&2; exit 2;; esac`);
+    const shimmed = (...args) => execFileSync(process.execPath, [RP, ...args], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    assert.throws(() => shimmed("check", PIPELINE), /merge-tree .*merge failure/);
+    assert.throws(() => shimmed("diff", PIPELINE, "--review", P("3-build/build-review-1.md")), /merge-tree .*merge failure/);
+    write(root, "3-build/build-review-2.md", `---\n${JSON.stringify({ reviewed: pairs(chain.phasePackages[2]), verdict: "approved" })}\n---\n# Review\n\nVerdict: approved\n`);
+    assert.throws(() => run("check", PIPELINE), /3-build\/build-review-2\.md: no commit adds this review/);
+    assert.throws(() => run("diff", PIPELINE, "--review", P("3-build/build-review-2.md")), /no commit adds this review/);
+    assert.throws(() => run("diff", PIPELINE, "--review", P("3-build/build-plan-review-1.md")), /not a phase review of this pipeline/);
+  });
+
+  test("code delta: malformed recorded patch ids stop the computation", () => {
+    const chain = codeFixture(4);
+    const commit = change("README.md", "Documented.\n");
+    registered(chain.reports[1], { reviewed: pairs([chain.tasks[1]]), outcome: "completed", attempt: "1", commits: [commit], "patch-ids": ["not-a-patch-id"] }, `# Report\nOutcome: completed\n\n## Commits\n- ${commit}\n`);
+    assert.match(codeState().frontier, /^INVALID FRONTMATTER 4-document\/tasks\/document-task-1-report-1\.md/);
+    assert.throws(() => codeDeltaOf("3-build/build-review-1.md"), /INVALID FRONTMATTER .*patch-ids/);
+    assert.throws(() => rp(root, "stamp", P(chain.reports[1]), "--mirror"), /INVALID FRONTMATTER .*patch-ids/);
+  });
+
+  test("report landing facts: patch ids follow the commit declaration in order and survive a rebase", () => {
+    const chain = codeFixture();
+    const first = change("a.txt", "a\n"), second = change("b.txt", "b\n");
+    onMain(() => change("m.txt", "m\n"));
+    git(root, "merge", "--no-ff", "main", "-m", "integrate");
+    const merge = git(root, "rev-parse", "HEAD").trim();
+    const empty = commitAll("empty");
+    const declare = (commits) => write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n${commits.map((c) => `- ${c.slice(0, 10)}\n`).join("")}`);
+    declare([second, first, second, merge, empty]);
+    rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror");
+    const recorded = parseFrontmatter(read(root, chain.reports[0])).data;
+    assert.deepEqual(recorded.get("commits"), [second, first, second, merge, empty]);
+    assert.deepEqual(recorded.get("patch-ids"), [second, first, second].map(patchIdOf));
+    commitAll("report");
+    onMain(() => change("upstream.txt", "upstream\n"));
+    git(root, "rebase", "--quiet", "main");
     const clone = join(root, ".git", "rebased-clone");
     git(root, "clone", "--quiet", "--no-local", "--branch", "demo", root, clone);
-    git(clone, "branch", "main", "origin/main");
-    assert.throws(() => git(clone, "cat-file", "-e", oldCommit));
-    const reportBefore = read(clone, chain.reports[0]);
+    assert.throws(() => git(clone, "cat-file", "-e", first));
+    const before = read(clone, chain.reports[0]);
     rp(clone, "stamp", P(chain.reports[0]), "--mirror");
-    assert.deepEqual(parseFrontmatter(read(clone, chain.reports[0])), parseFrontmatter(reportBefore));
-    assert.equal(JSON.parse(check(clone, "--json")).complete, true);
+    assert.deepEqual(parseFrontmatter(read(clone, chain.reports[0])), parseFrontmatter(before));
+    const rebased = git(root, "log", "--format=%H", "-1", "--", "a.txt").trim();
+    assert.notEqual(rebased, first);
+    declare([rebased]);
+    rp(root, "stamp", P(chain.reports[0]), "--mirror");
+    const redeclared = parseFrontmatter(read(root, chain.reports[0])).data;
+    assert.deepEqual(redeclared.get("commits"), [rebased]);
+    assert.deepEqual(redeclared.get("patch-ids"), [patchIdOf(first)]);
+    declare(["0badc0ffee"]);
+    assert.throws(() => rp(root, "stamp", P(chain.reports[0]), "--mirror"), /names a commit that does not exist/);
   });
 
-  test("authored changes: cherry-picks retain identity and require coverage on the receiving branch", () => {
-    const chain = authoredFixture();
-    git(root, "checkout", "--quiet", "-b", "external");
-    writeFileSync(join(root, "source.txt"), "external change\n");
-    const source = commitAll("external work");
-    const identity = authoredState().authoredChanges[0].patchId;
-    git(root, "checkout", "--quiet", "demo");
-    write(root, "0-intent/context.md", "Other context.\n");
-    commitAll("new context");
-    git(root, "cherry-pick", source);
-    const state = authoredState();
-    assert.notEqual(state.authoredChanges[0].commit, source);
-    assert.equal(state.authoredChanges[0].patchId, identity);
-    assert.equal(state.frontier, "build review");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    assert.equal(authoredState().complete, true);
-  });
-
-  test("authored changes: patch identity preserves whitespace", () => {
-    authoredFixture();
+  test("code delta: check reads no history the reviews do not bound", () => {
+    const chain = codeFixture();
     const start = git(root, "rev-parse", "HEAD").trim();
-    const ids = [];
-    for (const text of ["top\ncontext\na b\nfooter\n", "top\ncontext\nab\nfooter\n"]) {
-      git(root, "reset", "--hard", start);
-      writeFileSync(join(root, "source.txt"), text);
-      commitAll("variant");
-      ids.push(authoredState().authoredChanges[0].patchId);
-    }
-    assert.notEqual(ids[0], ids[1]);
-  });
-
-  test("authored changes: identical changed bytes in different contexts have different identities", () => {
-    authoredFixture();
-    const source = "function first() {\n  return 0;\n}\n\nfunction second() {\n  return 0;\n}\n";
-    writeFileSync(join(root, "source.txt"), source);
-    const start = commitAll("two functions");
-    git(root, "branch", "-f", "main", "HEAD");
-    const ids = [];
-    for (const position of [source.indexOf("return 0"), source.lastIndexOf("return 0")]) {
-      git(root, "reset", "--hard", start);
-      writeFileSync(join(root, "source.txt"), source.slice(0, position) + source.slice(position).replace("return 0", "return 1"));
-      commitAll("change function");
-      ids.push(authoredState().authoredChanges[0].patchId);
-    }
-    assert.notEqual(ids[0], ids[1]);
-  });
-
-  test("authored changes: rewritten merge parents preserve conflict-resolution identity", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "ours\n");
-    const ours = commitAll("ours");
-    git(root, "checkout", "--quiet", "main");
-    writeFileSync(join(root, "source.txt"), "theirs\n");
-    const theirs = commitAll("theirs");
-    git(root, "checkout", "--quiet", "demo");
-    assert.throws(() => git(root, "merge", "main", "-m", "integrate"));
-    writeFileSync(join(root, "source.txt"), "resolved\n");
-    commitAll("resolution");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    commitAll("review resolution");
-    const before = authoredState();
-    const rewrite = (commit) => git(root, "commit-tree", `${commit}^{tree}`, "-p", `${commit}^`, "-m", "rewritten parent").trim();
-    const newOurs = rewrite(ours), newTheirs = rewrite(theirs);
-    const newMerge = git(root, "commit-tree", "HEAD^{tree}", "-p", newOurs, "-p", newTheirs, "-m", "rewritten merge").trim();
-    git(root, "branch", "-f", "main", newTheirs);
-    git(root, "reset", "--hard", newMerge);
-    const after = authoredState();
-    assert.equal(after.complete, true);
-    assert.deepEqual(after.authoredChanges.map((c) => c.patchId), before.authoredChanges.map((c) => c.patchId));
-    assert.deepEqual(after.buildReview.lanes[0].diff, { added: [], removed: [] });
-  });
-
-  test("authored changes: diff presentation settings do not change identity", () => {
-    authoredFixture();
-    writeFileSync(join(root, "source.txt"), "top\ncontext\nchanged\nfooter\n");
-    writeFileSync(join(root, "雪.txt"), "Unicode filename.\n");
-    commitAll("content");
-    const before = authoredState().authoredChanges;
-    for (const [name, value] of [["diff.context", "20"], ["diff.noprefix", "true"], ["diff.algorithm", "histogram"], ["diff.indentHeuristic", "true"], ["diff.interHunkContext", "20"], ["core.quotePath", "false"]]) git(root, "config", name, value);
-    assert.deepEqual(authoredState().authoredChanges, before);
-  });
-
-  test("authored changes: repeated patches and removed patches change the review package", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "changed\n");
-    const first = commitAll("change");
-    git(root, "revert", "--no-edit", first);
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    const reviewed = commitAll("approve change and revert");
-    git(root, "cherry-pick", first);
-    const state = authoredState();
-    assert.equal(state.frontier, "build review");
-    assert.equal(state.authoredChanges[0].patchId, state.authoredChanges[2].patchId);
-    assert.equal(state.authoredChanges[2].occurrence, 2);
-    assert.deepEqual(state.buildReview.lanes[0].diff.added, [state.authoredChanges[2]]);
-    review("3-build/build-review-3.md", "approved", chain.phasePackages[2]);
-    const saved = read(root, "3-build/build-review-3.md");
-    git(root, "reset", "--hard", reviewed);
-    write(root, "3-build/build-review-3.md", saved);
-    const removed = authoredState();
-    assert.equal(removed.frontier, "build review");
-    assert.deepEqual(removed.buildReview.lanes[0].diff.added, []);
-    assert.deepEqual(removed.buildReview.lanes[0].diff.removed, pairs([state.authoredChanges[2].path]));
-  });
-
-  test("authored changes: both phase reviews cover documentation changes in phase order", () => {
-    const chain = authoredFixture(4);
-    writeFileSync(join(root, "README.md"), "New documentation.\n");
-    const commit = commitAll("documentation");
-    const stale = authoredState();
-    assert.equal(stale.frontier, "build review");
-    for (const phase of ["build", "document"]) {
-      assert.equal(stale[`${phase}Review`].approved, false);
-      assert.deepEqual(stale[`${phase}Review`].lanes[0].diff.added.map((c) => c.commit), [commit]);
-    }
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    assert.equal(authoredState().frontier, "converge 4-document/document-plan.md");
-    const update = (paths) => paths.map((p) => p === "3-build/build-review-1.md" ? "3-build/build-review-2.md" : p);
-    registered(chain.artifacts[3], { pins: pairs(update(chain.inputs[3])) });
-    registeredVerdict("4-document/document-plan-review-2.md", pairs(update(chain.packages[3])));
-    assert.equal(authoredState().frontier, "document review");
-    review("4-document/document-review-2.md", "approved", update(chain.phasePackages[3]));
-    assert.equal(authoredState().complete, true);
-  });
-
-  for (const recorder of ["no report", "a Build report", "a Document report"])
-    test(`authored changes: phase-review coverage of a change recorded by ${recorder}`, () => {
-      const chain = authoredFixture(4);
-      writeFileSync(join(root, "README.md"), "New documentation.\n");
-      const commit = commitAll("documentation");
-      const index = { "a Build report": 0, "a Document report": 1 }[recorder];
-      if (index !== undefined) {
-        registered(chain.reports[index], { reviewed: pairs([chain.tasks[index]]), outcome: "completed", attempt: "1" }, `# Report\nOutcome: completed\n\n## Commits\n- ${commit}\n`);
-        rp(root, "stamp", P(chain.reports[index]), "--mirror", "--base", "main");
-      }
-      const buildCovers = index !== 1;
-      const state = authoredState();
-      assert.deepEqual(state.buildReview.lanes[0].diff.added.map((c) => c.commit), buildCovers ? [commit] : []);
-      assert.deepEqual(state.documentReview.lanes[0].diff.added.map((c) => c.commit), [commit]);
-      assert.equal(state.buildReview.approved, !buildCovers);
-      assert.equal(state.frontier, buildCovers ? "build review" : "document review");
-      const diff = (...selection) => JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", ...selection, "--json")).map((row) => row.commit);
-      assert.deepEqual(diff("--review", P("3-build/build-review-1.md")), buildCovers ? [commit] : []);
-      assert.deepEqual(diff("--review", P("4-document/document-review-1.md")), [commit]);
-      const fresh = state.authoredChanges.map((c) => c.commit);
-      assert.deepEqual(diff("--phase", "build"), buildCovers ? fresh : fresh.filter((c) => c !== commit));
-      assert.deepEqual(diff("--phase", "document"), fresh);
-      if (buildCovers) return;
-      review("4-document/document-review-2.md", "approved", chain.phasePackages[3]);
-      assert.equal(authoredState().complete, true);
-    });
-
-  test("authored changes: reports observe each named commit, including root and merge resolutions", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "ours\n");
-    const own = commitAll("ours");
-    git(root, "checkout", "--quiet", "main");
-    writeFileSync(join(root, "source.txt"), "theirs\n");
-    commitAll("theirs");
-    git(root, "checkout", "--quiet", "demo");
-    assert.throws(() => git(root, "merge", "main", "-m", "integrate"));
-    writeFileSync(join(root, "source.txt"), "resolved\n");
-    const merged = commitAll("resolve");
-    const rootCommit = git(root, "rev-list", "--max-parents=0", "HEAD").trim();
-    write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n- ${rootCommit}\n- ${own}\n- ${merged}\n`);
-    rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
-    const fm = parseFrontmatter(read(root, chain.reports[0])).data;
-    assert.deepEqual(fm.get("commits"), [rootCommit, own, merged]);
-    assert.deepEqual(fm.get("changes"), pairs(authoredState().authoredChanges.map((c) => c.path)));
-    assert.equal(fm.has("head"), false);
-    write(root, chain.reports[0], read(root, chain.reports[0]).replace(`- ${own}\n`, ""));
-    rp(root, "stamp", P(chain.reports[0]), "--mirror", "--base", "main");
-    assert.deepEqual(parseFrontmatter(read(root, chain.reports[0])).data.get("changes"), [fm.get("changes")[1]]);
-  });
-
-  test("authored changes: phase stamps share check's base selection and preserve later coverage", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "changed\n");
-    commitAll("change");
-    const path = "3-build/build-review-2.md";
-    write(root, path, "# Review\nVerdict: approved\n");
-    const args = ["stamp", P(path), ...chain.phasePackages[2].flatMap((p) => ["--reviewed", P(p)]), "--mirror"];
-    assert.throws(() => rp(root, ...args), /--base <ref> is required/);
-    assert.throws(() => rp(root, ...args, "--base", "absent"), /--base does not resolve: absent/);
-    rp(root, ...args, "--base", "main");
-    const before = parseFrontmatter(read(root, path)).data.get("reviewed");
-    writeFileSync(join(root, "source.txt"), "another change\n");
-    commitAll("another change");
-    rp(root, "stamp", P(path), "--mirror");
-    assert.deepEqual(parseFrontmatter(read(root, path)).data.get("reviewed"), before);
-    assert.equal(authoredState().frontier, "build review");
-  });
-
-  for (const value of ["bad", ["bad"], [1]])
-    test(`authored changes: malformed landing identities ${JSON.stringify(value)} are invalid`, () => {
-      const chain = authoredFixture();
-      const fm = parseFrontmatter(read(root, chain.reports[0])).data;
-      fm.set("changes", value);
-      registered(chain.reports[0], Object.fromEntries(fm));
-      assert.match(authoredState().frontier, /INVALID FRONTMATTER/);
-      assert.throws(() => rp(root, "stamp", P(chain.reports[0]), "--mirror"), /INVALID FRONTMATTER/);
-    });
-
-  for (const failure of ["history", "patch", "merge"])
-    test(`authored changes: unreadable or malformed ${failure} stops computation`, () => {
-      authoredFixture();
-      writeFileSync(join(root, "source.txt"), "changed\n");
-      commitAll("code");
-      if (failure === "merge") {
-        git(root, "checkout", "--quiet", "main");
-        writeFileSync(join(root, "upstream.txt"), "upstream\n");
-        commitAll("upstream");
-        git(root, "checkout", "--quiet", "demo");
-        git(root, "merge", "--no-ff", "main", "-m", "integrate");
-      }
-      const command = { history: "rev-list", patch: "patch-id", merge: "merge-tree" }[failure];
-      const { env } = gitShim(`case " $* " in *" ${command} "*) printf 'malformed\\n'; exit 0;; esac`);
-      assert.throws(() => execFileSync(process.execPath, [RP, "check", PIPELINE, "--base", "main", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), /authored changes/);
-    });
-
-  test("change history: merging and continuation retain coverage and extend membership", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "first change\n");
-    commitAll("first change");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    commitAll("approve first change");
-    const before = authoredState();
-    assert.equal(before.complete, true);
-    git(root, "checkout", "--quiet", "main");
-    git(root, "merge", "--no-ff", "demo", "-m", "integrate pipeline");
-    assert.equal(authoredState().complete, true);
-    assert.deepEqual(authoredState().authoredChanges, before.authoredChanges);
-    assert.equal(rp(root, "diff", PIPELINE, "--base", "main", "--live-net"), "");
-    git(root, "checkout", "--quiet", "-b", "continuation");
-    assert.equal(authoredState().complete, true);
-    writeFileSync(join(root, "source.txt"), "second change\n");
-    const next = commitAll("second change");
-    const pending = authoredState();
-    assert.equal(pending.frontier, "build review");
-    assert.equal(pending.authoredChanges.length, 2);
-    assert.deepEqual(pending.buildReview.lanes[0].diff.added.map((c) => c.commit), [next]);
-    const net = rp(root, "diff", PIPELINE, "--base", "main", "--live-net");
-    assert.match(net, /-first change\n\+second change/);
-    assert.doesNotMatch(net, /\.pipelines/);
-    review("3-build/build-review-3.md", "approved", chain.phasePackages[2]);
-    assert.equal(authoredState().complete, true);
-  });
-
-  test("change history: prospective checkpoints and unused material neither assert membership nor govern coverage", () => {
-    const chain = authoredFixture();
-    const start = git(root, "rev-parse", "HEAD").trim();
-    writeFileSync(join(root, "source.txt"), "temporary change\n");
-    commitAll("temporary change");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    commitAll("approve temporary change");
-    const [{ material, path }] = authoredState().authoredChanges;
-    const bytes = read(root, material), checkpoint = read(root, "changes/index.json"), observed = read(root, path);
-    git(root, "reset", "--hard", start);
-    write(root, material, bytes);
-    write(root, path, observed);
-    assert.deepEqual(authoredState().authoredChanges, []);
-    assert.equal(authoredState().complete, true);
-    write(root, "changes/index.json", checkpoint);
-    assert.deepEqual(authoredState().authoredChanges, []);
-    assert.equal(authoredState().complete, true);
-  });
-
-  test("change material: removed changes remain inspectable after their commits disappear", () => {
-    const chain = authoredFixture();
-    const start = git(root, "rev-parse", "HEAD").trim();
-    writeFileSync(join(root, "source.txt"), "removed change\n");
-    const oldCommit = commitAll("removed change");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    commitAll("review removed change");
-    const reviewBytes = read(root, "3-build/build-review-2.md");
-    const [{ material, patchId, path }] = authoredState().authoredChanges;
-    const materialBytes = read(root, material), observed = read(root, path);
-    git(root, "reset", "--hard", start);
-    write(root, material, materialBytes);
-    write(root, path, observed);
-    write(root, "3-build/build-review-2.md", reviewBytes);
-    commitAll("retained review history");
-    const clone = join(root, ".git", "material-clone");
-    git(root, "clone", "--quiet", "--no-local", "--branch", "demo", root, clone);
-    git(clone, "branch", "main", "origin/main");
-    assert.throws(() => git(clone, "cat-file", "-e", oldCommit));
-    const rows = JSON.parse(rp(clone, "diff", PIPELINE, "--base", "main", "--review", P("3-build/build-review-2.md"), "--json"));
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].status, "removed");
-    assert.equal(rows[0].patchId, patchId);
-    assert.equal(rows[0].content.source.commit, oldCommit);
-    assert.match(Buffer.from(rows[0].content.patch, "base64").toString("utf8"), /\+removed change/);
-    const atRef = JSON.parse(rp(clone, "diff", PIPELINE, "--base", "main", "--ref", "HEAD", "--review", P("3-build/build-review-2.md"), "--json"));
-    assert.deepEqual(atRef, rows);
-    assert.equal(JSON.parse(check(clone, "--json")).frontier, "build review");
-  });
-
-  test("change material: stored content is independent of current attributes and diff configuration", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "changed\n");
-    writeFileSync(join(root, "another.txt"), "another\n");
-    commitAll("changes");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    const before = JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json"));
-    writeFileSync(join(root, ".git", "info", "attributes"), "*.txt -diff\n");
-    writeFileSync(join(root, ".git", "order"), "source.txt\nanother.txt\n");
-    git(root, "config", "diff.orderFile", join(root, ".git", "order"));
-    assert.deepEqual(JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json")), before);
-    assert.equal(authoredState().complete, true);
-  });
-
-  test("change material: diff takes one selection, and --phase names a phase review", () => {
-    authoredFixture();
-    for (const selection of [["--phase", "build", "--live-net"], ["--phase", "build", "--review", P("3-build/build-review-1.md")], ["--review", P("3-build/build-review-1.md"), "--live-net"]])
-      assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", ...selection), /select different diffs/);
-    for (const phase of ["build-plan", "spec", "3-build"])
-      assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", "--phase", phase), /--phase names a phase review/);
-  });
-
-  test("change material: binary content, modes, deletions, and links materialize both sides", () => {
-    const chain = authoredFixture();
-    const binary = Buffer.alloc(4096, 0x80);
-    binary[0] = 0;
-    writeFileSync(join(root, "binary.dat"), binary);
-    chmodSync(join(root, "source.txt"), 0o755);
-    execFileSync("ln", ["-s", "../target", join(root, "link")]);
-    commitAll("changed entries");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    const directory = join(root, ".git", "material-output");
-    const before = git(root, "status", "--porcelain");
-    rp(root, "diff", PIPELINE, "--base", "main", "--output", directory);
-    assert.equal(git(root, "status", "--porcelain"), before);
-    assert.deepEqual(readFileSync(join(directory, "1", "before", "binary.dat")), Buffer.from([0, 1, 2, 3]));
-    assert.deepEqual(readFileSync(join(directory, "1", "after", "binary.dat")), binary);
-    assert.equal(readFileSync(join(directory, "1", "after", "link"), "utf8"), "../target");
-    assert.equal(statSync(join(directory, "1", "after", "link")).isFile(), true);
-    assert.equal(statSync(join(directory, "1", "after", "source.txt")).mode & 0o777, 0o755);
-    assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", "--output", directory), /output already exists/);
-    assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", "--output", join(root, P("derived"))), /outside the pipeline/);
-    rmSync(join(root, "binary.dat"));
-    commitAll("delete binary");
-    const removed = JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--review", P("3-build/build-review-2.md"), "--json"));
-    assert.equal(removed[0].content.files[0].after, null);
-    assert.deepEqual(Buffer.from(removed[0].content.files[0].before.bytes, "base64"), binary);
-  });
-
-  for (const mutation of ["missing", "digest", "blob", "patch", "path"])
-    test(`change material: ${mutation} stops every consumer`, () => {
-      const chain = authoredFixture();
-      writeFileSync(join(root, "source.txt"), "changed\n");
-      commitAll("change");
+    const { log, env } = gitShim();
+    const calls = [];
+    for (const length of [3, 300]) {
+      git(root, "reset", "--quiet", "--hard", start);
+      const commits = Array.from({ length }, (_, n) => `commit refs/heads/demo\ncommitter RP <rp@example.com> ${n} +0000\ndata 7\nhistory\n${n ? "" : `from ${start}\n`}M 100644 inline history.txt\ndata ${String(n).length + 1}\n${n}\n\n`).join("");
+      execFileSync("git", ["fast-import", "--quiet", "--force"], { cwd: root, input: commits });
+      git(root, "reset", "--quiet", "--hard", "demo");
       review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-      const [{ material }] = authoredState().authoredChanges;
-      const data = JSON.parse(read(root, material));
-      if (mutation === "missing") rmSync(join(root, P(material)));
-      else {
-        if (mutation === "digest") data.digest = "bad";
-        if (mutation === "blob") data.files[0].before.bytes = Buffer.from("wrong bytes").toString("base64");
-        if (mutation === "patch") data.patch = Buffer.from(Buffer.from(data.patch, "base64").toString("utf8").replace("@@ -1", "@@ -9")).toString("base64");
-        if (mutation === "path") data.files[0].path = Buffer.from("../escape").toString("base64");
-        if (mutation !== "digest") {
-          const { patchId, patch, files, source } = data;
-          data.digest = createHash("sha256").update(JSON.stringify({ patchId, patch, files, source })).digest("hex");
-        }
-        write(root, material, JSON.stringify(data));
-      }
-      for (const args of [["check", PIPELINE, "--base", "main"], ["diff", PIPELINE, "--base", "main"], ["stamp", P("3-build/build-review-2.md"), "--mirror"]])
-        assert.throws(() => rp(root, ...args), /changes\/.*\.json:/);
-    });
-
-  for (const edited of [false, true])
-    test(`automatic merge: a clean octopus, edited=${edited}, contributes only its own change`, () => {
-      const chain = authoredFixture();
-      const commits = [];
-      for (const name of ["left", "right"]) {
-        git(root, "checkout", "--quiet", "-b", name, "main");
-        writeFileSync(join(root, `${name}.txt`), `${name}\n`);
-        commits.push(commitAll(name));
-      }
-      git(root, "checkout", "--quiet", "demo");
-      git(root, "merge", "--no-ff", "--no-commit", "left", "right");
-      if (edited) writeFileSync(join(root, "manual.txt"), "manual contribution\n");
-      const merge = commitAll("octopus");
-      assert.equal(git(root, "rev-list", "--parents", "-1", "HEAD").trim().split(" ").length, 4);
-      const marker = join(root, ".git", "hook-ran");
-      writeFileSync(join(root, ".git", "hooks", "post-merge"), `#!/bin/sh\ntouch '${marker}'\n`, { mode: 0o755 });
-      const index = readFileSync(join(root, ".git", "index"));
-      const state = authoredState();
-      assert.deepEqual(state.authoredChanges.map((c) => c.commit).sort(), [...commits, ...(edited ? [merge] : [])].sort());
-      assert.equal(existsSync(marker), false);
-      assert.deepEqual(readFileSync(join(root, ".git", "index")), index);
-      review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-      assert.equal(authoredState().complete, true);
-    });
-
-  test("automatic merge: an unavailable octopus result is a computation error", () => {
-    authoredFixture();
-    const first = git(root, "rev-parse", "HEAD").trim();
-    const parents = [first];
-    for (const name of ["left", "right"]) {
-      git(root, "checkout", "--quiet", "-b", name, "main");
-      writeFileSync(join(root, "source.txt"), `${name}\n`);
-      parents.push(commitAll(name));
+      rmSync(log, { force: true });
+      assert.equal(JSON.parse(execFileSync(process.execPath, [RP, "check", PIPELINE, "--json"], { cwd: root, env, encoding: "utf8" })).complete, true);
+      calls.push(readFileSync(log, "utf8").trim().split("\n").length);
     }
-    git(root, "checkout", "--quiet", "demo");
-    writeFileSync(join(root, "source.txt"), "resolved\n");
-    git(root, "add", "-A");
-    const tree = git(root, "write-tree").trim();
-    const commit = git(root, "commit-tree", tree, ...parents.flatMap((p) => ["-p", p]), "-m", "manual octopus").trim();
-    git(root, "reset", "--hard", commit);
-    assert.throws(() => check(root), /automatic merge unavailable/);
-  });
-
-  test("automatic merge: tracked built-in merge attributes are part of the automatic result", () => {
-    authoredFixture();
-    writeFileSync(join(root, ".gitattributes"), "source.txt merge=union\n");
-    writeFileSync(join(root, "source.txt"), "start\n");
-    commitAll("merge attributes");
-    git(root, "branch", "-f", "main", "HEAD");
-    git(root, "checkout", "--quiet", "-b", "other");
-    writeFileSync(join(root, "source.txt"), "start\ntheirs\n");
-    commitAll("theirs");
-    git(root, "checkout", "--quiet", "demo");
-    writeFileSync(join(root, "source.txt"), "start\nours\n");
-    commitAll("ours");
-    git(root, "merge", "--no-ff", "other", "-m", "automatic union");
-    const merge = git(root, "rev-parse", "HEAD").trim();
-    assert.equal(authoredState().authoredChanges.some((change) => change.commit === merge), false);
-  });
-
-  test("change provenance: each repeated occurrence keeps its own source after integration", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "changed\n");
-    const first = commitAll("first application");
-    git(root, "revert", "--no-edit", first);
-    const inverse = git(root, "rev-parse", "HEAD").trim();
-    git(root, "cherry-pick", first);
-    const second = git(root, "rev-parse", "HEAD").trim();
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    commitAll("cover each occurrence");
-    git(root, "checkout", "--quiet", "main");
-    git(root, "merge", "--no-ff", "demo", "-m", "integrate");
-    const state = authoredState();
-    assert.equal(state.complete, true);
-    assert.deepEqual(state.authoredChanges.map((change) => change.source.commit), [first, inverse, second]);
-    assert.deepEqual(state.authoredChanges.map((change) => change.commit), [first, inverse, second]);
-    assert.notEqual(state.authoredChanges[0].path, state.authoredChanges[2].path);
-    assert.equal(state.authoredChanges[0].material, state.authoredChanges[2].material);
-    const rows = JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json"));
-    assert.deepEqual(rows.map((row) => row.source.commit), [first, inverse, second]);
-  });
-
-  test("change provenance: a self-consistent material edit breaks its external binding", () => {
-    const chain = authoredFixture();
-    writeFileSync(join(root, "source.txt"), "changed\n");
-    commitAll("change");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    const [{ material }] = authoredState().authoredChanges;
-    const data = JSON.parse(read(root, material));
-    data.source.commit = "1".repeat(40);
-    const { patchId, patch, files, source } = data;
-    data.digest = createHash("sha256").update(JSON.stringify({ patchId, patch, files, source })).digest("hex");
-    write(root, material, JSON.stringify(data));
-    for (const args of [["check", PIPELINE, "--base", "main"], ["diff", PIPELINE, "--base", "main"], ["stamp", P("3-build/build-review-2.md"), "--mirror"]])
-      assert.throws(() => rp(root, ...args), /material differs from its pin/);
-  });
-
-  for (const driver of ["configured", "unavailable", "captured", "report-captured"])
-    test(`automatic merge: ${driver} custom driver preserves declared semantics`, () => {
-      const chain = authoredFixture();
-      writeFileSync(join(root, ".gitattributes"), "source.txt merge=custom\n");
-      writeFileSync(join(root, "source.txt"), "base\n");
-      commitAll("driver baseline");
-      git(root, "branch", "-f", "main", "HEAD");
-      git(root, "config", "merge.custom.driver", "echo custom-result > %A");
-      git(root, "checkout", "--quiet", "-b", "other");
-      writeFileSync(join(root, "source.txt"), "theirs\n");
-      commitAll("theirs");
-      git(root, "checkout", "--quiet", "demo");
-      writeFileSync(join(root, "source.txt"), "ours\n");
-      commitAll("ours");
-      git(root, "merge", "--no-ff", "--no-commit", "other");
-      assert.equal(readFileSync(join(root, "source.txt"), "utf8"), "custom-result\n");
-      if (driver.endsWith("captured")) writeFileSync(join(root, "source.txt"), "manual-result\n");
-      const merge = commitAll("custom merge");
-      if (driver === "captured") review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-      if (driver === "report-captured") {
-        write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n- ${merge}\n`);
-        rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
-      }
-      if (driver !== "configured") {
-        git(root, "config", "merge.custom.driver", "/nonexistent-rp-merge-driver %O %A %B");
-        if (driver === "captured") assert.equal(authoredState().complete, true);
-        else if (driver === "report-captured") {
-          assert.equal(authoredState().frontier, "build review");
-          assert.ok(JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json")).some((change) => change.commit === merge));
-          const later = "3-build/tasks/build-task-1-report-2.md";
-          write(root, later, `# Report\nOutcome: completed\n\n## Commits\n- ${merge}\n`);
-          rp(root, "stamp", P(later), "--reviewed", P(chain.tasks[0]), "--mirror", "--base", "main");
-          review("3-build/build-review-2.md", "approved", [...chain.phasePackages[2], later]);
-          assert.equal(authoredState().complete, true);
-        }
-        else assert.throws(() => check(root), /automatic merge unavailable/);
-      } else assert.equal(authoredState().authoredChanges.some((change) => change.commit === merge), false);
-    });
-
-  for (const readable of [true, false])
-    test(`recorded observations: report order and duplicate pins are retained, readable=${readable}`, () => {
-      const chain = authoredFixture();
-      writeFileSync(join(root, "source.txt"), "changed\n");
-      const first = commitAll("first application");
-      git(root, "revert", "--no-edit", first);
-      const inverse = git(root, "rev-parse", "HEAD").trim();
-      git(root, "cherry-pick", first);
-      const second = git(root, "rev-parse", "HEAD").trim();
-      const commits = [first, inverse, second, second];
-      write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n${commits.map((commit) => `- ${commit}\n`).join("")}`);
-      const args = ["stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror"];
-      assert.throws(() => rp(root, ...args), /--base <ref> is required/);
-      rp(root, ...args, "--base", "main");
-      const pins = parseFrontmatter(read(root, chain.reports[0])).data.get("changes");
-      assert.equal(pins.length, 4);
-      assert.equal(pins[2], pins[3]);
-      const observations = pins.map((pin) => JSON.parse(read(root, pin.split("@")[0])));
-      assert.deepEqual(observations.map((value) => value.source.commit), commits);
-      assert.equal(observations[0].material, observations[2].material);
-      assert.notEqual(pins[0], pins[2]);
-      if (!readable) {
-        rmSync(join(root, P(pins[2].split("@")[0])));
-        for (const command of [["check", PIPELINE, "--base", "main"], ["diff", PIPELINE, "--base", "main"], ["stamp", P(chain.reports[0]), "--mirror"]])
-          assert.throws(() => rp(root, ...command), /missing occurrence/);
-      } else {
-        const cases = [first, inverse, second].map((commit) => `*" ${commit} -- "*`).join("|");
-        const { env } = gitShim(`case " $* " in *" --raw "*) case " $* " in ${cases}) echo 'recorded commit recomputed' >&2; exit 2;; esac;; esac`);
-        for (const command of ["check", "diff"]) {
-          const output = JSON.parse(execFileSync(process.execPath, [RP, command, PIPELINE, "--base", "main", "--json"], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
-          const changes = command === "check" ? output.authoredChanges : output;
-          assert.deepEqual(changes.map((change) => change.commit), [first, inverse, second]);
-          if (command === "check") assert.equal(output.complete, false);
-        }
-      }
-    });
-
-  test("change paths: non-UTF-8 names retain their exact Git bytes", () => {
-    const chain = authoredFixture();
-    const name = Buffer.from([0x66, 0xff, 0x2e, 0x74, 0x78, 0x74]);
-    const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { cwd: root, input: "byte-named content\n", encoding: "utf8" }).trim();
-    execFileSync("git", ["update-index", "-z", "--index-info"], { cwd: root, input: Buffer.concat([Buffer.from(`100644 ${blob}\t`), name, Buffer.from([0])]) });
-    git(root, "commit", "--quiet", "-m", "byte-named entry");
-    const rows = JSON.parse(rp(root, "diff", PIPELINE, "--base", "main", "--json"));
-    assert.equal(rows.length, 1);
-    assert.deepEqual(Buffer.from(rows[0].content.files[0].path, "base64"), name);
-    assert.match(Buffer.from(rows[0].content.patch, "base64").toString("utf8"), /\\377/);
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    assert.equal(authoredState().complete, true);
-    const probe = Buffer.concat([Buffer.from(join(root, ".git", "probe-")), name]);
-    let supported = true;
-    try { writeFileSync(probe, "probe"); rmSync(probe); }
-    catch (error) { if (!["EILSEQ", "EINVAL"].includes(error.code)) throw error; supported = false; }
-    const output = join(root, ".git", "byte-material");
-    if (supported) {
-      rp(root, "diff", PIPELINE, "--base", "main", "--output", output);
-      const file = Buffer.concat([Buffer.from(`${join(output, "1", "after")}/`), name]);
-      assert.equal(readFileSync(file, "utf8"), "byte-named content\n");
-    } else assert.throws(() => rp(root, "diff", PIPELINE, "--base", "main", "--output", output), /EILSEQ|EINVAL/);
-  });
-
-  test("change history: upstream software projection and artifact-base integration are distinct", () => {
-    const chain = authoredFixture();
-    const upstream = join(root, ".git", "upstream");
-    mkdirSync(upstream);
-    git(upstream, "init", "--quiet", "--initial-branch=main");
-    git(upstream, "config", "user.name", "Upstream");
-    git(upstream, "config", "user.email", "upstream@example.com");
-    for (const file of ["source.txt", "binary.dat"]) writeFileSync(join(upstream, file), readFileSync(join(root, file)));
-    git(upstream, "add", "-A");
-    git(upstream, "commit", "--quiet", "-m", "baseline");
-    writeFileSync(join(root, "source.txt"), "delivered change\n");
-    commitAll("change");
-    review("3-build/build-review-2.md", "approved", chain.phasePackages[2]);
-    commitAll("approved state");
-    const patch = rp(root, "diff", PIPELINE, "--base", "main", "--live-net");
-    execFileSync("git", ["apply", "--index", "--binary"], { cwd: upstream, input: patch });
-    git(upstream, "commit", "--quiet", "-m", "change");
-    assert.equal(readFileSync(join(upstream, "source.txt"), "utf8"), "delivered change\n");
-    assert.equal(existsSync(join(upstream, ".pipelines")), false);
-    assert.equal(git(root, "ls-tree", "main", P("changes/index.json")), "");
-    git(root, "checkout", "--quiet", "main");
-    git(root, "merge", "--no-ff", "demo", "-m", "integrate state");
-    git(root, "checkout", "--quiet", "-b", "continue-from-artifact-base");
-    assert.equal(authoredState().complete, true);
-    assert.equal(authoredState().authoredChanges.length, 1);
+    assert.equal(calls[0], calls[1]);
   });
 
   test("a fixed line is mirrored whole or not at all: prose after Depends on is INVALID, never mined", () => {
@@ -4279,12 +3866,12 @@ process.stdout.write(output);
       shas.push(git(root, "rev-parse", "--short=10", "HEAD").trim());
     }
     write(root, "3-build/tasks/build-task-1-report-1.md", `# Task report\n\nOutcome: completed\n\n## Commits\n\n- ${shas[0]} — first\n\`${shas[1]}\` second, in backticks\n${shas[2]} third, plain\n\n## Checks\n\n- 1234567 is not a commit: prose stays prose\n`);
-    rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror", "--base", "main");
+    rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
     // Short hashes in the body are stored canonical: the full hash.
     const full = shas.map((s) => git(root, "rev-parse", s).trim());
     assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("commits"), full);
-    configure({ targetPhase: 3 });
-    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("changes"), pairs(JSON.parse(check(root, "--json")).authoredChanges.map(({ path }) => path)));
+    const patchId = (sha) => execFileSync("git", ["patch-id", "--stable"], { cwd: root, input: git(root, "show", sha), encoding: "utf8" }).split(" ")[0];
+    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("patch-ids"), full.map(patchId));
     write(root, "3-build/tasks/build-task-2-report-1.md", "# Task report\n\nOutcome: completed\n\n## Commits\n\n- 0badc0ffee1 — never made\n");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2-report-1.md"), "--reviewed", P("3-build/tasks/build-task-2.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror"), /names a commit that does not exist or is ambiguous: 0badc0ffee1/);
   });
@@ -4356,12 +3943,12 @@ process.stdout.write(output);
     assert.throws(() => check(root, "--force"), /option --force is not allowed/);
     assert.throws(() => check(root, "--assign", "verdict=garbage"), /check: option --assign is not allowed/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--json"), /stamp: option --json is not allowed/);
-    assert.throws(() => rp(root, "check", PIPELINE, "extra", "--base", "main"), /unexpected positional argument/);
+    assert.throws(() => rp(root, "check", PIPELINE, "extra"), /unexpected positional argument/);
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin"), /--pin expects a value/);
     for (const invalid of [".pipelines/bad_name", ".pipelines/bad..name", ".pipelines/-bad"]) {
       mkdirSync(join(root, invalid, "0-intent"), { recursive: true });
       writeFileSync(join(root, invalid, "0-intent/intent.md"), "# Intent\n");
-      assert.throws(() => rp(root, "check", invalid, "--base", "main"), /pipeline slug must be a valid git ref without _/);
+      assert.throws(() => rp(root, "check", invalid), /pipeline slug must be a valid git ref without _/);
     }
     configure({ targetPhase: 1 });
     assert.match(check(root), /frontier complete/);
@@ -4370,16 +3957,16 @@ process.stdout.write(output);
   test("--help defines body identity and recorded run configuration", () => {
     const help = rp(root, "--help");
     assert.match(help, /first 12 hexadecimal characters of\ngit's blob hash of every body byte/);
-    assert.match(help, /run-config\.md supplies the\nworkflow, target phase, and named lanes/);
+    assert.match(help, /run-config\.md supplies the workflow, target phase, base branch,\nand named lanes/);
   });
 
   test("check --json carries the state", () => {
     configure({ body: "Models and owner directions.\n" });
-    const state = JSON.parse(rp(root, "check", PIPELINE, "--base", "main", "--json"));
+    const state = JSON.parse(rp(root, "check", PIPELINE, "--json"));
     for (const key of ["pipeline", "challenges", "claims", "lanes", "artifacts", "tasks", "counters", "frontier", "completeThrough", "complete"]) {
       assert.ok(key in state, `missing ${key}`);
     }
     assert.equal("targetPhase" in state, false);
-    assert.deepEqual(state.configuration, { workflow: "autonomous", targetPhase: 4, lanes: [] });
+    assert.deepEqual(state.configuration, { workflow: "autonomous", targetPhase: 4, base: "main", lanes: [] });
   });
 });
