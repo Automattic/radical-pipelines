@@ -4,7 +4,7 @@ The autonomous workflow. You enter from triage with a pipeline folder, branch, a
 
 ## One step
 
-1. Run `rp check <worktree's absolute pipeline folder> --base <base branch>`.
+1. Run `rp check <worktree's absolute pipeline folder>`.
 2. Dispatch what resolves its `frontier` line (table below).
 3. When waiting on agents, end your turn with health monitoring active; incoming messages or health ticks resume the run.
 4. When the dispatched agents report, land their work: verify the commits are on the branch, stamp (below), merge lane branches (`before-`/`after-merging-lanes`), fire `phase-completed` when a phase becomes complete, then give the owner a one-line report naming the phase, its artifacts, and anything worth surfacing. `phase-started` fires the first time a step dispatches into a phase, and again when work on it resumes.
@@ -47,7 +47,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 ## Stamp on landing
 
-After every agent commit, stamp before anyone consumes the result and before terminating the agent. Pass `--base <base branch>` to the stamps below. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
+After every agent commit, stamp before anyone consumes the result and before terminating the agent. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every challenge it adjudicated; its record: `rp stamp <record> --mirror`. Each task file of a plan: `rp stamp <task> --mirror`.
 - A review's initial stamp: `rp stamp <review> --reviewed <each artifact-package file> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a challenge declares `Origin:` in its body.
@@ -56,7 +56,7 @@ After every agent commit, stamp before anyone consumes the result and before ter
 
 ## Review diffs
 
-A Delta review receives **Your previous review** and **Adjudication** — every record entry written since. An artifact review's **Diff** runs from its previous review's `head` to `HEAD` over its named materials. For a phase review, run `rp diff <pipeline folder> --base <base branch> --output <temporary folder>` with `--phase <build | document>` for Fresh, `--review <previous review>` for Delta. Pass its `diff.patch`, `index.json`, and the materialized files as **Diff**.
+A Delta review receives **Your previous review** and **Adjudication** — every record entry written since. An artifact review's **Diff** runs from its previous review's `head` to `HEAD` over its named materials. A phase review's **Diff** is the output of `rp diff <pipeline folder>`, saved to a file outside the worktree: the net change for Fresh; with `--review <previous review>`, that review's code delta for Delta.
 
 ## Review waves
 

@@ -10,7 +10,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check <pipeline folder> --base <base branch>` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, and its pending challenges and owner escalations.
+`git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check <pipeline folder>` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, and its pending challenges and owner escalations.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies cannot be reported, proceeds without comment.
 
@@ -38,7 +38,7 @@ Propose each run's configuration: its current `run-config.md`, else the **Agents
 
 ### 5. Prepare
 
-Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`. Before branching from a tracked artifact base branch, fetch its remote and fast-forward the local branch to its upstream.
+Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`.
 
 **A new pipeline**
 
