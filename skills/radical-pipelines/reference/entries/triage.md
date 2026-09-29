@@ -38,7 +38,7 @@ Propose each run's configuration: its current `run-config.md`, else the **Agents
 
 ### 5. Prepare
 
-Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`. Before branching from a tracked artifact base branch, fetch its remote and fast-forward the local branch to its upstream.
+Prepare every route of a run before starting it. Address every worktree by absolute path and run its Git commands through `git -C <worktree>`.
 
 **A new pipeline**
 

@@ -164,14 +164,12 @@ function gitBytes(root, args, input) {
 const gitText = (root, args, input) => gitBytes(root, args, input).toString("utf8").trim();
 const DIFF_OPTIONS = ["-r", "-p", "--binary", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color"];
 
-// The base: the merge-base of the tip with the base branch and its upstream, when it has one.
+// The base: the merge-base of the tip with the configured base branch.
 function pipelineBase(root, branch, tip) {
-  const commit = (ref) => { try { return gitText(root, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]); } catch { return null; } };
-  const base = commit(branch) ?? (() => { throw new Error(`base does not resolve: ${branch}`); })();
-  const upstream = gitText(root, ["for-each-ref", "--format=%(refname)%00%(upstream)", "refs/heads/"]).split("\n")
-    .map((line) => line.split("\0")).find(([name]) => name === `refs/heads/${branch}`)?.[1];
-  const tracked = upstream ? commit(upstream) : null;
-  try { return gitText(root, ["merge-base", tip, base, ...(tracked ? [tracked] : [])]); }
+  let base;
+  try { base = gitText(root, ["rev-parse", "--verify", "--quiet", `${branch}^{commit}`]); }
+  catch { throw new Error(`base does not resolve: ${branch}`); }
+  try { return gitText(root, ["merge-base", tip, base]); }
   catch { throw new Error(`no merge-base between ${branch} and ${tip}`); }
 }
 

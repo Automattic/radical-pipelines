@@ -5,7 +5,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Agents** — The project convention supplying defaults for profile models and named lanes.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: where pipelines start and merge.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable assumption id and stays in the open-assumption register until verified or fallen.
-- **Base** — The merge-base of the inspected tip with the branch its run configuration's `base` names and that branch's upstream, when it has one.
+- **Base** — The merge-base of the inspected tip with the branch its run configuration's `base` names.
 - **Blocker** — A report of malformed materials, unreadable input, or a broken environment. A worker reports it before its first write; a producer or reviewer may report it whenever found.
 - **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
 - **Challenge** — A constraint file, proposal file, `unsatisfiable` verdict, or fresh failed task report asking for work on its targets; adjudicated on a target when that target pins it, resolved there by its current approving wave or a corroborated escalation. Resolution is per target; the whole challenge resolves when every target does. An owner claim is resolved by its owner's answer.

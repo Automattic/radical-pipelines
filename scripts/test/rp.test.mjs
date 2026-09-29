@@ -3593,29 +3593,27 @@ process.stdout.write(output);
     settled();
   });
 
-  for (const tracked of [true, false])
-    test(`code delta: the base includes its upstream's commits, tracked=${tracked}`, () => {
-      codeFixture();
-      const remote = join(root, ".git", "remote.git");
-      git(root, "init", "--quiet", "--bare", remote);
-      git(root, "remote", "add", "origin", remote);
-      git(root, "push", "--quiet", "-u", "origin", "main");
-      if (!tracked) git(root, "branch", "--unset-upstream", "main");
-      const upstream = onMain(() => {
-        const commit = change("upstream.txt", "upstream\n");
-        git(root, "push", "--quiet", "origin", "main");
-        git(root, "reset", "--quiet", "--hard", "HEAD~1");
-        return commit;
-      });
-      git(root, "fetch", "--quiet", "origin");
-      git(root, "merge", "--no-ff", upstream, "-m", "integrate upstream");
-      const files = changedFiles(netChange());
-      assert.deepEqual(files, tracked ? [] : ["upstream.txt"]);
-      assert.equal(codeState().complete, tracked);
-      git(root, "branch", "-f", "main", "origin/main");
-      assert.deepEqual(changedFiles(netChange()), []);
-      assert.equal(codeState().complete, true);
+  test("code delta: base commits merged past the base branch are reviewed until it is fast-forwarded", () => {
+    codeFixture();
+    const remote = join(root, ".git", "remote.git");
+    git(root, "init", "--quiet", "--bare", remote);
+    git(root, "remote", "add", "origin", remote);
+    git(root, "push", "--quiet", "-u", "origin", "main");
+    const upstream = onMain(() => {
+      const commit = change("upstream.txt", "upstream\n");
+      git(root, "push", "--quiet", "origin", "main");
+      git(root, "reset", "--quiet", "--hard", "HEAD~1");
+      return commit;
     });
+    git(root, "fetch", "--quiet", "origin");
+    git(root, "merge", "--no-ff", upstream, "-m", "integrate upstream");
+    assert.deepEqual(changedFiles(netChange()), ["upstream.txt"]);
+    assert.deepEqual(changedFiles(codeDeltaOf("3-build/build-review-1.md")), ["upstream.txt"]);
+    assert.equal(codeState().complete, false);
+    git(root, "branch", "-f", "main", "origin/main");
+    assert.equal(netChange(), "");
+    assert.equal(codeState().complete, true);
+  });
 
   for (const scenario of ["document task commit", "build task commit", "manual edit during Document", "rebased document commit", "conflicting document replay"])
     test(`phase order: ${scenario}`, () => {
