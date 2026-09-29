@@ -21,7 +21,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 ## Fresh
 
-Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc** and **Spec** with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Challenge** or **Task report** under review when present, and the **Diff** of authored changes.
+Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc** and **Spec** with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Challenge** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
 1. Read the task reports to trace planned work; judge the whole Diff under your Rules.
 2. Review the diff per **Rules**; run the tests, the build, and the flows the e2e tasks carry.
@@ -29,7 +29,7 @@ Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — th
 
 ## Delta
 
-Materials: the Fresh materials, **Your previous review**, the **Diff** of added and removed authored changes, and the **Adjudication** — the record entries written since.
+Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since.
 
 1. Confirm how each of your prior findings was resolved. A resolution that fails is a finding; write `Prior finding: <review>#build-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
