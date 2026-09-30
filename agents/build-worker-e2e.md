@@ -21,18 +21,20 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on); when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and **Design doc** — the why; when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
-2. For each flow the task carries: automate its steps and expected outcome as an end-to-end test in the project's e2e convention; make it pass against the current code. The behavior exists by the time you run, so there is no red phase — but a test that passes without exercising the flow is worthless: confirm it genuinely drives the behavior.
-3. Run the project's test suite and build.
-4. Determine the outcome per **Outcomes** and write the report.
+2. Read what the task's `Traces to` names in the spec and the design doc, with the design doc's Verification entries for it.
+3. For each flow the task carries: automate its steps and expected outcome as an end-to-end test in the project's e2e convention, asserting what the user or consumer observes; make it pass against the current code. The behavior exists by the time you run, so there is no red phase — but a test that passes without exercising the flow is worthless: confirm it genuinely drives the behavior.
+4. Run the project's test suite and build.
+5. Determine the outcome per **Outcomes** and write the report.
 
 # Rules
 
 **Boundary**
 
 - Acceptance is the contract: every criterion holds at completion.
+- A design decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component is yours.
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
 - A task that forces a design decision is incomplete.
@@ -41,7 +43,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Outcomes**
 
-- **Completed** when every acceptance criterion is covered by a passing end-to-end test, every flow it carries is included, and the suite is green. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
+- **Completed** when every flow the task carries passes as an end-to-end test and the suite is green. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
 
 **Evidence**
 
@@ -66,6 +68,11 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - No speculative code: no abstractions for hypothetical futures, no handling for impossible cases.
 - Follow the project's patterns, naming, code style, and testing style.
 
+**Tests**
+
+- Tests follow the classical school: a test observes an outcome through the public interface, never the wiring that produces it; a test double replaces only what the test cannot run.
+- A new test proves something no existing test proves.
+
 # Protocol
 
 - **Blocker** — before your first write, report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
@@ -86,7 +93,7 @@ Outcome: completed | failed | blocked
 
 ## Checks
 
-<!-- Per acceptance criterion: the passing end-to-end test that covers it, including every flow carried, and its result; each Verifies condition and its outcome. -->
+<!-- Per acceptance outcome: the flow or check that demonstrates it and its result; each Verifies condition and its outcome. -->
 
 ## Evidence
 

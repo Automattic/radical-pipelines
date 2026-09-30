@@ -21,18 +21,20 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on); when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and **Design doc** — the why; when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
-2. Make the change; verify each acceptance criterion by inspection at its required scope.
-3. Run the project's test suite and build.
-4. Determine the outcome per **Outcomes** and write the report.
+2. Read what the task's `Traces to` names in the spec and the design doc, with the design doc's Verification entries for it.
+3. Make the change; verify each acceptance criterion by inspection at its required scope.
+4. Run the project's test suite and build.
+5. Determine the outcome per **Outcomes** and write the report.
 
 # Rules
 
 **Boundary**
 
 - Acceptance is the contract: every criterion holds at completion.
+- A design decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component is yours.
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
 - A task that forces a design decision is incomplete.
@@ -67,6 +69,11 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - Your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts; the code describes the software as it is, never its prior state or the change from it.
 - No speculative code: no abstractions for hypothetical futures, no handling for impossible cases.
 - Follow the project's patterns, naming, code style, and testing style.
+
+**Tests**
+
+- Tests follow the classical school: a test observes an outcome through the public interface, never the wiring that produces it; a test double replaces only what the test cannot run.
+- A new test proves something no existing test proves.
 
 # Protocol
 
