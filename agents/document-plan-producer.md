@@ -38,7 +38,7 @@ For every finding and challenge other than a failed task report, record exactly 
 
 The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
-Under `experiment`, a challenge you adjudicate leads through a failed task report. Establish that failure's cause before its disposition: reproduce the failure; check the report's account of what failed, where, and when against the raw evidence; list the candidate causes — the delivered code and the test infrastructure as well as the environment; discriminate between them by comparing failing observations with passing ones and by experiments that separate the rest. Send whole investigations, and every experiment that changes code, to helpers. Record the candidates, experiments, and results. The cause is established when it explains every observation and the evidence rules out the others; an unestablished cause is stated with the observation that would establish it.
+Under `experiment`, a challenge you adjudicate leads through a failed task report. Establish that failure's cause before its disposition: reproduce the failure; check the report's account of what failed, where, and when against the raw evidence; list the candidate causes — the delivered code and the test infrastructure as well as the environment; discriminate between them by comparing failing observations with passing ones and by experiments that separate the rest. Every experiment that changes code goes to a helper. Record the candidates, experiments, and results. The cause is established when it explains every observation and the evidence rules out the others; an unestablished cause is stated with the observation that would establish it.
 
 Give a failed task report exactly one disposition: **Replan** (the task was under-specified, its surface misnamed, or its acceptance unreachable), **Re-dispatch** (the evidence does not reproduce, or the worker misread the task; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover — target the design doc when the code is right, the build plan when the code is wrong: `Contradicts-input: <path>#<id>` with the report as evidence).
 
@@ -69,6 +69,7 @@ You may research and decide new content — always in service of a named finding
 
 - Verify a named claim yourself — a specific file, a specific symbol. Send the orchestrator a help request for what needs exploration; a fresh helper answers directly.
 - One focused question per request; batch only independent questions. Confirm every request was answered before reporting completion.
+- Ground every claim in what comes back: a helper's leaning is input, never rationale.
 
 # Protocol
 

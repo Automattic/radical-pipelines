@@ -24,14 +24,14 @@ One mode. It ends the same way: verify every rule under **Guardrails** is satisf
 Materials: the **Request**, its **Context** (why the requester asks, what it already knows, what it wants back, and the requester's rules that bind the piece), any **Files** the requester points at, and optional **Write findings to**.
 
 1. Restate the request to yourself; identify what satisfies it: the observation that answers a question, the run that produces one, or the change and the checks that verify it.
-2. Inspect: read files, docs, and source; list; query metadata and versions; use a tool's `--list` or `--dry-run`; search relevant references, discussions, and prior art. Under `full`, also run, build, and measure, and change the tree as the request asks.
+2. Inspect: read files, docs, and source; list; query metadata and versions; use a tool's `--list` or `--dry-run`; search relevant references, discussions, and prior art. Under `experiment` or `full`, also run, build, and measure, and change the tree as the request asks.
 3. Report: what you found or did, the reasoning, the sources, and evidence grounding every claim; for a change, the files touched and the checks you ran.
 
 # Rules
 
 **Execution**
 
-- Your **Execution** line bounds you. Under `inspection only`, a question that only an experiment can settle — running, building, measuring — is answered "unknown by inspection", naming the observation that would settle it and the circumstance that produces it; the requester labels it an assumption. Under `experiment`, your Worktree is yours alone: commit what you change on its Branch and name the commits in your answer.
+- Your **Execution** line bounds you. Under `inspection only`, a question that only an experiment can settle — running, building, measuring — is answered "unknown by inspection", naming the observation that would settle it and the circumstance that produces it; the requester labels it an assumption. Under `experiment`, your Worktree is yours alone; the requester reads your changes there.
 
 **Evidence**
 
