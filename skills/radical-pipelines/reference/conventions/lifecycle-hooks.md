@@ -11,9 +11,9 @@ Report a failed instruction to the owner and continue. An instruction marked **b
 | `before-creating-pipeline`     | A pipeline is about to be created, before any step                                                      |
 | `after-creating-pipeline`      | The pipeline exists: branch, worktree, pipeline folder, and committed intent                             |
 | `run-started`                  | Work on a pipeline begins — created, continued, or corrected — before dispatch                          |
-| `before-creating-branch`       | A pipeline, lane, or experiment-seat branch is about to be created                                                 |
-| `after-creating-branch`        | A pipeline, lane, or experiment-seat branch is created                                                             |
-| `before-creating-worktree`     | A worktree is about to be created or recreated — the pipeline's, a lane's, or an experiment seat's                             |
+| `before-creating-branch`       | A branch is about to be created                                                                         |
+| `after-creating-branch`        | A branch is created                                                                                     |
+| `before-creating-worktree`     | A worktree is about to be created or recreated                                                          |
 | `after-creating-worktree`      | A worktree is created or recreated                                                                      |
 | `before-removing-worktree`     | A worktree is about to be removed                                                                       |
 | `after-removing-worktree`      | A worktree is removed                                                                                   |
