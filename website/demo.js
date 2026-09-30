@@ -251,7 +251,7 @@
       await runBash(p.then.bash);
     }
     if (p.verdict) {
-      line(logEl, 'cc-sub verdict', '  ⎿  Verdict: ' + p.verdict);
+      line(logEl, 'cc-sub verdict', '  ⎿  verdict: ' + p.verdict);
     }
 
     // Done line with timing

@@ -54,7 +54,7 @@ function declaredIn(root, rel, body) {
   const [prefix, words] = DECLARES[`${parts[0]}/${parts.at(-1)}`] ?? [null, []];
   if (!prefix) return [];
   const prose = body.replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[\t ]*$/gm, "");
-  const items = [...prose.matchAll(/^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+[*_`]*((intent|spec|design-doc|build|document)-([a-z-]+?)-[1-9]\d*)(?![A-Za-z0-9-])/gm)];
+  const items = [...prose.matchAll(/^((intent|spec|design-doc|build|document)-([a-z-]+?)-[1-9]\d*): \S/gm)];
   const own = items.filter((m) => m[2] === prefix && words.includes(m[3])).map((m) => m[1]);
   const carried = prefix === "intent" || prefix === "spec" ? [] : items.filter((m) => m[2] !== prefix && m[3] === "assumption").map((m) => m[1]);
   const folder = join(root, P(`${parts[0]}/tasks`));
@@ -75,12 +75,12 @@ function initRepo() {
   git(root, "init", "--quiet", "--initial-branch=main");
   git(root, "config", "user.email", "rp-test@example.com");
   git(root, "config", "user.name", "RP Test");
-  write(root, "0-intent/intent.md", "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal intent.\n");
-  write(root, "1-spec/spec.md", "# Spec\n\n- spec-requirement-1 Requirement.\n");
+  write(root, "0-intent/intent.md", "origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal intent.\n");
+  write(root, "1-spec/spec.md", "# Spec\n\nspec-requirement-1: Requirement.\n");
   write(root, "1-spec/spec-research.md", "# Spec research\n");
-  write(root, "2-design-doc/design-doc.md", "# Design doc\n\n- design-doc-decision-1 Decision.\n");
+  write(root, "2-design-doc/design-doc.md", "# Design doc\n\ndesign-doc-decision-1: Decision.\n");
   write(root, "2-design-doc/design-doc-research.md", "# Design research\n");
-  write(root, "3-build/build-plan.md", "# Build plan\n\n## Order\n\n- build-task-1\n- build-task-2 <- build-task-1\n");
+  write(root, "3-build/build-plan.md", "# Build plan\n\n## Order\n\nTasks run in dependency order.\n");
   write(root, "3-build/build-plan-research.md", "# Plan research\n");
   writeRunConfig(root);
   for (const rel of ["0-intent/intent.md", "1-spec/spec.md", "2-design-doc/design-doc.md"]) rp(root, "stamp", P(rel), "--mirror");
@@ -128,7 +128,7 @@ describe("rp state tooling", () => {
     if (phase) commitAll(`review ${rel}`);
   }
   function review(rel, verdict, reviewed, extra = "") {
-    writeReview(rel, `# Review\n\nVerdict: ${verdict}\n${extra}`);
+    writeReview(rel, `# Review\n\nverdict: ${verdict}\n${extra}`);
     rp(root, "stamp", P(rel), ...reviewed.flatMap((f) => ["--reviewed", P(f)]), "--mirror");
     if (/^(?:3-build\/build|4-document\/document)-review-/.test(rel)) commitAll(`stamp ${rel}`);
   }
@@ -145,7 +145,7 @@ describe("rp state tooling", () => {
   }
   function registeredReview(rel, reviewed, lane = null) {
     const pins = reviewed.map((path) => `${path}@${identity(parseFrontmatter(read(root, path)).body)}`);
-    registered(rel, { reviewed: pins, verdict: "approved", ...(lane ? { lane } : {}) }, "# Review\n\nVerdict: approved\n");
+    registered(rel, { reviewed: pins, verdict: "approved", ...(lane ? { lane } : {}) }, "# Review\n\nverdict: approved\n");
   }
   function pairs(paths) {
     return paths.map((path) => `${path}@${identity(read(root, path))}`);
@@ -156,7 +156,7 @@ describe("rp state tooling", () => {
     (existsSync(join(root, P(rel))) ? (path, contents) => write(root, path, contents) : writeReview)(rel, `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`);
   }
   function registeredVerdict(rel, pins, verdict = "approved", lane = null) {
-    registered(rel, { reviewed: pins, verdict, ...(lane ? { lane } : {}) }, `# Review\n\nVerdict: ${verdict}\n`);
+    registered(rel, { reviewed: pins, verdict, ...(lane ? { lane } : {}) }, `# Review\n\nverdict: ${verdict}\n`);
   }
   function registeredRoot(artifact, reference, reviews, lane = null) {
     const scope = dirname(artifact);
@@ -180,8 +180,8 @@ describe("rp state tooling", () => {
     review(`2-design-doc/design-doc-review-${wave}.md`, "approved", DESIGN);
   }
   function writeTasks() {
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\n- **Depends on:** none\n");
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** build-task-1\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\ndepends-on: none\n");
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\ndepends-on: build-task-1\n");
     rp(root, "stamp", P("3-build/tasks/build-task-1.md"), "--mirror");
     rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror");
   }
@@ -193,7 +193,7 @@ describe("rp state tooling", () => {
     review(`3-build/build-plan-review-${wave}.md`, "approved", [...PLAN_BASE, ...TASKS]);
   }
   function report(id, k, outcome, deps = []) {
-    write(root, `3-build/tasks/${id}-report-${k}.md`, `# Task report\n\nOutcome: ${outcome}\n`);
+    write(root, `3-build/tasks/${id}-report-${k}.md`, `# Task report\n\noutcome: ${outcome}\n`);
     rp(root, "stamp", P(`3-build/tasks/${id}-report-${k}.md`), "--reviewed", P(`3-build/tasks/${id}.md`), ...deps.flatMap((d) => ["--reviewed", P(`3-build/tasks/${d}.md`)]), "--mirror");
   }
   function approveChain(upTo) {
@@ -244,7 +244,7 @@ describe("rp state tooling", () => {
 
   test("ref reader: four phases and resolved challenges match the worktree in one batch", (t) => {
     const challenge = "0-intent/proposal-1.md";
-    registered(challenge, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 9" }, "# Proposal\nTarget: 1-spec/spec.md#spec-requirement-1\nOrigin: issue 9\n");
+    registered(challenge, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 9" }, "# Proposal\ntarget: 1-spec/spec.md#spec-requirement-1\norigin: issue 9\n");
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", challenge]) });
     registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, challenge]));
     write(root, "2-design-doc/design-doc-research.md", `# Research\n${"Evidence λ.\n".repeat(140000)}`);
@@ -253,8 +253,8 @@ describe("rp state tooling", () => {
     const buildInputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "2-design-doc/design-doc-research.md"];
     registered("3-build/build-plan.md", { pins: pairs(buildInputs) });
     const buildTask = "3-build/tasks/build-task-1.md", buildReport = "3-build/tasks/build-task-1-report-1.md";
-    registered(buildTask, { depends: [] }, "# Task\nDepends on: none\n");
-    registered(buildReport, { reviewed: pairs([buildTask]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+    registered(buildTask, { "depends-on": [] }, "# Task\ndepends-on: none\n");
+    registered(buildReport, { reviewed: pairs([buildTask]), outcome: "completed", attempt: "1" }, "# Report\noutcome: completed\n");
     const buildPackage = ["3-build/build-plan.md", "3-build/build-plan-research.md", ...buildInputs, buildTask];
     registeredVerdict("3-build/build-plan-review-1.md", pairs(buildPackage));
     registeredVerdict("3-build/build-review-1.md", pairs([...buildPackage, buildReport]));
@@ -262,8 +262,8 @@ describe("rp state tooling", () => {
     registered("4-document/document-plan.md", { pins: pairs(docInputs) }, "# Document plan\n");
     write(root, "4-document/document-plan-research.md", "# Record\n");
     const docTask = "4-document/tasks/document-task-1.md", docReport = "4-document/tasks/document-task-1-report-1.md";
-    registered(docTask, { depends: [] }, "# Task\nDepends on: none\n");
-    registered(docReport, { reviewed: pairs([docTask]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+    registered(docTask, { "depends-on": [] }, "# Task\ndepends-on: none\n");
+    registered(docReport, { reviewed: pairs([docTask]), outcome: "completed", attempt: "1" }, "# Report\noutcome: completed\n");
     const docPackage = ["4-document/document-plan.md", "4-document/document-plan-research.md", ...docInputs, docTask];
     registeredVerdict("4-document/document-plan-review-1.md", pairs(docPackage));
     registeredVerdict("4-document/document-review-1.md", pairs([...docPackage, docReport]));
@@ -465,7 +465,7 @@ process.stdout.write(output);
   });
 
   test("empty frontmatter preserves a dependency-free task's body identity", () => {
-    const body = "# build-task-1\n\n- **Depends on:** none\n";
+    const body = "# build-task-1\n\ndepends-on: none\n";
     const expected = execFileSync("git", ["hash-object", "--stdin"], { input: body, encoding: "utf8" }).trim().slice(0, 12);
     write(root, "3-build/tasks/build-task-1.md", body);
 
@@ -481,7 +481,7 @@ process.stdout.write(output);
   for (const [name, rel, body, flags] of [
     ["no declarations", "3-build/tasks/build-task-1.md", "# build-task-1\n\nImplement the change.\n", ["--mirror"]],
     ["empty frontmatter", "3-build/tasks/build-task-1.md", "---\n{}\n---\n# build-task-1\n", ["--mirror"]],
-    ["fenced declarations", "0-intent/notes.md", "# Notes\n\n```text\nVerdict: not a verdict\n```\n", ["--mirror"]],
+    ["fenced declarations", "0-intent/notes.md", "# Notes\n\n```text\nverdict: not a verdict\n```\n", ["--mirror"]],
     ["no flags", "0-intent/notes.md", "# Notes\n", []],
   ]) test(`empty stamp projection: ${name} succeeds without writing`, () => {
     write(root, rel, body);
@@ -495,20 +495,20 @@ process.stdout.write(output);
   });
 
   test("empty stamp projection: declared dependencies still produce mirrors", () => {
-    const rel = "3-build/tasks/build-task-2.md", body = "# build-task-2\n\nDepends on: build-task-1\n";
+    const rel = "3-build/tasks/build-task-2.md", body = "# build-task-2\n\ndepends-on: build-task-1\n";
     write(root, rel, body);
     assert.equal(rp(root, "stamp", P(rel), "--mirror"), `stamped ${P(rel)}\n`);
     const parsed = parseFrontmatter(read(root, rel));
-    assert.deepEqual(parsed.data.get("depends"), ["build-task-1"]);
+    assert.deepEqual(parsed.data.get("depends-on"), ["build-task-1"]);
     assert.equal(parsed.body, body);
   });
 
   test("empty stamp projection: invalid fixed lines still fail without writing", () => {
-    const rel = "3-build/tasks/build-task-1.md", body = "# build-task-1\n\nDepends on: maybe\n";
+    const rel = "3-build/tasks/build-task-1.md", body = "# build-task-1\n\ndepends-on: maybe\n";
     write(root, rel, body);
     assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), (error) => {
       assert.equal(error.status, 1);
-      assert.match(error.stderr, /INVALID Depends on:/);
+      assert.match(error.stderr, /INVALID depends-on:/);
       assert.doesNotMatch(error.stdout, /nothing to mirror/);
       return true;
     });
@@ -526,25 +526,25 @@ process.stdout.write(output);
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+STALE/);
   });
 
-  test("--mirror copies Verdict, Brief, Target, Outcome, Prior finding, Depends on, and every Origin line", () => {
+  test("--mirror copies verdict, brief, target, outcome, prior-finding, depends-on, and every origin line", () => {
     stampSpec();
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n\n### spec-finding-1: One\n\n### spec-finding-2: Two\n");
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: unsatisfiable\nBrief: security\nTarget: 0-intent/intent.md#intent-goal\n\n### spec-finding-1\n\nPrior finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: One\n\nspec-finding-2: Two\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: unsatisfiable\nbrief: security\ntarget: 0-intent/intent.md#intent-goal\n\nspec-finding-1: Recurring\n\nprior-finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const fm = read(root, "1-spec/spec-review-2.md");
     assert.match(fm, /"verdict": "unsatisfiable"/);
     assert.match(fm, /"brief": "security"/);
     assert.deepEqual(parseFrontmatter(fm).data.get("target"), ["0-intent/intent.md#intent-goal"]);
     assert.deepEqual(parseFrontmatter(fm).data.get("target-identity"), [identity(read(root, "0-intent/intent.md"))]);
-    assert.match(fm, /"recurs": \[\n    "1-spec\/spec-review-1\.md#spec-finding-2"/);
+    assert.match(fm, /"prior-finding": \[\n    "1-spec\/spec-review-1\.md#spec-finding-2"/);
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     assert.match(read(root, "0-intent/intent.md"), /"origin": "issue 7"/);
-    write(root, "0-intent/intent.md", "Origin: issue 7\nOrigin: starts-from 6-other\n\n# Intent\n\n## Goal\n\nx\n");
+    write(root, "0-intent/intent.md", "origin: issue 7\norigin: starts-from 6-other\n\n# Intent\n\n## Goal\n\nx\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     assert.match(read(root, "0-intent/intent.md"), /"origin": \[\n    "issue 7",\n    "starts-from 6-other"/);
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2\n\n- **Depends on:** build-task-1\n");
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2\n\ndepends-on: build-task-1\n");
     rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror");
-    assert.match(read(root, "3-build/tasks/build-task-2.md"), /"depends": \[\n    "build-task-1"/);
+    assert.match(read(root, "3-build/tasks/build-task-2.md"), /"depends-on": \[\n    "build-task-1"/);
   });
 
   test("reviewed pins are immutable; head moves only with pins", () => {
@@ -623,7 +623,7 @@ process.stdout.write(output);
     const cases = [
       ["pins", "1-spec/spec.md", ["--pin", P("0-intent/bad.md")], "# Spec\n"],
       ["reviewed", "0-intent/notes.md", ["--reviewed", P("0-intent/bad.md")], "# Notes\n"],
-      ["targets", "0-intent/proposal-1.md", ["--mirror"], "# Proposal\n\nTarget: 1-spec/spec.md\nOrigin: issue 8\n"],
+      ["targets", "0-intent/proposal-1.md", ["--mirror"], "# Proposal\n\ntarget: 1-spec/spec.md\norigin: issue 8\n"],
     ];
     for (const [name, rel, args, body] of cases) {
       const consumed = name === "targets" ? "1-spec/spec.md" : "0-intent/bad.md";
@@ -670,7 +670,7 @@ process.stdout.write(output);
   });
 
   test("representation contradictions are reported before base-dependent state", () => {
-    write(root, "1-spec/spec.md", "# Spec\n\nOutcome: not-an-outcome\n");
+    write(root, "1-spec/spec.md", "# Spec\n\noutcome: not-an-outcome\n");
     const state = checkWithoutBase();
     assert.equal(state.frontier, "INVALID LINE 1-spec/spec.md");
     assert.deepEqual(state.artifacts, []);
@@ -680,7 +680,7 @@ process.stdout.write(output);
   test("stamped strings with punctuation round-trip through frontmatter", () => {
     const brief = "Check: all [paths] # deeply";
     stampSpec();
-    write(root, "1-spec/spec-review-1.md", `# Review\n\nVerdict: rejected\nBrief: ${brief}\n`);
+    write(root, "1-spec/spec-review-1.md", `# Review\n\nverdict: rejected\nbrief: ${brief}\n`);
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const stamped = read(root, "1-spec/spec-review-1.md");
     assert.match(stamped, /"brief": "Check: all \[paths\] # deeply"/);
@@ -775,7 +775,7 @@ process.stdout.write(output);
   test("an episode counts only approvals current on the live reference", () => {
     stampSpec();
     approveSpec();
-    appendFileSync(join(root, P("1-spec/spec.md")), "\n- spec-requirement-2 Requirement.\n");
+    appendFileSync(join(root, P("1-spec/spec.md")), "\nspec-requirement-2: Requirement.\n");
     stampSpec();
     review("1-spec/spec-review-2.md", "rejected", SPEC);
     configure({ targetPhase: 1 });
@@ -786,7 +786,7 @@ process.stdout.write(output);
 
   test("an unstamped review is the frontier, never a new wave", () => {
     stampSpec();
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: approved\n");
     assert.match(check(root), /frontier stamp 1-spec\/spec-review-1\.md/);
   });
 
@@ -800,8 +800,8 @@ process.stdout.write(output);
     assert.doesNotMatch(output, /claim\s+2-design-doc\/a\/spec-review-1\.md/);
     assert.match(output, /frontier review wave 1-spec\/spec\.md/);
     const misplaced = "2-design-doc/a/spec-review-1.md";
-    assert.throws(() => review(misplaced, "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-goal\n"), /only challenges may carry target fields/);
-    registered(misplaced, { verdict: "unsatisfiable", reviewed: pairs(SPEC), target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] }, "# Review\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#intent-goal\n");
+    assert.throws(() => review(misplaced, "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n"), /only challenges may carry target fields/);
+    registered(misplaced, { verdict: "unsatisfiable", reviewed: pairs(SPEC), target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] }, "# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
     const invalid = JSON.parse(check(root, "--json"));
     assert.equal(invalid.frontier, `INVALID FRONTMATTER ${misplaced}`);
     assert.deepEqual(invalid.claims, []);
@@ -827,10 +827,10 @@ process.stdout.write(output);
         const inputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md"];
         registered("3-build/build-plan.md", { pins: pairs(inputs) });
         const task = "3-build/tasks/build-task-1.md", report = "3-build/tasks/build-task-1-report-1.md";
-        registered(task, { depends: [] }, "# Task\nDepends on: none\n");
-        registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), ...(enabled ? { target: ["3-build/build-plan.md#build-task-1"], "target-identity": [identity(read(root, "3-build/build-plan.md"))] } : {}) }, "# Report\nOutcome: failed\n");
+        registered(task, { "depends-on": [] }, "# Task\ndepends-on: none\n");
+        registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), ...(enabled ? { target: ["3-build/build-plan.md#build-task-1"], "target-identity": [identity(read(root, "3-build/build-plan.md"))] } : {}) }, "# Report\noutcome: failed\n");
         registeredVerdict("3-build/build-plan-review-1.md", pairs([...PLAN_BASE, task]));
-        if (!fresh) registered(task, { depends: [] }, "# Changed task\nDepends on: none\n");
+        if (!fresh) registered(task, { "depends-on": [] }, "# Changed task\ndepends-on: none\n");
         configure({ targetPhase: 3 });
         const state = checkWithClassification(enabled ? null : report);
         assert.deepEqual(state.contradictions, []);
@@ -846,9 +846,9 @@ process.stdout.write(output);
         test(`challenge classifier: claim enabled=${enabled}, fresh=${fresh}, origin=${escalation} governs claims and resolution`, () => {
           const challenge = "0-intent/proposal-1.md", review = "1-spec/spec-review-1.md";
           const inputs = ["0-intent/intent.md", ...(escalation ? [challenge] : [])];
-          if (escalation) registered(challenge, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 9" }, "# Proposal\nTarget: 1-spec/spec.md#spec-requirement-1\nOrigin: issue 9\n");
+          if (escalation) registered(challenge, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 9" }, "# Proposal\ntarget: 1-spec/spec.md#spec-requirement-1\norigin: issue 9\n");
           registered("1-spec/spec.md", { pins: pairs(inputs) });
-          registered(review, { verdict: "unsatisfiable", reviewed: pairs(["1-spec/spec.md", "1-spec/spec-research.md", ...inputs]), ...(enabled ? { target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] } : {}), ...(escalation ? { origin: challenge } : {}) }, `# Review\nVerdict: unsatisfiable\n${enabled ? "Target: 0-intent/intent.md#intent-goal\n" : ""}${escalation ? `Origin: ${challenge}\n` : ""}`);
+          registered(review, { verdict: "unsatisfiable", reviewed: pairs(["1-spec/spec.md", "1-spec/spec-research.md", ...inputs]), ...(enabled ? { target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] } : {}), ...(escalation ? { origin: challenge } : {}) }, `# Review\nverdict: unsatisfiable\n${enabled ? "target: 0-intent/intent.md#intent-goal\n" : ""}${escalation ? `origin: ${challenge}\n` : ""}`);
           if (!fresh) write(root, "1-spec/spec-research.md", "# Changed record\n");
           configure({ targetPhase: 1 });
           const state = checkWithClassification(enabled ? null : review);
@@ -860,7 +860,7 @@ process.stdout.write(output);
         });
 
   function proposal(target = "1-spec/spec.md#spec-requirement-1") {
-    write(root, "0-intent/proposal-1.md", `# Proposal 1\n\nTarget: ${target}\nOrigin: 0-intent/constraint-1.md\n\n## Request\n\nFix spec-requirement-1.\n`);
+    write(root, "0-intent/proposal-1.md", `# Proposal 1\n\ntarget: ${target}\norigin: 0-intent/constraint-1.md\n\n## Request\n\nFix spec-requirement-1.\n`);
     rp(root, "stamp", P("0-intent/proposal-1.md"), "--mirror");
   }
 
@@ -871,8 +871,8 @@ process.stdout.write(output);
     const tasks = ["3-build/tasks/build-task-1.md", "4-document/tasks/document-task-1.md"];
     const reports = tasks.map((path) => path.replace(/\.md$/, "-report-1.md"));
     for (const [i, task] of tasks.entries()) {
-      registered(task, { depends: [] }, `# ${task.split("/").at(-1).replace(/\.md$/, "")}\nDepends on: none\n`);
-      registered(reports[i], { reviewed: pairs([task]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+      registered(task, { "depends-on": [] }, `# ${task.split("/").at(-1).replace(/\.md$/, "")}\ndepends-on: none\n`);
+      registered(reports[i], { reviewed: pairs([task]), outcome: "completed", attempt: "1" }, "# Report\noutcome: completed\n");
     }
     const inputs = [
       ["0-intent/intent.md"],
@@ -886,7 +886,7 @@ process.stdout.write(output);
     const phasePackages = [];
     for (const [i, artifact] of artifacts.entries()) {
       if (artifact === extraArtifact) inputs[i].push(context);
-      registered(artifact, { pins: pairs(inputs[i]) }, `# Artifact\n\n- ${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][i]} Clause.\n`);
+      registered(artifact, { pins: pairs(inputs[i]) }, `# Artifact\n\n${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][i]}: Clause.\n`);
       write(root, records[i], "# Record\n");
       packages[i] = [artifact, records[i], ...inputs[i], ...(i >= 2 ? [tasks[i - 2]] : [])];
       phasePackages[i] = [...packages[i], ...(i >= 2 ? [reports[i - 2]] : [])];
@@ -900,7 +900,7 @@ process.stdout.write(output);
   function ownerInput(kind, n, targets, origin = "issue 9") {
     const path = `0-intent/${kind}-${n}.md`;
     const origins = [].concat(origin);
-    registered(path, { target: targets, origin }, `# ${kind} ${n}\n\nTarget: ${targets.join(", ")}\n${origins.map((source) => `Origin: ${source}\n`).join("")}\nThe incoming work.\n`);
+    registered(path, { target: targets, origin }, `# ${kind} ${n}\n\ntarget: ${targets.join(", ")}\n${origins.map((source) => `origin: ${source}\n`).join("")}\nThe incoming work.\n`);
     return path;
   }
 
@@ -938,7 +938,7 @@ process.stdout.write(output);
   for (const kind of ["constraint", "proposal"])
     test(`owner input landing: ${kind} may target an artifact before it exists`, () => {
       const target = "4-document/document-plan.md", path = `0-intent/${kind}-1.md`;
-      write(root, path, `# Input\nTarget: ${target}\nOrigin: issue 9\n`);
+      write(root, path, `# Input\ntarget: ${target}\norigin: issue 9\n`);
       rp(root, "stamp", P(path), "--mirror");
       assert.equal(existsSync(join(root, P(target))), false);
       assert.deepEqual(parseFrontmatter(read(root, path)).data.get("target"), [target]);
@@ -965,7 +965,7 @@ process.stdout.write(output);
           ...(defect === "source absent" ? {} : { origin: "issue 9" }),
           ...(defect === "target identities" ? { "target-identity": ["123456abcdef"] } : {}),
         };
-        const body = `# Input\n${fields.target ? `Target: ${target}\n` : ""}${fields.origin ? "Origin: issue 9\n" : ""}`;
+        const body = `# Input\n${fields.target ? `target: ${target}\n` : ""}${fields.origin ? "origin: issue 9\n" : ""}`;
         registered(path, fields, body);
         const snapshot = checkWithoutBase();
         assert.equal(snapshot.frontier, `INVALID FRONTMATTER ${path}`);
@@ -983,7 +983,7 @@ process.stdout.write(output);
         const target = territory === "intent" ? `${source}#intent-goal` : source;
         const materials = [...chain.packages[2], ...(territory === "constraint" ? [source] : [])];
         registered(plan, { pins: pairs([...chain.inputs[2], ...(territory === "constraint" ? [source] : [])]) });
-        registered(claim, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, source))] }, `# Review\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+        registered(claim, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, source))] }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
         const original = read(root, "0-intent/intent.md");
         if (answer !== "none") {
           const input = ownerInput(answer === "proposal" ? "proposal" : "constraint", 2, [plan], answer === "unrelated constraint" ? "issue 9" : ["issue 9", claim]);
@@ -1016,7 +1016,7 @@ process.stdout.write(output);
         registered(claim, {
           reviewed: pairs(chain.packages[phase]), verdict: "unsatisfiable",
           target: [ownerTarget], "target-identity": [identity(read(root, intent))],
-        }, `# Review\nVerdict: unsatisfiable\nTarget: ${ownerTarget}\n`);
+        }, `# Review\nverdict: unsatisfiable\ntarget: ${ownerTarget}\n`);
         const clause = `${artifact}#${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][phase]}`;
         const targets = {
           "whole artifact": [artifact], clause: [clause],
@@ -1053,7 +1053,7 @@ process.stdout.write(output);
     const claims = ["3-build/build-plan-review-2.md", "3-build/build-plan-review-audit-2.md"];
     for (const [i, path] of claims.entries()) {
       const target = [first, second][i];
-      registered(path, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, target))], ...(i ? { lane: laneFingerprint(audit) } : {}) }, `# Review\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+      registered(path, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, target))], ...(i ? { lane: laneFingerprint(audit) } : {}) }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
     }
     ownerInput("constraint", 3, [plan], claims[0]);
     const snapshot = JSON.parse(check(root, "--json"));
@@ -1066,7 +1066,7 @@ process.stdout.write(output);
       stampSpec();
       const target = ownerInput(kind, 1, ["1-spec/spec.md"]);
       const claim = "1-spec/spec-review-1.md";
-      write(root, claim, `# Review\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+      write(root, claim, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
       if (kind === "constraint") {
         rp(root, "stamp", P(claim), "--mirror");
         assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
@@ -1080,10 +1080,10 @@ process.stdout.write(output);
       const sourceClaim = "1-spec/a/spec-review-1.md";
       for (const id of ["a", "b"]) {
         const artifact = `1-spec/${id}/spec.md`, record = `1-spec/${id}/spec-research.md`;
-        registered(artifact, { pins: pairs([intent]), lane: FPS[id] }, "# Spec\n- spec-requirement-1 Outcome.\n");
+        registered(artifact, { pins: pairs([intent]), lane: FPS[id] }, "# Spec\nspec-requirement-1: Outcome.\n");
         write(root, record, "# Research\n");
         const verdict = id === "a" && kind === "constraint" ? "unsatisfiable" : "approved";
-        registered(`1-spec/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))] } : {}) }, `# Review\nVerdict: ${verdict}\n${verdict === "unsatisfiable" ? `Target: ${intent}#intent-goal\n` : ""}`);
+        registered(`1-spec/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))] } : {}) }, `# Review\nverdict: ${verdict}\n${verdict === "unsatisfiable" ? `target: ${intent}#intent-goal\n` : ""}`);
       }
       const input = ownerInput(kind, 1, [rootArtifact], kind === "constraint" ? sourceClaim : "issue 9");
       for (const id of ["a", "b"]) {
@@ -1120,7 +1120,7 @@ process.stdout.write(output);
           let lanes = [];
           if (targetIndex === 0) {
             const lane = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md", review = "1-spec/a/spec-review-1.md";
-            registered(lane, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a }, "# Candidate\n- spec-requirement-1 Clause.\n");
+            registered(lane, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a }, "# Candidate\nspec-requirement-1: Clause.\n");
             write(root, record, "# Record\n");
             registeredVerdict(review, pairs([lane, record, "0-intent/intent.md"]));
             registeredRoot(lane, pairs([lane, record, "0-intent/intent.md"]), [review]);
@@ -1133,7 +1133,7 @@ process.stdout.write(output);
           registered(challenge, {
             target: [target],
             ...(kind !== "claim" ? { origin: "issue 9" } : { "target-identity": [identity(read(root, artifact))], verdict: "unsatisfiable", reviewed: pairs(targetIndex === 3 ? chain.phasePackages[sourceIndex] : chain.packages[sourceIndex]) }),
-          }, `# Challenge\n${kind !== "claim" ? "Origin: issue 9" : "Verdict: unsatisfiable"}\nTarget: ${target}\n`);
+          }, `# Challenge\n${kind !== "claim" ? "origin: issue 9" : "verdict: unsatisfiable"}\ntarget: ${target}\n`);
           if (currency === "stale input") appendFileSync(join(root, P(targetIndex === 0 ? "0-intent/intent.md" : chain.context)), "\nChanged evidence.\n");
           if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 0 ? "1-spec/a/spec-review-1.md" : targetIndex === 3 ? "3-build/build-review-1.md" : chain.reviews[targetIndex - 1])));
           configure({ lanes });
@@ -1157,7 +1157,7 @@ process.stdout.write(output);
       test(`phase-ordered convergence: failed report, phase ${targetIndex + 1}, ${currency}`, () => {
         const chain = frontierChain(targetIndex === 2 ? "2-design-doc/design-doc.md" : "3-build/build-plan.md");
         const artifact = chain.artifacts[targetIndex], task = chain.tasks[targetIndex - 2], report = chain.reports[targetIndex - 2];
-        registered(report, { reviewed: pairs([task]), outcome: "failed", attempt: "1", target: [`${artifact}#${targetIndex === 2 ? "build" : "document"}-task-1`], "target-identity": [identity(read(root, artifact))] }, "# Report\nOutcome: failed\n");
+        registered(report, { reviewed: pairs([task]), outcome: "failed", attempt: "1", target: [`${artifact}#${targetIndex === 2 ? "build" : "document"}-task-1`], "target-identity": [identity(read(root, artifact))] }, "# Report\noutcome: failed\n");
         if (currency === "stale input") appendFileSync(join(root, P(chain.context)), "\nChanged evidence.\n");
         if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 2 ? chain.reviews[1] : "3-build/build-review-1.md")));
         const state = JSON.parse(check(root, "--json"));
@@ -1173,7 +1173,7 @@ process.stdout.write(output);
   test("a pending non-owner claim follows the earlier phase's review wave", () => {
     const chain = frontierChain();
     const claim = "1-spec/spec-review-2.md", target = `${chain.artifacts[1]}#design-doc-decision-1`;
-    registered(claim, { verdict: "unsatisfiable", reviewed: pairs(chain.packages[0]), target: [target], "target-identity": [identity(read(root, chain.artifacts[1]))] }, `# Review\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+    registered(claim, { verdict: "unsatisfiable", reviewed: pairs(chain.packages[0]), target: [target], "target-identity": [identity(read(root, chain.artifacts[1]))] }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
     const state = JSON.parse(check(root, "--json"));
     assert.equal(state.claims[0].state, "PENDING");
     assert.equal(state.frontier, "review wave 1-spec/spec.md");
@@ -1185,7 +1185,7 @@ process.stdout.write(output);
     test(`a pending proposal makes its target converge without target approval: ${verdict}`, () => {
       const chain = frontierChain();
       const challenge = "0-intent/proposal-1.md", target = chain.artifacts[1];
-      registered(challenge, { target: [target], origin: "issue 9" }, `# Proposal\nTarget: ${target}\nOrigin: issue 9\n`);
+      registered(challenge, { target: [target], origin: "issue 9" }, `# Proposal\ntarget: ${target}\norigin: issue 9\n`);
       if (verdict === "absent") rmSync(join(root, P(chain.reviews[1])));
       else registeredVerdict(chain.reviews[1], pairs(chain.packages[1]), verdict);
       assert.equal(JSON.parse(check(root, "--json")).frontier, `converge ${target}`);
@@ -1196,7 +1196,7 @@ process.stdout.write(output);
     const [spec, design, plan] = chain.artifacts;
     const proposal = "0-intent/proposal-1.md";
     const targets = [spec, design, plan];
-    registered(proposal, { target: targets, origin: "issue 9" }, `# Proposal\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+    registered(proposal, { target: targets, origin: "issue 9" }, `# Proposal\ntarget: ${targets.join(", ")}\norigin: issue 9\n`);
     configure({ targetPhase: 3 });
     const state = () => JSON.parse(check(root, "--json"));
     const pendingOn = (path) => {
@@ -1208,17 +1208,17 @@ process.stdout.write(output);
       assert.match(line, /Challenges: 0-intent\/proposal-1\.md/);
     };
     assert.equal(state().frontier, `converge ${spec}`);
-    registered(spec, { pins: pairs(["0-intent/intent.md", proposal]) }, "# Spec\n- spec-requirement-1 Revised.\n");
+    registered(spec, { pins: pairs(["0-intent/intent.md", proposal]) }, "# Spec\nspec-requirement-1: Revised.\n");
     assert.equal(state().frontier, `review wave ${spec}`);
     registeredVerdict("1-spec/spec-review-2.md", pairs([...SPEC, proposal]));
     pendingOn(design);
     const designInputs = ["0-intent/intent.md", spec, "1-spec/spec-review-2.md", proposal];
-    registered(design, { pins: pairs(designInputs) }, "# Design\n- design-doc-decision-1 Revised.\n");
+    registered(design, { pins: pairs(designInputs) }, "# Design\ndesign-doc-decision-1: Revised.\n");
     assert.equal(state().frontier, `review wave ${design}`);
     registeredVerdict("2-design-doc/design-doc-review-2.md", pairs([design, chain.records[1], ...designInputs]));
     pendingOn(plan);
     const planInputs = [spec, design, "1-spec/spec-review-2.md", "2-design-doc/design-doc-review-2.md", proposal];
-    registered(plan, { pins: pairs(planInputs) }, "# Plan\n- build-assumption-1 Revised.\n");
+    registered(plan, { pins: pairs(planInputs) }, "# Plan\nbuild-assumption-1: Revised.\n");
     assert.equal(state().frontier, `review wave ${plan}`);
     const planPackage = [plan, chain.records[2], ...planInputs, chain.tasks[0]];
     registeredVerdict("3-build/build-plan-review-2.md", pairs(planPackage));
@@ -1236,7 +1236,7 @@ process.stdout.write(output);
       const spec = chain.artifacts[0], proposal = "0-intent/proposal-1.md";
       if (reason === "missing") rmSync(join(root, P(spec)));
       if (reason === "stale") appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged context.\n");
-      if (reason === "challenged") registered(proposal, { target: [spec], origin: "issue 9" }, `# Proposal\nTarget: ${spec}\nOrigin: issue 9\n`);
+      if (reason === "challenged") registered(proposal, { target: [spec], origin: "issue 9" }, `# Proposal\ntarget: ${spec}\norigin: issue 9\n`);
       if (reason === "rejected") registeredVerdict("1-spec/spec-review-2.md", pairs(chain.packages[0]), "rejected");
       const state = JSON.parse(check(root, "--json"));
       assert.equal(state.frontier, `converge ${spec}`);
@@ -1252,8 +1252,8 @@ process.stdout.write(output);
     const chain = frontierChain("3-build/build-plan.md");
     const plan = chain.artifacts[2], report = chain.reports[0], proposal = "0-intent/proposal-1.md";
     const targets = [plan, `${plan}#build-assumption-1`];
-    registered(proposal, { target: targets, origin: "issue 9" }, `# Proposal\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
-    registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([chain.tasks[0]]), target: [`${plan}#build-task-1`], "target-identity": [identity(read(root, plan))] }, "# Report\nOutcome: failed\n");
+    registered(proposal, { target: targets, origin: "issue 9" }, `# Proposal\ntarget: ${targets.join(", ")}\norigin: issue 9\n`);
+    registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([chain.tasks[0]]), target: [`${plan}#build-task-1`], "target-identity": [identity(read(root, plan))] }, "# Report\noutcome: failed\n");
     appendFileSync(join(root, P(chain.context)), "\nChanged input.\n");
     const state = JSON.parse(check(root, "--json"));
     assert.equal(state.frontier, `converge ${plan}`);
@@ -1318,14 +1318,14 @@ process.stdout.write(output);
       registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
       const inputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md"];
       const task = "3-build/tasks/build-task-1.md", report = "3-build/tasks/build-task-1-report-1.md";
-      registered(task, { depends: [] }, "# Task\nDepends on: none\n");
-      registered(report, { reviewed: pairs([task]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
-      registered(build, { pins: pairs(inputs) }, "# Plan\nAssumption build-assumption-1.\n");
+      registered(task, { "depends-on": [] }, "# Task\ndepends-on: none\n");
+      registered(report, { reviewed: pairs([task]), outcome: "completed", attempt: "1" }, "# Report\noutcome: completed\n");
+      registered(build, { pins: pairs(inputs) }, "# Plan\nbuild-assumption-1: Assumption.\n");
       const buildPackage = [build, "3-build/build-plan-research.md", ...inputs, task];
       registeredVerdict("3-build/build-plan-review-1.md", pairs(buildPackage));
       registeredVerdict("3-build/build-review-1.md", pairs([...buildPackage, report]));
       const documentInputs = [...inputs, build, "3-build/build-plan-review-1.md", "3-build/build-review-1.md", task, report];
-      registered(document, { pins: pairs(documentInputs) }, "# Plan\nAssumption document-assumption-1.\n");
+      registered(document, { pins: pairs(documentInputs) }, "# Plan\ndocument-assumption-1: Assumption.\n");
       write(root, "4-document/document-plan-research.md", "# Record\n");
       const documentPackage = [document, "4-document/document-plan-research.md", ...documentInputs];
       registeredVerdict("4-document/document-plan-review-1.md", pairs(documentPackage));
@@ -1334,7 +1334,7 @@ process.stdout.write(output);
 
       const challenge = "0-intent/proposal-1.md";
       const targets = [document, build].map((path) => `${path}${clause ? `#${path.startsWith("3-build") ? "build" : "document"}-assumption-1` : ""}`);
-      registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+      registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\ntarget: ${targets.join(", ")}\norigin: issue 9\n`);
       const pending = state();
       assert.equal(pending.frontier, `converge ${build}`);
       assert.deepEqual(pending.challenges.map((t) => [t.target, t.state, t.challengeResolved]), [[targets[0], "pending", false], [targets[1], "pending", false]]);
@@ -1379,7 +1379,7 @@ process.stdout.write(output);
       assert.equal(data().has("target-identity"), false);
       write(root, "1-spec/spec.md", "# Spec\nClause removed.\n");
       write(root, "3-build/build-plan.md", "# Plan changed\n");
-      write(root, rel, read(root, rel).replace(`Target: ${targets.join(", ")}`, `Target: ${[...targets].reverse().join(", ")}`));
+      write(root, rel, read(root, rel).replace(`target: ${targets.join(", ")}`, `target: ${[...targets].reverse().join(", ")}`));
       rp(root, "stamp", P(rel), "--mirror");
       assert.equal(data().has("target-identity"), false);
       assert.deepEqual(data().get("target"), [...targets].reverse());
@@ -1392,12 +1392,12 @@ process.stdout.write(output);
 
   test("challenge targets: corroboration resolves only the target whose wave names the origin", () => {
     const challenge = "0-intent/proposal-1.md", targets = ["1-spec/spec.md", "2-design-doc/design-doc.md"];
-    registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+    registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\ntarget: ${targets.join(", ")}\norigin: issue 9\n`);
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", challenge]) });
     registered("1-spec/spec-review-1.md", {
       reviewed: pairs([...SPEC, challenge]), verdict: "unsatisfiable", target: ["0-intent/intent.md#intent-goal"],
       "target-identity": [identity(read(root, "0-intent/intent.md"))], origin: challenge,
-    }, `# Review\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#intent-goal\nOrigin: ${challenge}\n`);
+    }, `# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\norigin: ${challenge}\n`);
     const state = JSON.parse(check(root, "--json"));
     assert.deepEqual(state.challenges.map((t) => t.state), ["resolved", "pending"]);
     assert.match(state.challenges[0].detail, /^escalated by/);
@@ -1410,7 +1410,7 @@ process.stdout.write(output);
     const rel = "0-intent/proposal-1.md";
     proposal("1-spec/spec.md#spec-requirement-1");
     write(root, "1-spec/spec.md", "# Changed\nClause removed.\n");
-    const invalid = read(root, rel).replace("Target: 1-spec/spec.md#spec-requirement-1", "Target: 1-spec/spec.md#spec-requirement-1, 2-design-doc/design-doc.md#design-doc-decision-99");
+    const invalid = read(root, rel).replace("target: 1-spec/spec.md#spec-requirement-1", "target: 1-spec/spec.md#spec-requirement-1, 2-design-doc/design-doc.md#design-doc-decision-99");
     write(root, rel, invalid);
     assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID TARGET 2-design-doc\/design-doc.md#design-doc-decision-99/);
     assert.equal(read(root, rel), invalid);
@@ -1421,7 +1421,7 @@ process.stdout.write(output);
 
   for (const targets of ["3-build/build-plan.md, 1-spec/spec.md#spec-requirement-99", "3-build/build-plan.md, 0-intent/intent.md#intent-goal", "3-build/build-plan.md, 2-design-doc/design-doc-research.md"])
     test(`challenge targets: rejects the whole proposal list containing ${targets.split(", ")[1]}`, () => {
-      const rel = "0-intent/proposal-1.md", body = `# Proposal\nTarget: ${targets}\nOrigin: issue 9\n`;
+      const rel = "0-intent/proposal-1.md", body = `# Proposal\ntarget: ${targets}\norigin: issue 9\n`;
       write(root, rel, body);
       assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID TARGET/);
       assert.equal(read(root, rel), body);
@@ -1429,7 +1429,7 @@ process.stdout.write(output);
 
   for (const target of ["1-spec/spec.md", "1-spec/spec.md#spec-requirement-1, 0-intent/intent.md#intent-goal"])
     test(`challenge targets: a claim rejects ${target}`, () => {
-      const rel = "1-spec/spec-review-1.md", body = `# Review\nVerdict: unsatisfiable\nTarget: ${target}\n`;
+      const rel = "1-spec/spec-review-1.md", body = `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`;
       write(root, rel, body);
       assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID TARGET/);
       assert.equal(read(root, rel), body);
@@ -1437,10 +1437,10 @@ process.stdout.write(output);
 
   test("challenge targets: failed reports land on one clause and reject whole-artifact targets", () => {
     const rel = "3-build/tasks/build-task-1-report-1.md", task = "3-build/tasks/build-task-1.md";
-    registered(task, { depends: [] }, "# build-task-1\nDepends on: none\n");
-    write(root, rel, "# Report\nOutcome: failed\nTarget: 3-build/build-plan.md\n");
+    registered(task, { "depends-on": [] }, "# build-task-1\ndepends-on: none\n");
+    write(root, rel, "# Report\noutcome: failed\ntarget: 3-build/build-plan.md\n");
     assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET/);
-    write(root, rel, "# Report\nOutcome: failed\n");
+    write(root, rel, "# Report\noutcome: failed\n");
     rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task));
     assert.deepEqual(parseFrontmatter(read(root, rel)).data.get("target"), ["3-build/build-plan.md#build-task-1"]);
     assert.equal(JSON.parse(check(root, "--json")).challenges[0].target, "3-build/build-plan.md#build-task-1");
@@ -1449,9 +1449,9 @@ process.stdout.write(output);
   test("challenge fields: a review may name a target after declaring unsatisfiable", () => {
     stampSpec();
     const rel = "1-spec/spec-review-1.md";
-    write(root, rel, "# Review\nVerdict: approved\nTarget: 0-intent/intent.md#intent-goal\n");
+    write(root, rel, "# Review\nverdict: approved\ntarget: 0-intent/intent.md#intent-goal\n");
     assert.throws(() => rp(root, "stamp", P(rel), "--mirror", ...SPEC.flatMap((path) => ["--reviewed", P(path)])), /only challenges may carry target fields/);
-    const body = read(root, rel).replace(/^Verdict: approved$/m, "Verdict: unsatisfiable");
+    const body = read(root, rel).replace(/^verdict: approved$/m, "verdict: unsatisfiable");
     write(root, rel, body);
     rp(root, "stamp", P(rel), "--mirror", ...SPEC.flatMap((path) => ["--reviewed", P(path)]));
     const state = JSON.parse(check(root, "--json"));
@@ -1464,9 +1464,9 @@ process.stdout.write(output);
       test(`challenge fields: ${kind} rejects ${representation} at stamp and check`, () => {
         const review = kind.endsWith("review");
         const rel = review ? "1-spec/spec-review-1.md" : { artifact: "1-spec/spec.md", record: "1-spec/spec-research.md", task: "3-build/tasks/build-task-1.md" }[kind];
-        const fields = review ? { verdict: kind.split(" ")[0], reviewed: pairs(SPEC) } : kind === "artifact" ? { pins: pairs(["0-intent/intent.md"]) } : kind === "task" ? { depends: [] } : {};
+        const fields = review ? { verdict: kind.split(" ")[0], reviewed: pairs(SPEC) } : kind === "artifact" ? { pins: pairs(["0-intent/intent.md"]) } : kind === "task" ? { "depends-on": [] } : {};
         const target = "1-spec/spec.md#spec-requirement-1";
-        const body = `# File\n${review ? `Verdict: ${fields.verdict}\n` : kind === "task" ? "Depends on: none\n" : ""}${["declaration", "mirrored"].includes(representation) ? `Target: ${target}\n` : ""}`;
+        const body = `# File\n${review ? `verdict: ${fields.verdict}\n` : kind === "task" ? "depends-on: none\n" : ""}${["declaration", "mirrored"].includes(representation) ? `target: ${target}\n` : ""}`;
         if (["target", "mirrored"].includes(representation)) fields.target = [target];
         if (["target-identity", "mirrored"].includes(representation)) fields["target-identity"] = [identity(read(root, "1-spec/spec.md"))];
         if (representation === "declaration") {
@@ -1493,12 +1493,12 @@ process.stdout.write(output);
       test(`challenge review: ${phase} report rejects ${destination} at stamp and check`, () => {
         write(root, "4-document/document-plan.md", "# Plan\n");
         for (const folder of ["3-build", "4-document"])
-          for (const id of [1, 2].map((n) => `${folder === "3-build" ? "build-task" : "document-task"}-${n}`)) registered(`${folder}/tasks/${id}.md`, { depends: [] }, `# ${id}\nDepends on: none\n`);
+          for (const id of [1, 2].map((n) => `${folder === "3-build" ? "build-task" : "document-task"}-${n}`)) registered(`${folder}/tasks/${id}.md`, { "depends-on": [] }, `# ${id}\ndepends-on: none\n`);
         const task = `${phase}/tasks/${tp}-1.md`, rel = `${phase}/tasks/${tp}-1-report-1.md`;
         const plan = phase === "3-build" ? "3-build/build-plan.md" : "4-document/document-plan.md";
         const other = phase === "3-build" ? "4-document/document-plan.md" : "3-build/build-plan.md";
         const target = { spec: "1-spec/spec.md#spec-requirement-1", design: "2-design-doc/design-doc.md#design-doc-decision-1", "other phase": `${other}#${phase === "3-build" ? "document-task" : "build-task"}-1`, "other task": `${plan}#${tp}-2` }[destination];
-        const body = `# Report\nOutcome: failed\nTarget: ${target}\n`;
+        const body = `# Report\noutcome: failed\ntarget: ${target}\n`;
         write(root, rel, body);
         assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*expected its own task/);
         assert.equal(read(root, rel), body);
@@ -1516,8 +1516,8 @@ process.stdout.write(output);
         const plan = phase === "3-build" ? "3-build/build-plan.md" : "4-document/document-plan.md";
         const task = `${phase}/tasks/${tp}-1.md`, rel = `${phase}/tasks/${tp}-1-report-1.md`;
         write(root, plan, "# Plan\n");
-        registered(task, { depends: [] }, "# Task\nDepends on: none\n");
-        const target = `${plan}#${tp}-1`, body = `# Report\nOutcome: ${outcome}\nTarget: ${target}\n`;
+        registered(task, { "depends-on": [] }, "# Task\ndepends-on: none\n");
+        const target = `${plan}#${tp}-1`, body = `# Report\noutcome: ${outcome}\ntarget: ${target}\n`;
         write(root, rel, body);
         assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*only challenges/);
         assert.equal(read(root, rel), body);
@@ -1531,7 +1531,7 @@ process.stdout.write(output);
 
   for (const frontmatter of ["absent", "empty"])
     test(`challenge re-review: proposal with ${frontmatter} frontmatter has the correct repair frontier`, () => {
-      const rel = "0-intent/proposal-1.md", body = "# Proposal\nTarget: 1-spec/spec.md#spec-requirement-1\nOrigin: issue 9\n";
+      const rel = "0-intent/proposal-1.md", body = "# Proposal\ntarget: 1-spec/spec.md#spec-requirement-1\norigin: issue 9\n";
       if (frontmatter === "absent") write(root, rel, body);
       else registered(rel, frontmatter === "empty" ? {} : { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 9" }, body);
       git(root, "add", "-A");
@@ -1557,14 +1557,14 @@ process.stdout.write(output);
     for (const defect of ["absent", "short", "long", "invalid"])
       test(`challenge review: ${kind} rejects ${defect} target identities before facts`, () => {
         const task = "3-build/tasks/build-task-1.md";
-        registered(task, { depends: [] }, "# Task\nDepends on: none\n");
+        registered(task, { "depends-on": [] }, "# Task\ndepends-on: none\n");
         const rel = { proposal: "0-intent/proposal-1.md", claim: "1-spec/spec-review-1.md", "failed report": "3-build/tasks/build-task-1-report-1.md" }[kind];
         const targets = { proposal: ["1-spec/spec.md", "2-design-doc/design-doc.md"], claim: ["0-intent/intent.md#intent-goal"], "failed report": ["3-build/build-plan.md#build-task-1"] }[kind];
         const identities = targets.map((t) => identity(read(root, t.split("#")[0])));
         const fields = { target: targets, ...(kind === "claim" ? { verdict: "unsatisfiable", reviewed: pairs(SPEC) } : kind === "failed report" ? { outcome: "failed", attempt: "1", reviewed: pairs([task]) } : { origin: "issue 9" }) };
         if (defect !== "absent") fields["target-identity"] = { short: identities.slice(1), long: [...identities, identities[0]], invalid: identities.map(() => "not-a-hash") }[defect];
-        const declaration = kind === "claim" ? "Verdict: unsatisfiable" : kind === "failed report" ? "Outcome: failed" : "Origin: issue 9";
-        registered(rel, fields, `# Challenge\n${declaration}\nTarget: ${targets.join(", ")}\n`);
+        const declaration = kind === "claim" ? "verdict: unsatisfiable" : kind === "failed report" ? "outcome: failed" : "origin: issue 9";
+        registered(rel, fields, `# Challenge\n${declaration}\ntarget: ${targets.join(", ")}\n`);
         const before = read(root, rel);
         const state = checkWithoutBase();
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
@@ -1580,8 +1580,9 @@ process.stdout.write(output);
   for (const targets of [["1-spec/spec.md", "1-spec/spec.md#spec-requirement-1"], ["1-spec/spec.md#spec-requirement-1", "1-spec/spec.md#spec-requirement-2"]])
     test(`challenge review: one artifact adjudicates ${targets.join(", ")} together`, () => {
       const artifact = "1-spec/spec.md", challenge = "0-intent/proposal-1.md";
-      write(root, artifact, "# Spec\nRequirement spec-requirement-1.\nRequirement spec-requirement-2.\n");
-      registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+      write(root, artifact, "# Spec\nspec-requirement-1: Requirement.\nspec-requirement-2: Requirement.\n");
+      rp(root, "stamp", P(artifact), "--mirror");
+      registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\ntarget: ${targets.join(", ")}\norigin: issue 9\n`);
       assert.doesNotThrow(() => rp(root, "stamp", P(challenge), "--mirror"));
       configure({ targetPhase: 1 });
       const state = () => JSON.parse(check(root, "--json"));
@@ -1598,9 +1599,9 @@ process.stdout.write(output);
     });
 
   test("challenge review: an exact repeated target is rejected atomically", () => {
-    const rel = "0-intent/proposal-1.md", body = "# Proposal\nTarget: 1-spec/spec.md#spec-requirement-1, 1-spec/spec.md#spec-requirement-1\nOrigin: issue 9\n";
+    const rel = "0-intent/proposal-1.md", body = "# Proposal\ntarget: 1-spec/spec.md#spec-requirement-1, 1-spec/spec.md#spec-requirement-1\norigin: issue 9\n";
     write(root, rel, body);
-    assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID Target/);
+    assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), /INVALID target/);
     assert.equal(read(root, rel), body);
   });
 
@@ -1612,7 +1613,7 @@ process.stdout.write(output);
     registered(design, { pins: pairs(inputs) });
     registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
     const targets = [design, spec];
-    registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\nTarget: ${targets.join(", ")}\nOrigin: issue 9\n`);
+    registered(challenge, { target: targets, origin: "issue 9" }, `# Proposal\ntarget: ${targets.join(", ")}\norigin: issue 9\n`);
     configure({ targetPhase: 2 });
     const state = () => JSON.parse(check(root, "--json"));
     assert.equal(state().frontier, `converge ${spec}`);
@@ -1665,7 +1666,7 @@ process.stdout.write(output);
 
   test("a changed input makes a claim moot before upstream routing", () => {
     approveChain(2);
-    review("2-design-doc/design-doc-review-2.md", "unsatisfiable", DESIGN, "Target: 1-spec/spec.md#spec-requirement-1\n");
+    review("2-design-doc/design-doc-review-2.md", "unsatisfiable", DESIGN, "target: 1-spec/spec.md#spec-requirement-1\n");
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     configure({ targetPhase: 2 });
@@ -1678,7 +1679,7 @@ process.stdout.write(output);
     stampSpec();
     proposal();
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/proposal-1.md"));
-    review("1-spec/spec-review-1.md", "unsatisfiable", [...SPEC, "0-intent/proposal-1.md"], "Target: 0-intent/intent.md#intent-goal\nOrigin: 0-intent/proposal-1.md\n");
+    review("1-spec/spec-review-1.md", "unsatisfiable", [...SPEC, "0-intent/proposal-1.md"], "target: 0-intent/intent.md#intent-goal\norigin: 0-intent/proposal-1.md\n");
     const output = check(root);
     assert.match(output, /challenge .*resolved \(escalated by 1-spec\/spec-review-1\.md\)/);
     assert.match(output, /claim .*#intent-goal\s+PENDING — owner escalation/);
@@ -1689,8 +1690,8 @@ process.stdout.write(output);
     stampSpec();
     rp(root, "stamp", P("2-design-doc/design-doc.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec.md"));
     const DESIGN_NO_APPROVAL = DESIGN.filter((f) => !f.includes("spec-review"));
-    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-goal\n");
-    review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN_NO_APPROVAL, "Target: 1-spec/spec.md#spec-requirement-1\n");
+    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n");
+    review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN_NO_APPROVAL, "target: 1-spec/spec.md#spec-requirement-1\n");
     let output = check(root);
     assert.match(output, /design-doc-review-1\.md → 1-spec\/spec\.md#spec-requirement-1\s+moot/);
     assert.match(output, /frontier claim 1-spec\/spec-review-1\.md → 0-intent\/intent\.md#intent-goal \(owner escalation\)/);
@@ -1705,7 +1706,7 @@ process.stdout.write(output);
 
   test("a claim about a changed artifact is moot; a changed target supersedes it", () => {
     stampSpec();
-    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-goal\n");
+    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n");
     appendFileSync(join(root, P("0-intent/intent.md")), "\nAnswered.\n");
     assert.match(check(root), /superseded \(target changed\)/);
   });
@@ -1714,7 +1715,7 @@ process.stdout.write(output);
     stampSpec();
     approveSpec();
     stampDesign();
-    review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN, "Target: 1-spec/spec.md#spec-requirement-1\n");
+    review("2-design-doc/design-doc-review-1.md", "unsatisfiable", DESIGN, "target: 1-spec/spec.md#spec-requirement-1\n");
     registered("1-spec/spec.md", { ...Object.fromEntries(parseFrontmatter(read(root, "1-spec/spec.md")).data), "retired-ids": ["spec-requirement-1"] }, "# Spec\n\nThe target is gone.\n");
     assert.match(check(root), /design-doc-review-1\.md .*superseded \(target changed\)/);
   });
@@ -1725,29 +1726,29 @@ process.stdout.write(output);
     assert.throws(() => proposal("1-spec/spec.md#spec-requirement-9"), /INVALID TARGET 1-spec\/spec\.md#spec-requirement-9/);
     assert.throws(() => proposal("3-build/build-plan.md#build-task-9"), /INVALID TARGET 3-build\/build-plan\.md#build-task-9/);
     assert.throws(() => proposal("0-intent/intent.md#intent-goal"), /INVALID TARGET 0-intent\/intent\.md#intent-goal/);
-    write(root, "0-intent/intent.md", "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\n- intent-constraint-1 First.\n");
+    write(root, "0-intent/intent.md", "origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\nintent-constraint-1: First.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     stampSpec();
-    assert.throws(() => review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-constraint-2\n"), /INVALID TARGET/);
-    assert.throws(() => review("1-spec/spec-review-3.md", "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-constraint-0\n"), /INVALID TARGET/);
+    assert.throws(() => review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-constraint-2\n"), /INVALID TARGET/);
+    assert.throws(() => review("1-spec/spec-review-3.md", "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-constraint-0\n"), /INVALID TARGET/);
     assert.throws(() => review("1-spec/spec-review-4.md", "unsatisfiable", SPEC), /INVALID TARGET \?/);
   });
 
   for (const [kind, section] of [["constraint", "Constraints"]])
-    for (const presence of ["first bullet", "absent", "backtick fence", "tilde fence"])
+    for (const presence of ["declared", "absent", "backtick fence", "tilde fence"])
       test(`intent intent-${kind}-2 landing uses its explicit token: ${presence}`, () => {
         const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
         const target = `${intent}#intent-${kind}-2`;
-        const item = `- intent-${kind}-2 Owner item.\n`;
-        const items = `- intent-${kind}-1 First item.\n` + (presence === "first bullet" ? item
+        const item = `intent-${kind}-2: Owner item.\n`;
+        const items = `intent-${kind}-1: First item.\n` + (presence === "declared" ? item
           : presence === "absent" ? ""
           : presence === "backtick fence" ? `\`\`\`markdown\n${item}\`\`\`\n`
           : `~~~markdown\n${item}~~~\n`);
-        const ids = [`intent-${kind}-1`, ...(presence === "first bullet" ? [`intent-${kind}-2`] : [])];
-        registered(intent, { origin: "issue 7", "ids": ids }, `Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## ${section}\n\n${items}`);
+        const ids = [`intent-${kind}-1`, ...(presence === "declared" ? [`intent-${kind}-2`] : [])];
+        registered(intent, { origin: "issue 7", "ids": ids }, `origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## ${section}\n\n${items}`);
         registered("1-spec/spec.md", { pins: pairs([intent]) });
-        registered(claim, { reviewed: pairs(SPEC) }, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
-        if (presence === "first bullet") {
+        registered(claim, { reviewed: pairs(SPEC) }, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
+        if (presence === "declared") {
           rp(root, "stamp", P(claim), "--mirror");
           assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
           configure({ targetPhase: 1 });
@@ -1766,9 +1767,9 @@ process.stdout.write(output);
   ])
     test(`#intent-goal landing addresses its section: ${presence}`, () => {
       const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
-      registered(intent, { origin: "issue 7" }, `Origin: issue 7\n\n# Intent\n\n${body}`);
+      registered(intent, { origin: "issue 7" }, `origin: issue 7\n\n# Intent\n\n${body}`);
       registered("1-spec/spec.md", { pins: pairs([intent]) });
-      registered(claim, { reviewed: pairs(SPEC) }, "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#intent-goal\n");
+      registered(claim, { reviewed: pairs(SPEC) }, "# Review\n\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
       if (valid) {
         rp(root, "stamp", P(claim), "--mirror");
         configure({ targetPhase: 1 });
@@ -1782,9 +1783,9 @@ process.stdout.write(output);
   for (const [kind, section] of [["context", "Context"], ["proposal", "Proposals"]])
     test(`intent ${kind} ids remain outside claim territory`, () => {
       const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
-      registered(intent, { origin: "issue 7" }, `Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## ${section}\n\n- intent-${kind}-1 Owner item.\n`);
+      registered(intent, { origin: "issue 7" }, `origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## ${section}\n\nintent-${kind}-1: Owner item.\n`);
       registered("1-spec/spec.md", { pins: pairs([intent]) });
-      registered(claim, { reviewed: pairs(SPEC) }, `# Review\n\nVerdict: unsatisfiable\nTarget: ${intent}#intent-${kind}-1\n`);
+      registered(claim, { reviewed: pairs(SPEC) }, `# Review\n\nverdict: unsatisfiable\ntarget: ${intent}#intent-${kind}-1\n`);
       assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), /INVALID TARGET 0-intent\/intent\.md#intent-(?:context|proposal)-1/);
     });
 
@@ -1792,13 +1793,13 @@ process.stdout.write(output);
     test(`a landed claim follows the ${kind} lifecycle when its target item is removed`, () => {
       const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
       const target = `${intent}#intent-${kind}-1`;
-      const body = "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n";
+      const body = "origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n";
       const fields = { origin: "issue 7", "ids": [`intent-${kind}-1`] };
-      registered(intent, fields, `${body}\n## ${section}\n\n- intent-${kind}-1 Owner item.\n`);
+      registered(intent, fields, `${body}\n## ${section}\n\nintent-${kind}-1: Owner item.\n`);
       registered("1-spec/spec.md", { pins: pairs([intent]) });
       registered(claim, {
         reviewed: pairs(SPEC), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, intent))],
-      }, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
+      }, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
       const landed = read(root, claim);
       configure({ targetPhase: 1 });
       assert.equal(JSON.parse(check(root, "--json")).claims[0].state, "PENDING — owner escalation");
@@ -1814,52 +1815,55 @@ process.stdout.write(output);
     test(`textual target ${id} must occur outside fences in ${artifact}`, () => {
       const proposal = "0-intent/proposal-1.md";
       write(root, artifact, `# Artifact\n\n\`\`\`markdown\n${id}\n\`\`\`\n`);
-      write(root, proposal, `# Proposal\n\nTarget: ${artifact}#${id}\nOrigin: 0-intent/constraint-1.md\n`);
+      write(root, proposal, `# Proposal\n\ntarget: ${artifact}#${id}\norigin: 0-intent/constraint-1.md\n`);
       assert.throws(() => rp(root, "stamp", P(proposal), "--mirror"), /INVALID TARGET/);
-      appendFileSync(join(root, P(artifact)), `\n- ${id} Target item.\n`);
+      appendFileSync(join(root, P(artifact)), `\n${id}: Target item.\n`);
       rp(root, "stamp", P(proposal), "--mirror");
       assert.deepEqual(parseFrontmatter(read(root, proposal)).data.get("target"), [`${artifact}#${id}`]);
     });
 
-  const DECLARED = ["bullet", "numbered", "heading", "bold", "italic", "code"];
-  for (const [artifact, id, other] of [
-    ["0-intent/intent.md", "intent-constraint-1", "intent-context-1"],
-    ["1-spec/spec.md", "spec-requirement-1", "spec-acceptance-criterion-1"],
-    ["1-spec/spec.md", "spec-acceptance-criterion-1", "spec-requirement-1"],
-    ["1-spec/spec.md", "spec-assumption-1", "spec-requirement-1"],
-    ["2-design-doc/design-doc.md", "design-doc-decision-1", "design-doc-assumption-1"],
-    ["2-design-doc/design-doc.md", "design-doc-assumption-1", "design-doc-decision-1"],
-    ["3-build/build-plan.md", "build-assumption-1", "build-task-1"],
-    ["4-document/document-plan.md", "document-assumption-1", "document-task-1"],
+  // A line opening with an id the artifact declares is its declaration, `<id>: <text>`; an id it
+  // originates occurs only once declared; a longer token or a fenced line declares nothing.
+  const FORMS = {
+    declaration: [(id) => `${id}: Item.\n`, null],
+    "declaration with content": [(id) => `${id}: Item.\n\nDetail.\n\n- A point.\n`, null],
+    bullet: [(id) => `- ${id}: Item.\n`, /INVALID IDS/],
+    numbered: [(id) => `1. ${id} — Item.\n`, /INVALID IDS/],
+    heading: [(id) => `## ${id}: Item\n`, /INVALID IDS/],
+    "bold paragraph": [(id) => `**${id} — Item.** Detail.\n`, /INVALID IDS/],
+    italic: [(id) => `_${id}_: Item.\n`, /INVALID IDS/],
+    code: [(id) => `\`${id}\`: Item.\n`, /INVALID IDS/],
+    indented: [(id) => `  ${id}: Item.\n`, /INVALID IDS/],
+    "without text": [(id) => `${id}:\n`, /INVALID IDS/],
+    mention: [(id) => `See ${id}.\n`, /INVALID IDS/],
+    "cited by path": [(id, artifact) => `See ${artifact}#${id}.\n`, /INVALID TARGET/],
+    "longer token": [(id) => `${id}-old: Former item.\n`, /INVALID TARGET/],
+    fenced: [(id) => `\`\`\`markdown\n${id}: Item.\n\`\`\`\n`, /INVALID TARGET/],
+  };
+  for (const [artifact, id] of [
+    ["0-intent/intent.md", "intent-constraint-1"],
+    ["1-spec/spec.md", "spec-requirement-1"],
+    ["1-spec/spec.md", "spec-acceptance-criterion-1"],
+    ["1-spec/spec.md", "spec-assumption-1"],
+    ["2-design-doc/design-doc.md", "design-doc-decision-1"],
+    ["2-design-doc/design-doc.md", "design-doc-assumption-1"],
+    ["3-build/build-plan.md", "build-assumption-1"],
+    ["4-document/document-plan.md", "document-assumption-1"],
   ])
-    for (const form of [...DECLARED, "mention", "other item reference", "prefix", "fenced"])
+    for (const [form, [body, error]] of Object.entries(FORMS))
       test(`target declaration: ${artifact}#${id}, ${form}`, () => {
         const target = `${artifact}#${id}`, claim = "1-spec/spec-review-1.md";
-        const declarations = {
-          bullet: `- ${id} Item.\n`,
-          numbered: `1. ${id} — Item.\n`,
-          heading: `## ${id}: Item\n`,
-          bold: `1. **${id} — Item.**\n`,
-          italic: `- _${id}_ Item.\n`,
-          code: `### **\`${id}\`** Item\n`,
-          mention: `See ${id}.\n`,
-          "other item reference": `- ${other} See ${id}.\n`,
-          prefix: `- ${id}-old Former item.\n`,
-          fenced: `\`\`\`markdown\n- ${id} Item.\n\`\`\`\n`,
-        };
-        write(root, artifact, `# Artifact\n\n${declarations[form]}`);
-        write(root, claim, `# Review\n\nVerdict: unsatisfiable\nTarget: ${target}\n`);
-        if (DECLARED.includes(form)) {
+        write(root, artifact, `# Artifact\n\n${body(id, artifact)}`);
+        write(root, claim, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
+        if (!error) {
           rp(root, "stamp", P(claim), "--mirror");
           assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
-        } else {
-          assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), /INVALID TARGET/);
-        }
+        } else assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), error);
       });
 
   test("the first intent stamp records only declared item ids, preserving body identity", () => {
     const intent = "0-intent/intent.md";
-    registered(intent, { origin: "issue 7", ids: undefined }, "Origin: issue 7\n\n# Intent\n\n## Goal\n\nSee intent-constraint-9.\n\n## Constraints\n\n- intent-constraint-1 Boundary.\n\n## Context\n\n- intent-context-1 Motivation.\n\n## Proposals\n\n- intent-proposal-1 Direction.\n\n```markdown\n- intent-constraint-2 Example.\n```\n");
+    registered(intent, { origin: "issue 7", ids: undefined }, "origin: issue 7\n\n# Intent\n\n## Goal\n\nSee intent-constraint-1.\n\n## Constraints\n\nintent-constraint-1: Boundary.\n\n## Context\n\nintent-context-1: Motivation.\n\n## Proposals\n\nintent-proposal-1: Direction.\n\n```markdown\nintent-constraint-2: Example.\n```\n");
     const before = identity(read(root, intent));
     const state = JSON.parse(check(root, "--json"));
     assert.equal(state.frontier, `stamp ${intent}`);
@@ -1885,7 +1889,7 @@ process.stdout.write(output);
         const seen = [id(1), id(2)];
         const retired = change === "retire" ? [id(1)] : [id(2)];
         const items = change === "retire" ? `See ${id(2)}.\n`
-          : `- ${id(1)} Kept.\n- ${id({ reuse: 2, add: 3, skip: 4 }[change])} Added.\n`;
+          : `${id(1)}: Kept.\n${id({ reuse: 2, add: 3, skip: 4 }[change])}: Added.\n`;
         const fields = artifact === "0-intent/intent.md" ? { origin: "issue 7" } : {};
         registered(artifact, { ...fields, "ids": seen, "retired-ids": retired }, `# Artifact\n\n## Goal\n\nOriginal.\n\n${items}`);
         const before = read(root, artifact);
@@ -1911,7 +1915,7 @@ process.stdout.write(output);
       });
 
   test("a body that declares an id twice is invalid", () => {
-    write(root, "1-spec/spec.md", "# Spec\n\n- spec-requirement-1 One.\n- spec-requirement-1 Again.\n");
+    write(root, "1-spec/spec.md", "# Spec\n\nspec-requirement-1: One.\nspec-requirement-1: Again.\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--mirror"), /INVALID IDS 1-spec\/spec\.md: spec-requirement-1 is declared more than once/);
     assert.match(check(root), /frontier INVALID IDS 1-spec\/spec\.md/);
   });
@@ -1929,7 +1933,7 @@ process.stdout.write(output);
     ].filter(([form]) => form !== "closed before the upstream" || prefix !== "design-doc"))
       test(`carried assumptions: ${artifact}, ${form}`, () => {
         const own = (s) => s.replace(/OWN/g, `${prefix}-assumption`).replace(/UPSTREAM/g, upstream);
-        const items = (ids) => ids.map((id) => `- ${id} Claim.\n`).join("");
+        const items = (ids) => ids.map((id) => `${id}: Claim.\n`).join("");
         // Upstream of every artifact: spec-assumption-1..3 originated by the spec; 3 retired downstream.
         for (const path of ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"]) {
           if (path === artifact) break;
@@ -1959,7 +1963,7 @@ process.stdout.write(output);
     ])
       test(`task ids: ${phase}, ${form}`, () => {
         const plan = `${phase}/${prefix === "build" ? "build-plan" : "document-plan"}.md`;
-        for (const n of files) write(root, `${phase}/tasks/${prefix}-task-${n}.md`, `# ${prefix}-task-${n}: work\n\n- **Depends on:** none\n`);
+        for (const n of files) write(root, `${phase}/tasks/${prefix}-task-${n}.md`, `# ${prefix}-task-${n}: work\n\ndepends-on: none\n`);
         write(root, plan, "# Plan\n");
         if (!invalid) {
           rp(root, "stamp", P(plan), "--mirror");
@@ -1972,61 +1976,61 @@ process.stdout.write(output);
       });
 
   test("a retired task id is never reused", () => {
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\ndepends-on: none\n");
     rp(root, "stamp", P("3-build/build-plan.md"), "--mirror");
     rmSync(join(root, P("3-build/tasks/build-task-1.md")));
     rp(root, "stamp", P("3-build/build-plan.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "3-build/build-plan.md")).data.get("retired-ids"), ["build-task-1"]);
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: again\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: again\n\ndepends-on: none\n");
     assert.throws(() => rp(root, "stamp", P("3-build/build-plan.md"), "--mirror"), /INVALID IDS 3-build\/build-plan\.md: retired id build-task-1 is declared again/);
   });
 
   test("a new task file makes a recorded plan's ids stale", () => {
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: first\n\ndepends-on: none\n");
     rp(root, "stamp", P("3-build/build-plan.md"), "--mirror");
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** none\n", false);
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\ndepends-on: none\n", false);
     assert.match(check(root), /mirror\s+3-build\/build-plan\.md\s+differs from the body: ids[\s\S]*frontier stamp 3-build\/build-plan\.md/);
   });
 
   test("a misnamed file in a plan's tasks folder is invalid", () => {
     write(root, "4-document/document-plan.md", "# Plan\n");
-    write(root, "4-document/tasks/build-task-1-report-1.md", "# Report\nOutcome: completed\n");
+    write(root, "4-document/tasks/build-task-1-report-1.md", "# Report\noutcome: completed\n");
     assert.throws(() => rp(root, "stamp", P("4-document/tasks/build-task-1-report-1.md"), "--mirror"), /INVALID IDS 4-document\/tasks\/build-task-1-report-1\.md: build-task-1-report-1\.md is not a document task or its report/);
     assert.match(check(root), /frontier INVALID IDS 4-document\/tasks\/build-task-1-report-1\.md/);
   });
 
   test("a record keeps the history of its questions", () => {
     const record = "1-spec/spec-research.md";
-    write(root, record, "# Research\n\n### spec-question-1: First?\n");
+    write(root, record, "# Research\n\nspec-question-1: First?\n");
     rp(root, "stamp", P(record), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, record)).data.get("ids"), ["spec-question-1"]);
     registered(record, { ...Object.fromEntries(parseFrontmatter(read(root, record)).data) }, "# Research\n");
     rp(root, "stamp", P(record), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, record)).data.get("retired-ids"), ["spec-question-1"]);
-    registered(record, { ...Object.fromEntries(parseFrontmatter(read(root, record)).data), ids: ["spec-question-1"] }, "# Research\n\n### spec-question-1: Another?\n");
+    registered(record, { ...Object.fromEntries(parseFrontmatter(read(root, record)).data), ids: ["spec-question-1"] }, "# Research\n\nspec-question-1: Another?\n");
     assert.throws(() => rp(root, "stamp", P(record), "--mirror"), /INVALID IDS 1-spec\/spec-research\.md: retired id spec-question-1 is declared again/);
   });
 
   test("a prior finding names a review of its phase that declares the finding", () => {
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n\n### spec-finding-1: Gap\n");
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: Gap\n");
     rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec.md#spec-finding-1, resolution failed\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID Prior finding: expected <an earlier review of this kind>#<finding id of its phase>/);
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec.md#spec-finding-1, resolution failed\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID prior-finding: expected <an earlier review of this kind>#<finding id of its phase>/);
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID PRIOR FINDING 1-spec\/spec-review-1\.md#spec-finding-2: the review declares no such finding/);
     for (const value of ["1-spec/spec-review-2.md#spec-finding-1", "1-spec/spec-review-3.md#spec-finding-1", "1-spec/../1-spec/spec-review-1.md#spec-finding-1", "1-spec/build-review-1.md#spec-finding-1"]) {
-      write(root, "1-spec/spec-review-2.md", `# Review\n\nVerdict: rejected\nPrior finding: ${value}, resolution failed\n`);
-      assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID Prior finding: expected <an earlier review of this kind>/);
+      write(root, "1-spec/spec-review-2.md", `# Review\n\nverdict: rejected\nprior-finding: ${value}, resolution failed\n`);
+      assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID prior-finding: expected <an earlier review of this kind>/);
     }
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
-    assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("recurs"), ["1-spec/spec-review-1.md#spec-finding-1"]);
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("prior-finding"), ["1-spec/spec-review-1.md#spec-finding-1"]);
   });
 
   test("a review's wave is a canonical positive number", () => {
     stampSpec();
-    registered("1-spec/spec-review-01.md", { verdict: "approved", reviewed: pairs(SPEC) }, "# Review\n\nVerdict: approved\n");
-    registered("1-spec/spec-review-0.md", { verdict: "rejected", reviewed: pairs(SPEC) }, "# Review\n\nVerdict: rejected\n");
+    registered("1-spec/spec-review-01.md", { verdict: "approved", reviewed: pairs(SPEC) }, "# Review\n\nverdict: approved\n");
+    registered("1-spec/spec-review-0.md", { verdict: "rejected", reviewed: pairs(SPEC) }, "# Review\n\nverdict: rejected\n");
     configure({ targetPhase: 1 });
     assert.match(check(root), /frontier review wave 1-spec\/spec\.md/);
   });
@@ -2038,12 +2042,12 @@ process.stdout.write(output);
   });
 
   test("a task target is declared by its file, under its phase's prefix", () => {
-    write(root, "3-build/tasks/build-task-1.md", "# Any heading\n\n- **Depends on:** none\n");
-    write(root, "4-document/tasks/build-task-1.md", "# build-task-1\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-1.md", "# Any heading\n\ndepends-on: none\n");
+    write(root, "4-document/tasks/build-task-1.md", "# build-task-1\n\ndepends-on: none\n");
     write(root, "4-document/document-plan.md", "# Plan\n");
     assert.throws(() => proposal("4-document/document-plan.md#build-task-1"), /INVALID TARGET 4-document\/document-plan\.md#build-task-1/);
     proposal("3-build/build-plan.md#build-task-1");
-    write(root, "4-document/tasks/build-task-1-report-1.md", "# Report\nOutcome: completed\n");
+    write(root, "4-document/tasks/build-task-1-report-1.md", "# Report\noutcome: completed\n");
     assert.deepEqual(JSON.parse(check(root, "--json")).tasks["4-document"] ?? null, null);
   });
 
@@ -2063,8 +2067,8 @@ process.stdout.write(output);
       ["another phase's", null, null],
     ])
       test(`${word}s in ${rel}: ${form}`, () => {
-        const items = ids ? ids.map((n) => `### ${prefix}-${word}-${n}: Entry\n`).join("") : `### build-${word}-1: Entry\n`;
-        write(root, rel, `# File\n\n${word === "finding" ? "Verdict: approved\n" : ""}\n${items}`);
+        const items = ids ? ids.map((n) => `${prefix}-${word}-${n}: Entry\n`).join("") : `build-${word}-1: Entry\n`;
+        write(root, rel, `# File\n\n${word === "finding" ? "verdict: approved\n" : ""}\n${items}`);
         if (invalid) assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), new RegExp(`INVALID IDS ${rel}: ${invalid}`));
         else rp(root, "stamp", P(rel), "--mirror");
         const output = check(root);
@@ -2073,20 +2077,20 @@ process.stdout.write(output);
       });
 
   test("ids and retired-ids are recorded on an artifact with history only", () => {
-    registered("1-spec/spec-review-1.md", { verdict: "approved", "ids": ["spec-finding-1"] }, "# Review\n\nVerdict: approved\n\n### spec-finding-1: Entry\n");
+    registered("1-spec/spec-review-1.md", { verdict: "approved", "ids": ["spec-finding-1"] }, "# Review\n\nverdict: approved\n\nspec-finding-1: Entry\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID FRONTMATTER.*recorded ids/);
   });
 
   test("a prior finding names a finding of the review's phase", () => {
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\nPrior finding: 1-spec/spec-review-1.md#build-finding-1, resolution failed\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID Prior finding: expected <an earlier review of this kind>#<finding id of its phase>/);
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#build-finding-1, resolution failed\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID prior-finding: expected <an earlier review of this kind>#<finding id of its phase>/);
   });
 
   test("a lane artifact declares ids like its root", () => {
     configure({ lanes: [standard.a] });
-    write(root, "1-spec/a/spec.md", "# Spec\n\n- spec-requirement-2 Second only.\n");
+    write(root, "1-spec/a/spec.md", "# Spec\n\nspec-requirement-2: Second only.\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror"), /INVALID IDS 1-spec\/a\/spec\.md: spec-requirement-1 is missing/);
-    write(root, "1-spec/a/spec.md", "# Spec\n\n- spec-requirement-1 First.\n");
+    write(root, "1-spec/a/spec.md", "# Spec\n\nspec-requirement-1: First.\n");
     rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/a/spec.md")).data.get("ids"), ["spec-requirement-1"]);
   });
@@ -2102,7 +2106,7 @@ process.stdout.write(output);
             origin: "issue 7",
             "ids": stamped ? [`intent-${kind}-1`, `intent-${kind}-2`] : before,
             "retired-ids": stamped && change === "retire" ? [`intent-${kind}-2`] : [],
-          }, `Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n${current.map((id) => `- ${id} Item.\n`).join("")}`);
+          }, `origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n${current.map((id) => `${id}: Item.\n`).join("")}`);
           registered("1-spec/spec.md", { pins: pairs([intent]) });
           registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
           const recorded = read(root, intent);
@@ -2128,7 +2132,7 @@ process.stdout.write(output);
     test(`intent history projection at a ref: unstamped ${change}`, () => {
       const intent = "0-intent/intent.md";
       const ids = ["intent-constraint-1", "intent-constraint-2"];
-      registered(intent, { origin: "issue 7", "ids": change === "add" ? ids.slice(0, 1) : ids }, `Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n${(change === "add" ? ids : ids.slice(0, 1)).map((id) => `- ${id} Item.\n`).join("")}`);
+      registered(intent, { origin: "issue 7", "ids": change === "add" ? ids.slice(0, 1) : ids }, `origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n${(change === "add" ? ids : ids.slice(0, 1)).map((id) => `${id}: Item.\n`).join("")}`);
       registered("1-spec/spec.md", { pins: pairs([intent]) });
       registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
       configure({ targetPhase: 1 });
@@ -2147,7 +2151,7 @@ process.stdout.write(output);
     const intent = "0-intent/intent.md";
     registered(intent, {
       origin: "issue 7", "ids": ["intent-constraint-3", "intent-context-1", "intent-constraint-2", "intent-constraint-1"], "retired-ids": ["intent-constraint-2", "intent-constraint-3"],
-    }, "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n- intent-constraint-1 Kept.\n- intent-context-1 Kept.\n");
+    }, "origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\nintent-constraint-1: Kept.\nintent-context-1: Kept.\n");
     registered("1-spec/spec.md", { pins: pairs([intent]) });
     registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
     configure({ targetPhase: 1 });
@@ -2175,11 +2179,11 @@ process.stdout.write(output);
 
   test("a retired id remains invalid at a ref and when a new claim tries to land", () => {
     const intent = "0-intent/intent.md", claim = "1-spec/spec-review-1.md";
-    registered(intent, { origin: "issue 7", "ids": ["intent-constraint-1"], "retired-ids": ["intent-constraint-1"] }, "Origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\n- intent-constraint-1 Reused.\n");
+    registered(intent, { origin: "issue 7", "ids": ["intent-constraint-1"], "retired-ids": ["intent-constraint-1"] }, "origin: issue 7\n\n# Intent\n\n## Goal\n\nOriginal.\n\n## Constraints\n\nintent-constraint-1: Reused.\n");
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "recorded invalid intent");
     const ref = git(root, "rev-parse", "HEAD").trim();
-    write(root, claim, "# Review\n\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#intent-constraint-1\n");
+    write(root, claim, "# Review\n\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-constraint-1\n");
     assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), /INVALID IDS.*retired id intent-constraint-1/);
     const state = JSON.parse(check(root, "--ref", ref, "--json"));
     assert.equal(state.frontier, `INVALID IDS ${intent}`);
@@ -2190,7 +2194,7 @@ process.stdout.write(output);
     stampSpec();
     approveSpec();
     proposal();
-    registered("1-spec/spec.md", { ...Object.fromEntries(parseFrontmatter(read(root, "1-spec/spec.md")).data), ids: ["spec-requirement-1", "spec-requirement-2"], "retired-ids": ["spec-requirement-1"] }, "# Spec\n\n- spec-requirement-2 New requirement.\n");
+    registered("1-spec/spec.md", { ...Object.fromEntries(parseFrontmatter(read(root, "1-spec/spec.md")).data), ids: ["spec-requirement-1", "spec-requirement-2"], "retired-ids": ["spec-requirement-1"] }, "# Spec\n\nspec-requirement-2: New requirement.\n");
     rp(root, "stamp", P("0-intent/proposal-1.md"), "--mirror");
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/proposal-1.md"));
     review("1-spec/spec-review-2.md", "approved", [...SPEC, "0-intent/proposal-1.md"]);
@@ -2201,15 +2205,15 @@ process.stdout.write(output);
   });
 
   test("spec and design assumptions are valid targets when their ids exist", () => {
-    write(root, "1-spec/spec.md", "# Spec\n\n- spec-requirement-1 Requirement.\n- spec-assumption-1 Assumption.\n");
-    write(root, "2-design-doc/design-doc.md", "# Design doc\n\n- design-doc-decision-1 Decision.\n- design-doc-assumption-1 Assumption.\n");
+    write(root, "1-spec/spec.md", "# Spec\n\nspec-requirement-1: Requirement.\nspec-assumption-1: Assumption.\n");
+    write(root, "2-design-doc/design-doc.md", "# Design doc\n\ndesign-doc-decision-1: Decision.\ndesign-doc-assumption-1: Assumption.\n");
     rp(root, "stamp", P("2-design-doc/design-doc.md"), "--mirror");
     stampSpec();
     approveSpec();
     proposal("1-spec/spec.md#spec-assumption-1");
     let output = check(root);
     assert.match(output, /challenge .*spec\.md#spec-assumption-1\s+PENDING/);
-    write(root, "0-intent/proposal-1.md", "# Proposal 1\n\nTarget: 2-design-doc/design-doc.md#design-doc-assumption-1\nOrigin: 0-intent/constraint-1.md\n");
+    write(root, "0-intent/proposal-1.md", "# Proposal 1\n\ntarget: 2-design-doc/design-doc.md#design-doc-assumption-1\norigin: 0-intent/constraint-1.md\n");
     rp(root, "stamp", P("0-intent/proposal-1.md"), "--mirror");
     output = check(root);
     assert.match(output, /challenge .*design-doc\.md#design-doc-assumption-1\s+PENDING/);
@@ -2278,7 +2282,7 @@ process.stdout.write(output);
     report("build-task-2", 1, "completed", ["build-task-1"]);
     assert.equal(parseFrontmatter(read(root, "3-build/tasks/build-task-2-report-1.md")).data.get("attempt"), "1");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2-report-1.md"), "--reviewed", P("3-build/tasks/build-task-2.md"), "--reviewed", P("3-build/tasks/build-task-1.md")), /immutable/);
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: revised\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: revised\n\ndepends-on: none\n");
     rp(root, "stamp", P("3-build/tasks/build-task-1.md"), "--mirror");
     const output = check(root);
     assert.match(output, /open \[build-task-1:completed \(stale\), build-task-2:completed \(stale\)\]/);
@@ -2290,7 +2294,7 @@ process.stdout.write(output);
     report("build-task-1", 1, "completed");
     report("build-task-2", 1, "completed", ["build-task-1"]);
     const recorded = parseFrontmatter(read(root, "3-build/tasks/build-task-2-report-1.md")).data.get("reviewed");
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: replanned\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: replanned\n\ndepends-on: none\n");
     rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror");
     assert.doesNotThrow(() => rp(root, "stamp", P("3-build/tasks/build-task-2-report-1.md"), "--mirror"));
     assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-2-report-1.md")).data.get("reviewed"), recorded);
@@ -2301,24 +2305,24 @@ process.stdout.write(output);
       if (phase === "4-document") write(root, "4-document/document-plan.md", "# Plan\n");
       const task = `${phase}/tasks/${tp}-2.md`, report = `${phase}/tasks/${tp}-2-report-1.md`;
       const dependency = `${phase}/tasks/${tp}-1.md`, extra = `${phase}/tasks/${tp}-3.md`;
-      registered(dependency, { depends: [] }, "# Task\nDepends on: none\n");
-      registered(extra, { depends: [] }, "# Extra\nDepends on: none\n");
-      registered(task, { depends: [`${tp}-1`] }, `# Task\nDepends on: ${tp}-1\n`);
+      registered(dependency, { "depends-on": [] }, "# Task\ndepends-on: none\n");
+      registered(extra, { "depends-on": [] }, "# Extra\ndepends-on: none\n");
+      registered(task, { "depends-on": [`${tp}-1`] }, `# Task\ndepends-on: ${tp}-1\n`);
       for (const paths of [[task], [task, dependency, extra]]) {
-        write(root, report, "# Report\nOutcome: completed\n");
+        write(root, report, "# Report\noutcome: completed\n");
         assert.throws(() => rp(root, "stamp", P(report), "--mirror", ...paths.flatMap((path) => ["--reviewed", P(path)])), /reviews exactly its task and its dependencies/);
-        registered(report, { reviewed: pairs(paths), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+        registered(report, { reviewed: pairs(paths), outcome: "completed", attempt: "1" }, "# Report\noutcome: completed\n");
         const state = JSON.parse(check(root, "--json"));
         assert.equal(state.tasks[phase].done.includes(`${tp}-2`), false);
       }
-      write(root, report, "# Report\nOutcome: completed\n");
+      write(root, report, "# Report\noutcome: completed\n");
       rp(root, "stamp", P(report), "--mirror", "--reviewed", P(dependency), "--reviewed", P(task));
       assert.deepEqual(parseFrontmatter(read(root, report)).data.get("reviewed"), pairs([dependency, task]));
       assert.equal(JSON.parse(check(root, "--json")).tasks[phase].done.includes(`${tp}-2`), true);
-      registered(task, { depends: [`${tp}-1`, `${tp}-3`] }, `# Task\nDepends on: ${tp}-1, ${tp}-3\n`);
+      registered(task, { "depends-on": [`${tp}-1`, `${tp}-3`] }, `# Task\ndepends-on: ${tp}-1, ${tp}-3\n`);
       assert.equal(JSON.parse(check(root, "--json")).tasks[phase].done.includes(`${tp}-2`), false);
       const next = `${phase}/tasks/${tp}-2-report-2.md`;
-      write(root, next, "# Report\nOutcome: completed\n");
+      write(root, next, "# Report\noutcome: completed\n");
       assert.throws(() => rp(root, "stamp", P(next), "--mirror", "--reviewed", P(task), "--reviewed", P(dependency)), /reviews exactly its task and its dependencies/);
       rp(root, "stamp", P(next), "--mirror", ...[extra, task, dependency].flatMap((path) => ["--reviewed", P(path)]));
       assert.equal(JSON.parse(check(root, "--json")).tasks[phase].done.includes(`${tp}-2`), true);
@@ -2334,7 +2338,7 @@ process.stdout.write(output);
     assert.match(output, /build-task-1-report-1\.md .*resolved/);
     assert.match(output, /frontier task 3-build\/build-task-1/);
     report("build-task-1", 2, "failed");
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: replanned\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1: replanned\n\ndepends-on: none\n");
     rp(root, "stamp", P("3-build/tasks/build-task-1.md"), "--mirror");
     output = check(root);
     assert.doesNotMatch(output, /challenge .*build-task-1-report-2/);
@@ -2382,7 +2386,7 @@ process.stdout.write(output);
     buildDone();
     write(root, "4-document/document-plan.md", "# Document plan\n\n## Order\n\n- document-task-1\n");
     write(root, "4-document/document-plan-research.md", "# Doc research\n");
-    write(root, "4-document/tasks/document-task-1.md", "# document-task-1: guide\n\n- **Depends on:** none\n");
+    write(root, "4-document/tasks/document-task-1.md", "# document-task-1: guide\n\ndepends-on: none\n");
     rp(root, "stamp", P("4-document/tasks/document-task-1.md"), "--mirror");
     const BUILD_WORK = [...TASKS, "3-build/tasks/build-task-1-report-1.md", "3-build/tasks/build-task-2-report-1.md"];
     rp(root, "stamp", P("4-document/document-plan.md"), "--pin", P("1-spec/spec.md"), "--pin", P("2-design-doc/design-doc.md"), "--pin", P("3-build/build-plan.md"), "--pin", P("1-spec/spec-review-1.md"), "--pin", P("2-design-doc/design-doc-review-1.md"), "--pin", P("3-build/build-plan-review-1.md"), "--pin", P("3-build/build-review-1.md"));
@@ -2392,7 +2396,7 @@ process.stdout.write(output);
     const DOC = ["4-document/document-plan.md", "4-document/document-plan-research.md", "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md", "3-build/build-review-1.md", ...BUILD_WORK];
     review("4-document/document-plan-review-1.md", "approved", [...DOC, "4-document/tasks/document-task-1.md"]);
     assert.match(check(root), /frontier task 4-document\/document-task-1/);
-    write(root, "4-document/tasks/document-task-1-report-1.md", "# Task report\n\nOutcome: completed\n");
+    write(root, "4-document/tasks/document-task-1-report-1.md", "# Task report\n\noutcome: completed\n");
     rp(root, "stamp", P("4-document/tasks/document-task-1-report-1.md"), "--reviewed", P("4-document/tasks/document-task-1.md"), "--mirror");
     assert.match(check(root), /frontier document review/);
     review("4-document/document-review-1.md", "approved", [...DOC, "4-document/tasks/document-task-1.md", "4-document/tasks/document-task-1-report-1.md"]);
@@ -2575,7 +2579,7 @@ process.stdout.write(output);
     const materialsLane = { ...standard.security, materials: ["0-intent/context.md"] };
     configure({ targetPhase: 1, lanes: [materialsLane] });
     assert.throws(() => check(root), /outside the .* package/);
-    write(root, "1-spec/spec-review-security-1.md", "# Review\n\nVerdict: approved\n");
+    write(root, "1-spec/spec-review-security-1.md", "# Review\n\nverdict: approved\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-security-1.md"), "--mirror"), /outside the .* package/);
     rmSync(join(root, P("1-spec/spec-review-security-1.md")));
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", "0-intent/context.md"]) });
@@ -2641,7 +2645,7 @@ process.stdout.write(output);
     registered(artifact, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a });
     const reference = pairs([artifact, record, "0-intent/intent.md"]);
     registeredVerdict(implicit, reference);
-    write(root, named, "# Review\n\nVerdict: approved\n");
+    write(root, named, "# Review\n\nverdict: approved\n");
     const binding = pairs([artifact, record, implicit, named]);
     registered("1-spec/spec.md", {
       pins: pairs(["0-intent/intent.md", artifact, record, implicit, named]),
@@ -2659,7 +2663,7 @@ process.stdout.write(output);
 
   test("verify-3: registered claims become moot and resolutions adjudicated on input change", () => {
     const proposal = "0-intent/proposal-1.md";
-    registered(proposal, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 8" }, "# Proposal\nTarget: 1-spec/spec.md#spec-requirement-1\nOrigin: issue 8\n");
+    registered(proposal, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 8" }, "# Proposal\ntarget: 1-spec/spec.md#spec-requirement-1\norigin: issue 8\n");
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", proposal]) });
     registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, proposal]));
     const designPins = ["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
@@ -2667,7 +2671,7 @@ process.stdout.write(output);
     registered("2-design-doc/design-doc-review-1.md", {
       reviewed: pairs(["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md", ...designPins]),
       verdict: "unsatisfiable", target: ["1-spec/spec.md#spec-requirement-1"], "target-identity": [identity(read(root, "1-spec/spec.md"))],
-    }, "# Review\nVerdict: unsatisfiable\nTarget: 1-spec/spec.md#spec-requirement-1\n");
+    }, "# Review\nverdict: unsatisfiable\ntarget: 1-spec/spec.md#spec-requirement-1\n");
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged input.\n");
     configure({ targetPhase: 2 });
     const state = JSON.parse(check(root, "--json"));
@@ -2685,7 +2689,7 @@ process.stdout.write(output);
           registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
           const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/a/";
           const artifact = `${sc}design-doc.md`, record = `${sc}design-doc-research.md`;
-          write(root, artifact, "# Design\n- design-doc-decision-1 Decision.\n"); write(root, record, "# Record\n");
+          write(root, artifact, "# Design\ndesign-doc-decision-1: Decision.\n"); write(root, record, "# Record\n");
           const inputs = ["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
           const laneFields = scope === "root" ? {} : { lane: FPS.a };
           registered(artifact, { pins: pairs(inputs), ...laneFields });
@@ -2694,7 +2698,7 @@ process.stdout.write(output);
           if (verdict === "approved") registeredVerdict(review, judged);
           else registered(review, {
             reviewed: judged, verdict, target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))],
-          }, "# Review\nVerdict: unsatisfiable\nTarget: 0-intent/intent.md#intent-goal\n");
+          }, "# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
           let configuredLanes = scope === "root" ? [] : [lane("design-doc-producer", "a")];
           configure({ targetPhase: 2, lanes: configuredLanes });
           const checkState = () => JSON.parse(check(root, "--json"));
@@ -2756,13 +2760,13 @@ process.stdout.write(output);
           const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/a/";
           const artifact = `${sc}design-doc.md`, record = `${sc}design-doc-research.md`;
           const laneFields = scope === "root" ? {} : { lane: FPS.a };
-          registered(artifact, { pins: pairs(inputs), ...laneFields }, "# Design\n- design-doc-decision-1 Decision.\n");
+          registered(artifact, { pins: pairs(inputs), ...laneFields }, "# Design\ndesign-doc-decision-1: Decision.\n");
           write(root, record, "# Record\n");
           const review = `${sc}design-doc-review-1.md`;
           if (verdict === "approved") registeredVerdict(review, pairs([artifact, record, ...inputs]));
           else registered(review, {
             reviewed: pairs([artifact, record, ...inputs]), verdict, target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))],
-          }, `# Review\nVerdict: unsatisfiable\nTarget: ${intent}#intent-goal\n`);
+          }, `# Review\nverdict: unsatisfiable\ntarget: ${intent}#intent-goal\n`);
           let configuredLanes = scope === "root" ? [] : [lane("design-doc-producer", "a")];
           configure({ targetPhase: 2, lanes: configuredLanes });
           const state = () => JSON.parse(check(root, "--json"));
@@ -2850,10 +2854,10 @@ process.stdout.write(output);
       registeredVerdict("2-design-doc/design-doc-review-1.md", pairs(DESIGN));
       const buildPins = ["1-spec/spec.md", "2-design-doc/design-doc.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md"];
       registered("3-build/build-plan.md", { pins: pairs(buildPins) });
-      registered("3-build/tasks/build-task-1.md", { depends: [] }, "# Task\nDepends on: none\n");
+      registered("3-build/tasks/build-task-1.md", { "depends-on": [] }, "# Task\ndepends-on: none\n");
       const planPackage = [...PLAN_BASE, "3-build/tasks/build-task-1.md"];
       registeredVerdict("3-build/build-plan-review-1.md", pairs(planPackage));
-      registered("3-build/tasks/build-task-1-report-1.md", { reviewed: pairs(["3-build/tasks/build-task-1.md"]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+      registered("3-build/tasks/build-task-1-report-1.md", { reviewed: pairs(["3-build/tasks/build-task-1.md"]), outcome: "completed", attempt: "1" }, "# Report\noutcome: completed\n");
       const buildPackage = [...planPackage, "3-build/tasks/build-task-1-report-1.md"];
       registeredVerdict("3-build/build-review-1.md", pairs(buildPackage));
 
@@ -2862,12 +2866,12 @@ process.stdout.write(output);
       const record = phase === "build-plan" ? "3-build/build-plan-research.md" : "4-document/document-plan-research.md";
       const proposal = "0-intent/proposal-1.md";
       write(root, artifact, `# Plan\nAssumption ${prefix}-assumption-1.\n`);
-      registered(proposal, { target: [`${artifact}#${prefix}-assumption-1`], origin: "issue 8" }, `# Proposal\nTarget: ${artifact}#${prefix}-assumption-1\nOrigin: issue 8\n`);
+      registered(proposal, { target: [`${artifact}#${prefix}-assumption-1`], origin: "issue 8" }, `# Proposal\ntarget: ${artifact}#${prefix}-assumption-1\norigin: issue 8\n`);
       const inputs = phase === "build-plan" ? [...buildPins, proposal] : [
         "1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md",
         "3-build/build-plan-review-1.md", "3-build/tasks/build-task-1.md", "3-build/tasks/build-task-1-report-1.md", "3-build/build-review-1.md", proposal,
       ];
-      registered(artifact, { pins: pairs(inputs) }, `# Plan\n- ${prefix}-assumption-1 Assumption.\n`);
+      registered(artifact, { pins: pairs(inputs) }, `# Plan\n${prefix}-assumption-1: Assumption.\n`);
       write(root, record, "# Record\n");
       const judged = [artifact, record, ...inputs, ...(phase === "build-plan" ? ["3-build/tasks/build-task-1.md"] : [])];
       registeredVerdict(`${dirname(artifact)}/${phase}-review-1.md`, pairs(judged));
@@ -2910,7 +2914,7 @@ process.stdout.write(output);
 
   test("a registered task report cannot omit its dependency from the reference", () => {
     buildDone();
-    registered("3-build/tasks/build-task-2-report-1.md", { reviewed: pairs(["3-build/tasks/build-task-2.md"]), outcome: "completed", attempt: "1" }, "# Report\nOutcome: completed\n");
+    registered("3-build/tasks/build-task-2-report-1.md", { reviewed: pairs(["3-build/tasks/build-task-2.md"]), outcome: "completed", attempt: "1" }, "# Report\noutcome: completed\n");
     configure({ targetPhase: 3 });
     const state = JSON.parse(check(root, "--json"));
     assert.deepEqual(state.tasks["3-build"].done, ["build-task-1"]);
@@ -2951,7 +2955,7 @@ process.stdout.write(output);
     write(root, "1-spec/a/spec.md", "# Candidate a\n");
     write(root, "1-spec/a/spec-research.md", "# Record a\n");
     rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/context.md"));
-    write(root, "1-spec/a/spec-review-1.md", "# Review\n\nVerdict: approved\n");
+    write(root, "1-spec/a/spec-review-1.md", "# Review\n\nverdict: approved\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/a/spec-review-1.md"), "--reviewed", P("1-spec/a/spec.md"), "--reviewed", P("1-spec/a/spec-research.md"), "--reviewed", P("0-intent/intent.md"), "--mirror"), /INVALID REVIEW PACKAGE/);
     const lanePackage = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...lanePackage.flatMap((path) => ["--pin", P(path)]));
@@ -3045,7 +3049,7 @@ process.stdout.write(output);
     assert.equal(Array.isArray(lanePackages[0][1]), true);
     assert.equal(Array.isArray(lanePackages[0][2]), true);
     review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
-    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Proposals\n\n- intent-proposal-1 New input.\n");
+    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Proposals\n\nintent-proposal-1: New input.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec.md")).data.get("lane-packages"), lanePackages);
@@ -3082,7 +3086,7 @@ process.stdout.write(output);
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
     review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
     assert.match(check(root), /frontier complete/);
-    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Proposals\n\n- intent-proposal-1 Add lane b.\n");
+    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Proposals\n\nintent-proposal-1: Add lane b.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     const bLane = { ...standard.b, after: ["a"] };
     configure({ targetPhase: 1, lanes: [standard.a, bLane] });
@@ -3130,7 +3134,7 @@ process.stdout.write(output);
       write(root, `1-spec/${id}/spec-research.md`, `# Record ${id}\n`);
       rp(root, "stamp", P(`1-spec/${id}/spec.md`), "--pin", P("0-intent/intent.md"));
     }
-    review("1-spec/a/spec-review-1.md", "unsatisfiable", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"], "Target: 0-intent/intent.md#intent-goal\n");
+    review("1-spec/a/spec-review-1.md", "unsatisfiable", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"], "target: 0-intent/intent.md#intent-goal\n");
     review("1-spec/b/spec-review-1.md", "rejected", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md"]);
     review("1-spec/b/spec-review-2.md", "approved", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md"]);
     const output = check(root);
@@ -3171,7 +3175,7 @@ process.stdout.write(output);
 
   test("state cannot be forged: mirrors come from the body, reviewed is immutable, identities are exact", () => {
     stampSpec();
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nVerdict: rejected\n");
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\n");
     rp(root, "stamp", P("1-spec/spec-review-1.md"), ...SPEC.flatMap((f) => ["--reviewed", P(f)]), "--mirror");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--reviewed", P("1-spec/spec.md")), /immutable/);
     // A hand-written pin with an empty or short identity is never fresh.
@@ -3186,7 +3190,7 @@ process.stdout.write(output);
     assert.match(check(root), /frontier complete/);
     // The verdict is deleted from the body; the frontmatter still says approved.
     const stamped = read(root, "1-spec/spec-review-1.md");
-    write(root, "1-spec/spec-review-1.md", stamped.replace(/^Verdict: approved\n/m, ""));
+    write(root, "1-spec/spec-review-1.md", stamped.replace(/^verdict: approved\n/m, ""));
     configure({ targetPhase: 1 });
     let output = check(root);
     assert.match(output, /mirror\s+1-spec\/spec-review-1\.md\s+differs from the body: verdict/);
@@ -3200,14 +3204,14 @@ process.stdout.write(output);
     configure({ targetPhase: 1 });
     output = check(root);
     assert.doesNotMatch(output, /mirror\s/);
-    assert.match(output, /frontier INVALID REVIEW 1-spec\/spec-review-1\.md: no Verdict line/);
+    assert.match(output, /frontier INVALID REVIEW 1-spec\/spec-review-1\.md: no verdict line/);
     // A claim keeps the target identity it landed with while its target is the same.
-    review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-goal\n");
+    review("1-spec/spec-review-2.md", "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n");
     const landed = parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("target-identity");
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged.\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("target-identity"), landed);
-    write(root, "1-spec/spec-review-2.md", read(root, "1-spec/spec-review-2.md").replace(/^Verdict: unsatisfiable\n/m, "Verdict: approved\n").replace(/^Target:.*\n/m, ""));
+    write(root, "1-spec/spec-review-2.md", read(root, "1-spec/spec-review-2.md").replace(/^verdict: unsatisfiable\n/m, "verdict: approved\n").replace(/^target:.*\n/m, ""));
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.doesNotMatch(read(root, "1-spec/spec-review-2.md"), /target/);
   });
@@ -3217,8 +3221,8 @@ process.stdout.write(output);
     write(root, "3-build/tasks/build-task-1-report-1.md", "# Task report\n\nno outcome yet\n");
     rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
     let output = check(root);
-    assert.match(output, /frontier INVALID REPORT 3-build\/tasks\/build-task-1-report-1\.md: no Outcome line/);
-    appendFileSync(join(root, P("3-build/tasks/build-task-1-report-1.md")), "\nOutcome: blocked\n");
+    assert.match(output, /frontier INVALID REPORT 3-build\/tasks\/build-task-1-report-1\.md: no outcome line/);
+    appendFileSync(join(root, P("3-build/tasks/build-task-1-report-1.md")), "\noutcome: blocked\n");
     output = check(root);
     assert.match(output, /mirror\s+3-build\/tasks\/build-task-1-report-1\.md\s+differs from the body: outcome/);
     assert.match(output, /frontier stamp 3-build\/tasks\/build-task-1-report-1\.md/);
@@ -3228,7 +3232,7 @@ process.stdout.write(output);
     assert.match(output, /done \[build-task-1\]/);
     assert.match(output, /frontier task 3-build\/build-task-2/);
     // An unstamped task file is a contradiction too: its dependencies are declared in the body.
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** build-task-1\n");
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\ndepends-on: build-task-1\n");
     assert.match(check(root), /frontier stamp 3-build\/tasks\/build-task-2\.md/);
   });
 
@@ -3261,7 +3265,7 @@ process.stdout.write(output);
     configure({ targetPhase: 1, lanes: [reviewer, producer] });
     stampSpec();
     review("1-spec/spec-review-1.md", "approved", SPEC);
-    review("1-spec/spec-review-security-1.md", "approved", SPEC, "Brief: Verify security surfaces in depth\n");
+    review("1-spec/spec-review-security-1.md", "approved", SPEC, "brief: Verify security surfaces in depth\n");
     assert.equal(parseFrontmatter(read(root, "1-spec/spec-review-security-1.md")).data.get("lane"), laneFingerprint(reviewer));
     assert.equal(parseFrontmatter(read(root, "1-spec/spec-review-1.md")).data.has("lane"), false);
     const implicit = parseFrontmatter(read(root, "1-spec/spec-review-1.md"));
@@ -3314,9 +3318,9 @@ process.stdout.write(output);
     approveSpec();
     write(root, "1-spec/rogue/spec.md", "# Rogue\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/rogue/spec.md"), "--pin", P("0-intent/intent.md")), /undeclared lane/);
-    write(root, "1-spec/rogue/spec-review-1.md", "# Review\n\nVerdict: rejected\n");
+    write(root, "1-spec/rogue/spec-review-1.md", "# Review\n\nverdict: rejected\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/rogue/spec-review-1.md"), "--mirror"), /undeclared lane/);
-    write(root, "1-spec/spec-review-extra-2.md", "# Review\n\nVerdict: rejected\n");
+    write(root, "1-spec/spec-review-extra-2.md", "# Review\n\nverdict: rejected\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-extra-2.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror"), /undeclared lane/);
     const output = check(root);
     assert.match(output, /lane\s+1-spec\/rogue\/\s+UNDECLARED/);
@@ -3327,7 +3331,7 @@ process.stdout.write(output);
     const reviewer = lane("spec-reviewer", "b");
     configure({ targetPhase: 1, lanes: [reviewer] });
     stampSpec();
-    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, "Target: 0-intent/intent.md#intent-goal\n");
+    review("1-spec/spec-review-1.md", "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n");
     review("1-spec/spec-review-b-1.md", "rejected", SPEC);
     let output = rp(root, "check", PIPELINE);
     assert.match(output, /claim\s+1-spec\/spec-review-1\.md .*held \(a lane rejected/);
@@ -3405,20 +3409,20 @@ process.stdout.write(output);
     approveChain(3);
     write(root, "3-build/tasks/build-task-1-report-1.md", "# Task report\n\nno outcome yet\n");
     rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
-    assert.match(check(root), /frontier INVALID REPORT 3-build\/tasks\/build-task-1-report-1\.md: no Outcome line/);
+    assert.match(check(root), /frontier INVALID REPORT 3-build\/tasks\/build-task-1-report-1\.md: no outcome line/);
     rmSync(join(root, P("3-build/tasks/build-task-1-report-1.md")));
     assert.throws(() => report("build-task-1", 2, "completed"), /INVALID REPORT .*expected attempt 1/);
     rmSync(join(root, P("3-build/tasks/build-task-1-report-2.md")));
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1\n\n- **Depends on:** build-task-2\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1\n\ndepends-on: build-task-2\n");
     rp(root, "stamp", P("3-build/tasks/build-task-1.md"), "--mirror");
     approvePlan(2);
     assert.match(check(root), /frontier invalid plan: 3-build\/tasks\/build-task-1\.md depends on a cycle/);
   });
 
   test("attempt numbering counts landed reports, not draft filenames", () => {
-    write(root, "3-build/tasks/build-task-1.md", "# build-task-1\n\n- **Depends on:** none\n");
+    write(root, "3-build/tasks/build-task-1.md", "# build-task-1\n\ndepends-on: none\n");
     rp(root, "stamp", P("3-build/tasks/build-task-1.md"), "--mirror");
-    for (const attempt of [1, 2]) write(root, `3-build/tasks/build-task-1-report-${attempt}.md`, `# Report ${attempt}\n\nOutcome: blocked\n`);
+    for (const attempt of [1, 2]) write(root, `3-build/tasks/build-task-1-report-${attempt}.md`, `# Report ${attempt}\n\noutcome: blocked\n`);
     rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
     rp(root, "stamp", P("3-build/tasks/build-task-1-report-2.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
     assert.equal(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("attempt"), "1");
@@ -3501,7 +3505,7 @@ process.stdout.write(output);
       if (scenario === "code in the review commit") {
         latest = "3-build/build-review-2.md";
         writeFileSync(join(root, "source.txt"), "together\n");
-        write(root, latest, "# Review\n\nVerdict: approved\n");
+        write(root, latest, "# Review\n\nverdict: approved\n");
         commitAll("code and review together");
         rp(root, "stamp", P(latest), ...chain.phasePackages[2].flatMap((f) => ["--reviewed", P(f)]), "--mirror");
         commitAll("stamp");
@@ -3620,7 +3624,7 @@ process.stdout.write(output);
       const chain = codeFixture(4);
       assert.equal(codeState().complete, true);
       const recordCommits = (index, commits) => {
-        registered(chain.reports[index], { reviewed: pairs([chain.tasks[index]]), outcome: "completed", attempt: "1" }, `# Report\nOutcome: completed\n\n## Commits\n${commits.map((c) => `- ${c}\n`).join("")}`);
+        registered(chain.reports[index], { reviewed: pairs([chain.tasks[index]]), outcome: "completed", attempt: "1" }, `# Report\noutcome: completed\n\n${commits.map((c) => `commit: ${c}\n`).join("")}`);
         rp(root, "stamp", P(chain.reports[index]), "--mirror");
         commitAll("report");
       };
@@ -3699,7 +3703,7 @@ process.stdout.write(output);
     const shimmed = (...args) => execFileSync(process.execPath, [RP, ...args], { cwd: root, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     assert.throws(() => shimmed("check", PIPELINE), /merge-tree .*merge failure/);
     assert.throws(() => shimmed("diff", PIPELINE, "--review", P("3-build/build-review-1.md")), /merge-tree .*merge failure/);
-    write(root, "3-build/build-review-2.md", `---\n${JSON.stringify({ reviewed: pairs(chain.phasePackages[2]), verdict: "approved" })}\n---\n# Review\n\nVerdict: approved\n`);
+    write(root, "3-build/build-review-2.md", `---\n${JSON.stringify({ reviewed: pairs(chain.phasePackages[2]), verdict: "approved" })}\n---\n# Review\n\nverdict: approved\n`);
     assert.throws(() => run("check", PIPELINE), /3-build\/build-review-2\.md: no commit adds this review/);
     assert.throws(() => run("diff", PIPELINE, "--review", P("3-build/build-review-2.md")), /no commit adds this review/);
     assert.throws(() => run("diff", PIPELINE, "--review", P("3-build/build-plan-review-1.md")), /not a phase review of this pipeline/);
@@ -3708,7 +3712,7 @@ process.stdout.write(output);
   test("code delta: malformed recorded patch ids stop the computation", () => {
     const chain = codeFixture(4);
     const commit = change("README.md", "Documented.\n");
-    registered(chain.reports[1], { reviewed: pairs([chain.tasks[1]]), outcome: "completed", attempt: "1", commits: [commit], "patch-ids": ["not-a-patch-id"] }, `# Report\nOutcome: completed\n\n## Commits\n- ${commit}\n`);
+    registered(chain.reports[1], { reviewed: pairs([chain.tasks[1]]), outcome: "completed", attempt: "1", commit: [commit], "patch-ids": ["not-a-patch-id"] }, `# Report\noutcome: completed\n\ncommit: ${commit}\n`);
     assert.match(codeState().frontier, /^INVALID FRONTMATTER 4-document\/tasks\/document-task-1-report-1\.md/);
     assert.throws(() => codeDeltaOf("3-build/build-review-1.md"), /INVALID FRONTMATTER .*patch-ids/);
     assert.throws(() => rp(root, "stamp", P(chain.reports[1]), "--mirror"), /INVALID FRONTMATTER .*patch-ids/);
@@ -3721,11 +3725,11 @@ process.stdout.write(output);
     git(root, "merge", "--no-ff", "main", "-m", "integrate");
     const merge = git(root, "rev-parse", "HEAD").trim();
     const empty = commitAll("empty");
-    const declare = (commits) => write(root, chain.reports[0], `# Report\nOutcome: completed\n\n## Commits\n${commits.map((c) => `- ${c.slice(0, 10)}\n`).join("")}`);
+    const declare = (commits) => write(root, chain.reports[0], `# Report\noutcome: completed\n\n${commits.map((c) => `commit: ${c.slice(0, 10)}\n`).join("")}`);
     declare([second, first, second, merge, empty]);
     rp(root, "stamp", P(chain.reports[0]), "--reviewed", P(chain.tasks[0]), "--mirror");
     const recorded = parseFrontmatter(read(root, chain.reports[0])).data;
-    assert.deepEqual(recorded.get("commits"), [second, first, second, merge, empty]);
+    assert.deepEqual(recorded.get("commit"), [second, first, second, merge, empty]);
     assert.deepEqual(recorded.get("patch-ids"), [second, first, second].map(patchIdOf));
     commitAll("report");
     onMain(() => change("upstream.txt", "upstream\n"));
@@ -3741,7 +3745,7 @@ process.stdout.write(output);
     declare([rebased]);
     rp(root, "stamp", P(chain.reports[0]), "--mirror");
     const redeclared = parseFrontmatter(read(root, chain.reports[0])).data;
-    assert.deepEqual(redeclared.get("commits"), [rebased]);
+    assert.deepEqual(redeclared.get("commit"), [rebased]);
     assert.deepEqual(redeclared.get("patch-ids"), [patchIdOf(first)]);
     declare(["0badc0ffee"]);
     assert.throws(() => rp(root, "stamp", P(chain.reports[0]), "--mirror"), /names a commit that does not exist/);
@@ -3765,17 +3769,17 @@ process.stdout.write(output);
     assert.equal(calls[0], calls[1]);
   });
 
-  test("a fixed line is mirrored whole or not at all: prose after Depends on is INVALID, never mined", () => {
+  test("a fixed line is mirrored whole or not at all: prose after depends-on is INVALID, never mined", () => {
     approveChain(3);
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** build-task-1, build-task-3 (build-task-1's fence work is shipped; build-task-3 …)\n");
-    assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror"), /INVALID Depends on: expected none or task ids/);
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** build-task-1, build-task-1\n");
-    assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror"), /INVALID Depends on: duplicate ids/);
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\ndepends-on: build-task-1, build-task-3 (build-task-1's fence work is shipped; build-task-3 …)\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror"), /INVALID depends-on: expected none or task ids/);
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\ndepends-on: build-task-1, build-task-1\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror"), /INVALID depends-on: duplicate ids/);
     configure({ targetPhase: 3 });
-    assert.match(check(root), /INVALID LINE 3-build\/tasks\/build-task-2.md: Depends on: duplicate ids/);
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** build-task-1\n- **Depends on:** later\n");
-    assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror"), /INVALID Depends on: expected none or task ids/);
-    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\n- **Depends on:** build-task-1\n");
+    assert.match(check(root), /INVALID LINE 3-build\/tasks\/build-task-2.md: depends-on: duplicate ids/);
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\ndepends-on: build-task-1\ndepends-on: later\n");
+    assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror"), /INVALID depends-on: expected none or task ids/);
+    write(root, "3-build/tasks/build-task-2.md", "# build-task-2: second\n\ndepends-on: build-task-1\n");
     rp(root, "stamp", P("3-build/tasks/build-task-2.md"), "--mirror");
     configure({ targetPhase: 3 });
     assert.doesNotMatch(check(root), /INVALID LINE/);
@@ -3783,13 +3787,13 @@ process.stdout.write(output);
 
   test("every fixed line is validated against its grammar", () => {
     const cases = [
-      ["Verdict: approved with caveats", /Verdict: expected approved \| rejected \| unsatisfiable/],
-      ["Outcome: done", /Outcome: expected completed \| failed \| blocked/],
-      ["Target: 1-spec\/spec.md##spec-requirement-1", /Target: expected <path>\[#<id>\]/],
-      ["Prior finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /Prior finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed/],
-      ["Origin: owner request", /Origin: expected issue <reference>, a source declaration, or a path/],
-      ["Origin: PROJECT-42", /Origin: expected issue <reference>, a source declaration, or a path/],
-      ["Brief:", /Brief: expected text/],
+      ["verdict: approved with caveats", /verdict: expected approved \| rejected \| unsatisfiable/],
+      ["outcome: done", /outcome: expected completed \| failed \| blocked/],
+      ["target: 1-spec\/spec.md##spec-requirement-1", /target: expected <path>\[#<id>\]/],
+      ["prior-finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed/],
+      ["origin: owner request", /origin: expected issue <reference>, a source declaration, or a path/],
+      ["origin: PROJECT-42", /origin: expected issue <reference>, a source declaration, or a path/],
+      ["brief:", /brief: expected text/],
     ];
     for (const [line, error] of cases) {
       write(root, "1-spec/bad.md", `# Bad\n\n${line}\n`);
@@ -3798,26 +3802,26 @@ process.stdout.write(output);
       assert.match(check(root), /frontier INVALID LINE 1-spec\/bad\.md/);
     }
     rmSync(join(root, P("1-spec/bad.md")));
-    write(root, "1-spec/spec-review-1.md", "# Earlier\n\nVerdict: rejected\n\n### spec-finding-1: Gap\n");
-    write(root, "1-spec/spec-review-2.md", "# Good\n\nVerdict: unsatisfiable\nOutcome: failed\nTarget: 1-spec/spec.md#spec-requirement-1\nPrior finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\nOrigin: 0-intent/constraint-1.md\nOrigin: 0-intent/proposal-1.md\nBrief: focused\n");
+    write(root, "1-spec/spec-review-1.md", "# Earlier\n\nverdict: rejected\n\nspec-finding-1: Gap\n");
+    write(root, "1-spec/spec-review-2.md", "# Good\n\nverdict: unsatisfiable\noutcome: failed\ntarget: 1-spec/spec.md#spec-requirement-1\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\norigin: 0-intent/constraint-1.md\norigin: 0-intent/proposal-1.md\nbrief: focused\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     configure({ targetPhase: 1 });
     assert.doesNotMatch(check(root), /INVALID LINE/);
 
-    write(root, "0-intent/intent.md", "Origin: issue PROJECT-42 canonical reference\n\n# Intent\n\n## Goal\n\nOriginal.\n");
+    write(root, "0-intent/intent.md", "origin: issue PROJECT-42 canonical reference\n\n# Intent\n\n## Goal\n\nOriginal.\n");
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     assert.equal(parseFrontmatter(read(root, "0-intent/intent.md")).data.get("origin"), "issue PROJECT-42 canonical reference");
   });
 
   test("fixed lines stay on one line and singleton declarations occur once", () => {
     for (const body of [
-      "Brief:\nOrigin: 0-intent/constraint-1.md\n",
-      "Target:\n1-spec/spec.md#spec-requirement-1\n",
-      "Depends on:\nT1\n",
-      "Verdict: approved\nVerdict: rejected\n",
-      "Brief: one\nBrief: two\n",
-      "Target: 1-spec/spec.md#spec-requirement-1\nTarget: 1-spec/spec.md#spec-requirement-1\n",
-      "Outcome: completed\nOutcome: failed\n",
+      "brief:\norigin: 0-intent/constraint-1.md\n",
+      "target:\n1-spec/spec.md#spec-requirement-1\n",
+      "depends-on:\nT1\n",
+      "verdict: approved\nverdict: rejected\n",
+      "brief: one\nbrief: two\n",
+      "target: 1-spec/spec.md#spec-requirement-1\ntarget: 1-spec/spec.md#spec-requirement-1\n",
+      "outcome: completed\noutcome: failed\n",
     ]) {
       write(root, "1-spec/bad.md", `# Bad\n\n${body}`);
       assert.throws(() => rp(root, "stamp", P("1-spec/bad.md"), "--mirror"), /INVALID/);
@@ -3839,8 +3843,8 @@ process.stdout.write(output);
   test("frontmatter delimiters and fixed lines inside fenced code are ordinary body text", () => {
     approveChain(1);
     write(root, "1-spec/example.md", "# Example\n\n```text\n---\nkey: value\n---\n```\n");
-    write(root, "1-spec/long-fence.md", "# Example\n\n````markdown\n```\n---\nkey: value\n---\nOutcome: success\n```\n````\n");
-    write(root, "1-spec/tilde-fence.md", "# Example\n\n~~~text\n---\nOutcome: success\n---\n~~~\n");
+    write(root, "1-spec/long-fence.md", "# Example\n\n````markdown\n```\n---\nkey: value\n---\noutcome: success\n```\n````\n");
+    write(root, "1-spec/tilde-fence.md", "# Example\n\n~~~text\n---\noutcome: success\n---\n~~~\n");
     configure({ targetPhase: 1 });
     const output = check(root);
     assert.doesNotMatch(output, /INVALID FRONTMATTER 1-spec\/(?:example|long-fence|tilde-fence)\.md/);
@@ -3852,7 +3856,7 @@ process.stdout.write(output);
     for (const body of ["", "x", "# Spec\n", "ñ — unicode\n", "a\r\nb"]) assert.equal(identity(`---\n{"pins":["a@b"]}\n---\n${body}`), gitHash(body));
   });
 
-  test("a report's Commits section is mirrored whole, whatever the line format, and names only commits that exist", () => {
+  test("a report's commit lines are mirrored whole, each a hash, and name only commits that exist", () => {
     approveChain(3);
     git(root, "add", "-A");
     git(root, "commit", "--quiet", "-m", "pipeline");
@@ -3863,14 +3867,20 @@ process.stdout.write(output);
       git(root, "commit", "--quiet", "-m", subject);
       shas.push(git(root, "rev-parse", "--short=10", "HEAD").trim());
     }
-    write(root, "3-build/tasks/build-task-1-report-1.md", `# Task report\n\nOutcome: completed\n\n## Commits\n\n- ${shas[0]} — first\n\`${shas[1]}\` second, in backticks\n${shas[2]} third, plain\n\n## Checks\n\n- 1234567 is not a commit: prose stays prose\n`);
-    rp(root, "stamp", P("3-build/tasks/build-task-1-report-1.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
+    const reportPath = "3-build/tasks/build-task-1-report-1.md";
+    const stampReport = () => rp(root, "stamp", P(reportPath), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror");
+    for (const line of [`commit: \`${shas[0]}\``, `commit: ${shas[0]} — first`]) {
+      write(root, reportPath, `# Task report\n\noutcome: completed\n${line}\n`);
+      assert.throws(stampReport, /INVALID commit: expected a commit hash/);
+    }
+    write(root, reportPath, `# Task report\n\noutcome: completed\n${shas.map((s) => `commit: ${s}\n`).join("")}\n## Checks\n\n- 1234567 is not a commit: prose stays prose\n`);
+    stampReport();
     // Short hashes in the body are stored canonical: the full hash.
     const full = shas.map((s) => git(root, "rev-parse", s).trim());
-    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("commits"), full);
+    assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("commit"), full);
     const patchId = (sha) => execFileSync("git", ["patch-id", "--stable"], { cwd: root, input: git(root, "show", sha), encoding: "utf8" }).split(" ")[0];
     assert.deepEqual(parseFrontmatter(read(root, "3-build/tasks/build-task-1-report-1.md")).data.get("patch-ids"), full.map(patchId));
-    write(root, "3-build/tasks/build-task-2-report-1.md", "# Task report\n\nOutcome: completed\n\n## Commits\n\n- 0badc0ffee1 — never made\n");
+    write(root, "3-build/tasks/build-task-2-report-1.md", "# Task report\n\noutcome: completed\ncommit: 0badc0ffee1\n");
     assert.throws(() => rp(root, "stamp", P("3-build/tasks/build-task-2-report-1.md"), "--reviewed", P("3-build/tasks/build-task-2.md"), "--reviewed", P("3-build/tasks/build-task-1.md"), "--mirror"), /names a commit that does not exist or is ambiguous: 0badc0ffee1/);
   });
 

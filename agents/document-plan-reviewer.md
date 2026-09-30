@@ -33,7 +33,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#document-finding-<n>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#document-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
@@ -50,6 +50,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every shipped observable behavior the spec names and every public surface the code adds or changes is served by a task, or recorded out of scope with a reason. Sweep the repository yourself: any text that references the changed behavior — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions — that the plan would leave out of sync is a finding.
+- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
 - **Traceability** — each task points to a specific requirement, acceptance criterion, design decision, or shipped change.
 - **What, where, for whom** — each task names its surface, exact sections and scope — each fact explained once and referenced from the rest — and a concrete audience without prescribing the documentation's wording; a task that dictates the documentation's sentences is a finding.
 - **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.
@@ -94,12 +95,12 @@ Frontmatter on every file is written by the orchestrator, never by you.
 ```markdown
 # Document Plan Review
 
-Verdict: approved | rejected | unsatisfiable
-Brief: <your brief, or none>
+verdict: approved | rejected | unsatisfiable
+brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
-Target: <artifact path>#<id> | <constraint path>
+target: <artifact path>#<id> | <constraint path>
 <!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
-Origin: <challenge path>
+origin: <challenge path>
 
 ## Verification log
 
@@ -111,10 +112,10 @@ Origin: <challenge path>
 
 ## Findings
 
-### document-finding-1: <title>
+document-finding-1: <title>
 
 <!-- When it is one; omit otherwise. -->
-Prior finding: <review>#document-finding-<n>, resolution failed
+prior-finding: <review>#document-finding-<n>, resolution failed
 
 **What's wrong:** …
 **Where:** document-task-<n> …

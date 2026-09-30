@@ -52,6 +52,7 @@ You may research and decide new content — always in service of a named finding
 - Every task has one or more acceptance criteria framed as what the reader leaves with — a capability, an understanding — or what the documentation must cover — a section, an example, a cross-link; they never contradict the requirement, acceptance criterion, or shipped change the task traces to. Even a trivial task has one.
 - Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task; a surface the project does not keep is recorded as out of scope with the reason.
 - Ids are stable: `document-task-<n>` is never renumbered; corrective and new tasks are new files.
+- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
 
 **Claims**
@@ -101,13 +102,14 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 ```markdown
 # document-task-<n>: <title>
 
+depends-on: none | <comma-separated document-task-<n> ids>
+
 - **Goal:** …
 - **Surface:** <guide | reference | configuration | examples | changelog — the project's location>
 - **Audience:** …
 - **Sections:** <exact sections and scope>
 - **Files:** …
 - **Changes:** …
-- **Depends on:** none | <comma-separated document-task-<n> ids>
 - **Traces to:** spec-requirement-<n> / spec-acceptance-criterion-<n> / design-doc-decision-<n> / <shipped change or public surface>
 - **Acceptance:**
   - <observable property>
