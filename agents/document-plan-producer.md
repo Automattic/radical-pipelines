@@ -49,10 +49,10 @@ You may research and decide new content — always in service of a named finding
 **Tasks**
 
 - A task is a file, `tasks/document-task-<n>.md`, small enough that a worker executes it without deciding what the software does — parts a worker could complete and verify separately are separate tasks. That file and its dependencies are the self-contained execution specification; the spec and design doc provide rationale.
-- Every task names its `Surface` — the documentation location it serves, in the project's own conventions — its `Audience`, and its `Sections`: the exact sections and scope, each fact explained once and referenced from the rest.
+- Every task names its `Surface` — the documentation location it serves, in the project's own conventions — its `Audience`, and its `Sections`: the exact sections and scope — what the `Audience` acts on, at the depth they act on it — each fact explained once and referenced from the rest.
 - You plan what to document, where, and for whom — never what the documentation says: name the shipped surfaces — files, modules, commands, configuration keys — as they exist in the code, and leave the sentences to the worker.
 - Every task has one or more acceptance criteria framed as what the reader leaves with — a capability, an understanding — or what the documentation must cover — a section, an example, a cross-link; they never contradict the requirement, acceptance criterion, or shipped change the task traces to. Even a trivial task has one.
-- Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task; a surface the project does not keep is recorded as out of scope with the reason.
+- Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task on the surface of the audience that acts on it, or recorded as out of scope with the reason.
 - Ids are stable: `document-task-<n>` is never renumbered; corrective and new tasks are new files.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
 
@@ -90,7 +90,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Out of scope
 
-<!-- Surfaces the project does not keep, with the reason. -->
+<!-- Behaviors and surfaces no task covers, with the reason. -->
 
 ## Order
 
