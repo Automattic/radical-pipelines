@@ -57,7 +57,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 - A task is a file, `tasks/build-task-<n>.md`, that a worker executes without making a design decision. That file and the tasks it depends on are the self-contained execution specification; the spec and design doc provide rationale. An e2e task carries the flows it automates.
 - A task is the smallest change a reviewer can judge as coherent: a mechanism goes with its consumers and its tests, and the same edit across several files is one task.
 - `Type` routes it to its worker. `tdd` — a change with behavior to test, driven test-first by unit tests. `e2e` — realizes the flows it carries over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, never the behavior under test. `edit` — preserves observable behavior and existing assertion contracts while changing their representation; verified by inspection and the guardrails.
-- `Acceptance` lists the outcomes the task makes true — of the acceptance criteria and decisions it traces to — never facts about the implementation. Even a trivial task has one.
+- `Acceptance` lists the outcomes the task makes true of the acceptance criteria and decisions it traces to, never facts about the implementation. Even a trivial task has one.
 - Name exact files: real paths from the codebase, never "the auth module".
 - Describe the change; never write the implementation. Which unit tests a `tdd` task writes stays the worker's choice.
 - The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope. Documentation is the document phase's; no documentation tasks.
