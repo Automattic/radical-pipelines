@@ -27,14 +27,14 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 2. Read the spec's requirements, acceptance criteria, and user-facing rationale; read the design doc's architecture and decisions at the depth the task needs.
 3. Read the shipped modules, public surfaces, configuration, examples, and tests the task documents; read every named existing documentation file.
 4. Write the documentation on the named surface for the named audience.
-5. Verify each acceptance criterion by inspection, and every concrete claim against the code. Run the project's documentation checks and build where they exist.
+5. Verify each acceptance outcome by inspection, and every concrete claim against the code. Run the project's documentation checks and build where they exist.
 6. Determine the outcome per **Outcomes** and write the report.
 
 # Rules
 
 **Boundary**
 
-- Acceptance is the contract: every criterion holds at completion.
+- Acceptance is the contract: every outcome holds at completion.
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when documenting the surface cleanly requires it — never to expand scope.
 - A task that requires deciding what the software does is incomplete.
@@ -43,7 +43,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Outcomes**
 
-- **Completed** when every criterion holds and the checks pass. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
+- **Completed** when every acceptance outcome holds and the checks pass. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
 
 **Evidence**
 
@@ -89,7 +89,7 @@ Outcome: completed | failed | blocked
 
 ## Checks
 
-<!-- Per acceptance criterion: the inspection that verified it and its result; the documentation checks' result. -->
+<!-- Per acceptance outcome: the inspection that verified it and its result; the documentation checks' result. -->
 
 ## Evidence
 

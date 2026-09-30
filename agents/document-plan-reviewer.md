@@ -53,7 +53,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Traceability** — each task points to a specific requirement, acceptance criterion, design decision, or shipped change.
 - **What, where, for whom** — each task names its surface, exact sections and scope — what its audience acts on, at the depth they act on it, each fact explained once and referenced from the rest — and a concrete audience without prescribing the documentation's wording; a task that dictates the documentation's sentences is a finding.
 - **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.
-- **Per-task acceptance** — every task has acceptance criteria framed as what the reader leaves with or what the documentation must cover; missing, vague, or contradictory acceptance is a finding.
+- **Per-task acceptance** — every task has acceptance outcomes framed as what the reader leaves with or what the documentation must cover; missing, vague, or contradictory acceptance is a finding.
 - **Self-containment and order** — a worker can execute each task file without deciding what the software does; a task that is not the smallest change a reviewer can judge as coherent — the same edit across several files is one task — is a finding; dependencies name every prerequisite, are real and acyclic, and permit the stated order; the plan's order lists exactly the task files.
 - **Documentation only** — a task produces documentation, never source code.
 - **Scope** — the plan stays within the spec and design doc.

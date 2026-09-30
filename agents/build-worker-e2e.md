@@ -25,7 +25,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 1. Read the task file. Its `Goal`, `Changes`, and `Acceptance` are the boundary of your work.
 2. Read what the task's `Traces to` names in the spec and the design doc, with the design doc's Verification entries for it.
-3. For each flow the task carries: automate its steps and expected outcome as an end-to-end test in the project's e2e convention, asserting what the user or consumer observes; make it pass against the current code. The behavior exists by the time you run, so there is no red phase — but a test that passes without exercising the flow is worthless: confirm it genuinely drives the behavior.
+3. For each flow the task carries: automate its steps and expected outcome as an end-to-end test in the project's e2e convention; confirm the test exercises the flow and passes against the current code.
 4. Run the project's test suite and build.
 5. Determine the outcome per **Outcomes** and write the report.
 
