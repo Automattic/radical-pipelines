@@ -33,7 +33,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#build-finding-<n>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#build-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
@@ -50,6 +50,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every decision and every acceptance criterion is served by a task; every acceptance criterion and material edge case with behavior to test has a covering flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
 - **Traceability** — each task names the requirement, decision, or flow it serves.
 - **Per-task acceptance** — every task has acceptance criteria that are observable and verifiable, describe what must be true rather than how it is verified, and never contradict the criterion the task traces to; missing, vague, unverifiable, or contradictory acceptance is a finding.
 - **Type fidelity** — `tdd` changes behavior covered by new unit tests; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.
@@ -93,12 +94,12 @@ Frontmatter on every file is written by the orchestrator, never by you.
 ```markdown
 # Build Plan Review
 
-Verdict: approved | rejected | unsatisfiable
-Brief: <your brief, or none>
+verdict: approved | rejected | unsatisfiable
+brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
-Target: <artifact path>#<id> | <constraint path>
+target: <artifact path>#<id> | <constraint path>
 <!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
-Origin: <challenge path>
+origin: <challenge path>
 
 ## Verification log
 
@@ -110,10 +111,10 @@ Origin: <challenge path>
 
 ## Findings
 
-### build-finding-1: <title>
+build-finding-1: <title>
 
 <!-- When it is one; omit otherwise. -->
-Prior finding: <review>#build-finding-<n>, resolution failed
+prior-finding: <review>#build-finding-<n>, resolution failed
 
 **What's wrong:** …
 **Where:** build-task-<n> …

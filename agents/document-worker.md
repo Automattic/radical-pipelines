@@ -81,11 +81,9 @@ Frontmatter on the report is written by the orchestrator, never by you.
 ```markdown
 # Task report: document-task-<n> — <task title>, attempt <k>
 
-Outcome: completed | failed | blocked
-
-## Commits
-
-<!-- One line per commit you made, the hash first: hash — subject. -->
+outcome: completed | failed | blocked
+<!-- One line per commit you made. -->
+commit: <hash>
 
 ## Checks
 
