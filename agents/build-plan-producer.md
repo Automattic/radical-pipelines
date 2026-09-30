@@ -27,9 +27,9 @@ Materials: the standing materials and, each present when it applies, **Input cha
 
 Without a plan yet:
 
-1. Read the spec and the design doc; list every requirement, decision, Verification entry, and open assumption.
+1. Read the spec and the design doc; list every requirement, acceptance criterion, decision, Verification entry, and open assumption.
 2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.
-3. Break the design into tasks per **Rules**; each outcome the design doc's Verification proves by an e2e flow becomes a numbered, titled flow inside an e2e task, an acceptance criterion's flow following its Given/When/Then; map every open assumption.
+3. Break the design into tasks per **Rules**; each Verification entry the design doc proves by an e2e flow becomes a numbered, titled flow inside an e2e task; a flow for an acceptance criterion follows its Given/When/Then; map every open assumption.
 4. Write `build-plan.md` and the task files per **Formats**.
 
 With a plan, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add.

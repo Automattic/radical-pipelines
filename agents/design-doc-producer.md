@@ -145,7 +145,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Failure modes and observability
 
-<!-- Edge cases the system or its extensions produce: how the design fails on each, how that is detected, what is logged or surfaced. -->
+<!-- How the design fails in circumstances the system or its extensions produce, how each failure is detected, what is logged or surfaced. -->
 
 ## Verification
 

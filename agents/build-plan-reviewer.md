@@ -23,7 +23,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated challenge, and every production-lane input — plus the **Challenge** or **Task report** under review, when present. This is the package you judge; its references supply historical material.
 
-1. Read the spec and the design doc; list every requirement, decision, acceptance criterion, and open assumption.
+1. Read the spec and the design doc; list every requirement, acceptance criterion, decision, Verification entry, and open assumption.
 2. Read `build-plan-research.md` and `build-plan.md`.
 3. Build your verification log per **Rules**; decide your verdict from the log alone.
 
@@ -49,7 +49,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every decision and every acceptance criterion is served by a task; every outcome the design doc's Verification proves by an e2e flow has that flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Coverage** — every decision and every acceptance criterion is served by a task; every Verification entry the design doc proves by an e2e flow has that flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
 - **Traceability** — each task's `Traces to` names the requirements, acceptance criteria, decisions, and flows it realizes; the task cites the design doc for them, never restates it.
 - **Per-task acceptance** — every task's `Acceptance` lists the outcomes it makes true of the acceptance criteria and decisions it traces to; missing, vague, or contradictory acceptance, or acceptance stating a fact about the implementation, is a finding.
 - **Type fidelity** — `tdd` changes behavior driven test-first by unit tests; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.

@@ -33,7 +33,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Boundary**
 
-- Acceptance is the contract: every criterion holds at completion.
+- Acceptance is the contract: every outcome holds at completion.
 - A design decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component is yours.
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
