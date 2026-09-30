@@ -651,13 +651,14 @@ function targetItem(target) {
 
 // An id is declared by the line `<id>: <text>`; OPENING finds a line opening with an id in any form, MENTION any occurrence.
 const ID_TOKEN = String.raw`[a-z][a-z-]*-[1-9]\d*(?![A-Za-z0-9-])`;
-const DECLARATION = new RegExp(String.raw`^(${ID_TOKEN}): \S`, "gm");
+const DECLARATION = new RegExp(String.raw`^(${ID_TOKEN}): \S`);
 const OPENING = new RegExp(String.raw`^[\t ]*(?:(?:#{1,6}|[-*+>]|\d+[.)])[\t ]+)*[*_\x60]*(${ID_TOKEN})`, "gm");
 const MENTION = new RegExp(String.raw`(?<![A-Za-z0-9#-])${ID_TOKEN}`, "g");
+const declaredBy = (line) => line.match(DECLARATION)?.[1] ?? null;
 // Every id the body declares, with how many times each is declared.
 function declaredIds(body) {
   const counts = new Map();
-  for (const [, id] of outsideFences(body).matchAll(DECLARATION)) if (parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const id of outsideFences(body).split("\n").map(declaredBy)) if (id && parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
   return counts;
 }
 
@@ -672,7 +673,7 @@ function currentIds(entry, body, tasks, recorded = []) {
   for (const { 1: id, index } of structural.matchAll(OPENING)) {
     if (!parseId(id) || !(own(id) || carried(id))) continue;
     const line = structural.slice(index).split("\n", 1)[0];
-    if (!line.startsWith(`${id}: `) || !line.slice(id.length + 2).trim()) return { invalid: `${id} opens a line that is not its declaration \`${id}: <text>\`` };
+    if (declaredBy(line) !== id) return { invalid: `${id} opens a line that is not its declaration \`${id}: <text>\`` };
   }
   const duplicate = [...declared].find(([id, n]) => n > 1 && (own(id) || carried(id)));
   if (duplicate) return { invalid: `${duplicate[0]} is declared more than once` };

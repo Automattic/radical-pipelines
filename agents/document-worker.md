@@ -82,7 +82,8 @@ Frontmatter on the report is written by the orchestrator, never by you.
 # Task report: document-task-<n> — <task title>, attempt <k>
 
 outcome: completed | failed | blocked
-commit: <hash>   <!-- one line per commit you made -->
+<!-- One line per commit you made. -->
+commit: <hash>
 
 ## Checks
 

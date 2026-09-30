@@ -1822,8 +1822,9 @@ process.stdout.write(output);
       assert.deepEqual(parseFrontmatter(read(root, proposal)).data.get("target"), [`${artifact}#${id}`]);
     });
 
-  // A line opening with an id the artifact declares is its declaration, `<id>: <text>`; an id it
-  // originates occurs only once declared; a longer token or a fenced line declares nothing.
+  // A line opening with an id the artifact declares is its declaration, `<id>: <text>`, whatever
+  // the file recorded before; an id it originates occurs only once declared, now or at an earlier
+  // stamp; a longer token or a fenced line declares nothing.
   const FORMS = {
     declaration: [(id) => `${id}: Item.\n`, null],
     "declaration with content": [(id) => `${id}: Item.\n\nDetail.\n\n- A point.\n`, null],
@@ -1834,8 +1835,9 @@ process.stdout.write(output);
     italic: [(id) => `_${id}_: Item.\n`, /INVALID IDS/],
     code: [(id) => `\`${id}\`: Item.\n`, /INVALID IDS/],
     indented: [(id) => `  ${id}: Item.\n`, /INVALID IDS/],
+    "extra space": [(id) => `${id}:  Item.\n`, /INVALID IDS/],
     "without text": [(id) => `${id}:\n`, /INVALID IDS/],
-    mention: [(id) => `See ${id}.\n`, /INVALID IDS/],
+    mention: [(id) => `See ${id}.\n`, /INVALID IDS/, /INVALID TARGET/],
     "cited by path": [(id, artifact) => `See ${artifact}#${id}.\n`, /INVALID TARGET/],
     "longer token": [(id) => `${id}-old: Former item.\n`, /INVALID TARGET/],
     fenced: [(id) => `\`\`\`markdown\n${id}: Item.\n\`\`\`\n`, /INVALID TARGET/],
@@ -1850,16 +1852,19 @@ process.stdout.write(output);
     ["3-build/build-plan.md", "build-assumption-1"],
     ["4-document/document-plan.md", "document-assumption-1"],
   ])
-    for (const [form, [body, error]] of Object.entries(FORMS))
-      test(`target declaration: ${artifact}#${id}, ${form}`, () => {
-        const target = `${artifact}#${id}`, claim = "1-spec/spec-review-1.md";
-        write(root, artifact, `# Artifact\n\n${body(id, artifact)}`);
-        write(root, claim, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
-        if (!error) {
-          rp(root, "stamp", P(claim), "--mirror");
-          assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
-        } else assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), error);
-      });
+    for (const [form, [body, fresh, recordedError = fresh]] of Object.entries(FORMS))
+      for (const recorded of [false, true])
+        test(`target declaration: ${artifact}#${id}, ${form}${recorded ? ", recorded" : ""}`, () => {
+          const target = `${artifact}#${id}`, claim = "1-spec/spec-review-1.md";
+          const error = recorded ? recordedError : fresh;
+          if (recorded) registered(artifact, { ids: [id] }, `# Artifact\n\n${body(id, artifact)}`);
+          else write(root, artifact, `# Artifact\n\n${body(id, artifact)}`);
+          write(root, claim, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
+          if (!error) {
+            rp(root, "stamp", P(claim), "--mirror");
+            assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
+          } else assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), error);
+        });
 
   test("the first intent stamp records only declared item ids, preserving body identity", () => {
     const intent = "0-intent/intent.md";
