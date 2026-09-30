@@ -63,7 +63,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Checking**
 
-- Your checks are inspections; under `experiment`, also experiments on the failure under review.
+- Your checks are inspections; under `experiment`, also experiments on the failure under review — one that changes code goes to a helper.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly. Attach the answer to your review.
 - Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the inputs the artifact started from.
 - Evidence settles what it checked, not more: never re-litigate a grounded decision for preference.

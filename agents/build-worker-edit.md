@@ -36,7 +36,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
 - A task that forces a design decision is incomplete.
-- A patch the task carries is its change: your checks fail without it and pass with it.
+- A **Reference** patch is not your change: it proved a fix on the path that failed; your change is what the task describes, and the Acceptance is the contract.
 - Resolve or explicitly answer every **Review issue** supplied with your task.
 - An `edit` task preserves observable behavior and existing assertion contracts while changing their representation.
 - A failing test or broken build is work.

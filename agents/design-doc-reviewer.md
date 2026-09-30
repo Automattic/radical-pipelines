@@ -76,7 +76,7 @@ A prior finding is resolved when every case it named is served, or left as an ac
 
 **Checking**
 
-- Your checks are inspections: reading files, docs, and source; listing; querying metadata. Under `experiment`, they also include experiments on the failure under review.
+- Your checks are inspections: reading files, docs, and source; listing; querying metadata. Under `experiment`, they also include experiments on the failure under review; one that changes code goes to a helper.
 - Design your own check when a declared method is doubtful or its result surprising. Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly. Attach the answer to your review.
 - Before completion, confirm every help request was answered and accounted for.
 - Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the inputs the artifact started from.

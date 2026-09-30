@@ -73,7 +73,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Checking**
 
-- Your checks are inspections: reading files, docs, and source; listing; querying metadata. Under `experiment`, they also include experiments on the failure under review.
+- Your checks are inspections: reading files, docs, and source; listing; querying metadata. Under `experiment`, they also include experiments on the failure under review; one that changes code goes to a helper.
 - Does each recorded answer's honestly obtained evidence establish it? Does each requirement and exclusion follow from its record evidence and serve the intent it answers?
 - Design your own check when a declared method is doubtful or its result surprising. Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly. Attach the answer to your review.
 - Before completion, confirm every help request was answered and accounted for.

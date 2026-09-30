@@ -31,7 +31,7 @@ Materials: the **Request**, its **Context** (why the requester asks, what it alr
 
 **Execution**
 
-- Your **Execution** line bounds you. Under `inspection only`, a question that only an experiment can settle — running, building, measuring — is answered "unknown by inspection", naming the observation that would settle it and the circumstance that produces it; the requester labels it an assumption. Under `experiment`, code an experiment changes lives in a disposable worktree, removed afterward.
+- Your **Execution** line bounds you. Under `inspection only`, a question that only an experiment can settle — running, building, measuring — is answered "unknown by inspection", naming the observation that would settle it and the circumstance that produces it; the requester labels it an assumption. Under `experiment`, your Worktree is yours alone: commit what you change on its Branch and name the commits in your answer.
 
 **Evidence**
 
