@@ -69,8 +69,15 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - Decide from evidence: research every open question before choosing. Every pending load-bearing claim is assumed with `design-doc-assumption-<n>` and its verification condition; questions and risks that depend on it cite that id. Accepting a consequence leaves the assumption open.
 - Own the option space: generate the credible options yourself — what a helper reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
 - A mechanism is proportionate to what the intent makes material; the case it leaves uncovered is recorded under Risks with its consequence.
+- An edge case is named by the input that produces it and where it is produced, never by a category.
 - Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
+- A decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component is the implementer's.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
+
+**Verification**
+
+- `## Verification` names the proof of every decision and acceptance criterion: an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection. One proof may serve several outcomes; an outcome existing coverage already proves names that proof and gets no new one.
+- A proof sits at the cheapest place where its outcome is observable as the user, consumer, or caller sees it.
 
 **Claims**
 
@@ -138,7 +145,11 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 
 ## Failure modes and observability
 
-<!-- How the design fails, how failures are detected, what is logged or surfaced. -->
+<!-- Edge cases the system or its extensions produce: how the design fails on each, how that is detected, what is logged or surfaced. -->
+
+## Verification
+
+<!-- <design-doc-decision-<n> | spec-acceptance-criterion-<n>, …> — <existing test <name> | new test at <boundary> | e2e flow | type system | inspection> -->
 
 ## Risks
 

@@ -66,6 +66,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. How it is achieved belongs to the design phase and stays out of requirements. One that describes construction is restated as the behavior it guarantees.
 - A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction.
+- An edge case is named by the input that produces it and where it is produced, never by a category.
 - An exclusion states what stays observably unchanged, never which code may be touched.
 - Existing tests are evidence, never outcomes: a requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design.
 
