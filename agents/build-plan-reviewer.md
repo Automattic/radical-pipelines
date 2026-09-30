@@ -72,6 +72,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. A constraint answering a claim replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
 - An adoption or a replan that works around a design or spec clause the record itself refutes — or a fallen assumption — is a finding: name the clause and the record entry that refutes it.
+- A finding resting on an observation nobody reproduced is an assumption: an adoption that treats it as a defect instead of mapping a `build-assumption-<n>` to a verifying task is a finding, and so is a corrective task that states a suggested fix instead of the obligation the finding exposed.
 - A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**

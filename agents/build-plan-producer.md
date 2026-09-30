@@ -36,6 +36,8 @@ With a plan, work delta-scoped: completed tasks stay as they are — an upstream
 
 For every finding and challenge other than a failed task report, record exactly one disposition under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence against it), or **Contradicts-input** (an input obligation cannot be satisfied: `Contradicts-input: <path>#<id>` for a clause, `<path>` for a constraint file, with the evidence).
 
+A finding resting on an observation nobody reproduced is an assumption: adopting it maps a `build-assumption-<n>` to the task that verifies it, which completes with no change when the observation does not reproduce. A corrective task states the obligation the finding exposed, never its suggested fix.
+
 The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
 For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition:
