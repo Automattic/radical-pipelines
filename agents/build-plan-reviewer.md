@@ -39,7 +39,7 @@ This is not a from-scratch review:
 
 The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, miss a spec acceptance criterion or design decision, leave a guardrail unsatisfied, or break a rule under **Rules**.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
@@ -49,7 +49,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every decision and every acceptance criterion is served by a task; every acceptance criterion and material edge case with behavior to test has a covering flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every acceptance criterion and material edge case with behavior to test has a covering flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
 - **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
 - **Traceability** — each task names the requirement, decision, or flow it serves.
 - **Per-task acceptance** — every task has acceptance criteria that are observable and verifiable, describe what must be true rather than how it is verified, and never contradict the criterion the task traces to; missing, vague, unverifiable, or contradictory acceptance is a finding.
