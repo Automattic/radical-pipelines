@@ -59,7 +59,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 - Describe the change; never write the implementation. Which unit tests a `tdd` task writes stays the worker's choice.
 - The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope. Documentation is the document phase's; no documentation tasks.
 - Every open assumption of the design doc maps to the task that verifies it, `Verifies: <assumption id>` with the assumption's observation and circumstance copied into the task; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
-- Every task traces to the requirements, decisions, or flows it serves. Every acceptance criterion and every decision is served by at least one task.
+- Every task traces to the requirements, decisions, or flows it serves. Every acceptance criterion and every decision with observable behavior is served by at least one task; one whose outcome is documentation is served by the document plan.
 - Ids are stable: `build-task-<n>` is never renumbered; corrective and new tasks are new files.
 - An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
