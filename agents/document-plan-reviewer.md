@@ -50,7 +50,6 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every acceptance criterion and decision has the documentation it requires served by a task; every shipped observable behavior the spec names and every public surface the code adds or changes is served by a task on the surface of the audience that acts on it, or recorded out of scope with a reason. Sweep the repository yourself: any text that references the changed behavior — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions — that the plan would leave out of sync is a finding.
-- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
 - **Traceability** — each task points to a specific requirement, acceptance criterion, design decision, or shipped change.
 - **What, where, for whom** — each task names its surface, exact sections and scope — what its audience acts on, at the depth they act on it, each fact explained once and referenced from the rest — and a concrete audience without prescribing the documentation's wording; a task that dictates the documentation's sentences is a finding.
 - **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.

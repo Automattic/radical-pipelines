@@ -2081,6 +2081,32 @@ process.stdout.write(output);
         else assert.doesNotMatch(output, /INVALID IDS/);
       });
 
+  // A declaration keyed `<prefix>-<word>-<n>` is an id: its word is one its class originates, in
+  // every file that declares ids. The key in any other form declares nothing.
+  for (const [rel, head] of [
+    ["0-intent/intent.md", "origin: issue 7\n\n# Intent\n\n## Goal\n\nGoal.\n\n"],
+    ["1-spec/spec.md", "# Spec\n\n"],
+    ["1-spec/spec-research.md", "# Research\n\n"],
+    ["1-spec/spec-review-1.md", "# Review\n\nverdict: approved\n\n"],
+  ]) {
+    const [prefix, other] = rel.startsWith("0-intent/") ? ["intent", "spec"] : ["spec", "design-doc"];
+    for (const [key, id] of [[`${prefix}-exclusion-1`, false], [`${other}-exclusion-1`, false], ["intent-goal-1", false], [`${other}-finding-1`, true]])
+      test(`id words: ${key} in ${rel}`, () => {
+        const forms = { declaration: `${key}: Item.\n`, bullet: `- ${key}: Item.\n`, mention: `See ${key}.\n`, fenced: `\`\`\`markdown\n${key}: Item.\n\`\`\`\n` };
+        for (const [form, line] of Object.entries(forms)) {
+          write(root, rel, `${head}${line}`);
+          if (!id && form === "declaration") {
+            const invalid = new RegExp(`INVALID IDS ${rel}: ${key} is not an id`);
+            assert.throws(() => rp(root, "stamp", P(rel), "--mirror"), invalid);
+            assert.match(check(root), invalid);
+          } else {
+            rp(root, "stamp", P(rel), "--mirror");
+            assert.doesNotMatch(check(root), /INVALID IDS/, form);
+          }
+        }
+      });
+  }
+
   test("ids and retired-ids are recorded on an artifact with history only", () => {
     registered("1-spec/spec-review-1.md", { verdict: "approved", "ids": ["spec-finding-1"] }, "# Review\n\nverdict: approved\n\nspec-finding-1: Entry\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID FRONTMATTER.*recorded ids/);
