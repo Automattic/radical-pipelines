@@ -28,29 +28,34 @@ describe("rp id declarations and history", () => {
     "longer token": [(id) => `${id}-old: Former item.\n`, /INVALID TARGET/],
     fenced: [(id) => `\`\`\`markdown\n${id}: Item.\n\`\`\`\n`, /INVALID TARGET/],
   };
-  for (const [artifact, id] of [
-    ["0-intent/intent.md", "intent-constraint-1"],
+  // Every form, fresh and recorded, on one target; every artifact's vocabulary accepted and rejected.
+  const TARGETS = [
     ["1-spec/spec.md", "spec-requirement-1"],
+    ["0-intent/intent.md", "intent-constraint-1"],
     ["1-spec/spec.md", "spec-acceptance-criterion-1"],
     ["1-spec/spec.md", "spec-assumption-1"],
     ["2-design-doc/design-doc.md", "design-doc-decision-1"],
     ["2-design-doc/design-doc.md", "design-doc-assumption-1"],
     ["3-build/build-plan.md", "build-assumption-1"],
     ["4-document/document-plan.md", "document-assumption-1"],
-  ])
-    for (const [form, [body, fresh, recordedError = fresh]] of Object.entries(FORMS))
-      for (const recorded of [false, true])
-        test(`target declaration: ${artifact}#${id}, ${form}${recorded ? ", recorded" : ""}`, () => {
-          const target = `${artifact}#${id}`, claim = "1-spec/spec-review-1.md";
-          const error = recorded ? recordedError : fresh;
-          if (recorded) registered(artifact, { ids: [id] }, `# Artifact\n\n${body(id, artifact)}`);
-          else write(root, artifact, `# Artifact\n\n${body(id, artifact)}`);
-          write(root, claim, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
-          if (!error) {
-            rp(root, "stamp", P(claim), "--mirror");
-            assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
-          } else assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), error);
-        });
+  ];
+  const DECLARATIONS = [
+    ...Object.keys(FORMS).flatMap((form) => [false, true].map((recorded) => [TARGETS[0], form, recorded])),
+    ...TARGETS.slice(1).flatMap((target) => ["declaration", "bullet"].map((form) => [target, form, false])),
+  ];
+  for (const [[artifact, id], form, recorded] of DECLARATIONS)
+    test(`target declaration: ${artifact}#${id}, ${form}${recorded ? ", recorded" : ""}`, () => {
+      const [body, fresh, recordedError = fresh] = FORMS[form];
+      const target = `${artifact}#${id}`, claim = "1-spec/spec-review-1.md";
+      const error = recorded ? recordedError : fresh;
+      if (recorded) registered(artifact, { ids: [id] }, `# Artifact\n\n${body(id, artifact)}`);
+      else write(root, artifact, `# Artifact\n\n${body(id, artifact)}`);
+      write(root, claim, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
+      if (!error) {
+        rp(root, "stamp", P(claim), "--mirror");
+        assert.deepEqual(parseFrontmatter(read(root, claim)).data.get("target"), [target]);
+      } else assert.throws(() => rp(root, "stamp", P(claim), "--mirror"), error);
+    });
 
   test("the first intent stamp records only declared item ids, preserving body identity", () => {
     const intent = "0-intent/intent.md";
@@ -66,44 +71,51 @@ describe("rp id declarations and history", () => {
     assert.equal(identity(read(root, intent)), before);
   });
 
-  // Every artifact keeps the history of the ids it originates.
+  // Every artifact keeps the history of the ids it originates, numbered per kind.
   const ORIGINATED = [
-    ["0-intent/intent.md", "intent", "constraint"], ["0-intent/intent.md", "intent", "context"], ["0-intent/intent.md", "intent", "proposal"],
-    ["1-spec/spec.md", "spec", "requirement"], ["1-spec/spec.md", "spec", "acceptance-criterion"], ["1-spec/spec.md", "spec", "assumption"],
-    ["2-design-doc/design-doc.md", "design-doc", "decision"], ["2-design-doc/design-doc.md", "design-doc", "assumption"],
-    ["3-build/build-plan.md", "build", "assumption"], ["4-document/document-plan.md", "document", "assumption"],
+    ["0-intent/intent.md", "intent", "constraint"], ["1-spec/spec.md", "spec", "requirement"],
+    ["2-design-doc/design-doc.md", "design-doc", "decision"], ["3-build/build-plan.md", "build", "assumption"],
+    ["4-document/document-plan.md", "document", "assumption"],
   ];
-  for (const [artifact, prefix, kind] of ORIGINATED)
-    for (const change of ["retire", "reuse", "add", "skip"])
-      test(`id history: ${artifact} ${kind}, ${change}`, () => {
-        const id = (n) => `${prefix}-${kind}-${n}`;
-        const seen = [id(1), id(2)];
-        const retired = change === "retire" ? [id(1)] : [id(2)];
-        const items = change === "retire" ? `See ${id(2)}.\n`
-          : `${id(1)}: Kept.\n${id({ reuse: 2, add: 3, skip: 4 }[change])}: Added.\n`;
-        const fields = artifact === "0-intent/intent.md" ? { origin: "issue 7" } : {};
-        registered(artifact, { ...fields, "ids": seen, "retired-ids": retired }, `# Artifact\n\n## Goal\n\nOriginal.\n\n${items}`);
-        const before = read(root, artifact);
-        const invalid = change === "reuse" ? /retired id .* is declared again/
-          : change === "skip" ? new RegExp(`${id(3)} is missing`) : null;
-        if (invalid) {
-          assert.throws(() => rp(root, "stamp", P(artifact), "--mirror"), new RegExp(`INVALID IDS ${artifact}: .*${invalid.source}`));
-          assert.equal(read(root, artifact), before);
-          const state = JSON.parse(check(root, "--json"));
-          assert.equal(state.frontier, `INVALID IDS ${artifact}`);
-          assert.deepEqual(state.artifacts, []);
-          assert.deepEqual(state.claims, []);
-        } else {
-          rp(root, "stamp", P(artifact), "--mirror");
-          const stamped = read(root, artifact), { data } = parseFrontmatter(stamped);
-          assert.deepEqual(data.get("ids"), change === "add" ? [...seen, id(3)] : seen);
-          assert.deepEqual(data.get("retired-ids") ?? [], change === "retire" ? seen : retired);
-          assert.equal(identity(stamped), identity(before));
-          assert.deepEqual(JSON.parse(check(root, "--json")).contradictions, []);
-          rp(root, "stamp", P(artifact));
-          assert.equal(read(root, artifact), stamped);
-        }
-      });
+  const KINDS = [
+    ["0-intent/intent.md", "intent", "context"], ["0-intent/intent.md", "intent", "proposal"],
+    ["1-spec/spec.md", "spec", "acceptance-criterion"], ["1-spec/spec.md", "spec", "assumption"],
+    ["2-design-doc/design-doc.md", "design-doc", "assumption"],
+  ];
+  const HISTORY = [
+    ...ORIGINATED.flatMap((kind) => ["retire", "reuse", "add", "skip"].map((change) => [kind, change])),
+    ...KINDS.map((kind) => [kind, "skip"]),
+  ];
+  for (const [[artifact, prefix, kind], change] of HISTORY)
+    test(`id history: ${artifact} ${kind}, ${change}`, () => {
+      const id = (n) => `${prefix}-${kind}-${n}`;
+      const seen = [id(1), id(2)];
+      const retired = change === "retire" ? [id(1)] : [id(2)];
+      const items = change === "retire" ? `See ${id(2)}.\n`
+        : `${id(1)}: Kept.\n${id({ reuse: 2, add: 3, skip: 4 }[change])}: Added.\n`;
+      const fields = artifact === "0-intent/intent.md" ? { origin: "issue 7" } : {};
+      registered(artifact, { ...fields, "ids": seen, "retired-ids": retired }, `# Artifact\n\n## Goal\n\nOriginal.\n\n${items}`);
+      const before = read(root, artifact);
+      const invalid = change === "reuse" ? /retired id .* is declared again/
+        : change === "skip" ? new RegExp(`${id(3)} is missing`) : null;
+      if (invalid) {
+        assert.throws(() => rp(root, "stamp", P(artifact), "--mirror"), new RegExp(`INVALID IDS ${artifact}: .*${invalid.source}`));
+        assert.equal(read(root, artifact), before);
+        const state = JSON.parse(check(root, "--json"));
+        assert.equal(state.frontier, `INVALID IDS ${artifact}`);
+        assert.deepEqual(state.artifacts, []);
+        assert.deepEqual(state.claims, []);
+      } else {
+        rp(root, "stamp", P(artifact), "--mirror");
+        const stamped = read(root, artifact), { data } = parseFrontmatter(stamped);
+        assert.deepEqual(data.get("ids"), change === "add" ? [...seen, id(3)] : seen);
+        assert.deepEqual(data.get("retired-ids") ?? [], change === "retire" ? seen : retired);
+        assert.equal(identity(stamped), identity(before));
+        assert.deepEqual(JSON.parse(check(root, "--json")).contradictions, []);
+        rp(root, "stamp", P(artifact));
+        assert.equal(read(root, artifact), stamped);
+      }
+    });
 
   test("a body that declares an id twice is invalid", () => {
     write(root, "1-spec/spec.md", "# Spec\n\nspec-requirement-1: One.\nspec-requirement-1: Again.\n");
