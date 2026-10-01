@@ -25,5 +25,5 @@ Plans the work as tasks, executes them, verifies the result against the plan, th
 
 ## Tasks
 
-- Every task is a self-contained file: `Goal`, `Type`, `Files`, `Changes`, `Depends on`, `Verifies` (assumption ids or `—` with a reason), `Traces to`, `Acceptance`; an e2e task carries the flows it automates. The plan lists the order.
+- Every task is a self-contained file: `Goal`, `Type`, `Files`, `Changes`, `depends-on`, `Verifies` (assumption ids or `—` with a reason), `Traces to`, `Acceptance`; an e2e task carries the flows it automates. The plan lists the order.
 - Fresh worker per attempt; the attempt number is the count of that task's reports plus one. Every task report names the task id and title.

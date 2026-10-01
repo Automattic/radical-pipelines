@@ -40,7 +40,7 @@ Additional materials: the complete **Rejected review history**, **Your previous 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#spec-finding-<n>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#spec-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged since its source review and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content.
 
@@ -65,6 +65,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every intent goal is served and every proposal dispositioned: an adopted desired outcome became a requirement, a verified current-state claim grounds one, a build direction was left to the design phase.
+- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
 - **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding. A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction. The record is subject to the same gate: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
 - **Acceptance criteria** — Given-When-Then, specific enough to write tests from, covering the requirements' edge cases, each named by the input that produces it and where it is produced, never by a category.
@@ -105,12 +106,12 @@ Frontmatter on every file is written by the orchestrator, never by you.
 ```markdown
 # Spec Review
 
-Verdict: approved | rejected | unsatisfiable
-Brief: <your brief, or none>
+verdict: approved | rejected | unsatisfiable
+brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
-Target: <artifact path>#<id> | <constraint path>
+target: <artifact path>#<id> | <constraint path>
 <!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
-Origin: <challenge path>
+origin: <challenge path>
 Reviewed revision: <commit>
 
 ## Verification log
@@ -129,10 +130,10 @@ Reviewed revision: <commit>
 
 <!-- Rejected only. Omit otherwise. -->
 
-### spec-finding-1: <title>
+spec-finding-1: <title>
 
 <!-- When it is one. -->
-Prior finding: <review>#spec-finding-<n>, resolution failed
+prior-finding: <review>#spec-finding-<n>, resolution failed
 
 **What's wrong:** …
 **Where:** …

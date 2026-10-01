@@ -40,7 +40,7 @@ Additional materials: the complete **Rejected review history**, **Your previous 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#design-doc-finding-<n>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#design-doc-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged since its source review and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content.
 
@@ -65,6 +65,7 @@ A prior finding is resolved when every case it named is served, or left as an ac
 **Chains**
 
 - **Coverage** — every requirement and acceptance criterion is served by a decision or component; every spec assumption is closed by inspection or carried with its id.
+- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
 - **Traceability** — each decision names the requirement or acceptance criterion it serves.
 - **Scope** — the design stays within the spec: no features beyond it, no out-of-scope items crept back in.
 - **Soundness** — each decision's mechanism can satisfy the requirements it serves given the codebase as inspected; alternatives are real and their rejection reasoned.
@@ -108,12 +109,12 @@ Frontmatter on every file is written by the orchestrator, never by you.
 ```markdown
 # Design Doc Review
 
-Verdict: approved | rejected | unsatisfiable
-Brief: <your brief, or none>
+verdict: approved | rejected | unsatisfiable
+brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
-Target: <artifact path>#<id> | <constraint path>
+target: <artifact path>#<id> | <constraint path>
 <!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
-Origin: <challenge path>
+origin: <challenge path>
 Reviewed revision: <commit>
 
 ## Verification log
@@ -130,10 +131,10 @@ Reviewed revision: <commit>
 
 <!-- Rejected only. Omit otherwise. -->
 
-### design-doc-finding-1: <title>
+design-doc-finding-1: <title>
 
 <!-- When it is one. -->
-Prior finding: <review>#design-doc-finding-<n>, resolution failed
+prior-finding: <review>#design-doc-finding-<n>, resolution failed
 
 **What's wrong:** …
 **Where:** …

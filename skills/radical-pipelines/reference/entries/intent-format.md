@@ -7,23 +7,23 @@ This describes an issue body or pipeline intent, the input to phase 1.
 At the top of `0-intent/intent.md`, before the title, write these plain machine-readable lines:
 
 ```text
-Origin: issue <canonical reference>
-Origin: starts-from <branch>
-Origin: re-attempts <pipeline slug>
+origin: issue <canonical reference>
+origin: starts-from <branch>
+origin: re-attempts <pipeline slug>
 ```
 
 The issue line is required. Add either later line when applicable. The canonical reference follows **Issues**.
 
 ## Synthesis from an issue
 
-Read the body, every comment, cross-reference, external link, and attachment. When the body already follows this format and nothing else exists — no comments, references, links, or attachments — copy the body verbatim, adding the Origin lines and the ids. Otherwise:
+Read the body, every comment, cross-reference, external link, and attachment. When the body already follows this format and nothing else exists — no comments, references, links, or attachments — copy the body verbatim, adding the origin lines and the ids. Otherwise:
 
 1. Follow references one level. Report unreadable links in the draft.
 2. Fold every comment and linked page's substance into the latest agreed state; keep unsettled directions under Proposals.
 3. Download referenced assets beside `intent.md` and use relative paths.
 4. Make phase 0 self-contained.
 
-A re-synthesis from a modified issue also consumes the current intent: it preserves `Origin`; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
+A re-synthesis from a modified issue also consumes the current intent: it preserves `origin`; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
 
 ## Schema and rendering
 
@@ -37,7 +37,7 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 A vague idea with only a Title and Goal is complete.
 
-Every item other than the Goal is a bullet opening with its id (`../run/state.md` § Names), assigned in order of creation.
+Every item other than the Goal is declared by its id (`../run/state.md` § Names), assigned in order of creation.
 
 ## Authoring discipline
 
@@ -53,10 +53,10 @@ Write one `0-intent/constraint-<n>.md` per binding ruling, or `0-intent/proposal
 ```markdown
 # <Constraint | Proposal> <n>: <title>
 
-Target: <path>[#<id>][, …]
-Origin: <source>
+target: <path>[#<id>][, …]
+origin: <source>
 
 <ruling or request, including its evidence>
 ```
 
-Set `Target:` by what the statement concerns: product behavior → build plan; documentation → document plan; requirements → spec; mechanisms → design doc; a named clause → that clause. A whole-artifact target may precede the artifact. `Origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. Records cite the input's path beside the question it answers.
+Set `target:` by what the statement concerns: product behavior → build plan; documentation → document plan; requirements → spec; mechanisms → design doc; a named clause → that clause. A whole-artifact target may precede the artifact. `origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. Records cite the input's path beside the question it answers.

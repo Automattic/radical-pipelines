@@ -15,7 +15,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Completion predicate** — The file and approval state that marks a phase complete, evaluated from the working tree.
 - **Consolidate** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Consolidation** — A reviewer mode that audits the consolidated artifact against its lane folders, reusing approved checks where their claims and provenance are unchanged.
-- **Constraint** — A binding owner ruling, captured in the intent or a later `0-intent/constraint-<n>.md` with `Target:` and `Origin:`. An unsatisfiable constraint reaches the owner through a corroborated claim.
+- **Constraint** — A binding owner ruling, captured in the intent or a later `0-intent/constraint-<n>.md` with `target:` and `origin:`. An unsatisfiable constraint reaches the owner through a corroborated claim.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
@@ -45,7 +45,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Pipeline slug** — The project convention deriving a pipeline's identifier from its issue, and that identifier: one path segment, a valid git ref, without `_`, naming the pipeline folder.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
-- **Proposal** — A direction, hypothesis, or report to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `Target:` and `Origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
+- **Proposal** — A direction, hypothesis, or report to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `target:` and `origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
 - **Run configuration** — The workflow, target phase, base branch, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.

@@ -75,7 +75,7 @@ export function parseFrontmatter(raw, validate = validateFrontmatter) {
 }
 
 function validateFrontmatter(data) {
-  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "patch-ids", "target", "target-identity", "ids", "retired-ids"]);
+  const lists = new Set(["pins", "reviewed", "prior-finding", "depends-on", "commit", "patch-ids", "target", "target-identity", "ids", "retired-ids"]);
   const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
   const strings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
   const errors = [];
@@ -225,7 +225,7 @@ function codeDelta(root, { tip, base, review, attributed, pipelinesRoot }) {
 const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
 let REPORT, reportOf; // `<phase>/tasks/<task id>-report-<k>.md`, defined with the id vocabulary below.
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
-const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
+const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "prior-finding", "depends-on", "commit", "attempt"];
 // The artifacts, in phase order, with what each one requires as pins.
 const ARTIFACTS = [
   { path: "1-spec/spec.md", record: "1-spec/spec-research.md", prefix: "spec", phase: "1-spec", requires: ["0-intent/intent.md"] },
@@ -649,32 +649,46 @@ function targetItem(target) {
   return id && id.prefix === entry.prefix && claimableWords(entry).includes(id.word) ? { path, item } : null;
 }
 
-// Inline formatting marks that may wrap a declared value without being part of it.
-const MARKS = "[*_`]*";
-const ITEM = new RegExp(String.raw`^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+${MARKS}([a-z][a-z-]*-[1-9]\d*)(?![A-Za-z0-9-])`, "gm");
+// An id is declared by the line `<id>: <text>`; OPENING finds a line opening with an id in any form, MENTION any occurrence.
+const ID_TOKEN = String.raw`[a-z][a-z-]*-[1-9]\d*(?![A-Za-z0-9-])`;
+const DECLARATION = new RegExp(String.raw`^(${ID_TOKEN}): \S`);
+const OPENING = new RegExp(String.raw`^[\t ]*(?:(?:#{1,6}|[-*+>]|\d+[.)])[\t ]+)*[*_\x60]*(${ID_TOKEN})`, "gm");
+const MENTION = new RegExp(String.raw`(?<![A-Za-z0-9#-])${ID_TOKEN}`, "g");
+const declaredBy = (line) => line.match(DECLARATION)?.[1] ?? null;
 // Every id the body declares, with how many times each is declared.
 function declaredIds(body) {
   const counts = new Map();
-  for (const [, id] of outsideFences(body).matchAll(ITEM)) if (parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const id of outsideFences(body).split("\n").map(declaredBy)) if (id && parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
   return counts;
 }
 
 // What an artifact declares now: the ids under its prefix and words in its body — a task by its
-// file — and the ids it carries.
-function currentIds(entry, body, tasks) {
+// file — and the ids it carries. A line opening with one of them is its declaration; an id it
+// originates occurs only once declared, now or at an earlier stamp (`recorded`).
+function currentIds(entry, body, tasks, recorded = []) {
   const own = (id) => parseId(id).prefix === entry.prefix && parseId(id).word !== "task" && entry.declares.includes(parseId(id).word);
   const carried = (id) => parseId(id).prefix !== entry.prefix && (entry.carries ?? []).includes(parseId(id).word);
+  const structural = outsideFences(body);
   const declared = declaredIds(body);
+  for (const { 1: id, index } of structural.matchAll(OPENING)) {
+    if (!parseId(id) || !(own(id) || carried(id))) continue;
+    const line = structural.slice(index).split("\n", 1)[0];
+    if (declaredBy(line) !== id) return { invalid: `${id} opens a line that is not its declaration \`${id}: <text>\`` };
+  }
   const duplicate = [...declared].find(([id, n]) => n > 1 && (own(id) || carried(id)));
   if (duplicate) return { invalid: `${duplicate[0]} is declared more than once` };
   const ids = [...declared.keys()].filter((id) => own(id) || carried(id));
   const files = entry.declares.includes("task") ? tasks.filter((name) => taskFile(entry).test(name)).map((name) => name.replace(/\.md$/, "")) : [];
-  return { ids: new Set([...ids, ...files]) };
+  const current = new Set([...ids, ...files]);
+  const undeclared = [...structural.matchAll(MENTION)].map(([id]) => id)
+    .find((id) => parseId(id)?.prefix === entry.prefix && entry.declares.includes(parseId(id).word) && !current.has(id) && !recorded.includes(id));
+  if (undeclared) return { invalid: `${undeclared} occurs but is not declared` };
+  return { ids: current };
 }
 
 // Every id an artifact has declared: those recorded by a stamp and those it declares now.
 function knownIds(data, body, rel, tasks) {
-  const current = currentIds(idsEntry(rel), body, tasks);
+  const current = currentIds(idsEntry(rel), body, tasks, data?.get("ids") ?? []);
   return new Set([...(data?.get("ids") ?? []), ...(current.ids ?? [])]);
 }
 
@@ -708,7 +722,7 @@ function artifactIds(data, body, rel, read, list) {
     if (ids.some((id) => !accepted(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique declared ids` };
   }
   const tasksOf = (path) => list(`${path.split("/")[0]}/tasks`) ?? [];
-  const current = currentIds(entry, body, tasksOf(rel));
+  const current = currentIds(entry, body, tasksOf(rel), data?.get("ids") ?? []);
   if (current.invalid) return current;
   const seen = new Set(data?.get("ids") ?? []);
   const retired = new Set(data?.get("retired-ids") ?? []);
@@ -849,60 +863,55 @@ export function projectBody(body, rel = "") {
   const structural = outsideFences(body);
   const p = new Map();
   const malformed = (message) => p.set("malformed", [...(p.get("malformed") ?? []), message]);
-  const fixed = (name) => [...structural.matchAll(new RegExp(`^${name}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
-  const singleton = (name, key, accept, expectation) => {
-    const lines = fixed(name);
-    if (lines.length > 1) malformed(`${name}: repeated singleton declaration`);
+  const fixed = (key) => [...structural.matchAll(new RegExp(`^${key}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
+  const singleton = (key, accept, expectation) => {
+    const lines = fixed(key);
+    if (lines.length > 1) malformed(`${key}: repeated singleton declaration`);
     for (const value of lines) {
       if (accept(value)) p.set(key, value);
-      else malformed(`${name}: expected ${expectation}, got: ${value}`);
+      else malformed(`${key}: expected ${expectation}, got: ${value}`);
     }
   };
-  singleton("Verdict", "verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
-  singleton("Brief", "brief", Boolean, "text");
-  singleton("Target", "target", (value) => {
+  singleton("verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
+  singleton("brief", Boolean, "text");
+  singleton("target", (value) => {
     const targets = value.split(",").map((t) => t.trim());
     return targets.every((t) => /^[^#,\s]+(?:#[^#,\s]+)?$/.test(t)) && new Set(targets).size === targets.length;
   }, "<path>[#<id>][, …]");
   if (p.has("target")) p.set("target", p.get("target").split(",").map((t) => t.trim()));
   const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
   const origins = [];
-  for (const value of fixed("Origin")) {
+  for (const value of fixed("origin")) {
     if (originValid(value)) origins.push(value);
-    else malformed(`Origin: expected issue <reference>, a source declaration, or a path, got: ${value}`);
+    else malformed(`origin: expected issue <reference>, a source declaration, or a path, got: ${value}`);
   }
   if (origins.length === 1) p.set("origin", origins[0]);
   else if (origins.length > 1) p.set("origin", origins);
-  singleton("Outcome", "outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
-  const recurs = [];
-  for (const value of fixed("Prior finding")) {
+  singleton("outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
+  const priors = [];
+  for (const value of fixed("prior-finding")) {
     const match = value.match(new RegExp(String.raw`^(([^/#\s.][^/#\s]*(?:/[^/#\s.][^/#\s]*){1,2})#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
     const cited = match && reviewArtifact(match[2]), citing = reviewArtifact(rel);
     const prior = cited && match[2].startsWith(`${cited.art.phase}/`) && prefixOf(cited.art.phase) === parseId(match[3]).prefix
       && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
-    if (prior) recurs.push(match[1]);
-    else malformed(`Prior finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
+    if (prior) priors.push(match[1]);
+    else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
   }
-  if (recurs.length) p.set("recurs", recurs);
-  // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
-  // separated by commas — nothing else on the line. Anything else is malformed, never mined.
-  const dependencies = [...structural.matchAll(new RegExp(String.raw`^[\t ]*(?:[-*+][\t ]+)?${MARKS}Depends on:${MARKS}[\t ]*(.*)$`, "gm"))];
-  for (const dep of dependencies) {
-    const value = dep[1].trim();
-    if (/^none$/i.test(value)) p.set("depends", []);
+  if (priors.length) p.set("prior-finding", priors);
+  for (const value of fixed("depends-on")) {
+    if (value === "none") p.set("depends-on", []);
     else if (new RegExp(String.raw`^${TASK_ID}(\s*,\s*${TASK_ID})*$`).test(value)) {
       const ids = value.split(",").map((x) => x.trim());
-      if (new Set(ids).size !== ids.length) malformed(`Depends on: duplicate ids: ${value}`);
-      else p.set("depends", ids);
-    } else malformed(`Depends on: expected none or task ids, got: ${value}`);
+      if (new Set(ids).size !== ids.length) malformed(`depends-on: duplicate ids: ${value}`);
+      else p.set("depends-on", ids);
+    } else malformed(`depends-on: expected none or task ids, got: ${value}`);
   }
-  // A task report's `## Commits` section, up to the next heading: every line that starts with a
-  // commit hash — after a bullet or a backtick — whatever follows it.
-  const commits = structural.match(/^## Commits[^\S\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
-  if (commits) {
-    const hashes = [...commits[1].matchAll(new RegExp(String.raw`^[\t ]*(?:[-*+][\t ]+)?${MARKS}([0-9a-f]{7,40})\b`, "gm"))].map((m) => m[1]);
-    if (hashes.length) p.set("commits", hashes);
+  const commits = [];
+  for (const value of fixed("commit")) {
+    if (/^[0-9a-f]{7,40}$/.test(value)) commits.push(value);
+    else malformed(`commit: expected a commit hash, got: ${value}`);
   }
+  if (commits.length) p.set("commit", commits);
   const report = reportOf(rel);
   if (report) {
     p.set("attempt", report[3]);
@@ -916,7 +925,7 @@ export function projectBody(body, rel = "") {
 export function mirrorDrift(data, body, rel) {
   const p = projectBody(body, rel);
   const norm = (v) => JSON.stringify(v === undefined ? [] : [].concat(v));
-  return MIRRORS.filter((k) => (k === "commits" ? !commitsMatch(p.get(k), data.get(k)) : norm(p.get(k)) !== norm(data.get(k))));
+  return MIRRORS.filter((k) => (k === "commit" ? !commitsMatch(p.get(k), data.get(k)) : norm(p.get(k)) !== norm(data.get(k))));
 }
 
 // Commits are stored canonical; a body may name the same commits by abbreviation.
@@ -973,7 +982,7 @@ async function cmdStamp(args) {
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
   const { data, body } = parsedFrontmatter;
   const fm = data ?? new Map();
-  const landedCommits = fm.get("commits") ?? [];
+  const landedCommits = fm.get("commit") ?? [];
   const landedPatchIds = fm.get("patch-ids") ?? [];
   const base = pipelineFolder(root, abs);
   const rel = relative(base, abs);
@@ -1076,7 +1085,7 @@ async function cmdStamp(args) {
       const expected = requiredPackageOf(rel, "", {
         identityOf: (path) => readAt(path)?.identity ?? null,
         dependsOf: (task) => {
-          return [].concat(readAt(task)?.data?.get("depends") ?? []);
+          return [].concat(readAt(task)?.data?.get("depends-on") ?? []);
         },
       }).review;
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${[...expected.keys()].join(" --reviewed ")}`);
@@ -1107,7 +1116,7 @@ async function cmdStamp(args) {
       for (const target of targets)
         if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, listAt, kind)) die(`stamp: INVALID TARGET ${target}`);
     }
-    for (const prior of fm.get("recurs") ?? []) {
+    for (const prior of fm.get("prior-finding") ?? []) {
       const [path, id] = prior.split("#");
       const text = readable(path);
       if (text === null || !declaredIds(parseFrontmatter(text).body).has(id)) die(`stamp: INVALID PRIOR FINDING ${prior}: the review declares no such finding`);
@@ -1116,18 +1125,18 @@ async function cmdStamp(args) {
   const targetError = targetRepresentationErrors(rel, fm, body)[0];
   if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: ${targetError.field}`}: ${targetError.reason}`);
   // Preserve observed patch ids while the commit declaration remains the same.
-  if (report && landedCommits.length && commitsMatch(fm.get("commits"), landedCommits)) {
-    fm.set("commits", landedCommits);
+  if (report && landedCommits.length && commitsMatch(fm.get("commit"), landedCommits)) {
+    fm.set("commit", landedCommits);
     fm.set("patch-ids", landedPatchIds);
-  } else if (fm.has("commits")) {
-    const canonical = [].concat(fm.get("commits") ?? []).map((h) => {
+  } else if (fm.has("commit")) {
+    const canonical = [].concat(fm.get("commit") ?? []).map((h) => {
       try {
         return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, encoding: "utf8" }).trim();
       } catch {
-        die(`stamp: ## Commits names a commit that does not exist or is ambiguous: ${h}`);
+        die(`stamp: commit: names a commit that does not exist or is ambiguous: ${h}`);
       }
     });
-    fm.set("commits", canonical);
+    fm.set("commit", canonical);
     if (report) {
       const ids = patchIds(root, canonical);
       fm.set("patch-ids", canonical.flatMap((commit) => ids.get(commit) ?? []));
@@ -1399,7 +1408,7 @@ async function cmdCheck(args) {
   // Task files and their latest reports.
   const taskFiles = all
     .filter((d) => d.rel.split("/")[1] === "tasks" && d.rel.split("/").length === 3 && planOf(d.rel.split("/")[0]) && taskFile(planOf(d.rel.split("/")[0])).test(d.name))
-    .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends") ?? []) }));
+    .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends-on") ?? []) }));
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
   const reportFilesOf = (phase) => all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
@@ -1490,7 +1499,7 @@ async function cmdCheck(args) {
   // A review landed without its pins is stamped; one stamped without a verdict is invalid.
   const unstampedReview = (lanes) => {
     const l = lanes.find((l) => l.verdict === "unstamped" || l.verdict === "invalid");
-    return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no Verdict line`);
+    return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no verdict line`);
   };
 
   // Waves since every declared lane approved together — a counter for the owner, never a gate.
@@ -1502,7 +1511,7 @@ async function cmdCheck(args) {
     const lastApproved = Math.max(0, ...waves.filter(approvedAll));
     const start = lastApproved;
     const episode = Math.max(0, last - start);
-    const recurs = rs.filter((r) => r.wave > start).flatMap((r) => [].concat(r.data.get("recurs") ?? []));
+    const recurs = rs.filter((r) => r.wave > start).flatMap((r) => [].concat(r.data.get("prior-finding") ?? []));
     return { episode, recurs, last };
   };
 
@@ -1793,7 +1802,7 @@ async function cmdCheck(args) {
     const open = phaseReports.filter((t) => !isDone(t.id)).map((t) => `${t.id}:${t.outcome}${t.outcome === "completed" ? " (stale)" : ""}`);
     // Every attempt is a report: landed without its pins it is stamped; stamped without an outcome it is invalid.
     const reportDocs = all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${art.phase}/`));
-    const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no Outcome line` : null)).find(Boolean);
+    const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no outcome line` : null)).find(Boolean);
     const cyclic = (() => {
       const byId = new Map(planTasks.map((t) => [t.id, t]));
       const seen = new Set();
@@ -1916,9 +1925,9 @@ Usage:
   node rp.mjs diff <pipeline-folder> [--ref <branch>] [--review <phase review>]
 
 stamp writes frontmatter: pins, review pins (immutable), the lane derived from
-the path and run-config.md, --mirror copies of body declarations (Verdict, Brief, Target,
-Origin, Outcome — completed | failed | blocked — Prior finding, a task's
-Depends on, a report's Commits), a report's patch ids, and head — the diff base
+the path and run-config.md, --mirror copies of body declarations (verdict, brief, target,
+origin, outcome — completed | failed | blocked — prior-finding, a task's
+depends-on, a report's commit lines), a report's patch ids, and head — the diff base
 for artifact reviews and convergence. Identity is the first 12 hexadecimal characters of
 git's blob hash of every body byte: stamping never
 changes it. check reports the frontier: contradictions, owner escalations,

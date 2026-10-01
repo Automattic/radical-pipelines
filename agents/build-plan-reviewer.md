@@ -33,13 +33,13 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `Prior finding: <review>#build-finding-<n>, resolution failed` in it.
+1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#build-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
 The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, miss a spec acceptance criterion or design decision, leave a guardrail unsatisfied, or break a rule under **Rules**.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
@@ -49,7 +49,8 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every decision and every acceptance criterion is served by a task; every Verification entry the design doc proves by an e2e flow has that flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every Verification entry the design doc proves by an e2e flow has that flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
 - **Traceability** — each task's `Traces to` names the requirements, acceptance criteria, decisions, and flows it realizes; the task cites the design doc for them, never restates it.
 - **Per-task acceptance** — every task's `Acceptance` lists the outcomes it makes true of the acceptance criteria and decisions it traces to; missing, vague, or contradictory acceptance, or acceptance stating a fact about the implementation, is a finding.
 - **Type fidelity** — `tdd` changes observable behavior, its mapped new unit tests written test-first; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.
@@ -94,12 +95,12 @@ Frontmatter on every file is written by the orchestrator, never by you.
 ```markdown
 # Build Plan Review
 
-Verdict: approved | rejected | unsatisfiable
-Brief: <your brief, or none>
+verdict: approved | rejected | unsatisfiable
+brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
-Target: <artifact path>#<id> | <constraint path>
+target: <artifact path>#<id> | <constraint path>
 <!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
-Origin: <challenge path>
+origin: <challenge path>
 
 ## Verification log
 
@@ -111,10 +112,10 @@ Origin: <challenge path>
 
 ## Findings
 
-### build-finding-1: <title>
+build-finding-1: <title>
 
 <!-- When it is one; omit otherwise. -->
-Prior finding: <review>#build-finding-<n>, resolution failed
+prior-finding: <review>#build-finding-<n>, resolution failed
 
 **What's wrong:** …
 **Where:** build-task-<n> …

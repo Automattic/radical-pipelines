@@ -32,7 +32,7 @@ Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — th
 
 Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since.
 
-1. Confirm how each of your prior findings was resolved. A resolution that fails is a finding; write `Prior finding: <review>#document-finding-<n>, resolution failed` in it.
+1. Confirm how each of your prior findings was resolved. A resolution that fails is a finding; write `prior-finding: <review>#document-finding-<n>, resolution failed` in it.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the Diff.
 
@@ -58,14 +58,14 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Contradictions**
 
-- Documentation that cannot be accurate because the shipped code contradicts the design doc, the spec, or the build plan is not a rejection of the workers: write it as a finding and, in your verdict, `Verdict: unsatisfiable` with `Target: <path>#<id>` — the artifact that is wrong — and the evidence.
+- Documentation that cannot be accurate because the shipped code contradicts the design doc, the spec, or the build plan is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` — the artifact that is wrong — and the evidence.
 
 **Findings**
 
 - Every issue names the unmet surface and every existing task it affects.
 - Be specific: name the file and line, the claim, the code that contradicts it. Report a defect class once. Never manufacture findings; reject for real defects, approve when the work survives your checks.
 - You review and report: never rewrite the documentation or re-evaluate the plan, design doc, or spec.
-- Declare exactly one verdict: `approved`, `rejected`, or `unsatisfiable` with `Target: <path>#<id>`.
+- Declare exactly one verdict: `approved`, `rejected`, or `unsatisfiable` with `target: <path>#<id>`.
 
 # Protocol
 
@@ -79,12 +79,12 @@ Frontmatter on every file is written by the orchestrator, never by you.
 ```markdown
 # Document Review
 
-Verdict: approved | rejected | unsatisfiable
-Brief: <your brief, or none>
+verdict: approved | rejected | unsatisfiable
+brief: <your brief, or none>
 <!-- Unsatisfiable only; omit otherwise. -->
-Target: <path>#<id>
+target: <path>#<id>
 <!-- When the wave adjudicated a challenge: the Challenge or Task report you judged; omit otherwise. -->
-Origin: <challenge path>
+origin: <challenge path>
 
 ## Verification log
 
@@ -106,12 +106,12 @@ Origin: <challenge path>
 
 <!-- Rejected only. Omit otherwise. -->
 
-### document-finding-1: <title>
+document-finding-1: <title>
 
 Tasks: <ids | none>
 
 <!-- When it is one; omit otherwise. -->
-Prior finding: <review>#document-finding-<n>, resolution failed
+prior-finding: <review>#document-finding-<n>, resolution failed
 
 **What's wrong:** …
 **Where:** …
