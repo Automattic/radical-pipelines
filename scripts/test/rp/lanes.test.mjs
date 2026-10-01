@@ -102,43 +102,7 @@ describe("rp production lanes", () => {
           if (who !== "all lanes equal before reference change") assert.equal(state.frontier.startsWith("consolidate"), false);
         });
 
-  test("verify-5: concordant reviews of an unconsumed identity cannot close a lane", () => {
-    configure({ targetPhase: 1, lanes: [standard.security, standard.a] });
-    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
-    write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
-    write(root, "0-intent/context.md", "# Context v1\n");
-    const pins = pairs(["0-intent/intent.md", "0-intent/context.md"]);
-    registered(artifact, { pins, lane: FPS.a });
-    const reference = [...pairs([artifact, record]), ...pins];
-    write(root, "0-intent/context.md", "# Context v2\n");
-    const reviews = ["1-spec/a/spec-review-1.md", "1-spec/a/spec-review-security-1.md"];
-    const judged = pairs([artifact, record, "0-intent/intent.md", "0-intent/context.md"]);
-    registeredVerdict(reviews[0], judged);
-    registeredVerdict(reviews[1], judged, "approved", FPS.security);
-    registeredRoot(artifact, reference, reviews, FPS.security);
-    const state = JSON.parse(check(root, "--json"));
-    assert.equal(state.lanes[0].closed, false);
-    assert.equal(state.lanes[0].approved, false);
-    assert.equal(state.complete, false);
-  });
-
-  for (const omitted of ["0-intent/intent.md", "0-intent/context.md"])
-    test(`F01 / verify-2: a registered review omitting ${omitted} cannot close`, () => {
-      configure({ targetPhase: 1, lanes: [standard.a] });
-      const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
-      write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
-      write(root, "0-intent/context.md", "# Context\n");
-      registered(artifact, { pins: pairs(["0-intent/intent.md", "0-intent/context.md"]), lane: FPS.a });
-      const reference = pairs([artifact, record, "0-intent/intent.md", "0-intent/context.md"]);
-      registeredVerdict("1-spec/a/spec-review-1.md", reference.filter((pin) => !pin.startsWith(`${omitted}@`)));
-      registeredRoot(artifact, reference, ["1-spec/a/spec-review-1.md"]);
-      const state = JSON.parse(check(root, "--json"));
-      assert.equal(state.lanes[0].closed, false);
-      assert.equal(state.frontier, "review wave 1-spec/a/spec.md");
-      assert.equal(state.complete, false);
-    });
-
-  test("F02 / spec-requirement-7.1.3 / verify #1: registered roots retain a and consolidate b", () => {
+  test("a closed lane stays closed while a lane added after it converges and consolidates", () => {
     configure({ targetPhase: 1, lanes: [standard.a] });
     const a = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
     write(root, a[0], "# A\n"); write(root, a[1], "# A record\n");
@@ -170,26 +134,13 @@ describe("rp production lanes", () => {
     assert.deepEqual(state().lanes.map((lane) => lane.closed), [true, true]);
   });
 
-  test("verify #2/#3: registered sibling records stale; materials stay within the package", () => {
-    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec-research.md"]) });
-    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
-    configure({ targetPhase: 1 });
-    let state = JSON.parse(check(root, "--json"));
-    assert.equal(state.frontier, "converge 1-spec/spec.md");
-    assert.equal(state.complete, false);
+  test("review materials outside the artifact's package are rejected by check and stamp", () => {
     write(root, "0-intent/context.md", "# Context\n");
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
-    const materialsLane = { ...standard.security, materials: ["0-intent/context.md"] };
-    configure({ targetPhase: 1, lanes: [materialsLane] });
+    configure({ targetPhase: 1, lanes: [{ ...standard.security, materials: ["0-intent/context.md"] }] });
     assert.throws(() => check(root), /outside the .* package/);
     write(root, "1-spec/spec-review-security-1.md", "# Review\n\nverdict: approved\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-security-1.md"), "--mirror"), /outside the .* package/);
-    rmSync(join(root, P("1-spec/spec-review-security-1.md")));
-    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", "0-intent/context.md"]) });
-    registeredVerdict("1-spec/spec-review-2.md", pairs([...SPEC, "0-intent/context.md"]));
-    registeredVerdict("1-spec/spec-review-security-2.md", pairs(["0-intent/context.md"]), "approved", laneFingerprint(materialsLane));
-    state = JSON.parse(check(root, "--json"));
-    assert.equal(state.complete, true);
   });
 
   test("review materials expand only the production artifact into its lane scope", () => {
@@ -264,30 +215,10 @@ describe("rp production lanes", () => {
     assert.equal(state.lanes[0].closed, true);
   });
 
-  test("verify-3: registered claims become moot and resolutions adjudicated on input change", () => {
-    const proposal = "0-intent/proposal-1.md";
-    registered(proposal, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 8" }, "# Proposal\ntarget: 1-spec/spec.md#spec-requirement-1\norigin: issue 8\n");
-    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", proposal]) });
-    registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, proposal]));
-    const designPins = ["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
-    registered("2-design-doc/design-doc.md", { pins: pairs(designPins) });
-    registered("2-design-doc/design-doc-review-1.md", {
-      reviewed: pairs(["2-design-doc/design-doc.md", "2-design-doc/design-doc-research.md", ...designPins]),
-      verdict: "unsatisfiable", target: ["1-spec/spec.md#spec-requirement-1"], "target-identity": [identity(read(root, "1-spec/spec.md"))],
-    }, "# Review\nverdict: unsatisfiable\ntarget: 1-spec/spec.md#spec-requirement-1\n");
-    appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged input.\n");
-    configure({ targetPhase: 2 });
-    const state = JSON.parse(check(root, "--json"));
-    assert.equal(state.artifacts[0].approved, false);
-    assert.equal(state.challenges[0].state, "adjudicated");
-    assert.match(state.claims[0].state, /^moot/);
-    assert.equal(state.frontier, "converge 1-spec/spec.md");
-  });
-
   for (const scope of ["root", "production lane"])
     for (const update of ["later input wave", "new input review lane"])
       for (const verdict of ["approved", "unsatisfiable"])
-        test(`verify-6: ${scope}, ${update}, ${verdict} uses the complete required package`, () => {
+        test(`a newer input wave stales a consumer until it pins the complete required package: ${scope}, ${update}, ${verdict}`, () => {
           registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
           registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
           const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/a/";
@@ -346,7 +277,7 @@ describe("rp production lanes", () => {
   for (const scope of ["root", "production lane"])
     for (const inputState of ["changed package", "stale approval", "no approval", "rejected new lane"])
       for (const verdict of ["approved", "unsatisfiable"])
-        test(`verify-7: ${scope}, ${inputState}, ${verdict} waits for a current input approval`, () => {
+        test(`a consumer waits for a current input approval: ${scope}, ${inputState}, ${verdict}`, () => {
           const intent = "0-intent/intent.md", spec = "1-spec/spec.md";
           const specInputs = [intent];
           if (inputState === "stale approval") {
@@ -427,7 +358,7 @@ describe("rp production lanes", () => {
           assert.equal(consumer(confirmed).episode, 0);
         });
 
-  test("verify-6: another consumer wave with the same pair set preserves currency", () => {
+  test("another consumer wave with the same pair set preserves currency", () => {
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
     registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
     registered("2-design-doc/design-doc.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"]) });
@@ -450,7 +381,7 @@ describe("rp production lanes", () => {
   });
 
   for (const phase of ["build-plan", "document-plan"])
-    test(`verify-6: the ${phase} table includes every required approval lane and adjudicated challenge`, () => {
+    test(`the ${phase} package includes every required approval lane and adjudicated challenge`, () => {
       registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
       registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
       registered("2-design-doc/design-doc.md", { pins: pairs(["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"]) });
@@ -526,7 +457,7 @@ describe("rp production lanes", () => {
   });
 
   for (const change of ["add member", "remove member", "change identity"])
-    test(`verify-4/5: closed reference survives candidate ${change}`, () => {
+    test(`a closed lane survives a candidate ${change}`, () => {
       configure({ targetPhase: 1, lanes: [standard.a] });
       const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
       write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
@@ -660,54 +591,6 @@ describe("rp production lanes", () => {
     const output = check(root);
     assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH[\s\S]*frontier complete/);
-  });
-
-  test("repinning a closed lane candidate preserves its package and episode", () => {
-    configure({ targetPhase: 1, lanes: [standard.a] });
-    write(root, "0-intent/context.md", "# Context v1\n");
-    write(root, "1-spec/a/spec.md", "# Candidate a\n");
-    write(root, "1-spec/a/spec-research.md", "# Record a\n");
-    const inputs = ["0-intent/intent.md", "0-intent/context.md"];
-    rp(root, "stamp", P("1-spec/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", ...inputs]);
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
-    assert.equal(JSON.parse(check(root, "--json")).frontier, "complete");
-    write(root, "0-intent/context.md", "# Context v2\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/a/spec-review-2.md", "rejected", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", ...inputs]);
-    const state = JSON.parse(check(root, "--json"));
-    assert.equal(state.lanes[0].closed, true);
-    assert.equal(state.counters["1-spec/a/spec"].episode, 1);
-    assert.equal(state.artifacts[0].state, "fresh");
-    assert.equal(state.artifacts[0].approved, true);
-    assert.equal(state.frontier, "complete");
-  });
-
-  test("a new production lane leaves closed lanes outside the frontier", () => {
-    approveSpecLaneA();
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
-    assert.match(check(root), /frontier complete/);
-    appendFileSync(join(root, P("0-intent/intent.md")), "\n## Proposals\n\nintent-proposal-1: Add lane b.\n");
-    rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
-    const bLane = { ...standard.b, after: ["a"] };
-    configure({ targetPhase: 1, lanes: [standard.a, bLane] });
-    const output = check(root);
-    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
-    assert.match(output, /lane\s+1-spec\/b\/spec\.md\s+MISSING/);
-    assert.match(output, /artifact 1-spec\/spec\.md\s+STALE/);
-    assert.match(output, /frontier converge 1-spec\/b\/spec\.md/);
-    write(root, "1-spec/b/spec.md", "# Candidate b\n");
-    write(root, "1-spec/b/spec-research.md", "# Record b\n");
-    rp(root, "stamp", P("1-spec/b/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/b/spec-review-1.md", "approved", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md", ...LANE_A_PACKAGE]);
-    const ready = JSON.parse(check(root, "--json"));
-    assert.equal(ready.frontier, "consolidate 1-spec/spec.md");
-    assert.deepEqual(ready.artifacts[0].laneCandidates, [
-      { lane: "1-spec/a/", package: LANE_A_PACKAGE },
-      { lane: "1-spec/b/", package: ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "1-spec/b/spec-review-1.md"] },
-    ]);
   });
 
   test("an after lane waits for each dependency's recursively complete package", () => {

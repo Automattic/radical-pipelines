@@ -44,7 +44,7 @@ describe("rp tasks, reports, phase reviews", () => {
   });
 
   for (const [phase, tp] of [["3-build", "build-task"], ["4-document", "document-task"]])
-    test(`verify-7: ${phase} report stamp and check share task dependency requirements`, () => {
+    test(`${phase} report stamp and check share task dependency requirements`, () => {
       if (phase === "4-document") write(root, "4-document/document-plan.md", "# Plan\n");
       const task = `${phase}/tasks/${tp}-2.md`, report = `${phase}/tasks/${tp}-2-report-1.md`;
       const dependency = `${phase}/tasks/${tp}-1.md`, extra = `${phase}/tasks/${tp}-3.md`;
