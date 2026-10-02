@@ -37,6 +37,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
 - A task that forces a design decision is incomplete.
+- A **Reference** patch is not your change: it proved a fix on the path that failed; your change is what the task describes, and the Acceptance is the contract.
 - Resolve or explicitly answer every **Review issue** supplied with your task.
 - A failing test or broken build is work.
 
@@ -47,7 +48,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 **Evidence**
 
 - Exercise each `Verifies` condition and record its outcome under `## Checks` before completing.
-- A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption.
+- A failed report carries reproducible evidence: the observation and task clause it contradicts, or the conflicting or incomplete task clauses; when relevant, include the command, output, code location, criterion, and fallen assumption. It may add what you observed toward the cause and the observation that would tell the candidate causes apart. Copy into your **Supporting folder** the raw evidence the failure leaves outside the worktree — logs, state that will change or rotate.
 - Your **Execution** line permits everything: tests, builds, probes. Evidence you produced is the reason this phase exists.
 
 **Help**
@@ -90,5 +91,5 @@ commit: <hash>
 
 ## Evidence
 
-<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant. Blocked: what kept you from observing the product. -->
+<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what kept you from observing the product. -->
 ```

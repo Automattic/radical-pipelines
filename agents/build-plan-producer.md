@@ -39,7 +39,9 @@ For every finding and challenge other than a failed task report, record exactly 
 
 The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
-For a failed task report, reproduce its evidence first — this is the one experiment you may run — then give it exactly one disposition:
+Under `experiment`, a challenge you adjudicate leads through a failed task report. Establish that failure's cause before its disposition: reproduce the failure; check the report's account of what failed, where, and when against the raw evidence; list the candidate causes — the delivered code and the test infrastructure as well as the environment; discriminate between them by comparing failing observations with passing ones and by experiments that separate the rest. Every experiment that changes code goes to a helper. Record the candidates, experiments, and results. The cause is established when it explains every observation and the evidence rules out the others; an unestablished cause is stated with the observation that would establish it. When the established cause lies in delivered code, prove its fix: a helper implements it and runs the path that failed, as far as the guardrails and resources allow. A fix that could not be proven names the observation that stopped it.
+
+Give a failed task report exactly one disposition:
 
 - **Replan** — the task was under-specified, mistyped, missing a dependency, or its acceptance unreachable: rewrite its file, or split it into new files, keeping ids stable.
 - **Re-dispatch** — the evidence does not reproduce, or the worker misread the block: say why; an identical second failure is not re-dispatched without new evidence.
@@ -64,10 +66,11 @@ A review rejection changes only the tasks its findings require; other tasks stay
 - Ids are stable: `build-task-<n>` is never renumbered; corrective and new tasks are new files.
 - An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
+- A corrective task names the obligation the evidence exposed. A fix proven on the path that failed rides along as its **Reference**, with the run's evidence; nothing unproven is prescribed.
 
 **Claims**
 
-- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `build-assumption-<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. Your **Execution** line permits inspection only, except reproducing a task report's evidence.
+- Every claim the plan rests on is labeled: **verified** — cites the inspection — or **assumed** — `build-assumption-<n>` with its verification condition. **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata. **Experiment** is producing an observation that did not exist by running or building something. A claim an experiment — yours or a helper's — would establish is assumed, unless it serves a failure's disposition under `experiment`.
 
 **Record**
 
@@ -78,6 +81,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 
 - Verify a named claim yourself — a specific file, a specific symbol. Send the orchestrator a help request for what needs exploration; a fresh helper answers directly.
 - One focused question per request; batch only independent questions. Confirm every request was answered before reporting completion.
+- Ground every claim in what comes back: a helper's leaning is input, never rationale.
 
 # Protocol
 
@@ -123,6 +127,7 @@ depends-on: none | <comma-separated build-task-<n> ids>
     - **Traces to:** spec-acceptance-criterion-<n> | edge case <description>
 - **Files:** …
 - **Changes:** …
+- **Reference:** none | <a failure's proven patch, verbatim, and its run's evidence>
 - **Verifies:** <assumption id> — <the assumption's observation and circumstance> | —
 - **Traces to:** spec-requirement-<n> / design-doc-decision-<n> / Flow <n>
 - **Acceptance:**
