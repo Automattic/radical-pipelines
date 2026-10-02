@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, test } from "node:test";
-import { RP, PIPELINE, git, P, write, read, root, configure, check, SPEC, DESIGN, review, commitAll, pairs, registered, registeredVerdict, gitShim, useFixture } from "./fixture.mjs";
+import { RP, PIPELINE, git, P, write, read, rp, root, standard, configure, check, SPEC, DESIGN, review, commitAll, pairs, registered, registeredVerdict, gitShim, useFixture } from "./fixture.mjs";
 
 describe("rp ref and worktree readers", () => {
   useFixture();
@@ -238,5 +238,106 @@ process.stdout.write(output);
           const reason = command === "ls-tree" ? /invalid ls-tree/ : mutation === "terminator" ? /invalid batch object terminator/ : mutation === "trailing" ? /unexpected trailing batch output/ : /invalid batch response/;
           assert.throws(run, readFailure(`${ref}:${PIPELINE}/`, reason));
         }
+      });
+
+  // Pipeline state is the files at the pipeline folder's root, directly in a phase folder, in its tasks/,
+  // and in each lanes/<lane>/. Every other location is ignored by both readers: never read, never stamped.
+  const STATE_LOCATIONS = ["notes.md", "0-intent/notes.md", "1-spec/notes.md", "3-build/tasks/notes.md", "1-spec/lanes/a/notes.md"];
+  const IGNORED_LOCATIONS = [
+    "notes/notes.md", "notes/tasks/notes.md", "0-intent/evidence/notes.md", "1-spec/evidence/notes.md", "1-spec/a/spec.md",
+    "1-spec/lanes/notes.md", "1-spec/spec-review-1/notes.md", "3-build/tasks/build-task-1-report-1/notes.md", "1-spec/lanes/a/spec/notes.md",
+  ];
+  const CONTENTS = { valid: "# Notes\n\nverdict: approved\n", malformed: "---\nnot JSON\n---\n# Notes\n" };
+  function recordedSpecWithLane() {
+    configure({ targetPhase: 1, lanes: [standard.a] });
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+    commitAll("recorded state");
+  }
+  const stateAt = (reader) => {
+    const { ref, ...state } = JSON.parse(reader === "ref" ? check(root, "--json", "--ref", "HEAD") : check(root, "--json"));
+    return state;
+  };
+  for (const reader of ["worktree", "ref"])
+    for (const path of [...STATE_LOCATIONS, ...IGNORED_LOCATIONS])
+      test(`pipeline state: ${path} read from the ${reader}`, () => {
+        recordedSpecWithLane();
+        const before = stateAt(reader);
+        for (const [kind, contents] of Object.entries(CONTENTS)) {
+          write(root, path, contents);
+          commitAll(`${kind} ${path}`);
+          const after = stateAt(reader);
+          if (STATE_LOCATIONS.includes(path)) assert.match(after.frontier, new RegExp(`^(stamp|INVALID [A-Z]+) ${path.replaceAll(".", "\\.")}$`), kind);
+          else {
+            assert.deepEqual(after, before, kind);
+            assert.throws(() => rp(root, "stamp", P(path), "--mirror"), /not pipeline state/);
+          }
+        }
+      });
+
+  test("pipeline state: an unreadable ignored folder or file is never read; unreadable state stops the check", () => {
+    recordedSpecWithLane();
+    const before = stateAt("worktree");
+    const folders = ["notes", "1-spec/evidence", "1-spec/lanes/a/spec"].map((folder) => join(root, P(folder)));
+    for (const folder of folders) {
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(join(folder, "notes.md"), CONTENTS.malformed);
+      chmodSync(folder, 0);
+    }
+    const file = join(root, P("1-spec/lanes/notes.md"));
+    writeFileSync(file, CONTENTS.malformed);
+    chmodSync(file, 0);
+    folders.push(file);
+    try {
+      assert.deepEqual(stateAt("worktree"), before);
+      chmodSync(folders[2], 0o755);
+      chmodSync(join(root, P("1-spec/lanes/a")), 0);
+      assert.throws(() => check(root, "--json"), /cannot read worktree:.*EACCES/);
+    } finally {
+      for (const folder of [join(root, P("1-spec/lanes/a")), ...folders]) chmodSync(folder, 0o755);
+    }
+  });
+
+  for (const [ignored, state] of [["1-spec/support", "1-spec/lanes/a"], ["1-spec/lanes/notes.md", "1-spec/lanes/a/notes.md"]])
+    test(`pipeline state: the unreadable ignored ${ignored} is never read from a ref; the unreadable ${state} stops the check`, () => {
+      recordedSpecWithLane();
+      write(root, "1-spec/support/notes.md", "# Support only\n");
+      write(root, "1-spec/lanes/notes.md", "# Directly under lanes only\n");
+      write(root, "1-spec/lanes/a/notes.md", "# Lane only\n");
+      commitAll("ignored and state entries");
+      const before = stateAt("ref");
+      const looseObject = (path) => {
+        const oid = git(root, "rev-parse", `HEAD:${P(path)}`).trim();
+        return join(root, ".git", "objects", oid.slice(0, 2), oid.slice(2));
+      };
+      rmSync(looseObject(ignored));
+      assert.deepEqual(stateAt("ref"), before);
+      rmSync(looseObject(state));
+      assert.throws(() => check(root, "--json", "--ref", "HEAD"), /cannot read [0-9a-f]+:.*1-spec\/lanes/);
+    });
+
+  // A path is state by its position, whatever entry occupies it: a directory there holds state, a file
+  // holds none, and a symlink is a defect — in both readers.
+  for (const reader of ["worktree", "ref"])
+    for (const [path, child] of [["1-spec", "notes.md"], ["3-build/tasks", "notes.md"], ["1-spec/lanes", "a/notes.md"], ["1-spec/lanes/a", "notes.md"]])
+      test(`pipeline state: the entry at the state folder ${path} read from the ${reader}`, () => {
+        recordedSpecWithLane();
+        const at = join(root, P(path));
+        write(root, `${path}/${child}`, CONTENTS.valid);
+        commitAll("directory");
+        assert.match(stateAt(reader).frontier, new RegExp(`^(stamp|INVALID [A-Z]+) ${path}/${child}$`.replaceAll(".", "\\.")));
+        rmSync(at, { recursive: true });
+        commitAll("absent");
+        const absent = stateAt(reader);
+        writeFileSync(at, "not a folder\n");
+        commitAll("file");
+        assert.deepEqual(stateAt(reader), absent);
+        rmSync(at);
+        mkdirSync(join(root, "elsewhere"), { recursive: true });
+        symlinkSync(join(root, "elsewhere"), at);
+        commitAll("symlink");
+        const linked = stateAt(reader);
+        assert.equal(linked.frontier, `symlink ${path}`);
+        assert.deepEqual(linked.contradictions, [{ path, symlink: true }]);
       });
 });

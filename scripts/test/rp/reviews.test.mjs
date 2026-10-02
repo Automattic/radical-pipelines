@@ -85,12 +85,11 @@ describe("rp reviews, waves, inputs", () => {
     configure({ targetPhase: 1, lanes: [lane("design-doc-producer", "a")] });
     stampSpec();
     review("2-design-doc/spec-review-1.md", "approved", SPEC);
-    review("1-spec/archive/old/spec-review-1.md", "approved", SPEC);
     const output = check(root);
     assert.doesNotMatch(output, /artifact 1-spec\/spec\.md[\s\S]*APPROVED/);
-    assert.doesNotMatch(output, /claim\s+2-design-doc\/a\/spec-review-1\.md/);
+    assert.doesNotMatch(output, /claim\s+2-design-doc\/lanes\/a\/spec-review-1\.md/);
     assert.match(output, /frontier review wave 1-spec\/spec\.md/);
-    const misplaced = "2-design-doc/a/spec-review-1.md";
+    const misplaced = "2-design-doc/lanes/a/spec-review-1.md";
     assert.throws(() => review(misplaced, "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n"), /only challenges may carry target fields/);
     registered(misplaced, { verdict: "unsatisfiable", reviewed: pairs(SPEC), target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] }, "# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
     const invalid = JSON.parse(check(root, "--json"));

@@ -36,7 +36,7 @@ node rp.mjs check <pipeline-folder> [--ref <ref>] [--json]
 - Artifact and open-lane entries expose `materials`: `inputChanges` (`added`, `removed`, and `changed` paths, plus required-approval `ready`), `reviewLanes` (`lane`, `path` for every review of a rejected closed wave), `challenges` (pending constraint, proposal, and claim paths), and `taskReports` (pending failed-report paths). Their text lines use **Input changes**, **Review lanes**, **Challenges**, and **Task reports**. Each pending path occurs once.
 - Each command accepts only its documented options and one positional argument. Any other value, missing value, duplicate single option, or unknown option is an error.
 
-Both readers require a pipeline directory. Unlisted members may be unwritten; listed documents must be readable regular files. Read failures stop the check before facts, naming the ref or worktree and path.
+Both readers require a pipeline directory and read only [pipeline state](../reference/run/state.md#names); `stamp` refuses any other file, to stamp or to pin. Unlisted members may be unwritten; listed documents must be readable regular files. Read failures stop the check before facts, naming the ref or worktree and path.
 
 A phase-review lane is `fresh` only while its [code delta](../reference/run/state.md#terms) is empty. Computing it reads the history bounded by the review: the commit adding it, one `git merge-tree` with the base, and, when a later phase's reports record patch ids, the commits after the review that are outside the base. It requires Git 2.45 or later. A review no commit adds, a failed merge, or unreadable history stops the command.
 

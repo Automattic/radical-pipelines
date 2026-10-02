@@ -112,14 +112,14 @@ describe("rp refs and output", () => {
 
     const combined = lane("spec-producer", "combined", { brief: "Combine", after: ["a", "b"] });
     configure({ targetPhase: 1, lanes: [standard.a, standard.b, combined] });
-    write(root, "1-spec/combined/spec.md", "# Combined\n");
-    write(root, "1-spec/combined/spec-research.md", "# Record\n");
-    registered("1-spec/combined/spec.md", {
+    write(root, "1-spec/lanes/combined/spec.md", "# Combined\n");
+    write(root, "1-spec/lanes/combined/spec-research.md", "# Record\n");
+    registered("1-spec/lanes/combined/spec.md", {
       pins: pairs(["0-intent/intent.md"]),
       lane: recordedFingerprint,
     });
     const state = JSON.parse(check(root, "--json"));
-    assert.doesNotMatch(state.lanes.find((entry) => entry.lane === "1-spec/combined/").stale.join(", "), /lane declaration/);
+    assert.doesNotMatch(state.lanes.find((entry) => entry.lane === "1-spec/lanes/combined/").stale.join(", "), /lane declaration/);
   });
 
   test("stamp derives lane fingerprints from review and production paths", () => {
@@ -138,21 +138,21 @@ describe("rp refs and output", () => {
     rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
     assert.equal(parseFrontmatter(read(root, "1-spec/spec-review-1.md")).data.has("lane"), false);
     configure({ targetPhase: 1, lanes: [reviewer, producer] });
-    write(root, "1-spec/a/spec.md", "# Spec a\n");
-    write(root, "1-spec/a/spec-research.md", "# Record a\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"));
-    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec.md")).data.get("lane"), laneFingerprint(producer));
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec-review-1.md")).data.has("lane"), false);
-    review("1-spec/a/spec-review-security-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec-review-security-1.md")).data.get("lane"), laneFingerprint(reviewer));
-    const record = parseFrontmatter(read(root, "1-spec/a/spec-research.md"));
+    write(root, "1-spec/lanes/a/spec.md", "# Spec a\n");
+    write(root, "1-spec/lanes/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--pin", P("0-intent/intent.md"));
+    review("1-spec/lanes/a/spec-review-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]);
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec.md")).data.get("lane"), laneFingerprint(producer));
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec-review-1.md")).data.has("lane"), false);
+    review("1-spec/lanes/a/spec-review-security-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]);
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec-review-security-1.md")).data.get("lane"), laneFingerprint(reviewer));
+    const record = parseFrontmatter(read(root, "1-spec/lanes/a/spec-research.md"));
     record.data = record.data ?? new Map();
     record.data.set("lane", laneFingerprint(producer));
-    write(root, "1-spec/a/spec-research.md", renderFrontmatter(record.data, record.body));
+    write(root, "1-spec/lanes/a/spec-research.md", renderFrontmatter(record.data, record.body));
     rmSync(join(root, P("run-config.md")));
-    rp(root, "stamp", P("1-spec/a/spec-research.md"), "--mirror");
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec-research.md")).data.has("lane"), false);
+    rp(root, "stamp", P("1-spec/lanes/a/spec-research.md"), "--mirror");
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec-research.md")).data.has("lane"), false);
     configure({ targetPhase: 1, lanes: [reviewer, producer] });
     assert.deepEqual(JSON.parse(rp(root, "check", PIPELINE, "--json")).configuration, {
       workflow: "autonomous",
@@ -179,14 +179,14 @@ describe("rp refs and output", () => {
   test("a path naming an undeclared lane is rejected by stamp", () => {
     stampSpec();
     approveSpec();
-    write(root, "1-spec/rogue/spec.md", "# Rogue\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/rogue/spec.md"), "--pin", P("0-intent/intent.md")), /undeclared lane/);
-    write(root, "1-spec/rogue/spec-review-1.md", "# Review\n\nverdict: rejected\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/rogue/spec-review-1.md"), "--mirror"), /undeclared lane/);
+    write(root, "1-spec/lanes/rogue/spec.md", "# Rogue\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/lanes/rogue/spec.md"), "--pin", P("0-intent/intent.md")), /undeclared lane/);
+    write(root, "1-spec/lanes/rogue/spec-review-1.md", "# Review\n\nverdict: rejected\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/lanes/rogue/spec-review-1.md"), "--mirror"), /undeclared lane/);
     write(root, "1-spec/spec-review-extra-2.md", "# Review\n\nverdict: rejected\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-extra-2.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror"), /undeclared lane/);
     const output = check(root);
-    assert.match(output, /lane\s+1-spec\/rogue\/\s+UNDECLARED/);
+    assert.match(output, /lane\s+1-spec\/lanes\/rogue\/\s+UNDECLARED/);
     assert.match(output, /lane\s+1-spec\/spec-review-extra-2\.md\s+UNDECLARED/);
   });
 
@@ -238,7 +238,6 @@ describe("rp refs and output", () => {
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, id: true }] }, /id must be a string/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, id: ["focus"] }] }, /id must be a string/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-reviewer", "Bad")] }, /id is invalid/],
-      [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-reviewer", "tasks")] }, /reserved/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [standard.security, standard.security] }, /duplicate lane id/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, brief: " " }] }, /non-empty string/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, brief: 1 }] }, /non-empty string/],
