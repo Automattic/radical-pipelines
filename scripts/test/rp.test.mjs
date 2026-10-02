@@ -3376,7 +3376,7 @@ process.stdout.write(output);
         }
       });
 
-  test("pipeline state: an unreadable ignored folder is never read; unreadable state stops the check", () => {
+  test("pipeline state: an unreadable ignored folder or file is never read; unreadable state stops the check", () => {
     recordedSpecWithLane();
     const before = stateAt("worktree");
     const folders = ["notes", "1-spec/evidence", "1-spec/lanes/a/spec"].map((folder) => join(root, P(folder)));
@@ -3385,6 +3385,10 @@ process.stdout.write(output);
       writeFileSync(join(folder, "notes.md"), CONTENTS.malformed);
       chmodSync(folder, 0);
     }
+    const file = join(root, P("1-spec/lanes/notes.md"));
+    writeFileSync(file, CONTENTS.malformed);
+    chmodSync(file, 0);
+    folders.push(file);
     try {
       assert.deepEqual(stateAt("worktree"), before);
       chmodSync(folders[2], 0o755);
@@ -3395,21 +3399,23 @@ process.stdout.write(output);
     }
   });
 
-  test("pipeline state: an unreadable ignored tree is never read from a ref; an unreadable state tree stops the check", () => {
-    recordedSpecWithLane();
-    write(root, "1-spec/support/notes.md", "# Support only\n");
-    write(root, "1-spec/lanes/a/notes.md", "# Lane only\n");
-    commitAll("ignored and state trees");
-    const before = stateAt("ref");
-    const looseObject = (path) => {
-      const oid = git(root, "rev-parse", `HEAD:${P(path)}`).trim();
-      return join(root, ".git", "objects", oid.slice(0, 2), oid.slice(2));
-    };
-    rmSync(looseObject("1-spec/support"));
-    assert.deepEqual(stateAt("ref"), before);
-    rmSync(looseObject("1-spec/lanes/a"));
-    assert.throws(() => check(root, "--json", "--ref", "HEAD"), /cannot read [0-9a-f]+:.*1-spec\/lanes/);
-  });
+  for (const [ignored, state] of [["1-spec/support", "1-spec/lanes/a"], ["1-spec/lanes/notes.md", "1-spec/lanes/a/notes.md"]])
+    test(`pipeline state: the unreadable ignored ${ignored} is never read from a ref; the unreadable ${state} stops the check`, () => {
+      recordedSpecWithLane();
+      write(root, "1-spec/support/notes.md", "# Support only\n");
+      write(root, "1-spec/lanes/notes.md", "# Directly under lanes only\n");
+      write(root, "1-spec/lanes/a/notes.md", "# Lane only\n");
+      commitAll("ignored and state entries");
+      const before = stateAt("ref");
+      const looseObject = (path) => {
+        const oid = git(root, "rev-parse", `HEAD:${P(path)}`).trim();
+        return join(root, ".git", "objects", oid.slice(0, 2), oid.slice(2));
+      };
+      rmSync(looseObject(ignored));
+      assert.deepEqual(stateAt("ref"), before);
+      rmSync(looseObject(state));
+      assert.throws(() => check(root, "--json", "--ref", "HEAD"), /cannot read [0-9a-f]+:.*1-spec\/lanes/);
+    });
 
   // A path is state by its position, whatever entry occupies it: a directory there holds state, a file
   // holds none, and a symlink is a defect — in both readers.

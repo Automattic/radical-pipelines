@@ -1311,7 +1311,7 @@ async function treeReader(root, abs, ref) {
   }
   const contents = new Map();
   const reader = indexedTreeReader(entries, ({ rel }) => contents.get(rel), `${ref}:${pipelineRel}`);
-  const regular = entries.filter((e) => e.type === "blob");
+  const regular = entries.filter((e) => e.type === "blob" && pipelineFileRole(e.rel));
   // Object ids keep tabs and newlines in paths out of the line-oriented batch protocol.
   const batch = gitStream(root, ["cat-file", "--batch"], regular.map((e) => `${e.oid}\n`).join(""));
   const stream = batch.child.stdout[Symbol.asyncIterator]();
