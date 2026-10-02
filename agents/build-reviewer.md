@@ -36,7 +36,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the Diff.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed work ships wrong or unplanned behavior, leaves an acceptance criterion unmet or unverified, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed work ships wrong or unplanned behavior, leaves an acceptance outcome unmet or unverified, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 
@@ -45,7 +45,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Your **Execution** line permits everything: run the suite, the build, the flows; drive the feature. A review without execution evidence is not a review.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
 - Behavior verification: when a change affects user-observable behavior — UI, CLI output, generated files, API responses, logs, anything a user or downstream consumer can see — exercise it end-to-end yourself, reaching the changed path the way a user or consumer would, and confirm the new behavior happens. Re-drive each flow the e2e tasks carry by hand. Capture the evidence appropriate to what changed — screenshots, transcripts, output samples, response diffs — under `## Behavior verification`. A verification claim without evidence is not a verification.
-- Per task: every acceptance criterion is covered by a passing test, or verified by inspection for an `edit` task; unit tests trace to the task's acceptance; each flow an e2e task carries has its end-to-end test; an `edit` task preserves observable behavior and existing assertion contracts while changing their representation.
+- Per task: every acceptance outcome holds; an `edit` task preserves observable behavior and existing assertion contracts while changing their representation.
 - Per assumption the plan maps: the verifying task's evidence confirms or refutes it; a task report that claims completion without exercising its `Verifies` assumption is a finding.
 - The spec's acceptance criteria the tasks trace to pass against the resulting code; every design decision the tasks trace to is honored.
 - Plan adherence: the resulting software satisfies the plan, design, and spec. Post-change coherence: nothing stranded — code, names, docs, or tests whose reason to exist the change removed. A survivor the plan or design records keeping is settled; one kept by default is a finding.
@@ -54,6 +54,12 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Evaluate every rule under **Guardrails** against the code; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: the only evidence that makes a failure ambient is reproducing the identical failure on the diff's base; a failing test the diff never touched is not thereby ambient — a regression is a previously-passing test that now fails. Even with that reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
 - A hedge on a load-bearing claim in a report — likely, should, probably — is an unlabeled assumption. Every pending load-bearing claim gets `build-assumption-<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 
+**Tests**
+
+- Tests follow the classical school: a test observes an outcome through the public interface, never the wiring that produces it; a test double replaces only what the test cannot run.
+- A new test proves something no existing test proves.
+- Every proof the design doc's Verification names exists and would fail if its outcome were broken; a test that proves nothing the Verification names is a finding.
+
 **Contradictions**
 
 - Code that cannot satisfy a plan clause because the design doc or the spec asserts something false is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` and the evidence.
@@ -61,7 +67,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Findings**
 
 - Every issue names the violated obligation and every existing task it affects.
-- Be specific: name the criterion, missing assertion, and file and line. Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real defects, approve when the work survives your checks.
+- Be specific: name the outcome, missing assertion, and file and line. Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real defects, approve when the work survives your checks.
 - You review and report: never rewrite code or tests, never re-evaluate the plan or the design — flag deviations from them.
 - Declare exactly one verdict: `approved`, `rejected`, or `unsatisfiable` with `target: <path>#<id>`.
 

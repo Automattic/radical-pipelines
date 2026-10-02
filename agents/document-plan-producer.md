@@ -49,10 +49,11 @@ You may research and decide new content — always in service of a named finding
 
 **Tasks**
 
-- A task is a file, `tasks/document-task-<n>.md`, small enough that a worker executes it without deciding what the software does — parts a worker could complete and verify separately are separate tasks. That file and its dependencies are the self-contained execution specification; the spec and design doc provide rationale.
+- A task is a file, `tasks/document-task-<n>.md`, that a worker executes without deciding what the software does. That file and its dependencies are the self-contained execution specification; the spec and design doc provide rationale.
+- A task is the smallest change a reviewer can judge as coherent: the same edit across several files is one task.
 - Every task names its `Surface` — the documentation location it serves, in the project's own conventions — its `Audience`, and its `Sections`: the exact sections and scope — what the `Audience` acts on, at the depth they act on it — each fact explained once and referenced from the rest.
 - You plan what to document, where, and for whom — never what the documentation says: name the shipped surfaces — files, modules, commands, configuration keys — as they exist in the code, and leave the sentences to the worker.
-- Every task has one or more acceptance criteria framed as what the reader leaves with — a capability, an understanding — or what the documentation must cover — a section, an example, a cross-link; they never contradict the requirement, acceptance criterion, or shipped change the task traces to. Even a trivial task has one.
+- Every task has one or more acceptance outcomes framed as what the reader leaves with — a capability, an understanding — or what the documentation must cover — a section, an example, a cross-link; they never contradict the requirement, acceptance criterion, or shipped change the task traces to. Even a trivial task has one.
 - Every acceptance criterion and decision has the documentation it requires served by a task. Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task on the surface of the audience that acts on it, or recorded as out of scope with the reason.
 - Ids are stable: `document-task-<n>` is never renumbered; corrective and new tasks are new files.
 - An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.

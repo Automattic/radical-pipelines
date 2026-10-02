@@ -37,7 +37,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the Diff.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance criterion unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
+Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance outcome unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 
@@ -45,7 +45,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - Your **Execution** line permits everything: run the software to check every behavior the documentation claims. A review without verification evidence is not a review.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
-- Per task: every acceptance criterion holds, verified against the documentation and the code it describes.
+- Per task: every acceptance outcome holds, verified against the documentation and the code it describes.
 - Accuracy: every concrete claim matches the shipped code; a claim about behavior is false when a reader of the task's `Audience`, following it within supported use, is misled. For at least one claim per task, verify it against the code with evidence; a claim that does not match is a finding. A spot-check without evidence is not a spot-check.
 - Audience fit: content is what each task's `Audience` acts on, at the depth they act on it, in the voice, prerequisites, and vocabulary of the surrounding document; a mechanism they cannot act on, or a term foreign to them, is a finding.
 - Within a surface, each fact is explained once and referenced from the rest; a second explanation is a finding.

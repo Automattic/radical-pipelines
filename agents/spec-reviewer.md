@@ -69,7 +69,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Declarations** — every requirement and acceptance criterion is declared by its id; one without is a finding.
 - **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding. A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction. The record is subject to the same gate: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
-- **Acceptance criteria** — Given-When-Then, specific enough to write tests from, covering the requirements' edge cases.
+- **Acceptance criteria** — Given-When-Then, specific enough to write tests from, covering the requirements' edge cases, each named by the input that produces it and where it is produced, never by a category.
 - **Fidelity and clarity** — `spec.md` faithfully reflects `spec-research.md`; the sections agree with each other; ids are stable; the artifact carries no review references, adjudication trails, or superseded text; two implementers reading independently would build the same understanding of what the feature must do.
 - **Negative space** — within the systems the intent and requirements touch: does anything in the codebase contradict a requirement's feasibility — existing behavior, invariants, constraints? Is there behavior the feature must preserve that no requirement or exclusion names?
 

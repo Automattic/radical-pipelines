@@ -28,14 +28,16 @@ Materials: the standing materials and, each present when it applies, **Input cha
 
 Without a plan yet:
 
-1. Read the spec and the design doc; list every requirement, every decision, and every open assumption.
+1. Read the spec and the design doc; list every requirement, acceptance criterion, decision, Verification entry, and open assumption.
 2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.
-3. Break the design into tasks per **Rules**; the spec's acceptance criteria and edge cases with behavior to test become numbered, titled flows inside e2e tasks; map every open assumption.
+3. Break the design into tasks per **Rules**; each Verification entry the design doc proves by an e2e flow becomes a numbered, titled flow inside an e2e task; a flow for an acceptance criterion follows its Given/When/Then; map every open assumption.
 4. Write `build-plan.md` and the task files per **Formats**.
 
 With a plan, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add.
 
 For every finding and challenge other than a failed task report, record exactly one disposition under `## Adjudications`: **Adopt** (revise the plan), **Refute** (record the evidence against it), or **Contradicts-input** (an input obligation cannot be satisfied: `Contradicts-input: <path>#<id>` for a clause, `<path>` for a constraint file, with the evidence).
+
+A finding resting on an observation nobody reproduced is an assumption: adopting it maps a `build-assumption-<n>` to the task that verifies it, which completes with no change when the observation does not reproduce.
 
 The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
@@ -55,14 +57,15 @@ A review rejection changes only the tasks its findings require; other tasks stay
 
 **Tasks**
 
-- A task is a file, `tasks/build-task-<n>.md`, small enough that a worker executes it without making a design decision — parts a worker could complete and verify separately are separate tasks — and self-contained: that file and the tasks it depends on are the worker's only inputs. An e2e task carries the flows it automates.
-- `Type` routes it to its worker. `tdd` — a change with behavior to test, proven by new unit tests derived from its Acceptance. `e2e` — realizes the flows it carries over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, never the behavior under test. `edit` — preserves observable behavior and existing assertion contracts while changing their representation; verified by inspection and the guardrails.
-- Every task has one or more acceptance criteria — observable, verifiable, scoped to the task — stating what must be true when it is done: they translate the acceptance criterion the task traces to into task-level checks, describe what, not how it is verified, and never contradict it. Even a trivial task has one.
+- A task is a file, `tasks/build-task-<n>.md`, that a worker executes without making a design decision. That file and the tasks it depends on are the self-contained execution specification; the spec and design doc provide rationale. An e2e task carries the flows it automates.
+- A task is the smallest change a reviewer can judge as coherent: a mechanism goes with its consumers and its unit tests, and the same edit across several files is one task.
+- `Type` routes it to its worker. `tdd` — a change to observable behavior; the new unit tests its Verification entries name are written test-first. `e2e` — realizes the flows it carries over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, never the behavior under test. `edit` — preserves observable behavior and existing assertion contracts while changing their representation; verified by inspection and the guardrails.
+- `Acceptance` lists the outcomes the task makes true of the acceptance criteria and decisions it traces to, never facts about the implementation. Even a trivial task has one.
 - Name exact files: real paths from the codebase, never "the auth module".
 - Describe the change; never write the implementation. Which unit tests a `tdd` task writes stays the worker's choice.
 - The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope. Documentation is the document phase's; no documentation tasks.
 - Every open assumption of the design doc maps to the task that verifies it, `Verifies: <assumption id>` with the assumption's observation and circumstance copied into the task; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
-- Every task traces to the requirements, decisions, or flows it serves. Every acceptance criterion and every decision has the implementation it requires served by at least one task.
+- `Traces to` names the requirements, acceptance criteria, decisions, and flows a task realizes; the task cites the design doc for them, never restates it. Every acceptance criterion and every decision has the implementation it requires served by at least one task.
 - Ids are stable: `build-task-<n>` is never renumbered; corrective and new tasks are new files.
 - An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
@@ -124,14 +127,14 @@ depends-on: none | <comma-separated build-task-<n> ids>
   - **Flow 1: <title>**   <!-- e2e only -->
     - **Steps:** …
     - **Expected:** …
-    - **Traces to:** spec-acceptance-criterion-<n> | edge case <description>
+    - **Traces to:** spec-acceptance-criterion-<n> | design-doc-decision-<n>
 - **Files:** …
 - **Changes:** …
 - **Reference:** none | <a failure's proven patch, verbatim, and its run's evidence>
 - **Verifies:** <assumption id> — <the assumption's observation and circumstance> | —
-- **Traces to:** spec-requirement-<n> / design-doc-decision-<n> / Flow <n>
+- **Traces to:** spec-requirement-<n> / spec-acceptance-criterion-<n> / design-doc-decision-<n> / Flow <n>
 - **Acceptance:**
-  - <observable property>
+  - <outcome>
 ```
 
 `build-plan-research.md`:

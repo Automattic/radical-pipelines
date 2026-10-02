@@ -24,7 +24,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 Materials: `build-plan.md`, its **Tasks**, `build-plan-research.md`, and its **Pinned inputs** — the **Spec** and **Design doc** with their current approving reviews, every adjudicated challenge, and every production-lane input — plus the **Challenge** or **Task report** under review, when present. This is the package you judge; its references supply historical material.
 
-1. Read the spec and the design doc; list every requirement, decision, acceptance criterion, and open assumption.
+1. Read the spec and the design doc; list every requirement, acceptance criterion, decision, Verification entry, and open assumption.
 2. Read `build-plan-research.md` and `build-plan.md`.
 3. Build your verification log per **Rules**; decide your verdict from the log alone.
 
@@ -50,11 +50,11 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every acceptance criterion and material edge case with behavior to test has a covering flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
-- **Traceability** — each task names the requirement, decision, or flow it serves.
-- **Per-task acceptance** — every task has acceptance criteria that are observable and verifiable, describe what must be true rather than how it is verified, and never contradict the criterion the task traces to; missing, vague, unverifiable, or contradictory acceptance is a finding.
-- **Type fidelity** — `tdd` changes behavior covered by new unit tests; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.
-- **Self-containment** — a worker can execute each task file without a design decision; a task that hides an unresolved design choice is a finding; a task with parts a worker could complete and verify separately is a finding; dependencies are real and acyclic, each task runnable after the ones it depends on; the plan's order lists exactly the task files.
+- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every Verification entry the design doc proves by an e2e flow has that flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Traceability** — each task's `Traces to` names the requirements, acceptance criteria, decisions, and flows it realizes; the task cites the design doc for them, never restates it.
+- **Per-task acceptance** — every task's `Acceptance` lists the outcomes it makes true of the acceptance criteria and decisions it traces to; missing, vague, or contradictory acceptance, or acceptance stating a fact about the implementation, is a finding.
+- **Type fidelity** — `tdd` changes observable behavior, its mapped new unit tests written test-first; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.
+- **Self-containment** — a worker can execute each task without a design decision; a task that hides an unresolved design choice is a finding, and so is a task that is not the smallest change a reviewer can judge as coherent — a mechanism goes with its consumers and its unit tests, and the same edit across several files is one task; dependencies are real and acyclic, each task runnable after the ones it depends on; the plan's order lists exactly the task files.
 - **Feasibility** — each task can be executed against the current codebase: the files, modules, and APIs it names exist and behave as the task assumes. Verify paths and module shapes by inspection.
 - **Scope** — the plan stays within the spec and the design doc; a task that adds functionality, redesigns, or prescribes which unit tests to write, or that produces or updates documentation, is a finding.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
@@ -74,6 +74,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. A constraint answering a claim replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
 - An adoption or a replan that works around a design or spec clause the record itself refutes — or a fallen assumption — is a finding: name the clause and the record entry that refutes it.
 - Under `experiment`, a failure's disposition rests on a recorded investigation whose established cause explains every observation, the other candidates ruled out by evidence — or states the cause unestablished with the observation that would establish it — and a cause in delivered code carries a fix proven on the path that failed, or the observation that stopped the proof; otherwise it is a finding.
+- A finding resting on an observation nobody reproduced is an assumption: an adoption that treats it as a defect instead of mapping a `build-assumption-<n>` to a verifying task is a finding, and so is a corrective task that states a suggested fix instead of the obligation the finding exposed.
 - A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
