@@ -1,7 +1,0 @@
----
-"@automattic/radical-pipelines": minor
----
-
-BREAKING: Cover phase reviews by comparing code snapshots instead of storing change material. A phase review has seen the code at the first parent of the commit that added it; its code delta is the tip's difference from that code merged with the base, without the work a later phase's task reports record. Rebases, base merges, and integration into the base keep coverage; manual edits and conflict resolutions enter review. `rp` no longer writes the `changes/` folder, task reports record `patch-ids` for their commits, `run-config.md` requires `base`, `--base` is removed from every command, and `rp diff` renders the net change or, with `--review`, a phase review's code delta; `--phase`, `--live-net`, `--output`, and `--json` are removed from `rp diff`. Requires Git 2.45 or later.
-
-To migrate each pipeline, in one commit: add `base` to `run-config.md` — the artifact base branch, or the branch of the unmerged pipeline it started from; delete its `changes/` folder; remove `changes` from every task report's frontmatter; and for each Document task report whose commits still exist, remove `commits` too and re-stamp it with `rp stamp <report> --mirror` so it records `patch-ids` — a Build review's next wave covers the work of any other. Phase reviews that pinned `changes/` files no longer match their packages: the next check asks for one new review wave per phase, whose Delta diff is empty unless the code moved.
