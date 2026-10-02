@@ -63,7 +63,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 - `Acceptance` lists the outcomes the task makes true of the acceptance criteria and decisions it traces to, never facts about the implementation. Even a trivial task has one.
 - Name exact files: real paths from the codebase, never "the auth module".
 - Describe the change; never write the implementation. Which unit tests a `tdd` task writes stays the worker's choice.
-- The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope. Documentation is the document phase's; no documentation tasks.
+- The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope. Inline API documentation is part of the change to its symbol; other documentation is the document phase's.
 - Every open assumption of the design doc maps to the task that verifies it, `Verifies: <assumption id>` with the assumption's observation and circumstance copied into the task; structural assumptions go in the earliest tasks. An assumption build cannot verify is `carried, Verifies: —` with the reason.
 - `Traces to` names the requirements, acceptance criteria, decisions, and flows a task realizes; the task cites the design doc for them, never restates it. Every acceptance criterion and every decision has the implementation it requires served by at least one task.
 - Ids are stable: `build-task-<n>` is never renumbered; corrective and new tasks are new files.

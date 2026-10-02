@@ -56,7 +56,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.
 - **Per-task acceptance** — every task has acceptance outcomes framed as what the reader leaves with or what the documentation must cover; missing, vague, or contradictory acceptance is a finding.
 - **Self-containment and order** — a worker can execute each task file without deciding what the software does; a task that is not the smallest change a reviewer can judge as coherent — the same edit across several files is one task — is a finding; dependencies name every prerequisite, are real and acyclic, and permit the stated order; the plan's order lists exactly the task files.
-- **Documentation only** — a task produces documentation, never source code.
+- **Documentation only** — a task changes documentation, never shipped code, which includes inline API documentation. Missing or false inline API documentation without a contradicts-input targeting the build task that changed its symbol is a finding.
 - **Scope** — the plan stays within the spec and design doc.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
 - **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; its sections agree; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two workers would produce documentation of the same scope and shape.
