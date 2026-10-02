@@ -15,7 +15,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Completion predicate** — The file and approval state that marks a phase complete, evaluated from the working tree.
 - **Consolidate** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Consolidation** — A reviewer mode that audits the consolidated artifact against its lane folders, reusing approved checks where their claims and provenance are unchanged.
-- **Constraint** — A binding owner ruling, captured in the intent or a later `0-intent/constraint-<n>.md` with `Target:` and `Origin:`. An unsatisfiable constraint reaches the owner through a corroborated claim.
+- **Constraint** — A binding owner ruling, captured in the intent or a later `0-intent/constraint-<n>.md` with `target:` and `origin:`. An unsatisfiable constraint reaches the owner through a corroborated claim.
 - **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
 - **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
@@ -25,7 +25,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
-- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
+- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
 - **Must-fix finding** — A finding that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a delta review rejects.
@@ -45,7 +45,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Pipeline slug** — The project convention deriving a pipeline's identifier from its issue, and that identifier: one path segment, a valid git ref, without `_`, naming the pipeline folder.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
-- **Proposal** — A direction, hypothesis, or report to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `Target:` and `Origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
+- **Proposal** — A direction, hypothesis, or report to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `target:` and `origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
 - **Run configuration** — The workflow, target phase, base branch, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
@@ -53,6 +53,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Shipped code** — The code, tests, and inline API documentation covered by the build review on the pipeline branch.
 - **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
+- **Supporting folder** — The folder beside what an agent writes, named after it without `.md`, holding the screenshots, logs, transcripts, and helper answers that file cites; it is not pipeline state.
 - **Target** — What a challenge addresses: an artifact clause or constraint file for a claim; its task for a failed report; one or more phase artifacts, whole or by clause, for a constraint or proposal.
 - **Target phase** — The highest phase a run executes before stopping.
 - **Task report** — A per-attempt worker report, `tasks/<task id>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.

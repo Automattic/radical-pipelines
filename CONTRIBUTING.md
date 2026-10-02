@@ -21,7 +21,7 @@ This runs the `node --test 'scripts/test/**/*.test.mjs'` suite. There is no `lin
 Each CI check has its own script running its slice of that suite:
 
 ```bash
-npm run test:rp # the orchestrator core (`scripts/test/rp.test.mjs`)
+npm run test:rp # the orchestrator core (`scripts/test/rp/`)
 npm run test:opencode-unit # the opencode plugin (`scripts/test/opencode/`)
 npm run test:release # the release tooling (changeset validator, version-sync flow, CI workflow)
 ```

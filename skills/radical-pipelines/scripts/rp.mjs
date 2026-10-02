@@ -75,7 +75,7 @@ export function parseFrontmatter(raw, validate = validateFrontmatter) {
 }
 
 function validateFrontmatter(data) {
-  const lists = new Set(["pins", "reviewed", "recurs", "depends", "commits", "patch-ids", "target", "target-identity", "ids", "retired-ids"]);
+  const lists = new Set(["pins", "reviewed", "prior-finding", "depends-on", "commit", "patch-ids", "target", "target-identity", "ids", "retired-ids"]);
   const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
   const strings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
   const errors = [];
@@ -90,6 +90,7 @@ function validateFrontmatter(data) {
     else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
       errors.push(`${key} must be a string or list of strings`);
     if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
+    if ((key === "pins" || key === "reviewed") && strings(value) && value.some((pin) => pinParts(pin) && !pipelineFileRole(pinParts(pin).path))) errors.push(`${key} must name pipeline state`);
     if (key === "patch-ids" && strings(value) && value.some((id) => !PATCH_ID.test(id))) errors.push("patch-ids must contain patch ids");
   }
   return errors.join("; ") || null;
@@ -102,6 +103,7 @@ function lanePackagesError(value) {
     if (!Array.isArray(entry) || entry.length !== 3 || typeof entry[0] !== "string" || !entry[0])
       return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
     const [artifact, binding, reference] = entry;
+    if (!pipelineFileRole(artifact)?.productionArtifact) return `lane-packages artifact path must name a production lane artifact: ${artifact}`;
     if (artifacts.has(artifact)) return `lane-packages has duplicate artifact path: ${artifact}`;
     if (!pinPackage(binding)) return `lane-packages consumed lane pins for ${artifact} must be a non-empty pin package`;
     if (!pinPackage(reference)) return `lane-packages reference pins for ${artifact} must be a non-empty pin package`;
@@ -225,7 +227,7 @@ function codeDelta(root, { tip, base, review, attributed, pipelinesRoot }) {
 const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
 let REPORT, reportOf; // `<phase>/tasks/<task id>-report-<k>.md`, defined with the id vocabulary below.
 // Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
-const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "recurs", "depends", "commits", "attempt"];
+const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "prior-finding", "depends-on", "commit", "attempt"];
 // The artifacts, in phase order, with what each one requires as pins.
 const ARTIFACTS = [
   { path: "1-spec/spec.md", record: "1-spec/spec-research.md", prefix: "spec", phase: "1-spec", requires: ["0-intent/intent.md"] },
@@ -239,7 +241,6 @@ function laterPatchIds(phase, reports) {
   return new Set(reports.filter(({ rel }) => index(reportOf(rel)[1]) > index(phase)).flatMap(({ data }) => data?.get("patch-ids") ?? []));
 }
 const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
-const RESERVED_LANE_IDS = new Set(["tasks"]);
 const LANE_PROFILES = new Map([
   ["spec-reviewer", { prefix: "spec", kind: "review" }],
   ["design-doc-reviewer", { prefix: "design-doc", kind: "review" }],
@@ -263,22 +264,39 @@ function reviewArtifact(rel) {
 
 const laneProfile = (prefix, kind) => [...LANE_PROFILES].find(([, value]) => value.prefix === prefix && value.kind === kind)?.[0] ?? null;
 
-// One path classifier supplies scopes, review identity, and lane-bearing files.
+const laneScope = (phase, id) => `${phase}/lanes/${id}/`;
+
+// The folders holding pipeline state: the pipeline folder, each phase folder, its `tasks/`, and each
+// `lanes/<lane>/`. A segment pattern is a set of names, a literal name, or any name (null).
+const PHASES = ["0-intent", ...ARTIFACTS.map((art) => art.phase)];
+const STATE_FOLDERS = [[], [PHASES], [PHASES, "tasks"], [PHASES, "lanes", null]];
+const segmentMatches = (pattern, segment) => Array.isArray(pattern) ? pattern.includes(segment) : pattern === null || pattern === segment;
+// Whether a folder, by its segments, holds state (`exact`) or leads to a folder that does.
+function stateFolder(segments, exact = true) {
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return false;
+  return STATE_FOLDERS.some((pattern) => (exact ? pattern.length === segments.length : pattern.length >= segments.length) &&
+    segments.every((segment, index) => segmentMatches(pattern[index], segment)));
+}
+
+// One path classifier supplies state, scopes, review identity, and lane-bearing files: a file in a
+// state folder is state; every other path is not (null).
 function pipelineFileRole(rel) {
   const parts = rel.split("/");
+  const name = parts.pop();
+  if (!name || name === "." || name === ".." || !stateFolder(parts)) return null;
+  const laned = parts[1] === "lanes";
   const art = ARTIFACTS.find((candidate) => candidate.phase === parts[0]);
-  if (!art) return { scope: "" };
+  const productionLane = laned ? { id: parts[2], profile: art ? laneProfile(art.prefix, "production") : null } : null;
+  const scope = laned ? laneScope(parts[0], parts[2]) : "";
+  if (!art) return { scope, productionLane };
   const review = reviewArtifact(rel);
-  const scoped = parts.length === 3 && parts[1] !== "tasks";
-  const scope = scoped ? `${parts[0]}/${parts[1]}/` : "";
-  const placedReview = review && review.art === art && ((parts.length === 2) || scoped) ? review : null;
-  const productionLane = scoped ? { id: parts[1], profile: laneProfile(art.prefix, "production") } : null;
+  const placedReview = review && review.art === art && parts[1] !== "tasks" ? review : null;
   const namedReview = placedReview?.lane ? { id: placedReview.lane, profile: laneProfile(placedReview.prefix, "review") } : null;
   return {
     art,
     scope,
     productionLane,
-    productionArtifact: scoped && parts[2] === basename(art.path),
+    productionArtifact: laned && name === basename(art.path),
     review: placedReview,
     namedReview,
   };
@@ -324,7 +342,6 @@ function runConfiguration(read, command) {
     if (!profile) invalid(`${at}.profile is unknown: ${value.profile}`);
     if (typeof value.id !== "string") invalid(`${at}.id must be a string`);
     if (!LANE_ID.test(value.id)) invalid(`${at}.id is invalid: ${value.id}`);
-    if (RESERVED_LANE_IDS.has(value.id)) invalid(`${at}.id uses the reserved name "${value.id}"`);
     if (typeof value.brief !== "string" || !value.brief.trim()) invalid(`${at}.brief must be a non-empty string`);
     if (profile.kind === "review" && Object.hasOwn(value, "after")) invalid(`${at}.after applies to production lanes only`);
     if (profile.kind === "production" && Object.hasOwn(value, "materials")) invalid(`${at}.materials applies to review lanes only`);
@@ -408,7 +425,7 @@ function reviewPackageMembers(art, prefix, scope, pinned, tasks, reports) {
 function pinPackage(entries) {
   if (!Array.isArray(entries) || !entries.length) return null;
   const parts = entries.map((entry) => typeof entry === "string" ? pinParts(entry) : null);
-  if (parts.some((p) => !p?.path || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
+  if (parts.some((p) => !p?.path || !pipelineFileRole(p.path) || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
   return new Map(parts.map((p) => [p.path, p.sha]));
 }
 
@@ -530,7 +547,7 @@ function validateRunConfiguration(configuration, inspect, command) {
   for (const lane of configuration.lanes.filter((candidate) => candidate.kind === "review" && candidate.materials)) {
     const art = ARTIFACTS.find((candidate) => candidate.prefix === lane.prefix || candidate.review === lane.prefix);
     const production = configuration.decl[lane.prefix]?.production ?? [];
-    for (const scope of ["", ...production.map((candidate) => `${art.phase}/${candidate.id}/`)]) {
+    for (const scope of ["", ...production.map((candidate) => laneScope(art.phase, candidate.id))]) {
       const artifactPath = inScope(scope, art.path);
       const reference = authoritativeReviewContext(configuration, lane.prefix, scope, inspect).reference;
       if (!reference) continue;
@@ -569,9 +586,9 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
     else ready = false;
   }
   const lanes = productionLanesOf(art.prefix);
-  const dependencies = sc ? lanes.find((lane) => `${art.phase}/${lane.id}/` === sc)?.after ?? [] : lanes.map((lane) => lane.id);
+  const dependencies = sc ? lanes.find((lane) => laneScope(art.phase, lane.id) === sc)?.after ?? [] : lanes.map((lane) => lane.id);
   for (const lane of dependencies) {
-    const dependency = lanePackageOf(art, `${art.phase}/${lane}/`);
+    const dependency = lanePackageOf(art, laneScope(art.phase, lane));
     for (const pair of dependency.package) inputs.set(...pair);
     if (!dependency.ready) ready = false;
   }
@@ -598,23 +615,28 @@ const IDS = {
   "3-build/build-plan.md": { prefix: "build", declares: ["assumption", "task"], upstream: "2-design-doc/design-doc.md", carries: ["assumption"] },
   "4-document/document-plan.md": { prefix: "document", declares: ["assumption", "task"], upstream: "3-build/build-plan.md", carries: ["assumption"] },
 };
+// A phase's record originates `question`, its reviews `finding`.
+const RECORD_WORDS = ["question"], REVIEW_WORDS = ["finding"];
+// The words each class originates; an id's word is one of its class's.
+const WORDS = new Map(Object.entries(IDS).map(([path, e]) => [e.prefix, ARTIFACTS.some((a) => a.path === path) ? [...e.declares, ...RECORD_WORDS, ...REVIEW_WORDS] : e.declares]));
 const PREFIX = Object.values(IDS).map((e) => e.prefix).join("|");
 const ID = new RegExp(String.raw`^(${PREFIX})-([a-z]+(?:-[a-z]+)*)-([1-9]\d*)$`);
 function parseId(id) {
   if (id === "intent-goal") return { prefix: "intent", word: "goal" };
   const m = id.match(ID);
-  return m ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
+  return m && WORDS.get(m[1]).includes(m[2]) ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
 }
 const numberOf = (id) => parseId(id).n;
 // The vocabulary entry of a root or lane artifact, review, or record.
 function idsEntry(rel) {
-  const m = rel.match(/^([^/]+)\/(?:([^/]+)\/)?([^/]+)$/);
-  if (!m || m[2] === "tasks") return null;
-  const root = IDS[`${m[1]}/${m[3]}`];
+  const parts = rel.split("/");
+  if (!pipelineFileRole(rel) || parts.length < 2 || parts[1] === "tasks") return null;
+  const phase = parts[0], name = parts.at(-1);
+  const root = IDS[`${phase}/${name}`];
   if (root) return root;
-  const prefix = prefixOf(m[1]);
-  if (prefix && reviewArtifact(rel)?.art.phase === m[1]) return { prefix, declares: ["finding"], history: false };
-  if (prefix && ARTIFACTS.some((a) => a.phase === m[1] && basename(a.record) === m[3])) return { prefix, declares: ["question"] };
+  const prefix = prefixOf(phase);
+  if (prefix && reviewArtifact(rel)?.art.phase === phase) return { prefix, declares: REVIEW_WORDS, history: false };
+  if (prefix && ARTIFACTS.some((a) => a.phase === phase && basename(a.record) === name)) return { prefix, declares: RECORD_WORDS };
   return null;
 }
 // A Markdown file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
@@ -649,32 +671,52 @@ function targetItem(target) {
   return id && id.prefix === entry.prefix && claimableWords(entry).includes(id.word) ? { path, item } : null;
 }
 
-// Inline formatting marks that may wrap a declared value without being part of it.
-const MARKS = "[*_`]*";
-const ITEM = new RegExp(String.raw`^ {0,3}(?:#{1,6}|[-*+]|\d+[.)])[\t ]+${MARKS}([a-z][a-z-]*-[1-9]\d*)(?![A-Za-z0-9-])`, "gm");
+// An id is declared by the line `<id>: <text>`; OPENING finds a line opening with an id in any form, MENTION any occurrence.
+const ID_TOKEN = String.raw`[a-z][a-z-]*-[1-9]\d*(?![A-Za-z0-9-])`;
+const DECLARATION = new RegExp(String.raw`^(${ID_TOKEN}): \S`);
+const OPENING = new RegExp(String.raw`^[\t ]*(?:(?:#{1,6}|[-*+>]|\d+[.)])[\t ]+)*[*_\x60]*(${ID_TOKEN})`, "gm");
+const MENTION = new RegExp(String.raw`(?<![A-Za-z0-9#-])${ID_TOKEN}`, "g");
+const declaredBy = (line) => line.match(DECLARATION)?.[1] ?? null;
 // Every id the body declares, with how many times each is declared.
 function declaredIds(body) {
   const counts = new Map();
-  for (const [, id] of outsideFences(body).matchAll(ITEM)) if (parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
+  for (const id of outsideFences(body).split("\n").map(declaredBy)) if (id && parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
   return counts;
 }
 
 // What an artifact declares now: the ids under its prefix and words in its body — a task by its
-// file — and the ids it carries.
-function currentIds(entry, body, tasks) {
+// file — and the ids it carries. Every declaration keyed `<prefix>-<word>-<n>` is an id; a line
+// opening with one the file declares is its declaration; an id it originates occurs only once
+// declared, now or at an earlier stamp (`recorded`).
+function currentIds(entry, body, tasks, recorded = []) {
   const own = (id) => parseId(id).prefix === entry.prefix && parseId(id).word !== "task" && entry.declares.includes(parseId(id).word);
   const carried = (id) => parseId(id).prefix !== entry.prefix && (entry.carries ?? []).includes(parseId(id).word);
+  const structural = outsideFences(body);
+  const stray = structural.split("\n").map(declaredBy).find((key) => key && ID.test(key) && !parseId(key));
+  if (stray) {
+    const prefix = stray.match(ID)[1];
+    return { invalid: `${stray} is not an id: the ${prefix} words are ${WORDS.get(prefix).join(", ")}` };
+  }
   const declared = declaredIds(body);
+  for (const { 1: id, index } of structural.matchAll(OPENING)) {
+    if (!parseId(id) || !(own(id) || carried(id))) continue;
+    const line = structural.slice(index).split("\n", 1)[0];
+    if (declaredBy(line) !== id) return { invalid: `${id} opens a line that is not its declaration \`${id}: <text>\`` };
+  }
   const duplicate = [...declared].find(([id, n]) => n > 1 && (own(id) || carried(id)));
   if (duplicate) return { invalid: `${duplicate[0]} is declared more than once` };
   const ids = [...declared.keys()].filter((id) => own(id) || carried(id));
   const files = entry.declares.includes("task") ? tasks.filter((name) => taskFile(entry).test(name)).map((name) => name.replace(/\.md$/, "")) : [];
-  return { ids: new Set([...ids, ...files]) };
+  const current = new Set([...ids, ...files]);
+  const undeclared = [...structural.matchAll(MENTION)].map(([id]) => id)
+    .find((id) => parseId(id)?.prefix === entry.prefix && entry.declares.includes(parseId(id).word) && !current.has(id) && !recorded.includes(id));
+  if (undeclared) return { invalid: `${undeclared} occurs but is not declared` };
+  return { ids: current };
 }
 
 // Every id an artifact has declared: those recorded by a stamp and those it declares now.
 function knownIds(data, body, rel, tasks) {
-  const current = currentIds(idsEntry(rel), body, tasks);
+  const current = currentIds(idsEntry(rel), body, tasks, data?.get("ids") ?? []);
   return new Set([...(data?.get("ids") ?? []), ...(current.ids ?? [])]);
 }
 
@@ -708,7 +750,7 @@ function artifactIds(data, body, rel, read, list) {
     if (ids.some((id) => !accepted(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique declared ids` };
   }
   const tasksOf = (path) => list(`${path.split("/")[0]}/tasks`) ?? [];
-  const current = currentIds(entry, body, tasksOf(rel));
+  const current = currentIds(entry, body, tasksOf(rel), data?.get("ids") ?? []);
   if (current.invalid) return current;
   const seen = new Set(data?.get("ids") ?? []);
   const retired = new Set(data?.get("retired-ids") ?? []);
@@ -849,60 +891,55 @@ export function projectBody(body, rel = "") {
   const structural = outsideFences(body);
   const p = new Map();
   const malformed = (message) => p.set("malformed", [...(p.get("malformed") ?? []), message]);
-  const fixed = (name) => [...structural.matchAll(new RegExp(`^${name}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
-  const singleton = (name, key, accept, expectation) => {
-    const lines = fixed(name);
-    if (lines.length > 1) malformed(`${name}: repeated singleton declaration`);
+  const fixed = (key) => [...structural.matchAll(new RegExp(`^${key}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
+  const singleton = (key, accept, expectation) => {
+    const lines = fixed(key);
+    if (lines.length > 1) malformed(`${key}: repeated singleton declaration`);
     for (const value of lines) {
       if (accept(value)) p.set(key, value);
-      else malformed(`${name}: expected ${expectation}, got: ${value}`);
+      else malformed(`${key}: expected ${expectation}, got: ${value}`);
     }
   };
-  singleton("Verdict", "verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
-  singleton("Brief", "brief", Boolean, "text");
-  singleton("Target", "target", (value) => {
+  singleton("verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
+  singleton("brief", Boolean, "text");
+  singleton("target", (value) => {
     const targets = value.split(",").map((t) => t.trim());
     return targets.every((t) => /^[^#,\s]+(?:#[^#,\s]+)?$/.test(t)) && new Set(targets).size === targets.length;
   }, "<path>[#<id>][, …]");
   if (p.has("target")) p.set("target", p.get("target").split(",").map((t) => t.trim()));
   const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
   const origins = [];
-  for (const value of fixed("Origin")) {
+  for (const value of fixed("origin")) {
     if (originValid(value)) origins.push(value);
-    else malformed(`Origin: expected issue <reference>, a source declaration, or a path, got: ${value}`);
+    else malformed(`origin: expected issue <reference>, a source declaration, or a path, got: ${value}`);
   }
   if (origins.length === 1) p.set("origin", origins[0]);
   else if (origins.length > 1) p.set("origin", origins);
-  singleton("Outcome", "outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
-  const recurs = [];
-  for (const value of fixed("Prior finding")) {
-    const match = value.match(new RegExp(String.raw`^(([^/#\s.][^/#\s]*(?:/[^/#\s.][^/#\s]*){1,2})#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
-    const cited = match && reviewArtifact(match[2]), citing = reviewArtifact(rel);
-    const prior = cited && match[2].startsWith(`${cited.art.phase}/`) && prefixOf(cited.art.phase) === parseId(match[3]).prefix
+  singleton("outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
+  const priors = [];
+  for (const value of fixed("prior-finding")) {
+    const match = value.match(new RegExp(String.raw`^(([^#\s]+)#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
+    const cited = match && pipelineFileRole(match[2])?.review, citing = pipelineFileRole(rel)?.review;
+    const prior = cited && prefixOf(cited.art.phase) === parseId(match[3])?.prefix
       && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
-    if (prior) recurs.push(match[1]);
-    else malformed(`Prior finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
+    if (prior) priors.push(match[1]);
+    else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
   }
-  if (recurs.length) p.set("recurs", recurs);
-  // A task file's `Depends on:` line is a fixed line with a grammar: `none`, or task ids
-  // separated by commas — nothing else on the line. Anything else is malformed, never mined.
-  const dependencies = [...structural.matchAll(new RegExp(String.raw`^[\t ]*(?:[-*+][\t ]+)?${MARKS}Depends on:${MARKS}[\t ]*(.*)$`, "gm"))];
-  for (const dep of dependencies) {
-    const value = dep[1].trim();
-    if (/^none$/i.test(value)) p.set("depends", []);
+  if (priors.length) p.set("prior-finding", priors);
+  for (const value of fixed("depends-on")) {
+    if (value === "none") p.set("depends-on", []);
     else if (new RegExp(String.raw`^${TASK_ID}(\s*,\s*${TASK_ID})*$`).test(value)) {
       const ids = value.split(",").map((x) => x.trim());
-      if (new Set(ids).size !== ids.length) malformed(`Depends on: duplicate ids: ${value}`);
-      else p.set("depends", ids);
-    } else malformed(`Depends on: expected none or task ids, got: ${value}`);
+      if (new Set(ids).size !== ids.length) malformed(`depends-on: duplicate ids: ${value}`);
+      else p.set("depends-on", ids);
+    } else malformed(`depends-on: expected none or task ids, got: ${value}`);
   }
-  // A task report's `## Commits` section, up to the next heading: every line that starts with a
-  // commit hash — after a bullet or a backtick — whatever follows it.
-  const commits = structural.match(/^## Commits[^\S\n]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
-  if (commits) {
-    const hashes = [...commits[1].matchAll(new RegExp(String.raw`^[\t ]*(?:[-*+][\t ]+)?${MARKS}([0-9a-f]{7,40})\b`, "gm"))].map((m) => m[1]);
-    if (hashes.length) p.set("commits", hashes);
+  const commits = [];
+  for (const value of fixed("commit")) {
+    if (/^[0-9a-f]{7,40}$/.test(value)) commits.push(value);
+    else malformed(`commit: expected a commit hash, got: ${value}`);
   }
+  if (commits.length) p.set("commit", commits);
   const report = reportOf(rel);
   if (report) {
     p.set("attempt", report[3]);
@@ -916,7 +953,7 @@ export function projectBody(body, rel = "") {
 export function mirrorDrift(data, body, rel) {
   const p = projectBody(body, rel);
   const norm = (v) => JSON.stringify(v === undefined ? [] : [].concat(v));
-  return MIRRORS.filter((k) => (k === "commits" ? !commitsMatch(p.get(k), data.get(k)) : norm(p.get(k)) !== norm(data.get(k))));
+  return MIRRORS.filter((k) => (k === "commit" ? !commitsMatch(p.get(k), data.get(k)) : norm(p.get(k)) !== norm(data.get(k))));
 }
 
 // Commits are stored canonical; a body may name the same commits by abbreviation.
@@ -967,16 +1004,17 @@ async function cmdStamp(args) {
   const { root, abs } = repositoryFor(file);
   if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
   containedPath("stamp", root, abs);
+  const base = pipelineFolder(root, abs);
+  const rel = relative(base, abs);
+  if (!pipelineFileRole(rel)) die(`stamp: not pipeline state: ${rel}`);
 
   const parsedFrontmatter = readPipelineFile(abs);
   if (!parsedFrontmatter) die(`stamp: no such file: ${file}`);
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
   const { data, body } = parsedFrontmatter;
   const fm = data ?? new Map();
-  const landedCommits = fm.get("commits") ?? [];
+  const landedCommits = fm.get("commit") ?? [];
   const landedPatchIds = fm.get("patch-ids") ?? [];
-  const base = pipelineFolder(root, abs);
-  const rel = relative(base, abs);
   const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, ownerFile(rel) || fm.get("target-identity")?.[i]]));
   const readAt = (path) => {
     const source = readPipelineFile(join(base, path));
@@ -989,11 +1027,10 @@ async function cmdStamp(args) {
   if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
   if (ids.invalid) die(`stamp: INVALID IDS ${rel}: ${ids.invalid}`);
   const report = reportOf(rel);
-  const relParts = rel.split("/");
   const role = pipelineFileRole(rel);
   const phaseReview = role.review?.prefix === role.art?.review && Boolean(role.review);
-  const artifact = ARTIFACTS.find((a) => relParts[0] === a.phase && relParts.at(-1) === basename(a.path) && relParts.length <= 3);
-  const siblingRecord = artifact ? `${relParts.slice(0, -1).join("/")}/${basename(artifact.record)}` : null;
+  const artifact = rel === role.art?.path || role.productionArtifact ? role.art : null;
+  const siblingRecord = artifact ? `${dirname(rel)}/${basename(artifact.record)}` : null;
 
   const laneForPath = () => {
     const needsConfiguration = role.namedReview || role.productionArtifact || (role.review && role.productionLane);
@@ -1023,6 +1060,7 @@ async function cmdStamp(args) {
       const target = containedPath("stamp", root, resolve(root, p));
       if (!target.startsWith(base + "/")) die(`stamp: a pin stays inside the pipeline folder: ${p}`);
       const path = relative(base, target);
+      if (!pipelineFileRole(path)) die(`stamp: not pipeline state: ${path}`);
       const sha = readAt(path)?.identity ?? die(`stamp: cannot pin missing file: ${p}`);
       return `${path}@${sha}`;
     });
@@ -1036,9 +1074,9 @@ async function cmdStamp(args) {
       const recorded = pinPackage(pins);
       const references = [];
       for (const path of recorded?.keys() ?? []) {
-        const parts = path.split("/");
-        if (parts.length !== 3 || parts[0] !== artifact.phase || parts[1] === "tasks" || parts[2] !== basename(artifact.path)) continue;
-        const scope = `${dirname(path)}/`;
+        const pinned = pipelineFileRole(path);
+        if (!pinned?.productionArtifact || pinned.art !== artifact) continue;
+        const scope = pinned.scope;
         const binding = new Map([...recorded].filter(([member]) => member.startsWith(scope)));
         const prior = previous.get(path);
         const input = readAt(path).data;
@@ -1055,9 +1093,9 @@ async function cmdStamp(args) {
   if (args.reviewed.length) {
     if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
     const reviewed = pinList(args.reviewed);
-    const review = reviewArtifact(rel);
-    if (review && rel.startsWith(`${review.art.phase}/`) && !review.lane) {
-      const scope = rel.split("/").length === 3 ? `${dirname(rel)}/` : "";
+    const review = role.review;
+    if (review && !review.lane) {
+      const scope = role.scope;
       const artifactPath = scope ? `${scope}${basename(review.art.path)}` : review.art.path;
       const artifactFile = join(base, artifactPath);
       const artifactData = existsSync(artifactFile) ? readAt(artifactPath).data : null;
@@ -1076,7 +1114,7 @@ async function cmdStamp(args) {
       const expected = requiredPackageOf(rel, "", {
         identityOf: (path) => readAt(path)?.identity ?? null,
         dependsOf: (task) => {
-          return [].concat(readAt(task)?.data?.get("depends") ?? []);
+          return [].concat(readAt(task)?.data?.get("depends-on") ?? []);
         },
       }).review;
       if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${[...expected.keys()].join(" --reviewed ")}`);
@@ -1107,7 +1145,7 @@ async function cmdStamp(args) {
       for (const target of targets)
         if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, listAt, kind)) die(`stamp: INVALID TARGET ${target}`);
     }
-    for (const prior of fm.get("recurs") ?? []) {
+    for (const prior of fm.get("prior-finding") ?? []) {
       const [path, id] = prior.split("#");
       const text = readable(path);
       if (text === null || !declaredIds(parseFrontmatter(text).body).has(id)) die(`stamp: INVALID PRIOR FINDING ${prior}: the review declares no such finding`);
@@ -1116,18 +1154,18 @@ async function cmdStamp(args) {
   const targetError = targetRepresentationErrors(rel, fm, body)[0];
   if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: ${targetError.field}`}: ${targetError.reason}`);
   // Preserve observed patch ids while the commit declaration remains the same.
-  if (report && landedCommits.length && commitsMatch(fm.get("commits"), landedCommits)) {
-    fm.set("commits", landedCommits);
+  if (report && landedCommits.length && commitsMatch(fm.get("commit"), landedCommits)) {
+    fm.set("commit", landedCommits);
     fm.set("patch-ids", landedPatchIds);
-  } else if (fm.has("commits")) {
-    const canonical = [].concat(fm.get("commits") ?? []).map((h) => {
+  } else if (fm.has("commit")) {
+    const canonical = [].concat(fm.get("commit") ?? []).map((h) => {
       try {
         return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, encoding: "utf8" }).trim();
       } catch {
-        die(`stamp: ## Commits names a commit that does not exist or is ambiguous: ${h}`);
+        die(`stamp: commit: names a commit that does not exist or is ambiguous: ${h}`);
       }
     });
-    fm.set("commits", canonical);
+    fm.set("commit", canonical);
     if (report) {
       const ids = patchIds(root, canonical);
       fm.set("patch-ids", canonical.flatMap((commit) => ids.get(commit) ?? []));
@@ -1166,12 +1204,19 @@ function pinParts(entry) {
   return at === -1 ? null : { path: entry.slice(0, at), sha: entry.slice(at + 1) };
 }
 
-// The pipeline tree holds files and folders only: a symlink is never followed, it is reported.
+// A folder that is or leads to a state folder, by its path.
+const leadsToState = (rel) => stateFolder(rel ? rel.split("/") : [], false);
+// Whether a path belongs to pipeline state, whatever its entry's type: a folder that is or leads to a
+// state folder, or a file in a state folder. Only such a folder is traversed when it is a directory.
+const inState = (rel) => leadsToState(rel) || Boolean(pipelineFileRole(rel));
+
+// Pipeline state holds files and folders only: a symlink is never followed, it is reported.
 function walk(dir, rel = "", out = []) {
+  if (!inState(rel)) return out;
   const st = lstatSync(dir);
   const type = st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "tree" : st.isFile() ? "blob" : "other";
   out.push({ rel, type });
-  if (type === "tree") for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
+  if (type === "tree" && leadsToState(rel)) for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
   return out;
 }
 
@@ -1184,7 +1229,7 @@ function indexedTreeReader(entries, load, context) {
     if (!["tree", "blob", "symlink"].includes(entry.type)) throw fail(entry.rel, `not a regular blob or directory: ${entry.type}`);
   const contents = new Map(), texts = new Map();
   return {
-    list: () => entries.filter((e) => e.type !== "symlink" && e.rel.endsWith(".md")).map((e) => e.rel),
+    list: () => entries.filter((e) => e.type !== "symlink" && e.rel.endsWith(".md") && pipelineFileRole(e.rel)).map((e) => e.rel),
     symlinks: () => entries.filter((e) => e.type === "symlink").map((e) => e.rel),
     read: (rel, bytes = false) => {
       const entry = members.get(rel);
@@ -1233,40 +1278,50 @@ async function treeReader(root, abs, ref) {
       return readFileSync(path);
     }, `worktree:${pipelineRel}`);
   }
-  const listing = gitStream(root, ["ls-tree", "-rtz", ref, "--", pipelineRel]);
+  // One listing per level: the pipeline folder, then the children of each directory leading to state.
   const entries = [];
-  let pending = Buffer.alloc(0);
   let reading = pipelineRel;
-  try {
-    for await (const chunk of listing.child.stdout) {
-      pending = Buffer.concat([pending, chunk]);
-      let end;
-      while ((end = pending.indexOf(0)) !== -1) {
-        const line = pending.subarray(0, end).toString("utf8");
-        const tab = line.indexOf("\t");
-        const path = line.slice(tab + 1);
-        reading = path || pipelineRel;
-        const metadata = line.slice(0, tab).match(/^(040000|100644|100755|120000|160000) (tree|blob|commit) ([0-9a-f]{40}|[0-9a-f]{64})(?![\s\S])/);
-        if (tab === -1 || !metadata || !path) throw new Error("invalid ls-tree entry");
-        const [, mode, type, oid] = metadata;
-        if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
-        const scoped = path === pipelineRel || path.startsWith(`${pipelineRel}/`);
-        if (!scoped && !(type === "tree" && pipelineRel.startsWith(`${path}/`))) throw new Error("ls-tree entry outside the pipeline");
-        if (scoped) entries.push({ type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) });
-        pending = pending.subarray(end + 1);
+  const list = async (pathspecs) => {
+    const listing = gitStream(root, ["ls-tree", "-z", ref, "--", ...pathspecs]);
+    const listed = [];
+    let pending = Buffer.alloc(0);
+    try {
+      for await (const chunk of listing.child.stdout) {
+        pending = Buffer.concat([pending, chunk]);
+        let end;
+        while ((end = pending.indexOf(0)) !== -1) {
+          const line = pending.subarray(0, end).toString("utf8");
+          const tab = line.indexOf("\t");
+          const path = line.slice(tab + 1);
+          reading = path || pipelineRel;
+          const metadata = line.slice(0, tab).match(/^(040000|100644|100755|120000|160000) (tree|blob|commit) ([0-9a-f]{40}|[0-9a-f]{64})(?![\s\S])/);
+          if (tab === -1 || !metadata || !path) throw new Error("invalid ls-tree entry");
+          const [, mode, type, oid] = metadata;
+          if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
+          if (path !== pipelineRel && !path.startsWith(`${pipelineRel}/`)) throw new Error("ls-tree entry outside the pipeline");
+          listed.push({ type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) });
+          pending = pending.subarray(end + 1);
+        }
       }
+      const failure = await listing.finished;
+      if (failure) throw failure;
+      if (pending.length) throw new Error("truncated ls-tree entry");
+    } catch (error) {
+      listing.child.kill();
+      await listing.finished;
+      throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
     }
-    const failure = await listing.finished;
-    if (failure) throw failure;
-    if (pending.length) throw new Error("truncated ls-tree entry");
-  } catch (error) {
-    listing.child.kill();
-    await listing.finished;
-    throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
+    return listed.filter((entry) => inState(entry.rel));
+  };
+  let level = await list([pipelineRel]);
+  while (level.length) {
+    entries.push(...level);
+    const folders = level.filter((entry) => entry.type === "tree" && leadsToState(entry.rel));
+    level = folders.length ? await list(folders.map((entry) => `${entry.rel ? `${pipelineRel}/${entry.rel}` : pipelineRel}/`)) : [];
   }
   const contents = new Map();
   const reader = indexedTreeReader(entries, ({ rel }) => contents.get(rel), `${ref}:${pipelineRel}`);
-  const regular = entries.filter((e) => e.type === "blob");
+  const regular = entries.filter((e) => e.type === "blob" && pipelineFileRole(e.rel));
   // Object ids keep tabs and newlines in paths out of the line-oriented batch protocol.
   const batch = gitStream(root, ["cat-file", "--batch"], regular.map((e) => `${e.oid}\n`).join(""));
   const stream = batch.child.stdout[Symbol.asyncIterator]();
@@ -1352,7 +1407,7 @@ async function cmdCheck(args) {
   const reviewLanesOf = (prefix) => reviewLanesFor(configuration, prefix);
   const productionLanesOf = (prefix) => decl[prefix]?.production ?? [];
 
-  // Documents, each in its scope: the root ("") or a production lane ("<phase>/<id>/").
+  // Documents, each in its scope: the root ("") or a production lane ("<phase>/lanes/<id>/").
   // A file whose recorded fields differ from its body's projection contradicts the tree.
   const texts = new Map();
   const listIn = (dir) => tree.list().filter((rel) => rel.startsWith(`${dir}/`) && !rel.slice(dir.length + 1).includes("/")).map((rel) => basename(rel));
@@ -1390,7 +1445,7 @@ async function cmdCheck(args) {
   const reviewsOf = (sc) => allReviewsOf(sc).filter(declaredReview);
   // Lane scopes are the declared production lanes; a folder the declaration lacks is a defect, never a lane.
   const scopes = ["", ...new Set(all.filter((doc) => doc.role.productionLane).map((doc) => doc.scope))];
-  const declaredScopes = new Set(ARTIFACTS.flatMap((a) => productionLanesOf(a.prefix).map((l) => `${a.phase}/${l.id}/`)));
+  const declaredScopes = new Set(ARTIFACTS.flatMap((a) => productionLanesOf(a.prefix).map((l) => laneScope(a.phase, l.id))));
   const undeclared = [
     ...scopes.filter((sc) => sc && !declaredScopes.has(sc)),
     ...scopes.flatMap((sc) => allReviewsOf(sc).filter((r) => !declaredReview(r)).map((r) => r.rel)),
@@ -1399,7 +1454,7 @@ async function cmdCheck(args) {
   // Task files and their latest reports.
   const taskFiles = all
     .filter((d) => d.rel.split("/")[1] === "tasks" && d.rel.split("/").length === 3 && planOf(d.rel.split("/")[0]) && taskFile(planOf(d.rel.split("/")[0])).test(d.name))
-    .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends") ?? []) }));
+    .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends-on") ?? []) }));
   const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
   const reports = new Map();
   const reportFilesOf = (phase) => all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
@@ -1490,7 +1545,7 @@ async function cmdCheck(args) {
   // A review landed without its pins is stamped; one stamped without a verdict is invalid.
   const unstampedReview = (lanes) => {
     const l = lanes.find((l) => l.verdict === "unstamped" || l.verdict === "invalid");
-    return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no Verdict line`);
+    return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no verdict line`);
   };
 
   // Waves since every declared lane approved together — a counter for the owner, never a gate.
@@ -1502,7 +1557,7 @@ async function cmdCheck(args) {
     const lastApproved = Math.max(0, ...waves.filter(approvedAll));
     const start = lastApproved;
     const episode = Math.max(0, last - start);
-    const recurs = rs.filter((r) => r.wave > start).flatMap((r) => [].concat(r.data.get("recurs") ?? []));
+    const recurs = rs.filter((r) => r.wave > start).flatMap((r) => [].concat(r.data.get("prior-finding") ?? []));
     return { episode, recurs, last };
   };
 
@@ -1733,14 +1788,14 @@ async function cmdCheck(args) {
     const name = art.path.split("/")[1];
     const rootExists = texts.has(art.path);
     const declaredLanes = productionLanesOf(art.prefix);
-    const laneScopes = declaredLanes.map((l) => `${art.phase}/${l.id}/`).sort();
-    const laneOf = (sc) => declaredLanes.find((l) => l.id === sc.split("/")[1]);
+    const laneScopes = declaredLanes.map((l) => laneScope(art.phase, l.id)).sort();
+    const laneOf = (sc) => declaredLanes.find((l) => laneScope(art.phase, l.id) === sc);
     const closedPackage = (sc) => closedLanePackage(art.prefix, sc);
     const lanePackage = (sc) => lanePackageOf(art, sc).package;
     const laneApproved = (sc) => {
       if (closedPackage(sc)) return true;
       const lane = laneOf(sc);
-      if (lane.after.some((dep) => !laneApproved(`${art.phase}/${dep}/`))) return false;
+      if (lane.after.some((dep) => !laneApproved(laneScope(art.phase, dep)))) return false;
       const doc = all.find((d) => d.rel === `${sc}${name}`);
       return !!doc && (() => {
         const st = artifactState(doc, art, sc, lane.fingerprint);
@@ -1750,7 +1805,7 @@ async function cmdCheck(args) {
     let lanesReady = laneScopes.length > 0;
     for (const sc of laneScopes) {
       const { after, fingerprint } = laneOf(sc);
-      const waiting = after.filter((dep) => !laneApproved(`${art.phase}/${dep}/`));
+      const waiting = after.filter((dep) => !laneApproved(laneScope(art.phase, dep)));
       const doc = all.find((d) => d.rel === `${sc}${name}`);
       const st = doc ? artifactState(doc, art, sc, fingerprint) : { state: "missing", stale: [], lanes: [], approved: false, episode: 0, recurs: [] };
       const closed = !!closedPackage(sc);
@@ -1812,7 +1867,7 @@ async function cmdCheck(args) {
     const open = phaseReports.filter((t) => !isDone(t.id)).map((t) => `${t.id}:${t.outcome}${t.outcome === "completed" ? " (stale)" : ""}`);
     // Every attempt is a report: landed without its pins it is stamped; stamped without an outcome it is invalid.
     const reportDocs = all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${art.phase}/`));
-    const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no Outcome line` : null)).find(Boolean);
+    const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no outcome line` : null)).find(Boolean);
     const cyclic = (() => {
       const byId = new Map(planTasks.map((t) => [t.id, t]));
       const seen = new Set();
@@ -1883,7 +1938,7 @@ async function cmdDiff(args) {
   if (!args.review) return process.stdout.write(codeDiff(root, base, tip, pipelinesRoot));
   const path = relative(abs, containedPath("diff", root, resolve(root, args.review)));
   const role = pipelineFileRole(path);
-  if (path.startsWith("../") || role.scope || !role.review || role.review.prefix !== role.art.review || tree.read(path) === null) die(`diff: not a phase review of this pipeline: ${args.review}`);
+  if (path.startsWith("../") || !role || role.scope || !role.review || role.review.prefix !== role.art.review || tree.read(path) === null) die(`diff: not a phase review of this pipeline: ${args.review}`);
   const reports = tree.list().filter((rel) => reportOf(rel)).map((rel) => {
     const parsed = parseFrontmatter(tree.read(rel));
     if (parsed.error) die(`diff: INVALID FRONTMATTER ${rel}: ${parsed.error}`);
@@ -1935,9 +1990,9 @@ Usage:
   node rp.mjs diff <pipeline-folder> [--ref <branch>] [--review <phase review>]
 
 stamp writes frontmatter: pins, review pins (immutable), the lane derived from
-the path and run-config.md, --mirror copies of body declarations (Verdict, Brief, Target,
-Origin, Outcome — completed | failed | blocked — Prior finding, a task's
-Depends on, a report's Commits), a report's patch ids, and head — the diff base
+the path and run-config.md, --mirror copies of body declarations (verdict, brief, target,
+origin, outcome — completed | failed | blocked — prior-finding, a task's
+depends-on, a report's commit lines), a report's patch ids, and head — the diff base
 for artifact reviews and convergence. Identity is the first 12 hexadecimal characters of
 git's blob hash of every body byte: stamping never
 changes it. check reports the frontier: contradictions, owner escalations,
