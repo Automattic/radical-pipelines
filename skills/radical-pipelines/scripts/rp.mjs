@@ -1191,19 +1191,19 @@ function pinParts(entry) {
   return at === -1 ? null : { path: entry.slice(0, at), sha: entry.slice(at + 1) };
 }
 
-// A folder that leads to a state folder is traversed.
-const traversed = (rel, type) => type === "tree" && stateFolder(rel ? rel.split("/") : [], false);
-// Whether a tree entry lies within pipeline state: a traversed folder, or anything at a state file's
-// path — a document there that is not a regular file is unreadable state.
-const withinState = (rel, type) => traversed(rel, type) || (Boolean(pipelineFileRole(rel)) && (type !== "tree" || rel.endsWith(".md")));
+// A folder that is or leads to a state folder, by its path.
+const leadsToState = (rel) => stateFolder(rel ? rel.split("/") : [], false);
+// Whether a path belongs to pipeline state, whatever its entry's type: a folder that is or leads to a
+// state folder, or a file in a state folder. Only such a folder is traversed when it is a directory.
+const inState = (rel) => leadsToState(rel) || Boolean(pipelineFileRole(rel));
 
 // Pipeline state holds files and folders only: a symlink is never followed, it is reported.
 function walk(dir, rel = "", out = []) {
+  if (!inState(rel)) return out;
   const st = lstatSync(dir);
   const type = st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "tree" : st.isFile() ? "blob" : "other";
-  if (!withinState(rel, type)) return out;
   out.push({ rel, type });
-  if (traversed(rel, type)) for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
+  if (type === "tree" && leadsToState(rel)) for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
   return out;
 }
 
@@ -1216,7 +1216,7 @@ function indexedTreeReader(entries, load, context) {
     if (!["tree", "blob", "symlink"].includes(entry.type)) throw fail(entry.rel, `not a regular blob or directory: ${entry.type}`);
   const contents = new Map(), texts = new Map();
   return {
-    list: () => entries.filter((e) => e.type !== "symlink" && e.rel.endsWith(".md")).map((e) => e.rel),
+    list: () => entries.filter((e) => e.type !== "symlink" && e.rel.endsWith(".md") && pipelineFileRole(e.rel)).map((e) => e.rel),
     symlinks: () => entries.filter((e) => e.type === "symlink").map((e) => e.rel),
     read: (rel, bytes = false) => {
       const entry = members.get(rel);
@@ -1265,37 +1265,46 @@ async function treeReader(root, abs, ref) {
       return readFileSync(path);
     }, `worktree:${pipelineRel}`);
   }
-  const listing = gitStream(root, ["ls-tree", "-rtz", ref, "--", pipelineRel]);
+  // One listing per level: the pipeline folder, then the children of each directory leading to state.
   const entries = [];
-  let pending = Buffer.alloc(0);
   let reading = pipelineRel;
-  try {
-    for await (const chunk of listing.child.stdout) {
-      pending = Buffer.concat([pending, chunk]);
-      let end;
-      while ((end = pending.indexOf(0)) !== -1) {
-        const line = pending.subarray(0, end).toString("utf8");
-        const tab = line.indexOf("\t");
-        const path = line.slice(tab + 1);
-        reading = path || pipelineRel;
-        const metadata = line.slice(0, tab).match(/^(040000|100644|100755|120000|160000) (tree|blob|commit) ([0-9a-f]{40}|[0-9a-f]{64})(?![\s\S])/);
-        if (tab === -1 || !metadata || !path) throw new Error("invalid ls-tree entry");
-        const [, mode, type, oid] = metadata;
-        if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
-        const scoped = path === pipelineRel || path.startsWith(`${pipelineRel}/`);
-        if (!scoped && !(type === "tree" && pipelineRel.startsWith(`${path}/`))) throw new Error("ls-tree entry outside the pipeline");
-        const entry = { type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) };
-        if (scoped && withinState(entry.rel, entry.type)) entries.push(entry);
-        pending = pending.subarray(end + 1);
+  const list = async (pathspecs) => {
+    const listing = gitStream(root, ["ls-tree", "-z", ref, "--", ...pathspecs]);
+    const listed = [];
+    let pending = Buffer.alloc(0);
+    try {
+      for await (const chunk of listing.child.stdout) {
+        pending = Buffer.concat([pending, chunk]);
+        let end;
+        while ((end = pending.indexOf(0)) !== -1) {
+          const line = pending.subarray(0, end).toString("utf8");
+          const tab = line.indexOf("\t");
+          const path = line.slice(tab + 1);
+          reading = path || pipelineRel;
+          const metadata = line.slice(0, tab).match(/^(040000|100644|100755|120000|160000) (tree|blob|commit) ([0-9a-f]{40}|[0-9a-f]{64})(?![\s\S])/);
+          if (tab === -1 || !metadata || !path) throw new Error("invalid ls-tree entry");
+          const [, mode, type, oid] = metadata;
+          if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
+          if (path !== pipelineRel && !path.startsWith(`${pipelineRel}/`)) throw new Error("ls-tree entry outside the pipeline");
+          listed.push({ type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) });
+          pending = pending.subarray(end + 1);
+        }
       }
+      const failure = await listing.finished;
+      if (failure) throw failure;
+      if (pending.length) throw new Error("truncated ls-tree entry");
+    } catch (error) {
+      listing.child.kill();
+      await listing.finished;
+      throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
     }
-    const failure = await listing.finished;
-    if (failure) throw failure;
-    if (pending.length) throw new Error("truncated ls-tree entry");
-  } catch (error) {
-    listing.child.kill();
-    await listing.finished;
-    throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
+    return listed.filter((entry) => inState(entry.rel));
+  };
+  let level = await list([pipelineRel]);
+  while (level.length) {
+    entries.push(...level);
+    const folders = level.filter((entry) => entry.type === "tree" && leadsToState(entry.rel));
+    level = folders.length ? await list(folders.map((entry) => `${entry.rel ? `${pipelineRel}/${entry.rel}` : pipelineRel}/`)) : [];
   }
   const contents = new Map();
   const reader = indexedTreeReader(entries, ({ rel }) => contents.get(rel), `${ref}:${pipelineRel}`);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
@@ -3390,6 +3390,47 @@ process.stdout.write(output);
       for (const folder of [join(root, P("1-spec/lanes/a")), ...folders]) chmodSync(folder, 0o755);
     }
   });
+
+  test("pipeline state: an unreadable ignored tree is never read from a ref; an unreadable state tree stops the check", () => {
+    recordedSpecWithLane();
+    write(root, "1-spec/support/notes.md", "# Support only\n");
+    write(root, "1-spec/lanes/a/notes.md", "# Lane only\n");
+    commitAll("ignored and state trees");
+    const before = stateAt("ref");
+    const looseObject = (path) => {
+      const oid = git(root, "rev-parse", `HEAD:${P(path)}`).trim();
+      return join(root, ".git", "objects", oid.slice(0, 2), oid.slice(2));
+    };
+    rmSync(looseObject("1-spec/support"));
+    assert.deepEqual(stateAt("ref"), before);
+    rmSync(looseObject("1-spec/lanes/a"));
+    assert.throws(() => check(root, "--json", "--ref", "HEAD"), /cannot read [0-9a-f]+:.*1-spec\/lanes/);
+  });
+
+  // A path is state by its position, whatever entry occupies it: a directory there holds state, a file
+  // holds none, and a symlink is a defect — in both readers.
+  for (const reader of ["worktree", "ref"])
+    for (const [path, child] of [["1-spec", "notes.md"], ["3-build/tasks", "notes.md"], ["1-spec/lanes", "a/notes.md"], ["1-spec/lanes/a", "notes.md"]])
+      test(`pipeline state: the entry at the state folder ${path} read from the ${reader}`, () => {
+        recordedSpecWithLane();
+        const at = join(root, P(path));
+        write(root, `${path}/${child}`, CONTENTS.valid);
+        commitAll("directory");
+        assert.match(stateAt(reader).frontier, new RegExp(`^(stamp|INVALID [A-Z]+) ${path}/${child}$`.replaceAll(".", "\\.")));
+        rmSync(at, { recursive: true });
+        commitAll("absent");
+        const absent = stateAt(reader);
+        writeFileSync(at, "not a folder\n");
+        commitAll("file");
+        assert.deepEqual(stateAt(reader), absent);
+        rmSync(at);
+        mkdirSync(join(root, "elsewhere"), { recursive: true });
+        symlinkSync(join(root, "elsewhere"), at);
+        commitAll("symlink");
+        const linked = stateAt(reader);
+        assert.equal(linked.frontier, `symlink ${path}`);
+        assert.deepEqual(linked.contradictions, [{ path, symlink: true }]);
+      });
 
   // --- moving production lanes under lanes/ ---------------------------------------
   // A pipeline recorded with each production lane at `<phase>/<lane>/` migrates by relocating the lane
