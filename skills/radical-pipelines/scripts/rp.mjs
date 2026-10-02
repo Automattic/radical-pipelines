@@ -103,6 +103,7 @@ function lanePackagesError(value) {
     if (!Array.isArray(entry) || entry.length !== 3 || typeof entry[0] !== "string" || !entry[0])
       return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
     const [artifact, binding, reference] = entry;
+    if (!pipelineFileRole(artifact)?.productionArtifact) return `lane-packages artifact path must name a production lane artifact: ${artifact}`;
     if (artifacts.has(artifact)) return `lane-packages has duplicate artifact path: ${artifact}`;
     if (!pinPackage(binding)) return `lane-packages consumed lane pins for ${artifact} must be a non-empty pin package`;
     if (!pinPackage(reference)) return `lane-packages reference pins for ${artifact} must be a non-empty pin package`;

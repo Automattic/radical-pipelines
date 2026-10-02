@@ -571,7 +571,7 @@ process.stdout.write(output);
       ['---\n{"pins":[1]}\n---\n# Spec\n', /pins must be a list of strings/],
       ['---\n{"head":[]}\n---\n# Spec\n', /head must be a string/],
       ['---\n{"origin":[]}\n---\n# Spec\n', /origin must be a string or non-empty list of strings/],
-      ['---\n{"lane-packages":[["artifact",[],"pins"]]}\n---\n# Spec\n', /consumed lane pins/],
+      ['---\n{"lane-packages":[["1-spec/lanes/a/spec.md",[],"pins"]]}\n---\n# Spec\n', /consumed lane pins/],
     ];
     for (const [text, reason] of cases) {
       write(root, "1-spec/spec.md", text);
@@ -647,6 +647,10 @@ process.stdout.write(output);
       ["nested reference value", [[artifact, pins, [["bad"]]]], /reference pins/],
       ["duplicate artifact", [valid, valid], /duplicate artifact path/],
       ["one invalid entry", [valid, ["1-spec/lanes/b/spec.md", ["bad"], pins]], /consumed lane pins/],
+      ["supporting-folder artifact", [["1-spec/spec/evidence.md", pins, pins]], /must name a production lane artifact/],
+      ["root artifact", [["1-spec/spec.md", pins, pins]], /must name a production lane artifact/],
+      ["supporting-folder consumed pin", [[artifact, ["1-spec/spec/evidence.md@111111111111"], pins]], /consumed lane pins/],
+      ["supporting-folder reference pin", [[artifact, pins, ["1-spec/spec/evidence.md@111111111111"]]], /reference pins/],
     ];
     for (const [name, lanePackages, error] of cases) {
       registered("1-spec/spec.md", { "lane-packages": lanePackages }, "# Spec\n");
