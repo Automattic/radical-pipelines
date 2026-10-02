@@ -240,22 +240,22 @@ describe("rp challenges and claims", () => {
     test(`root ${kind} reaches every open production lane once before consolidation`, () => {
       configure({ targetPhase: 1, lanes: [standard.a, standard.b] });
       const rootArtifact = "1-spec/spec.md", intent = "0-intent/intent.md";
-      const sourceClaim = "1-spec/a/spec-review-1.md";
+      const sourceClaim = "1-spec/lanes/a/spec-review-1.md";
       for (const id of ["a", "b"]) {
-        const artifact = `1-spec/${id}/spec.md`, record = `1-spec/${id}/spec-research.md`;
+        const artifact = `1-spec/lanes/${id}/spec.md`, record = `1-spec/lanes/${id}/spec-research.md`;
         registered(artifact, { pins: pairs([intent]), lane: FPS[id] }, "# Spec\nspec-requirement-1: Outcome.\n");
         write(root, record, "# Research\n");
         const verdict = id === "a" && kind === "constraint" ? "unsatisfiable" : "approved";
-        registered(`1-spec/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))] } : {}) }, `# Review\nverdict: ${verdict}\n${verdict === "unsatisfiable" ? `target: ${intent}#intent-goal\n` : ""}`);
+        registered(`1-spec/lanes/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))] } : {}) }, `# Review\nverdict: ${verdict}\n${verdict === "unsatisfiable" ? `target: ${intent}#intent-goal\n` : ""}`);
       }
       const input = ownerInput(kind, 1, [rootArtifact], kind === "constraint" ? sourceClaim : "issue 9");
       for (const id of ["a", "b"]) {
         const state = JSON.parse(check(root, "--json"));
-        const artifact = `1-spec/${id}/spec.md`, record = `1-spec/${id}/spec-research.md`;
+        const artifact = `1-spec/lanes/${id}/spec.md`, record = `1-spec/lanes/${id}/spec-research.md`;
         assert.equal(state.frontier, `converge ${artifact}`);
         assert.deepEqual(state.lanes.find((lane) => lane.artifact === artifact).materials.challenges, [input]);
         registered(artifact, { pins: pairs([intent, input]), lane: FPS[id] });
-        registeredVerdict(`1-spec/${id}/spec-review-2.md`, pairs([artifact, record, intent, input]));
+        registeredVerdict(`1-spec/lanes/${id}/spec-review-2.md`, pairs([artifact, record, intent, input]));
       }
       assert.equal(JSON.parse(check(root, "--json")).frontier, `consolidate ${rootArtifact}`);
     });
@@ -282,7 +282,7 @@ describe("rp challenges and claims", () => {
           const artifact = chain.artifacts[targetIndex];
           let lanes = [];
           if (targetIndex === 0) {
-            const lane = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md", review = "1-spec/a/spec-review-1.md";
+            const lane = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md", review = "1-spec/lanes/a/spec-review-1.md";
             registered(lane, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a }, "# Candidate\nspec-requirement-1: Clause.\n");
             write(root, record, "# Record\n");
             registeredVerdict(review, pairs([lane, record, "0-intent/intent.md"]));
@@ -298,14 +298,14 @@ describe("rp challenges and claims", () => {
             ...(kind !== "claim" ? { origin: "issue 9" } : { "target-identity": [identity(read(root, artifact))], verdict: "unsatisfiable", reviewed: pairs(targetIndex === 3 ? chain.phasePackages[sourceIndex] : chain.packages[sourceIndex]) }),
           }, `# Challenge\n${kind !== "claim" ? "origin: issue 9" : "verdict: unsatisfiable"}\ntarget: ${target}\n`);
           if (currency === "stale input") appendFileSync(join(root, P(targetIndex === 0 ? "0-intent/intent.md" : chain.context)), "\nChanged evidence.\n");
-          if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 0 ? "1-spec/a/spec-review-1.md" : targetIndex === 3 ? "3-build/build-review-1.md" : chain.reviews[targetIndex - 1])));
+          if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 0 ? "1-spec/lanes/a/spec-review-1.md" : targetIndex === 3 ? "3-build/build-review-1.md" : chain.reviews[targetIndex - 1])));
           configure({ lanes });
           const state = JSON.parse(check(root, "--json"));
           assert.deepEqual(state.contradictions, []);
           const expected = currency === "current" ? `converge ${artifact}`
             : currency === "stale input" ? `converge ${chain.artifacts[Math.max(0, targetIndex - 1)]}`
-            : targetIndex === 0 && kind !== "claim" ? "converge 1-spec/a/spec.md"
-            : ["review wave 1-spec/a/spec.md", "review wave 1-spec/spec.md", "review wave 2-design-doc/design-doc.md", "build review"][targetIndex];
+            : targetIndex === 0 && kind !== "claim" ? "converge 1-spec/lanes/a/spec.md"
+            : ["review wave 1-spec/lanes/a/spec.md", "review wave 1-spec/spec.md", "review wave 2-design-doc/design-doc.md", "build review"][targetIndex];
           assert.equal(state.frontier, expected);
           const reported = kind !== "claim" ? state.challenges[0] : state.claims[0];
           assert.equal(reported.target, target);

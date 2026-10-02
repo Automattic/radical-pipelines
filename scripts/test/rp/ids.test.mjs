@@ -228,6 +228,12 @@ describe("rp id declarations and history", () => {
     write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("prior-finding"), ["1-spec/spec-review-1.md#spec-finding-1"]);
+    configure({ lanes: [standard.a] });
+    write(root, "1-spec/lanes/a/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: Gap\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec-review-1.md"), "--mirror");
+    write(root, "1-spec/lanes/a/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/lanes/a/spec-review-1.md#spec-finding-1, resolution failed\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec-review-2.md"), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/lanes/a/spec-review-2.md")).data.get("prior-finding"), ["1-spec/lanes/a/spec-review-1.md#spec-finding-1"]);
   });
 
   test("a review's wave is a canonical positive number", () => {
@@ -291,11 +297,11 @@ describe("rp id declarations and history", () => {
 
   test("a lane artifact declares ids like its root", () => {
     configure({ lanes: [standard.a] });
-    write(root, "1-spec/a/spec.md", "# Spec\n\nspec-requirement-2: Second only.\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror"), /INVALID IDS 1-spec\/a\/spec\.md: spec-requirement-1 is missing/);
-    write(root, "1-spec/a/spec.md", "# Spec\n\nspec-requirement-1: First.\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror");
-    assert.deepEqual(parseFrontmatter(read(root, "1-spec/a/spec.md")).data.get("ids"), ["spec-requirement-1"]);
+    write(root, "1-spec/lanes/a/spec.md", "# Spec\n\nspec-requirement-2: Second only.\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--mirror"), /INVALID IDS 1-spec\/lanes\/a\/spec\.md: spec-requirement-1 is missing/);
+    write(root, "1-spec/lanes/a/spec.md", "# Spec\n\nspec-requirement-1: First.\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/lanes/a/spec.md")).data.get("ids"), ["spec-requirement-1"]);
   });
 
   for (const kind of ["constraint", "context", "proposal"])

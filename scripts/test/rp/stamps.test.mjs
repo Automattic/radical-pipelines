@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { appendFileSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { identity, parseFrontmatter, renderFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
-import { PIPELINE, git, P, write, read, rp, root, lane, configure, check, SPEC, checkWithoutBase, pairs, registered, stampSpec, approveSpec, useFixture } from "./fixture.mjs";
+import { PIPELINE, git, P, write, read, rp, root, lane, standard, configure, check, SPEC, checkWithoutBase, pairs, registered, registeredVerdict, stampSpec, approveSpec, useFixture } from "./fixture.mjs";
 
 describe("rp identity and stamps", () => {
   useFixture();
@@ -124,7 +124,7 @@ describe("rp identity and stamps", () => {
       ['---\n{"pins":[1]}\n---\n# Spec\n', /pins must be a list of strings/],
       ['---\n{"head":[]}\n---\n# Spec\n', /head must be a string/],
       ['---\n{"origin":[]}\n---\n# Spec\n', /origin must be a string or non-empty list of strings/],
-      ['---\n{"lane-packages":[["artifact",[],"pins"]]}\n---\n# Spec\n', /consumed lane pins/],
+      ['---\n{"lane-packages":[["1-spec/lanes/a/spec.md",[],"pins"]]}\n---\n# Spec\n', /consumed lane pins/],
     ];
     for (const [text, reason] of cases) {
       write(root, "1-spec/spec.md", text);
@@ -188,7 +188,7 @@ describe("rp identity and stamps", () => {
   });
 
   test("invalid lane packages are frontmatter errors", () => {
-    const artifact = "1-spec/a/spec.md";
+    const artifact = "1-spec/lanes/a/spec.md";
     const pins = ["0-intent/intent.md@111111111111"];
     const valid = [artifact, pins, pins];
     const cases = [
@@ -199,7 +199,11 @@ describe("rp identity and stamps", () => {
       ["nested consumed value", [[artifact, [["bad"]], pins]], /consumed lane pins/],
       ["nested reference value", [[artifact, pins, [["bad"]]]], /reference pins/],
       ["duplicate artifact", [valid, valid], /duplicate artifact path/],
-      ["one invalid entry", [valid, ["1-spec/b/spec.md", ["bad"], pins]], /consumed lane pins/],
+      ["one invalid entry", [valid, ["1-spec/lanes/b/spec.md", ["bad"], pins]], /consumed lane pins/],
+      ["supporting-folder artifact", [["1-spec/spec/evidence.md", pins, pins]], /must name a production lane artifact/],
+      ["root artifact", [["1-spec/spec.md", pins, pins]], /must name a production lane artifact/],
+      ["supporting-folder consumed pin", [[artifact, ["1-spec/spec/evidence.md@111111111111"], pins]], /consumed lane pins/],
+      ["supporting-folder reference pin", [[artifact, pins, ["1-spec/spec/evidence.md@111111111111"]]], /reference pins/],
     ];
     for (const [name, lanePackages, error] of cases) {
       registered("1-spec/spec.md", { "lane-packages": lanePackages }, "# Spec\n");
@@ -266,5 +270,27 @@ describe("rp identity and stamps", () => {
     configure({ targetPhase: 1 });
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+FRESH/);
     assert.match(check(root, "--ref", "HEAD"), /artifact 1-spec\/spec\.md\s+FRESH/);
+  });
+
+  test("pipeline state: every package member is state, recorded or stamped", () => {
+    configure({ targetPhase: 1, lanes: [standard.a] });
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+    write(root, "1-spec/spec/evidence.md", "# Evidence\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec/evidence.md")), /not pipeline state: 1-spec\/spec\/evidence\.md/);
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: approved\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), ...[...SPEC, "1-spec/spec/evidence.md"].flatMap((path) => ["--reviewed", P(path)]), "--mirror"), /not pipeline state: 1-spec\/spec\/evidence\.md/);
+    rmSync(join(root, P("1-spec/spec-review-2.md")));
+    const outside = `1-spec/spec/evidence.md@${identity(read(root, "1-spec/spec/evidence.md"))}`;
+    for (const [file, fields] of [
+      ["1-spec/spec.md", { pins: [...pairs(["0-intent/intent.md"]), outside] }],
+      ["1-spec/spec-review-1.md", { reviewed: [...pairs(SPEC), outside], verdict: "approved" }],
+      ["1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]), "lane-packages": [["1-spec/lanes/a/spec.md", [outside], [outside]]] }],
+    ]) {
+      const original = read(root, file);
+      registered(file, fields);
+      assert.equal(JSON.parse(check(root, "--json")).frontier, `INVALID FRONTMATTER ${file}`, Object.keys(fields).join(", "));
+      write(root, file, original);
+    }
   });
 });

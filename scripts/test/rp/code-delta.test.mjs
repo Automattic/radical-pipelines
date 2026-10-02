@@ -466,7 +466,7 @@ describe("rp code delta", () => {
     const body = "# Body\n\nExact bytes.\r\n";
     const data = new Map([
       ["pins", ["a,b", "c: d"]],
-      ["lane-packages", [["1-spec/a/spec.md", ["a@111111111111"], ["b@222222222222"]]]],
+      ["lane-packages", [["1-spec/lanes/a/spec.md", ["a@111111111111"], ["b@222222222222"]]]],
       ["brief", "Check: all [paths] # deeply"],
       ["depends", []],
     ]);
