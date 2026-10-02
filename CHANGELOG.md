@@ -1,5 +1,11 @@
 # @automattic/radical-pipelines
 
+## 0.18.1
+
+### Patch Changes
+
+- [#336](https://github.com/Automattic/radical-pipelines/pull/336) [`db78928`](https://github.com/Automattic/radical-pipelines/commit/db78928a62b8c640b505679892f13042d76e9fbc) Thanks [@luisherranz](https://github.com/luisherranz)! - Draw one ownership line for inline API documentation across the build and document profiles: it is shipped code, written with the change to its symbol in the build phase, and every profile names it by that one term. Build plans no longer read it as a forbidden documentation task. Document plans, plan reviews, and document reviews treat it as shipped code, so a missing or false one targets the build task that changed its symbol instead of becoming a document task the worker must refuse.
+
 ## 0.18.0
 
 ### Minor Changes
