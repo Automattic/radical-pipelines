@@ -147,7 +147,7 @@ function readPipelineFile(abs) {
 
 const IDENTITY = /^[0-9a-f]{12}$/;
 const PATCH_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const artifactFiles = (paths) => paths.filter((path) => path !== "run-config.md" && pipelineFileRole(path));
+const artifactFiles = (paths) => paths.filter((path) => path !== "run-config.md");
 
 // Git reads its input from a file: a synchronous child can stall reading piped input to its end.
 function gitBytes(root, args, input) {
@@ -264,25 +264,37 @@ const laneProfile = (prefix, kind) => [...LANE_PROFILES].find(([, value]) => val
 
 const laneScope = (phase, id) => `${phase}/lanes/${id}/`;
 
-// One path classifier supplies state, scopes, review identity, and lane-bearing files. Pipeline state
-// lies at the pipeline folder's root, at a phase folder's root, in its `tasks/`, and in each
-// `lanes/<lane>/`; every other path is not state (null).
+// The folders holding pipeline state: the pipeline folder, each phase folder, its `tasks/`, and each
+// `lanes/<lane>/`. A segment pattern is a set of names, a literal name, or any name (null).
+const PHASES = ["0-intent", ...ARTIFACTS.map((art) => art.phase)];
+const STATE_FOLDERS = [[], [PHASES], [PHASES, "tasks"], [PHASES, "lanes", null]];
+const segmentMatches = (pattern, segment) => Array.isArray(pattern) ? pattern.includes(segment) : pattern === null || pattern === segment;
+// Whether a folder, by its segments, holds state (`exact`) or leads to a folder that does.
+function stateFolder(segments, exact = true) {
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return false;
+  return STATE_FOLDERS.some((pattern) => (exact ? pattern.length === segments.length : pattern.length >= segments.length) &&
+    segments.every((segment, index) => segmentMatches(pattern[index], segment)));
+}
+
+// One path classifier supplies state, scopes, review identity, and lane-bearing files: a file in a
+// state folder is state; every other path is not (null).
 function pipelineFileRole(rel) {
   const parts = rel.split("/");
+  const name = parts.pop();
+  if (!name || name === "." || name === ".." || !stateFolder(parts)) return null;
+  const laned = parts[1] === "lanes";
   const art = ARTIFACTS.find((candidate) => candidate.phase === parts[0]);
-  const laned = Boolean(art) && parts.length === 4 && parts[1] === "lanes";
-  if (parts.length > 2 && !laned && !(parts.length === 3 && parts[1] === "tasks")) return null;
-  if (!art) return { scope: "" };
+  const productionLane = laned ? { id: parts[2], profile: art ? laneProfile(art.prefix, "production") : null } : null;
+  const scope = laned ? laneScope(parts[0], parts[2]) : "";
+  if (!art) return { scope, productionLane };
   const review = reviewArtifact(rel);
-  const scope = laned ? laneScope(art.phase, parts[2]) : "";
   const placedReview = review && review.art === art && parts[1] !== "tasks" ? review : null;
-  const productionLane = laned ? { id: parts[2], profile: laneProfile(art.prefix, "production") } : null;
   const namedReview = placedReview?.lane ? { id: placedReview.lane, profile: laneProfile(placedReview.prefix, "review") } : null;
   return {
     art,
     scope,
     productionLane,
-    productionArtifact: laned && parts[3] === basename(art.path),
+    productionArtifact: laned && name === basename(art.path),
     review: placedReview,
     namedReview,
   };
@@ -894,9 +906,9 @@ export function projectBody(body, rel = "") {
   singleton("outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
   const priors = [];
   for (const value of fixed("prior-finding")) {
-    const match = value.match(new RegExp(String.raw`^(([^/#\s.][^/#\s]*(?:/[^/#\s.][^/#\s]*){1,3})#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
-    const cited = match && reviewArtifact(match[2]), citing = reviewArtifact(rel);
-    const prior = cited && match[2].startsWith(`${cited.art.phase}/`) && prefixOf(cited.art.phase) === parseId(match[3]).prefix
+    const match = value.match(new RegExp(String.raw`^(([^#\s]+)#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
+    const cited = match && pipelineFileRole(match[2])?.review, citing = pipelineFileRole(rel)?.review;
+    const prior = cited && prefixOf(cited.art.phase) === parseId(match[3]).prefix
       && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
     if (prior) priors.push(match[1]);
     else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
@@ -1013,7 +1025,7 @@ async function cmdStamp(args) {
     if (!needsConfiguration) return null;
     const config = runConfiguration((path) => readPipelineFile(join(base, path))?.text ?? null, "stamp");
     validateRunConfiguration(config, {
-      list: () => artifactFiles(walk(base).filter((entry) => entry.type === "blob" && entry.rel.endsWith(".md")).map((entry) => entry.rel)),
+      list: () => walk(base).filter((entry) => entry.type === "blob" && entry.rel.endsWith(".md")).map((entry) => entry.rel),
       document: (path) => readAt(path),
       identityOf: (path) => readAt(path)?.identity ?? null,
     }, "stamp");
@@ -1179,12 +1191,19 @@ function pinParts(entry) {
   return at === -1 ? null : { path: entry.slice(0, at), sha: entry.slice(at + 1) };
 }
 
-// The pipeline tree holds files and folders only: a symlink is never followed, it is reported.
+// A folder that leads to a state folder is traversed.
+const traversed = (rel, type) => type === "tree" && stateFolder(rel ? rel.split("/") : [], false);
+// Whether a tree entry lies within pipeline state: a traversed folder, or anything at a state file's
+// path — a document there that is not a regular file is unreadable state.
+const withinState = (rel, type) => traversed(rel, type) || (Boolean(pipelineFileRole(rel)) && (type !== "tree" || rel.endsWith(".md")));
+
+// Pipeline state holds files and folders only: a symlink is never followed, it is reported.
 function walk(dir, rel = "", out = []) {
   const st = lstatSync(dir);
   const type = st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "tree" : st.isFile() ? "blob" : "other";
+  if (!withinState(rel, type)) return out;
   out.push({ rel, type });
-  if (type === "tree") for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
+  if (traversed(rel, type)) for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
   return out;
 }
 
@@ -1265,7 +1284,8 @@ async function treeReader(root, abs, ref) {
         if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
         const scoped = path === pipelineRel || path.startsWith(`${pipelineRel}/`);
         if (!scoped && !(type === "tree" && pipelineRel.startsWith(`${path}/`))) throw new Error("ls-tree entry outside the pipeline");
-        if (scoped) entries.push({ type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) });
+        const entry = { type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) };
+        if (scoped && withinState(entry.rel, entry.type)) entries.push(entry);
         pending = pending.subarray(end + 1);
       }
     }

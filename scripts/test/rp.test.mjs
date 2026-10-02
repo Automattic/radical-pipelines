@@ -3337,29 +3337,59 @@ process.stdout.write(output);
     assert.match(output, /lane\s+1-spec\/spec-review-extra-2\.md\s+UNDECLARED/);
   });
 
-  // Pipeline state lies at a phase folder's root, in its tasks/, and in lanes/<lane>/; every other folder is ignored.
-  const UNREADABLE = "---\nnot JSON\n---\n# Notes\n\nverdict: maybe\nspec-requirement-9: Stray.\n";
-  for (const [label, path, contents, expected] of [
-    ["a declared lane under lanes/", "1-spec/lanes/a/spec.md", "# Candidate a\n", "stamp 1-spec/lanes/a/spec.md"],
-    ["an undeclared lane under lanes/", "1-spec/lanes/rogue/spec.md", "# Rogue\n", "undeclared lane 1-spec/lanes/rogue/"],
-    ["a declared lane's id directly under the phase folder", "1-spec/a/spec.md", UNREADABLE, null],
-    ["a phase-level folder holding Markdown", "1-spec/evidence/spec-review-2.md", UNREADABLE, null],
-    ["a supporting folder beside a review", "1-spec/spec-review-1/spec-review-2.md", UNREADABLE, null],
-    ["a supporting folder beside a report", "3-build/tasks/build-task-1-report-1/build-task-1-report-2.md", UNREADABLE, null],
-    ["a supporting folder inside a lane", "1-spec/lanes/a/spec/spec.md", UNREADABLE, null],
-  ])
-    test(`pipeline state: ${label}`, () => {
-      configure({ targetPhase: 1, lanes: [standard.a] });
-      stampSpec();
-      approveSpec();
-      const before = JSON.parse(check(root, "--json"));
-      assert.equal(before.frontier, "converge 1-spec/lanes/a/spec.md");
-      write(root, path, contents);
-      const after = JSON.parse(check(root, "--json"));
-      if (expected) return assert.equal(after.frontier, expected);
-      assert.deepEqual(after, before);
-      assert.throws(() => rp(root, "stamp", P(path), "--mirror"), /not pipeline state/);
-    });
+  // Pipeline state is the files at the pipeline folder's root, directly in a phase folder, in its tasks/,
+  // and in each lanes/<lane>/. Every other location is ignored by both readers: never read, never stamped.
+  const STATE_LOCATIONS = ["notes.md", "0-intent/notes.md", "1-spec/notes.md", "3-build/tasks/notes.md", "1-spec/lanes/a/notes.md"];
+  const IGNORED_LOCATIONS = [
+    "notes/notes.md", "notes/tasks/notes.md", "0-intent/evidence/notes.md", "1-spec/evidence/notes.md", "1-spec/a/spec.md",
+    "1-spec/lanes/notes.md", "1-spec/spec-review-1/notes.md", "3-build/tasks/build-task-1-report-1/notes.md", "1-spec/lanes/a/spec/notes.md",
+  ];
+  const CONTENTS = { valid: "# Notes\n\nverdict: approved\n", malformed: "---\nnot JSON\n---\n# Notes\n" };
+  function recordedSpecWithLane() {
+    configure({ targetPhase: 1, lanes: [standard.a] });
+    registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+    registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
+    commitAll("recorded state");
+  }
+  const stateAt = (reader) => {
+    const { ref, ...state } = JSON.parse(reader === "ref" ? check(root, "--json", "--ref", "HEAD") : check(root, "--json"));
+    return state;
+  };
+  for (const reader of ["worktree", "ref"])
+    for (const path of [...STATE_LOCATIONS, ...IGNORED_LOCATIONS])
+      test(`pipeline state: ${path} read from the ${reader}`, () => {
+        recordedSpecWithLane();
+        const before = stateAt(reader);
+        for (const [kind, contents] of Object.entries(CONTENTS)) {
+          write(root, path, contents);
+          commitAll(`${kind} ${path}`);
+          const after = stateAt(reader);
+          if (STATE_LOCATIONS.includes(path)) assert.match(after.frontier, new RegExp(`^(stamp|INVALID [A-Z]+) ${path.replaceAll(".", "\\.")}$`), kind);
+          else {
+            assert.deepEqual(after, before, kind);
+            assert.throws(() => rp(root, "stamp", P(path), "--mirror"), /not pipeline state/);
+          }
+        }
+      });
+
+  test("pipeline state: an unreadable ignored folder is never read; unreadable state stops the check", () => {
+    recordedSpecWithLane();
+    const before = stateAt("worktree");
+    const folders = ["notes", "1-spec/evidence", "1-spec/lanes/a/spec"].map((folder) => join(root, P(folder)));
+    for (const folder of folders) {
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(join(folder, "notes.md"), CONTENTS.malformed);
+      chmodSync(folder, 0);
+    }
+    try {
+      assert.deepEqual(stateAt("worktree"), before);
+      chmodSync(folders[2], 0o755);
+      chmodSync(join(root, P("1-spec/lanes/a")), 0);
+      assert.throws(() => check(root, "--json"), /cannot read worktree:.*EACCES/);
+    } finally {
+      for (const folder of [join(root, P("1-spec/lanes/a")), ...folders]) chmodSync(folder, 0o755);
+    }
+  });
 
   test("a claim is pending only while it is its lane's latest verdict; a held claim ends with the wave that approved", () => {
     const reviewer = lane("spec-reviewer", "b");
