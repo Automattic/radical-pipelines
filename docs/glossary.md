@@ -53,6 +53,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Shipped code** — The code, tests, and inline API documentation covered by the build review on the pipeline branch.
 - **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
+- **Supporting folder** — The folder beside what an agent writes, named after it without `.md`, holding the screenshots, logs, transcripts, and helper answers that file cites; it is not pipeline state.
 - **Target** — What a challenge addresses: an artifact clause or constraint file for a claim; its task for a failed report; one or more phase artifacts, whole or by clause, for a constraint or proposal.
 - **Target phase** — The highest phase a run executes before stopping.
 - **Task report** — A per-attempt worker report, `tasks/<task id>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.

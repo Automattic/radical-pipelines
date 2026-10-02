@@ -5,6 +5,7 @@
 - Guardrails: <rules | none>
 - Resources: <resources | none>
 - Execution: <the requester's>
+- Supporting folder: <path>
 
 ## Mode
 
@@ -25,7 +26,3 @@ Help
 ## Files
 
 <paths the requester points at>   <!-- omit when none -->
-
-## Write findings to
-
-<path>   <!-- omit when no findings file was requested -->

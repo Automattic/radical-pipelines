@@ -6,6 +6,7 @@
 - Guardrails: <rules | none>
 - Resources: <resources | none>
 - Execution: full
+- Supporting folder: <path>
 
 ## Brief
 
