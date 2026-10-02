@@ -93,7 +93,7 @@ export async function run(ctx) {
 
   await runCheck(
     results,
-    "the child's stored identity outlives its first turn's automatic title, and a successful turn notifies no one",
+    "the child's stored identity outlives its first turn's automatic title, and a successful turn that sent no message is announced to the spawner",
     async () => {
       await waitForAssistantFinish(server, childID, "stop");
 
@@ -104,12 +104,14 @@ export async function run(ctx) {
         `expected the identity rp_spawn stored at creation, got: ${JSON.stringify(child.metadata)}`,
       );
 
-      // A successful turn is not a completion signal: the spawner must not
-      // have been told the child succeeded.
-      const messages = await getMessages(server, orchestrator.id);
-      assert.ok(
-        !messages.some((m) => m.type === "user" && m.text?.includes(`${childID}) succeeded`)),
-        "a successful turn must not produce a spawner notification",
+      // The child answered in its transcript, not with rp_send: its spawner
+      // is told the turn ended without a message.
+      await pollUntil(
+        async () =>
+          (await getMessages(server, orchestrator.id)).some(
+            (m) => m.type === "user" && m.text === `[rp] suite-child (${childID}) ended a turn without sending a message.`,
+          ),
+        { label: "the unmessaged-turn announcement" },
       );
     },
   );
