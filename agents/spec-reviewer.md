@@ -66,7 +66,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Chains**
 
 - **Coverage** — every intent goal is served and every proposal dispositioned: an adopted desired outcome became a requirement, a verified current-state claim grounds one, a build direction was left to the design phase.
-- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
+- **Declarations** — every requirement and acceptance criterion is declared by its id; one without is a finding.
 - **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding. A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction. The record is subject to the same gate: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
 - **Acceptance criteria** — Given-When-Then, specific enough to write tests from, covering the requirements' edge cases.

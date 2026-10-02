@@ -66,7 +66,7 @@ A prior finding is resolved when every case it named is served, or left as an ac
 **Chains**
 
 - **Coverage** — every requirement and acceptance criterion is served by a decision or component; every spec assumption is closed by inspection or carried with its id.
-- **Declarations** — every item the artifact states is listed in its frontmatter `ids`; one missing is a finding.
+- **Declarations** — every decision is declared by its id; one without is a finding.
 - **Traceability** — each decision names the requirement or acceptance criterion it serves.
 - **Scope** — the design stays within the spec: no features beyond it, no out-of-scope items crept back in.
 - **Soundness** — each decision's mechanism can satisfy the requirements it serves given the codebase as inspected; alternatives are real and their rejection reasoned.

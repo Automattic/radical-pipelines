@@ -615,12 +615,16 @@ const IDS = {
   "3-build/build-plan.md": { prefix: "build", declares: ["assumption", "task"], upstream: "2-design-doc/design-doc.md", carries: ["assumption"] },
   "4-document/document-plan.md": { prefix: "document", declares: ["assumption", "task"], upstream: "3-build/build-plan.md", carries: ["assumption"] },
 };
+// A phase's record originates `question`, its reviews `finding`.
+const RECORD_WORDS = ["question"], REVIEW_WORDS = ["finding"];
+// The words each class originates; an id's word is one of its class's.
+const WORDS = new Map(Object.entries(IDS).map(([path, e]) => [e.prefix, ARTIFACTS.some((a) => a.path === path) ? [...e.declares, ...RECORD_WORDS, ...REVIEW_WORDS] : e.declares]));
 const PREFIX = Object.values(IDS).map((e) => e.prefix).join("|");
 const ID = new RegExp(String.raw`^(${PREFIX})-([a-z]+(?:-[a-z]+)*)-([1-9]\d*)$`);
 function parseId(id) {
   if (id === "intent-goal") return { prefix: "intent", word: "goal" };
   const m = id.match(ID);
-  return m ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
+  return m && WORDS.get(m[1]).includes(m[2]) ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
 }
 const numberOf = (id) => parseId(id).n;
 // The vocabulary entry of a root or lane artifact, review, or record.
@@ -631,8 +635,8 @@ function idsEntry(rel) {
   const root = IDS[`${phase}/${name}`];
   if (root) return root;
   const prefix = prefixOf(phase);
-  if (prefix && reviewArtifact(rel)?.art.phase === phase) return { prefix, declares: ["finding"], history: false };
-  if (prefix && ARTIFACTS.some((a) => a.phase === phase && basename(a.record) === name)) return { prefix, declares: ["question"] };
+  if (prefix && reviewArtifact(rel)?.art.phase === phase) return { prefix, declares: REVIEW_WORDS, history: false };
+  if (prefix && ARTIFACTS.some((a) => a.phase === phase && basename(a.record) === name)) return { prefix, declares: RECORD_WORDS };
   return null;
 }
 // A Markdown file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
@@ -681,12 +685,18 @@ function declaredIds(body) {
 }
 
 // What an artifact declares now: the ids under its prefix and words in its body — a task by its
-// file — and the ids it carries. A line opening with one of them is its declaration; an id it
-// originates occurs only once declared, now or at an earlier stamp (`recorded`).
+// file — and the ids it carries. Every declaration keyed `<prefix>-<word>-<n>` is an id; a line
+// opening with one the file declares is its declaration; an id it originates occurs only once
+// declared, now or at an earlier stamp (`recorded`).
 function currentIds(entry, body, tasks, recorded = []) {
   const own = (id) => parseId(id).prefix === entry.prefix && parseId(id).word !== "task" && entry.declares.includes(parseId(id).word);
   const carried = (id) => parseId(id).prefix !== entry.prefix && (entry.carries ?? []).includes(parseId(id).word);
   const structural = outsideFences(body);
+  const stray = structural.split("\n").map(declaredBy).find((key) => key && ID.test(key) && !parseId(key));
+  if (stray) {
+    const prefix = stray.match(ID)[1];
+    return { invalid: `${stray} is not an id: the ${prefix} words are ${WORDS.get(prefix).join(", ")}` };
+  }
   const declared = declaredIds(body);
   for (const { 1: id, index } of structural.matchAll(OPENING)) {
     if (!parseId(id) || !(own(id) || carried(id))) continue;
@@ -910,7 +920,7 @@ export function projectBody(body, rel = "") {
   for (const value of fixed("prior-finding")) {
     const match = value.match(new RegExp(String.raw`^(([^#\s]+)#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
     const cited = match && pipelineFileRole(match[2])?.review, citing = pipelineFileRole(rel)?.review;
-    const prior = cited && prefixOf(cited.art.phase) === parseId(match[3]).prefix
+    const prior = cited && prefixOf(cited.art.phase) === parseId(match[3])?.prefix
       && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
     if (prior) priors.push(match[1]);
     else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
