@@ -25,7 +25,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
-- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
+- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
 - **Must-fix finding** — A finding that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a delta review rejects.
@@ -53,6 +53,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Shipped code** — The code, tests, and inline API documentation covered by the build review on the pipeline branch.
 - **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
+- **Supporting folder** — The folder beside what an agent writes, named after it without `.md`, holding the screenshots, logs, transcripts, and helper answers that file cites; it is not pipeline state.
 - **Target** — What a challenge addresses: an artifact clause or constraint file for a claim; its task for a failed report; one or more phase artifacts, whole or by clause, for a constraint or proposal.
 - **Target phase** — The highest phase a run executes before stopping.
 - **Task report** — A per-attempt worker report, `tasks/<task id>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.

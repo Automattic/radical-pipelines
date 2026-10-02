@@ -5,7 +5,8 @@
 - Commit format: <convention>
 - Guardrails: <rules | none>
 - Resources: <resources | none>
-- Execution: inspection only
+- Execution: <inspection only | experiment>
+- Supporting folder: <path>
 
 ## Brief
 
@@ -13,7 +14,7 @@
 
 ## Write to
 
-<the phase folder — root, or `<lane>/` — where your artifact and record land>
+<the phase folder — root, or `lanes/<lane>/` — where your artifact and record land>
 
 ## Mode
 

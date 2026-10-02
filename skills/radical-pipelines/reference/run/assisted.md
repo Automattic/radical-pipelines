@@ -4,7 +4,7 @@ You drive one phase — spec or design doc — directly with the owner through Q
 
 ## Rules
 
-- Use the autonomous phase's files and rules and `loop.md`'s frontier algorithm. Read its producer profile — `agents/<phase>-producer.md` at the root of this skill's repository — and follow Converge, Rules, Formats, and its inspection-only execution rule. After landing changed inputs, resolve the frontier before continuing.
+- Use the autonomous phase's files and rules and `loop.md`'s frontier algorithm. Read its producer profile — `agents/<phase>-producer.md` at the root of this skill's repository — and follow Converge, Rules, and Formats under `Execution: inspection only`. After landing changed inputs, resolve the frontier before continuing.
 - One question, one topic at a time. Never answer your own questions or decide on the owner's behalf; suggest options when the owner is unsure, and read the codebase first when it would ground the question.
 - Record every question, option, trade-off, and decision as it happens, never in batches. For owner answers, follow `../entries/intent-format.md` § Later input.
 - Nothing passes a gate — the end of Q&A, out-of-scope confirmation, approval — without the owner's explicit confirmation.

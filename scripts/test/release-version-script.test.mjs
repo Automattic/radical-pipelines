@@ -56,7 +56,7 @@ describe("release:version npm script", () => {
   });
 
   test("each per-suite script runs its own slice of the fixed test gate", () => {
-    assert.equal(PKG.scripts["test:rp"], "node --test scripts/test/rp.test.mjs");
+    assert.equal(PKG.scripts["test:rp"], "node --test 'scripts/test/rp/*.test.mjs'");
     assert.equal(PKG.scripts["test:opencode-unit"], "node --test 'scripts/test/opencode/*.test.mjs'");
     for (const script of ["test:rp", "test:opencode-unit", "test:release"]) {
       assert.ok(
