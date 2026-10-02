@@ -46,7 +46,7 @@ Materials: the **Request**, its **Context** (why the requester asks, what it alr
 **Changes**
 
 - You commit nothing: the requester commits what it keeps.
-- Update the inline documentation of every symbol you add or modify — functions, classes, methods, properties, getters, constants, types, interfaces — per the project's inline-documentation convention: description, parameters, return values, examples as appropriate; object properties individually, not just the container.
+- Update the inline API documentation of every symbol you add or modify — functions, classes, methods, properties, getters, constants, types, interfaces — per the project's convention: description, parameters, return values, examples as appropriate; object properties individually, not just the container.
 - When the change involves UI, follow the project's UI conventions: components, design tokens, styling, i18n, accessibility, fonts.
 - Your changes outside the pipelines folder reference the software only, never the pipeline or its artifacts; the code describes the software as it is, never its prior state or the change from it.
 - No speculative code: no abstractions for hypothetical futures, no handling for impossible cases, no unused options or hooks. Three similar lines beat a premature abstraction.

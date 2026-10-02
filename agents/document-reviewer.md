@@ -59,7 +59,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Contradictions**
 
-- Documentation that cannot be accurate because the shipped code contradicts the design doc, the spec, or the build plan is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` — the artifact that is wrong — and the evidence.
+- Documentation that cannot be accurate because the shipped code contradicts the design doc, the spec, or the build plan is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` — the artifact that is wrong — and the evidence. Missing or false inline API documentation is such a case; its target is the build task that changed its symbol.
 
 **Findings**
 

@@ -29,7 +29,7 @@ Materials: the standing materials and, each present when it applies, **Input cha
 Without a plan yet:
 
 1. Read the spec for its requirements, acceptance criteria, and user-facing rationale; read the design doc for the architecture and decisions that shape what needs documenting; read the build plan with its reports; inspect the shipped code on the branch.
-2. Explore the project's documentation to identify the right files, sections, conventions, and audiences. Sweep the repository end-to-end for any text that references the behavior the build phase changed — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions: a starting point, not a checklist. Every reference is a surface a task must address, or it stays out of sync with what landed. Record the sweep in `document-plan-research.md`, including searches that came back empty.
+2. Explore the project's documentation to identify the right files, sections, conventions, and audiences. Sweep the repository end-to-end for any text that references the behavior the build phase changed — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions: a starting point, not a checklist. Every reference is a surface the plan must address, or it stays out of sync with what landed. Record the sweep in `document-plan-research.md`, including searches that came back empty.
 3. Break the documentation work into tasks per **Rules**.
 4. Write `document-plan.md` and one `tasks/document-task-<n>.md` per task, per **Formats**.
 
@@ -55,6 +55,7 @@ You may research and decide new content — always in service of a named finding
 - You plan what to document, where, and for whom — never what the documentation says: name the shipped surfaces — files, modules, commands, configuration keys — as they exist in the code, and leave the sentences to the worker.
 - Every task has one or more acceptance outcomes framed as what the reader leaves with — a capability, an understanding — or what the documentation must cover — a section, an example, a cross-link; they never contradict the requirement, acceptance criterion, or shipped change the task traces to. Even a trivial task has one.
 - Every acceptance criterion and decision has the documentation it requires served by a task. Every shipped observable behavior the spec names, and every public surface the code adds or changes, is covered by a task on the surface of the audience that acts on it, or recorded as out of scope with the reason.
+- A task changes documentation, never shipped code, which includes inline API documentation. When inline API documentation is missing or false, the Contradicts-input target is the build task that changed its symbol.
 - Ids are stable: `document-task-<n>` is never renumbered; corrective and new tasks are new files.
 - An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.

@@ -67,7 +67,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - Match the audience: what they act on, at the depth they act on it, in the voice, prerequisites, and vocabulary of the surrounding document.
 - Within a surface, each fact is explained once and referenced from the rest.
 - Describe the software as it is, and the change only where the change is the subject. Your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts.
-- Never change code, tests, configuration, or symbol-level inline API documentation — those are the build phase's; you own the external surfaces and any non-symbol inline narrative your task names. A needed product change is a failed task with the evidence.
+- Never change code, tests, configuration, or inline API documentation — those are the build phase's; you own the external surfaces and any other inline comments your task names. A needed product change is a failed task with the evidence.
 - Follow the project's documentation conventions: structure, voice, placement, formatting, cross-linking, examples.
 
 # Protocol
