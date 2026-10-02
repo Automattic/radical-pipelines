@@ -2,7 +2,7 @@
 "@automattic/radical-pipelines": minor
 ---
 
-BREAKING: Move production lanes under `<phase>/lanes/<lane>/` (was `<phase>/<lane>/`), and read only pipeline state: the files at the pipeline folder root, directly in a phase folder, in its `tasks/`, and in each `lanes/<lane>/`. `rp` neither reads nor descends into any other folder, and `rp stamp` refuses files outside it, so a folder of Markdown beside an artifact, review, or report is no longer an undeclared lane, and an unreadable one no longer stops `rp check`. Lane ids may now be `tasks`.
+BREAKING: Move production lanes under `<phase>/lanes/<lane>/` (was `<phase>/<lane>/`), and read only pipeline state: the files at the pipeline folder root, directly in a phase folder, in its `tasks/`, and in each `lanes/<lane>/`. `rp` neither reads nor descends into any other folder, and `rp stamp` refuses files outside it, to stamp or to pin, so a folder of Markdown beside an artifact, review, or report is no longer an undeclared lane, and an unreadable one no longer stops `rp check`. Lane ids may now be `tasks`.
 
 To migrate a pipeline with production lanes, with no agent working and every open lane branch merged into the pipeline branch, in one commit on that branch:
 

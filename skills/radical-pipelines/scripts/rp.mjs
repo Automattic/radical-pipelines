@@ -90,6 +90,7 @@ function validateFrontmatter(data) {
     else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
       errors.push(`${key} must be a string or list of strings`);
     if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
+    if ((key === "pins" || key === "reviewed") && strings(value) && value.some((pin) => pinParts(pin) && !pipelineFileRole(pinParts(pin).path))) errors.push(`${key} must name pipeline state`);
     if (key === "patch-ids" && strings(value) && value.some((id) => !PATCH_ID.test(id))) errors.push("patch-ids must contain patch ids");
   }
   return errors.join("; ") || null;
@@ -423,7 +424,7 @@ function reviewPackageMembers(art, prefix, scope, pinned, tasks, reports) {
 function pinPackage(entries) {
   if (!Array.isArray(entries) || !entries.length) return null;
   const parts = entries.map((entry) => typeof entry === "string" ? pinParts(entry) : null);
-  if (parts.some((p) => !p?.path || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
+  if (parts.some((p) => !p?.path || !pipelineFileRole(p.path) || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
   return new Map(parts.map((p) => [p.path, p.sha]));
 }
 
@@ -1048,6 +1049,7 @@ async function cmdStamp(args) {
       const target = containedPath("stamp", root, resolve(root, p));
       if (!target.startsWith(base + "/")) die(`stamp: a pin stays inside the pipeline folder: ${p}`);
       const path = relative(base, target);
+      if (!pipelineFileRole(path)) die(`stamp: not pipeline state: ${path}`);
       const sha = readAt(path)?.identity ?? die(`stamp: cannot pin missing file: ${p}`);
       return `${path}@${sha}`;
     });

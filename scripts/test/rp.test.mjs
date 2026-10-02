@@ -3432,6 +3432,26 @@ process.stdout.write(output);
         assert.deepEqual(linked.contradictions, [{ path, symlink: true }]);
       });
 
+  test("pipeline state: every package member is state, recorded or stamped", () => {
+    recordedSpecWithLane();
+    write(root, "1-spec/spec/evidence.md", "# Evidence\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec/evidence.md")), /not pipeline state: 1-spec\/spec\/evidence\.md/);
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: approved\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), ...[...SPEC, "1-spec/spec/evidence.md"].flatMap((path) => ["--reviewed", P(path)]), "--mirror"), /not pipeline state: 1-spec\/spec\/evidence\.md/);
+    rmSync(join(root, P("1-spec/spec-review-2.md")));
+    const outside = `1-spec/spec/evidence.md@${identity(read(root, "1-spec/spec/evidence.md"))}`;
+    for (const [file, fields] of [
+      ["1-spec/spec.md", { pins: [...pairs(["0-intent/intent.md"]), outside] }],
+      ["1-spec/spec-review-1.md", { reviewed: [...pairs(SPEC), outside], verdict: "approved" }],
+      ["1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]), "lane-packages": [["1-spec/lanes/a/spec.md", [outside], [outside]]] }],
+    ]) {
+      const original = read(root, file);
+      registered(file, fields);
+      assert.equal(stateAt("worktree").frontier, `INVALID FRONTMATTER ${file}`, Object.keys(fields).join(", "));
+      write(root, file, original);
+    }
+  });
+
   // --- moving production lanes under lanes/ ---------------------------------------
   // A pipeline recorded with each production lane at `<phase>/<lane>/` migrates by relocating the lane
   // folders, rewriting every lane path rp reads — frontmatter, run-config.md's included, and fixed
