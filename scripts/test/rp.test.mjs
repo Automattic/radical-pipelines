@@ -3391,6 +3391,133 @@ process.stdout.write(output);
     }
   });
 
+  // --- moving production lanes under lanes/ ---------------------------------------
+  // A pipeline recorded with each production lane at `<phase>/<lane>/` migrates by relocating the lane
+  // folders, rewriting every lane path rp reads — frontmatter, run-config.md's included, and fixed
+  // lines — and re-stamping each file whose body changed. It then matches the pipeline recorded at the
+  // new paths, except where a rewritten lane declaration reopens what it reviewed.
+  const LANE_PHASES = { "spec-producer": "1-spec", "design-doc-producer": "2-design-doc" };
+  function migrateLanes(lanes) {
+    const production = lanes.filter((l) => LANE_PHASES[l.profile]);
+    for (const phase of new Set(production.map((l) => LANE_PHASES[l.profile]))) {
+      const present = production.filter((l) => LANE_PHASES[l.profile] === phase && existsSync(join(root, P(`${phase}/${l.id}`))));
+      if (!present.length) continue;
+      mkdirSync(join(root, P(`${phase}/.lanes`)));
+      for (const l of present) git(root, "mv", P(`${phase}/${l.id}`), P(`${phase}/.lanes/${l.id}`));
+      git(root, "mv", P(`${phase}/.lanes`), P(`${phase}/lanes`));
+    }
+    const relocate = (path) => {
+      const l = production.find((candidate) => path.startsWith(`${LANE_PHASES[candidate.profile]}/${candidate.id}/`));
+      return l ? path.replace(`${LANE_PHASES[l.profile]}/`, `${LANE_PHASES[l.profile]}/lanes/`) : path;
+    };
+    const deep = (value) => typeof value === "string" ? relocate(value) : Array.isArray(value) ? value.map(deep) :
+      value && typeof value === "object" ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, deep(item)])) : value;
+    for (const file of git(root, "ls-files", PIPELINE).split("\n").filter((path) => path.endsWith(".md"))) {
+      const { data, body } = parseFrontmatter(readFileSync(join(root, file), "utf8"), null);
+      const rewritten = body.replace(/^([a-z][a-z0-9-]*):([^\S\n]*)(\S+)/gm, (_, key, space, value) => `${key}:${space}${relocate(value)}`);
+      writeFileSync(join(root, file), data ? renderFrontmatter(new Map([...data].map(([key, value]) => [key, deep(value)])), rewritten) : rewritten);
+      if (rewritten !== body) rp(root, "stamp", file, "--mirror");
+    }
+    commitAll("move production lanes under lanes/");
+  }
+  const oldLane = (phase, id) => `${phase}/${id}/`;
+  const newLane = (phase, id) => `${phase}/lanes/${id}/`;
+  function recordedArtifact(scope, prefix, inputs, decl = null, extra = {}) {
+    const path = `${scope}${prefix}.md`, record = `${scope}${prefix}-research.md`;
+    write(root, record, "# Record\n");
+    registered(path, { pins: pairs(inputs), ...(decl ? { lane: laneFingerprint(decl) } : {}), ...extra }, `# ${prefix}\n`);
+    return [path, record, ...inputs];
+  }
+  function recordedReview(scope, prefix, pkg, { wave = 1, verdict = "approved", fields = {}, body = "", named = null } = {}) {
+    const path = `${scope}${prefix}-review-${named ? `${named.id}-` : ""}${wave}.md`;
+    registered(path, { reviewed: pairs(pkg), verdict, ...(named ? { lane: laneFingerprint(named) } : {}), ...fields }, `# Review\nverdict: ${verdict}\n${body}`);
+    return path;
+  }
+  // Consolidated Spec lanes: each lane approved, the root pinning every lane package, approved.
+  function recordedConsolidation(at, lanes, filter = null) {
+    const packages = [];
+    for (const l of lanes) {
+      const scope = at("1-spec", l.id);
+      const pkg = recordedArtifact(scope, "spec", ["0-intent/intent.md", ...(l.after ?? []).flatMap((id) => packages.find((p) => p.id === id).binding)], l);
+      const reviews = [recordedReview(scope, "spec", pkg), ...(filter ? [recordedReview(scope, "spec", filter.materials, { named: filter })] : [])];
+      packages.push({ id: l.id, binding: [pkg[0], pkg[1], ...reviews], reference: pairs(pkg) });
+    }
+    const pkg = recordedArtifact("1-spec/", "spec", ["0-intent/intent.md", ...packages.flatMap((p) => p.binding)], null,
+      { "lane-packages": packages.map((p) => [p.binding[0], pairs(p.binding), p.reference]) });
+    recordedReview("1-spec/", "spec", pkg);
+    if (filter) recordedReview("1-spec/", "spec", filter.materials, { named: filter });
+  }
+  const migrationScenarios = {
+    "consolidated dependent lanes": (at) => {
+      const lanes = [standard.a, lane("spec-producer", "b", { after: ["a"] })];
+      configure({ targetPhase: 1, lanes });
+      recordedConsolidation(at, lanes);
+      return lanes;
+    },
+    "a lane named lanes": (at) => {
+      const lanes = [lane("spec-producer", "lanes")];
+      configure({ targetPhase: 1, lanes });
+      recordedConsolidation(at, lanes);
+      return lanes;
+    },
+    "a prior finding citing a lane review": (at) => {
+      configure({ targetPhase: 1, lanes: [standard.a] });
+      const scope = at("1-spec", "a");
+      const pkg = recordedArtifact(scope, "spec", ["0-intent/intent.md"], standard.a);
+      const first = recordedReview(scope, "spec", pkg, { verdict: "rejected", body: "spec-finding-1: Gap.\n" });
+      const prior = `${first}#spec-finding-1`;
+      recordedReview(scope, "spec", pkg, { wave: 2, verdict: "rejected", fields: { "prior-finding": [prior] }, body: `prior-finding: ${prior}, resolution failed\n` });
+      return [standard.a];
+    },
+    "a root review escalating a lane claim": (at) => {
+      const designLane = lane("design-doc-producer", "a");
+      configure({ targetPhase: 2, lanes: [designLane] });
+      registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
+      const approval = "1-spec/spec-review-1.md";
+      registeredVerdict(approval, pairs(SPEC));
+      const scope = at("2-design-doc", "a");
+      const pkg = recordedArtifact(scope, "design-doc", ["0-intent/intent.md", "1-spec/spec.md", approval], designLane);
+      const targetFields = (target) => ({ target: [target], "target-identity": [identity(read(root, target.split("#")[0]))] });
+      const claim = recordedReview(scope, "design-doc", pkg, { verdict: "unsatisfiable", fields: targetFields("1-spec/spec.md#spec-requirement-1"), body: "target: 1-spec/spec.md#spec-requirement-1\n" });
+      registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", claim]) });
+      recordedReview("1-spec/", "spec", [...SPEC, claim], { wave: 2, verdict: "unsatisfiable", fields: { ...targetFields("0-intent/intent.md#intent-goal"), origin: claim },
+        body: `target: 0-intent/intent.md#intent-goal\norigin: ${claim}\n` });
+      return [designLane];
+    },
+  };
+  const comparable = (state) => ({ ...state, base: undefined });
+  for (const [label, scenario] of Object.entries(migrationScenarios))
+    test(`lane migration: ${label} matches the pipeline recorded at the new paths`, () => {
+      scenario(newLane);
+      commitAll("recorded at the new paths");
+      const native = comparable(JSON.parse(check(root, "--json")));
+      rmSync(root, { recursive: true, force: true });
+      root = initRepo();
+      const lanes = scenario(oldLane);
+      commitAll("recorded at the old paths");
+      migrateLanes(lanes);
+      assert.deepEqual(comparable(JSON.parse(check(root, "--json"))), native);
+    });
+
+  test("lane migration: a rewritten review-lane materials path is a new lane declaration that reopens its waves", () => {
+    const at = (old) => old ? oldLane : newLane;
+    const focus = (old) => lane("spec-reviewer", "focus", { materials: [`${at(old)("1-spec", "a")}spec.md`] });
+    configure({ targetPhase: 1, lanes: [standard.a, focus(false)] });
+    recordedConsolidation(newLane, [standard.a], focus(false));
+    commitAll("recorded at the new paths");
+    assert.equal(JSON.parse(check(root, "--json")).frontier, "complete");
+    rmSync(root, { recursive: true, force: true });
+    root = initRepo();
+    configure({ targetPhase: 1, lanes: [standard.a, focus(true)] });
+    recordedConsolidation(oldLane, [standard.a], focus(true));
+    commitAll("recorded at the old paths");
+    migrateLanes([standard.a, focus(true)]);
+    const state = JSON.parse(check(root, "--json"));
+    assert.deepEqual(parseFrontmatter(read(root, "run-config.md"), null).data.get("lanes")[1].materials, ["1-spec/lanes/a/spec.md"]);
+    assert.equal(state.lanes[0].closed, false);
+    assert.equal(state.frontier, "review wave 1-spec/lanes/a/spec.md");
+  });
+
   test("a claim is pending only while it is its lane's latest verdict; a held claim ends with the wave that approved", () => {
     const reviewer = lane("spec-reviewer", "b");
     configure({ targetPhase: 1, lanes: [reviewer] });

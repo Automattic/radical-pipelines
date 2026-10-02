@@ -2,6 +2,12 @@
 "@automattic/radical-pipelines": minor
 ---
 
-BREAKING: Production lanes live under `<phase>/lanes/<lane>/` (was `<phase>/<lane>/`). Pipeline state is the files directly in a phase folder, its `tasks/`, and each `lanes/<lane>/`; `rp check` ignores every other folder and `rp stamp` refuses its files, so a folder holding Markdown beside an artifact, review, or report is no longer reported as an undeclared lane. Lane ids may now be `tasks`.
+BREAKING: Move production lanes under `<phase>/lanes/<lane>/` (was `<phase>/<lane>/`), and read only pipeline state: the files at the pipeline folder root, directly in a phase folder, in its `tasks/`, and in each `lanes/<lane>/`. `rp` neither reads nor descends into any other folder, and `rp stamp` refuses files outside it, so a folder of Markdown beside an artifact, review, or report is no longer an undeclared lane, and an unreadable one no longer stops `rp check`. Lane ids may now be `tasks`.
 
-To migrate each pipeline with production lanes, in one commit on the pipeline branch, with no agent working and every open lane branch merged into it: `git mv <phase>/<lane> <phase>/lanes/<lane>` for each lane folder; then, in the frontmatter of every file in the pipeline folder, insert `lanes/` into each lane path under `pins`, `reviewed`, and `lane-packages` (`1-spec/a/spec.md@…` becomes `1-spec/lanes/a/spec.md@…`). Leave bodies and mirrored fields as they are: identities are unchanged, so no file needs re-stamping and `rp check` reports the same frontier with the new paths. The one exception is a constraint whose `origin:` names a claim inside a lane: rewrite that path, then `rp stamp <constraint> --mirror`; its targets reconverge on its new identity. Afterwards, merge the pipeline branch into each open lane branch.
+To migrate a pipeline with production lanes, with no agent working and every open lane branch merged into the pipeline branch, in one commit on that branch:
+
+1. In each phase folder holding lane folders, create `.lanes/`, `git mv <phase>/<lane> <phase>/.lanes/<lane>` for each lane, then `git mv <phase>/.lanes <phase>/lanes`.
+2. Rewrite every path under a declared production lane, `<phase>/<lane>/…`, to `<phase>/lanes/<lane>/…` wherever `rp` reads it: the frontmatter of every file, `run-config.md` included, and every fixed line.
+3. `rp stamp <file> --mirror` each file whose body changed.
+
+A changed body is a new identity, and a changed lane declaration — a review lane's `materials` — a new fingerprint: `rp check` then reconverges whatever consumed them, reopening a closed lane whose waves they invalidate. A pipeline whose bodies and declarations name no lane path keeps its frontier. Afterwards, merge the pipeline branch into each open lane branch.
