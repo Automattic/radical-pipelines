@@ -2978,7 +2978,11 @@ function recordTurnEnd(event, at) {
   const map = getSessionObservationMap(SESSION_TURNS_KEY);
   const previous = map.get(sessionID);
   const lastTurn = { endedAt, outcome };
-  const messaged = turnMessaged(sessionID, previous?.lastTurn.endedAt ?? lookupSpawn(sessionID)?.spawnedAt);
+  const messaged = turnMessaged(
+    sessionID,
+    previous?.lastTurn.endedAt ?? lookupSpawn(sessionID)?.spawnedAt,
+    at ?? Date.now(),
+  );
   if (messaged !== undefined) {
     lastTurn.messaged = messaged;
   }
@@ -2990,18 +2994,21 @@ function recordTurnEnd(event, at) {
 /**
  * Whether a session sent a message during the turn that began at `beganAt`.
  *
- * A turn begins when its session is spawned or when its previous turn ends;
- * `beganAt` is known only when this process observed that moment. A send
- * stamped exactly at it counts, so an ambiguous instant never reads as
- * silence.
+ * A turn begins when its session is spawned or when its previous turn ends.
+ * The answer is known only when this process observed that moment within
+ * `SESSION_EVIDENCE_RETENTION_MS` of `now`: older evidence — the previous
+ * turn's end, or a send — may have aged out, which would pass for a first
+ * turn or for silence. A send stamped exactly at the beginning counts, so an
+ * ambiguous instant never reads as silence.
  *
  * @param {string} sessionID The session whose turn ended.
  * @param {number | undefined} beganAt When the turn began.
+ * @param {number} now The current timestamp.
  * @returns {boolean | undefined} Whether an admitted `rp_send` falls in the
  *   turn, or `undefined` when its beginning is unknown.
  */
-function turnMessaged(sessionID, beganAt) {
-  if (beganAt === undefined) {
+function turnMessaged(sessionID, beganAt, now) {
+  if (beganAt === undefined || now - beganAt > SESSION_EVIDENCE_RETENTION_MS) {
     return undefined;
   }
   const send = lastSendFor(sessionID);

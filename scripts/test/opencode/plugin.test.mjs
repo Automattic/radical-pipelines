@@ -1525,43 +1525,80 @@ describe("recordTurnEnd / turnsFor", () => {
     assert.equal(turnsFor("ses_turns_never_seen"), undefined);
   });
 
-  test("a turn is messaged when a send falls at or after its beginning, and carries no answer when its beginning was not observed", () => {
+  test("a turn is messaged when a send falls at or after its beginning, and carries no answer when its beginning was not observed within the evidence retention", () => {
     // The turn begins at the previous turn's end, else at this process's
-    // spawn of the session; neither observed (a session from before a
-    // restart) leaves the fact unknown.
+    // spawn of the session. Neither observed (a session from before a
+    // restart), or a beginning older than the retention — whose evidence may
+    // have aged out — leaves the fact unknown.
+    const retention = 86_400_000;
+    const end = 3 * retention;
+    const ages = { recent: 1_000, aged: retention + 1 };
     const beginnings = {
-      spawn: { spawnedAt: 1_000, previousEnd: undefined, begins: 1_000 },
-      previous: { spawnedAt: undefined, previousEnd: 2_000, begins: 2_000 },
-      both: { spawnedAt: 1_000, previousEnd: 2_000, begins: 2_000 },
-      unknown: { spawnedAt: undefined, previousEnd: undefined, begins: undefined },
+      spawn: (begins) => ({ spawnedAt: begins }),
+      previous: (begins) => ({ previousEnd: begins }),
+      both: (begins) => ({ spawnedAt: begins - 500, previousEnd: begins }),
+      unknown: () => ({}),
     };
-    const sends = { none: undefined, before: -500, at: 0, after: 500 };
+    const sends = { none: undefined, before: -100, at: 0, after: 100 };
     let n = 0;
-    for (const [beginning, { spawnedAt, previousEnd, begins }] of Object.entries(beginnings)) {
-      for (const [send, offset] of Object.entries(sends)) {
-        for (const type of TURN_END_TYPES) {
-          const id = `ses_messaged_${n++}`;
-          recordSpawn(id, {
-            name: id,
-            pipelineSlug: "messaged-matrix",
-            spawner: "ses_spawner",
-            ...(spawnedAt === undefined ? {} : { spawnedAt }),
-          });
-          if (previousEnd !== undefined) {
-            recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: id } }, previousEnd);
-          }
-          if (offset !== undefined) {
-            recordSend(id, "ses_spawner", (begins ?? 2_000) + offset);
-          }
-          recordTurnEnd({ type, data: { sessionID: id } }, 3_000);
+    for (const [age, ago] of Object.entries(ages)) {
+      for (const [beginning, observed] of Object.entries(beginnings)) {
+        const begins = end - ago;
+        const { spawnedAt, previousEnd } = observed(begins);
+        for (const [send, offset] of Object.entries(sends)) {
+          for (const type of TURN_END_TYPES) {
+            const id = `ses_messaged_${n++}`;
+            recordSpawn(id, {
+              name: id,
+              pipelineSlug: "messaged-matrix",
+              spawner: "ses_spawner",
+              ...(spawnedAt === undefined ? {} : { spawnedAt }),
+            });
+            if (previousEnd !== undefined) {
+              recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: id } }, previousEnd);
+            }
+            if (offset !== undefined) {
+              recordSend(id, "ses_spawner", begins + offset);
+            }
+            recordTurnEnd({ type, data: { sessionID: id } }, end);
 
-          const expected =
-            begins === undefined ? undefined : send === "at" || send === "after";
-          assert.equal(turnsFor(id).lastTurn.messaged, expected, `${beginning} beginning, send ${send}, ${type}`);
-          assert.equal("messaged" in turnsFor(id).lastTurn, expected !== undefined);
+            const known = beginning !== "unknown" && age === "recent";
+            const expected = known ? send === "at" || send === "after" : undefined;
+            const label = `${age} ${beginning} beginning, send ${send}, ${type}`;
+            assert.equal(turnsFor(id).lastTurn.messaged, expected, label);
+            assert.equal("messaged" in turnsFor(id).lastTurn, known, label);
+          }
         }
       }
     }
+  });
+
+  test("evidence pruned from the observation maps reads as unknown, never as silence or as a first turn", () => {
+    const retention = 86_400_000;
+    const later = 10 * retention;
+    const crowd = (record) => {
+      for (let i = 0; i < 300; i++) {
+        record(`ses_prune_crowd_${i}`, later);
+      }
+    };
+
+    // A send aged out of its map.
+    recordSpawn("ses_prune_send", { name: "a", pipelineSlug: "prune", spawner: "ses_spawner", spawnedAt: later - retention - 2_000 });
+    recordSend("ses_prune_send", "ses_spawner", later - retention - 1_000);
+    crowd((id, at) => recordSend(id, "ses_spawner", at));
+    assert.equal(lastSendFor("ses_prune_send"), undefined, "the send was pruned");
+    recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: "ses_prune_send" } }, later);
+    assert.equal("messaged" in turnsFor("ses_prune_send").lastTurn, false);
+
+    // A previous turn's end aged out, leaving only the spawn — and an
+    // earlier turn's send after it.
+    recordSpawn("ses_prune_turn", { name: "b", pipelineSlug: "prune", spawner: "ses_spawner", spawnedAt: later - retention - 3_000 });
+    recordSend("ses_prune_turn", "ses_spawner", later - retention - 2_000);
+    recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: "ses_prune_turn" } }, later - retention - 1_000);
+    crowd((id, at) => recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: id } }, at));
+    assert.equal(turnsFor("ses_prune_turn"), undefined, "the previous turn was pruned");
+    recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: "ses_prune_turn" } }, later + 1_000);
+    assert.equal("messaged" in turnsFor("ses_prune_turn").lastTurn, false);
   });
 
   test("ignores non-terminal events and stamps a delayed event with its own creation time", () => {
