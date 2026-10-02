@@ -1,6 +1,6 @@
 # Health monitoring
 
-A recurring health loop watches an autonomous run: agents stall, messages get lost, a provider login expires, a tool call hits a network blip. Launch it after the pipeline worktree exists and cancel it at close-out, using `tools/<tool>.md`. Cancel a leftover loop for the same pipeline before launching. Defaults: 15-minute interval and 30-minute stall threshold; the project's **Health monitoring** section overrides either, and the owner may change both for a run.
+A recurring health loop watches an autonomous run: agents stall, messages get lost, a provider login expires, a tool call hits a network blip. Launch it after the pipeline worktree exists and cancel it at close-out, using `tools/<tool>.md`. Cancel a leftover loop for the same pipeline before launching. Defaults: 50-minute interval and 30-minute stall threshold; the project's **Health monitoring** section overrides either, and the owner may change both for a run.
 
 ## Tick prompt
 
@@ -13,7 +13,7 @@ Health tick for pipeline <pipeline slug> on branch <pipeline branch>, worktree <
 Inspect the run and lane worktrees, available agent logs, and messaging state.
 
 1. **Pending permission requests** — answer each using the active tool's procedure.
-2. **Stalled agents** — an agent with undeclared completion has no commit, file write, or tool output for the threshold.
+2. **Stalled agents** — an agent with undeclared completion ended a turn without a message, or has no commit, file write, or tool output for the threshold.
 3. **Dead agents** — a session is gone, its turn failed, or it remains silent after a status request.
 4. **Failed messages** — an inter-agent message errored or was never delivered.
 5. **Login or API-key errors** — an agent or the orchestrator hit a provider authentication failure.

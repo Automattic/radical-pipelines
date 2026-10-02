@@ -127,7 +127,7 @@ const LEDGER_KEY = Symbol.for("radical-pipelines.opencode.ledger");
  * `resolveSession` records a session it reads.
  *
  * @returns {{
- *   bySessionID: Map<string, { name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }>,
+ *   bySessionID: Map<string, { name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null, spawnedAt?: number }>,
  * }} The singleton ledger, keyed by session ID.
  */
 function getLedger() {
@@ -141,11 +141,12 @@ function getLedger() {
  * Record a spawned session in the ledger.
  *
  * @param {string} sessionID The spawned session's ID.
- * @param {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null }} entry
+ * @param {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null, spawnedAt?: number }} entry
  *   The spawned instance's pipeline-unique name, the slug of the pipeline it belongs to, the
  *   session ID of the agent that spawned it, the directory the session is
- *   seated in, and the root of the repository containing that seat (`null`
- *   when it could not be resolved).
+ *   seated in, the root of the repository containing that seat (`null`
+ *   when it could not be resolved), and when this process spawned it (absent
+ *   for a session it only read).
  * @returns {void}
  */
 function recordSpawn(sessionID, entry) {
@@ -159,7 +160,7 @@ function recordSpawn(sessionID, entry) {
  * not recorded yet.
  *
  * @param {string} sessionID The session ID to look up.
- * @returns {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null } | undefined}
+ * @returns {{ name: string, pipelineSlug: string, spawner: string, directory?: string, repoRoot?: string | null, spawnedAt?: number } | undefined}
  *   The entry recorded for `sessionID`, or `undefined` if none is.
  */
 function lookupSpawn(sessionID) {
@@ -2956,7 +2957,8 @@ const SESSION_TURNS_KEY = Symbol.for("radical-pipelines.opencode.sessionTurns");
  *
  * Fed by the plugin's event subscription. Every session is tracked — the
  * ledger surfaces only the ones RP recognizes — and entries age out like the
- * other session observations. Other events are ignored.
+ * other session observations. Other events are ignored. The turn carries
+ * `messaged` when this process saw it begin (see `turnMessaged`).
  *
  * @param {object} event An opencode event.
  * @param {number} [at] Overrides the timestamp; defaults to the event's own
@@ -2975,16 +2977,42 @@ function recordTurnEnd(event, at) {
   const endedAt = at ?? (Number.isFinite(event.created) ? event.created : Date.now());
   const map = getSessionObservationMap(SESSION_TURNS_KEY);
   const previous = map.get(sessionID);
+  const lastTurn = { endedAt, outcome };
+  const messaged = turnMessaged(sessionID, previous?.lastTurn.endedAt ?? lookupSpawn(sessionID)?.spawnedAt);
+  if (messaged !== undefined) {
+    lastTurn.messaged = messaged;
+  }
   map.delete(sessionID);
-  map.set(sessionID, { turns: (previous?.turns ?? 0) + 1, lastTurn: { endedAt, outcome } });
+  map.set(sessionID, { turns: (previous?.turns ?? 0) + 1, lastTurn });
   pruneSessionObservations(map, endedAt, (value) => value.lastTurn.endedAt);
+}
+
+/**
+ * Whether a session sent a message during the turn that began at `beganAt`.
+ *
+ * A turn begins when its session is spawned or when its previous turn ends;
+ * `beganAt` is known only when this process observed that moment. A send
+ * stamped exactly at it counts, so an ambiguous instant never reads as
+ * silence.
+ *
+ * @param {string} sessionID The session whose turn ended.
+ * @param {number | undefined} beganAt When the turn began.
+ * @returns {boolean | undefined} Whether an admitted `rp_send` falls in the
+ *   turn, or `undefined` when its beginning is unknown.
+ */
+function turnMessaged(sessionID, beganAt) {
+  if (beganAt === undefined) {
+    return undefined;
+  }
+  const send = lastSendFor(sessionID);
+  return send !== undefined && send.at >= beganAt;
 }
 
 /**
  * Read a session's turn record.
  *
  * @param {string} sessionID The session to look up.
- * @returns {{ turns: number, lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } } | undefined}
+ * @returns {{ turns: number, lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted", messaged?: boolean } } | undefined}
  *   The count of turns observed ending and the newest one, or `undefined`
  *   when none has been observed (e.g. a fresh daemon).
  */
@@ -2995,39 +3023,49 @@ function turnsFor(sessionID) {
 /**
  * Handle one event delivered to the terminal-event listener.
  *
- * Ignores every event but a failed turn, and failed turns on sessions RP did
- * not spawn. An event on a session `rp_terminate` is deleting goes to
- * `withheldByTermination`, which discards it once a delete has confirmed —
- * the failure a delete provokes is the expected end of a deliberate shutdown,
- * not a fault to report — and holds it while the outcome is unknown, so a
- * delete that fails still reports what the surviving session raised.
- * A successful turn is not a completion signal — an agent declares its own
- * completion in a message to its spawner — and an interrupt is a deliberate
- * stop, not a fault.
- * Every failed turn is recorded in the bounded error log (including the
+ * Announces to the spawner of an RP-spawned session every failed turn and
+ * every successful turn that sent no message (`messaged: false`, recorded by
+ * `recordTurnEnd` before this runs): an agent reports in a message, so a
+ * turn that ends without one leaves its spawner waiting on nothing. An
+ * interrupt is a deliberate stop, not a fault. An event on a session
+ * `rp_terminate` is deleting goes to `withheldByTermination`, which discards
+ * it once a delete has confirmed — the end of a deliberate shutdown, not a
+ * fault to report — and holds it while the outcome is unknown, so a delete
+ * that fails still reports what the surviving session raised.
+ * A failed turn is also recorded in the bounded error log (including the
  * structured error it carries, so `rp_status`'s `recentErrors` reports the
- * cause) and announced to the spawner (steer delivery, so a working spawner
- * still receives it) with that cause.
+ * cause), and its announcement carries that cause. Announcements use steer
+ * delivery, as agents' own messages do, so a working spawner still receives
+ * them.
  *
  * @param {object} event The event received from `ctx.event.subscribe`.
  * @param {{ ctx: object, readSession: Function }} deps `ctx` supplies
- *   `ctx.session.prompt` for the failure announcement; `readSession` reaches
+ *   `ctx.session.prompt` for the announcement; `readSession` reaches
  *   `resolveSession`.
  * @returns {Promise<void>}
  */
 async function onTerminalEvent(event, { ctx, readSession }) {
-  if (event?.type !== "session.execution.failed") {
-    return;
-  }
   const sessionID = terminalEventSessionID(event);
   if (typeof sessionID !== "string") {
+    return;
+  }
+  const failed = event?.type === "session.execution.failed";
+  const unmessaged =
+    event?.type === "session.execution.succeeded" && turnsFor(sessionID)?.lastTurn.messaged === false;
+  if (!failed && !unmessaged) {
     return;
   }
   const entry = (await resolveSession(sessionID, { readSession })).spawn;
   if (!entry) {
     return;
   }
+  const announce = (text) =>
+    ctx.session.prompt({ sessionID: entry.spawner, text: `[rp] ${entry.name} (${sessionID}) ${text}`, delivery: "steer" });
   const report = async () => {
+    if (!failed) {
+      await announce("ended a turn without sending a message.");
+      return;
+    }
     const error = terminalEventError(event);
     const logEntry = { type: event.type, sessionID, at: Date.now() };
     if (error !== undefined) {
@@ -3036,11 +3074,7 @@ async function onTerminalEvent(event, { ctx, readSession }) {
     recordError(logEntry);
 
     const cause = error !== undefined ? ` Cause: ${formatStructuredError(error)}` : "";
-    await ctx.session.prompt({
-      sessionID: entry.spawner,
-      text: `[rp] ${entry.name} (${sessionID}) failed a turn.${cause}`,
-      delivery: "steer",
-    });
+    await announce(`failed a turn.${cause}`);
   };
 
   if (withheldByTermination(sessionID, report)) {
@@ -3635,7 +3669,7 @@ function summarizeError(entry) {
  *     pending?: number,
  *     permissions?: Array<{id: string, action: string, resources: string[]}>,
  *     currentTool: object | undefined,
- *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted" } | undefined,
+ *     lastTurn: { endedAt: number, outcome: "succeeded" | "failed" | "interrupted", messaged?: boolean } | undefined,
  *     lastSend: { at: number, to: string } | undefined,
  *     lastText: { at: number | undefined, excerpt: string } | { olderThan: number } | null | undefined,
  *   }>,
@@ -4296,13 +4330,14 @@ function asDirectTool(tool) {
  * Build the `rp_spawn` tool descriptor.
  *
  * @param {object} ctx The plugin's opencode context, as passed to `setup`.
- * @param {{ resolveRepoRootFn?: (directory: string) => string | null }} [deps]
+ * @param {{ resolveRepoRootFn?: (directory: string) => string | null, now?: () => number }} [deps]
  *   `resolveRepoRootFn` defaults to `resolveRepoRoot`; injected in tests so
- *   no real `git` runs.
+ *   no real `git` runs. `now` stamps the ledger entry's `spawnedAt` and
+ *   defaults to `Date.now`.
  * @returns {{name: string, description: string, input: object, execute: Function}}
  *   The tool descriptor for `ctx.tool.transform(tools => tools.add(...))`.
  */
-function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles = new Set() } = {}) {
+function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles = new Set(), now = Date.now } = {}) {
   return {
     name: "rp_spawn",
     description:
@@ -4337,7 +4372,7 @@ function buildSpawnTool(ctx, { resolveRepoRootFn = resolveRepoRoot, rpProfiles =
         location: { directory },
         metadata: { [SPAWN_METADATA_KEY]: identity },
       });
-      recordSpawn(session.id, { ...identity, directory, repoRoot: resolveRepoRootFn(directory) });
+      recordSpawn(session.id, { ...identity, directory, repoRoot: resolveRepoRootFn(directory), spawnedAt: now() });
       await ctx.session.prompt({
         sessionID: session.id,
         text: appendSpawnProtocol(prompt, toolCtx.sessionID),

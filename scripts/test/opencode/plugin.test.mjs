@@ -421,6 +421,7 @@ describe("rp_spawn", () => {
       return originalPrompt(args);
     };
 
+    const before = Date.now();
     const result = await tools.get("rp_spawn").execute(
       {
         name: "spec-reviewer-1",
@@ -451,13 +452,15 @@ describe("rp_spawn", () => {
       "the identity is stored with the session at creation, so it outlives this process",
     );
 
-    assert.deepEqual(lookupSpawn(sessionID), {
+    const { spawnedAt, ...recorded } = lookupSpawn(sessionID);
+    assert.deepEqual(recorded, {
       name: "spec-reviewer-1",
       pipelineSlug: "144-opencode-support",
       spawner: "ses_orchestrator",
       directory: "/repo/worktree",
       repoRoot: "/repo/worktree-repo-root",
     });
+    assert.ok(spawnedAt >= before && spawnedAt <= Date.now(), "the ledger stamps when this process spawned the session");
     assert.equal(initialPrompt.sessionID, sessionID);
     assert.equal(initialPrompt.delivery, "queue");
     assert.ok(initialPrompt.text.startsWith("begin the review\n\n## RP messaging (opencode)"));
@@ -1503,21 +1506,62 @@ describe("recordSessionEventActivity / lastSessionEventAt", () => {
   });
 });
 
+const TURN_END_TYPES = ["session.execution.succeeded", "session.execution.failed", "session.execution.interrupted"];
+
 describe("recordTurnEnd / turnsFor", () => {
   test("counts every terminal event and keeps the newest one with its outcome", () => {
     recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: "ses_turns" } }, 1_000);
     assert.deepEqual(turnsFor("ses_turns"), { turns: 1, lastTurn: { endedAt: 1_000, outcome: "succeeded" } });
 
     recordTurnEnd({ type: "session.execution.failed", properties: { sessionID: "ses_turns" } }, 2_000);
-    assert.deepEqual(turnsFor("ses_turns"), { turns: 2, lastTurn: { endedAt: 2_000, outcome: "failed" } });
+    assert.deepEqual(turnsFor("ses_turns"), { turns: 2, lastTurn: { endedAt: 2_000, outcome: "failed", messaged: false } });
 
     // An interrupt ends the turn too — verified live against the tested
     // build: `POST /interrupt` emits `session.execution.interrupted`, with no
     // succeeded/failed event — without being a failure to announce.
     recordTurnEnd({ type: "session.execution.interrupted", data: { sessionID: "ses_turns" } }, 3_000);
-    assert.deepEqual(turnsFor("ses_turns"), { turns: 3, lastTurn: { endedAt: 3_000, outcome: "interrupted" } });
+    assert.deepEqual(turnsFor("ses_turns"), { turns: 3, lastTurn: { endedAt: 3_000, outcome: "interrupted", messaged: false } });
 
     assert.equal(turnsFor("ses_turns_never_seen"), undefined);
+  });
+
+  test("a turn is messaged when a send falls at or after its beginning, and carries no answer when its beginning was not observed", () => {
+    // The turn begins at the previous turn's end, else at this process's
+    // spawn of the session; neither observed (a session from before a
+    // restart) leaves the fact unknown.
+    const beginnings = {
+      spawn: { spawnedAt: 1_000, previousEnd: undefined, begins: 1_000 },
+      previous: { spawnedAt: undefined, previousEnd: 2_000, begins: 2_000 },
+      both: { spawnedAt: 1_000, previousEnd: 2_000, begins: 2_000 },
+      unknown: { spawnedAt: undefined, previousEnd: undefined, begins: undefined },
+    };
+    const sends = { none: undefined, before: -500, at: 0, after: 500 };
+    let n = 0;
+    for (const [beginning, { spawnedAt, previousEnd, begins }] of Object.entries(beginnings)) {
+      for (const [send, offset] of Object.entries(sends)) {
+        for (const type of TURN_END_TYPES) {
+          const id = `ses_messaged_${n++}`;
+          recordSpawn(id, {
+            name: id,
+            pipelineSlug: "messaged-matrix",
+            spawner: "ses_spawner",
+            ...(spawnedAt === undefined ? {} : { spawnedAt }),
+          });
+          if (previousEnd !== undefined) {
+            recordTurnEnd({ type: "session.execution.succeeded", data: { sessionID: id } }, previousEnd);
+          }
+          if (offset !== undefined) {
+            recordSend(id, "ses_spawner", (begins ?? 2_000) + offset);
+          }
+          recordTurnEnd({ type, data: { sessionID: id } }, 3_000);
+
+          const expected =
+            begins === undefined ? undefined : send === "at" || send === "after";
+          assert.equal(turnsFor(id).lastTurn.messaged, expected, `${beginning} beginning, send ${send}, ${type}`);
+          assert.equal("messaged" in turnsFor(id).lastTurn, expected !== undefined);
+        }
+      }
+    }
   });
 
   test("ignores non-terminal events and stamps a delayed event with its own creation time", () => {
@@ -3979,7 +4023,7 @@ describe("terminal-event listener", () => {
 
   afterEach(clearAllLoopTimers);
 
-  test("a succeeded terminal event produces no spawner notification; every failed terminal event announces the failure", async () => {
+  test("every failed terminal event announces the failure", async () => {
     const fakeCtx = createFakeCtx();
     const { ctx, pushEvent, sessions } = fakeCtx;
     sessions.set("ses_spawner_evt", { id: "ses_spawner_evt" });
@@ -4008,7 +4052,7 @@ describe("terminal-event listener", () => {
     assert.equal(
       promptCalls.length,
       0,
-      "a successful turn is not a completion signal and must not notify the spawner",
+      "a successful turn whose beginning this process never saw is not announced",
     );
 
     pushEvent({ type: "session.execution.failed", data: { sessionID: "ses_child_evt" } });
@@ -4027,6 +4071,101 @@ describe("terminal-event listener", () => {
     // terminal event above ended a turn.
     assert.equal(turnsFor("ses_child_evt").turns, 3);
     assert.equal(turnsFor("ses_child_evt").lastTurn.outcome, "failed");
+  });
+
+  test("a turn is announced when it failed, or succeeded without a message; never when interrupted, messaged, or begun out of view", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, pushEvent, sessions } = fakeCtx;
+    sessions.set("ses_spawner_turns", { id: "ses_spawner_turns" });
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+    await setup(ctx, isolatedDeps({ env: {}, readServiceRecord: () => null }));
+
+    const outcomes = { succeeded: "session.execution.succeeded", failed: "session.execution.failed", interrupted: "session.execution.interrupted" };
+    const messaging = ["messaged", "silent", "unknown"];
+    let n = 0;
+    for (const [outcome, type] of Object.entries(outcomes)) {
+      for (const state of messaging) {
+        const id = `ses_child_turns_${n++}`;
+        sessions.set(id, { id });
+        const begun = Date.now() - 10_000;
+        recordSpawn(id, {
+          name: `worker-${outcome}-${state}`,
+          pipelineSlug: "announced-turns",
+          spawner: "ses_spawner_turns",
+          ...(state === "unknown" ? {} : { spawnedAt: begun }),
+        });
+        if (state !== "silent") {
+          recordSend(id, "ses_spawner_turns", begun + 5_000);
+        }
+        promptCalls.length = 0;
+        pushEvent({ type, data: { sessionID: id } });
+        await delay(10);
+
+        const expected =
+          outcome === "failed"
+            ? [`[rp] worker-${outcome}-${state} (${id}) failed a turn.`]
+            : outcome === "succeeded" && state === "silent"
+              ? [`[rp] worker-${outcome}-${state} (${id}) ended a turn without sending a message.`]
+              : [];
+        assert.deepEqual(
+          promptCalls,
+          expected.map((text) => ({ sessionID: "ses_spawner_turns", text, delivery: "steer" })),
+          `${outcome} turn, ${state}`,
+        );
+      }
+    }
+  });
+
+  test("a turn that ended without a message is not announced for a session whose deletion confirmed, and is held while the delete is in flight", async () => {
+    const fakeCtx = createFakeCtx();
+    const { ctx, tools, pushEvent, sessions } = fakeCtx;
+    for (const id of ["ses_spawner_unmsg", "ses_child_unmsg_deleted", "ses_child_unmsg_alive"]) {
+      sessions.set(id, { id });
+    }
+    for (const id of ["ses_child_unmsg_deleted", "ses_child_unmsg_alive"]) {
+      recordSpawn(id, {
+        name: id,
+        pipelineSlug: "announced-turns",
+        spawner: "ses_spawner_unmsg",
+        spawnedAt: Date.now() - 10_000,
+      });
+    }
+    const promptCalls = [];
+    ctx.session.prompt = async (args) => {
+      promptCalls.push(args);
+      return args;
+    };
+    let status = 204;
+    setup(
+      ctx,
+      isolatedDeps({
+        env: { RP_OPENCODE_SERVER_URL: "http://127.0.0.1:9999", OPENCODE_PASSWORD: "pw" },
+        readServiceRecord: () => null,
+        // The turn ends while the delete is in flight: held, then settled by
+        // the delete's outcome.
+        requestFn: async (url) => {
+          const id = url.pathname.split("/").pop();
+          pushEvent({ type: "session.execution.succeeded", data: { sessionID: id } });
+          await delay(10);
+          return { status, body: undefined };
+        },
+      }),
+    );
+
+    await tools.get("rp_terminate").execute({ session: "ses_child_unmsg_deleted" }, { sessionID: "ses_spawner_unmsg" });
+    await delay(10);
+    assert.deepEqual(promptCalls, [], "a confirmed deletion drops the held announcement");
+
+    status = 500;
+    await tools.get("rp_terminate").execute({ session: "ses_child_unmsg_alive" }, { sessionID: "ses_spawner_unmsg" });
+    await delay(10);
+    assert.deepEqual(promptCalls.map((call) => call.text), [
+      "[rp] ses_child_unmsg_alive (ses_child_unmsg_alive) ended a turn without sending a message.",
+    ], "a failed deletion releases the held announcement");
   });
 
   test("a failure arriving while the delete is still in flight is suppressed, and other sessions keep announcing", async () => {
