@@ -635,7 +635,7 @@ process.stdout.write(output);
   });
 
   test("invalid lane packages are frontmatter errors", () => {
-    const artifact = "1-spec/a/spec.md";
+    const artifact = "1-spec/lanes/a/spec.md";
     const pins = ["0-intent/intent.md@111111111111"];
     const valid = [artifact, pins, pins];
     const cases = [
@@ -646,7 +646,7 @@ process.stdout.write(output);
       ["nested consumed value", [[artifact, [["bad"]], pins]], /consumed lane pins/],
       ["nested reference value", [[artifact, pins, [["bad"]]]], /reference pins/],
       ["duplicate artifact", [valid, valid], /duplicate artifact path/],
-      ["one invalid entry", [valid, ["1-spec/b/spec.md", ["bad"], pins]], /consumed lane pins/],
+      ["one invalid entry", [valid, ["1-spec/lanes/b/spec.md", ["bad"], pins]], /consumed lane pins/],
     ];
     for (const [name, lanePackages, error] of cases) {
       registered("1-spec/spec.md", { "lane-packages": lanePackages }, "# Spec\n");
@@ -794,12 +794,11 @@ process.stdout.write(output);
     configure({ targetPhase: 1, lanes: [lane("design-doc-producer", "a")] });
     stampSpec();
     review("2-design-doc/spec-review-1.md", "approved", SPEC);
-    review("1-spec/archive/old/spec-review-1.md", "approved", SPEC);
     const output = check(root);
     assert.doesNotMatch(output, /artifact 1-spec\/spec\.md[\s\S]*APPROVED/);
-    assert.doesNotMatch(output, /claim\s+2-design-doc\/a\/spec-review-1\.md/);
+    assert.doesNotMatch(output, /claim\s+2-design-doc\/lanes\/a\/spec-review-1\.md/);
     assert.match(output, /frontier review wave 1-spec\/spec\.md/);
-    const misplaced = "2-design-doc/a/spec-review-1.md";
+    const misplaced = "2-design-doc/lanes/a/spec-review-1.md";
     assert.throws(() => review(misplaced, "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n"), /only challenges may carry target fields/);
     registered(misplaced, { verdict: "unsatisfiable", reviewed: pairs(SPEC), target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] }, "# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
     const invalid = JSON.parse(check(root, "--json"));
@@ -1077,22 +1076,22 @@ process.stdout.write(output);
     test(`root ${kind} reaches every open production lane once before consolidation`, () => {
       configure({ targetPhase: 1, lanes: [standard.a, standard.b] });
       const rootArtifact = "1-spec/spec.md", intent = "0-intent/intent.md";
-      const sourceClaim = "1-spec/a/spec-review-1.md";
+      const sourceClaim = "1-spec/lanes/a/spec-review-1.md";
       for (const id of ["a", "b"]) {
-        const artifact = `1-spec/${id}/spec.md`, record = `1-spec/${id}/spec-research.md`;
+        const artifact = `1-spec/lanes/${id}/spec.md`, record = `1-spec/lanes/${id}/spec-research.md`;
         registered(artifact, { pins: pairs([intent]), lane: FPS[id] }, "# Spec\nspec-requirement-1: Outcome.\n");
         write(root, record, "# Research\n");
         const verdict = id === "a" && kind === "constraint" ? "unsatisfiable" : "approved";
-        registered(`1-spec/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))] } : {}) }, `# Review\nverdict: ${verdict}\n${verdict === "unsatisfiable" ? `target: ${intent}#intent-goal\n` : ""}`);
+        registered(`1-spec/lanes/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))] } : {}) }, `# Review\nverdict: ${verdict}\n${verdict === "unsatisfiable" ? `target: ${intent}#intent-goal\n` : ""}`);
       }
       const input = ownerInput(kind, 1, [rootArtifact], kind === "constraint" ? sourceClaim : "issue 9");
       for (const id of ["a", "b"]) {
         const state = JSON.parse(check(root, "--json"));
-        const artifact = `1-spec/${id}/spec.md`, record = `1-spec/${id}/spec-research.md`;
+        const artifact = `1-spec/lanes/${id}/spec.md`, record = `1-spec/lanes/${id}/spec-research.md`;
         assert.equal(state.frontier, `converge ${artifact}`);
         assert.deepEqual(state.lanes.find((lane) => lane.artifact === artifact).materials.challenges, [input]);
         registered(artifact, { pins: pairs([intent, input]), lane: FPS[id] });
-        registeredVerdict(`1-spec/${id}/spec-review-2.md`, pairs([artifact, record, intent, input]));
+        registeredVerdict(`1-spec/lanes/${id}/spec-review-2.md`, pairs([artifact, record, intent, input]));
       }
       assert.equal(JSON.parse(check(root, "--json")).frontier, `consolidate ${rootArtifact}`);
     });
@@ -1119,7 +1118,7 @@ process.stdout.write(output);
           const artifact = chain.artifacts[targetIndex];
           let lanes = [];
           if (targetIndex === 0) {
-            const lane = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md", review = "1-spec/a/spec-review-1.md";
+            const lane = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md", review = "1-spec/lanes/a/spec-review-1.md";
             registered(lane, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a }, "# Candidate\nspec-requirement-1: Clause.\n");
             write(root, record, "# Record\n");
             registeredVerdict(review, pairs([lane, record, "0-intent/intent.md"]));
@@ -1135,14 +1134,14 @@ process.stdout.write(output);
             ...(kind !== "claim" ? { origin: "issue 9" } : { "target-identity": [identity(read(root, artifact))], verdict: "unsatisfiable", reviewed: pairs(targetIndex === 3 ? chain.phasePackages[sourceIndex] : chain.packages[sourceIndex]) }),
           }, `# Challenge\n${kind !== "claim" ? "origin: issue 9" : "verdict: unsatisfiable"}\ntarget: ${target}\n`);
           if (currency === "stale input") appendFileSync(join(root, P(targetIndex === 0 ? "0-intent/intent.md" : chain.context)), "\nChanged evidence.\n");
-          if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 0 ? "1-spec/a/spec-review-1.md" : targetIndex === 3 ? "3-build/build-review-1.md" : chain.reviews[targetIndex - 1])));
+          if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 0 ? "1-spec/lanes/a/spec-review-1.md" : targetIndex === 3 ? "3-build/build-review-1.md" : chain.reviews[targetIndex - 1])));
           configure({ lanes });
           const state = JSON.parse(check(root, "--json"));
           assert.deepEqual(state.contradictions, []);
           const expected = currency === "current" ? `converge ${artifact}`
             : currency === "stale input" ? `converge ${chain.artifacts[Math.max(0, targetIndex - 1)]}`
-            : targetIndex === 0 && kind !== "claim" ? "converge 1-spec/a/spec.md"
-            : ["review wave 1-spec/a/spec.md", "review wave 1-spec/spec.md", "review wave 2-design-doc/design-doc.md", "build review"][targetIndex];
+            : targetIndex === 0 && kind !== "claim" ? "converge 1-spec/lanes/a/spec.md"
+            : ["review wave 1-spec/lanes/a/spec.md", "review wave 1-spec/spec.md", "review wave 2-design-doc/design-doc.md", "build review"][targetIndex];
           assert.equal(state.frontier, expected);
           const reported = kind !== "claim" ? state.challenges[0] : state.claims[0];
           assert.equal(reported.target, target);
@@ -2030,6 +2029,12 @@ process.stdout.write(output);
     write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("prior-finding"), ["1-spec/spec-review-1.md#spec-finding-1"]);
+    configure({ lanes: [standard.a] });
+    write(root, "1-spec/lanes/a/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: Gap\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec-review-1.md"), "--mirror");
+    write(root, "1-spec/lanes/a/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/lanes/a/spec-review-1.md#spec-finding-1, resolution failed\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec-review-2.md"), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/lanes/a/spec-review-2.md")).data.get("prior-finding"), ["1-spec/lanes/a/spec-review-1.md#spec-finding-1"]);
   });
 
   test("a review's wave is a canonical positive number", () => {
@@ -2093,11 +2098,11 @@ process.stdout.write(output);
 
   test("a lane artifact declares ids like its root", () => {
     configure({ lanes: [standard.a] });
-    write(root, "1-spec/a/spec.md", "# Spec\n\nspec-requirement-2: Second only.\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror"), /INVALID IDS 1-spec\/a\/spec\.md: spec-requirement-1 is missing/);
-    write(root, "1-spec/a/spec.md", "# Spec\n\nspec-requirement-1: First.\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--mirror");
-    assert.deepEqual(parseFrontmatter(read(root, "1-spec/a/spec.md")).data.get("ids"), ["spec-requirement-1"]);
+    write(root, "1-spec/lanes/a/spec.md", "# Spec\n\nspec-requirement-2: Second only.\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--mirror"), /INVALID IDS 1-spec\/lanes\/a\/spec\.md: spec-requirement-1 is missing/);
+    write(root, "1-spec/lanes/a/spec.md", "# Spec\n\nspec-requirement-1: First.\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--mirror");
+    assert.deepEqual(parseFrontmatter(read(root, "1-spec/lanes/a/spec.md")).data.get("ids"), ["spec-requirement-1"]);
   });
 
   for (const kind of ["constraint", "context", "proposal"])
@@ -2410,20 +2415,20 @@ process.stdout.write(output);
 
   // --- production lanes ---------------------------------------------------------
 
-  function approveSpecLaneA(reviewed = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]) {
+  function approveSpecLaneA(reviewed = ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]) {
     configure({ targetPhase: 1, lanes: [standard.a] });
-    write(root, "1-spec/a/spec.md", "# Candidate a\n");
-    write(root, "1-spec/a/spec-research.md", "# Record a\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"));
-    review("1-spec/a/spec-review-1.md", "approved", reviewed);
+    write(root, "1-spec/lanes/a/spec.md", "# Candidate a\n");
+    write(root, "1-spec/lanes/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--pin", P("0-intent/intent.md"));
+    review("1-spec/lanes/a/spec-review-1.md", "approved", reviewed);
   }
 
-  const LANE_A_PACKAGE = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
+  const LANE_A_PACKAGE = ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "1-spec/lanes/a/spec-review-1.md"];
 
   function approvalMatrixCase(context, complete, concordant, allLanes) {
     configure({ targetPhase: 1, lanes: [standard.security, ...(context === "closed lane" ? [standard.a] : [])] });
     write(root, "0-intent/context.md", "# Context\n");
-    const scope = context === "closed lane" ? "1-spec/a/" : "1-spec/";
+    const scope = context === "closed lane" ? "1-spec/lanes/a/" : "1-spec/";
     const artifact = `${scope}spec.md`;
     const record = `${scope}spec-research.md`;
     if (context === "closed lane") {
@@ -2462,7 +2467,7 @@ process.stdout.write(output);
       for (const who of ["one lane vs reference", "two lanes differ", "all lanes equal before reference change"])
         test(`pair-set matrix: ${change}; ${context}; ${who}`, () => {
           configure({ targetPhase: 1, lanes: [standard.security, ...(context === "closed lane" ? [standard.a] : [])] });
-          const sc = context === "closed lane" ? "1-spec/a/" : "1-spec/";
+          const sc = context === "closed lane" ? "1-spec/lanes/a/" : "1-spec/";
           const artifact = `${sc}spec.md`, record = `${sc}spec-research.md`;
           write(root, artifact, "# Candidate\n");
           write(root, record, "# Record\n");
@@ -2506,14 +2511,14 @@ process.stdout.write(output);
 
   test("verify-5: concordant reviews of an unconsumed identity cannot close a lane", () => {
     configure({ targetPhase: 1, lanes: [standard.security, standard.a] });
-    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+    const artifact = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md";
     write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
     write(root, "0-intent/context.md", "# Context v1\n");
     const pins = pairs(["0-intent/intent.md", "0-intent/context.md"]);
     registered(artifact, { pins, lane: FPS.a });
     const reference = [...pairs([artifact, record]), ...pins];
     write(root, "0-intent/context.md", "# Context v2\n");
-    const reviews = ["1-spec/a/spec-review-1.md", "1-spec/a/spec-review-security-1.md"];
+    const reviews = ["1-spec/lanes/a/spec-review-1.md", "1-spec/lanes/a/spec-review-security-1.md"];
     const judged = pairs([artifact, record, "0-intent/intent.md", "0-intent/context.md"]);
     registeredVerdict(reviews[0], judged);
     registeredVerdict(reviews[1], judged, "approved", FPS.security);
@@ -2527,22 +2532,22 @@ process.stdout.write(output);
   for (const omitted of ["0-intent/intent.md", "0-intent/context.md"])
     test(`F01 / verify-2: a registered review omitting ${omitted} cannot close`, () => {
       configure({ targetPhase: 1, lanes: [standard.a] });
-      const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+      const artifact = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md";
       write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
       write(root, "0-intent/context.md", "# Context\n");
       registered(artifact, { pins: pairs(["0-intent/intent.md", "0-intent/context.md"]), lane: FPS.a });
       const reference = pairs([artifact, record, "0-intent/intent.md", "0-intent/context.md"]);
-      registeredVerdict("1-spec/a/spec-review-1.md", reference.filter((pin) => !pin.startsWith(`${omitted}@`)));
-      registeredRoot(artifact, reference, ["1-spec/a/spec-review-1.md"]);
+      registeredVerdict("1-spec/lanes/a/spec-review-1.md", reference.filter((pin) => !pin.startsWith(`${omitted}@`)));
+      registeredRoot(artifact, reference, ["1-spec/lanes/a/spec-review-1.md"]);
       const state = JSON.parse(check(root, "--json"));
       assert.equal(state.lanes[0].closed, false);
-      assert.equal(state.frontier, "review wave 1-spec/a/spec.md");
+      assert.equal(state.frontier, "review wave 1-spec/lanes/a/spec.md");
       assert.equal(state.complete, false);
     });
 
   test("F02 / spec-requirement-7.1.3 / verify #1: registered roots retain a and consolidate b", () => {
     configure({ targetPhase: 1, lanes: [standard.a] });
-    const a = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
+    const a = ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "1-spec/lanes/a/spec-review-1.md"];
     write(root, a[0], "# A\n"); write(root, a[1], "# A record\n");
     registered(a[0], { pins: pairs(["0-intent/intent.md"]), lane: FPS.a });
     const reference = pairs([...a.slice(0, 2), "0-intent/intent.md"]);
@@ -2558,8 +2563,8 @@ process.stdout.write(output);
     configure({ targetPhase: 1, lanes: [standard.a, bLane] });
     const state = () => JSON.parse(check(root, "--json"));
     assert.equal(state().lanes[0].closed, true);
-    assert.equal(state().frontier, "converge 1-spec/b/spec.md");
-    const b = ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "1-spec/b/spec-review-1.md"];
+    assert.equal(state().frontier, "converge 1-spec/lanes/b/spec.md");
+    const b = ["1-spec/lanes/b/spec.md", "1-spec/lanes/b/spec-research.md", "1-spec/lanes/b/spec-review-1.md"];
     write(root, b[0], "# B\n"); write(root, b[1], "# B record\n");
     registered(b[0], { pins: pairs(["0-intent/intent.md", ...a]), lane: laneFingerprint(bLane) });
     const bReference = pairs([...b.slice(0, 2), "0-intent/intent.md", ...a]);
@@ -2597,22 +2602,22 @@ process.stdout.write(output);
   test("review materials expand only the production artifact into its lane scope", () => {
     const reviewer = { ...standard.security, materials: ["1-spec/spec.md", "0-intent/intent.md"] };
     configure({ targetPhase: 1, lanes: [reviewer, standard.a] });
-    write(root, "1-spec/a/spec.md", "# Candidate\n");
-    write(root, "1-spec/a/spec-research.md", "# Record\n");
-    write(root, "1-spec/a/intent.md", "# Coincidental local file\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"));
-    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
-    review("1-spec/a/spec-review-security-1.md", "approved", ["1-spec/a/spec.md", "0-intent/intent.md"]);
+    write(root, "1-spec/lanes/a/spec.md", "# Candidate\n");
+    write(root, "1-spec/lanes/a/spec-research.md", "# Record\n");
+    write(root, "1-spec/lanes/a/intent.md", "# Coincidental local file\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--pin", P("0-intent/intent.md"));
+    review("1-spec/lanes/a/spec-review-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]);
+    review("1-spec/lanes/a/spec-review-security-1.md", "approved", ["1-spec/lanes/a/spec.md", "0-intent/intent.md"]);
     const state = JSON.parse(check(root, "--json"));
-    const candidate = state.lanes.find((entry) => entry.lane === "1-spec/a/");
+    const candidate = state.lanes.find((entry) => entry.lane === "1-spec/lanes/a/");
     assert.equal(candidate.approved, true);
     assert.equal(candidate.lanes.find((entry) => entry.lane === "security").fresh, true);
   });
 
   test("a closed lane validates materials against the root's preserved reference", () => {
     const context = "0-intent/context.md";
-    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
-    const implicit = "1-spec/a/spec-review-1.md", named = "1-spec/a/spec-review-security-1.md";
+    const artifact = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md";
+    const implicit = "1-spec/lanes/a/spec-review-1.md", named = "1-spec/lanes/a/spec-review-security-1.md";
     const reviewer = { ...standard.security, materials: [context] };
     configure({ targetPhase: 1, lanes: [reviewer, standard.a] });
     write(root, context, "# Context\n");
@@ -2641,8 +2646,8 @@ process.stdout.write(output);
   });
 
   test("an unstamped consumed review cannot approve a lane and can be stamped", () => {
-    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
-    const implicit = "1-spec/a/spec-review-1.md", named = "1-spec/a/spec-review-focus-1.md";
+    const artifact = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md";
+    const implicit = "1-spec/lanes/a/spec-review-1.md", named = "1-spec/lanes/a/spec-review-focus-1.md";
     const focus = lane("spec-reviewer", "focus", { materials: ["0-intent/intent.md"] });
     configure({ targetPhase: 1, lanes: [focus, standard.a] });
     write(root, artifact, "# Candidate\n");
@@ -2692,7 +2697,7 @@ process.stdout.write(output);
         test(`verify-6: ${scope}, ${update}, ${verdict} uses the complete required package`, () => {
           registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md"]) });
           registeredVerdict("1-spec/spec-review-1.md", pairs(SPEC));
-          const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/a/";
+          const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/lanes/a/";
           const artifact = `${sc}design-doc.md`, record = `${sc}design-doc-research.md`;
           write(root, artifact, "# Design\ndesign-doc-decision-1: Decision.\n"); write(root, record, "# Record\n");
           const inputs = ["0-intent/intent.md", "1-spec/spec.md", "1-spec/spec-review-1.md"];
@@ -2762,7 +2767,7 @@ process.stdout.write(output);
             registeredVerdict("1-spec/spec-review-1.md", pairs(specPackage));
             inputs.push("1-spec/spec-review-1.md");
           }
-          const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/a/";
+          const sc = scope === "root" ? "2-design-doc/" : "2-design-doc/lanes/a/";
           const artifact = `${sc}design-doc.md`, record = `${sc}design-doc-research.md`;
           const laneFields = scope === "root" ? {} : { lane: FPS.a };
           registered(artifact, { pins: pairs(inputs), ...laneFields }, "# Design\ndesign-doc-decision-1: Decision.\n");
@@ -2904,11 +2909,11 @@ process.stdout.write(output);
 
   test("root pins alone do not replace an independent consolidation reference", () => {
     configure({ targetPhase: 1, lanes: [standard.a] });
-    const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+    const artifact = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md";
     write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
     registered(artifact, { pins: pairs(["0-intent/intent.md"]), lane: FPS.a });
-    registeredVerdict("1-spec/a/spec-review-1.md", pairs([artifact, record, "0-intent/intent.md"]));
-    const binding = [artifact, record, "1-spec/a/spec-review-1.md"];
+    registeredVerdict("1-spec/lanes/a/spec-review-1.md", pairs([artifact, record, "0-intent/intent.md"]));
+    const binding = [artifact, record, "1-spec/lanes/a/spec-review-1.md"];
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", ...binding]) });
     registeredVerdict("1-spec/spec-review-1.md", pairs([...SPEC, ...binding]));
     const state = JSON.parse(check(root, "--json"));
@@ -2930,21 +2935,21 @@ process.stdout.write(output);
   for (const change of ["add member", "remove member", "change identity"])
     test(`verify-4/5: closed reference survives candidate ${change}`, () => {
       configure({ targetPhase: 1, lanes: [standard.a] });
-      const artifact = "1-spec/a/spec.md", record = "1-spec/a/spec-research.md";
+      const artifact = "1-spec/lanes/a/spec.md", record = "1-spec/lanes/a/spec-research.md";
       write(root, artifact, "# Candidate\n"); write(root, record, "# Record\n");
       write(root, "0-intent/context.md", "# Context v1\n");
       write(root, "0-intent/extra.md", "# Extra\n");
       let inputs = ["0-intent/intent.md", "0-intent/context.md"];
       registered(artifact, { pins: pairs(inputs), lane: FPS.a });
       const reference = pairs([artifact, record, ...inputs]);
-      registeredVerdict("1-spec/a/spec-review-1.md", reference);
-      registeredRoot(artifact, reference, ["1-spec/a/spec-review-1.md"]);
+      registeredVerdict("1-spec/lanes/a/spec-review-1.md", reference);
+      registeredRoot(artifact, reference, ["1-spec/lanes/a/spec-review-1.md"]);
       const before = read(root, "1-spec/spec.md");
       if (change === "add member") inputs.push("0-intent/extra.md");
       if (change === "remove member") inputs.pop();
       if (change === "change identity") write(root, "0-intent/context.md", "# Context v2\n");
       registered(artifact, { pins: pairs(inputs), lane: FPS.a });
-      registeredVerdict("1-spec/a/spec-review-2.md", pairs([artifact, record, ...inputs]), "rejected");
+      registeredVerdict("1-spec/lanes/a/spec-review-2.md", pairs([artifact, record, ...inputs]), "rejected");
       const state = JSON.parse(check(root, "--json"));
       assert.equal(state.lanes[0].closed, true);
       assert.equal(state.lanes[0].episode, 1);
@@ -2957,17 +2962,17 @@ process.stdout.write(output);
   test("a root cannot complete from a lane review omitting consumed context", () => {
     configure({ targetPhase: 1, lanes: [standard.a] });
     write(root, "0-intent/context.md", "# Context\n");
-    write(root, "1-spec/a/spec.md", "# Candidate a\n");
-    write(root, "1-spec/a/spec-research.md", "# Record a\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/context.md"));
-    write(root, "1-spec/a/spec-review-1.md", "# Review\n\nverdict: approved\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/a/spec-review-1.md"), "--reviewed", P("1-spec/a/spec.md"), "--reviewed", P("1-spec/a/spec-research.md"), "--reviewed", P("0-intent/intent.md"), "--mirror"), /INVALID REVIEW PACKAGE/);
-    const lanePackage = ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "1-spec/a/spec-review-1.md"];
+    write(root, "1-spec/lanes/a/spec.md", "# Candidate a\n");
+    write(root, "1-spec/lanes/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/context.md"));
+    write(root, "1-spec/lanes/a/spec-review-1.md", "# Review\n\nverdict: approved\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/lanes/a/spec-review-1.md"), "--reviewed", P("1-spec/lanes/a/spec.md"), "--reviewed", P("1-spec/lanes/a/spec-research.md"), "--reviewed", P("0-intent/intent.md"), "--mirror"), /INVALID REVIEW PACKAGE/);
+    const lanePackage = ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "1-spec/lanes/a/spec-review-1.md"];
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...lanePackage.flatMap((path) => ["--pin", P(path)]));
     review("1-spec/spec-review-1.md", "approved", [...SPEC, ...lanePackage]);
     const state = JSON.parse(check(root, "--json"));
     assert.notEqual(state.complete, true);
-    assert.equal(state.frontier, "stamp 1-spec/a/spec-review-1.md");
+    assert.equal(state.frontier, "stamp 1-spec/lanes/a/spec-review-1.md");
   });
 
   test("declared production lanes are sub-pipelines; `after` waits; the root must pin every lane", () => {
@@ -2975,74 +2980,74 @@ process.stdout.write(output);
     rmSync(join(root, P("1-spec/spec-research.md")));
     configure({ targetPhase: 1, lanes: [standard.event, standard.contrarian] });
     let output = check(root);
-    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+MISSING/);
-    assert.match(output, /lane\s+1-spec\/contrarian\/spec\.md\s+MISSING\s+waiting for event-driven/);
-    assert.match(output, /frontier converge 1-spec\/event-driven\/spec\.md/);
+    assert.match(output, /lane\s+1-spec\/lanes\/event-driven\/spec\.md\s+MISSING/);
+    assert.match(output, /lane\s+1-spec\/lanes\/contrarian\/spec\.md\s+MISSING\s+waiting for event-driven/);
+    assert.match(output, /frontier converge 1-spec\/lanes\/event-driven\/spec\.md/);
     for (const id of ["event-driven"]) {
-      write(root, `1-spec/${id}/spec.md`, `# Spec ${id}\n`);
-      write(root, `1-spec/${id}/spec-research.md`, `# Record ${id}\n`);
-      rp(root, "stamp", P(`1-spec/${id}/spec.md`), "--pin", P("0-intent/intent.md"));
-      review(`1-spec/${id}/spec-review-1.md`, "approved", [`1-spec/${id}/spec.md`, `1-spec/${id}/spec-research.md`, "0-intent/intent.md"]);
+      write(root, `1-spec/lanes/${id}/spec.md`, `# Spec ${id}\n`);
+      write(root, `1-spec/lanes/${id}/spec-research.md`, `# Record ${id}\n`);
+      rp(root, "stamp", P(`1-spec/lanes/${id}/spec.md`), "--pin", P("0-intent/intent.md"));
+      review(`1-spec/lanes/${id}/spec-review-1.md`, "approved", [`1-spec/lanes/${id}/spec.md`, `1-spec/lanes/${id}/spec-research.md`, "0-intent/intent.md"]);
     }
     output = check(root);
-    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+FRESH\s+reviews: ·:approved\s+APPROVED/);
-    assert.match(output, /frontier converge 1-spec\/contrarian\/spec\.md/);
-    write(root, "1-spec/contrarian/spec.md", "# Spec contrarian\n");
-    write(root, "1-spec/contrarian/spec-research.md", "# Record contrarian\n");
-    rp(root, "stamp", P("1-spec/contrarian/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"));
+    assert.match(output, /lane\s+1-spec\/lanes\/event-driven\/spec\.md\s+FRESH\s+reviews: ·:approved\s+APPROVED/);
+    assert.match(output, /frontier converge 1-spec\/lanes\/contrarian\/spec\.md/);
+    write(root, "1-spec/lanes/contrarian/spec.md", "# Spec contrarian\n");
+    write(root, "1-spec/lanes/contrarian/spec-research.md", "# Record contrarian\n");
+    rp(root, "stamp", P("1-spec/lanes/contrarian/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/lanes/event-driven/spec.md"));
     output = check(root);
-    assert.match(output, /lane\s+1-spec\/contrarian\/spec\.md\s+STALE — package members/);
-    assert.match(output, /frontier converge 1-spec\/contrarian\/spec\.md/);
-    rp(root, "stamp", P("1-spec/contrarian/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"));
-    review("1-spec/contrarian/spec-review-1.md", "approved", ["1-spec/contrarian/spec.md", "1-spec/contrarian/spec-research.md", "0-intent/intent.md", "1-spec/event-driven/spec.md", "1-spec/event-driven/spec-research.md", "1-spec/event-driven/spec-review-1.md"]);
+    assert.match(output, /lane\s+1-spec\/lanes\/contrarian\/spec\.md\s+STALE — package members/);
+    assert.match(output, /frontier converge 1-spec\/lanes\/contrarian\/spec\.md/);
+    rp(root, "stamp", P("1-spec/lanes/contrarian/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/lanes/event-driven/spec.md"), "--pin", P("1-spec/lanes/event-driven/spec-research.md"), "--pin", P("1-spec/lanes/event-driven/spec-review-1.md"));
+    review("1-spec/lanes/contrarian/spec-review-1.md", "approved", ["1-spec/lanes/contrarian/spec.md", "1-spec/lanes/contrarian/spec-research.md", "0-intent/intent.md", "1-spec/lanes/event-driven/spec.md", "1-spec/lanes/event-driven/spec-research.md", "1-spec/lanes/event-driven/spec-review-1.md"]);
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+MISSING — every lane approved: consolidate/);
     write(root, "1-spec/spec.md", "# Consolidated spec\n");
     write(root, "1-spec/spec-research.md", "# Consolidated record\n");
     // A lane closes only when the root records its complete package.
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"));
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/lanes/event-driven/spec.md"));
     output = check(root);
     assert.doesNotMatch(output, /closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+STALE — package members/);
     // One complete lane closes independently while an incomplete one stays open.
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--pin", P("1-spec/contrarian/spec.md"), "--pin", P("1-spec/contrarian/spec-review-1.md"));
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/lanes/event-driven/spec.md"), "--pin", P("1-spec/lanes/event-driven/spec-research.md"), "--pin", P("1-spec/lanes/event-driven/spec-review-1.md"), "--pin", P("1-spec/lanes/contrarian/spec.md"), "--pin", P("1-spec/lanes/contrarian/spec-review-1.md"));
     output = check(root);
-    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
-    assert.doesNotMatch(output, /lane\s+1-spec\/contrarian\/spec\.md\s+closed/);
+    assert.match(output, /lane\s+1-spec\/lanes\/event-driven\/spec\.md\s+closed/);
+    assert.doesNotMatch(output, /lane\s+1-spec\/lanes\/contrarian\/spec\.md\s+closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+STALE — package members/);
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/event-driven/spec.md"), "--pin", P("1-spec/event-driven/spec-research.md"), "--pin", P("1-spec/event-driven/spec-review-1.md"), "--pin", P("1-spec/contrarian/spec.md"), "--pin", P("1-spec/contrarian/spec-research.md"), "--pin", P("1-spec/contrarian/spec-review-1.md"));
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/lanes/event-driven/spec.md"), "--pin", P("1-spec/lanes/event-driven/spec-research.md"), "--pin", P("1-spec/lanes/event-driven/spec-review-1.md"), "--pin", P("1-spec/lanes/contrarian/spec.md"), "--pin", P("1-spec/lanes/contrarian/spec-research.md"), "--pin", P("1-spec/lanes/contrarian/spec-review-1.md"));
     output = check(root);
-    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
+    assert.match(output, /lane\s+1-spec\/lanes\/event-driven\/spec\.md\s+closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH\s+reviews: ·:none/);
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged upstream.\n");
     output = check(root);
-    assert.match(output, /lane\s+1-spec\/event-driven\/spec\.md\s+closed/);
+    assert.match(output, /lane\s+1-spec\/lanes\/event-driven\/spec\.md\s+closed/);
     assert.match(output, /frontier converge 1-spec\/spec\.md/);
     assert.doesNotMatch(output, /frontier converge 1-spec\/(?:event-driven|contrarian)\/spec\.md/);
   });
 
   test("production-lane closure preserves the concordant approved package consumed by the root", () => {
     configure({ targetPhase: 1, lanes: [standard.security, standard.a] });
-    write(root, "1-spec/a/spec.md", "# Spec a v1\n");
-    write(root, "1-spec/a/spec-research.md", "# Record a\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"));
-    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
-    write(root, "1-spec/a/spec.md", "# Spec a v2\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"));
-    review("1-spec/a/spec-review-security-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
+    write(root, "1-spec/lanes/a/spec.md", "# Spec a v1\n");
+    write(root, "1-spec/lanes/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--pin", P("0-intent/intent.md"));
+    review("1-spec/lanes/a/spec-review-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]);
+    write(root, "1-spec/lanes/a/spec.md", "# Spec a v2\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--pin", P("0-intent/intent.md"));
+    review("1-spec/lanes/a/spec-review-security-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]);
     write(root, "1-spec/spec.md", "# Consolidated spec\n");
-    const lanePackage = ["0-intent/intent.md", "1-spec/a/spec.md", "1-spec/a/spec-research.md"];
-    rp(root, "stamp", P("1-spec/spec.md"), ...[...lanePackage, "1-spec/a/spec-review-1.md", "1-spec/a/spec-review-security-1.md"].flatMap((path) => ["--pin", P(path)]));
-    assert.doesNotMatch(check(root), /lane\s+1-spec\/a\/spec\.md\s+closed/);
+    const lanePackage = ["0-intent/intent.md", "1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md"];
+    rp(root, "stamp", P("1-spec/spec.md"), ...[...lanePackage, "1-spec/lanes/a/spec-review-1.md", "1-spec/lanes/a/spec-review-security-1.md"].flatMap((path) => ["--pin", P(path)]));
+    assert.doesNotMatch(check(root), /lane\s+1-spec\/lanes\/a\/spec\.md\s+closed/);
 
-    review("1-spec/a/spec-review-2.md", "approved", lanePackage);
-    review("1-spec/a/spec-review-security-2.md", "approved", lanePackage);
-    rp(root, "stamp", P("1-spec/spec.md"), ...[...lanePackage, "1-spec/a/spec-review-2.md", "1-spec/a/spec-review-security-2.md"].flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/lanes/a/spec-review-2.md", "approved", lanePackage);
+    review("1-spec/lanes/a/spec-review-security-2.md", "approved", lanePackage);
+    rp(root, "stamp", P("1-spec/spec.md"), ...[...lanePackage, "1-spec/lanes/a/spec-review-2.md", "1-spec/lanes/a/spec-review-security-2.md"].flatMap((path) => ["--pin", P(path)]));
     appendFileSync(join(root, P("0-intent/intent.md")), "\nChanged upstream.\n");
-    assert.match(check(root), /lane\s+1-spec\/a\/spec\.md\s+closed/);
+    assert.match(check(root), /lane\s+1-spec\/lanes\/a\/spec\.md\s+closed/);
   });
 
   test("an incomplete approval package cannot close a production lane", () => {
-    assert.throws(() => approveSpecLaneA(["1-spec/a/spec.md", "1-spec/a/spec-research.md"]), /INVALID REVIEW PACKAGE/);
+    assert.throws(() => approveSpecLaneA(["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md"]), /INVALID REVIEW PACKAGE/);
   });
 
   test("a root reconfirmation preserves its closed lane package", () => {
@@ -3060,27 +3065,27 @@ process.stdout.write(output);
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec.md")).data.get("lane-packages"), lanePackages);
     review("1-spec/spec-review-2.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
     const output = check(root);
-    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
+    assert.match(output, /lane\s+1-spec\/lanes\/a\/spec\.md\s+closed/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+FRESH[\s\S]*frontier complete/);
   });
 
   test("repinning a closed lane candidate preserves its package and episode", () => {
     configure({ targetPhase: 1, lanes: [standard.a] });
     write(root, "0-intent/context.md", "# Context v1\n");
-    write(root, "1-spec/a/spec.md", "# Candidate a\n");
-    write(root, "1-spec/a/spec-research.md", "# Record a\n");
+    write(root, "1-spec/lanes/a/spec.md", "# Candidate a\n");
+    write(root, "1-spec/lanes/a/spec-research.md", "# Record a\n");
     const inputs = ["0-intent/intent.md", "0-intent/context.md"];
-    rp(root, "stamp", P("1-spec/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", ...inputs]);
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/lanes/a/spec-review-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", ...inputs]);
     rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
     review("1-spec/spec-review-1.md", "approved", [...SPEC, ...LANE_A_PACKAGE]);
     assert.equal(JSON.parse(check(root, "--json")).frontier, "complete");
     write(root, "0-intent/context.md", "# Context v2\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/a/spec-review-2.md", "rejected", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", ...inputs]);
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), ...inputs.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/lanes/a/spec-review-2.md", "rejected", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", ...inputs]);
     const state = JSON.parse(check(root, "--json"));
     assert.equal(state.lanes[0].closed, true);
-    assert.equal(state.counters["1-spec/a/spec"].episode, 1);
+    assert.equal(state.counters["1-spec/lanes/a/spec"].episode, 1);
     assert.equal(state.artifacts[0].state, "fresh");
     assert.equal(state.artifacts[0].approved, true);
     assert.equal(state.frontier, "complete");
@@ -3096,19 +3101,19 @@ process.stdout.write(output);
     const bLane = { ...standard.b, after: ["a"] };
     configure({ targetPhase: 1, lanes: [standard.a, bLane] });
     const output = check(root);
-    assert.match(output, /lane\s+1-spec\/a\/spec\.md\s+closed/);
-    assert.match(output, /lane\s+1-spec\/b\/spec\.md\s+MISSING/);
+    assert.match(output, /lane\s+1-spec\/lanes\/a\/spec\.md\s+closed/);
+    assert.match(output, /lane\s+1-spec\/lanes\/b\/spec\.md\s+MISSING/);
     assert.match(output, /artifact 1-spec\/spec\.md\s+STALE/);
-    assert.match(output, /frontier converge 1-spec\/b\/spec\.md/);
-    write(root, "1-spec/b/spec.md", "# Candidate b\n");
-    write(root, "1-spec/b/spec-research.md", "# Record b\n");
-    rp(root, "stamp", P("1-spec/b/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
-    review("1-spec/b/spec-review-1.md", "approved", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md", ...LANE_A_PACKAGE]);
+    assert.match(output, /frontier converge 1-spec\/lanes\/b\/spec\.md/);
+    write(root, "1-spec/lanes/b/spec.md", "# Candidate b\n");
+    write(root, "1-spec/lanes/b/spec-research.md", "# Record b\n");
+    rp(root, "stamp", P("1-spec/lanes/b/spec.md"), "--pin", P("0-intent/intent.md"), ...LANE_A_PACKAGE.flatMap((path) => ["--pin", P(path)]));
+    review("1-spec/lanes/b/spec-review-1.md", "approved", ["1-spec/lanes/b/spec.md", "1-spec/lanes/b/spec-research.md", "0-intent/intent.md", ...LANE_A_PACKAGE]);
     const ready = JSON.parse(check(root, "--json"));
     assert.equal(ready.frontier, "consolidate 1-spec/spec.md");
     assert.deepEqual(ready.artifacts[0].laneCandidates, [
-      { lane: "1-spec/a/", package: LANE_A_PACKAGE },
-      { lane: "1-spec/b/", package: ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "1-spec/b/spec-review-1.md"] },
+      { lane: "1-spec/lanes/a/", package: LANE_A_PACKAGE },
+      { lane: "1-spec/lanes/b/", package: ["1-spec/lanes/b/spec.md", "1-spec/lanes/b/spec-research.md", "1-spec/lanes/b/spec-review-1.md"] },
     ]);
   });
 
@@ -3119,33 +3124,33 @@ process.stdout.write(output);
       lane("spec-producer", "c", { after: ["b"] }),
     ] });
     for (const id of ["z", "b"]) {
-      write(root, `1-spec/${id}/spec.md`, `# Spec ${id}\n`);
-      write(root, `1-spec/${id}/spec-research.md`, `# Record ${id}\n`);
-      const dependencyPins = id === "b" ? ["1-spec/z/spec.md", "1-spec/z/spec-research.md"] : [];
-      rp(root, "stamp", P(`1-spec/${id}/spec.md`), "--pin", P("0-intent/intent.md"), ...dependencyPins.flatMap((path) => ["--pin", P(path)]));
+      write(root, `1-spec/lanes/${id}/spec.md`, `# Spec ${id}\n`);
+      write(root, `1-spec/lanes/${id}/spec-research.md`, `# Record ${id}\n`);
+      const dependencyPins = id === "b" ? ["1-spec/lanes/z/spec.md", "1-spec/lanes/z/spec-research.md"] : [];
+      rp(root, "stamp", P(`1-spec/lanes/${id}/spec.md`), "--pin", P("0-intent/intent.md"), ...dependencyPins.flatMap((path) => ["--pin", P(path)]));
     }
-    review("1-spec/b/spec-review-1.md", "approved", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md", "1-spec/z/spec.md", "1-spec/z/spec-research.md"]);
+    review("1-spec/lanes/b/spec-review-1.md", "approved", ["1-spec/lanes/b/spec.md", "1-spec/lanes/b/spec-research.md", "0-intent/intent.md", "1-spec/lanes/z/spec.md", "1-spec/lanes/z/spec-research.md"]);
     const output = check(root);
-    assert.match(output, /lane\s+1-spec\/c\/spec\.md\s+MISSING\s+waiting for b/);
-    assert.match(output, /frontier review wave 1-spec\/z\/spec\.md/);
-    assert.doesNotMatch(output, /frontier converge 1-spec\/c\/spec\.md/);
+    assert.match(output, /lane\s+1-spec\/lanes\/c\/spec\.md\s+MISSING\s+waiting for b/);
+    assert.match(output, /frontier review wave 1-spec\/lanes\/z\/spec\.md/);
+    assert.doesNotMatch(output, /frontier converge 1-spec\/lanes\/c\/spec\.md/);
   });
 
   test("a claim raised inside a production lane reaches the frontier, and lanes have counters", () => {
     rmSync(join(root, P("1-spec/spec.md")));
     configure({ targetPhase: 1, lanes: [standard.a, standard.b] });
     for (const id of ["a", "b"]) {
-      write(root, `1-spec/${id}/spec.md`, `# Spec ${id}\n`);
-      write(root, `1-spec/${id}/spec-research.md`, `# Record ${id}\n`);
-      rp(root, "stamp", P(`1-spec/${id}/spec.md`), "--pin", P("0-intent/intent.md"));
+      write(root, `1-spec/lanes/${id}/spec.md`, `# Spec ${id}\n`);
+      write(root, `1-spec/lanes/${id}/spec-research.md`, `# Record ${id}\n`);
+      rp(root, "stamp", P(`1-spec/lanes/${id}/spec.md`), "--pin", P("0-intent/intent.md"));
     }
-    review("1-spec/a/spec-review-1.md", "unsatisfiable", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"], "target: 0-intent/intent.md#intent-goal\n");
-    review("1-spec/b/spec-review-1.md", "rejected", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md"]);
-    review("1-spec/b/spec-review-2.md", "approved", ["1-spec/b/spec.md", "1-spec/b/spec-research.md", "0-intent/intent.md"]);
+    review("1-spec/lanes/a/spec-review-1.md", "unsatisfiable", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"], "target: 0-intent/intent.md#intent-goal\n");
+    review("1-spec/lanes/b/spec-review-1.md", "rejected", ["1-spec/lanes/b/spec.md", "1-spec/lanes/b/spec-research.md", "0-intent/intent.md"]);
+    review("1-spec/lanes/b/spec-review-2.md", "approved", ["1-spec/lanes/b/spec.md", "1-spec/lanes/b/spec-research.md", "0-intent/intent.md"]);
     const output = check(root);
-    assert.match(output, /claim\s+1-spec\/a\/spec-review-1\.md → 0-intent\/intent\.md#intent-goal\s+PENDING — owner escalation/);
-    assert.match(output, /counter\s+1-spec\/a\/spec: 1 wave this episode/);
-    assert.doesNotMatch(output, /counter\s+1-spec\/b\/spec/);
+    assert.match(output, /claim\s+1-spec\/lanes\/a\/spec-review-1\.md → 0-intent\/intent\.md#intent-goal\s+PENDING — owner escalation/);
+    assert.match(output, /counter\s+1-spec\/lanes\/a\/spec: 1 wave this episode/);
+    assert.doesNotMatch(output, /counter\s+1-spec\/lanes\/b\/spec/);
   });
 
   // --- refs and output ----------------------------------------------------------
@@ -3254,14 +3259,14 @@ process.stdout.write(output);
 
     const combined = lane("spec-producer", "combined", { brief: "Combine", after: ["a", "b"] });
     configure({ targetPhase: 1, lanes: [standard.a, standard.b, combined] });
-    write(root, "1-spec/combined/spec.md", "# Combined\n");
-    write(root, "1-spec/combined/spec-research.md", "# Record\n");
-    registered("1-spec/combined/spec.md", {
+    write(root, "1-spec/lanes/combined/spec.md", "# Combined\n");
+    write(root, "1-spec/lanes/combined/spec-research.md", "# Record\n");
+    registered("1-spec/lanes/combined/spec.md", {
       pins: pairs(["0-intent/intent.md"]),
       lane: recordedFingerprint,
     });
     const state = JSON.parse(check(root, "--json"));
-    assert.doesNotMatch(state.lanes.find((entry) => entry.lane === "1-spec/combined/").stale.join(", "), /lane declaration/);
+    assert.doesNotMatch(state.lanes.find((entry) => entry.lane === "1-spec/lanes/combined/").stale.join(", "), /lane declaration/);
   });
 
   test("stamp derives lane fingerprints from review and production paths", () => {
@@ -3280,21 +3285,21 @@ process.stdout.write(output);
     rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
     assert.equal(parseFrontmatter(read(root, "1-spec/spec-review-1.md")).data.has("lane"), false);
     configure({ targetPhase: 1, lanes: [reviewer, producer] });
-    write(root, "1-spec/a/spec.md", "# Spec a\n");
-    write(root, "1-spec/a/spec-research.md", "# Record a\n");
-    rp(root, "stamp", P("1-spec/a/spec.md"), "--pin", P("0-intent/intent.md"));
-    review("1-spec/a/spec-review-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec.md")).data.get("lane"), laneFingerprint(producer));
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec-review-1.md")).data.has("lane"), false);
-    review("1-spec/a/spec-review-security-1.md", "approved", ["1-spec/a/spec.md", "1-spec/a/spec-research.md", "0-intent/intent.md"]);
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec-review-security-1.md")).data.get("lane"), laneFingerprint(reviewer));
-    const record = parseFrontmatter(read(root, "1-spec/a/spec-research.md"));
+    write(root, "1-spec/lanes/a/spec.md", "# Spec a\n");
+    write(root, "1-spec/lanes/a/spec-research.md", "# Record a\n");
+    rp(root, "stamp", P("1-spec/lanes/a/spec.md"), "--pin", P("0-intent/intent.md"));
+    review("1-spec/lanes/a/spec-review-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]);
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec.md")).data.get("lane"), laneFingerprint(producer));
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec-review-1.md")).data.has("lane"), false);
+    review("1-spec/lanes/a/spec-review-security-1.md", "approved", ["1-spec/lanes/a/spec.md", "1-spec/lanes/a/spec-research.md", "0-intent/intent.md"]);
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec-review-security-1.md")).data.get("lane"), laneFingerprint(reviewer));
+    const record = parseFrontmatter(read(root, "1-spec/lanes/a/spec-research.md"));
     record.data = record.data ?? new Map();
     record.data.set("lane", laneFingerprint(producer));
-    write(root, "1-spec/a/spec-research.md", renderFrontmatter(record.data, record.body));
+    write(root, "1-spec/lanes/a/spec-research.md", renderFrontmatter(record.data, record.body));
     rmSync(join(root, P("run-config.md")));
-    rp(root, "stamp", P("1-spec/a/spec-research.md"), "--mirror");
-    assert.equal(parseFrontmatter(read(root, "1-spec/a/spec-research.md")).data.has("lane"), false);
+    rp(root, "stamp", P("1-spec/lanes/a/spec-research.md"), "--mirror");
+    assert.equal(parseFrontmatter(read(root, "1-spec/lanes/a/spec-research.md")).data.has("lane"), false);
     configure({ targetPhase: 1, lanes: [reviewer, producer] });
     assert.deepEqual(JSON.parse(rp(root, "check", PIPELINE, "--json")).configuration, {
       workflow: "autonomous",
@@ -3321,16 +3326,40 @@ process.stdout.write(output);
   test("a path naming an undeclared lane is rejected by stamp", () => {
     stampSpec();
     approveSpec();
-    write(root, "1-spec/rogue/spec.md", "# Rogue\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/rogue/spec.md"), "--pin", P("0-intent/intent.md")), /undeclared lane/);
-    write(root, "1-spec/rogue/spec-review-1.md", "# Review\n\nverdict: rejected\n");
-    assert.throws(() => rp(root, "stamp", P("1-spec/rogue/spec-review-1.md"), "--mirror"), /undeclared lane/);
+    write(root, "1-spec/lanes/rogue/spec.md", "# Rogue\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/lanes/rogue/spec.md"), "--pin", P("0-intent/intent.md")), /undeclared lane/);
+    write(root, "1-spec/lanes/rogue/spec-review-1.md", "# Review\n\nverdict: rejected\n");
+    assert.throws(() => rp(root, "stamp", P("1-spec/lanes/rogue/spec-review-1.md"), "--mirror"), /undeclared lane/);
     write(root, "1-spec/spec-review-extra-2.md", "# Review\n\nverdict: rejected\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-extra-2.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror"), /undeclared lane/);
     const output = check(root);
-    assert.match(output, /lane\s+1-spec\/rogue\/\s+UNDECLARED/);
+    assert.match(output, /lane\s+1-spec\/lanes\/rogue\/\s+UNDECLARED/);
     assert.match(output, /lane\s+1-spec\/spec-review-extra-2\.md\s+UNDECLARED/);
   });
+
+  // Pipeline state lies at a phase folder's root, in its tasks/, and in lanes/<lane>/; every other folder is ignored.
+  const UNREADABLE = "---\nnot JSON\n---\n# Notes\n\nverdict: maybe\nspec-requirement-9: Stray.\n";
+  for (const [label, path, contents, expected] of [
+    ["a declared lane under lanes/", "1-spec/lanes/a/spec.md", "# Candidate a\n", "stamp 1-spec/lanes/a/spec.md"],
+    ["an undeclared lane under lanes/", "1-spec/lanes/rogue/spec.md", "# Rogue\n", "undeclared lane 1-spec/lanes/rogue/"],
+    ["a declared lane's id directly under the phase folder", "1-spec/a/spec.md", UNREADABLE, null],
+    ["a phase-level folder holding Markdown", "1-spec/evidence/spec-review-2.md", UNREADABLE, null],
+    ["a supporting folder beside a review", "1-spec/spec-review-1/spec-review-2.md", UNREADABLE, null],
+    ["a supporting folder beside a report", "3-build/tasks/build-task-1-report-1/build-task-1-report-2.md", UNREADABLE, null],
+    ["a supporting folder inside a lane", "1-spec/lanes/a/spec/spec.md", UNREADABLE, null],
+  ])
+    test(`pipeline state: ${label}`, () => {
+      configure({ targetPhase: 1, lanes: [standard.a] });
+      stampSpec();
+      approveSpec();
+      const before = JSON.parse(check(root, "--json"));
+      assert.equal(before.frontier, "converge 1-spec/lanes/a/spec.md");
+      write(root, path, contents);
+      const after = JSON.parse(check(root, "--json"));
+      if (expected) return assert.equal(after.frontier, expected);
+      assert.deepEqual(after, before);
+      assert.throws(() => rp(root, "stamp", P(path), "--mirror"), /not pipeline state/);
+    });
 
   test("a claim is pending only while it is its lane's latest verdict; a held claim ends with the wave that approved", () => {
     const reviewer = lane("spec-reviewer", "b");
@@ -3380,7 +3409,6 @@ process.stdout.write(output);
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, id: true }] }, /id must be a string/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, id: ["focus"] }] }, /id must be a string/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-reviewer", "Bad")] }, /id is invalid/],
-      [{ workflow: "autonomous", "target-phase": 1, lanes: [lane("spec-reviewer", "tasks")] }, /reserved/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [standard.security, standard.security] }, /duplicate lane id/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, brief: " " }] }, /non-empty string/],
       [{ workflow: "autonomous", "target-phase": 1, lanes: [{ ...standard.security, brief: 1 }] }, /non-empty string/],
@@ -3893,7 +3921,7 @@ process.stdout.write(output);
     const body = "# Body\n\nExact bytes.\r\n";
     const data = new Map([
       ["pins", ["a,b", "c: d"]],
-      ["lane-packages", [["1-spec/a/spec.md", ["a@111111111111"], ["b@222222222222"]]]],
+      ["lane-packages", [["1-spec/lanes/a/spec.md", ["a@111111111111"], ["b@222222222222"]]]],
       ["brief", "Check: all [paths] # deeply"],
       ["depends", []],
     ]);

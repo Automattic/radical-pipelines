@@ -25,7 +25,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
-- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
+- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
 - **Must-fix finding** — A finding that leaves the artifact unable to do its job; with a failed resolution, the only ground on which a delta review rejects.
