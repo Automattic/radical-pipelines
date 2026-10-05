@@ -57,8 +57,8 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 **Tests**
 
 - Tests follow the classical school: a test observes an outcome through the public interface, never the wiring that produces it; a test double replaces only what the test cannot run.
-- A new test proves something no existing test proves.
-- Every proof the design doc's Verification names exists and would fail if its outcome were broken; a test that proves nothing the Verification names is a finding.
+- A new test proves something no other test proves.
+- Every proof the design doc's Verification names exists and would fail if what it proves were broken; a test that proves nothing the Verification names is a finding.
 
 **Contradictions**
 
