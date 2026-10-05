@@ -50,7 +50,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every Verification entry the design doc proves by an e2e flow has that flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every e2e flow the design doc's Verification names is one flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
 - **Traceability** — each task's `Traces to` names the requirements, acceptance criteria, decisions, and flows it realizes; the task cites the design doc for them, never restates it.
 - **Per-task acceptance** — every task's `Acceptance` lists the outcomes it makes true of the acceptance criteria and decisions it traces to; missing, vague, or contradictory acceptance, or acceptance stating a fact about the implementation, is a finding.
 - **Type fidelity** — `tdd` changes observable behavior, its mapped new unit tests written test-first; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.

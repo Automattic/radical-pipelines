@@ -79,8 +79,9 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 **Verification**
 
-- `## Verification` names the proof of every decision and acceptance criterion: an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection. One proof may serve several outcomes; an outcome existing coverage already proves names that proof and gets no new one.
-- A proof sits at the cheapest place where its outcome is observable as the user, consumer, or caller sees it.
+- `## Verification` names the proofs of every decision and acceptance criterion, one entry per proof: an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection. A proof may serve several outcomes, and an outcome may rest on several proofs, each proving part of it.
+- A proof sits at the cheapest place where what it proves is observable as the user, consumer, or caller sees it.
+- A new proof catches a breakage no other proof, existing or new, catches.
 
 **Claims**
 
