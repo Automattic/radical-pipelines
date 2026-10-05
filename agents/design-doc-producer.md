@@ -79,9 +79,9 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 **Verification**
 
-- `## Verification` names the proofs of every decision and acceptance criterion, one entry per proof: an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection. A proof may serve several outcomes, and an outcome may rest on several proofs, each proving part of it.
+- `## Verification` names the proofs of every decision and acceptance criterion, one entry per proof stating what it proves: an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection. A proof may serve several outcomes, and an outcome may rest on several proofs.
 - A proof sits at the cheapest place where what it proves is observable as the user, consumer, or caller sees it.
-- A new proof catches a breakage no other proof, existing or new, catches.
+- A new proof proves something no other proof proves.
 
 **Claims**
 
@@ -154,7 +154,7 @@ design-doc-decision-1: <title>
 
 ## Verification
 
-<!-- <existing test <name> | new test at <boundary> | e2e flow | type system | inspection> — <design-doc-decision-<n> | spec-acceptance-criterion-<n>, …> -->
+<!-- <existing test <name> | new test at <boundary> | e2e flow | type system | inspection> — <design-doc-decision-<n> | spec-acceptance-criterion-<n>, …> — <what it proves> -->
 
 ## Risks
 
