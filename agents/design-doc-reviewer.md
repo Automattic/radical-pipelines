@@ -47,7 +47,7 @@ This is not a from-scratch review:
 
 The diff may touch only the record — a refutation, an adjudicated claim. Judge the disposition under **Adjudication audit**; the artifact staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a claim its evidence does not establish.
+Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a claim its evidence does not establish.
 
 # Rules
 
@@ -70,7 +70,7 @@ Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findi
 - **Traceability** — each decision names the requirement or acceptance criterion it serves.
 - **Scope** — the design stays within the spec: no features beyond it, no out-of-scope items crept back in.
 - **Soundness** — each decision's mechanism can satisfy the requirements it serves given the codebase as inspected; alternatives are real and their rejection reasoned.
-- **Proportion** — each mechanism, guard, and proof serves a requirement, acceptance criterion, or constraint at the weight the intent makes material; one that serves none is a finding. A finding against an accepted consequence names the intent item or spec text it leaves unserved; a consequence whose size only build can measure is an assumption, not an accepted consequence. An edge case is named by the input that produces it and where it is produced, never by a category.
+- **Proportion** — each mechanism, guard, and proof serves a requirement, acceptance criterion, or constraint at the weight the intent makes material; one that serves none is a finding. A finding against an accepted consequence names the intent item or spec text it leaves unserved. An edge case is named by the input that produces it and where it is produced, never by a category.
 - **Verification** — every decision and acceptance criterion names its proofs, one entry per proof stating what it proves and at which boundary, never its inputs, fixtures, or steps, each at the cheapest place where that is observable as the user, consumer, or caller sees it; a decision's proofs distinguish it from each alternative its rationale rejects, at the boundary where the distinguishing property shows; a new proof proves something no other proof proves; a proof named as existing would fail if what it proves were broken.
 - **Rationale** — each reason holds and distinguishes the chosen option from the alternatives; when a reason does no work, name what still carries the decision and what that remainder would exclude. The reasons jointly justify the choice after all material trade-offs and counterevidence, the record's simplest viable option included — reasons individually true and discriminating are not enough.
 - **Altitude** — the design doc binds at the boundaries it names — signatures, schemas, contracts, the behavior a caller observes; a passage that supplies a component's control flow, call sequences, names, literal values, or test cases, in prose or in code, what documentation states, or a task breakdown, is a finding; it restates no requirement.

@@ -45,7 +45,7 @@ Under `experiment`, a challenge you adjudicate leads through a failed task repor
 
 Give a failed task report exactly one disposition:
 
-- **Replan** — the task left a boundary open, was mistyped, missing a dependency, or its acceptance unreachable: rewrite its file, or split it into new files, keeping ids stable.
+- **Replan** — the task left a boundary open, was missing a dependency, or its acceptance unreachable: rewrite its file, or split it into new files, keeping ids stable.
 - **Re-dispatch** — the evidence does not reproduce, the worker misread the block, or the established cause lies in the task's own delivered code: say why, with the cause; an identical second failure is not re-dispatched without new evidence.
 - **Contradicts-input** — a mapped assumption fell (`Verifies: <assumption id>`), a spec or design claim is false, or an input obligation cannot be satisfied proportionately to what the intent makes material: `Contradicts-input: <path>#<id>` with the report as evidence.
 
@@ -60,7 +60,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 - A task is a file, `tasks/build-task-<n>.md`, that a worker executes without a boundary decision. That file and the tasks it depends on are the self-contained execution specification; the spec and design doc provide rationale.
 - `depends-on` names every task that must be done before it.
 - A task is the smallest change a reviewer can judge as coherent: a mechanism goes with its consumers and its proofs, and the same edit across several files is one task.
-- A task owns every proof of the boundary it realizes — the unit tests, flows, and inspections the design doc's Verification names there. A flow belongs to the task that completes the last boundary it needs, carried under `Flows`; the infrastructure a flow needs is a task with its own boundary.
+- A task owns every proof of the boundary it realizes — the unit tests, flows, and inspections the design doc's Verification names there. A flow belongs to the task that completes the last boundary it needs, carried under `Flows`.
 - `Acceptance` lists the outcomes the task makes true of the acceptance criteria and decisions it traces to, never facts about the implementation. Even a trivial task has one.
 - Name exact files: real paths from the codebase, never "the auth module".
 - A task names the boundary it realizes and the outcomes that must hold there; the shape inside — control flow, call sequences, names, test cases — is the worker's, whether a task would supply it directly or through a passage it cites.

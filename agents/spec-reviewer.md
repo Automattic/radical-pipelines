@@ -47,7 +47,7 @@ This is not a from-scratch review:
 
 The diff may touch only the record — a refutation, an adjudicated claim. Judge the disposition under **Adjudication audit**; the artifact staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a requirement wrong or missing, a claim its evidence does not establish, a contradiction with the intent or the codebase, or an acceptance criterion unable to verify its requirement.
+Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a requirement wrong or missing, a claim its evidence does not establish, a contradiction with the intent or the codebase, or an acceptance criterion unable to verify its requirement.
 
 # Rules
 

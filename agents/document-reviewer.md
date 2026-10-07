@@ -37,7 +37,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the Diff.
 
-Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance outcome unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
+Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance outcome unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 

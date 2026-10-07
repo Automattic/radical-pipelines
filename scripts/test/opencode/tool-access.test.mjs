@@ -95,7 +95,7 @@ describe("recordSessionParent / resolveToolAccess", () => {
 
   test("a spawned agent is limited to sending", async () => {
     recordSpawn("ses_access_agent", {
-      name: "build-worker-tdd 1",
+      name: "build-worker 1",
       pipelineSlug: "144-opencode-support",
       spawner: "ses_access_orchestrator",
     });
@@ -121,7 +121,7 @@ describe("recordSessionParent / resolveToolAccess", () => {
 
   test("a subagent of a spawned agent stays a subagent: parentage outranks the ledger", async () => {
     recordSpawn("ses_access_both", {
-      name: "build-worker-tdd 2",
+      name: "build-worker 2",
       pipelineSlug: "144-opencode-support",
       spawner: "ses_access_orchestrator",
     });
@@ -241,7 +241,7 @@ describe("resolveToolAccess under concurrency and session lifetime", () => {
 describe("readSessionIdentity", () => {
   const server = { baseURL: "http://x", password: "y" };
   const reply = (data) => async () => ({ status: 200, body: { data } });
-  const identity = { name: "build-worker-tdd 9", pipelineSlug: "144-opencode-support", spawner: "ses_read_orchestrator" };
+  const identity = { name: "build-worker 9", pipelineSlug: "144-opencode-support", spawner: "ses_read_orchestrator" };
 
   test("reports the parentage the stored session carries", async () => {
     assert.deepEqual(
@@ -280,7 +280,7 @@ describe("readSessionIdentity", () => {
 });
 
 describe("resolveSession: spawn identity", () => {
-  const identity = { name: "build-worker-tdd 7", pipelineSlug: "144-opencode-support", spawner: "ses_resolve_orchestrator" };
+  const identity = { name: "build-worker 7", pipelineSlug: "144-opencode-support", spawner: "ses_resolve_orchestrator" };
 
   test("a spawned agent this process never saw created is recognized from its stored identity, and recorded", async () => {
     const asked = asks({ child: false, spawn: { ...identity, directory: "/wt", repoRoot: "/repo" } });
@@ -347,7 +347,7 @@ describe("guardTool", () => {
 
   test("a spawned agent reaches rp_send and nothing else", async () => {
     recordSpawn("ses_guard_agent", {
-      name: "build-worker-tdd 3",
+      name: "build-worker 3",
       pipelineSlug: "144-opencode-support",
       spawner: "ses_guard_orchestrator",
     });

@@ -40,7 +40,7 @@ This is not a from-scratch review:
 
 The diff may touch only the record. Judge the disposition under **Adjudication audit**; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, leave a guardrail unsatisfied, or break a rule under **Rules**.
+Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
