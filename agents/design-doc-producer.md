@@ -31,7 +31,7 @@ Without a design doc yet:
 1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes, not whether they are right. The spec's open assumptions are yours to account for. `spec-research.md` records the investigation behind the spec: direct research at the gaps the design opens, not at re-verifying what it already grounds.
 2. Create `design-doc-research.md` per **Formats**.
 3. Investigate the codebase and platform through inspection and help requests routed through the orchestrator, recording each answer's reasoning and sources.
-4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: a choice that narrows what reaches surviving code re-opens that code, whose body, name, contract, docs, and tests are re-derived from the narrowed contract, and keeping any stranded generality is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `design-doc-decision-<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
+4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: the contracts it narrows and the components, responsibilities, and generality it leaves without purpose, where keeping a stranded one is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `design-doc-decision-<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
 5. After each answer, decide whether to work another topic, request more research, or synthesize.
 6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, and the remaining work is refinement.
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
@@ -49,7 +49,7 @@ Under `experiment`, a challenge you adjudicate leads through a failed task repor
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
-The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody, including obligations your own decisions introduced; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
+The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means and obligations within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
 ## Consolidate
 
@@ -73,7 +73,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - Own the option space: generate the credible options yourself — what a helper reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
 - A mechanism, guard, or proof serves a requirement, acceptance criterion, or constraint at the weight the intent makes material; one that serves none is removed, and the case a proportionate mechanism leaves uncovered is recorded under Risks with its consequence.
 - An edge case is named by the input that produces it and where it is produced, never by a category.
-- A decision binds at the boundaries it names — signatures, schemas, contracts, the behavior a caller observes — and leaves the shape inside a component to the implementer: its control flow, call sequences, names, and test cases, in prose as in code. Interface sketches are fine; work sequencing is the build plan's.
+- The design doc binds at the boundaries it names — signatures, schemas, contracts, the behavior a caller observes — and leaves the inside to the phases that observe it: a component's control flow, call sequences, names, and test cases to the build worker, in prose as in code; what documentation states to the document writer; work sequencing to the build plan. Interface sketches are fine.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
 
 **Verification**
@@ -134,7 +134,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 design-doc-decision-1: <title>
 
 **Serves:** spec-requirement-<n>, …
-**Mechanism:** <the boundary it binds and the approach chosen; the inside is the implementer's>
+**Mechanism:** …
 **Alternatives:** <what, why rejected>
 **Trade-offs:** …
 **Claims:** <each labeled verified (citation) or assumed (design-doc-assumption-<n>)>

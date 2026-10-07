@@ -50,7 +50,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every e2e flow the design doc's Verification names is one flow in an e2e task; every design-doc open assumption is mapped or carried with a reason; structural assumptions are verified by the earliest tasks.
+- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every e2e flow the design doc's Verification names is one flow in an e2e task; every open assumption is mapped to a verifying task, structural ones in the earliest, or carried with its reason — build cannot verify it, or no input the intent makes material produces its circumstance.
 - **Traceability** — each task's `Traces to` names the requirements, acceptance criteria, decisions, and flows it realizes; the task cites the design doc for them, never restates it.
 - **Per-task acceptance** — every task's `Acceptance` lists the outcomes it makes true of the acceptance criteria and decisions it traces to; missing, vague, or contradictory acceptance, or acceptance stating a fact about the implementation, is a finding.
 - **Type fidelity** — `tdd` changes observable behavior, its mapped new unit tests written test-first; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.
@@ -74,9 +74,9 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. A constraint answering a claim replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
 - An adoption or a replan that works around a design or spec clause the record itself refutes — or a fallen assumption — is a finding: name the clause and the record entry that refutes it.
-- Under `experiment`, a failure's disposition rests on a recorded investigation whose established cause explains every observation, the other candidates ruled out by evidence — or states the cause unestablished with the observation that would establish it — and a cause in delivered code is left to the worker of the task that carries it; otherwise it is a finding.
-- A finding resting on an observation nobody reproduced is an assumption: an adoption that treats it as a defect instead of mapping a `build-assumption-<n>` to a verifying task is a finding, and so is a corrective task that states a suggested fix instead of the obligation the finding exposed.
-- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
+- Under `experiment`, a failure's disposition rests on a recorded investigation whose established cause explains every observation, the other candidates ruled out by evidence — or states the cause unestablished with the observation that would establish it; otherwise it is a finding.
+- A finding resting on an observation nobody reproduced is an assumption: an adoption that treats it as a defect instead of accounting for it as **Coverage** requires is a finding, and so is a corrective task that states a suggested fix instead of the obligation the finding exposed.
+- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; for disproportion, no route proportionate to what the intent makes material; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
 

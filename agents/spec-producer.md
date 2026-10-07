@@ -46,7 +46,7 @@ Under `experiment`, a challenge you adjudicate leads through a failed task repor
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
-The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
+The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means and obligations within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
 ## Consolidate
 
