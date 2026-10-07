@@ -480,7 +480,7 @@ describe("rp code delta", () => {
   test("identity is the body's exact bytes as git hashes them: CRLF is never normalized; only delimiter lines tolerate a \\r", () => {
     const gitHash = (text) => execFileSync("git", ["hash-object", "--stdin"], { input: text, encoding: "utf8" }).trim().slice(0, 12);
     write(root, "1-spec/spec.md", "# Spec\r\n");
-    assert.equal(identity(read(root, "1-spec/spec.md")), gitHash("# Spec\r\n"));
+    assert.equal(identity(read(root, "1-spec/spec.md"), "1-spec/spec.md"), gitHash("# Spec\r\n"));
     assert.notEqual(identity("# Spec\r\n"), identity("# Spec\n"));
     stampSpec();
     const text = read(root, "1-spec/spec.md");

@@ -28,7 +28,7 @@ describe("rp challenges and claims", () => {
         registered("3-build/build-plan.md", { pins: pairs(inputs) });
         const task = "3-build/tasks/build-task-1.md", report = "3-build/tasks/build-task-1-report-1.md";
         registered(task, { "depends-on": [] }, "# Task\ndepends-on: none\n");
-        registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), ...(enabled ? { target: ["3-build/build-plan.md#build-task-1"], "target-identity": [identity(read(root, "3-build/build-plan.md"))] } : {}) }, "# Report\noutcome: failed\n");
+        registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), ...(enabled ? { target: ["3-build/build-plan.md#build-task-1"], "target-identity": [identity(read(root, "3-build/build-plan.md"), "3-build/build-plan.md")] } : {}) }, "# Report\noutcome: failed\n");
         registeredVerdict("3-build/build-plan-review-1.md", pairs([...PLAN_BASE, task]));
         if (!fresh) registered(task, { "depends-on": [] }, "# Changed task\ndepends-on: none\n");
         configure({ targetPhase: 3 });
@@ -48,7 +48,7 @@ describe("rp challenges and claims", () => {
           const inputs = ["0-intent/intent.md", ...(escalation ? [challenge] : [])];
           if (escalation) registered(challenge, { target: ["1-spec/spec.md#spec-requirement-1"], origin: "issue 9" }, "# Proposal\ntarget: 1-spec/spec.md#spec-requirement-1\norigin: issue 9\n");
           registered("1-spec/spec.md", { pins: pairs(inputs) });
-          registered(review, { verdict: "unsatisfiable", reviewed: pairs(["1-spec/spec.md", "1-spec/spec-research.md", ...inputs]), ...(enabled ? { target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] } : {}), ...(escalation ? { origin: challenge } : {}) }, `# Review\nverdict: unsatisfiable\n${enabled ? "target: 0-intent/intent.md#intent-goal\n" : ""}${escalation ? `origin: ${challenge}\n` : ""}`);
+          registered(review, { verdict: "unsatisfiable", reviewed: pairs(["1-spec/spec.md", "1-spec/spec-research.md", ...inputs]), ...(enabled ? { target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"), "0-intent/intent.md")] } : {}), ...(escalation ? { origin: challenge } : {}) }, `# Review\nverdict: unsatisfiable\n${enabled ? "target: 0-intent/intent.md#intent-goal\n" : ""}${escalation ? `origin: ${challenge}\n` : ""}`);
           if (!fresh) write(root, "1-spec/spec-research.md", "# Changed record\n");
           configure({ targetPhase: 1 });
           const state = checkWithClassification(enabled ? null : review);
@@ -146,7 +146,7 @@ describe("rp challenges and claims", () => {
         const target = territory === "intent" ? `${source}#intent-goal` : source;
         const materials = [...chain.packages[2], ...(territory === "constraint" ? [source] : [])];
         registered(plan, { pins: pairs([...chain.inputs[2], ...(territory === "constraint" ? [source] : [])]) });
-        registered(claim, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, source))] }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
+        registered(claim, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, source), source)] }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
         const original = read(root, "0-intent/intent.md");
         if (answer !== "none") {
           const input = ownerInput(answer === "proposal" ? "proposal" : "constraint", 2, [plan], answer === "unrelated constraint" ? "issue 9" : ["issue 9", claim]);
@@ -178,7 +178,7 @@ describe("rp challenges and claims", () => {
         const ownerTarget = `${intent}#intent-goal`;
         registered(claim, {
           reviewed: pairs(chain.packages[phase]), verdict: "unsatisfiable",
-          target: [ownerTarget], "target-identity": [identity(read(root, intent))],
+          target: [ownerTarget], "target-identity": [identity(read(root, intent), intent)],
         }, `# Review\nverdict: unsatisfiable\ntarget: ${ownerTarget}\n`);
         const clause = `${artifact}#${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][phase]}`;
         const targets = {
@@ -216,7 +216,7 @@ describe("rp challenges and claims", () => {
     const claims = ["3-build/build-plan-review-2.md", "3-build/build-plan-review-audit-2.md"];
     for (const [i, path] of claims.entries()) {
       const target = [first, second][i];
-      registered(path, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, target))], ...(i ? { lane: laneFingerprint(audit) } : {}) }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
+      registered(path, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, target), target)], ...(i ? { lane: laneFingerprint(audit) } : {}) }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
     }
     ownerInput("constraint", 3, [plan], claims[0]);
     const snapshot = JSON.parse(check(root, "--json"));
@@ -246,7 +246,7 @@ describe("rp challenges and claims", () => {
         registered(artifact, { pins: pairs([intent]), lane: FPS[id] }, "# Spec\nspec-requirement-1: Outcome.\n");
         write(root, record, "# Research\n");
         const verdict = id === "a" && kind === "constraint" ? "unsatisfiable" : "approved";
-        registered(`1-spec/lanes/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))] } : {}) }, `# Review\nverdict: ${verdict}\n${verdict === "unsatisfiable" ? `target: ${intent}#intent-goal\n` : ""}`);
+        registered(`1-spec/lanes/${id}/spec-review-1.md`, { verdict, reviewed: pairs([artifact, record, intent]), ...(verdict === "unsatisfiable" ? { target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent), intent)] } : {}) }, `# Review\nverdict: ${verdict}\n${verdict === "unsatisfiable" ? `target: ${intent}#intent-goal\n` : ""}`);
       }
       const input = ownerInput(kind, 1, [rootArtifact], kind === "constraint" ? sourceClaim : "issue 9");
       for (const id of ["a", "b"]) {
@@ -295,7 +295,7 @@ describe("rp challenges and claims", () => {
           const target = kind !== "claim" ? artifact : `${artifact}#${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][targetIndex]}`;
           registered(challenge, {
             target: [target],
-            ...(kind !== "claim" ? { origin: "issue 9" } : { "target-identity": [identity(read(root, artifact))], verdict: "unsatisfiable", reviewed: pairs(targetIndex === 3 ? chain.phasePackages[sourceIndex] : chain.packages[sourceIndex]) }),
+            ...(kind !== "claim" ? { origin: "issue 9" } : { "target-identity": [identity(read(root, artifact), artifact)], verdict: "unsatisfiable", reviewed: pairs(targetIndex === 3 ? chain.phasePackages[sourceIndex] : chain.packages[sourceIndex]) }),
           }, `# Challenge\n${kind !== "claim" ? "origin: issue 9" : "verdict: unsatisfiable"}\ntarget: ${target}\n`);
           if (currency === "stale input") appendFileSync(join(root, P(targetIndex === 0 ? "0-intent/intent.md" : chain.context)), "\nChanged evidence.\n");
           if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 0 ? "1-spec/lanes/a/spec-review-1.md" : targetIndex === 3 ? "3-build/build-review-1.md" : chain.reviews[targetIndex - 1])));
@@ -320,7 +320,7 @@ describe("rp challenges and claims", () => {
       test(`phase-ordered convergence: failed report, phase ${targetIndex + 1}, ${currency}`, () => {
         const chain = frontierChain(targetIndex === 2 ? "2-design-doc/design-doc.md" : "3-build/build-plan.md");
         const artifact = chain.artifacts[targetIndex], task = chain.tasks[targetIndex - 2], report = chain.reports[targetIndex - 2];
-        registered(report, { reviewed: pairs([task]), outcome: "failed", attempt: "1", target: [`${artifact}#${targetIndex === 2 ? "build" : "document"}-task-1`], "target-identity": [identity(read(root, artifact))] }, "# Report\noutcome: failed\n");
+        registered(report, { reviewed: pairs([task]), outcome: "failed", attempt: "1", target: [`${artifact}#${targetIndex === 2 ? "build" : "document"}-task-1`], "target-identity": [identity(read(root, artifact), artifact)] }, "# Report\noutcome: failed\n");
         if (currency === "stale input") appendFileSync(join(root, P(chain.context)), "\nChanged evidence.\n");
         if (currency === "missing input approval") rmSync(join(root, P(targetIndex === 2 ? chain.reviews[1] : "3-build/build-review-1.md")));
         const state = JSON.parse(check(root, "--json"));
@@ -349,9 +349,9 @@ describe("rp challenges and claims", () => {
           const outcome = kind.match(/(failed|blocked|completed) report/)?.[1];
           if (outcome === "failed") {
             const target = `${taskArtifact}#${task.split("/").at(-1).replace(/\.md$/, "")}`;
-            registered(report, { reviewed: pairs([task]), outcome, attempt: "1", target: [target], "target-identity": [identity(read(root, taskArtifact))] }, "# Report\noutcome: failed\n");
+            registered(report, { reviewed: pairs([task]), outcome, attempt: "1", target: [target], "target-identity": [identity(read(root, taskArtifact), taskArtifact)] }, "# Report\noutcome: failed\n");
           } else if (outcome) registered(report, { reviewed: pairs([task]), outcome, attempt: "1" }, `# Report\noutcome: ${outcome}\n`);
-          const claim = (path, target, origin, reviewed) => registered(path, { reviewed: pairs(reviewed), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, target.split("#")[0]))], origin }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\norigin: ${origin}\n`);
+          const claim = (path, target, origin, reviewed) => registered(path, { reviewed: pairs(reviewed), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, target.split("#")[0]), target.split("#")[0])], origin }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\norigin: ${origin}\n`);
           const clause = `${artifact}#${targetIndex === 1 ? "design-doc-decision-1" : "build-assumption-1"}`;
           let challenge = report;
           if (kind === "proposal") challenge = ownerInput("proposal", 1, [clause]);
@@ -389,7 +389,7 @@ describe("rp challenges and claims", () => {
       configure({ targetPhase: 1, lanes: [standard.a, standard.b] });
       const task = "3-build/tasks/build-task-1.md", report = "3-build/tasks/build-task-1-report-1.md", intent = "0-intent/intent.md";
       registered(task, { "depends-on": [] }, "# Task\ndepends-on: none\n");
-      registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), target: ["3-build/build-plan.md#build-task-1"], "target-identity": [identity(read(root, "3-build/build-plan.md"))] }, "# Report\noutcome: failed\n");
+      registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([task]), target: ["3-build/build-plan.md#build-task-1"], "target-identity": [identity(read(root, "3-build/build-plan.md"), "3-build/build-plan.md")] }, "# Report\noutcome: failed\n");
       for (const id of ["a", "b"]) {
         const artifact = `1-spec/lanes/${id}/spec.md`, record = `1-spec/lanes/${id}/spec-research.md`;
         registered(artifact, { pins: pairs([intent]), lane: FPS[id] }, "# Spec\nspec-requirement-1: Outcome.\n");
@@ -407,7 +407,7 @@ describe("rp challenges and claims", () => {
   test("a pending non-owner claim follows the earlier phase's review wave", () => {
     const chain = frontierChain();
     const claim = "1-spec/spec-review-2.md", target = `${chain.artifacts[1]}#design-doc-decision-1`;
-    registered(claim, { verdict: "unsatisfiable", reviewed: pairs(chain.packages[0]), target: [target], "target-identity": [identity(read(root, chain.artifacts[1]))] }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
+    registered(claim, { verdict: "unsatisfiable", reviewed: pairs(chain.packages[0]), target: [target], "target-identity": [identity(read(root, chain.artifacts[1]), chain.artifacts[1])] }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
     const state = JSON.parse(check(root, "--json"));
     assert.equal(state.claims[0].state, "PENDING");
     assert.equal(state.frontier, "review wave 1-spec/spec.md");
@@ -487,7 +487,7 @@ describe("rp challenges and claims", () => {
     const plan = chain.artifacts[2], report = chain.reports[0], proposal = "0-intent/proposal-1.md";
     const targets = [plan, `${plan}#build-assumption-1`];
     registered(proposal, { target: targets, origin: "issue 9" }, `# Proposal\ntarget: ${targets.join(", ")}\norigin: issue 9\n`);
-    registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([chain.tasks[0]]), target: [`${plan}#build-task-1`], "target-identity": [identity(read(root, plan))] }, "# Report\noutcome: failed\n");
+    registered(report, { outcome: "failed", attempt: "1", reviewed: pairs([chain.tasks[0]]), target: [`${plan}#build-task-1`], "target-identity": [identity(read(root, plan), plan)] }, "# Report\noutcome: failed\n");
     appendFileSync(join(root, P(chain.context)), "\nChanged input.\n");
     const state = JSON.parse(check(root, "--json"));
     assert.equal(state.frontier, `converge ${plan} (experiment)`);
