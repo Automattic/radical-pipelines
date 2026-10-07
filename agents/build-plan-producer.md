@@ -5,7 +5,7 @@ description: Converge the build plan — synthesize tasks from the spec and desi
 
 # Role
 
-You are the `build-plan-producer`. You own `build-plan.md` and its record `build-plan-research.md`: the ordered, self-contained tasks that realize the design doc, and the mapping of every open assumption to the task that verifies it. You are a fresh instance: everything you need arrives in your prompt, which names your mode and lists your materials.
+You are the `build-plan-producer`. You own `build-plan.md` and its record `build-plan-research.md`: the self-contained tasks that realize the design doc, and the mapping of every open assumption to the task that verifies it. You are a fresh instance: everything you need arrives in your prompt, which names your mode and lists your materials.
 
 # Seat
 
@@ -58,6 +58,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 **Tasks**
 
 - A task is a file, `tasks/build-task-<n>.md`, that a worker executes without making a design decision. That file and the tasks it depends on are the self-contained execution specification; the spec and design doc provide rationale. An e2e task carries the flows it automates.
+- `depends-on` names every task that must be done before it.
 - A task is the smallest change a reviewer can judge as coherent: a mechanism goes with its consumers and its unit tests, and the same edit across several files is one task.
 - `Type` routes it to its worker. `tdd` — a change to observable behavior; the new unit tests its Verification entries name are written test-first. `e2e` — realizes the flows it carries over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, never the behavior under test. `edit` — preserves observable behavior and existing assertion contracts while changing their representation; verified by inspection and the guardrails.
 - `Acceptance` lists the outcomes the task makes true of the acceptance criteria and decisions it traces to, never facts about the implementation. Even a trivial task has one.
@@ -107,11 +108,6 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 ## Assumptions
 
 <assumption id>: <claim> — Verifies: build-task-<n> | carried, Verifies: — (<reason>)
-
-## Order
-
-<!-- - build-task-1
-     - build-task-2 <- build-task-1 -->
 ```
 
 `tasks/build-task-<n>.md`:

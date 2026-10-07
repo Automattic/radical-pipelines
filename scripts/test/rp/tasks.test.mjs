@@ -127,7 +127,7 @@ describe("rp tasks, reports, phase reviews", () => {
 
   test("the document phase runs on the build's approval: plan requires the build plan and its approving review", () => {
     buildDone();
-    write(root, "4-document/document-plan.md", "# Document plan\n\n## Order\n\n- document-task-1\n");
+    write(root, "4-document/document-plan.md", "# Document plan\n\n## Overview\n\nWhat is documented.\n");
     write(root, "4-document/document-plan-research.md", "# Doc research\n");
     write(root, "4-document/tasks/document-task-1.md", "# document-task-1: guide\n\ndepends-on: none\n");
     rp(root, "stamp", P("4-document/tasks/document-task-1.md"), "--mirror");
