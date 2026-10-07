@@ -80,7 +80,7 @@ export function buildTemplate() {
   write(root, "1-spec/spec-research.md", "# Spec research\n");
   write(root, "2-design-doc/design-doc.md", "# Design doc\n\ndesign-doc-decision-1: Decision.\n");
   write(root, "2-design-doc/design-doc-research.md", "# Design research\n");
-  write(root, "3-build/build-plan.md", "# Build plan\n\n## Order\n\nTasks run in dependency order.\n");
+  write(root, "3-build/build-plan.md", "# Build plan\n\n## Overview\n\nWhat is implemented.\n");
   write(root, "3-build/build-plan-research.md", "# Plan research\n");
   writeRunConfig(root);
   for (const rel of ["0-intent/intent.md", "1-spec/spec.md", "2-design-doc/design-doc.md"]) rp(root, "stamp", P(rel), "--mirror");

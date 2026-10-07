@@ -25,5 +25,5 @@ Plans and writes the documentation the shipped code needs — internal and exter
 
 ## Tasks
 
-- Every task is a file with `Goal`, `Surface` (the documentation location it serves), `Audience`, `Sections` (the exact sections and scope), `Files`, `Changes`, `depends-on`, `Acceptance`; the plan lists the order.
+- Every task is a file with `Goal`, `Surface` (the documentation location it serves), `Audience`, `Sections` (the exact sections and scope), `Files`, `Changes`, `depends-on`, `Acceptance`.
 - Fresh worker per attempt. Every task report names the task id and title.
