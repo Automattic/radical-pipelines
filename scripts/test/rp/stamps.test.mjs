@@ -82,7 +82,7 @@ describe("rp identity and stamps", () => {
   test("--mirror copies verdict, brief, target, outcome, prior-finding, depends-on, and every origin line", () => {
     stampSpec();
     write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: One\n\nspec-finding-2: Two\n");
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: unsatisfiable\nbrief: security\ntarget: 0-intent/intent.md#intent-goal\n\nspec-finding-1: Recurring\n\nprior-finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: unsatisfiable\nbrief: security\ntarget: 0-intent/intent.md#intent-goal\n\nspec-finding-1: Recurring\n\nprior-finding: 1-spec/spec-review-1.md#spec-finding-2\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), ...SPEC.flatMap((path) => ["--reviewed", P(path)]), "--mirror");
     const fm = read(root, "1-spec/spec-review-2.md");
     assert.match(fm, /"verdict": "unsatisfiable"/);

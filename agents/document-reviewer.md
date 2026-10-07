@@ -33,11 +33,11 @@ Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — th
 
 Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since.
 
-1. Confirm how each of your prior findings was resolved. A resolution that fails is a finding; write `prior-finding: <review>#document-finding-<n>, resolution failed` in it.
+1. Read how each of your prior findings was resolved; a finding that continues one of them names it: `prior-finding: <review>#document-finding-<n>`.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the Diff.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance outcome unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
+Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance outcome unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 
@@ -110,8 +110,8 @@ document-finding-1: <title>
 
 Tasks: <ids | none>
 
-<!-- When it is one; omit otherwise. -->
-prior-finding: <review>#document-finding-<n>, resolution failed
+<!-- When it continues one; omit otherwise. -->
+prior-finding: <review>#document-finding-<n>
 
 **What's wrong:** …
 **Where:** …

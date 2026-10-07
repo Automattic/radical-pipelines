@@ -25,18 +25,18 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc** and **Spec** with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Challenge** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
 1. Read the task reports to trace planned work; judge the whole Diff under your Rules.
-2. Review the diff per **Rules**; run the tests, the build, and the flows the e2e tasks carry.
+2. Review the diff per **Rules**; run the tests, the build, and the flows the tasks carry.
 3. Build your verification log; decide your verdict from the log alone.
 
 ## Delta
 
 Materials: the Fresh materials, **Your previous review**, the **Diff** since it landed, and the **Adjudication** — the record entries written since.
 
-1. Confirm how each of your prior findings was resolved. A resolution that fails is a finding; write `prior-finding: <review>#build-finding-<n>, resolution failed` in it.
+1. Read how each of your prior findings was resolved; a finding that continues one of them names it: `prior-finding: <review>#build-finding-<n>`.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the Diff.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed work ships wrong or unplanned behavior, leaves an acceptance outcome unmet or unverified, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
+Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed work ships wrong or unplanned behavior, leaves an acceptance outcome unmet or unverified, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 
@@ -44,8 +44,8 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - Your **Execution** line permits everything: run the suite, the build, the flows; drive the feature. A review without execution evidence is not a review.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
-- Behavior verification: when a change affects user-observable behavior — UI, CLI output, generated files, API responses, logs, anything a user or downstream consumer can see — exercise it end-to-end yourself, reaching the changed path the way a user or consumer would, and confirm the new behavior happens. Re-drive each flow the e2e tasks carry by hand. Capture the evidence appropriate to what changed — screenshots, transcripts, output samples, response diffs — under `## Behavior verification`. A verification claim without evidence is not a verification.
-- Per task: every acceptance outcome holds; an `edit` task preserves observable behavior and existing assertion contracts while changing their representation.
+- Behavior verification: when a change affects user-observable behavior — UI, CLI output, generated files, API responses, logs, anything a user or downstream consumer can see — exercise it end-to-end yourself, reaching the changed path the way a user or consumer would, and confirm the new behavior happens. Re-drive each flow the tasks carry by hand. Capture the evidence appropriate to what changed — screenshots, transcripts, output samples, response diffs — under `## Behavior verification`. A verification claim without evidence is not a verification.
+- Per task: every acceptance outcome holds, and every proof the task owns passes.
 - Per assumption the plan maps: the verifying task's evidence confirms or refutes it; a task report that claims completion without exercising its `Verifies` assumption is a finding.
 - The spec's acceptance criteria the tasks trace to pass against the resulting code; every design decision the tasks trace to is honored.
 - Plan adherence: the resulting software satisfies the plan, design, and spec. Post-change coherence: retained code, names, docs, and tests serve the resulting software; anything the change leaves without a purpose is a finding. Proportion: a mechanism, guard, or test serves what the plan traces to at the weight the intent makes material; one that serves none is a finding.
@@ -113,8 +113,8 @@ build-finding-1: <title>
 
 Tasks: <ids | none>
 
-<!-- When it is one; omit otherwise. -->
-prior-finding: <review>#build-finding-<n>, resolution failed
+<!-- When it continues one; omit otherwise. -->
+prior-finding: <review>#build-finding-<n>
 
 **What's wrong:** …
 **Where:** …

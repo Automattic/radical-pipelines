@@ -41,13 +41,13 @@ Additional materials: the complete **Rejected review history**, **Your previous 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#spec-finding-<n>, resolution failed` in it.
+1. Read how each of your prior findings was adjudicated; a finding that continues one of them names it: `prior-finding: <review>#spec-finding-<n>`.
 2. Carry forward every logged check whose subject and backing inputs are unchanged since its source review and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content.
 
-The diff may touch only the record — a refutation, an adjudicated claim. Judge whether the recorded evidence resolves the finding; the artifact staying unchanged is a legitimate outcome.
+The diff may touch only the record — a refutation, an adjudicated claim. Judge the disposition under **Adjudication audit**; the artifact staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a requirement wrong or missing, a claim its evidence does not establish, a contradiction with the intent or the codebase, or an acceptance criterion unable to verify its requirement.
+Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a requirement wrong or missing, a claim its evidence does not establish, a contradiction with the intent or the codebase, or an acceptance criterion unable to verify its requirement.
 
 # Rules
 
@@ -134,8 +134,8 @@ Reviewed revision: <commit>
 
 spec-finding-1: <title>
 
-<!-- When it is one. -->
-prior-finding: <review>#spec-finding-<n>, resolution failed
+<!-- When it continues one. -->
+prior-finding: <review>#spec-finding-<n>
 
 **What's wrong:** …
 **Where:** …

@@ -34,13 +34,13 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#build-finding-<n>, resolution failed` in it.
+1. Read how each of your prior findings was adjudicated; a finding that continues one of them names it: `prior-finding: <review>#build-finding-<n>`.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
-The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
+The diff may touch only the record. Judge the disposition under **Adjudication audit**; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, leave a guardrail unsatisfied, or break a rule under **Rules**.
+Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce wrong behavior, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
@@ -50,11 +50,11 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task; every e2e flow the design doc's Verification names is one flow in an e2e task; every open assumption is mapped to a verifying task, structural ones in the earliest, or carried with its reason — build cannot verify it, or no input the intent makes material produces its circumstance.
+- **Coverage** — every decision and every acceptance criterion has the implementation it requires served by a task whose `Acceptance` states the outcome it requires; every e2e flow the design doc's Verification names is one flow in the task that owns it; every open assumption is mapped to a verifying task, structural ones in the earliest, or carried with its reason — build cannot verify it, or no input the intent makes material produces its circumstance.
 - **Traceability** — each task's `Traces to` names the requirements, acceptance criteria, decisions, and flows it realizes; the task cites the design doc for them, never restates it.
 - **Per-task acceptance** — every task's `Acceptance` lists the outcomes it makes true of the acceptance criteria and decisions it traces to; missing, vague, or contradictory acceptance, or acceptance stating a fact about the implementation, is a finding.
-- **Type fidelity** — `tdd` changes observable behavior, its mapped new unit tests written test-first; `e2e` automates carried flows without implementing or altering their behavior; `edit` preserves observable behavior and existing assertion contracts while changing their representation. A mismatch is a finding.
-- **Self-containment** — a worker can execute each task without a boundary decision; a task that leaves a boundary open is a finding, and so is one that supplies the shape inside it — control flow, call sequences, names, test cases — directly or through a passage it cites, and so is a task that is not the smallest change a reviewer can judge as coherent — a mechanism goes with its consumers and its unit tests, and the same edit across several files is one task; dependencies name exactly the task's prerequisites and are acyclic.
+- **Proof ownership** — a task owns every proof of the boundary it realizes, and a flow sits in the task that completes the last boundary it needs; a proof assigned to a task that does not realize what it proves is a finding.
+- **Self-containment** — a worker can execute each task without a boundary decision; a task that leaves a boundary open is a finding, and so is one that supplies the shape inside it — control flow, call sequences, names, test cases — directly or through a passage it cites, and so is a task that is not the smallest change a reviewer can judge as coherent — a mechanism goes with its consumers and its proofs, and the same edit across several files is one task; dependencies name exactly the task's prerequisites and are acyclic.
 - **Feasibility** — each task can be executed against the current codebase: the files, modules, and APIs it names exist and behave as the task assumes. Verify paths and module shapes by inspection.
 - **Scope** — the plan stays within the spec and the design doc; a task that adds functionality, redesigns, or produces documentation other than its symbols' inline API documentation, is a finding.
 - **Proportion** — each task, obligation, and proof serves a requirement, acceptance criterion, decision, or constraint at the weight the intent makes material; one that serves none is a finding. An edge case is named by the input that produces it and where it is produced, never by a category.
@@ -116,8 +116,8 @@ origin: <challenge path>
 
 build-finding-1: <title>
 
-<!-- When it is one; omit otherwise. -->
-prior-finding: <review>#build-finding-<n>, resolution failed
+<!-- When it continues one; omit otherwise. -->
+prior-finding: <review>#build-finding-<n>
 
 **What's wrong:** …
 **Where:** build-task-<n> …

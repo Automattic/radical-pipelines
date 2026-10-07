@@ -41,13 +41,13 @@ Additional materials: the complete **Rejected review history**, **Your previous 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#design-doc-finding-<n>, resolution failed` in it.
+1. Read how each of your prior findings was adjudicated; a finding that continues one of them names it: `prior-finding: <review>#design-doc-finding-<n>`.
 2. Carry forward every logged check whose subject and backing inputs are unchanged since its source review and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content.
 
-The diff may touch only the record — a refutation, an adjudicated claim. Judge whether the recorded evidence resolves the finding; the artifact staying unchanged is a legitimate outcome.
+The diff may touch only the record — a refutation, an adjudicated claim. Judge the disposition under **Adjudication audit**; the artifact staying unchanged is a legitimate outcome.
 
-A prior finding is resolved when every case it named is served, or left as an accepted consequence that survives **Chains**. Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a claim its evidence does not establish.
+Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a claim its evidence does not establish.
 
 # Rules
 
@@ -70,12 +70,12 @@ A prior finding is resolved when every case it named is served, or left as an ac
 - **Traceability** — each decision names the requirement or acceptance criterion it serves.
 - **Scope** — the design stays within the spec: no features beyond it, no out-of-scope items crept back in.
 - **Soundness** — each decision's mechanism can satisfy the requirements it serves given the codebase as inspected; alternatives are real and their rejection reasoned.
-- **Proportion** — each mechanism, guard, and proof serves a requirement, acceptance criterion, or constraint at the weight the intent makes material; one that serves none is a finding. A finding against an accepted consequence names the intent item or spec text it leaves unserved. An edge case is named by the input that produces it and where it is produced, never by a category.
-- **Verification** — every decision and acceptance criterion names its proofs, one entry per proof stating what it proves, each at the cheapest place where that is observable as the user, consumer, or caller sees it; a new proof proves something no other proof proves; a proof named as existing would fail if what it proves were broken.
+- **Proportion** — each mechanism, guard, and proof serves a requirement, acceptance criterion, or constraint at the weight the intent makes material; one that serves none is a finding. A finding against an accepted consequence names the intent item or spec text it leaves unserved; a consequence whose size only build can measure is an assumption, not an accepted consequence. An edge case is named by the input that produces it and where it is produced, never by a category.
+- **Verification** — every decision and acceptance criterion names its proofs, one entry per proof stating what it proves and at which boundary, never its inputs, fixtures, or steps, each at the cheapest place where that is observable as the user, consumer, or caller sees it; a decision's proofs distinguish it from each alternative its rationale rejects, at the boundary where the distinguishing property shows; a new proof proves something no other proof proves; a proof named as existing would fail if what it proves were broken.
 - **Rationale** — each reason holds and distinguishes the chosen option from the alternatives; when a reason does no work, name what still carries the decision and what that remainder would exclude. The reasons jointly justify the choice after all material trade-offs and counterevidence, the record's simplest viable option included — reasons individually true and discriminating are not enough.
-- **Altitude** — the design doc binds at the boundaries it names — signatures, schemas, contracts, the behavior a caller observes; a passage that supplies a component's control flow, call sequences, names, or test cases, in prose or in code, what documentation states, or a task breakdown, is a finding; it restates no requirement.
+- **Altitude** — the design doc binds at the boundaries it names — signatures, schemas, contracts, the behavior a caller observes; a passage that supplies a component's control flow, call sequences, names, literal values, or test cases, in prose or in code, what documentation states, or a task breakdown, is a finding; it restates no requirement.
 - **Fidelity and clarity** — `design-doc.md` faithfully reflects `design-doc-research.md`; the sections agree with each other; ids are stable; the artifact carries no review references, adjudication trails, or superseded text; two implementers reading independently would build to the same contracts.
-- **Negative space** — within the components the design touches: does anything in the codebase contradict the approach — existing patterns, invariants, conventions? Are there dependencies the design implies but never names? Does the design strand anything — a component, responsibility, contract, or generality whose reason to exist it removes? A survivor kept without a recorded keep-or-remove decision is a finding.
+- **Negative space** — within the components the design touches: does anything in the codebase contradict the approach — existing patterns, invariants, conventions? Are there dependencies the design implies but never names? Does the design strand anything — a component, responsibility, contract, or generality whose reason to exist it removes? A survivor kept without a recorded keep-or-remove decision is a finding. Does a contract the design widens name, at each consumer, the inputs it newly admits?
 
 **Checking**
 
@@ -135,8 +135,8 @@ Reviewed revision: <commit>
 
 design-doc-finding-1: <title>
 
-<!-- When it is one. -->
-prior-finding: <review>#design-doc-finding-<n>, resolution failed
+<!-- When it continues one. -->
+prior-finding: <review>#design-doc-finding-<n>
 
 **What's wrong:** …
 **Where:** …

@@ -30,7 +30,7 @@ Without a plan yet:
 
 1. Read the spec and the design doc; list every requirement, acceptance criterion, decision, Verification entry, and open assumption.
 2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.
-3. Break the design into tasks per **Rules**; each e2e flow the design doc's Verification names becomes one numbered, titled flow inside an e2e task that proves what its entry states, in the Given/When/Then of the acceptance criteria it serves; account for every open assumption per **Rules**.
+3. Break the design into tasks per **Rules**; each e2e flow the design doc's Verification names becomes one numbered, titled flow inside the task that owns it, proving what its entry states in the Given/When/Then of the acceptance criteria it serves; account for every open assumption per **Rules**.
 4. Write `build-plan.md` and the task files per **Formats**.
 
 With a plan, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add.
@@ -57,16 +57,16 @@ A review rejection changes only the tasks its findings require; other tasks stay
 
 **Tasks**
 
-- A task is a file, `tasks/build-task-<n>.md`, that a worker executes without a boundary decision. That file and the tasks it depends on are the self-contained execution specification; the spec and design doc provide rationale. An e2e task carries the flows it automates.
+- A task is a file, `tasks/build-task-<n>.md`, that a worker executes without a boundary decision. That file and the tasks it depends on are the self-contained execution specification; the spec and design doc provide rationale.
 - `depends-on` names every task that must be done before it.
-- A task is the smallest change a reviewer can judge as coherent: a mechanism goes with its consumers and its unit tests, and the same edit across several files is one task.
-- `Type` routes it to its worker. `tdd` — a change to observable behavior; the new unit tests its Verification entries name are written test-first. `e2e` — realizes the flows it carries over behavior prior tasks built; it may include test infrastructure and behavior-preserving supporting changes, never the behavior under test. `edit` — preserves observable behavior and existing assertion contracts while changing their representation; verified by inspection and the guardrails.
+- A task is the smallest change a reviewer can judge as coherent: a mechanism goes with its consumers and its proofs, and the same edit across several files is one task.
+- A task owns every proof of the boundary it realizes — the unit tests, flows, and inspections the design doc's Verification names there. A flow belongs to the task that completes the last boundary it needs, carried under `Flows`; the infrastructure a flow needs is a task with its own boundary.
 - `Acceptance` lists the outcomes the task makes true of the acceptance criteria and decisions it traces to, never facts about the implementation. Even a trivial task has one.
 - Name exact files: real paths from the codebase, never "the auth module".
 - A task names the boundary it realizes and the outcomes that must hold there; the shape inside — control flow, call sequences, names, test cases — is the worker's, whether a task would supply it directly or through a passage it cites.
 - The plan stays within the spec and the design doc: no invented functionality, alternative designs, or extra scope; each task, obligation, and proof serves a requirement, acceptance criterion, decision, or constraint at the weight the intent makes material, and an edge case is named by the input that produces it and where it is produced, never by a category. Inline API documentation is part of the change to its symbol; other documentation is the document phase's.
 - Every open assumption is accounted for: mapped to the task that verifies it, `Verifies: <assumption id>` with the assumption's observation and circumstance copied into the task, structural assumptions in the earliest tasks; or, when build cannot verify it or no input the intent makes material produces its circumstance, `carried, Verifies: —` with the reason.
-- `Traces to` names the requirements, acceptance criteria, decisions, and flows a task realizes; the task cites the design doc for them, never restates it. Every acceptance criterion and every decision has the implementation it requires served by at least one task.
+- `Traces to` names the requirements, acceptance criteria, decisions, and flows a task realizes; the task cites the design doc for them, never restates it. Every acceptance criterion and every decision has the implementation it requires served by at least one task whose `Acceptance` states the outcome it requires.
 - Ids are stable: `build-task-<n>` is never renumbered; corrective and new tasks are new files.
 - An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
@@ -118,9 +118,8 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 depends-on: none | <comma-separated build-task-<n> ids>
 
 - **Goal:** …
-- **Type:** tdd | e2e | edit
-- **Flows:**
-  - **Flow 1: <title>**   <!-- e2e only -->
+- **Flows:**   <!-- When the task owns flows; omit otherwise. -->
+  - **Flow 1: <title>**
     - **Steps:** …
     - **Expected:** …
     - **Traces to:** spec-acceptance-criterion-<n> | design-doc-decision-<n>

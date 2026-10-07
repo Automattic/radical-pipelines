@@ -918,12 +918,12 @@ export function projectBody(body, rel = "") {
   singleton("outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
   const priors = [];
   for (const value of fixed("prior-finding")) {
-    const match = value.match(new RegExp(String.raw`^(([^#\s]+)#((?:${PREFIX})-finding-[1-9]\d*)),\s*resolution failed$`));
+    const match = value.match(new RegExp(String.raw`^(([^#\s]+)#((?:${PREFIX})-finding-[1-9]\d*))$`));
     const cited = match && pipelineFileRole(match[2])?.review, citing = pipelineFileRole(rel)?.review;
     const prior = cited && prefixOf(cited.art.phase) === parseId(match[3])?.prefix
       && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
     if (prior) priors.push(match[1]);
-    else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed, got: ${value}`);
+    else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, got: ${value}`);
   }
   if (priors.length) p.set("prior-finding", priors);
   for (const value of fixed("depends-on")) {

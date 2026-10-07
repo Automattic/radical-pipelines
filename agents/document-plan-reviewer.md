@@ -34,13 +34,13 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 
 This is not a from-scratch review:
 
-1. Confirm how each of your prior findings was adjudicated. A resolution that fails is a finding; write `prior-finding: <review>#document-finding-<n>, resolution failed` in it.
+1. Read how each of your prior findings was adjudicated; a finding that continues one of them names it: `prior-finding: <review>#document-finding-<n>`.
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the diff's new content — including any task-report disposition: does the evidence support replan, re-dispatch, or contradicts-input as chosen?
 
-The diff may touch only the record. Judge whether the recorded evidence resolves the finding; the plan staying unchanged is a legitimate outcome.
+The diff may touch only the record. Judge the disposition under **Adjudication audit**; the plan staying unchanged is a legitimate outcome.
 
-Reject only for a must-fix in the diff or a prior finding whose resolution fails. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce documentation false to the shipped code, miss a required surface, leave a guardrail unsatisfied, or break a rule under **Rules**.
+Reject only for a must-fix in the diff. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix would make a worker produce documentation false to the shipped code, miss a required surface, leave a guardrail unsatisfied, or break a rule under **Rules**.
 
 # Rules
 
@@ -115,8 +115,8 @@ origin: <challenge path>
 
 document-finding-1: <title>
 
-<!-- When it is one; omit otherwise. -->
-prior-finding: <review>#document-finding-<n>, resolution failed
+<!-- When it continues one; omit otherwise. -->
+prior-finding: <review>#document-finding-<n>
 
 **What's wrong:** …
 **Where:** document-task-<n> …

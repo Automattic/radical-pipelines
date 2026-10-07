@@ -703,7 +703,7 @@ describe("rp production lanes", () => {
       const pkg = recordedArtifact(scope, "spec", ["0-intent/intent.md"], standard.a);
       const first = recordedReview(scope, "spec", pkg, { verdict: "rejected", body: "spec-finding-1: Gap.\n" });
       const prior = `${first}#spec-finding-1`;
-      recordedReview(scope, "spec", pkg, { wave: 2, verdict: "rejected", fields: { "prior-finding": [prior] }, body: `prior-finding: ${prior}, resolution failed\n` });
+      recordedReview(scope, "spec", pkg, { wave: 2, verdict: "rejected", fields: { "prior-finding": [prior] }, body: `prior-finding: ${prior}\n` });
       return [standard.a];
     },
     "a root review escalating a lane claim": (at) => {
