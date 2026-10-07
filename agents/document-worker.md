@@ -24,7 +24,7 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 Materials: the **Task** file, its **Dependencies** (the task files it depends on), the **Spec** and **Design doc** — the why — and the named **Existing documentation**; when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
 
-1. Read the task file. Its `Goal`, `Surface`, `Audience`, `Sections`, `Changes`, and `Acceptance` are the boundary of your work.
+1. Read the task file. Its `Goal`, `Surface`, `Audience`, and `Acceptance` are the boundary of your work.
 2. Read the spec's requirements, acceptance criteria, and user-facing rationale; read the design doc's architecture and decisions at the depth the task needs.
 3. Read the shipped modules, public surfaces, configuration, examples, and tests the task documents; read every named existing documentation file.
 4. Write the documentation on the named surface for the named audience.
@@ -63,9 +63,9 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Code**
 
-- Three sources, one synthesis: the task says what and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. Every concrete claim comes from the code, never from memory or the plan; a claim about behavior holds for a reader of the `Audience` following it within supported use. If a fact the task must document contradicts an applicable upstream clause, fail with that clause and the evidence. Facts and rationale are translated into the audience's words, never pasted.
-- Match the audience: what they act on, at the depth they act on it, in the voice, prerequisites, and vocabulary of the surrounding document.
-- Within a surface, each fact is explained once and referenced from the rest.
+- Three sources, one synthesis: the task says where and for whom; the spec and the design doc say why — the user-facing reason the feature exists, the architectural reason it is shaped this way; the shipped code says what actually exists. What the text states is yours. Every concrete claim comes from the code, never from memory or the plan; a claim about behavior holds for a reader of the `Audience` following it within supported use. If a fact the documentation must state contradicts an applicable upstream clause, fail with that clause and the evidence. Facts and rationale are translated into the audience's words, never pasted.
+- Match the audience: what they act on, at the depth they act on it, and nothing they cannot act on, in the voice, prerequisites, and vocabulary of the surrounding document.
+- A fact has one authoritative surface; the others reference it.
 - Describe the software as it is, and the change only where the change is the subject. Your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts.
 - Never change code, tests, configuration, or inline API documentation — those are the build phase's; you own the external surfaces and any other inline comments your task names. A needed product change is a failed task with the evidence.
 - Follow the project's documentation conventions: structure, voice, placement, formatting, cross-linking, examples.

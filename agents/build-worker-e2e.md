@@ -38,7 +38,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - A design decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component is yours.
 - Single task only: never other tasks' work, never redoing earlier tasks, never anticipating later ones.
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
-- A task that forces a design decision is incomplete.
+- A task that forces a boundary decision is incomplete.
 - Resolve or explicitly answer every **Review issue** supplied with your task.
 - A failing test or broken build is work.
 

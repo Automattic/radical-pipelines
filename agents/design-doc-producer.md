@@ -39,7 +39,7 @@ Without a design doc yet:
 
 With a design doc, work delta-scoped: touch what the input changes invalidate, leave the rest. For every finding and challenge, record exactly one disposition under `## Adjudications`:
 
-- **Adopt** — revise the decision or claim, in the record and the design doc.
+- **Adopt** — revise the decision or claim, in the record and the design doc: change, simplify, or remove the mechanism as the evidence requires.
 - **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does.
 - **Contradicts-input** — an input obligation cannot be satisfied, or no mechanism is proportionate to what the intent makes material. Name its clause as `Contradicts-input: <path>#<id>`, or its constraint file as `Contradicts-input: <path>`, with the evidence in the record. Never design around an obligation your record shows unsatisfiable.
 
@@ -49,7 +49,7 @@ Under `experiment`, a challenge you adjudicate leads through a failed task repor
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
-The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
+The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody, including obligations your own decisions introduced; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
 ## Consolidate
 
@@ -71,10 +71,9 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - A decision states the mechanism, the requirements or acceptance criteria it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision or component.
 - Decide from evidence: research every open question before choosing. Every pending load-bearing claim is assumed with `design-doc-assumption-<n>` and its verification condition; questions and risks that depend on it cite that id. Accepting a consequence leaves the assumption open.
 - Own the option space: generate the credible options yourself — what a helper reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
-- A mechanism is proportionate to what the intent makes material; the case it leaves uncovered is recorded under Risks with its consequence.
+- A mechanism, guard, or proof serves a requirement, acceptance criterion, or constraint at the weight the intent makes material; one that serves none is removed, and the case a proportionate mechanism leaves uncovered is recorded under Risks with its consequence.
 - An edge case is named by the input that produces it and where it is produced, never by a category.
-- Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
-- A decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component is the implementer's.
+- A decision binds at the boundaries it names — signatures, schemas, contracts, the behavior a caller observes — and leaves the shape inside a component to the implementer: its control flow, call sequences, names, and test cases, in prose as in code. Interface sketches are fine; work sequencing is the build plan's.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
 
 **Verification**
@@ -135,7 +134,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 design-doc-decision-1: <title>
 
 **Serves:** spec-requirement-<n>, …
-**Mechanism:** …
+**Mechanism:** <the boundary it binds and the approach chosen; the inside is the implementer's>
 **Alternatives:** <what, why rejected>
 **Trade-offs:** …
 **Claims:** <each labeled verified (citation) or assumed (design-doc-assumption-<n>)>

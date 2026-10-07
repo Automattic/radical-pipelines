@@ -50,16 +50,16 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 **Chains**
 
-- **Coverage** — every acceptance criterion and decision has the documentation it requires served by a task; every shipped observable behavior the spec names and every public surface the code adds or changes is served by a task on the surface of the audience that acts on it, or recorded out of scope with a reason. Sweep the repository yourself: any text that references the changed behavior — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions — that the plan would leave out of sync is a finding.
-- **Traceability** — each task points to a specific requirement, acceptance criterion, design decision, or shipped change.
-- **What, where, for whom** — each task names its surface, exact sections and scope — what its audience acts on, at the depth they act on it, each fact explained once and referenced from the rest — and a concrete audience without prescribing the documentation's wording; a task that dictates the documentation's sentences is a finding.
-- **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files and sections exist in the project or their creation is indicated.
-- **Per-task acceptance** — every task has acceptance outcomes framed as what the reader leaves with or what the documentation must cover; missing, vague, or contradictory acceptance is a finding.
-- **Self-containment** — a worker can execute each task file without deciding what the software does; a task that is not the smallest change a reviewer can judge as coherent — the same edit across several files is one task — is a finding; dependencies name exactly the task's prerequisites and are acyclic.
+- **Coverage** — every surface that references the changed behavior is brought in sync by a task, and every public surface the code adds or changes is documented where the project keeps it. Sweep the repository yourself: any text that references the changed behavior — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions — that the plan would leave out of sync is a finding.
+- **Traceability** — each task points to a specific shipped change or public surface.
+- **Where, for whom** — each task names its surfaces, a concrete audience, and the goal the reader leaves with; a task that supplies the documentation's content — the facts it states, its sections, its sentences — is a finding.
+- **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files exist in the project or their creation is indicated.
+- **Per-task acceptance** — every task has acceptance outcomes framed as what the reader leaves with; missing, vague, or contradictory acceptance is a finding.
+- **Self-containment** — a worker can execute each task file without deciding what the software does; a task is the feature's documentation for one audience across the surfaces that audience reads, and a split by surface is a finding; dependencies name exactly the task's prerequisites and are acyclic.
 - **Documentation only** — a task changes documentation, never shipped code, which includes inline API documentation. Missing or false inline API documentation without a contradicts-input targeting the build task that changed its symbol is a finding.
 - **Scope** — the plan stays within the spec and design doc.
 - **Done work** — completed tasks are untouched; upstream changes reach them through corrective tasks.
-- **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; its sections agree; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two workers would produce documentation of the same scope and shape.
+- **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; its sections agree; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two writers would cover the same surfaces for the same audiences.
 - **Labeling** — every load-bearing claim is verified with a citation or assumed with `document-assumption-<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own or a helper's experiments as evidence is a finding, unless they serve a failure's disposition under `experiment`.
 - **Minimal artifacts** — every "none" the plan claims — no risks, no alternatives, no affected areas — rests on a recorded sweep that came back empty.
 

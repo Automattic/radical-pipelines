@@ -47,8 +47,8 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
 - Per task: every acceptance outcome holds, verified against the documentation and the code it describes.
 - Accuracy: every concrete claim matches the shipped code; a claim about behavior is false when a reader of the task's `Audience`, following it within supported use, is misled. For at least one claim per task, verify it against the code with evidence; a claim that does not match is a finding. A spot-check without evidence is not a spot-check.
-- Audience fit: content is what each task's `Audience` acts on, at the depth they act on it, in the voice, prerequisites, and vocabulary of the surrounding document; a mechanism they cannot act on, or a term foreign to them, is a finding.
-- Within a surface, each fact is explained once and referenced from the rest; a second explanation is a finding.
+- Audience fit, judged from the reader's seat: content is what each task's `Audience` acts on, at the depth they act on it, in the voice, prerequisites, and vocabulary of the surrounding document; a mechanism they cannot act on, a term foreign to them, or depth beyond what they act on, is a finding.
+- A fact has one authoritative surface; a second authoritative explanation on another surface is a finding.
 - Faithful rationale: where the documentation explains why, it matches the spec's user-facing rationale and the design doc's architectural rationale; invented or contradicted rationale is a finding.
 - Drift sweep: no surface the plan names keeps stale references to the old behavior, and every public surface the code adds or changes is documented on the surface the project keeps for it; an undocumented one is a finding.
 - Plan adherence: the resulting documentation satisfies the plan, design, and spec against the shipped code. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.

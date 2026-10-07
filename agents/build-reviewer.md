@@ -48,7 +48,7 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Per task: every acceptance outcome holds; an `edit` task preserves observable behavior and existing assertion contracts while changing their representation.
 - Per assumption the plan maps: the verifying task's evidence confirms or refutes it; a task report that claims completion without exercising its `Verifies` assumption is a finding.
 - The spec's acceptance criteria the tasks trace to pass against the resulting code; every design decision the tasks trace to is honored.
-- Plan adherence: the resulting software satisfies the plan, design, and spec. Post-change coherence: nothing stranded — code, names, docs, or tests whose reason to exist the change removed. A survivor the plan or design records keeping is settled; one kept by default is a finding.
+- Plan adherence: the resulting software satisfies the plan, design, and spec. Post-change coherence: nothing stranded — code, names, docs, or tests whose reason to exist the change removed. A survivor the plan or design records keeping is settled; one kept by default is a finding. Proportion: a mechanism, guard, or test that serves nothing the plan traces to is a finding.
 - Every public symbol added or modified carries inline API documentation per the project's convention; every change follows the project's coding, testing, build, and commit conventions.
 - The diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words. The code describes the software as it is, never its prior state or the change from it.
 - Evaluate every rule under **Guardrails** against the code; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: the only evidence that makes a failure ambient is reproducing the identical failure on the diff's base; a failing test the diff never touched is not thereby ambient — a regression is a previously-passing test that now fails. Even with that reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
@@ -58,11 +58,11 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - Tests follow the classical school: a test observes an outcome through the public interface, never the wiring that produces it; a test double replaces only what the test cannot run.
 - A new test proves something no other test proves.
-- Every proof the design doc's Verification names exists and would fail if what it proves were broken; a test that proves nothing the Verification names is a finding.
+- Every proof the design doc's Verification names exists and would fail if what it proves were broken.
 
 **Contradictions**
 
-- Code that cannot satisfy a plan clause because the design doc or the spec asserts something false is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` and the evidence.
+- Code that cannot satisfy a plan clause because the design doc or the spec asserts something false, or that satisfies a clause the running software shows wrong, is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` and the evidence.
 
 **Findings**
 
