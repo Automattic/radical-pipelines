@@ -47,8 +47,8 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
 - Per task: every acceptance outcome holds, verified against the documentation and the code it describes.
 - Accuracy: every concrete claim matches the shipped code; a claim about behavior is false when a reader of the task's `Audience`, following it within supported use, is misled. For at least one claim per task, verify it against the code with evidence; a claim that does not match is a finding. A spot-check without evidence is not a spot-check.
-- Audience fit: content is what each task's `Audience` acts on, at the depth they act on it, in the voice, prerequisites, and vocabulary of the surrounding document; a mechanism they cannot act on, a term foreign to them, or depth beyond what they act on, is a finding.
-- A fact is explained on one surface and referenced from the others; a second explanation on another surface is a finding.
+- Audience fit: content or depth that does not serve what the task's `Audience` acts on, or a mismatch with the surrounding document's voice, prerequisites, or vocabulary, is a finding.
+- Explaining a fact on more than one surface, or leaving its explanation unreferenced from the others, is a finding.
 - Faithful rationale: where the documentation explains why, it matches the spec's user-facing rationale and the design doc's architectural rationale; invented or contradicted rationale is a finding.
 - Drift sweep: no surface the plan names keeps stale references to the old behavior, and every public surface the code adds or changes is documented on the surface the project keeps for it; an undocumented one is a finding.
 - Plan adherence: the resulting documentation satisfies the plan, design, and spec against the shipped code. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
@@ -65,7 +65,6 @@ Reject only for a must-fix in the diff or a prior finding whose resolution fails
 
 - Every issue names the unmet surface and every existing task it affects.
 - Be specific: name the file and line, the claim, the code that contradicts it. Report a defect class once. Never manufacture findings; reject for real defects, approve when the work survives your checks.
-- You review and report: never rewrite the documentation.
 - Declare exactly one verdict: `approved`, `rejected`, or `unsatisfiable` with `target: <path>#<id>`.
 
 # Protocol

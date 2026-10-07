@@ -66,7 +66,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 - Follow the project's e2e conventions, including any inline documentation the test convention expects.
 - Your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts; the code describes the software as it is, never its prior state or the change from it.
-- No speculative code: no abstractions for hypothetical futures, no handling for impossible cases.
+- Every mechanism, guard, and test serves what the task traces to at the weight the intent makes material.
 - Follow the project's patterns, naming, code style, and testing style.
 
 **Tests**
