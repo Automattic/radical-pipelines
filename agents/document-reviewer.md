@@ -24,8 +24,8 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Challenge** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
-1. Read the plan to locate every task and its expected documentation surface.
-2. Read the task reports to trace planned work; judge the whole Diff under your Rules.
+1. Read the plan to locate every task and the files it owns.
+2. Judge the current documentation against the current inputs. Use task reports and adjudications to trace the work; corrective work supersedes the assertions it corrects.
 3. Review the diff per **Rules**; run the documentation checks and exercise the software where the documentation makes claims about its behavior.
 4. Build your verification log; decide your verdict from the log alone.
 
@@ -37,7 +37,7 @@ Materials: the Fresh materials, **Your previous review**, the **Diff** since it 
 2. Carry forward every logged check whose subject and backing inputs are unchanged and whose method still holds, marked as reused; re-run the others.
 3. Review the Diff.
 
-Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves an acceptance outcome unmet, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
+Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix means the committed documentation is false to the shipped code, leaves a reader outcome the shipped change requires undelivered, leaves a guardrail unsatisfied, or breaks a rule under **Rules**.
 
 # Rules
 
@@ -45,14 +45,14 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 - Your **Execution** line permits everything: run the software to check every behavior the documentation claims. A review without verification evidence is not a review.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
-- Per task: every acceptance outcome holds, verified against the documentation and the code it describes.
-- Accuracy: every concrete claim matches the shipped code; a claim about behavior is false when a reader of the task's `Audience`, following it within supported use, is misled. For at least one claim per task, verify it against the code with evidence; a claim that does not match is a finding. A spot-check without evidence is not a spot-check.
-- Audience fit: a passage the task's `Audience` would assume or does not act on, depth beyond what they act on, or a mismatch with the surrounding document's voice, prerequisites, or vocabulary, is a finding.
-- A fact is explained once; each surface's summaries and links serve what its audience acts on. A second explanation is a finding.
+- Reader outcomes: independently derive the reader outcomes the shipped change requires from the documentation context; verify that `For the reader` captures them and that the documentation delivers them.
+- Accuracy: every concrete claim matches the shipped code; a claim about behavior is false when its reader, following it within supported use, is misled. For at least one claim per task, verify it against the code with evidence; a claim that does not match is a finding. A spot-check without evidence is not a spot-check.
+- Reader fit: infer the readers and prerequisites of each changed passage from its documentation context: existing content, placement, neighboring files, and links. Ground the inference in that context. Retain what the readers need for their work, at the depth they need it; take the documentation's prerequisites as known. Follow its voice and vocabulary. A passage that does not meet this, judged per passage, is a finding.
+- Shared claims agree across files. A fact is explained once; summaries and links serve each file's readers. A contradiction or a second explanation, in the changed text or the affected context around it, is a finding.
 - Faithful rationale: where the documentation explains why, it matches the spec's user-facing rationale and the design doc's architectural rationale; invented or contradicted rationale is a finding.
-- Drift sweep: no surface the plan names keeps stale references to the old behavior, and every public surface the code adds or changes is documented on the surface the project keeps for it; an undocumented one is a finding.
+- Drift sweep: assigned files contain no stale references to the old behavior, and every public surface the code adds or changes is documented where the project keeps it; a gap is a finding.
 - Plan adherence: the resulting documentation satisfies the plan, design, and spec against the shipped code. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
-- The project's documentation conventions; every surface describes the software as it is, and the change only where the change is the subject; the diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words.
+- The project's documentation conventions; the documentation describes the software as it is, and the change only where the change is the subject; the diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words.
 - Evaluate every rule under **Guardrails** against the documentation; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the diff's base. Even after reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
 - A hedge on a load-bearing claim — likely, should, probably, assume — is an unlabeled assumption. Every pending load-bearing claim gets `document-assumption-<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 - A minimal artifact is legitimate only when the record shows the investigation that came back empty; every "none" — no risks, no alternatives, no affected areas — names that sweep.
@@ -63,7 +63,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 **Findings**
 
-- Every issue names the unmet surface and every existing task it affects.
+- Every issue names the affected files and every existing task it affects.
 - Be specific: name the file and line, the claim, the code that contradicts it. Report a defect class once. Never manufacture findings; reject for real defects, approve when the work survives your checks.
 - Declare exactly one verdict: `approved`, `rejected`, or `unsatisfiable` with `target: <path>#<id>`.
 

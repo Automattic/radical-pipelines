@@ -20,10 +20,10 @@ Plans and writes the documentation the shipped code needs — internal and exter
 
 - Plan **Converge**: `1-spec/spec.md`, `2-design-doc/design-doc.md`, `3-build/build-plan.md` with its tasks and reports, their approving reviews, the approving build review, the shipped code (the branch), the task reports so far, and the **Phase folder** files. Each when it applies: **Input changes** — each changed input with `git diff <plan head> HEAD -- <path>`; `document-plan.md`, its **Tasks**, and `document-plan-research.md` once written; **Review lanes** — every review in the complete closed wave (approving, rejecting, and unsatisfiable lanes); a **Challenge** or **Task report** (with its task file) per pending challenge targeting the plan.
 - Plan review **Fresh**: the plan, record, tasks, and pinned-input package — the spec, design doc, and build package with their current approving reviews, adjudicated challenges, and production-lane inputs — plus the challenge under review. **Delta**: the Fresh materials, **Your previous review**, the **Diff** from its `head`, and the **Adjudication**.
-- Worker: the **Task** file, its **Dependencies**, `1-spec/spec.md` and `2-design-doc/design-doc.md` (the rationale), the named **Existing documentation**, and **Write your report to**; on a later attempt, **Your previous report**; for a corrective task or re-dispatch, the **Adjudication** and every **Review issue** attached to the task.
+- Worker: the **Task** file, its **Dependencies**, `0-intent/intent.md`, the **Net change** (`rp diff` of the pipeline), `1-spec/spec.md` and `2-design-doc/design-doc.md` (the rationale), and **Write your report to**; on a later attempt, **Your previous report**; for a corrective task or re-dispatch, the **Adjudication** and every **Review issue** attached to the task.
 - Document review: the plan, its record and tasks, its **Pinned inputs** — the design doc, spec, and complete build package with their current approving reviews, every adjudicated challenge, and every production-lane input — every **Task report**, the **Challenge** or **Task report** under review when present, and materials per `../loop.md` § Review diffs.
 
 ## Tasks
 
-- Every task is a file with `Goal`, `Surface` (the documentation locations it serves), `Audience`, `Files`, `Traces to`, `depends-on`, `Acceptance`.
+- Every task is a file with `Files` (the documentation files it owns, existing or to create), `Traces to`, `depends-on`.
 - Fresh worker per attempt. Every task report names the task id and title.
