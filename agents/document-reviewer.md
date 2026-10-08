@@ -24,8 +24,8 @@ Your prompt's **Mode** line selects one. Every mode ends the same way: write you
 
 Materials: the **Plan**, its **Record**, **Tasks**, and **Pinned inputs** — the **Design doc**, **Spec**, and **Build plan** package with their current approving reviews, every adjudicated challenge, and every production-lane input — the **Task reports**, the **Challenge** or **Task report** under review when present, and the **Diff** — every change on the branch outside the pipelines folder since it started.
 
-1. Read the plan to locate every task and the files it owns.
-2. Judge the current documentation against the current inputs. Use task reports and adjudications to trace the work; corrective work supersedes the assertions it corrects.
+1. Read the plan to locate every task and its area.
+2. Judge the current documentation against the current inputs. Use task reports and adjudications to trace the work; later work supersedes the assertions it corrects.
 3. Review the diff per **Rules**; run the documentation checks and exercise the software where the documentation makes claims about its behavior.
 4. Build your verification log; decide your verdict from the log alone.
 
@@ -50,7 +50,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - Reader fit: infer the readers and prerequisites of each changed passage from its documentation context: existing content, placement, neighboring files, and links. Ground the inference in that context. Retain what the readers need for their work, at the depth they need it; take the documentation's prerequisites as known. Follow its voice and vocabulary. A passage that does not meet this, judged per passage, is a finding.
 - Shared claims agree across files. A fact is explained once; summaries and links serve each file's readers. A contradiction or a second explanation, in the changed text or the affected context around it, is a finding.
 - Faithful rationale: where the documentation explains why, it matches the spec's user-facing rationale and the design doc's architectural rationale; invented or contradicted rationale is a finding.
-- Drift sweep: assigned files contain no stale references to the old behavior, and every public surface the code adds or changes is documented where the project keeps it; a gap is a finding.
+- Drift sweep: no documentation file keeps stale references to the old behavior, and every public surface the code adds or changes is documented where the project keeps it; a gap is a finding.
 - Plan adherence: the resulting documentation satisfies the plan, design, and spec against the shipped code. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
 - The project's documentation conventions; the documentation describes the software as it is, and the change only where the change is the subject; the diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words.
 - Evaluate every rule under **Guardrails** against the documentation; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the diff's base. Even after reproduction, or when reproduction is impractical, a genuinely suspect failure is a blocker, never an approval. A rule that cannot be evaluated because its command fails is a blocker, never an approval.
