@@ -10,10 +10,10 @@ describe("rp identity and stamps", () => {
   useFixture();
 
   test("identity is the body's hash: stamping never changes it", () => {
-    const before = identity(read(root, "1-spec/spec.md"));
+    const before = identity(read(root, "1-spec/spec.md"), "1-spec/spec.md");
     stampSpec();
     rp(root, "stamp", P("1-spec/spec.md"), "--mirror");
-    assert.equal(identity(read(root, "1-spec/spec.md")), before);
+    assert.equal(identity(read(root, "1-spec/spec.md"), "1-spec/spec.md"), before);
     assert.match(read(root, "1-spec/spec.md"), /"pins": \[\n    "0-intent\/intent\.md@[0-9a-f]{12}"/);
   });
 
@@ -79,6 +79,47 @@ describe("rp identity and stamps", () => {
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+STALE/);
   });
 
+  const INTENT = "0-intent/intent.md";
+  const gitHash = (text) => execFileSync("git", ["hash-object", "--stdin"], { input: text, encoding: "utf8" }).trim().slice(0, 12);
+  const ISSUE = "origin: issue 7\n", STARTS_FROM = "origin: starts-from feature\n", RE_ATTEMPTS = "origin: re-attempts earlier\n";
+  const BELOW = "\n# Intent\n\n## Goal\n\nOriginal intent.\n";
+
+  for (const [name, origins] of [["no origin lines", ""], ["the issue line", ISSUE], ["every origin line", ISSUE + STARTS_FROM + RE_ATTEMPTS], ["CRLF origin lines", ISSUE.replace("\n", "\r\n") + RE_ATTEMPTS.replace("\n", "\r\n")]])
+    test(`intent identity with ${name} hashes only the bytes below them`, () => {
+      assert.equal(identity(`${origins}${BELOW}`, INTENT), gitHash(BELOW));
+      assert.equal(identity(`---\n{}\n---\n${origins}${BELOW}`, INTENT), gitHash(BELOW));
+    });
+
+  test("intent identity: origin lines are outside it; every other byte is inside", () => {
+    const base = identity(`${ISSUE}${BELOW}`, INTENT);
+    for (const origins of [ISSUE + RE_ATTEMPTS, ISSUE + STARTS_FROM + RE_ATTEMPTS, "origin: issue 8\n", `${ISSUE}origin: re-attempts other\n`])
+      assert.equal(identity(`${origins}${BELOW}`, INTENT), base, origins);
+    for (const text of [
+      `${ISSUE}${BELOW}Changed.\n`,
+      `${ISSUE}${BELOW}${RE_ATTEMPTS}`,
+      `${ISSUE}\n# Intent\n${RE_ATTEMPTS}\n## Goal\n\nOriginal intent.\n`,
+      `${ISSUE}origin: elsewhere\n${BELOW}`,
+      `\n${ISSUE}${BELOW}`,
+    ]) assert.notEqual(identity(text, INTENT), base, text);
+    assert.equal(identity(`${ISSUE}${BELOW}`, "0-intent/context.md"), gitHash(`${ISSUE}${BELOW}`));
+  });
+
+  test("an origin line added to the intent leaves its pins fresh; a body edit makes them stale", () => {
+    stampSpec();
+    approveSpec();
+    const before = check(root);
+    assert.match(before, /artifact 1-spec\/spec\.md\s+FRESH/);
+    const intent = read(root, INTENT);
+    write(root, INTENT, intent.replace(ISSUE, ISSUE + RE_ATTEMPTS));
+    rp(root, "stamp", P(INTENT), "--mirror");
+    assert.equal(check(root), before);
+    git(root, "add", "-A");
+    git(root, "commit", "--quiet", "-m", "re-attempt");
+    assert.match(check(root, "--ref", "HEAD"), /artifact 1-spec\/spec\.md\s+FRESH/);
+    appendFileSync(join(root, P(INTENT)), "\nChanged.\n");
+    assert.match(check(root), /artifact 1-spec\/spec\.md\s+STALE/);
+  });
+
   test("--mirror copies verdict, brief, target, outcome, prior-finding, depends-on, and every origin line", () => {
     stampSpec();
     write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: One\n\nspec-finding-2: Two\n");
@@ -88,7 +129,7 @@ describe("rp identity and stamps", () => {
     assert.match(fm, /"verdict": "unsatisfiable"/);
     assert.match(fm, /"brief": "security"/);
     assert.deepEqual(parseFrontmatter(fm).data.get("target"), ["0-intent/intent.md#intent-goal"]);
-    assert.deepEqual(parseFrontmatter(fm).data.get("target-identity"), [identity(read(root, "0-intent/intent.md"))]);
+    assert.deepEqual(parseFrontmatter(fm).data.get("target-identity"), [identity(read(root, "0-intent/intent.md"), "0-intent/intent.md")]);
     assert.match(fm, /"prior-finding": \[\n    "1-spec\/spec-review-1\.md#spec-finding-2"/);
     rp(root, "stamp", P("0-intent/intent.md"), "--mirror");
     assert.match(read(root, "0-intent/intent.md"), /"origin": "issue 7"/);
@@ -281,7 +322,7 @@ describe("rp identity and stamps", () => {
     write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: approved\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), ...[...SPEC, "1-spec/spec/evidence.md"].flatMap((path) => ["--reviewed", P(path)]), "--mirror"), /not pipeline state: 1-spec\/spec\/evidence\.md/);
     rmSync(join(root, P("1-spec/spec-review-2.md")));
-    const outside = `1-spec/spec/evidence.md@${identity(read(root, "1-spec/spec/evidence.md"))}`;
+    const outside = `1-spec/spec/evidence.md@${identity(read(root, "1-spec/spec/evidence.md"), "1-spec/spec/evidence.md")}`;
     for (const [file, fields] of [
       ["1-spec/spec.md", { pins: [...pairs(["0-intent/intent.md"]), outside] }],
       ["1-spec/spec-review-1.md", { reviewed: [...pairs(SPEC), outside], verdict: "approved" }],

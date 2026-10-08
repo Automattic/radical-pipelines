@@ -120,31 +120,36 @@ export function renderFrontmatter(data, body) {
 // --- identity: hash of the body only ----------------------------------------
 
 // Computed in process as git computes a blob hash — `sha1("blob <bytes>\0" + bytes)` — so it
-// equals `git hash-object --stdin` of the body, byte for byte, without spawning anything.
-export function identity(text) {
-  const { body } = parseFrontmatter(text);
-  const bytes = Buffer.from(body, "utf8");
-  return blobIdentity(bytes);
-}
-
-function blobIdentity(bytes) {
+// equals `git hash-object --stdin` of the hashed bytes, byte for byte, without spawning anything.
+export function identity(content, rel = "") {
+  const bytes = identityBytes(Buffer.isBuffer(content) ? content : Buffer.from(content, "utf8"), rel);
   return createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex").slice(0, SHORT);
 }
 
-function byteIdentity(bytes) {
+const originSource = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value);
+const originLine = (line) => originSource(line.match(/^origin:[^\S\n]*([^\n]*)\n?$/)?.[1].trim() ?? "");
+
+// The hashed bytes: the body, less the intent's leading origin lines.
+function identityBytes(bytes, rel) {
   const raw = bytes.toString("latin1");
   const open = raw.match(/^---\r?\n/);
-  if (!open) return blobIdentity(bytes);
-  const rest = raw.slice(open[0].length);
-  const close = rest.match(/(?:^|\n)---\r?(?:\n|$)/);
-  return blobIdentity(close ? bytes.subarray(open[0].length + close.index + close[0].length) : bytes);
+  const close = open && raw.slice(open[0].length).match(/(?:^|\n)---\r?(?:\n|$)/);
+  let body = close ? bytes.subarray(open[0].length + close.index + close[0].length) : bytes;
+  while (rel === "0-intent/intent.md" && body.length) {
+    const end = body.indexOf(10);
+    const next = end === -1 ? body.length : end + 1;
+    if (!originLine(body.subarray(0, next).toString("utf8"))) break;
+    body = body.subarray(next);
+  }
+  return body;
 }
 
-function readPipelineFile(abs) {
+function readPipelineFile(base, rel) {
+  const abs = join(base, rel);
   if (!existsSync(abs) || !lstatSync(abs).isFile()) return null;
   const bytes = readFileSync(abs);
   const text = bytes.toString("utf8");
-  return { ...parseFrontmatter(text), text, identity: byteIdentity(bytes) };
+  return { ...parseFrontmatter(text), text, identity: identity(bytes, rel) };
 }
 
 const IDENTITY = /^[0-9a-f]{12}$/;
@@ -907,7 +912,7 @@ export function projectBody(body, rel = "") {
     return targets.every((t) => /^[^#,\s]+(?:#[^#,\s]+)?$/.test(t)) && new Set(targets).size === targets.length;
   }, "<path>[#<id>][, …]");
   if (p.has("target")) p.set("target", p.get("target").split(",").map((t) => t.trim()));
-  const originValid = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
+  const originValid = (value) => originSource(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
   const origins = [];
   for (const value of fixed("origin")) {
     if (originValid(value)) origins.push(value);
@@ -1008,7 +1013,7 @@ async function cmdStamp(args) {
   const rel = relative(base, abs);
   if (!pipelineFileRole(rel)) die(`stamp: not pipeline state: ${rel}`);
 
-  const parsedFrontmatter = readPipelineFile(abs);
+  const parsedFrontmatter = readPipelineFile(base, rel);
   if (!parsedFrontmatter) die(`stamp: no such file: ${file}`);
   if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
   const { data, body } = parsedFrontmatter;
@@ -1017,7 +1022,7 @@ async function cmdStamp(args) {
   const landedPatchIds = fm.get("patch-ids") ?? [];
   const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, ownerFile(rel) || fm.get("target-identity")?.[i]]));
   const readAt = (path) => {
-    const source = readPipelineFile(join(base, path));
+    const source = readPipelineFile(base, path);
     if (source?.error) die(`stamp: INVALID FRONTMATTER ${path}: ${source.error}`);
     return source;
   };
@@ -1035,7 +1040,7 @@ async function cmdStamp(args) {
   const laneForPath = () => {
     const needsConfiguration = role.namedReview || role.productionArtifact || (role.review && role.productionLane);
     if (!needsConfiguration) return null;
-    const config = runConfiguration((path) => readPipelineFile(join(base, path))?.text ?? null, "stamp");
+    const config = runConfiguration((path) => readPipelineFile(base, path)?.text ?? null, "stamp");
     validateRunConfiguration(config, {
       list: () => walk(base).filter((entry) => entry.type === "blob" && entry.rel.endsWith(".md")).map((entry) => entry.rel),
       document: (path) => readAt(path),
@@ -1428,7 +1433,7 @@ async function cmdCheck(args) {
 
   const identityOf = (rel) => {
     const bytes = tree.read(rel, true);
-    return bytes === null ? null : byteIdentity(bytes);
+    return bytes === null ? null : identity(bytes, rel);
   };
   const currentPackage = (paths) => new Map([...new Set(paths)].map((path) => [path, identityOf(path)]));
   const docsOf = (sc) => all.filter((d) => d.scope === sc);

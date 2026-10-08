@@ -91,7 +91,7 @@ describe("rp reviews, waves, inputs", () => {
     assert.match(output, /frontier review wave 1-spec\/spec\.md/);
     const misplaced = "2-design-doc/lanes/a/spec-review-1.md";
     assert.throws(() => review(misplaced, "unsatisfiable", SPEC, "target: 0-intent/intent.md#intent-goal\n"), /only challenges may carry target fields/);
-    registered(misplaced, { verdict: "unsatisfiable", reviewed: pairs(SPEC), target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))] }, "# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
+    registered(misplaced, { verdict: "unsatisfiable", reviewed: pairs(SPEC), target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"), "0-intent/intent.md")] }, "# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
     const invalid = JSON.parse(check(root, "--json"));
     assert.equal(invalid.frontier, `INVALID FRONTMATTER ${misplaced}`);
     assert.deepEqual(invalid.claims, []);
