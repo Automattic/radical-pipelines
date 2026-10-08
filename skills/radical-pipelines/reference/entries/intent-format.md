@@ -37,7 +37,7 @@ Render these sections and **omit any that are empty** — no `N/A` placeholders:
 
 A vague idea with only a Title and Goal is complete.
 
-Every item other than the Goal is declared by its id (`../run/state.md` § Names), assigned in order of creation.
+In `intent.md`, every item other than the Goal is declared by its id (`../run/state.md` § Names), assigned in order of creation.
 
 ## Authoring discipline
 
