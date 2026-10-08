@@ -47,8 +47,8 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
 - Per task: every acceptance outcome holds, verified against the documentation and the code it describes.
 - Accuracy: every concrete claim matches the shipped code; a claim about behavior is false when a reader of the task's `Audience`, following it within supported use, is misled. For at least one claim per task, verify it against the code with evidence; a claim that does not match is a finding. A spot-check without evidence is not a spot-check.
-- Audience fit: content or depth that does not serve what the task's `Audience` acts on, or a mismatch with the surrounding document's voice, prerequisites, or vocabulary, is a finding.
-- Explaining a fact on more than one surface, or leaving its explanation unreferenced from the others, is a finding.
+- Audience fit: a passage the task's `Audience` would assume or does not act on, depth beyond what they act on, or a mismatch with the surrounding document's voice, prerequisites, or vocabulary, is a finding.
+- A fact is explained once; each surface's summaries and links serve what its audience acts on. A second explanation is a finding.
 - Faithful rationale: where the documentation explains why, it matches the spec's user-facing rationale and the design doc's architectural rationale; invented or contradicted rationale is a finding.
 - Drift sweep: no surface the plan names keeps stale references to the old behavior, and every public surface the code adds or changes is documented on the surface the project keeps for it; an undocumented one is a finding.
 - Plan adherence: the resulting documentation satisfies the plan, design, and spec against the shipped code. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
@@ -59,7 +59,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 **Contradictions**
 
-- Documentation that cannot be accurate because the shipped code contradicts the design doc, the spec, or the build plan is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` — the artifact that is wrong — and the evidence. Missing or false inline API documentation is such a case; its target is the build task that changed its symbol.
+- An obligation of the design doc, the spec, or the build plan that no accurate text satisfies is not a rejection of the workers: write it as a finding and, in your verdict, `verdict: unsatisfiable` with `target: <path>#<id>` — the artifact that is wrong — and the evidence. Missing or false inline API documentation is such a case; its target is the build task that changed its symbol.
 
 **Findings**
 

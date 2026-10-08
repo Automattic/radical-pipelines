@@ -52,7 +52,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 - **Coverage** — every surface that references the changed behavior is brought in sync by a task, and every public surface the code adds or changes is documented where the project keeps it. Sweep the repository yourself: any text that references the changed behavior — READMEs at any level, inline comments, examples, configuration descriptions, changelogs, contributor docs, internal conventions — that the plan would leave out of sync is a finding.
 - **Traceability** — each task points to a specific shipped change or public surface.
-- **Where, for whom** — each task names its surfaces, a concrete audience, and the goal the reader leaves with; a task that supplies the documentation's content — the facts it states, its sections, its sentences — is a finding.
+- **Where, for whom** — each task names its surfaces, a concrete audience, and the goal the reader leaves with; the plan or a task supplying the documentation's content — the facts it states, its sections, its sentences — is a finding.
 - **Accuracy and feasibility** — the files, symbols, and surfaces a task names exist in the shipped tree as named, and the documentation files exist in the project or their creation is indicated.
 - **Per-task acceptance** — every task has acceptance outcomes framed as what the reader leaves with; missing, vague, or contradictory acceptance is a finding.
 - **Self-containment** — a worker can execute each task file without deciding what the software does; a task is the feature's documentation for one audience across the surfaces that audience reads; dependencies name exactly the task's prerequisites and are acyclic.
@@ -73,8 +73,8 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 **Adjudication audit**
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. A constraint answering a claim replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
-- An adoption or a replan that documents around a design, spec, or build-plan clause the shipped code contradicts is a must-fix: the disposition must be contradicts-input.
-- Under `experiment`, a failure's disposition rests on a recorded investigation whose established cause explains every observation, the other candidates ruled out by evidence — or states the cause unestablished with the observation that would establish it; otherwise it is a finding.
+- An adoption or a replan that documents around a design, spec, or build-plan obligation no accurate text satisfies is a must-fix: the disposition must be contradicts-input.
+- Under `experiment`, recorded observations support the failure's disposition; a causal claim explains every observation and rules out the other candidates, or is stated as unestablished with the observation that would establish it; otherwise it is a finding.
 - A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; defeat it by rejecting with the route or class named. One neither corroborated nor defeated is a must-fix.
 
 **Findings**

@@ -42,7 +42,7 @@ With a spec, work delta-scoped: touch what the input changes invalidate, leave t
 - **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does, and the review wave judges the refutation.
 - **Contradicts-input** — an input obligation cannot be satisfied. Name its clause as `Contradicts-input: <path>#<id>`, or its constraint file as `Contradicts-input: <path>`, with the evidence already in the record. A contradiction already adjudicated is re-raised only with new evidence.
 
-Under `experiment`, a challenge you adjudicate leads through a failed task report. Establish that failure's cause before its disposition: reproduce the failure; check the report's account of what failed, where, and when against the raw evidence; list the candidate causes — the delivered code and the test infrastructure as well as the environment; discriminate between them by comparing failing observations with passing ones and by experiments that separate the rest. Every experiment that changes code goes to a helper. Record the candidates, experiments, and results. The cause is established when it explains every observation and the evidence rules out the others; an unestablished cause is stated with the observation that would establish it.
+Under `experiment`, a challenge you adjudicate leads through a failed task report. Attempt to reproduce the reported failure and check its account against the raw evidence. Record the observations supporting its disposition. A causal claim requires comparing candidate causes in the delivered code, test infrastructure, and environment through discriminating experiments; code-changing experiments go to a helper. The cause is established when it explains every observation and rules out the others; otherwise state it as unestablished with the observation that would establish it.
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
@@ -68,7 +68,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Requirements**
 
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. How it is achieved belongs to the design phase and stays out of requirements. One that describes construction is restated as the behavior it guarantees.
-- A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction.
+- Requirements cover the cases the intent makes material; their acceptance criteria collectively verify those outcomes; deciding every conceivable case is construction.
 - An edge case is named by the input that produces it and where it is produced, never by a category.
 - An exclusion states what stays observably unchanged, never which code may be touched.
 - Existing tests are evidence, never outcomes: a requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design.

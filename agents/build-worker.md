@@ -26,7 +26,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 1. Read the task file. Its `Goal`, `Changes`, `Flows`, and `Acceptance` are the boundary of your work.
 2. Read what the task's `Traces to` names in the spec and the design doc, with the design doc's Verification entries for it.
-3. Realize the outcomes in `Acceptance` with the proofs those entries name at your boundary. A new unit test is written failing before the change that makes it pass, then the code is refactored with the tests green. A flow is automated in the project's e2e convention and passes against the current code.
+3. Realize every outcome in `Acceptance` and verify it with the assigned proof; each automated proof detects a violation of every outcome it claims. A new unit test is written failing before the change that makes it pass, then the code is refactored with the tests green. A flow is automated in the project's e2e convention and passes against the current code. For each claimed behavioral distinction reproducible within the task's boundary, run its proof against a bounded mutation or revert exhibiting the rejected behavior and against the delivered code; a distinction beyond that boundary stays assumed with its verification condition.
 4. Run the project's test suite and build, and exercise what you changed as its user, consumer, or caller sees it.
 5. Determine the outcome per **Outcomes** and write the report.
 
@@ -72,7 +72,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Tests**
 
-- Tests follow the classical school: a test observes an outcome through the public interface, never the wiring that produces it; a test double replaces only what the test cannot run.
+- Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run.
 - A new test proves something no other test proves.
 
 # Protocol
@@ -93,7 +93,7 @@ commit: <hash>
 
 ## Checks
 
-<!-- Per acceptance outcome: the proof that demonstrates it and its result; each Verifies condition and its outcome. -->
+<!-- Per acceptance outcome: its proof and result; per claimed behavioral distinction: the failing outcome assertion and passing control, or its assumption; each Verifies condition and its outcome. -->
 
 ## Evidence
 

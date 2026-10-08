@@ -56,9 +56,9 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 **Tests**
 
-- Tests follow the classical school: a test observes an outcome through the public interface, never the wiring that produces it; a test double replaces only what the test cannot run.
+- Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run.
 - A new test proves something no other test proves.
-- Every proof the design doc's Verification names exists and would fail if what it proves were broken.
+- Every proof the design doc's Verification names exists and detects a violation of each outcome assigned to it. For each behavioral distinction reproducible within its task's boundary, verify the recorded failing outcome assertion and passing control; other distinctions retain their assumption and verification condition. Reproduce doubtful run claims through a help request, with code changes confined to a disposable copy.
 
 **Contradictions**
 
