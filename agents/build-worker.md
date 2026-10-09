@@ -40,11 +40,10 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - `Files` is the planned set, not a hard boundary: touch more when implementing cleanly requires it — never to expand scope.
 - A task that forces a boundary decision is incomplete.
 - Resolve or explicitly answer every **Review issue** supplied with your task.
-- A failing test or broken build is work.
 
 **Outcomes**
 
-- **Completed** when every acceptance outcome holds, every proof the task names passes, and the suite is green. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
+- **Completed** when every acceptance outcome holds, every proof the task names passes, and the suite is green. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the environment failed you and the identical failure reproduces on the commit you started from; any other failure is work.
 
 **Evidence**
 
@@ -59,7 +58,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Guardrails**
 
-- An unsatisfied rule is work: fix the underlying issue. Never bypass a rule's check — no `--no-verify`, no skip, no commented-out check — and never commit around a failure as pre-existing or environmental: a failing test your work never touched is not thereby ambient; a regression is a previously-passing test that now fails.
+- An unsatisfied rule is work: fix the underlying issue. Never bypass a rule's check — no `--no-verify`, no skip, no commented-out check.
 - Group implementation changes into logical commits.
 
 **Code**
@@ -97,5 +96,5 @@ commit: <hash>
 
 ## Evidence
 
-<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what kept you from observing the product. -->
+<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what failed and its identical reproduction on the commit you started from. -->
 ```

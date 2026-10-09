@@ -33,7 +33,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Findings** when rejecting and **Non-blocking findings** when approving.
 - **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a challenge it responds to.
-- **Outcome** — A task report's conclusion: `completed`; `failed`, the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, the product was not observed and the report names what prevented it.
+- **Outcome** — A task report's conclusion: `completed`; `failed`, the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, the environment failed the worker and the report names what failed and its identical reproduction on the commit the attempt started from.
 - **Owner** — The human running the pipeline; talks only to the orchestrator.
 - **Owner escalation** — The run's stop, with an evidence dossier, caused by a pending claim on owner territory; the owner's answer becomes a constraint citing the claim and targeting the artifact that raised it.
 - **Owner territory** — The intent's Goal and constraints, and later constraint files: what the work must satisfy.

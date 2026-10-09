@@ -38,11 +38,10 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 - Document the task's shipped change in the planned areas, starting from `Files`; another unfinished task owns the edits in its area. Record every additional file you edit. Required edits outside all planned areas make the task incomplete.
 - A task that requires deciding what the software does is incomplete.
 - Resolve or explicitly answer every **Review issue** supplied with your task.
-- A failing documentation check is work.
 
 **Outcomes**
 
-- **Completed** when the documentation delivers the reader outcomes in `For the reader`, satisfies the writing rules, and its checks pass. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the product was not observed.
+- **Completed** when the documentation delivers the reader outcomes in `For the reader`, satisfies the writing rules, and its checks pass. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the environment failed you and the identical failure reproduces on the commit you started from; any other failure is work.
 
 **Evidence**
 
@@ -56,7 +55,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Guardrails**
 
-- An unsatisfied rule is work: fix the underlying issue. Never bypass a rule's check — no `--no-verify`, no skip — and never commit around a failure as pre-existing or environmental: a failing check your work never touched is not thereby ambient; a regression is a previously-passing check that now fails.
+- An unsatisfied rule is work: fix the underlying issue. Never bypass a rule's check — no `--no-verify`, no skip.
 - Group documentation changes into logical commits.
 
 **Code**
@@ -99,5 +98,5 @@ commit: <hash>
 
 ## Evidence
 
-<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what kept you from observing the product. -->
+<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what failed and its identical reproduction on the commit you started from. -->
 ```
