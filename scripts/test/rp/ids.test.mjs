@@ -33,6 +33,7 @@ describe("rp id declarations and history", () => {
     ["1-spec/spec.md", "spec-requirement-1"],
     ["0-intent/intent.md", "intent-constraint-1"],
     ["1-spec/spec.md", "spec-acceptance-criterion-1"],
+    ["1-spec/spec.md", "spec-exclusion-1"],
     ["1-spec/spec.md", "spec-assumption-1"],
     ["2-design-doc/design-doc.md", "design-doc-decision-1"],
     ["2-design-doc/design-doc.md", "design-doc-assumption-1"],
@@ -79,7 +80,7 @@ describe("rp id declarations and history", () => {
   ];
   const KINDS = [
     ["0-intent/intent.md", "intent", "context"], ["0-intent/intent.md", "intent", "proposal"],
-    ["1-spec/spec.md", "spec", "acceptance-criterion"], ["1-spec/spec.md", "spec", "assumption"],
+    ["1-spec/spec.md", "spec", "acceptance-criterion"], ["1-spec/spec.md", "spec", "exclusion"], ["1-spec/spec.md", "spec", "assumption"],
     ["2-design-doc/design-doc.md", "design-doc", "assumption"],
   ];
   const HISTORY = [
@@ -294,7 +295,7 @@ describe("rp id declarations and history", () => {
     ["1-spec/spec-review-1.md", "# Review\n\nverdict: approved\n\n"],
   ]) {
     const [prefix, other] = rel.startsWith("0-intent/") ? ["intent", "spec"] : ["spec", "design-doc"];
-    for (const [key, id] of [[`${prefix}-exclusion-1`, false], [`${other}-exclusion-1`, false], ["intent-goal-1", false], [`${other}-finding-1`, true]])
+    for (const [key, id] of [[`${prefix}-note-1`, false], [`${other}-note-1`, false], ["intent-goal-1", false], [`${other}-finding-1`, true]])
       test(`id words: ${key} in ${rel}`, () => {
         const forms = { declaration: `${key}: Item.\n`, bullet: `- ${key}: Item.\n`, mention: `See ${key}.\n`, fenced: `\`\`\`markdown\n${key}: Item.\n\`\`\`\n` };
         for (const [form, line] of Object.entries(forms)) {
