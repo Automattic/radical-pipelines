@@ -76,7 +76,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 # Protocol
 
-- **Blocker** — report one when your evidence locates a failure in something you were given — your materials, your seat, or the environment — rather than in anything on your branch: name what failed, with that evidence.
+- **Blocker** — before your first write, report one when your materials are malformed, an input is unreadable, or your seat or environment is broken: name what failed, with the evidence locating it.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats

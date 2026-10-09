@@ -54,7 +54,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - Drift sweep: no documentation file keeps stale references to the old behavior, and every public surface the code adds or changes is documented where the project keeps it; a gap is a finding.
 - Plan adherence: the resulting documentation covers the plan's areas against the shipped code. Post-change coherence: nothing stale left behind — documentation whose subject the feature changed or removed.
 - The project's documentation conventions; the documentation describes the software as it is, and the change only where the change is the subject; the diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words.
-- Evaluate every rule under **Guardrails** against the documentation; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. A failure your evidence locates in something you were given — your materials, your seat, or the environment — rather than in anything on your branch is a blocker; any other failure is a finding.
+- Evaluate every rule under **Guardrails** against the documentation; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. Any failure other than a **Blocker** is a finding.
 - A hedge on a load-bearing claim — likely, should, probably, assume — is an unlabeled assumption. Every pending load-bearing claim gets `document-assumption-<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 - A minimal artifact is legitimate only when the record shows the investigation that came back empty; every "none" — no risks, no alternatives, no affected areas — names that sweep.
 
@@ -70,7 +70,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 # Protocol
 
-- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — report one when your materials are malformed, an input is unreadable, or your seat or environment is broken: name what failed, with the evidence locating it.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
