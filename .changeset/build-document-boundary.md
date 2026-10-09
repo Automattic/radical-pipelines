@@ -1,0 +1,5 @@
+---
+"@automattic/radical-pipelines": patch
+---
+
+State one boundary between the build and document phases, in the same words in every build and document profile: the build phase delivers the shipped code — code, tests, and configuration, with their comments and inline API documentation — and the document phase all other documentation; what an obligation requires of either is that phase's to plan, deliver, and judge. The build reviewer no longer rejects the build for documentation that only the document phase may write, which deadlocked any build whose change left published documentation stale: the build plan could not take the work, and the document phase could not start until the build was approved. Comments are part of the code they describe, so they leave the document plan's sweep and the document worker's work. The special routing of inline API documentation from the document phase is gone: like any shipped code, it is the build review's to judge, and a defect that keeps documentation from being accurate reaches the build plan through the existing contradiction routes.
