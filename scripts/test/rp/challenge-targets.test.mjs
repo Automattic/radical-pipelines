@@ -95,7 +95,7 @@ describe("rp challenge targets and claims", () => {
     registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", challenge]) });
     registered("1-spec/spec-review-1.md", {
       reviewed: pairs([...SPEC, challenge]), verdict: "unsatisfiable", target: ["0-intent/intent.md#intent-goal"],
-      "target-identity": [identity(read(root, "0-intent/intent.md"))], origin: challenge,
+      "target-identity": [identity(read(root, "0-intent/intent.md"), "0-intent/intent.md")], origin: challenge,
     }, `# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\norigin: ${challenge}\n`);
     const state = JSON.parse(check(root, "--json"));
     assert.deepEqual(state.challenges.map((t) => t.state), ["resolved", "pending"]);
@@ -167,7 +167,7 @@ describe("rp challenge targets and claims", () => {
         const target = "1-spec/spec.md#spec-requirement-1";
         const body = `# File\n${review ? `verdict: ${fields.verdict}\n` : kind === "task" ? "depends-on: none\n" : ""}${["declaration", "mirrored"].includes(representation) ? `target: ${target}\n` : ""}`;
         if (["target", "mirrored"].includes(representation)) fields.target = [target];
-        if (["target-identity", "mirrored"].includes(representation)) fields["target-identity"] = [identity(read(root, "1-spec/spec.md"))];
+        if (["target-identity", "mirrored"].includes(representation)) fields["target-identity"] = [identity(read(root, "1-spec/spec.md"), "1-spec/spec.md")];
         if (representation === "declaration") {
           write(root, rel, body);
           const unstamped = checkWithoutBase();
@@ -201,7 +201,7 @@ describe("rp challenge targets and claims", () => {
         write(root, rel, body);
         assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*expected its own task/);
         assert.equal(read(root, rel), body);
-        registered(rel, { outcome: "failed", attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, target.split("#")[0]))] }, body);
+        registered(rel, { outcome: "failed", attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, target.split("#")[0]), target.split("#")[0])] }, body);
         const state = checkWithoutBase();
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
         assert.match(state.contradictions[0].invalid, /target: expected its own task/);
@@ -220,7 +220,7 @@ describe("rp challenge targets and claims", () => {
         write(root, rel, body);
         assert.throws(() => rp(root, "stamp", P(rel), "--mirror", "--reviewed", P(task)), /INVALID TARGET.*only challenges/);
         assert.equal(read(root, rel), body);
-        registered(rel, { outcome, attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, plan))] }, body);
+        registered(rel, { outcome, attempt: "1", reviewed: pairs([task]), target: [target], "target-identity": [identity(read(root, plan), plan)] }, body);
         const state = checkWithoutBase();
         assert.equal(state.frontier, `INVALID FRONTMATTER ${rel}`);
         assert.match(state.contradictions[0].invalid, /target: only challenges/);
@@ -259,7 +259,7 @@ describe("rp challenge targets and claims", () => {
         registered(task, { "depends-on": [] }, "# Task\ndepends-on: none\n");
         const rel = { proposal: "0-intent/proposal-1.md", claim: "1-spec/spec-review-1.md", "failed report": "3-build/tasks/build-task-1-report-1.md" }[kind];
         const targets = { proposal: ["1-spec/spec.md", "2-design-doc/design-doc.md"], claim: ["0-intent/intent.md#intent-goal"], "failed report": ["3-build/build-plan.md#build-task-1"] }[kind];
-        const identities = targets.map((t) => identity(read(root, t.split("#")[0])));
+        const identities = targets.map((t) => identity(read(root, t.split("#")[0]), t.split("#")[0]));
         const fields = { target: targets, ...(kind === "claim" ? { verdict: "unsatisfiable", reviewed: pairs(SPEC) } : kind === "failed report" ? { outcome: "failed", attempt: "1", reviewed: pairs([task]) } : { origin: "issue 9" }) };
         if (defect !== "absent") fields["target-identity"] = { short: identities.slice(1), long: [...identities, identities[0]], invalid: identities.map(() => "not-a-hash") }[defect];
         const declaration = kind === "claim" ? "verdict: unsatisfiable" : kind === "failed report" ? "outcome: failed" : "origin: issue 9";
@@ -497,7 +497,7 @@ describe("rp challenge targets and claims", () => {
       registered(intent, fields, `${body}\n## ${section}\n\nintent-${kind}-1: Owner item.\n`);
       registered("1-spec/spec.md", { pins: pairs([intent]) });
       registered(claim, {
-        reviewed: pairs(SPEC), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, intent))],
+        reviewed: pairs(SPEC), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, intent), intent)],
       }, `# Review\n\nverdict: unsatisfiable\ntarget: ${target}\n`);
       const landed = read(root, claim);
       configure({ targetPhase: 1 });

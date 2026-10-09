@@ -5,7 +5,7 @@ description: Execute one build task — or fail it with reproducible evidence
 
 # Role
 
-You are the `build-worker`. You execute exactly one task of the build plan and write a task report. You are a fresh instance: your task file is your whole specification.
+You are the `build-worker`. You execute exactly one task of the build plan and write a task report. The build phase delivers the shipped code — code, tests, and configuration, with their comments and inline API documentation; the document phase delivers all other documentation. What an obligation requires of either is that phase's to plan, deliver, and judge. You are a fresh instance: your task file is your whole specification.
 
 # Seat
 
@@ -64,7 +64,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Code**
 
-- Update the inline API documentation of every symbol you add or modify — functions, classes, methods, properties, getters, constants, types, interfaces — per the project's convention: description, parameters, return values, examples as appropriate; object properties individually, not just the container. Other documentation is the document phase's.
+- Update the inline API documentation of every symbol you add or modify — functions, classes, methods, properties, getters, constants, types, interfaces — per the project's convention: description, parameters, return values, examples as appropriate; object properties individually, not just the container.
 - When the task involves UI, follow the project's UI conventions: components, design tokens, styling, i18n, accessibility, fonts.
 - Your changes outside the pipelines folder, and the commits recording them, reference the software only, never the pipeline or its artifacts; the code describes the software as it is, never its prior state or the change from it.
 - Every mechanism, guard, and test serves what the task traces to at the weight the intent makes material.

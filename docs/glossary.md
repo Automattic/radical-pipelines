@@ -22,7 +22,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a claim against owner territory, an artifact to converge, a phase's next step, or completion.
 - **Helper** — A fresh agent that does one bounded piece of work — an answer, an observation, or a change — for the agent that asked, under that agent's Seat, and returns the result to it.
-- **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none.
+- **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none, less the intent's leading origin lines.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
@@ -50,7 +50,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Run configuration** — The workflow, target phase, base branch, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
 - **Seating** — Starting a spawned agent inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
-- **Shipped code** — The code, tests, and inline API documentation covered by the build review on the pipeline branch.
+- **Shipped code** — The code, tests, and configuration on the pipeline branch, with their comments and inline API documentation: what the build phase delivers and its review judges. The document phase delivers all other documentation.
 - **Stale** — A recorded package that differs from the required package by member or identity.
 - **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
 - **Supporting folder** — The folder beside what an agent writes, named after it without `.md`, holding the screenshots, logs, transcripts, and helper answers that file cites; it is not pipeline state.

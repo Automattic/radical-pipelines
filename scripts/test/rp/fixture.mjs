@@ -146,11 +146,11 @@ export function commitAll(subject) {
   return git(root, "rev-parse", "HEAD").trim();
 }
 export function registeredReview(rel, reviewed, lane = null) {
-  const pins = reviewed.map((path) => `${path}@${identity(parseFrontmatter(read(root, path)).body)}`);
+  const pins = reviewed.map((path) => `${path}@${identity(read(root, path), path)}`);
   registered(rel, { reviewed: pins, verdict: "approved", ...(lane ? { lane } : {}) }, "# Review\n\nverdict: approved\n");
 }
 export function pairs(paths) {
-  return paths.map((path) => `${path}@${identity(read(root, path))}`);
+  return paths.map((path) => `${path}@${identity(read(root, path), path)}`);
 }
 export function registered(rel, fields, body = parseFrontmatter(read(root, rel)).body) {
   const ids = declaredIn(root, rel, body);

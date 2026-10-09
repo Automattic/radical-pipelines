@@ -4,7 +4,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 ## Terms
 
-- **Identity** — the first 12 hexadecimal characters of the git blob hash of every body byte: those below the frontmatter, or the whole file when it has none. Pipeline state holds files and folders only: a symlink there is a defect.
+- **Identity** — the first 12 hexadecimal characters of the git blob hash of every body byte: those below the frontmatter, or the whole file when it has none, less the intent's leading origin lines. Pipeline state holds files and folders only: a symlink there is a defect.
 - **Pin** — `<path>@<identity>`, path of a pipeline state file relative to the pipeline folder. Only you write pins, through `rp stamp`.
 - **Package** — a set of (member, identity) pairs recording what an artifact consumed or a review judged. Recorded members remain consumed until the producer records a replacement package. An artifact's package contains its required inputs with their approving waves, adjudicated challenges, and consumed lane packages. A review's package is the artifact package it judged, plus the artifact and record; plan reviews add tasks; phase reviews add reports. Historical material is supplied through the references in that package; its content joins the verdict only when the artifact pins it. A lane package is its artifact, record, and valid approving wave.
 - **Stale** — a recorded package that differs from the required package by member or identity.

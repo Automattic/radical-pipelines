@@ -231,7 +231,7 @@ describe("rp production lanes", () => {
           const review = `${sc}design-doc-review-1.md`;
           if (verdict === "approved") registeredVerdict(review, judged);
           else registered(review, {
-            reviewed: judged, verdict, target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"))],
+            reviewed: judged, verdict, target: ["0-intent/intent.md#intent-goal"], "target-identity": [identity(read(root, "0-intent/intent.md"), "0-intent/intent.md")],
           }, "# Review\nverdict: unsatisfiable\ntarget: 0-intent/intent.md#intent-goal\n");
           let configuredLanes = scope === "root" ? [] : [lane("design-doc-producer", "a")];
           configure({ targetPhase: 2, lanes: configuredLanes });
@@ -299,7 +299,7 @@ describe("rp production lanes", () => {
           const review = `${sc}design-doc-review-1.md`;
           if (verdict === "approved") registeredVerdict(review, pairs([artifact, record, ...inputs]));
           else registered(review, {
-            reviewed: pairs([artifact, record, ...inputs]), verdict, target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent))],
+            reviewed: pairs([artifact, record, ...inputs]), verdict, target: [`${intent}#intent-goal`], "target-identity": [identity(read(root, intent), intent)],
           }, `# Review\nverdict: unsatisfiable\ntarget: ${intent}#intent-goal\n`);
           let configuredLanes = scope === "root" ? [] : [lane("design-doc-producer", "a")];
           configure({ targetPhase: 2, lanes: configuredLanes });
@@ -714,7 +714,7 @@ describe("rp production lanes", () => {
       registeredVerdict(approval, pairs(SPEC));
       const scope = at("2-design-doc", "a");
       const pkg = recordedArtifact(scope, "design-doc", ["0-intent/intent.md", "1-spec/spec.md", approval], designLane);
-      const targetFields = (target) => ({ target: [target], "target-identity": [identity(read(root, target.split("#")[0]))] });
+      const targetFields = (target) => ({ target: [target], "target-identity": [identity(read(root, target.split("#")[0]), target.split("#")[0])] });
       const claim = recordedReview(scope, "design-doc", pkg, { verdict: "unsatisfiable", fields: targetFields("1-spec/spec.md#spec-requirement-1"), body: "target: 1-spec/spec.md#spec-requirement-1\n" });
       registered("1-spec/spec.md", { pins: pairs(["0-intent/intent.md", claim]) });
       recordedReview("1-spec/", "spec", [...SPEC, claim], { wave: 2, verdict: "unsatisfiable", fields: { ...targetFields("0-intent/intent.md#intent-goal"), origin: claim },

@@ -61,7 +61,7 @@ describe("rp id declarations and history", () => {
   test("the first intent stamp records only declared item ids, preserving body identity", () => {
     const intent = "0-intent/intent.md";
     registered(intent, { origin: "issue 7", ids: undefined }, "origin: issue 7\n\n# Intent\n\n## Goal\n\nSee intent-constraint-1.\n\n## Constraints\n\nintent-constraint-1: Boundary.\n\n## Context\n\nintent-context-1: Motivation.\n\n## Proposals\n\nintent-proposal-1: Direction.\n\n```markdown\nintent-constraint-2: Example.\n```\n");
-    const before = identity(read(root, intent));
+    const before = identity(read(root, intent), intent);
     const state = JSON.parse(check(root, "--json"));
     assert.equal(state.frontier, `stamp ${intent}`);
     assert.deepEqual(state.artifacts, []);
@@ -69,7 +69,7 @@ describe("rp id declarations and history", () => {
     const { data } = parseFrontmatter(read(root, intent));
     assert.deepEqual(data.get("ids"), ["intent-constraint-1", "intent-context-1", "intent-proposal-1"]);
     assert.equal(data.has("retired-ids"), false);
-    assert.equal(identity(read(root, intent)), before);
+    assert.equal(identity(read(root, intent), intent), before);
   });
 
   // Every artifact keeps the history of the ids it originates, numbered per kind.
@@ -111,7 +111,7 @@ describe("rp id declarations and history", () => {
         const stamped = read(root, artifact), { data } = parseFrontmatter(stamped);
         assert.deepEqual(data.get("ids"), change === "add" ? [...seen, id(3)] : seen);
         assert.deepEqual(data.get("retired-ids") ?? [], change === "retire" ? seen : retired);
-        assert.equal(identity(stamped), identity(before));
+        assert.equal(identity(stamped, artifact), identity(before, artifact));
         assert.deepEqual(JSON.parse(check(root, "--json")).contradictions, []);
         rp(root, "stamp", P(artifact));
         assert.equal(read(root, artifact), stamped);
@@ -481,7 +481,7 @@ describe("rp id declarations and history", () => {
     assert.throws(() => rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("1-spec/spec-research.md")), /never pins its sibling record/);
     stampSpec();
     const forged = parseFrontmatter(read(root, "1-spec/spec.md"));
-    forged.data.get("pins").push(`1-spec/spec-research.md@${identity(read(root, "1-spec/spec-research.md"))}`);
+    forged.data.get("pins").push(`1-spec/spec-research.md@${identity(read(root, "1-spec/spec-research.md"), "1-spec/spec-research.md")}`);
     registered("1-spec/spec.md", Object.fromEntries(forged.data), forged.body);
     configure({ targetPhase: 1 });
     assert.match(check(root), /artifact 1-spec\/spec\.md\s+STALE — package members/);
