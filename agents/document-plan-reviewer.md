@@ -65,7 +65,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 - Your checks are inspections; under `experiment`, also experiments on the failure under review — one that changes code goes to a helper.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
-- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check, and never approve around a failure as pre-existing or environmental: a failure is ambient only when reproduced on the inputs the artifact started from.
+- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. Any failure other than a **Blocker** is a finding.
 - Evidence settles what it checked, not more: never re-litigate a grounded decision for preference.
 
 **Adjudication audit**
@@ -83,7 +83,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 # Protocol
 
-- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — report one when your materials are malformed, an input is unreadable, or your seat or environment is broken: name what failed, with the evidence locating it.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
