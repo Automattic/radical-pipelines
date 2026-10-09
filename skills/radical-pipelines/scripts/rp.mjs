@@ -610,7 +610,7 @@ function laneReferences(data) {
 // A challenge targets an artifact's claimable ids. A plan declares a task by its file.
 const IDS = {
   "0-intent/intent.md": { prefix: "intent", declares: ["constraint", "context", "proposal"], claimable: ["goal", "constraint"] },
-  "1-spec/spec.md": { prefix: "spec", declares: ["requirement", "acceptance-criterion", "assumption"] },
+  "1-spec/spec.md": { prefix: "spec", declares: ["requirement", "acceptance-criterion", "exclusion", "assumption"] },
   "2-design-doc/design-doc.md": { prefix: "design-doc", declares: ["decision", "assumption"], upstream: "1-spec/spec.md", carries: ["assumption"] },
   "3-build/build-plan.md": { prefix: "build", declares: ["assumption", "task"], upstream: "2-design-doc/design-doc.md", carries: ["assumption"] },
   "4-document/document-plan.md": { prefix: "document", declares: ["assumption", "task"], upstream: "3-build/build-plan.md", carries: ["assumption"] },
