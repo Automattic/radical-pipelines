@@ -9,5 +9,3 @@ Slots:
 - `Brief` — a named lane's brief, verbatim; omitted for the implicit lane.
 - `Mode`, `Materials` — per profile.
 - `Write to` / `Write your review to` / `Write your report to` — the folder or path the orchestrator computed (`../reference/run/state.md` § Names).
-
-`build-worker.md` serves the three build worker profiles.

@@ -2,6 +2,14 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 5
+
+Migrate from version 4.
+
+### Renames
+
+`build-worker-tdd`, `build-worker-edit`, and `build-worker-e2e` become one profile, `build-worker`, wherever `.rp.md` names them. When their models differ, ask the owner which to keep.
+
 ## 4
 
 Migrate from version 3.

@@ -31,7 +31,7 @@ Without a design doc yet:
 1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes, not whether they are right. The spec's open assumptions are yours to account for. `spec-research.md` records the investigation behind the spec: direct research at the gaps the design opens, not at re-verifying what it already grounds.
 2. Create `design-doc-research.md` per **Formats**.
 3. Investigate the codebase and platform through inspection and help requests routed through the orchestrator, recording each answer's reasoning and sources.
-4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: a choice that narrows what reaches surviving code re-opens that code, whose body, name, contract, docs, and tests are re-derived from the narrowed contract, and keeping any stranded generality is a decision with alternatives, not a default; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `design-doc-decision-<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
+4. Work the topics: approach — the end-to-end mental model the implementer works from; components — new, modified, and untouched-but-relevant components and their responsibilities; interfaces and data flow; key decisions; post-change coherence — what the design makes false: the contracts it narrows and the components, responsibilities, and generality it leaves without purpose, where keeping a stranded one is a decision with alternatives, not a default, and the contracts it widens, naming at each consumer the inputs it newly admits; dependencies, new ones called out; failure modes and observability; risks. Each topic produces a decision `design-doc-decision-<n>` about a mechanism or structure and names the requirements or acceptance criteria it serves and the alternatives it rejected. A topic that traces to nothing in the spec is a sign you are designing what was not asked for.
 5. After each answer, decide whether to work another topic, request more research, or synthesize.
 6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, and the remaining work is refinement.
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
@@ -39,17 +39,17 @@ Without a design doc yet:
 
 With a design doc, work delta-scoped: touch what the input changes invalidate, leave the rest. For every finding and challenge, record exactly one disposition under `## Adjudications`:
 
-- **Adopt** — revise the decision or claim, in the record and the design doc.
+- **Adopt** — revise the decision or claim, in the record and the design doc: change, simplify, or remove the mechanism as the evidence requires.
 - **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does.
 - **Contradicts-input** — an input obligation cannot be satisfied, or no mechanism is proportionate to what the intent makes material. Name its clause as `Contradicts-input: <path>#<id>`, or its constraint file as `Contradicts-input: <path>`, with the evidence in the record. Never design around an obligation your record shows unsatisfiable.
 
 A contradicts-input that alleges exhaustion — no mechanism satisfies the clause — enumerates the space: every class closed by an inspection, a recorded failed attempt from build, or an experiment under `experiment`. A class still open is not a gap: it is the next design, adopted with an assumption. One that alleges disproportion names the proportionate mechanism and the case it leaves uncovered, with its consequence.
 
-Under `experiment`, a challenge you adjudicate leads through a failed task report. Establish that failure's cause before its disposition: reproduce the failure; check the report's account of what failed, where, and when against the raw evidence; list the candidate causes — the delivered code and the test infrastructure as well as the environment; discriminate between them by comparing failing observations with passing ones and by experiments that separate the rest. Every experiment that changes code goes to a helper. Record the candidates, experiments, and results. The cause is established when it explains every observation and the evidence rules out the others; an unestablished cause is stated with the observation that would establish it.
+Under `experiment`, a challenge you adjudicate leads through a failed task report. Attempt to reproduce the reported failure and check its account against the raw evidence. Record the observations supporting its disposition. A causal claim requires comparing candidate causes in the delivered code, test infrastructure, and environment through discriminating experiments; code-changing experiments go to a helper. The cause is established when it explains every observation and rules out the others; otherwise state it as unestablished with the observation that would establish it.
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
-The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
+The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. A constraint answering a claim replaces that claim's challenged obligation within its targets. Revise agent-chosen means and obligations within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence.
 
 ## Consolidate
 
@@ -68,20 +68,20 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 **Decisions**
 
-- A decision states the mechanism, the requirements or acceptance criteria it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision or component.
+- A decision states the component responsibilities and boundary contracts chosen, the requirements or acceptance criteria it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision or component.
 - Decide from evidence: research every open question before choosing. Every pending load-bearing claim is assumed with `design-doc-assumption-<n>` and its verification condition; questions and risks that depend on it cite that id. Accepting a consequence leaves the assumption open.
 - Own the option space: generate the credible options yourself — what a helper reports is input, not the boundary — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. A boundary the design introduces — a new part kept separate from an existing one — is a decision like any other: the reshaped form is among its alternatives. A cost weighs in the trade-offs; it never removes an option unexamined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
-- A mechanism is proportionate to what the intent makes material; the case it leaves uncovered is recorded under Risks with its consequence.
-- An edge case is named by the input that produces it and where it is produced, never by a category.
-- Your output is design decisions, not code or a plan: interface sketches and small illustrative snippets are fine; production code and work sequencing belong to later phases.
-- A decision binds at the boundaries it names — signatures, schemas, contracts; the shape inside a component is the implementer's.
+- A mechanism, guard, or proof serves a requirement, acceptance criterion, or constraint at the weight the intent makes material; one that serves none is removed, and the case a proportionate mechanism leaves uncovered is recorded under Risks with its consequence.
+- Decisions and coverage findings justify a case's materiality by its producing input, where intended use produces it, the obligation it affects, and its consequence.
+- The design doc binds component responsibilities and their contracts with consumers — signatures, schemas, the behavior a caller observes. Implementations satisfying those contracts are build's to choose: a component's control flow, call sequences, names, literal values, and test cases, in prose as in code; documentation content belongs to the document writer and work sequencing to the build plan. Interface sketches are fine. Before declaring the design doc ready, read each decision as its reviewer: a passage that supplies the inside is yours to remove.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
 
 **Verification**
 
-- `## Verification` names the proofs of every decision and acceptance criterion, one entry per proof stating what it proves: an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection. A proof may serve several outcomes, and an outcome may rest on several proofs.
-- A proof sits at the cheapest place where what it proves is observable as the user, consumer, or caller sees it.
+- `## Verification` names the proofs of every decision and acceptance criterion, one entry per proof stating what it proves and at which boundary — an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection — never the inputs, fixtures, or steps that prove it. A proof may serve several outcomes, and an outcome may rest on several proofs.
+- A proof sits at the cheapest boundary used by the intended consumer where its claimed outcome is observable.
 - A new proof proves something no other proof proves.
+- A behavioral reason for rejecting an alternative names a proof at the boundary where the difference is observable; other rejection reasons rest on labeled evidence.
 
 **Claims**
 
@@ -135,7 +135,7 @@ Frontmatter on every file is written by the orchestrator, never by you. Leave ex
 design-doc-decision-1: <title>
 
 **Serves:** spec-requirement-<n>, …
-**Mechanism:** …
+**Decision:** <the component responsibilities and boundary contracts chosen>
 **Alternatives:** <what, why rejected>
 **Trade-offs:** …
 **Claims:** <each labeled verified (citation) or assumed (design-doc-assumption-<n>)>

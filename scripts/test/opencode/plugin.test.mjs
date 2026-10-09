@@ -92,7 +92,7 @@ function createFakeCtx({
   agents = [
     "radical-pipelines/spec-reviewer",
     "radical-pipelines/helper",
-    "radical-pipelines/build-worker-tdd",
+    "radical-pipelines/build-worker",
   ],
 } = {}) {
   const tools = new Map();
@@ -600,7 +600,7 @@ describe("the access boundary is wired into what setup registers", () => {
   test("every registered tool but rp_send refuses a spawned agent", async () => {
     const tools = registerTools();
     recordSpawn("ses_wired_agent", {
-      name: "build-worker-tdd wired",
+      name: "build-worker wired",
       pipelineSlug: "144-opencode-support",
       spawner: "ses_wired_orchestrator",
     });
@@ -636,7 +636,7 @@ describe("the access boundary is wired into what setup registers", () => {
                 data: {
                   id: "ses_wired_survivor",
                   title: "An automatic title",
-                  metadata: { rp: { name: "build-worker-tdd survivor", pipelineSlug: "restart-run", spawner: "ses_wired_restart_spawner" } },
+                  metadata: { rp: { name: "build-worker survivor", pipelineSlug: "restart-run", spawner: "ses_wired_restart_spawner" } },
                   location: { directory: "/repo" },
                 },
               },
@@ -660,7 +660,7 @@ describe("the access boundary is wired into what setup registers", () => {
       { to: "ses_wired_restart_spawner", message: "Completion declared." },
       { sessionID: "ses_wired_survivor" },
     );
-    assert.equal(delivered.text, "[from build-worker-tdd survivor (ses_wired_survivor)] Completion declared.");
+    assert.equal(delivered.text, "[from build-worker survivor (ses_wired_survivor)] Completion declared.");
     assert.equal(reads.filter((path) => path === "/api/session/ses_wired_survivor").length, 1, "read once, then remembered");
   });
 });

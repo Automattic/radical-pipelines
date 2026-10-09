@@ -368,7 +368,7 @@ describe("rp code delta", () => {
       ["verdict: approved with caveats", /verdict: expected approved \| rejected \| unsatisfiable/],
       ["outcome: done", /outcome: expected completed \| failed \| blocked/],
       ["target: 1-spec\/spec.md##spec-requirement-1", /target: expected <path>\[#<id>\]/],
-      ["prior-finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, resolution failed/],
+      ["prior-finding: 1-spec\/spec-review-1.md#spec-finding-1 resolved", /prior-finding: expected <an earlier review of this kind>#<finding id of its phase>/],
       ["origin: owner request", /origin: expected issue <reference>, a source declaration, or a path/],
       ["origin: PROJECT-42", /origin: expected issue <reference>, a source declaration, or a path/],
       ["brief:", /brief: expected text/],
@@ -381,7 +381,7 @@ describe("rp code delta", () => {
     }
     rmSync(join(root, P("1-spec/bad.md")));
     write(root, "1-spec/spec-review-1.md", "# Earlier\n\nverdict: rejected\n\nspec-finding-1: Gap\n");
-    write(root, "1-spec/spec-review-2.md", "# Good\n\nverdict: unsatisfiable\noutcome: failed\ntarget: 1-spec/spec.md#spec-requirement-1\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\norigin: 0-intent/constraint-1.md\norigin: 0-intent/proposal-1.md\nbrief: focused\n");
+    write(root, "1-spec/spec-review-2.md", "# Good\n\nverdict: unsatisfiable\noutcome: failed\ntarget: 1-spec/spec.md#spec-requirement-1\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1\norigin: 0-intent/constraint-1.md\norigin: 0-intent/proposal-1.md\nbrief: focused\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     configure({ targetPhase: 1 });
     assert.doesNotMatch(check(root), /INVALID LINE/);

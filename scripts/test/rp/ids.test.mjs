@@ -217,21 +217,21 @@ describe("rp id declarations and history", () => {
   test("a prior finding names a review of its phase that declares the finding", () => {
     write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: Gap\n");
     rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror");
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec.md#spec-finding-1, resolution failed\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec.md#spec-finding-1\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID prior-finding: expected <an earlier review of this kind>#<finding id of its phase>/);
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-2, resolution failed\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-2\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID PRIOR FINDING 1-spec\/spec-review-1\.md#spec-finding-2: the review declares no such finding/);
     for (const value of ["1-spec/spec-review-2.md#spec-finding-1", "1-spec/spec-review-3.md#spec-finding-1", "1-spec/../1-spec/spec-review-1.md#spec-finding-1", "1-spec/build-review-1.md#spec-finding-1"]) {
-      write(root, "1-spec/spec-review-2.md", `# Review\n\nverdict: rejected\nprior-finding: ${value}, resolution failed\n`);
+      write(root, "1-spec/spec-review-2.md", `# Review\n\nverdict: rejected\nprior-finding: ${value}\n`);
       assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror"), /INVALID prior-finding: expected <an earlier review of this kind>/);
     }
-    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1, resolution failed\n");
+    write(root, "1-spec/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#spec-finding-1\n");
     rp(root, "stamp", P("1-spec/spec-review-2.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/spec-review-2.md")).data.get("prior-finding"), ["1-spec/spec-review-1.md#spec-finding-1"]);
     configure({ lanes: [standard.a] });
     write(root, "1-spec/lanes/a/spec-review-1.md", "# Review\n\nverdict: rejected\n\nspec-finding-1: Gap\n");
     rp(root, "stamp", P("1-spec/lanes/a/spec-review-1.md"), "--mirror");
-    write(root, "1-spec/lanes/a/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/lanes/a/spec-review-1.md#spec-finding-1, resolution failed\n");
+    write(root, "1-spec/lanes/a/spec-review-2.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/lanes/a/spec-review-1.md#spec-finding-1\n");
     rp(root, "stamp", P("1-spec/lanes/a/spec-review-2.md"), "--mirror");
     assert.deepEqual(parseFrontmatter(read(root, "1-spec/lanes/a/spec-review-2.md")).data.get("prior-finding"), ["1-spec/lanes/a/spec-review-1.md#spec-finding-1"]);
   });
@@ -317,7 +317,7 @@ describe("rp id declarations and history", () => {
   });
 
   test("a prior finding names a finding of the review's phase", () => {
-    write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#build-finding-1, resolution failed\n");
+    write(root, "1-spec/spec-review-1.md", "# Review\n\nverdict: rejected\nprior-finding: 1-spec/spec-review-1.md#build-finding-1\n");
     assert.throws(() => rp(root, "stamp", P("1-spec/spec-review-1.md"), "--mirror"), /INVALID prior-finding: expected <an earlier review of this kind>#<finding id of its phase>/);
   });
 
