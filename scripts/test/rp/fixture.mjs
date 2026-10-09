@@ -40,7 +40,7 @@ export function refreshPlan(root, rel) {
 // task files, and, downstream, any upstream assumption it names.
 export const DECLARES = {
   "0-intent/intent.md": ["intent", ["constraint", "context", "proposal"]],
-  "1-spec/spec.md": ["spec", ["requirement", "acceptance-criterion", "assumption"]],
+  "1-spec/spec.md": ["spec", ["requirement", "acceptance-criterion", "exclusion", "assumption"]],
   "2-design-doc/design-doc.md": ["design-doc", ["decision", "assumption"]],
   "3-build/build-plan.md": ["build", ["assumption"]],
   "4-document/document-plan.md": ["document", ["assumption"]],

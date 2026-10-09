@@ -66,7 +66,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 **Chains**
 
 - **Coverage** — every intent goal is served and every proposal dispositioned: an adopted desired outcome became a requirement, a verified current-state claim grounds one, a build direction was left to the design phase.
-- **Declarations** — every requirement and acceptance criterion is declared by its id; one without is a finding.
+- **Declarations** — the spec binds through its declared items: a requirement, acceptance criterion, or exclusion without its id, or an obligation stated outside one, is a finding.
 - **Altitude** — requirements, exclusions, and acceptance criteria state observable behavior; construction leaking upward is a finding. A requirement and its acceptance criteria cover the cases the intent makes material; deciding every conceivable case is construction. The record is subject to the same gate: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
 - **Acceptance criteria** — Given-When-Then, specific enough to write tests from, collectively verifying each requirement's material outcomes and edge cases; each edge case names its producing input and where it is produced. A material outcome left unverified is a finding.

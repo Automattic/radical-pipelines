@@ -70,7 +70,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. How it is achieved belongs to the design phase and stays out of requirements. One that describes construction is restated as the behavior it guarantees.
 - Requirements cover the cases the intent makes material; their acceptance criteria collectively verify those outcomes; deciding every conceivable case is construction.
 - An edge case is named by the input that produces it and where it is produced, never by a category.
-- A behavior the feature keeps observably unchanged is a requirement; an exclusion names an outcome the feature does not deliver. Existing tests are evidence, never outcomes: which tests change to keep asserting a preserved behavior is a consequence of the design.
+- Existing tests are evidence, never outcomes: a requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design.
 
 **Claims**
 
@@ -87,8 +87,8 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - `spec.md` keeps the open-assumption register: every `spec-assumption-<n>` not yet verified or fallen.
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 - Cite the owner's phase-0 sources by path and item id; keep their authority distinct from your conclusions.
-- Ids are stable: `spec-requirement-<n>`, `spec-acceptance-criterion-<n>`, `spec-assumption-<n>` are never renumbered; new content gets a new id.
-- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
+- Ids are stable: `spec-requirement-<n>`, `spec-acceptance-criterion-<n>`, `spec-exclusion-<n>`, `spec-assumption-<n>` are never renumbered; new content gets a new id.
+- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid. The artifact binds downstream through its declared items, which a challenge targets.
 
 **Research**
 
@@ -123,7 +123,9 @@ spec-requirement-1: <observable outcome>
 
 ## Out of Scope
 
-<!-- Exclusions, each naming the record entries that ground it. -->
+spec-exclusion-1: <outcome the feature does not deliver>
+
+<!-- Its content, until the next declaration: the record entries that ground it. -->
 
 ## Acceptance Criteria
 

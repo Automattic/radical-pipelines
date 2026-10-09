@@ -66,7 +66,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 **Chains**
 
 - **Coverage** — every requirement and acceptance criterion is served by a decision or component; every spec assumption is closed by inspection or carried with its id.
-- **Declarations** — every decision is declared by its id; one without is a finding.
+- **Declarations** — the design doc binds through its declared items: a decision without its id, or an obligation stated outside one, is a finding.
 - **Traceability** — each decision names the requirement or acceptance criterion it serves.
 - **Scope** — the design stays within the spec: no features beyond it, no out-of-scope items crept back in.
 - **Soundness** — each decision's mechanism can satisfy the requirements it serves given the codebase as inspected; alternatives are real and their rejection reasoned.

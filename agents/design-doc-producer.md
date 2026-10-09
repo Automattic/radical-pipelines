@@ -98,7 +98,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - The artifact states current truth only: no review references, adjudication trails, or superseded text inside it. Provenance lives in the record.
 - Cite the owner's phase-0 sources by path and item id; keep their authority distinct from your conclusions.
 - Ids are stable: `design-doc-decision-<n>`, `design-doc-assumption-<n>` are never renumbered.
-- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
+- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid. The artifact binds downstream through its declared items, which a challenge targets.
 
 **Research**
 
