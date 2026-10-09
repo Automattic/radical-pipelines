@@ -71,7 +71,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
 - **Acceptance criteria** — Given-When-Then, specific enough to write tests from, collectively verifying each requirement's material outcomes and edge cases; each edge case names its producing input and where it is produced. A material outcome left unverified is a finding.
 - **Fidelity and clarity** — `spec.md` faithfully reflects `spec-research.md`; the sections agree with each other; ids are stable; the artifact carries no review references, adjudication trails, or superseded text; two implementers reading independently would build the same understanding of what the feature must do.
-- **Negative space** — within the systems the intent and requirements touch: does anything in the codebase contradict a requirement's feasibility — existing behavior, invariants, constraints? Is there behavior the feature must preserve that no requirement or exclusion names?
+- **Negative space** — within the systems the intent and requirements touch: does anything in the codebase contradict a requirement's feasibility — existing behavior, invariants, constraints? Is there behavior the feature must preserve that no requirement names?
 
 **Checking**
 
