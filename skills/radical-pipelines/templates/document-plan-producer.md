@@ -18,6 +18,8 @@
 
 ## Materials
 
+- Intent: <0-intent/intent.md path>
+- Net change: <the `rp diff` command for the pipeline>
 - Spec: <spec.md path>; <its approving review paths>
 - Design doc: <design-doc.md path>; <its approving review paths>
 - Build plan: <build-plan.md path>; <its approving review paths>; <its tasks and reports>; <approving build review path>

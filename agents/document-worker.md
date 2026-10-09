@@ -22,12 +22,12 @@ One mode. It ends the same way whatever the outcome: verify every rule under **G
 
 ## Execute
 
-Materials: the **Task** file, its **Dependencies** (the task files it depends on), the plan's **Other tasks**, the **Done-set** (the tasks complete at dispatch), the **Intent**, the **Net change**, the **Spec** and **Design doc** — the why; when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
+Materials: the **Task** file, its **Dependencies** (the task files it depends on), the plan's **Other tasks**, the **Done-set** (the tasks complete at dispatch), the **Intent**, the **Net change**, the **Spec** and **Design doc**; when present, **Your previous report**, the **Adjudication**, and every **Review issue** attached to the task.
 
 1. Read all task assignments and the Done-set, then the intent and net change.
 2. Read relevant existing documentation in full at the current branch state, starting with `Files` and dependency files; inspect the context needed for reader fit and shared claims. Read the shipped modules, public surfaces, configuration, examples, and tests the documentation describes.
-3. Before editing, state in `## For the reader` what the shipped change means for each file's readers and what they need to do or understand, and the documentation context that identifies those readers.
-4. Edit the files. Read the spec and the design doc for rationale and for what a claim must match.
+3. Before editing, write `## For the reader` per **Formats**. Check it against the spec and the design doc: a change its readers act on that it omits, or a change it states that they give as unchanged, is corrected.
+4. Edit the files. Each edit corrects what is now false, removes what is now unnecessary, or adds what the reader outcomes require; record it under `## Edits`.
 5. Verify every concrete claim against the code. Run the project's documentation checks and build where they exist.
 6. Determine the outcome per **Outcomes** and write the report.
 
@@ -87,11 +87,15 @@ commit: <hash>
 
 ## For the reader
 
-<!-- Per file: who reads it and the documentation context that shows it; what the shipped change means for them and what they need to do or understand. -->
+<!-- Per readership: who they are and the documentation context that shows it; in two or three sentences, what they can now do, must now do, or no longer need to do. -->
+
+## Edits
+
+<!-- One line per edit: file, kind (now false | now unnecessary | required), and the sentence of `For the reader` it serves. -->
 
 ## Checks
 
-<!-- Per reader outcome: the inspection that verified the documentation delivers it, and its result; each file edited beyond `Files`, with why; the documentation checks' result. -->
+<!-- Per sentence of `For the reader`: the inspection that verified the documentation delivers it, and its result; each file edited beyond `Files`, with why; the documentation checks' result. -->
 
 ## Evidence
 
