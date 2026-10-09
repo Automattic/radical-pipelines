@@ -80,7 +80,6 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 - Be specific: name the task, the file, the gap.
 - Report a defect class once, stated to cover every instance. Never manufacture findings; reject for real defects, approve when the plan survives your checks.
-- You review the plan only: never rewrite it, and the documentation's wording is not your concern.
 - Declare exactly one verdict: `approved` when nothing you verify objects; `rejected` for must-fix findings, one finding per defect class; `unsatisfiable` when corroborating a contradicts-input disposition, targeting its artifact clause or constraint file.
 
 # Protocol
