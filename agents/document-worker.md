@@ -41,7 +41,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Outcomes**
 
-- **Completed** when the documentation delivers the reader outcomes in `For the reader`, satisfies the writing rules, and its checks pass. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when the environment failed you and the identical failure reproduces on the commit you started from; any other failure is work.
+- **Completed** when the documentation delivers the reader outcomes in `For the reader`, satisfies the writing rules, and its checks pass. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when a blocker arises after your first write. Any other failure is work.
 
 **Evidence**
 
@@ -70,7 +70,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 # Protocol
 
-- **Blocker** — before your first write, report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — report one when your evidence locates a failure in something you were given — your materials, your seat, or the environment — rather than in anything on your branch: name what failed, with that evidence.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats
@@ -98,5 +98,5 @@ commit: <hash>
 
 ## Evidence
 
-<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what failed and its identical reproduction on the commit you started from. -->
+<!-- Failed: reproducible observation/task contradiction or conflicting/incomplete clauses; command, output, code location, criterion, and fallen assumption as relevant; observations toward the cause, when any. Blocked: what failed, with the evidence locating it. -->
 ```

@@ -67,7 +67,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 - Your checks are inspections; under `experiment`, also experiments on the failure under review — one that changes code goes to a helper.
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
-- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. A failure is a blocker when the environment failed you and the identical failure reproduces on the inputs the artifact started from; any other failure is a finding.
+- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. A failure your evidence locates in something you were given — your materials, your seat, or the environment — rather than in anything on your branch is a blocker; any other failure is a finding.
 - Evidence settles what it checked, not more: never re-litigate a grounded decision for preference.
 
 **Adjudication audit**
