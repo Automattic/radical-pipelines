@@ -56,7 +56,7 @@ You may research and decide new content — always in service of a named finding
 - Bring affected documentation files into sync and assign the internal and external documentation the shipped change needs under the project's practices, including files to create; every public surface the code adds or changes is documented where the project keeps it.
 - A task changes documentation, never shipped code, which includes inline API documentation. When inline API documentation is missing or false, the Contradicts-input target is the build task that changed its symbol.
 - Ids are stable: `document-task-<n>` is never renumbered; corrective and new tasks are new files.
-- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid. The artifact binds downstream through its declared items, which a challenge targets.
+- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Completed task definitions and reports stay unchanged. Retain unaffected output; assign required revisions to an unfinished task, adding one when none covers them.
 
 **Claims**

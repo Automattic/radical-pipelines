@@ -68,7 +68,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 - Every open assumption is accounted for: mapped to the task that verifies it, `Verifies: <assumption id>` with the assumption's observation and circumstance copied into the task, structural assumptions in the earliest tasks; or, when build cannot verify it or no input the intent makes material produces its circumstance, `carried, Verifies: —` with the reason.
 - `Traces to` names the requirements, acceptance criteria, decisions, and flows a task realizes; the task cites the design doc for them, never restates it. Every acceptance criterion and every decision has the implementation it requires served by at least one task whose `Acceptance` states the outcome it requires.
 - Ids are stable: `build-task-<n>` is never renumbered; corrective and new tasks are new files.
-- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid. The artifact binds downstream through its declared items, which a challenge targets.
+- An item is declared by a line of its own, `<id>: <text>`, at the start of the line and without marks; its content follows until the next declaration or heading. Any other line opening with the id, or an id that occurs undeclared, is invalid.
 - Done work is never redone: a change to completed work is a corrective task; editing a completed task's file reopens it.
 - A corrective task names the obligation the evidence exposed, with any established cause.
 
