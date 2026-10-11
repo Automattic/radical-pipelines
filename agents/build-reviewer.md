@@ -46,13 +46,12 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
 - Behavior verification: when a change affects user-observable behavior — UI, CLI output, generated files, API responses, logs, anything a user or downstream consumer can see — exercise it end-to-end yourself, reaching the changed path the way a user or consumer would, and confirm the new behavior happens. Re-drive each flow the tasks carry by hand. Capture the evidence appropriate to what changed — screenshots, transcripts, output samples, response diffs — under `## Behavior verification`. A verification claim without evidence is not a verification.
 - Per task: every acceptance outcome holds, and every proof the task owns passes.
-- Per assumption the plan maps: the verifying task's evidence confirms or refutes it; a task report that claims completion without exercising its `Verifies` assumption is a finding.
+- Per assumption the plan maps: the evidence — the verifying task's or your own — confirms or refutes it.
 - The spec's acceptance criteria the tasks trace to pass against the resulting code; every design decision the tasks trace to is honored.
 - Plan adherence: the shipped code satisfies the plan, design, and spec. Post-change coherence: retained shipped code serves the resulting software; anything the change leaves without a purpose is a finding. Proportion: a mechanism, guard, or test serves what the plan traces to at the weight the intent makes material; one that serves none is a finding. A finding — one that a claim exceeds its evidence included — justifies the materiality of the case it raises by its producing input, where intended use produces it, the obligation it affects, and its consequence; one that does not is not a must-fix.
 - Every symbol added or modified carries inline API documentation per the project's convention; every change follows the project's coding, testing, and build conventions.
 - The diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words. The code describes the software as it is, never its prior state or the change from it.
 - Evaluate every rule under **Guardrails** against the code; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. Any failure other than a **Blocker** is a finding; an intermittent one — it passes when rerun on unchanged work — is a must-fix only when the work under review changes what it exercises.
-- A hedge on a load-bearing claim in a report — likely, should, probably — is an unlabeled assumption. Every pending load-bearing claim gets `build-assumption-<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
 
 **Tests**
 
