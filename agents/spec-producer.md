@@ -68,7 +68,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Requirements**
 
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. How it is achieved belongs to the design phase and stays out of requirements. One that describes construction is restated as the behavior it guarantees.
-- Requirements cover the cases the intent makes material; their acceptance criteria collectively verify those outcomes; deciding every conceivable case is construction.
+- Requirements cover the cases the intent makes material; their acceptance criteria collectively verify those outcomes; deciding every conceivable case is construction. A finding justifies its case's materiality by its producing input, where intended use produces it, the obligation it affects, and its consequence; refute one that does not.
 - An edge case is named by the input that produces it and where it is produced, never by a category.
 - Existing tests are evidence, never outcomes: a requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design.
 
