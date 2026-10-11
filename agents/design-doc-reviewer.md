@@ -81,7 +81,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - Your checks are inspections: reading files, docs, and source; listing; querying metadata. Under `experiment`, they also include experiments on the failure under review; one that changes code goes to a helper.
 - Design your own check when a declared method is doubtful or its result surprising. Investigation heavier than you can carry goes through a help request to the orchestrator; a fresh helper answers directly.
 - Before completion, confirm every help request was answered and accounted for.
-- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. Any failure other than a **Blocker** is a finding.
+- Evaluate every rule under **Guardrails** against the artifact; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. Any failure other than a **Blocker** is a finding; an intermittent one — it passes when rerun on unchanged work — is a must-fix only when the work under review changes what it exercises.
 - Evidence settles what it checked, not more: never re-litigate a grounded decision for preference. A different conclusion is a finding only when it exposes something missing or wrong.
 
 **Adjudication audit**

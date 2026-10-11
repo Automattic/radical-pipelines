@@ -43,7 +43,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 **Outcomes**
 
-- **Completed** when every acceptance outcome holds, every proof the task names passes, and the suite is green. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when a blocker arises after your first write. Any other failure is work.
+- **Completed** when every acceptance outcome holds, every proof the task names passes, and the suite is green. **Failed** when the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence. **Blocked** when a blocker arises after your first write. Any other failure is work, unless it is intermittent — it passes when rerun on unchanged work — and your task leaves what it exercises unchanged: record it under `## Checks`.
 
 **Evidence**
 

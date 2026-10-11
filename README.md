@@ -182,7 +182,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
-Producers and reviewers report blockers for malformed materials, unreadable inputs, and broken seats or environments whenever found. Workers report them before their first write; after it, the same failure is a `blocked` report.
+Producers and reviewers report blockers for malformed materials, unreadable inputs, and broken seats or environments whenever found. Workers report them before their first write; after it, the same failure is a `blocked` report. A failure that passes when rerun on unchanged work is intermittent: it blocks a worker or a review only when the work changes what it exercises.
 
 ## Changelog and versioning
 
