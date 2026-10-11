@@ -58,7 +58,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - **Scope** — the plan stays within the spec and the design doc, and its tasks outside the shipped code.
 - **Done work** — completed task definitions and reports stay unchanged. Retain unaffected output; assign required revisions to an unfinished task, adding one when none covers them.
 - **Fidelity** — `document-plan.md` reflects `document-plan-research.md`; its sections agree; ids are stable; the plan carries no review references, adjudication trails, or superseded text; two writers would own the same areas.
-- **Labeling** — every load-bearing claim is verified with a citation or assumed with `document-assumption-<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open. A producer presenting its own or a helper's experiments as evidence is a finding, unless they serve a failure's disposition under `experiment`.
+- **Labeling** — every load-bearing claim is verified with the inspection that establishes it — or the experiment, for a failure's disposition under `experiment` — or assumed with `document-assumption-<n>` and its verification condition; questions and risks that depend on an assumption cite it, and accepting a consequence leaves it open.
 - **Minimal artifacts** — every "none" the plan claims — no risks, no alternatives, no affected areas — rests on a recorded sweep that came back empty.
 
 **Checking**

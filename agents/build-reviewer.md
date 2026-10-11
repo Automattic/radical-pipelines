@@ -49,7 +49,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 - Per assumption the plan maps: the verifying task's evidence confirms or refutes it; a task report that claims completion without exercising its `Verifies` assumption is a finding.
 - The spec's acceptance criteria the tasks trace to pass against the resulting code; every design decision the tasks trace to is honored.
 - Plan adherence: the shipped code satisfies the plan, design, and spec. Post-change coherence: retained shipped code serves the resulting software; anything the change leaves without a purpose is a finding. Proportion: a mechanism, guard, or test serves what the plan traces to at the weight the intent makes material; one that serves none is a finding. A finding — one that a claim exceeds its evidence included — justifies the materiality of the case it raises by its producing input, where intended use produces it, the obligation it affects, and its consequence; one that does not is not a must-fix.
-- Every symbol added or modified carries inline API documentation per the project's convention; every change follows the project's coding, testing, build, and commit conventions.
+- Every symbol added or modified carries inline API documentation per the project's convention; every change follows the project's coding, testing, and build conventions.
 - The diff and the commits recording it reference the software only, never the pipeline or its artifacts; judge what the text refers to rather than matching words. The code describes the software as it is, never its prior state or the change from it.
 - Evaluate every rule under **Guardrails** against the code; log each outcome; an unsatisfied rule is a finding. Never bypass a rule's check. Any failure other than a **Blocker** is a finding.
 - A hedge on a load-bearing claim in a report — likely, should, probably — is an unlabeled assumption. Every pending load-bearing claim gets `build-assumption-<n>` and its verification condition; risks that depend on it cite that id, and accepting a consequence leaves it open.
@@ -58,8 +58,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 - Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run.
 - A new test proves something no other test proves.
-- A new unit test for a changed outcome is written failing before the change that makes it pass, then the code is refactored with the tests green.
-- Every proof the design doc's Verification names exists and detects a violation of each outcome assigned to it. For each behavioral distinction reproducible within its task's boundary, verify the recorded failing outcome assertion and passing control; other distinctions retain their assumption and verification condition. Reproduce doubtful run claims through a help request, with code changes confined to a disposable copy.
+- Every proof the design doc's Verification names exists and detects a violation of each outcome assigned to it. Reproduce doubtful run claims through a help request, with code changes confined to a disposable copy.
 
 **Contradictions**
 

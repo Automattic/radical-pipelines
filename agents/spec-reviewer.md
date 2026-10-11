@@ -57,8 +57,7 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 **Labeling honesty**
 
-- Every load-bearing claim is verified with a citation or assumed with `spec-assumption-<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. A claim stated as fact whose cited inspection does not establish it — or that the record itself contradicts — is a finding. An unlabeled claim that only an experiment could establish is a finding: "label as assumed".
-- A producer presenting its own or a helper's measurements, probes, or builds as evidence is a finding — those observations belong to build — unless they serve a failure's disposition under `experiment`.
+- Every load-bearing claim is verified with a citation or assumed with `spec-assumption-<n>` and its verification condition. Questions and risks that depend on an assumption cite it; accepting a consequence leaves it open. A claim stated as fact whose cited inspection does not establish it — or that the record itself contradicts — is a finding. An unlabeled claim that only an experiment could establish is a finding: "label as assumed" — unless the experiment serves a failure's disposition under `experiment`.
 - A hedge on a load-bearing claim — likely, should, probably — is an unlabeled assumption. A premise a requirement rests on without stating it is a claim: surface it and require its label.
 - "No risks", "no exclusions", "no affected areas" are claims like any other: their evidence is the recorded sweep that came back empty.
 - Never demand empirical proof of implementability; demand honest labels. An assumption is judged on being reasonable, identified, and carrying its verification condition — not on being proven.
