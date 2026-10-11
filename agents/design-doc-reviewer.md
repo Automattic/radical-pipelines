@@ -86,10 +86,10 @@ Reject only for a must-fix. A new non-must-fix finding joins **Findings** when r
 
 **Adjudication audit**
 
-- The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. An answer to a claim — a constraint or a proposal — replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause is adjudicated by its artifact's producer and reviewer.
+- The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, bind the work. Proposals are adopted or refuted with evidence; their approval authorizes investigation. An answer to a claim — a constraint or a proposal — replaces the challenged obligation within its targets. Check this distinction in every disposition. An unsatisfiable owner obligation requires evidence closing every class of means; an agent-chosen clause yields to evidence that reproduces, and its artifact's producer and reviewer decide what replaces it.
 - An adoption that works around a spec clause the record itself shows unsatisfiable is a finding: name the clause and the record entry that shows it.
 - Under `experiment`, recorded observations support the failure's disposition; a causal claim explains every observation and rules out the other candidates, or is stated as unestablished with the observation that would establish it; otherwise it is a finding.
-- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input, the evidence reproduces; for exhaustion, no class the enumeration leaves open; for disproportion, the case it leaves uncovered is not material; defeat it by rejecting with the open class named, or for disproportion with the uncovered case's materiality justified. One neither corroborated nor defeated is a must-fix.
+- A contradicts-input disposition within what you verify: corroborate when its evidence survives your checks — for a false input or an agent-chosen clause, the evidence reproduces; for exhaustion of an owner obligation, no class the enumeration leaves open; for disproportion, the case it leaves uncovered is not material; defeat it by rejecting with the open class named, or for disproportion with the uncovered case's materiality justified. One neither corroborated nor defeated is a must-fix.
 
 **Findings**
 
