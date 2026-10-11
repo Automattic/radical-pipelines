@@ -110,7 +110,7 @@ Each open production lane adjudicates its root's pending challenges before conso
 
 Owner territory is what the work must satisfy: the intent's Goal and Constraints, and `0-intent/constraint-<n>.md`. Proposals, in the intent or in `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence. Approval of a proposal approves investigating it. An agent-chosen requirement or mechanism remains revisable through its producer and reviewer; an unsatisfiable Goal or constraint reaches the owner. Records cite the phase-0 sources.
 
-An owner answer is a constraint whose `origin` names the claim and whose targets include the root artifact of the phase that raised it. It replaces the challenged obligation within those targets.
+An owner answer is a constraint or a proposal, as the owner rules, whose `origin` names the claim and whose targets include the root artifact of the phase that raised it. It replaces the challenged obligation within those targets.
 
 ## The frontier
 

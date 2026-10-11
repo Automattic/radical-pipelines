@@ -865,7 +865,7 @@ function targetPairs(rel, data) {
 
 function ownerAnswer(review, documents) {
   const artifact = reviewArtifact(review)?.art.path;
-  return documents.find((doc) => ownerFile(doc.rel) === "constraint"
+  return documents.find((doc) => ownerFile(doc.rel)
     && [].concat(doc.data.get("origin") ?? []).includes(review)
     && targetPairs(doc.rel, doc.data).some(({ targetPath }) => targetPath === artifact));
 }
