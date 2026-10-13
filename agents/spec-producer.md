@@ -46,7 +46,7 @@ Under `experiment`, a challenge you adjudicate leads through a failed task repor
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 
-The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. An answer to a claim — a constraint or a proposal — replaces the challenged obligation within its targets. Revise agent-chosen means and obligations within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence; an agent-chosen clause yields when reproducing evidence shows the pipeline cannot meet it with its means, and its producer and reviewer decide what replaces it.
+The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding. Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; approving a proposal authorizes investigation. An answer to a claim replaces the challenged obligation within its targets: a constraint binds them; a proposal they investigate and adopt or refute. Revise agent-chosen means and obligations within your custody; a conflict with an upstream artifact targets that artifact. An unsatisfiable Goal or constraint targets owner territory only after every class of means has been enumerated and closed by evidence; an agent-chosen clause yields when reproducing evidence shows no seat of the pipeline, nor its environment, can meet it, and its producer and reviewer decide what replaces it.
 
 ## Consolidate
 
@@ -68,7 +68,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Requirements**
 
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. How it is achieved belongs to the design phase and stays out of requirements. One that describes construction is restated as the behavior it guarantees.
-- Requirements cover the cases the intent makes material; their acceptance criteria collectively verify those outcomes; deciding every conceivable case is construction. A finding justifies its case's materiality by its producing input, where intended use produces it, the obligation it affects, and its consequence; refute one that does not.
+- Requirements cover the cases the intent makes material; their acceptance criteria collectively verify those outcomes; deciding every conceivable case is construction. A finding that a case is uncovered justifies the case's materiality by its producing input, where intended use produces it, the obligation it affects, and its consequence; refute one that does not.
 - An edge case is named by the input that produces it and where it is produced, never by a category.
 - Existing tests are evidence, never outcomes: a requirement may demand that behavior stays observably unchanged; which tests change to keep asserting it is a consequence of the design.
 
