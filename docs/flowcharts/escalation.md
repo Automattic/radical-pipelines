@@ -17,8 +17,8 @@ flowchart TD
     G --> H{"Target in owner territory?"}
     H -->|Yes| I["Close-out and assemble the dossier"]
     I --> J["Give the owner the claim, evidence chain, and options"]
-    J --> K["Present the synthesized answer for approval; record a constraint citing the claim and targeting its phase's root artifact; stamp and commit"]
-    K --> ANSWERED["The owner claim is answered; the new constraint is pending on its targets"]
+    J --> K["Present the synthesized answer for approval; record it as a constraint or a proposal, as the owner rules, citing the claim and targeting its phase's root artifact; stamp and commit"]
+    K --> ANSWERED["The owner claim is answered; the new constraint or proposal is pending on its targets"]
     ANSWERED --> N
     H -->|No| N["Dispatch the target producer: Converge"]
     N --> O{"Producer disposition"}

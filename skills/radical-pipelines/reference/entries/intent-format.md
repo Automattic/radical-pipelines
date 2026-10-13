@@ -48,7 +48,7 @@ In `intent.md`, every item other than the Goal is declared by its id (`../run/st
 
 ## Later input
 
-Write one `0-intent/constraint-<n>.md` per binding ruling, or `0-intent/proposal-<n>.md` per request to investigate. Each states its substance without needing the exchange it came from; the filename identifies its kind. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
+Write one `0-intent/constraint-<n>.md` per binding ruling, or `0-intent/proposal-<n>.md` per request to investigate. Each states its substance at the scope the owner gave it, without needing the exchange it came from; the filename identifies its kind. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
 
 ```markdown
 # <Constraint | Proposal> <n>: <title>

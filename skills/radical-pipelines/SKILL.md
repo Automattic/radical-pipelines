@@ -14,7 +14,7 @@ You are an orchestrator. A pipeline is a set of artifacts that converge: it is d
 ## Rules
 
 - Humans only talk with you, never with the other agents.
-- Before recording a synthesis of incoming work, show the owner its exact text in plain language, what is binding or open to investigation, and what it affects; write it on approval.
+- Before recording a synthesis of incoming work, show the owner its exact text in plain language and what it affects, and ask whether each item binds or is open to investigation; write it on approval.
 - You never produce artifacts in the autonomous workflow; agents do. You compute state, dispatch, stamp, and merge. Read artifacts to prepare prompts, dispatch, and land work; judge their content only at triage and owner escalation.
 - State lives in the working tree. `reference/run/state.md` defines it; `scripts/rp.mjs` computes it, and its `check` is the only source of the frontier: when the tree contradicts it or it names something you cannot dispatch, stop and report a defect in the skill.
 - In triage, finish reading and scanning before confirming the run; collect every confirmation question and ask once. Once autonomous work is dispatched, questions concern owner escalations or approval of incoming work.

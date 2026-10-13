@@ -138,7 +138,7 @@ describe("rp challenges and claims", () => {
       });
 
   for (const territory of ["intent", "constraint"])
-    for (const answer of ["none", "proposal", "unrelated constraint", "constraint", "unstamped constraint"])
+    for (const answer of ["none", ...["constraint", "proposal"].flatMap((kind) => [kind, `unrelated ${kind}`, `unstamped ${kind}`])])
       test(`owner claim answer: ${territory}, ${answer}`, () => {
         const chain = frontierChain();
         const plan = chain.artifacts[2], claim = "3-build/build-plan-review-2.md";
@@ -148,19 +148,18 @@ describe("rp challenges and claims", () => {
         registered(plan, { pins: pairs([...chain.inputs[2], ...(territory === "constraint" ? [source] : [])]) });
         registered(claim, { reviewed: pairs(materials), verdict: "unsatisfiable", target: [target], "target-identity": [identity(read(root, source), source)] }, `# Review\nverdict: unsatisfiable\ntarget: ${target}\n`);
         const original = read(root, "0-intent/intent.md");
-        if (answer !== "none") {
-          const input = ownerInput(answer === "proposal" ? "proposal" : "constraint", 2, [plan], answer === "unrelated constraint" ? "issue 9" : ["issue 9", claim]);
-          if (answer === "unstamped constraint") write(root, input, parseFrontmatter(read(root, input)).body);
-        }
+        const kind = answer.split(" ").at(-1);
+        const input = answer === "none" ? null : ownerInput(kind, 2, [plan], answer.startsWith("unrelated") ? "issue 9" : ["issue 9", claim]);
+        if (answer.startsWith("unstamped")) write(root, input, parseFrontmatter(read(root, input)).body);
         const snapshot = JSON.parse(check(root, "--json"));
-        if (answer === "unstamped constraint") {
-          assert.equal(snapshot.frontier, "stamp 0-intent/constraint-2.md");
+        if (answer.startsWith("unstamped")) {
+          assert.equal(snapshot.frontier, `stamp ${input}`);
           assert.deepEqual(snapshot.claims, []);
-        } else if (answer === "constraint") {
-          assert.equal(snapshot.claims[0].state, "resolved (answered by 0-intent/constraint-2.md)");
+        } else if (input && answer === kind) {
+          assert.equal(snapshot.claims[0].state, `resolved (answered by ${input})`);
           assert.equal(snapshot.frontier, `converge ${plan}`);
           assert.ok(snapshot.artifacts.slice(0, 2).every((a) => a.approved));
-          assert.equal(snapshot.challenges.find((c) => c.path === "0-intent/constraint-2.md").state, "pending");
+          assert.equal(snapshot.challenges.find((c) => c.path === input).state, "pending");
         } else {
           assert.equal(snapshot.claims[0].state, "PENDING — owner escalation");
           assert.equal(snapshot.frontier, `claim ${claim} → ${target} (owner escalation)`);
@@ -168,43 +167,44 @@ describe("rp challenges and claims", () => {
         assert.equal(read(root, "0-intent/intent.md"), original);
       });
 
-  for (const phase of [0, 1, 2, 3])
-    for (const placement of ["whole artifact", "clause", "multiple targets", "other artifact"])
-      test(`owner answer targets: phase ${phase + 1}, ${placement}`, () => {
-        const chain = frontierChain();
-        const artifact = chain.artifacts[phase], otherPhase = (phase + 1) % 4;
-        const other = chain.artifacts[otherPhase], intent = "0-intent/intent.md";
-        const claim = chain.reviews[phase].replace("review-1", "review-2");
-        const ownerTarget = `${intent}#intent-goal`;
-        registered(claim, {
-          reviewed: pairs(chain.packages[phase]), verdict: "unsatisfiable",
-          target: [ownerTarget], "target-identity": [identity(read(root, intent), intent)],
-        }, `# Review\nverdict: unsatisfiable\ntarget: ${ownerTarget}\n`);
-        const clause = `${artifact}#${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][phase]}`;
-        const targets = {
-          "whole artifact": [artifact], clause: [clause],
-          "multiple targets": [other, clause], "other artifact": [other],
-        }[placement];
-        const answer = ownerInput("constraint", 1, targets, claim);
-        configure({ targetPhase: phase + 1 });
-        const state = JSON.parse(check(root, "--json"));
-        if (placement === "other artifact") {
-          assert.equal(state.claims[0].state, "PENDING — owner escalation");
-          assert.equal(state.frontier, `claim ${claim} → ${ownerTarget} (owner escalation)`);
-          assert.deepEqual(state.artifacts[phase].materials.challenges, []);
-          assert.equal(state.challenges[0].inScope, otherPhase < phase);
-        } else {
-          assert.equal(state.claims[0].state, `resolved (answered by ${answer})`);
-          const first = placement === "multiple targets" ? Math.min(phase, otherPhase) : phase;
-          assert.equal(state.frontier, `converge ${chain.artifacts[first]}`);
-          assert.deepEqual(state.artifacts[phase].materials.challenges, [answer]);
-        }
-        git(root, "add", "-A");
-        git(root, "commit", "--quiet", "-m", "record owner answer targets");
-        const atRef = JSON.parse(check(root, "--ref", "HEAD", "--json"));
-        assert.deepEqual(atRef.claims, state.claims);
-        assert.equal(atRef.frontier, state.frontier);
-      });
+  for (const kind of ["constraint", "proposal"])
+    for (const phase of [0, 1, 2, 3])
+      for (const placement of ["whole artifact", "clause", "multiple targets", "other artifact"])
+        test(`owner answer targets: ${kind}, phase ${phase + 1}, ${placement}`, () => {
+          const chain = frontierChain();
+          const artifact = chain.artifacts[phase], otherPhase = (phase + 1) % 4;
+          const other = chain.artifacts[otherPhase], intent = "0-intent/intent.md";
+          const claim = chain.reviews[phase].replace("review-1", "review-2");
+          const ownerTarget = `${intent}#intent-goal`;
+          registered(claim, {
+            reviewed: pairs(chain.packages[phase]), verdict: "unsatisfiable",
+            target: [ownerTarget], "target-identity": [identity(read(root, intent), intent)],
+          }, `# Review\nverdict: unsatisfiable\ntarget: ${ownerTarget}\n`);
+          const clause = `${artifact}#${["spec-requirement-1", "design-doc-decision-1", "build-assumption-1", "document-assumption-1"][phase]}`;
+          const targets = {
+            "whole artifact": [artifact], clause: [clause],
+            "multiple targets": [other, clause], "other artifact": [other],
+          }[placement];
+          const answer = ownerInput(kind, 1, targets, claim);
+          configure({ targetPhase: phase + 1 });
+          const state = JSON.parse(check(root, "--json"));
+          if (placement === "other artifact") {
+            assert.equal(state.claims[0].state, "PENDING — owner escalation");
+            assert.equal(state.frontier, `claim ${claim} → ${ownerTarget} (owner escalation)`);
+            assert.deepEqual(state.artifacts[phase].materials.challenges, []);
+            assert.equal(state.challenges[0].inScope, otherPhase < phase);
+          } else {
+            assert.equal(state.claims[0].state, `resolved (answered by ${answer})`);
+            const first = placement === "multiple targets" ? Math.min(phase, otherPhase) : phase;
+            assert.equal(state.frontier, `converge ${chain.artifacts[first]}`);
+            assert.deepEqual(state.artifacts[phase].materials.challenges, [answer]);
+          }
+          git(root, "add", "-A");
+          git(root, "commit", "--quiet", "-m", "record owner answer targets");
+          const atRef = JSON.parse(check(root, "--ref", "HEAD", "--json"));
+          assert.deepEqual(atRef.claims, state.claims);
+          assert.equal(atRef.frontier, state.frontier);
+        });
 
   test("answering one owner's claim leaves the other lane's claim pending", () => {
     const chain = frontierChain(), plan = chain.artifacts[2];
