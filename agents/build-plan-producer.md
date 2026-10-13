@@ -89,7 +89,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 
 # Protocol
 
-- **Blocker** — report one when your materials are malformed, an input is unreadable, or your environment is broken: state what is missing.
+- **Blocker** — report one when your materials are malformed, an input is unreadable, or your seat or environment is broken: name what failed, with the evidence locating it.
 - **Completion** — end your final report with the exact statement "Completion declared: no work remains."
 
 # Formats

@@ -13,7 +13,7 @@ flowchart TD
     C -->|review wave| RW["Run the review-wave procedure"]
     C -->|consolidate artifact| CON["Dispatch producer: Consolidate"]
     C -->|task| TASK["Dispatch its worker"]
-    C -->|blocked task| BLOCKED["Restore what the report names; dispatch its worker"]
+    C -->|blocked task| BLOCKED["Repair what the report names; dispatch its worker"]
     C -->|build or document review| PR["Run the review-wave procedure with the phase reviewer"]
     C -->|no task files| NOTASK["Re-dispatch the plan producer"]
     C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]

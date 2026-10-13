@@ -20,7 +20,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `review wave <artifact>`                             | A review wave                                                                                                  |
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
 | `task <phase>/<id>`                                  | That task's worker                                                                                             |
-| `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is restored (§ Dispatch)                                 |
+| `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is repaired (§ Dispatch)                                 |
 | `build review` / `document review`                   | A review wave of the phase's reviewer                                                                          |
 | `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
@@ -43,7 +43,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 - `Execution:` in the Seat is `experiment` for a line `rp check` ends with `(experiment)`; otherwise `inspection only` for producers and plan reviewers, `full` for workers and the build and document reviewers. `Guardrails:` and `Resources:` carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, resolving every value their prose leaves to you. A helper shares its requester's Seat, with `helper-<n>/` — the `<n>` of its instance name — appended to the Supporting folder; under `experiment` its Worktree and Branch are its own: create an experiment seat at the requester's `HEAD` (`state.md` § Names). When you land the requester's work, copy the helper's Supporting folder from the seat into the requester's worktree, then remove the seat with its branch.
 - Compute review filenames, task-report paths, and Supporting folders yourself (`state.md` § Names) and pass them under **Write your review to**, **Write your report to**, and the Seat's **Supporting folder**.
 - Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each.
-- A **blocker** means you prepared something wrong: fix the materials or the seat and re-dispatch. A `blocked` report means the environment failed the worker mid-task: restore what the report names, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
+- A **blocker** or a `blocked` report names something the agent was given that failed it — its materials, its seat, or the environment: repair it, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
 
 ## Stamp on landing
 
