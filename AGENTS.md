@@ -5,6 +5,8 @@ An agent orchestrator that runs teams of agents autonomously through a pipeline 
 ## Rules when modifying the skill
 
 - The skill must be written in a minimalist way with the minimum amount of information possible to convey the same meaning. Every word must serve a purpose. State the instruction, not the reasoning behind it. After writing something, ask yourself: "Can I say this in fewer words without losing meaning?" If the answer is yes, rewrite it. The skill must be concise and to the point.
+- Minimal means no repetition and no reasoning behind the rule; it never means fewer words than a first-time reader needs to understand the sentence. The readers are a new contributor, the owner, and an agent reading its profile cold. A sentence they must decode is broken, not minimal: one rule per sentence, the plain phrase instead of a private term (or the term defined where it is used), and no connective dropped that carries meaning.
+- A sentence that classifies a situation says what the reader does about it. "X is incomplete" is not an instruction; "X is incomplete: fail it, naming the decision it forces" is.
 - The skill must not contain duplicate information in the current reading path. For example, if a file can only be accessed through another and that one already contains certain information, there is no need to repeat it again.
 - When a general rule already covers a case, state it once at that general level. Don't add special-case restatements of it, even correct ones.
 - The skill must not contain negative phrases (don't do this, don't do that) unless that information is strictly necessary for its operation. That is, if by default the orchestrator or any of the agents have no reason to do something, there is no need to tell them not to do it.
@@ -35,6 +37,6 @@ These apply to the skill, the agent profiles, and the script alike.
 ## Repository rules
 
 - Every change to the repository records a changeset (authoring guidance in CONTRIBUTING.md).
-- README.md is updated when a change alters behavior it describes.
+- README.md and `docs/` are updated when a change alters behavior or a concept they describe. `docs/` is the explanatory layer for humans — glossary, flowcharts, worked examples — and lives outside the skill's reading path; explanation goes there, never into a second copy inside the skill.
 - Nothing in the repository, its PR descriptions, commit messages, changesets, or issues names an external project or its pipelines. A finding from one is stated in general terms — the class of input, the behavior, the rule it exposed.
 - A branch under review is brought up to date by merging its base branch into it, never by rebasing: its history is shared and carries the review.

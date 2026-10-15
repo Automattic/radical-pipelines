@@ -31,7 +31,7 @@
 
 <!-- Delta: the Fresh materials plus -->
 - Your previous review: <path>
-- Diff: git diff <its head> HEAD -- <every named material path>
+- Diff: git diff <your previous review's head> HEAD -- <every named material path>
 - Adjudication: <record path — sections>
 
 ## Write your review to

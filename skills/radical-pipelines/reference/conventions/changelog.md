@@ -16,7 +16,7 @@ Migrate from version 3.
 
 ### Additions
 
-- `Resources`, optional: what agents have available and how to use it. Offer to move what a `Guardrails` rule describes as available into a resource, leaving the rule its obligation.
+- `Resources`, optional: what agents have available and how to use it. Where a `Guardrails` rule describes something agents can use, offer to move that description into a `Resources` block and keep only the obligation in the rule.
 
 ## 3
 

@@ -23,7 +23,7 @@ Read the body, every comment, cross-reference, external link, and attachment. Wh
 3. Download referenced assets beside `intent.md` and use relative paths.
 4. Make phase 0 self-contained.
 
-A re-synthesis from a modified issue also consumes the current intent: it preserves `origin`; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
+A re-synthesis from a modified issue also reads the current intent: it preserves `origin`; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
 
 ## Schema and rendering
 
@@ -48,7 +48,7 @@ In `intent.md`, every item other than the Goal is declared by its id (`../run/st
 
 ## Later input
 
-Write one `0-intent/constraint-<n>.md` per binding ruling, or `0-intent/proposal-<n>.md` per request to investigate. Each states its substance at the scope the owner gave it, without needing the exchange it came from; the filename identifies its kind. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
+Write one `0-intent/constraint-<n>.md` per binding ruling, or `0-intent/proposal-<n>.md` per request to investigate. Each file is self-contained — a reader understands it without the conversation it came from — and states its substance at the scope the owner gave it; the filename identifies its kind. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
 
 ```markdown
 # <Constraint | Proposal> <n>: <title>
@@ -59,4 +59,4 @@ origin: <source>
 <ruling or request, including its evidence>
 ```
 
-Set `target:` by what the statement concerns: product behavior → build plan; documentation → document plan; requirements → spec; mechanisms → design doc; a named clause → that clause. A whole-artifact target may precede the artifact. `origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. Records cite the input's path beside the question it answers.
+Set `target:` by what the statement concerns: product behavior → build plan; documentation → document plan; requirements → spec; mechanisms → design doc; a named clause → that clause. A target may name a whole artifact that does not exist yet. `origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.
