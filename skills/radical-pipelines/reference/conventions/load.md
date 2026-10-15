@@ -4,9 +4,9 @@ Tool mechanics live in the skill. Project facts live in the project files and re
 
 ## Sources
 
-Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`. Read in this order, from lowest to highest precedence:
+Find the repository's main root, even when running inside a worktree. Read in this order, from lowest to highest precedence:
 
-1. `tools/<active tool>.md` from the skill, when present: spawn, seat, address, terminate, health-loop, and model mechanics. Without it, the project's active tool section supplies them, and setup asks for them.
+1. `tools/<active tool>.md` from the skill, when present: spawn, seat, address, terminate, health-loop, and model mechanics. When the skill has no file for the active tool, those mechanics come from the tool's section in `.rp.md`, and setup asks the owner for them.
 2. `.rp.md` from the main root: its shared sections and the active tool's section — `## <Tool>` inline, or the sidecar `.rp.<tool>.md` it names. Ignore other tools. A tool section written for a different tool than the active one counts as absent: offer setup for the active tool.
 3. `.rp.local.md` from the main root, when present. Apply it only after the completeness check below.
 
@@ -18,7 +18,7 @@ Resolve the main root worktree-aware: `dirname(git rev-parse --git-common-dir)`.
 | Pipeline slug          | How the pipeline slug in `../run/state.md` § Names is derived from the issue                                                                                                                                                                                                                          | Yes      |
 | Pipeline branch format | The pipeline branch as a template over `<pipeline slug>`; default `<pipeline slug>`                                                                                                                                                                                                                   | No       |
 | Pipelines folder root  | The root containing pipeline folders; default `.pipelines/`                                                                                                                                                                                                                                           | No       |
-| Artifact storage       | Whether `.rp.md` and the pipelines folder live in the project's repository (`artifacts-in-repo`) or a fork (`artifacts-in-fork`), and the artifact base branch: where pipelines start and merge — the repository's main branch, or the fork's base branch, declared | Yes      |
+| Artifact storage       | Whether `.rp.md` and the pipelines folder live in the project's repository (`artifacts-in-repo`) or a fork (`artifacts-in-fork`), and the artifact base branch — where pipelines start and merge: the repository's main branch in `artifacts-in-repo`, or an explicitly declared branch of the fork in `artifacts-in-fork` | Yes      |
 | Worktree folder root   | The root containing worktrees                                                                                                                                                                                                                                                                         | Yes      |
 | Commit format          | Commit message rules; absent, an imperative subject line                                                                                                                                                                                                                                              | No       |
 | PR format              | Pull request title and description rules                                                                                                                                                                                                                                                              | No       |
