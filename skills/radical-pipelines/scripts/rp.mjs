@@ -1616,7 +1616,7 @@ async function inspectPipeline(args) {
     lines.push(`symlink  ${path}`);
     take(`symlink ${path}`);
   }
-  const facts = { root, pipelineRel, all, configuration, reviewsOf, reviewLanesOf, latestWaveOf };
+  const facts = { root, pipelineRel, all, configuration, inspection, reviewsOf, latestWaveOf };
   if (out.contradictions.length) {
     out.frontier = frontier;
     lines.push(`frontier ${frontier}`);
@@ -1962,22 +1962,22 @@ const plural = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 // The success metrics, measured from the tree and its history. Human intervention is later input —
 // every `0-intent/constraint-<n>.md` or `proposal-<n>.md` — and the assisted workflow.
 async function cmdMetrics(args) {
-  const { out, tip, root, pipelineRel, all, configuration, reviewsOf, reviewLanesOf, latestWaveOf } = await inspectPipeline(args);
+  const { out, tip, root, pipelineRel, all, configuration, inspection, reviewsOf, latestWaveOf } = await inspectPipeline(args);
   if (out.contradictions.length) die(`metrics: ${out.frontier}`);
   const from = authored(root, tip, `${pipelineRel}/0-intent/intent.md`, "added");
   const to = authored(root, tip, pipelineRel, "touched");
   const elapsed = { from, to, seconds: Math.round((Date.parse(to) - Date.parse(from)) / 1000) };
 
-  // A correction is a later input on one target artifact; it is accepted by the first wave carrying
-  // it in which every lane approved, and its cost is the waves carrying it through that one.
-  const reviews = reviewsOf("");
-  const carrying = (prefix, rel) => [...new Set(reviews.filter((r) => r.prefix === prefix && pinPackage(r.data.get("reviewed"))?.has(rel)).map((r) => r.wave))].sort((a, b) => a - b);
-  const accepted = (prefix, wave) => reviewLanesOf(prefix).every((lane) => reviews.find((r) => r.prefix === prefix && r.lane === lane.id && r.wave === wave)?.data.get("verdict") === "approved");
+  // A wave's reference is the package its implicit lane judged: stamp fixes it as the complete artifact
+  // package. A correction is a later input on one target artifact; its cost is the target's waves whose
+  // reference carries it, through the first valid one.
   const correction = (art, rel) => {
     let waves = 0;
-    for (const wave of carrying(art.prefix, rel)) {
+    for (let wave = 1; wave <= latestWaveOf(art.prefix, ""); wave++) {
+      const reference = pinPackage(reviewsOf("").find((r) => r.prefix === art.prefix && r.lane === "" && r.wave === wave)?.data.get("reviewed"));
+      if (!reference?.has(rel)) continue;
       waves++;
-      if (accepted(art.prefix, wave)) return { artifact: art.path, waves, accepted: true };
+      if (evaluateWave(configuration, art.prefix, "", wave, { reference, required: reference }, inspection).valid) return { artifact: art.path, waves, accepted: true };
     }
     return { artifact: art.path, waves, accepted: false };
   };
@@ -1988,17 +1988,32 @@ async function cmdMetrics(args) {
     corrections: [...new Set(targetPairs(d.rel, d.data).map((t) => t.targetPath))].map((path) => correction(ARTIFACTS.find((a) => a.path === path), d.rel)),
   }));
 
-  // Work is autonomous under the autonomous workflow with no later input on it. A phase ran when its
-  // folder holds state; its later inputs are those targeting its artifact.
-  const autonomousWith = (inputs) => configuration.workflow === "autonomous" && !inputs.length;
+  // A commit ran under the workflow of the run configuration in its tree. A phase ran when its folder
+  // holds state, assisted when any commit touching its folder ran assisted — with none, under the
+  // current configuration; its later inputs are those targeting its artifact.
+  const workflows = new Map();
+  const workflowAt = (commit) => {
+    if (!workflows.has(commit)) workflows.set(commit, runConfiguration((path) => {
+      try { return gitBytes(root, ["show", `${commit}:${pipelineRel}/${path}`]).toString("utf8"); } catch { return null; }
+    }, `metrics: ${commit.slice(0, SHORT)}`).workflow);
+    return workflows.get(commit);
+  };
+  const workflowOf = (art) => {
+    const listed = gitText(root, ["log", "--format=%H", tip, "--", `:(top,literal)${pipelineRel}/${art.phase}`]);
+    return (listed ? listed.split("\n").map(workflowAt) : [configuration.workflow]).includes("assisted") ? "assisted" : "autonomous";
+  };
+  // Work is autonomous when it ran under the autonomous workflow with no later input on it.
+  const how = (assisted, inputs) => (assisted ? "assisted" : inputs.length ? "intervened" : "autonomous");
   const phases = ARTIFACTS.slice(0, configuration.targetPhase).map((art) => {
     const ran = all.some((d) => d.rel.startsWith(`${art.phase}/`));
+    const workflow = ran ? workflowOf(art) : null;
     const inputs = laterInputs.filter((input) => input.corrections.some((c) => c.artifact === art.path)).map((input) => input.path);
     const plan = planOf(art.phase);
     return {
       phase: art.phase,
       ran,
-      autonomous: ran ? autonomousWith(inputs) : null,
+      workflow,
+      autonomous: ran ? how(workflow === "assisted", inputs) === "autonomous" : null,
       laterInputs: inputs,
       waves: latestWaveOf(art.prefix, ""),
       ...(art.review ? {
@@ -2010,10 +2025,10 @@ async function cmdMetrics(args) {
   });
   const ran = phases.filter((p) => p.ran);
   const autonomy = { autonomous: ran.filter((p) => p.autonomous).length, ran: ran.length };
-  const completion = { complete: out.complete, through: out.completeThrough, targetPhase: configuration.targetPhase, autonomous: out.complete && autonomousWith(laterInputs) };
+  const assisted = ran.some((p) => p.workflow === "assisted");
+  const completion = { complete: out.complete, through: out.completeThrough, targetPhase: configuration.targetPhase, autonomous: out.complete && how(assisted, laterInputs) === "autonomous" };
   const metrics = { pipeline: pipelineRel, ref: out.ref, elapsed, laterInputs, phases, autonomy, completion };
 
-  const how = (autonomous, inputs) => (autonomous ? "autonomous" : inputs.length ? "intervened" : "assisted");
   const inputsOf = (paths) => (paths.length ? `  inputs: ${paths.join(", ")}` : "");
   const lines = [out.ref ? `${pipelineRel} @ ${args.ref} (${out.ref.slice(0, SHORT)})` : pipelineRel];
   lines.push(`elapsed   ${duration(elapsed.seconds)}  (${from} → ${to})`);
@@ -2022,10 +2037,10 @@ async function cmdMetrics(args) {
       lines.push(`input     ${input.path} (${input.kind}, origin: ${[].concat(input.origin).join(", ")}) → ${c.artifact}  ${c.accepted ? `accepted after ${plural(c.waves, "wave")}` : `${plural(c.waves, "wave")} so far`}`);
   for (const [i, p] of phases.entries()) {
     const counts = [`waves ${p.waves}`, ...("tasks" in p ? [`tasks ${p.tasks}`, `attempts ${p.attempts}`, `${ARTIFACTS[i].review} review waves ${p.reviewWaves}`] : [])];
-    lines.push(`phase     ${p.phase.padEnd(12)}  ${p.ran ? `${how(p.autonomous, p.laterInputs).padEnd(10)}  ${counts.join("  ")}${inputsOf(p.laterInputs)}` : "not run"}`);
+    lines.push(`phase     ${p.phase.padEnd(12)}  ${p.ran ? `${how(p.workflow === "assisted", p.laterInputs).padEnd(10)}  ${counts.join("  ")}${inputsOf(p.laterInputs)}` : "not run"}`);
   }
   lines.push(`autonomy  ${autonomy.autonomous}/${autonomy.ran} phases ran autonomously`);
-  lines.push(`complete  through phase ${completion.through}${completion.complete ? ` — target reached  ${how(completion.autonomous, laterInputs)}${inputsOf(laterInputs.map((input) => input.path))}` : ` (target ${completion.targetPhase})`}`);
+  lines.push(`complete  through phase ${completion.through}${completion.complete ? ` — target reached  ${how(assisted, laterInputs)}${inputsOf(laterInputs.map((input) => input.path))}` : ` (target ${completion.targetPhase})`}`);
   process.stdout.write(args.json ? JSON.stringify(metrics, null, 2) + "\n" : lines.join("\n") + "\n");
 }
 

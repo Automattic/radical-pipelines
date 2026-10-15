@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test } from "node:test";
-import { PIPELINE, git, P, write, rp, root, lane, configure, SPEC, DESIGN, review, stampSpec, approveSpec, stampDesign, approveDesign, buildDone, commitAll, useFixture } from "./fixture.mjs";
+import { PIPELINE, git, P, write, read, rp, root, lane, configure, SPEC, review, stampSpec, approveSpec, stampDesign, approveDesign, buildDone, commitAll, useFixture } from "./fixture.mjs";
 
 const metrics = (...args) => rp(root, "metrics", PIPELINE, ...args);
 const json = (...args) => JSON.parse(metrics("--json", ...args));
@@ -31,7 +33,7 @@ describe("rp metrics", () => {
     assert.match(metrics(), new RegExp(`^elapsed   1d 2h 3m  \\(${added.replace(/\+/g, "\\+")} → ${at(86400 + 7200 + 180).replace(/\+/g, "\\+")}\\)$`, "m"));
   });
 
-  test("a correction costs the waves carrying it through the first wave every lane approved; earlier and later waves are not counted", () => {
+  test("a correction costs the waves carrying it through the first valid one; earlier and later waves are not counted", () => {
     stampSpec();
     approveSpec(1);
     constraint(1, "1-spec/spec.md#spec-requirement-1", "1-spec/spec-review-1.md");
@@ -85,7 +87,8 @@ describe("rp metrics", () => {
       { phase: "3-build", ran: true, autonomous: true, laterInputs: [] },
       { phase: "4-document", ran: false, autonomous: null, laterInputs: [] },
     ]);
-    assert.deepEqual(state.phases[2], { phase: "3-build", ran: true, autonomous: true, laterInputs: [], waves: 1, tasks: 2, attempts: 2, reviewWaves: 1 });
+    assert.deepEqual(state.phases[2], { phase: "3-build", ran: true, workflow: "autonomous", autonomous: true, laterInputs: [], waves: 1, tasks: 2, attempts: 2, reviewWaves: 1 });
+    assert.equal(state.phases[3].workflow, null);
     assert.equal("tasks" in state.phases[0], false);
     assert.deepEqual(state.autonomy, { autonomous: 2, ran: 3 });
     const text = metrics();
@@ -122,17 +125,54 @@ describe("rp metrics", () => {
     assert.match(metrics(), /^complete  through phase 1 \(target 2\)$/m);
   });
 
-  test("the assisted workflow is human intervention: its phases and completion are not autonomous", () => {
-    stampSpec();
-    approveSpec();
+  test("a phase is assisted when a commit touching its folder ran under the assisted workflow; a later configuration keeps it", () => {
     configure({ workflow: "assisted", targetPhase: 1 });
-    const state = json();
-    assert.deepEqual(state.phases.map((p) => p.autonomous), [false]);
-    assert.deepEqual(state.autonomy, { autonomous: 0, ran: 1 });
+    commitAll("assisted");
+    constraint(1, "1-spec/spec.md");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/constraint-1.md"));
+    review("1-spec/spec-review-1.md", "approved", SPEC_WITH(["0-intent/constraint-1.md"]));
+    commitAll("spec approved by the owner");
+    let state = json();
+    assert.deepEqual(state.phases.map(({ workflow, autonomous }) => ({ workflow, autonomous })), [{ workflow: "assisted", autonomous: false }]);
     assert.equal(state.completion.autonomous, false);
-    const text = metrics();
-    assert.match(text, /^phase     1-spec        assisted    waves 1$/m);
-    assert.match(text, /^complete  through phase 1 — target reached  assisted$/m);
+    let text = metrics();
+    assert.match(text, /^phase     1-spec        assisted    waves 1  inputs: 0-intent\/constraint-1\.md$/m);
+    assert.match(text, /^complete  through phase 1 — target reached  assisted  inputs: 0-intent\/constraint-1\.md$/m);
+    configure({ targetPhase: 2 });
+    commitAll("autonomous");
+    stampDesign();
+    approveDesign();
+    commitAll("design approved");
+    state = json();
+    assert.deepEqual(state.phases.map(({ workflow, autonomous }) => ({ workflow, autonomous })), [{ workflow: "assisted", autonomous: false }, { workflow: "autonomous", autonomous: true }]);
+    assert.deepEqual(state.autonomy, { autonomous: 1, ran: 2 });
+    assert.equal(state.completion.autonomous, false);
+  });
+
+  test("a phase no commit touches runs under the current configuration; a committed one under its history", () => {
+    configure({ workflow: "assisted", targetPhase: 4 });
+    write(root, "4-document/document-plan.md", "# Document plan\n");
+    assert.deepEqual(json().phases.map((p) => p.workflow), ["autonomous", "autonomous", "autonomous", "assisted"]);
+  });
+
+  test("a correction is accepted by the first valid wave carrying it: every lane approves the reference, filtered by its materials", () => {
+    const filtered = ["1-spec/spec.md", "1-spec/spec-research.md"];
+    configure({ targetPhase: 1, lanes: [lane("spec-reviewer", "security"), lane("spec-reviewer", "focus", { materials: filtered })] });
+    constraint(1, "1-spec/spec.md");
+    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/constraint-1.md"));
+    const carried = SPEC_WITH(["0-intent/constraint-1.md"]);
+    const corrections = () => json().laterInputs[0].corrections;
+    review("1-spec/spec-review-1.md", "approved", carried);
+    review("1-spec/spec-review-security-1.md", "approved", SPEC);
+    review("1-spec/spec-review-focus-1.md", "approved", filtered);
+    assert.deepEqual(corrections(), [{ artifact: "1-spec/spec.md", waves: 1, accepted: false }]);
+    review("1-spec/spec-review-2.md", "approved", carried);
+    review("1-spec/spec-review-security-2.md", "approved", carried);
+    assert.deepEqual(corrections(), [{ artifact: "1-spec/spec.md", waves: 2, accepted: false }]);
+    review("1-spec/spec-review-3.md", "approved", carried);
+    review("1-spec/spec-review-security-3.md", "approved", carried);
+    review("1-spec/spec-review-focus-3.md", "approved", filtered);
+    assert.deepEqual(corrections(), [{ artifact: "1-spec/spec.md", waves: 3, accepted: true }]);
   });
 
   test("--ref reads the pipeline and its history from a commit", () => {
@@ -160,6 +200,15 @@ describe("rp metrics", () => {
     write(root, "../other/0-intent/intent.md", "origin: issue 8\n\n# Intent\n\n## Goal\n\nUncommitted.\n");
     rp(root, "stamp", ".pipelines/other/0-intent/intent.md", "--mirror");
     assert.throws(() => rp(root, "metrics", ".pipelines/other"), /metrics: no commit adds \.pipelines\/other\/0-intent\/intent\.md/);
+  });
+
+  test("a commit touching a phase without a readable run configuration stops metrics", () => {
+    const config = read(root, "run-config.md");
+    rmSync(join(root, P("run-config.md")));
+    write(root, "1-spec/spec-research.md", "# Spec research\n\nRevised.\n");
+    const commit = commitAll("record without configuration");
+    write(root, "run-config.md", config);
+    assert.throws(() => metrics(), new RegExp(`metrics: ${commit.slice(0, 12)}: missing run-config\\.md`));
   });
 
   test("metrics accepts only its documented options", () => {
