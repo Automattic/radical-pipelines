@@ -7,9 +7,9 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, join, relative } from "node:path";
 
+import { requestServer, resolveServer } from "./client.mjs";
 import { recordDiagnostic, recordError } from "./diagnostics.mjs";
 import { resolveSession } from "./ledger.mjs";
-import { requestServer, resolveServer } from "./server.mjs";
 import { ANY_OUTPUT_SCHEMA, toToolResult } from "./tools.mjs";
 
 /** Event type opencode publishes when a session blocks on a permission ask. */

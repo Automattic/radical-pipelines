@@ -5,9 +5,9 @@
 
 import { dirname } from "node:path";
 
+import { requestServer, sessionReadError } from "./client.mjs";
 import { recordError } from "./diagnostics.mjs";
 import { resolveSession } from "./ledger.mjs";
-import { requestServer, sessionReadError } from "./server.mjs";
 
 /**
  * `globalThis` key backing the per-session record of activated skills.

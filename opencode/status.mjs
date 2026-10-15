@@ -4,6 +4,7 @@
  */
 
 import { displayAgentName } from "./agents.mjs";
+import { readServiceRecordFile, requestServer, resolveServer } from "./client.mjs";
 import { formatStructuredError, getErrorLog } from "./diagnostics.mjs";
 import { formatModelString, getLedger, spawnIdentity } from "./ledger.mjs";
 import {
@@ -13,7 +14,6 @@ import {
   lastSessionEventAt,
   turnsFor,
 } from "./observations.mjs";
-import { readServiceRecordFile, requestServer, resolveServer } from "./server.mjs";
 import { ANY_OUTPUT_SCHEMA, toToolResult } from "./tools.mjs";
 import { PLUGIN_ID } from "./version.mjs";
 

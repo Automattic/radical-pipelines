@@ -2,14 +2,14 @@
  * The `rp_send` tool: directed, attributed messaging between sessions.
  */
 
-import { resolveSession } from "./ledger.mjs";
-import { recordSend } from "./observations.mjs";
 import {
   isSessionActive,
   isSessionNotFoundError,
   requestServer,
   resolveServer,
-} from "./server.mjs";
+} from "./client.mjs";
+import { resolveSession } from "./ledger.mjs";
+import { recordSend } from "./observations.mjs";
 import { ANY_OUTPUT_SCHEMA, toToolResult } from "./tools.mjs";
 
 /**

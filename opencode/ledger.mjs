@@ -4,7 +4,7 @@
  * a caller may use.
  */
 
-import { requestServer, sessionReadError } from "./server.mjs";
+import { requestServer, sessionReadError } from "./client.mjs";
 
 /**
  * Parse an Agent-models convention string into the `Model.Ref` object

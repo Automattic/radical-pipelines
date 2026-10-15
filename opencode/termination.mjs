@@ -3,10 +3,10 @@
  * and silent turns to a spawner, and withholding what a termination explains.
  */
 
+import { requestServer, resolveServer } from "./client.mjs";
 import { formatStructuredError, isolateListener, recordError } from "./diagnostics.mjs";
 import { resolveSession } from "./ledger.mjs";
 import { terminalEventError, terminalEventSessionID, turnsFor } from "./observations.mjs";
-import { requestServer, resolveServer } from "./server.mjs";
 import { ANY_OUTPUT_SCHEMA, toToolResult } from "./tools.mjs";
 
 /**

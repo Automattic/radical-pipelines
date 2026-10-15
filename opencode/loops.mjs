@@ -14,9 +14,9 @@ import {
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
+import { isSessionNotFoundError } from "./client.mjs";
 import { appendToErrorLog, recordError } from "./diagnostics.mjs";
 import { generationCarries, getSessionObservationMap, recordSessionObservation } from "./observations.mjs";
-import { isSessionNotFoundError } from "./server.mjs";
 import { ANY_OUTPUT_SCHEMA, toToolResult } from "./tools.mjs";
 
 /**

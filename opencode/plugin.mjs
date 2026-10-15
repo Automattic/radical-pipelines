@@ -12,6 +12,15 @@
 import { basename } from "node:path";
 
 import { materializeAgents, resolveAgentsTargetDir } from "./agents.mjs";
+import {
+  getSessionInbox,
+  getSessionMessages,
+  getSessionUpdatedAt,
+  interruptSession,
+  isSessionActive,
+  promoteInboxItem,
+  resolveServer,
+} from "./client.mjs";
 import { recordDiagnostic, recordError } from "./diagnostics.mjs";
 import { superviseEvents } from "./events.mjs";
 import { readSessionIdentity, recordSessionParent } from "./ledger.mjs";
@@ -43,15 +52,6 @@ import {
 import { buildPermissionReplyTool, onPermissionAsked } from "./permissions.mjs";
 import { forgetSkillActivations, onContext } from "./resupply.mjs";
 import { buildSendTool } from "./send.mjs";
-import {
-  getSessionInbox,
-  getSessionMessages,
-  getSessionUpdatedAt,
-  interruptSession,
-  isSessionActive,
-  promoteInboxItem,
-  resolveServer,
-} from "./server.mjs";
 import { SKILLS_SOURCE_DIR, readSkillDirectory } from "./skills.mjs";
 import { buildSpawnTool, resolveRepoRoot } from "./spawn.mjs";
 import { buildStatusTool } from "./status.mjs";
@@ -346,7 +346,7 @@ export {
   requestServer,
   resolveServer,
   sessionReadError,
-} from "./server.mjs";
+} from "./client.mjs";
 
 export {
   formatModelString,
