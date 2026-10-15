@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 `git fetch`, then the discovery procedure in `../run/state.md` § Discovery, and `rp check <pipeline folder>` on each pipeline found: every pipeline that references the issue, live or merged, its branch, its frontier, and its pending challenges and owner escalations.
 
-When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies cannot be reported, proceeds without comment.
+When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies' state the tracker cannot report, proceeds without comment.
 
 ### 3. Route
 
@@ -28,13 +28,13 @@ A request carries one or more statements; route each by the first predicate that
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
-When several live pipelines match, take the one the request identifies — by name, or as the only one whose frontier it advances; otherwise the owner chooses in step 4, the tip for a new pipeline included.
+When several live pipelines match, take the one the request identifies — by name, or as the only one whose frontier it advances; otherwise ask the owner in step 4 which pipeline, and, for a new pipeline, which tip to start from.
 
-Routes group by pipeline into runs.
+Group the routed statements by pipeline; each group is one run.
 
 ### 4. Confirm the runs
 
-Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give each route and why — or, when no predicate decides, the one deciding question — the incoming-work drafts, the configuration to confirm or change (workflow, target phase in plain language without phase numbers, lanes, models), what a lane change does to the tree (a dropped lane's files are removed; artifacts whose approval package changes go stale), and every other question this session still has. Revise and reconfirm until the owner confirms.
+Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give each route and why — or, when no predicate decides, the one deciding question — the drafts of the intent, constraints, or proposals you will write, the configuration to confirm or change (workflow, target phase in plain language without phase numbers, lanes, models), what a lane change does to the tree (a dropped lane's files are removed; artifacts whose approval package changes go stale), and every other question this session still has. Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 
@@ -52,13 +52,13 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 **Later input**
 
 1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; later input joins it.
-2. Write the input per `intent-format.md` § Later input. Diagnosis belongs to the adjudicating pair.
+2. Write the input per `intent-format.md` § Later input. Record the statement as given, with its evidence; diagnosing any cause is the job of the producer and reviewer of the target artifact.
 3. Commit; `rp stamp <input> --mirror`; commit the stamp.
 
-**Continue**: the pipeline's branch and worktree, created when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
+**Continue**: use the pipeline's branch and worktree, creating them when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
 
 **Rescope**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue.
 
 ### 6. Run
 
-One run at a time, in table order; a run carries its statements. Record remaining directions about the work through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) as confirmed; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) as confirmed; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.

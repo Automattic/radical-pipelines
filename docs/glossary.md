@@ -12,20 +12,21 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Claim** — An `unsatisfiable` review verdict with its target. A producer's `Contradicts-input` disposition is one source. A labeled normative statement in an artifact is also called a claim.
 - **Closure action** — A moment the owner invokes on a pipeline — opening or merging its pull request, both performed by the orchestrator, or closing without merging — bracketed by lifecycle hooks. Beyond those steps, work lives in hooks or with the owner.
 - **Code delta** — The code outside the pipelines folder that a phase review has not seen: the tip's difference from the reviewed code merged with the base, not counting work a later phase's task reports record.
-- **Completion predicate** — The file and approval state that marks a phase complete, evaluated from the working tree.
 - **Consolidate** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
 - **Consolidation** — A reviewer mode that audits the consolidated artifact against its lane folders, reusing approved checks where their claims and provenance are unchanged.
 - **Constraint** — A binding owner ruling, captured in the intent or a later `0-intent/constraint-<n>.md` with `target:` and `origin:`. An unsatisfiable constraint reaches the owner through a corroborated claim.
-- **Delta review** — A review mode that checks the prior adjudication and diff, reuses untouched checks, and reruns affected checks.
+- **Delta review** — A review mode that judges the adjudication of the reviewer's prior findings and the diff since its previous review, reuses untouched checks, and reruns affected checks. A finding that continues a prior one names it with `prior-finding`.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
-- **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
+- **Episode** — The waves an artifact has been through since its last wave that is valid and current in the inspected context; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a claim against owner territory, an artifact to converge, a phase's next step, or completion.
+- **Guardrails** — The project convention listing the rules agents must satisfy — prose a profile follows, or a check it runs. Producers and workers satisfy them before completing; reviewers evaluate them and log each outcome.
 - **Helper** — A fresh agent that does one bounded piece of work — an answer, an observation, or a change — for the agent that asked, under that agent's Seat, and returns the result to it.
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none, less the intent's leading origin lines.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
+- **Later input** — An owner ruling recorded after the intent: a `0-intent/constraint-<n>.md` binding ruling or a `0-intent/proposal-<n>.md` request to investigate, each naming its targets. Together with the assisted workflow, it is how the pipeline records human intervention.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
 - **Must-fix finding** — A finding that leaves the artifact unable to do its job; the only ground on which a review rejects.
@@ -33,7 +34,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Findings** when rejecting and **Non-blocking findings** when approving.
 - **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a challenge it responds to.
-- **Outcome** — A task report's conclusion: `completed`; `failed`, the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, something the worker was given failed it — malformed materials, an unreadable input, or a broken seat or its environment — and the report names what failed, with the evidence locating it.
+- **Outcome** — A task report's conclusion: `completed`; `failed`, the worker observed the result and it contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, something the worker was given failed it — malformed materials, an unreadable input, or a broken seat or its environment — and the report names what failed, with the evidence locating it.
 - **Owner** — The human running the pipeline; talks only to the orchestrator.
 - **Owner escalation** — The run's stop, with an evidence dossier, caused by a pending claim on owner territory; the owner's answer becomes a constraint or a proposal, as the owner rules, citing the claim and targeting the artifact that raised it.
 - **Owner territory** — The intent's Goal and constraints, and later constraint files: what the work must satisfy.
@@ -47,6 +48,8 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
 - **Proposal** — A direction, hypothesis, or report to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `target:` and `origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
+- **Reference** — The set of (member, identity) pairs a wave is expected to have reviewed: for a live artifact, what the artifact pins expanded to its review package; for a closed lane, the `lane-packages` entry the root recorded at consolidation.
+- **Resources** — The project convention describing what agents may use — environments, services, accounts, data, tools — and how; distinct from guardrails, which are what they must satisfy.
 - **Run configuration** — The workflow, target phase, base branch, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
 - **Seating** — Starting a spawned agent inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
