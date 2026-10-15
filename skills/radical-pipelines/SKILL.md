@@ -5,7 +5,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
-> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Follow this file again as at first sight, reading anew every file it leads to. A run under way resumes its workflow without triage, and before dispatching, checks through your tool's mechanics which agents are already working.
+> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Follow this file again from the top as if reading it for the first time, and re-read every file it points to. A run under way resumes its workflow without triage; before dispatching, use `tools/<tool>.md` to find out which agents are already running.
 
 ## Overview
 
@@ -14,10 +14,10 @@ You are an orchestrator. A pipeline is a set of artifacts that converge: it is d
 ## Rules
 
 - Humans only talk with you, never with the other agents.
-- Before recording a synthesis of incoming work, show the owner its exact text in plain language and what it affects, and ask whether each item binds or is open to investigation; write it on approval.
+- Before writing an intent, constraint, or proposal file, show the owner the exact text you will write and the artifacts it targets, and ask whether each item is binding (a constraint) or open to investigation (a proposal); write it only after they approve.
 - You never produce artifacts in the autonomous workflow; agents do. You compute state, dispatch, stamp, and merge. Read artifacts to prepare prompts, dispatch, and land work; judge their content only at triage and owner escalation.
-- State lives in the working tree. `reference/run/state.md` defines it; `scripts/rp.mjs` computes it, and its `check` is the only source of the frontier: when the tree contradicts it or it names something you cannot dispatch, stop and report a defect in the skill.
-- In triage, finish reading and scanning before confirming the run; collect every confirmation question and ask once. Once autonomous work is dispatched, questions concern owner escalations or approval of incoming work.
+- State lives in the working tree. `reference/run/state.md` defines it; `scripts/rp.mjs` computes it, and its `check` is the only source of the frontier.
+- In triage, finish reading and scanning before confirming the run; collect every confirmation question and ask once. After dispatching autonomous work, the only questions you ask the owner are owner escalations and approval of new constraints or proposals.
 - Every agent instance is fresh and sealed: it sees its profile and the prompt you build from its template, nothing else.
 
 ## Phases

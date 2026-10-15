@@ -8,7 +8,7 @@ Enter from `load.md`:
 
 Tell the owner what exists and what is missing. Offer setup. If declined, stop and list the missing facts.
 
-Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, addressing, termination, health-loop, and model mechanics it fixes.
+Read `tools/<tool>.md`. When it exists, tell the owner which spawn, seating, addressing, termination, health-loop, and model mechanics it already defines, so they will not be asked for.
 
 ## Fresh setup
 
@@ -28,7 +28,7 @@ The pipeline branch as a template over `<pipeline slug>`.
 
 ### Worktree folder root (required)
 
-The root under which the orchestrator creates one worktree per branch with raw `git worktree` and removes lane worktrees when their lanes finish. Suggested: `.worktrees/`. Apply the active tool's location rule.
+The root under which the orchestrator creates one worktree per branch with raw `git worktree` and removes lane worktrees when their lanes finish. Suggested: `.worktrees/`. Check the location rule in `tools/<tool>.md` (for example, that the root must be inside the repository).
 
 ### Pipelines folder root (optional)
 

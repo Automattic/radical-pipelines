@@ -13,12 +13,12 @@ Health tick for pipeline <pipeline slug> on branch <pipeline branch>, worktree <
 Inspect the run and lane worktrees, available agent logs, and messaging state.
 
 1. **Pending permission requests** — answer each using the active tool's procedure.
-2. **Stalled agents** — an agent with undeclared completion ended a turn without a message while awaiting no reply or command, or has no commit, file write, or tool output for the threshold.
+2. **Stalled agents** — an agent that has not declared completion ended its turn without sending a message while waiting for neither a reply nor a running command to finish, or has produced no commit, file write, or tool output for the threshold.
 3. **Dead agents** — a session is gone, its turn failed, or it remains silent after a status request.
 4. **Failed messages** — an inter-agent message errored or was never delivered.
 5. **Login or API-key errors** — an agent or the orchestrator hit a provider authentication failure.
 6. **Network failures** — a tool call failed with a transient network error.
-7. **Waves that never close** — compare every open wave's expected lanes with its reports and live agents. Land a fully reported wave; treat a missing report without a live agent as a dead agent.
+7. **Waves that never close** — compare every open wave's expected lanes with its reports and live agents. When every lane of a wave has reported, land it (`../run/loop.md` § One step, step 4); treat a missing report without a live agent as a dead agent.
 
 ## Recovery
 
