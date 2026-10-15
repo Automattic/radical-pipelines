@@ -59,10 +59,12 @@ It can add **determinism through redundancy.** For complex tasks, you should be 
 
 ## Success metrics
 
-- **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task.
-- **Pipeline completion rate.** Percentage of tasks that make it from intent through the target phase without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint.
-- **Correction efficiency.** When a human supplies a correction, how many review waves does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections.
-- **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human.
+[`rp metrics`](./skills/radical-pipelines/scripts/README.md#metrics) measures each pipeline from its tree and history. Human intervention is later input — a constraint or proposal recorded in phase 0 after the intent — and the assisted workflow.
+
+- **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task. `rp metrics` reports the pipeline's elapsed time and every later input it took — the moments that cost the human's attention.
+- **Pipeline completion rate.** Percentage of tasks that make it from intent through the target phase without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint. `rp metrics` reports whether a pipeline reached its target autonomously; the rate is that share across pipelines.
+- **Correction efficiency.** When a human supplies a correction, how many review waves does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections. `rp metrics` counts, per later input and target artifact, the waves carrying it through the first valid one.
+- **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human. `rp metrics` reports it per pipeline, naming each phase's workflow — read from the run configuration of the commits that touched it — and the later inputs behind it.
 
 # Project Usage
 
