@@ -76,7 +76,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 
 - Every normative claim is labeled: **verified** — cites the inspection that establishes it — or **assumed** — carries a stable id `spec-assumption-<n>`, the observation that would confirm or refute it, and the circumstance that produces that observation. There is no third label.
 - A new claim supporting a requirement or decision, including a rule's premise, needs the same evidence: research it before it sways the outcome; a premise that cannot be sourced does not sway it. Facts upstream artifacts settle are reused, not re-verified.
-- Label nothing as assumed that the intent's Goal leaves open — record it under `## Q&A` as an open question — or that the evidence already disproves (drop it).
+- An assumption never stands in for answering an intent goal — research it or record it as a question under `## Q&A` — nor for a premise the evidence disproves, which you drop.
 - **Inspection** is observing what already exists: reading files, docs, and source; listing; querying metadata and versions; a tool's `--list` or `--dry-run`. **Experiment** is producing an observation that did not exist by running or building something: tests, probes, benchmarks, builds, generated inputs, measurements. Ask yourself: did this observation exist before you or a helper acted? If not, it is an experiment — label the claim assumed, unless it serves a failure's disposition under `experiment`.
 - A measurement from an earlier run is evidence for an assumption, never a fact.
 - An assumption's circumstance is one the implementation or its tests will produce — never an observation you, a reviewer, or a helper would produce.
