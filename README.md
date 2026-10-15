@@ -130,7 +130,7 @@ A single restart is enough — the plugin finishes its setup before opencode sca
 
 - The `radical-pipelines` skill is invokable, and a session that activated it gets it back after opencode's context compaction.
 - RP's agent profiles register as `radical-pipelines/<name>`; `rp_spawn` accepts the plain profile name, and the plugin's tools are scoped to the calling session — the orchestrator reaches every tool, a spawned agent only `rp_send`, a subagent none.
-- A spawned agent reports to its spawner with `rp_send`; the plugin announces its failed or silent turns and its out-of-worktree read requests to the spawner, which answers with `rp_permission_reply` and ends the agent with `rp_terminate`.
+- A spawned agent reports to its spawner with `rp_send`; the plugin announces its failed turns and those that end without a message, and its out-of-worktree read requests to the spawner, which answers with `rp_permission_reply` and ends the agent with `rp_terminate`.
 - `rp_status` reports pipeline health with `pipeline_slug` and investigates one agent with `session`; a read that fails leaves its facts unknown rather than reporting a healthy pipeline.
 - Health loops skip active sessions, steer into stalled ones, back off while the target's turns fail, interrupt a dead provider stream once, and retire when the target is gone.
 
