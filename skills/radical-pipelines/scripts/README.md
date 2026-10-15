@@ -1,6 +1,6 @@
 # `rp`
 
-`rp` reports and stamps body-identity state and renders phase-review diffs for Radical Pipelines. The file or folder argument selects its repository and worktree, independent of the process directory. The [state specification](../reference/run/state.md) defines everything it computes.
+`rp` reports and stamps body-identity state, measures the success metrics, and renders phase-review diffs for Radical Pipelines. The file or folder argument selects its repository and worktree, independent of the process directory. The [state specification](../reference/run/state.md) defines the state it computes; the [success metrics](../../../README.md#success-metrics) define what `metrics` measures.
 
 ## `stamp`
 
@@ -45,6 +45,26 @@ node skills/radical-pipelines/scripts/rp.mjs check .pipelines/demo
 ```
 
 The report lists contradictions first — malformed files, mirror drift, undeclared lanes, symlinks — and stops before facts whose representation is invalid. Otherwise it lists challenges, claims, and every phase up to the target: production lanes, artifacts, tasks with their latest reports, phase reviews — and names the frontier. Missing consolidation references require consolidation. Episodes count from the last current approval under the [wave validity and currency definition](../reference/run/state.md#terms).
+
+## `metrics`
+
+```text
+node rp.mjs metrics <pipeline-folder> [--ref <ref>] [--json]
+```
+
+Measures one pipeline from the same state `check` computes and from its history. Human intervention is later input — every `0-intent/constraint-<n>.md` or `proposal-<n>.md` — and the assisted workflow; work is autonomous under the autonomous workflow with no later input on it.
+
+- `elapsed` — author time from the commit adding `0-intent/intent.md` to the last commit touching the pipeline folder.
+- One line per later input and target artifact, with its kind and `origin`: the waves of the target carrying the input — those whose `reviewed` names it — through the first in which every lane approved. `accepted after <n> waves`, or `<n> waves so far`.
+- One line per phase through the target: `not run` while its folder holds no state; otherwise `autonomous`, `intervened` with the later inputs targeting its artifact, or `assisted`; its artifact's waves; in build and document, tasks, attempts, and the phase review's waves.
+- `autonomy` — the phases that ran autonomously over the phases that ran.
+- `complete` — `check`'s completion; a reached target is `autonomous`, `intervened` with its later inputs, or `assisted`.
+
+`--json` emits `elapsed`, `laterInputs` with their `corrections`, `phases`, `autonomy`, and `completion`. A contradiction in the tree, or an intent no commit adds, stops the command.
+
+```sh
+node skills/radical-pipelines/scripts/rp.mjs metrics .pipelines/demo
+```
 
 ## `diff`
 

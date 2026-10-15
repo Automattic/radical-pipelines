@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines.
 // Zero dependencies. Serves the spec in ../reference/run/state.md; everything
-// it does can be done with bare git. Commands: stamp, check, diff.
+// it does can be done with bare git. Commands: stamp, check, metrics, diff.
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -1392,7 +1392,8 @@ function pipelineSlugOf(abs) {
   return slug;
 }
 
-async function cmdCheck(args) {
+// The state of a pipeline: the check's report and the facts it was computed from.
+async function inspectPipeline(args) {
   const folder = args._[0] || die("check: missing <pipeline-folder>");
   const { root, abs } = repositoryFor(folder);
   containedPath("check", root, abs);
@@ -1615,11 +1616,11 @@ async function cmdCheck(args) {
     lines.push(`symlink  ${path}`);
     take(`symlink ${path}`);
   }
+  const facts = { root, pipelineRel, all, configuration, reviewsOf, reviewLanesOf, latestWaveOf };
   if (out.contradictions.length) {
     out.frontier = frontier;
     lines.push(`frontier ${frontier}`);
-    process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
-    return;
+    return { out, lines, ...facts };
   }
 
   tip = ref ?? rev("HEAD", "HEAD");
@@ -1927,7 +1928,105 @@ async function cmdCheck(args) {
   out.frontier = frontier;
   lines.push(`complete through phase ${through}${out.complete ? " — target reached" : ` (target ${configuration.targetPhase})`}`);
   lines.push(`frontier ${frontier}`);
+  return { out, lines, tip, ...facts };
+}
+
+async function cmdCheck(args) {
+  const { out, lines } = await inspectPipeline(args);
   process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
+}
+
+// --- metrics ----------------------------------------------------------------
+
+// The author time of a path's history at the tip: `added` is the commit adding it, `touched` the last commit changing it.
+function authored(root, tip, path, when) {
+  const filter = when === "added" ? ["--no-renames", "--diff-filter=A"] : [];
+  const time = gitText(root, ["log", "--format=%aI", ...filter, "-1", tip, "--", `:(top,literal)${path}`]);
+  if (!time) throw new Error(`metrics: no commit ${when === "added" ? "adds" : "touches"} ${path}`);
+  return time;
+}
+
+function duration(seconds) {
+  const parts = [];
+  let rest = seconds;
+  for (const [unit, size] of [["d", 86400], ["h", 3600], ["m", 60]]) {
+    const count = Math.floor(rest / size);
+    if (count || parts.length) parts.push(`${count}${unit}`);
+    rest -= count * size;
+  }
+  return parts.length ? parts.join(" ") : `${rest}s`;
+}
+
+const plural = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
+
+// The success metrics, measured from the tree and its history. Human intervention is later input —
+// every `0-intent/constraint-<n>.md` or `proposal-<n>.md` — and the assisted workflow.
+async function cmdMetrics(args) {
+  const { out, tip, root, pipelineRel, all, configuration, reviewsOf, reviewLanesOf, latestWaveOf } = await inspectPipeline(args);
+  if (out.contradictions.length) die(`metrics: ${out.frontier}`);
+  const from = authored(root, tip, `${pipelineRel}/0-intent/intent.md`, "added");
+  const to = authored(root, tip, pipelineRel, "touched");
+  const elapsed = { from, to, seconds: Math.round((Date.parse(to) - Date.parse(from)) / 1000) };
+
+  // A correction is a later input on one target artifact; it is accepted by the first wave carrying
+  // it in which every lane approved, and its cost is the waves carrying it through that one.
+  const reviews = reviewsOf("");
+  const carrying = (prefix, rel) => [...new Set(reviews.filter((r) => r.prefix === prefix && pinPackage(r.data.get("reviewed"))?.has(rel)).map((r) => r.wave))].sort((a, b) => a - b);
+  const accepted = (prefix, wave) => reviewLanesOf(prefix).every((lane) => reviews.find((r) => r.prefix === prefix && r.lane === lane.id && r.wave === wave)?.data.get("verdict") === "approved");
+  const correction = (art, rel) => {
+    let waves = 0;
+    for (const wave of carrying(art.prefix, rel)) {
+      waves++;
+      if (accepted(art.prefix, wave)) return { artifact: art.path, waves, accepted: true };
+    }
+    return { artifact: art.path, waves, accepted: false };
+  };
+  const laterInputs = all.filter((d) => ownerFile(d.rel)).map((d) => ({
+    path: d.rel,
+    kind: ownerFile(d.rel),
+    origin: d.data.get("origin"),
+    corrections: [...new Set(targetPairs(d.rel, d.data).map((t) => t.targetPath))].map((path) => correction(ARTIFACTS.find((a) => a.path === path), d.rel)),
+  }));
+
+  // Work is autonomous under the autonomous workflow with no later input on it. A phase ran when its
+  // folder holds state; its later inputs are those targeting its artifact.
+  const autonomousWith = (inputs) => configuration.workflow === "autonomous" && !inputs.length;
+  const phases = ARTIFACTS.slice(0, configuration.targetPhase).map((art) => {
+    const ran = all.some((d) => d.rel.startsWith(`${art.phase}/`));
+    const inputs = laterInputs.filter((input) => input.corrections.some((c) => c.artifact === art.path)).map((input) => input.path);
+    const plan = planOf(art.phase);
+    return {
+      phase: art.phase,
+      ran,
+      autonomous: ran ? autonomousWith(inputs) : null,
+      laterInputs: inputs,
+      waves: latestWaveOf(art.prefix, ""),
+      ...(art.review ? {
+        tasks: all.filter((d) => d.rel.startsWith(`${art.phase}/tasks/`) && taskFile(plan).test(d.name)).length,
+        attempts: all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${art.phase}/`)).length,
+        reviewWaves: latestWaveOf(art.review, ""),
+      } : {}),
+    };
+  });
+  const ran = phases.filter((p) => p.ran);
+  const autonomy = { autonomous: ran.filter((p) => p.autonomous).length, ran: ran.length };
+  const completion = { complete: out.complete, through: out.completeThrough, targetPhase: configuration.targetPhase, autonomous: out.complete && autonomousWith(laterInputs) };
+  const metrics = { pipeline: pipelineRel, ref: out.ref, elapsed, laterInputs, phases, autonomy, completion };
+
+  const how = (autonomous, inputs) => (autonomous ? "autonomous" : inputs.length ? "intervened" : "assisted");
+  const inputsOf = (paths) => (paths.length ? `  inputs: ${paths.join(", ")}` : "");
+  const lines = [out.ref ? `${pipelineRel} @ ${args.ref} (${out.ref.slice(0, SHORT)})` : pipelineRel];
+  lines.push(`elapsed   ${duration(elapsed.seconds)}  (${from} → ${to})`);
+  for (const input of laterInputs)
+    for (const c of input.corrections)
+      lines.push(`input     ${input.path} (${input.kind}, origin: ${[].concat(input.origin).join(", ")}) → ${c.artifact}  ${c.accepted ? `accepted after ${plural(c.waves, "wave")}` : `${plural(c.waves, "wave")} so far`}`);
+  for (const [i, p] of phases.entries()) {
+    const counts = [`waves ${p.waves}`, ...("tasks" in p ? [`tasks ${p.tasks}`, `attempts ${p.attempts}`, `${ARTIFACTS[i].review} review waves ${p.reviewWaves}`] : [])];
+    lines.push(`phase     ${p.phase.padEnd(12)}  ${p.ran ? `${how(p.autonomous, p.laterInputs).padEnd(10)}  ${counts.join("  ")}${inputsOf(p.laterInputs)}` : "not run"}`);
+  }
+  lines.push(`autonomy  ${autonomy.autonomous}/${autonomy.ran} phases ran autonomously`);
+  lines.push(`complete  through phase ${completion.through}${completion.complete ? ` — target reached  ${how(completion.autonomous, laterInputs)}${inputsOf(laterInputs.map((input) => input.path))}` : ` (target ${completion.targetPhase})`}`);
+  process.stdout.write(args.json ? JSON.stringify(metrics, null, 2) + "\n" : lines.join("\n") + "\n");
 }
 
 // A phase review's diff: the net change without --review, the code delta of the review named by --review.
@@ -1957,6 +2056,7 @@ async function cmdDiff(args) {
 const COMMAND_OPTIONS = {
   stamp: new Set(["--pin", "--reviewed", "--mirror"]),
   check: new Set(["--json", "--ref"]),
+  metrics: new Set(["--json", "--ref"]),
   diff: new Set(["--ref", "--review"]),
 };
 
@@ -1992,6 +2092,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 Usage:
   node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror]
   node rp.mjs check <pipeline-folder> [--ref <branch>] [--json]
+  node rp.mjs metrics <pipeline-folder> [--ref <branch>] [--json]
   node rp.mjs diff <pipeline-folder> [--ref <branch>] [--review <phase review>]
 
 stamp writes frontmatter: pins, review pins (immutable), the lane derived from
@@ -2005,6 +2106,9 @@ then phases in order up to the target — converge artifacts, review waves, task
 and completion. run-config.md supplies the workflow, target phase, base branch,
 and named lanes. Each named lane's fingerprint derives
 from its id, brief, materials, and after fields.
+metrics measures the success metrics: elapsed time, each later input and the
+waves its targets took to accept it, which phases ran autonomously, and whether
+the target was reached without human intervention.
 diff renders the net change from the base, or with --review that phase review's
 code delta.
 Spec: ../reference/run/state.md
@@ -2023,6 +2127,10 @@ Spec: ../reference/run/state.md
       break;
     case "check":
       try { await cmdCheck(args); }
+      catch (error) { die(error.message); }
+      break;
+    case "metrics":
+      try { await cmdMetrics(args); }
       catch (error) { die(error.message); }
       break;
     case "diff":
