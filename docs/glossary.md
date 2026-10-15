@@ -17,7 +17,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Constraint** — A binding owner ruling, captured in the intent or a later `0-intent/constraint-<n>.md` with `target:` and `origin:`. An unsatisfiable constraint reaches the owner through a corroborated claim.
 - **Delta review** — A review mode that judges the adjudication of the reviewer's prior findings and the diff since its previous review, reuses untouched checks, and reruns affected checks. A finding that continues a prior one names it with `prior-finding`.
 - **Done-set** — The tasks whose latest report is `completed` with fresh pins.
-- **Episode** — The waves an artifact has been through since every lane last approved it together; `rp check` reports it as a counter.
+- **Episode** — The waves an artifact has been through since its last wave that is valid and current in the inspected context; `rp check` reports it as a counter.
 - **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
 - **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a claim against owner territory, an artifact to converge, a phase's next step, or completion.
 - **Guardrails** — The project convention listing the rules agents must satisfy — prose a profile follows, or a check it runs. Producers and workers satisfy them before completing; reviewers evaluate them and log each outcome.

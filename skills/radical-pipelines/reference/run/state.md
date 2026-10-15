@@ -33,7 +33,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder.
 - **Code delta** — the code a phase review has not seen: the diff outside the pipelines folder from the state the review is credited with to the inspected tip. That state is built in three steps: start from the first parent of the commit that added the review; merge the base into it with `git merge-tree`, keeping any conflict markers; then replay, in order, each later commit outside the base whose patch id a later phase's task report records, skipping any that conflicts.
 - **Episode** — the waves an artifact has been through since its last valid, current wave; a counter `rp check` reports, never a condition it acts on.
-- **Assumption** — every pending load-bearing claim, labeled `assumed` with a stable id — `spec-assumption-<n>` in the spec, the artifact's own prefix downstream — and its verification condition. Questions and risks that depend on it cite that id. Recording a risk as accepted does not close the assumption it depends on; it stays open until verified.
+- **Assumption** — every pending load-bearing claim, labeled `assumed` with a stable id — `spec-assumption-<n>` in the spec, the artifact's own prefix downstream — and its verification condition. Questions and risks that depend on it cite that id. Recording a risk as accepted leaves the assumption it depends on open.
 
 ## Run configuration
 
@@ -42,7 +42,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 - `workflow`: `autonomous` or `assisted`.
 - `target-phase`: an integer from 1 through 4.
 - `base`: the branch the pipeline merges into — the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
-- `lanes`, optional: a non-empty list of lane objects. Each contains only non-empty strings `profile`, `id`, and `brief`; a review lane may add `materials` — unique pipeline-relative paths from the artifact's review package — and a production lane may add `after` — unique ids of lanes declared by the same profile. Omitted `lanes` means no named lanes; omitted `materials` selects the full review package; omitted `after` means no dependencies.
+- `lanes`, optional: a list of lane objects. Each contains only non-empty strings `profile`, `id`, and `brief`; a review lane may add `materials` — unique pipeline-relative paths from the artifact's review package — and a production lane may add `after` — unique ids of lanes declared by the same profile. Omitted `lanes` means no named lanes; omitted `materials` selects the full review package; omitted `after` means no dependencies. Every list is non-empty when present.
 
 Lane ids start with a lowercase letter or digit and continue with those or hyphens; they are unique per profile. `after` dependencies form no cycle. Assisted configurations have no lanes. The profiles map as follows:
 
@@ -132,7 +132,7 @@ Each open production lane adjudicates its root's pending challenges before conso
 - Production lanes: `<phase>/lanes/<lane>/` holds the lane's artifact, record, and reviews, named as at the root.
 - Pipeline state: the files at the pipeline folder root, directly in a phase folder, in its `tasks/`, and in each `lanes/<lane>/`; `rp` ignores every other folder.
 - Supporting folders: an agent's, beside its artifact, review, or report, named after it without `.md`.
-- Tasks: `3-build/tasks/build-task-<n>.md` and `4-document/tasks/document-task-<n>.md`, one file per task, its phase defining its contents; reports `<task id>-report-<k>.md` beside the task, one per attempt, never overwritten. The next report number is one more than the last report that was successfully stamped. A plan is `<plan>.md` — overview and assumptions — plus its tasks folder.
+- Tasks: `3-build/tasks/build-task-<n>.md` and `4-document/tasks/document-task-<n>.md`, one file per task, its phase defining its contents; reports `<task id>-report-<k>.md` beside the task, one per attempt, never overwritten. The next report number is one more than the highest-numbered earlier report whose recorded package, attempt, outcome, and mirrors are valid. A plan is `<plan>.md` — overview and assumptions — plus its tasks folder.
 - Ids are `<prefix>-<word>-<n>`: the prefix names the artifact class — `intent`, `spec`, `design-doc`, `build`, `document` — and the word the concept. An item is declared by the line `<id>: <text>`; its content follows until the next declaration or heading.
   - Each artifact class originates its own words: the intent `constraint`, `context`, and `proposal`, plus `intent-goal` for its Goal section; the spec `requirement`, `acceptance-criterion`, `exclusion`, and `assumption`; the design doc `decision` and `assumption`; a plan `assumption` and `task`, each task declared by its file; a review of a phase `finding`; a record `question`.
   - An artifact numbers each word it originates from 1, declares each id once, never renumbers or reuses one, and gives new content the next number. An id is cited together with its path.
@@ -157,7 +157,7 @@ An owner answer is a constraint or a proposal, as the owner rules, whose `origin
    - In build and document, once the plan's valid wave is current: an unstamped report of any attempt → stamp it; an invalid report → its worker finishes it; otherwise the next task — the lowest-numbered task that is not done and whose dependencies are done — reported as `blocked <phase>/<task id>` when its latest report is fresh and `blocked`; all tasks done → the phase review wave; a current valid phase-review wave completes the phase.
 4. **Complete** — every challenge and claim targeting a phase within the target is resolved, and every phase through the target has a current valid wave over a fresh artifact → close-out. A base that does not resolve is an error, never completion.
 
-`rp check` also reports two counters, read from review frontmatter: **waves this episode**, and **`recurs`** — the number of `prior-finding` lines in the episode's reviews.
+`rp check` also reports, from review frontmatter, the number of **waves this episode** and, under **`recurs`**, every `prior-finding` reference in the episode's reviews.
 
 ## Discovery
 

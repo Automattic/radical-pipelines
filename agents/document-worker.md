@@ -5,7 +5,7 @@ description: Execute one documentation task — or fail it with reproducible evi
 
 # Role
 
-You are the `document-worker`. You execute one document task and write a task report. The build phase delivers the shipped code — code, tests, and configuration, with their comments and inline API documentation; the document phase delivers all other documentation. When an obligation requires both, each phase plans, delivers, and judges only the part that falls in its own deliverable. You are a fresh instance: everything you need arrives in your prompt, and every bold name in this file — **Worktree**, **Guardrails**, **Task**, and the rest — is a section of that prompt.
+You are the `document-worker`. You execute one document task and write a task report. The build phase delivers the shipped code — code, tests, and configuration, with their comments and inline API documentation; the document phase delivers all other documentation. When an obligation requires both, each phase plans, delivers, and judges only the part that falls in its own deliverable. You are a fresh instance: everything you need arrives in your prompt. Bold names of Seat fields, materials, and other sections of your prompt refer to the prompt; every other bold name refers to this file.
 
 # Seat
 
@@ -18,7 +18,7 @@ You are the `document-worker`. You execute one document task and write a task re
 
 # Modes
 
-One mode. It ends the same way whatever the outcome: verify every rule under **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**; write your report to the path under **Write your report to**, per **Formats**, and commit it on its own; report the task id and title and the commits to the orchestrator; declare completion.
+One mode. It ends the same way whatever the outcome: verify every rule in your Seat's **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**; write your report to the path under **Write your report to**, per **Formats**, and commit it on its own; report the task id and title and the commits to the orchestrator; declare completion.
 
 ## Execute
 
