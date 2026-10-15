@@ -52,7 +52,7 @@ The report lists contradictions first — malformed files, mirror drift, undecla
 node rp.mjs metrics <pipeline-folder> [--ref <ref>] [--json]
 ```
 
-Measures one pipeline from the same state `check` computes and from its history. Human intervention is later input — every `0-intent/constraint-<n>.md` or `proposal-<n>.md` — and the assisted workflow. A commit ran under the workflow of the `run-config.md` in its tree; a phase is `assisted` when any commit touching its folder ran assisted — with none, under the current configuration. Work is autonomous when it ran under the autonomous workflow with no later input on it.
+Measures one pipeline from the same state `check` computes and from its history: every commit reachable from the tip, on every side of its merges. Human intervention is later input — every `0-intent/constraint-<n>.md` or `proposal-<n>.md` — and the assisted workflow. A commit ran under the workflow of the `run-config.md` in its tree; a phase is `assisted` when any commit touching its folder ran assisted — with none, under the current configuration. Work is autonomous when it ran under the autonomous workflow with no later input on it.
 
 - `elapsed` — author time from the commit adding `0-intent/intent.md` to the last commit touching the pipeline folder.
 - One line per later input and target artifact, with its kind and `origin`: the target's waves whose reference — the package its implicit lane judged — carries the input, through the first [valid](../reference/run/state.md#terms) one. `accepted after <n> waves`, or `<n> waves so far`.

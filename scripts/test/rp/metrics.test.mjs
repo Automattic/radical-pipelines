@@ -149,6 +149,27 @@ describe("rp metrics", () => {
     assert.equal(state.completion.autonomous, false);
   });
 
+  // A side branch touches the spec folder; the merge keeps the mainline's tree.
+  const mergeDiscarding = (side) => {
+    git(root, "checkout", "--quiet", "-b", "side");
+    side();
+    write(root, "1-spec/spec-research.md", "# Spec research\n\nOn the side.\n");
+    commitAll("side");
+    git(root, "checkout", "--quiet", "demo");
+    git(root, "merge", "--quiet", "--no-ff", "-s", "ours", "-m", "merge side", "side");
+  };
+
+  test("every side of a merge counts: a merge discarding a phase's assisted work leaves it assisted", () => {
+    mergeDiscarding(() => configure({ workflow: "assisted" }));
+    assert.equal(json().phases[0].workflow, "assisted");
+  });
+
+  test("every side of a merge is read: a discarded commit without a run configuration stops metrics", () => {
+    mergeDiscarding(() => rmSync(join(root, P("run-config.md"))));
+    const side = git(root, "rev-parse", "side").trim();
+    assert.throws(() => metrics(), new RegExp(`metrics: ${side.slice(0, 12)}: missing run-config\\.md`));
+  });
+
   test("a phase no commit touches runs under the current configuration; a committed one under its history", () => {
     configure({ workflow: "assisted", targetPhase: 4 });
     write(root, "4-document/document-plan.md", "# Document plan\n");

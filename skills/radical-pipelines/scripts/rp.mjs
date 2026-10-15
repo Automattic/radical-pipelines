@@ -1938,10 +1938,13 @@ async function cmdCheck(args) {
 
 // --- metrics ----------------------------------------------------------------
 
+// The commits reachable from the tip that touch a path, with every side of every merge.
+const pathLog = (root, tip, path, options) => gitText(root, ["log", "--full-history", ...options, tip, "--", `:(top,literal)${path}`]);
+
 // The author time of a path's history at the tip: `added` is the commit adding it, `touched` the last commit changing it.
 function authored(root, tip, path, when) {
   const filter = when === "added" ? ["--no-renames", "--diff-filter=A"] : [];
-  const time = gitText(root, ["log", "--format=%aI", ...filter, "-1", tip, "--", `:(top,literal)${path}`]);
+  const time = pathLog(root, tip, path, ["--format=%aI", ...filter, "-1"]);
   if (!time) throw new Error(`metrics: no commit ${when === "added" ? "adds" : "touches"} ${path}`);
   return time;
 }
@@ -1999,7 +2002,7 @@ async function cmdMetrics(args) {
     return workflows.get(commit);
   };
   const workflowOf = (art) => {
-    const listed = gitText(root, ["log", "--format=%H", tip, "--", `:(top,literal)${pipelineRel}/${art.phase}`]);
+    const listed = pathLog(root, tip, `${pipelineRel}/${art.phase}`, ["--format=%H"]);
     return (listed ? listed.split("\n").map(workflowAt) : [configuration.workflow]).includes("assisted") ? "assisted" : "autonomous";
   };
   // Work is autonomous when it ran under the autonomous workflow with no later input on it.
