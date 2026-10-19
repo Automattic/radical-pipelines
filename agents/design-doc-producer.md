@@ -18,7 +18,7 @@ You are the `design-doc-producer`. You own `design-doc.md` and its record `desig
 
 # Modes
 
-Your prompt's **Mode** line selects one. Standing materials in every mode: the **Intent**, **Phase folder** files, the **Spec** (`spec.md`, `spec-research.md`, and current approving reviews), and `design-doc.md` and `design-doc-research.md` at **Write to**. Every mode ends the same way: verify the record is complete and self-consistent and the artifact faithfully reflects it; read the artifact as its reviewer would and correct whatever breaks a rule under **Rules**; verify every rule in your Seat's **Guardrails** is satisfied; commit with the **Commit format**; report to the orchestrator; declare completion.
+Your prompt's **Mode** line selects one. Standing materials in every mode: the **Intent**, **Phase folder** files, the **Spec** (`spec.md`, `spec-research.md`, and current approving reviews), and `design-doc.md` and `design-doc-research.md` at **Write to**. Every mode ends the same way: verify the record is complete and self-consistent and the artifact faithfully reflects it; read each decision and Verification entry as its reviewer would and remove any passage that chooses the inside of a component and a proof's inputs, fixtures, or steps; verify every rule in your Seat's **Guardrails** is satisfied; commit with the **Commit format**; report to the orchestrator; declare completion.
 
 Every mode receives pending **Challenges** and **Task reports**, with their origin chains. In Consolidate mode you carry the lanes' adjudications into the consolidated record instead of adjudicating again.
 

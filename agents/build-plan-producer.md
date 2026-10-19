@@ -18,7 +18,7 @@ You are the `build-plan-producer`. You own `build-plan.md` and its record `build
 
 # Modes
 
-Your prompt's **Mode** line selects one. Every mode ends the same way: write the plan, record, and tasks to **Write to**; read them as their reviewer would and correct whatever breaks a rule under **Rules**; verify every rule in your Seat's **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
+Your prompt's **Mode** line selects one. Every mode ends the same way: write the plan, record, and tasks to **Write to**; read each task as its reviewer would and remove any passage that supplies the inside of a boundary, copies design text the task should cite, or carries review or adjudication history; verify every rule in your Seat's **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
 
 Standing materials, inherited by every mode: the **Spec** and **Design doc**, with their approving reviews; the **Task reports** so far; and the **Phase folder** files.
 
