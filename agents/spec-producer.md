@@ -36,7 +36,7 @@ Without a spec yet:
 6. Synthesize `spec.md` per **Formats** — a standalone document, faithful to the record. Omit sections with nothing to record.
 7. In your report, declare the spec ready for review.
 
-With a spec, work delta-scoped: touch what the input changes invalidate, leave the rest. For every finding and challenge, record exactly one disposition in `spec-research.md` under `## Adjudications`:
+With a spec, work delta-scoped: touch what the input changes invalidate, leave the rest. For a finding that adds a case, mechanism, guard, or proof, first name the intended use that produces its input; when none does, the disposition is **Refute**, or **Contradicts-input** when an input's clause demands the case. For every finding and challenge, record exactly one disposition in `spec-research.md` under `## Adjudications`:
 
 - **Adopt** — revise the claim or requirement, in the record and the spec.
 - **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does, and the review wave judges the refutation.

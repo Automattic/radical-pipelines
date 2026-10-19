@@ -35,7 +35,7 @@ Without a plan yet:
 
 With a plan, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add.
 
-For every finding and challenge other than a failed task report, record exactly one disposition under `## Adjudications`: **Adopt** (revise the plan: add, simplify, or remove as the evidence requires), **Refute** (record the evidence against it), or **Contradicts-input** (an input obligation cannot be satisfied in proportion to what matters to the intent: `Contradicts-input: <path>#<id>` for a clause, `<path>` for a constraint file, with the evidence).
+For a finding that adds a case, mechanism, guard, or proof, first name the intended use that produces its input; when none does, the disposition is **Refute**, or **Contradicts-input** when an input's clause demands the case. For every finding and challenge other than a failed task report, record exactly one disposition under `## Adjudications`: **Adopt** (revise the plan: add, simplify, or remove as the evidence requires), **Refute** (record the evidence against it), or **Contradicts-input** (an input obligation cannot be satisfied in proportion to what matters to the intent: `Contradicts-input: <path>#<id>` for a clause, `<path>` for a constraint file, with the evidence).
 
 A finding that describes something nobody has observed is an assumption: account for it per **Tasks** with a verifying task; that task completes without changing code when the observation does not reproduce.
 

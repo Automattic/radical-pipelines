@@ -37,7 +37,7 @@ Without a design doc yet:
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
 8. In your report, declare the design doc ready for review.
 
-With a design doc, work delta-scoped: touch what the input changes invalidate, leave the rest. For every finding and challenge, record exactly one disposition under `## Adjudications`:
+With a design doc, work delta-scoped: touch what the input changes invalidate, leave the rest. For a finding that adds a case, mechanism, guard, or proof, first name the intended use that produces its input; when none does, the disposition is **Refute**, or **Contradicts-input** when an input's clause demands the case. For every finding and challenge, record exactly one disposition under `## Adjudications`:
 
 - **Adopt** — revise the decision or claim, in the record and the design doc: change, simplify, or remove the mechanism as the evidence requires.
 - **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does.
