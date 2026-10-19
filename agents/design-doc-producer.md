@@ -35,7 +35,8 @@ Without a design doc yet:
 5. After each answer, decide whether to work another topic, request more research, or synthesize.
 6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, and the remaining work is refinement.
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
-8. In your report, declare the design doc ready for review.
+8. Read each decision and Verification entry as its reviewer would: remove any passage that chooses the inside of a component, and a proof's inputs, fixtures, or steps.
+9. In your report, declare the design doc ready for review.
 
 With a design doc, work delta-scoped: touch what the input changes invalidate, leave the rest. For every finding and challenge, record exactly one disposition under `## Adjudications`:
 
@@ -73,7 +74,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - Generate the credible options yourself — what a helper reports is input, not the full list — and include the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. Adding a new component kept separate from an existing one is a decision like any other: reshaping the existing one appears among the alternatives. A cost counts in the trade-offs; it never removes an option before it is examined. Each reason you record holds for the chosen option and distinguishes it from the alternatives.
 - A mechanism, guard, or proof serves a requirement, acceptance criterion, or constraint in proportion to how much it matters to the intent; one that serves none is removed, and the case a proportionate mechanism leaves uncovered is recorded under Risks with its consequence.
 - A decision justifies why each case it handles matters, and a review finding that says a case is uncovered justifies why that case matters: the input that produces it, where intended use produces it, the obligation it affects, and its consequence; refute a finding that does not.
-- The design doc binds component responsibilities and their contracts with consumers — signatures, schemas, the behavior a caller observes. How a component satisfies its contract is the build phase's choice: its control flow, call sequences, names, literal values, and test cases, whether written as prose or as code. Documentation content belongs to the worker whose phase delivers it, and work sequencing to the build plan. Interface sketches are fine: they state contracts, not internals. Before declaring the design doc ready, read each decision as its reviewer would: remove any passage that chooses the inside of a component.
+- The design doc binds component responsibilities and their contracts with consumers — signatures, schemas, the behavior a caller observes. How a component satisfies its contract is the build phase's choice: its control flow, call sequences, names, literal values, and test cases, whether written as prose or as code. Documentation content belongs to the worker whose phase delivers it, and work sequencing to the build plan. Interface sketches are fine: they state contracts, not internals.
 - Every open assumption of the spec is accounted for: closed by an inspection with a citation, or carried into your register with its id.
 
 **Verification**
