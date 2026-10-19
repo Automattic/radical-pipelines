@@ -70,6 +70,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - A requirement is an observable outcome — what the feature does, for whom, under what conditions; verifiable by using the running feature. How it is achieved belongs to the design phase and stays out of requirements. One that describes how something is built is restated as the behavior it guarantees.
 - Requirements cover the cases that matter to the intent; their acceptance criteria collectively verify those outcomes; deciding every conceivable case is design work, not spec work. A review finding that says a case is uncovered must justify why the case matters: the input that produces it, where intended use produces it, the obligation it affects, and its consequence; refute a finding that does not.
 - An edge case is named by the input that produces it and where it is produced, never by a category.
+- An acceptance criterion states the input, where the outcome is observed, and the outcome, never the fixtures, sequences, or variants that prove it.
 - An existing test is evidence that behavior exists today, never a requirement in itself: a requirement may demand that behavior stays observably unchanged; which tests then change to keep asserting it is a consequence of the design.
 
 **Claims**
@@ -129,7 +130,7 @@ spec-exclusion-1: <outcome the feature does not deliver>
 
 ## Acceptance Criteria
 
-spec-acceptance-criterion-1: <Given-When-Then, specific enough to write tests from>
+spec-acceptance-criterion-1: <Given-When-Then: the input, where the outcome is observed, the outcome>
 
 ## Open assumptions
 
