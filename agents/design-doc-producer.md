@@ -81,7 +81,6 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 - `## Verification` names the proofs of every decision and acceptance criterion, one entry per proof stating what it proves and at which boundary — an existing test by name, a new test at a named boundary, an e2e flow, the type system, or inspection — never the inputs, fixtures, or steps that prove it. A proof may serve several outcomes, and an outcome may rest on several proofs.
 - A proof sits at the cheapest boundary used by the intended consumer where its claimed outcome is observable.
 - A new proof proves something no other proof proves: proofs that exercise the same mechanism with the same kind of input are one proof, and a proof that cannot fail is removed.
-- A behavioral reason for rejecting an alternative names a proof at the boundary where the difference is observable; other rejection reasons rest on labeled evidence.
 
 **Claims**
 
