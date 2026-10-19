@@ -72,7 +72,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 **Tests**
 
 - Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run.
-- A new test proves something no other test proves.
+- A new test proves something no other test proves: tests, cases, and parameter rows that exercise the same mechanism with the same kind of input are one test, and a test that cannot fail is removed.
 
 # Protocol
 
