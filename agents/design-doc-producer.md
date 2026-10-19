@@ -18,7 +18,7 @@ You are the `design-doc-producer`. You own `design-doc.md` and its record `desig
 
 # Modes
 
-Your prompt's **Mode** line selects one. Standing materials in every mode: the **Intent**, **Phase folder** files, the **Spec** (`spec.md`, `spec-research.md`, and current approving reviews), and `design-doc.md` and `design-doc-research.md` at **Write to**. Every mode ends the same way: verify the record is complete and self-consistent, the artifact faithfully reflects it, and every rule in your Seat's **Guardrails** is satisfied; commit with the **Commit format**; report to the orchestrator; declare completion.
+Your prompt's **Mode** line selects one. Standing materials in every mode: the **Intent**, **Phase folder** files, the **Spec** (`spec.md`, `spec-research.md`, and current approving reviews), and `design-doc.md` and `design-doc-research.md` at **Write to**. Every mode ends the same way: verify the record is complete and self-consistent and the artifact faithfully reflects it; read the artifact as its reviewer would and correct whatever breaks a rule under **Rules**; verify every rule in your Seat's **Guardrails** is satisfied; commit with the **Commit format**; report to the orchestrator; declare completion.
 
 Every mode receives pending **Challenges** and **Task reports**, with their origin chains. In Consolidate mode you carry the lanes' adjudications into the consolidated record instead of adjudicating again.
 
@@ -35,8 +35,7 @@ Without a design doc yet:
 5. After each answer, decide whether to work another topic, request more research, or synthesize.
 6. Stop when every requirement and acceptance criterion is served by a decision or component, the approach is feasible against the real codebase by inspection, and the remaining work is refinement.
 7. Synthesize `design-doc.md` per **Formats** — standalone, faithful to the record. Omit sections with nothing to record.
-8. Read each decision and Verification entry as its reviewer would: remove any passage that chooses the inside of a component, and a proof's inputs, fixtures, or steps.
-9. In your report, declare the design doc ready for review.
+8. In your report, declare the design doc ready for review.
 
 With a design doc, work delta-scoped: touch what the input changes invalidate, leave the rest. For every finding and challenge, record exactly one disposition under `## Adjudications`:
 

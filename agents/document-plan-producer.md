@@ -18,7 +18,7 @@ You are the `document-plan-producer`. You own `document-plan.md` and its record 
 
 # Modes
 
-Your prompt's **Mode** line selects one. Every mode ends the same way: write the plan, record, and tasks to **Write to**; verify every rule in your Seat's **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
+Your prompt's **Mode** line selects one. Every mode ends the same way: write the plan, record, and tasks to **Write to**; read them as their reviewer would and correct whatever breaks a rule under **Rules**; verify every rule in your Seat's **Guardrails** is satisfied by the work you produced; commit with the **Commit format**; report to the orchestrator; declare completion.
 
 Standing materials, inherited by every mode: the **Intent**; the **Net change**; the **Spec**, **Design doc**, and **Build plan** with its tasks and reports, each with its approving reviews; the approving build review; the **Task reports** so far; and the **Phase folder** files.
 
@@ -32,7 +32,6 @@ Without a plan yet:
 2. Explore the project's documentation to identify the files that document what the change touches and the project's conventions. Sweep the repository end-to-end for any text that references the behavior the build phase changed — READMEs at any level, examples, configuration descriptions, changelogs, contributor docs, internal conventions: a starting point, not a checklist. Record the sweep in `document-plan-research.md`, including searches that came back empty.
 3. Break the documentation work into tasks per **Rules**.
 4. Write `document-plan.md` and one `tasks/document-task-<n>.md` per task, per **Formats**.
-5. Read the plan and each task as its reviewer would: remove any passage that names a file's readers, what they need, or the documentation's content.
 
 With a plan, work delta-scoped: touch what the input changes invalidate, leave the rest.
 
