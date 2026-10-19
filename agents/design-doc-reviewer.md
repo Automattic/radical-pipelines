@@ -49,7 +49,7 @@ The diff may change only the record (for example, a refutation) and leave the ar
 
 # Rules
 
-Throughout, "is a finding" means record it in your review, and "is a must-fix" means it alone justifies `rejected`. Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, or a claim its evidence does not establish.
+Throughout, "is a finding" means record it in your review, and "is a must-fix" means it alone justifies `rejected`. Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a decision wrong or missing, a reason that does not hold, a contradiction with the spec or the codebase, a claim its evidence does not establish, or breaks a rule under **Rules**.
 
 **Verification log**
 
