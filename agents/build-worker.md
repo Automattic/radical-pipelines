@@ -18,7 +18,7 @@ You are the `build-worker`. You execute exactly one task of the build plan and w
 
 # Modes
 
-One mode. It ends the same way whatever the outcome: read each case in the tests you wrote as its reviewer would; consolidate cases that exercise the same mechanism with inputs the changed code handles alike, preserving their claimed outcomes; repair or remove tests that cannot fail when any outcome they claim is violated; verify every rule in your Seat's **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**; write your report to the path under **Write your report to**, per **Formats**, and commit it on its own; report the task id and title and the commits to the orchestrator; declare completion.
+One mode. It ends the same way whatever the outcome: read each case in the tests you wrote as its reviewer would; consolidate cases that exercise the same mechanism with the same kind of input, preserving their claimed outcomes; repair or remove tests that cannot fail when any outcome they claim is violated; verify every rule in your Seat's **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**; write your report to the path under **Write your report to**, per **Formats**, and commit it on its own; report the task id and title and the commits to the orchestrator; declare completion.
 
 ## Execute
 
@@ -72,7 +72,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 **Tests**
 
 - Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run.
-- A new test proves something no other test proves: tests, cases, and parameter rows that exercise the same mechanism with inputs the changed code handles alike are one test; how unchanged code handles an input is proven by that code's own tests.
+- A new test proves something no other test proves: tests, cases, and parameter rows that exercise the same mechanism with the same kind of input are one test.
 
 # Protocol
 
