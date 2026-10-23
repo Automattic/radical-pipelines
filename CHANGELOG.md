@@ -1,5 +1,13 @@
 # @automattic/radical-pipelines
 
+## 0.20.1
+
+### Patch Changes
+
+- [#356](https://github.com/Automattic/radical-pipelines/pull/356) [`2e3abf5`](https://github.com/Automattic/radical-pipelines/commit/2e3abf5889c64f00b391fdd5b4804c0969108c8d) Thanks [@luisherranz](https://github.com/luisherranz)! - Hold the test surface to what the outcomes need. An acceptance criterion states the input, where the outcome is observed, and the outcome, never the fixtures, sequences, or variants that prove it; in every mode, each producer reads its artifact as its reviewer would before reporting it ready and removes what its level-of-detail rule forbids; and the spec and design-doc reviewers now treat a broken rule as a must-fix, as the other reviewers already do. The proof and test economy rule names its unit: proofs, tests, cases, and parameter rows that exercise the same mechanism with the same kind of input are one proof; the design doc holds every proof, new or existing, to failing when what it proves is broken. A reason for rejecting an alternative is a claim judged under the claims rules; it no longer names a proof of its own. Specs were writing criteria as test scripts, every later phase was faithful to them, two tests of one mechanism counted as different because they served different criteria, and each rejected alternative shipped a test of its own.
+
+- [#357](https://github.com/Automattic/radical-pipelines/pull/357) [`8c03a2e`](https://github.com/Automattic/radical-pipelines/commit/8c03a2e4b38cd751f252ddf8112ff288e9217ab2) Thanks [@luisherranz](https://github.com/luisherranz)! - Apply the materiality rule when a finding is adjudicated. Before disposing of a finding that adds a case, mechanism, guard, or proof, the spec, design-doc, and build-plan producers trace the finding's input to the concrete action or data flow in intended use that produces it; when none does, the finding is refuted — Refute now covers a finding that is true of the mechanism but whose case is immaterial — or, in the design doc and build plan, recorded as contradicting the input whose clause demands the case. Producers were adopting every finding that was true of the mechanism, so a design grew to handle inputs nothing produces and each absorbed case shipped its own test; the rule that a finding must justify why its case matters was applied to the finding's wording, never to the case.
+
 ## 0.20.0
 
 ### Minor Changes
