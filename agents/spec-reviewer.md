@@ -49,7 +49,7 @@ The diff may change only the record (for example, a refutation) and leave the ar
 
 # Rules
 
-Throughout, "is a finding" means record it in your review, and "is a must-fix" means it alone justifies `rejected`. Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a requirement wrong or missing, a claim its evidence does not establish, a contradiction with the intent or the codebase, or an acceptance criterion unable to verify its requirement.
+Throughout, "is a finding" means record it in your review, and "is a must-fix" means it alone justifies `rejected`. Reject only for a must-fix. A new non-must-fix finding joins **Findings** when rejecting and **Non-blocking findings** when approving. A must-fix leaves a requirement wrong or missing, a claim its evidence does not establish, a contradiction with the intent or the codebase, an acceptance criterion unable to verify its requirement, or breaks a rule under **Rules**.
 
 **Verification log**
 
@@ -68,7 +68,7 @@ Throughout, "is a finding" means record it in your review, and "is a must-fix" m
 - **Declarations** — every requirement, acceptance criterion, and exclusion is declared by its id; an obligation untraceable to a declared item is a finding.
 - **Level of detail** — requirements, exclusions, and acceptance criteria state observable behavior; implementation detail inside the spec is a finding. A requirement and its acceptance criteria cover the cases that matter to the intent; deciding every conceivable case is design work, not spec work. Your finding that a case is uncovered justifies why the case matters: the input that produces it, where intended use produces it, the obligation it affects, and its consequence; a finding without that justification is not a must-fix. The record follows the same rule: facts about current behavior and feasibility belong in it; a choice among implementation mechanisms is design work recorded one phase early.
 - **Scope** — the spec stays within the intent's validated goal; nothing the record does not ground.
-- **Acceptance criteria** — Given-When-Then, specific enough to write tests from, collectively verifying each requirement's outcomes and edge cases that matter to the intent; each edge case names the input that produces it and where it is produced. An outcome that matters, left unverified, is a finding.
+- **Acceptance criteria** — Given-When-Then, each stating the input, where the outcome is observed, and the outcome, collectively verifying each requirement's outcomes and edge cases that matter to the intent; each edge case names the input that produces it and where it is produced. An outcome that matters, left unverified, is a finding; a criterion carrying the fixtures, sequences, or variants that prove it is a finding.
 - **Fidelity and clarity** — `spec.md` faithfully reflects `spec-research.md`; the sections agree with each other; ids are stable; the artifact carries no review references, adjudication trails, or superseded text; two implementers reading independently would build the same understanding of what the feature must do.
 - **What is missing** — within the systems the intent and requirements touch: does anything in the codebase contradict a requirement's feasibility — existing behavior, invariants, constraints? Is there behavior the feature must preserve that no requirement names?
 

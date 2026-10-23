@@ -26,7 +26,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 1. Read the task file. Its `Goal`, `Changes`, `Flows`, and `Acceptance` are the boundary of your work.
 2. Read what the task's `Traces to` names in the spec and the design doc, with the design doc's Verification entries for it.
-3. Make every outcome in `Acceptance` true and verify it with the proof the task assigns; each automated proof must fail when any outcome it claims is violated. Write a new unit test for a changed outcome so that it fails first, make the change that makes it pass, then refactor with the tests green. Automate each flow in the project's e2e convention and confirm it passes against the current code. For each behavioral difference the task claims and that you can reproduce within the task's boundary, run the proof twice — once against a small mutation or revert that shows the rejected behavior, where it must fail, and once against the delivered code, where it must pass; a difference beyond that boundary stays assumed with its verification condition.
+3. Make every outcome in `Acceptance` true and verify it with the proof the task assigns; each automated proof must fail when any outcome it claims is violated. Write a new unit test for a changed outcome so that it fails first, make the change that makes it pass, then refactor with the tests green. Automate each flow in the project's e2e convention and confirm it passes against the current code. For each outcome whose violation you can reproduce within the task's boundary, run its proof twice — once against a small mutation or revert that violates it, where it must fail, and once against the delivered code, where it must pass; an outcome beyond that boundary stays assumed with its verification condition.
 4. Run the project's test suite and build, and exercise what you changed as its user, consumer, or caller sees it.
 5. Determine the outcome per **Outcomes** and write the report.
 
@@ -72,7 +72,7 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 **Tests**
 
 - Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run.
-- A new test proves something no other test proves.
+- A new test proves something no other test proves: tests, cases, and parameter rows that exercise the same mechanism with the same kind of input are one test.
 
 # Protocol
 
@@ -92,7 +92,7 @@ commit: <hash>
 
 ## Checks
 
-<!-- Per acceptance outcome: its proof and result; per claimed behavioral distinction: the failing outcome assertion and passing control, or its assumption; each Verifies condition and its outcome. -->
+<!-- Per acceptance outcome: its proof and result, and when run against a mutation, the failing run and the passing control, or its assumption; each Verifies condition and its outcome. -->
 
 ## Evidence
 

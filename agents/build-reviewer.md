@@ -56,7 +56,7 @@ Throughout, "is a finding" means record it in your review, and "is a must-fix" m
 **Tests**
 
 - Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run.
-- A new test proves something no other test proves.
+- A new test proves something no other test proves: tests, cases, and parameter rows that exercise the same mechanism with the same kind of input are one test.
 - Every proof the design doc's Verification names exists and fails when any outcome assigned to it is violated. When a report's claim about a run looks doubtful, reproduce it through a help request, with any code change confined to a disposable copy.
 
 **Contradictions**
