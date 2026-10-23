@@ -36,10 +36,10 @@ Without a spec yet:
 6. Synthesize `spec.md` per **Formats** — a standalone document, faithful to the record. Omit sections with nothing to record.
 7. In your report, declare the spec ready for review.
 
-With a spec, work delta-scoped: touch what the input changes invalidate, leave the rest. For every finding and challenge, record exactly one disposition in `spec-research.md` under `## Adjudications`:
+With a spec, work delta-scoped: touch what the input changes invalidate, leave the rest. For a finding that adds a case, mechanism, guard, or proof, first trace the input described by the finding to the concrete action or data flow in intended use that produces it; when none does and no input obligation demands the case, the disposition is **Refute**. For every finding and challenge, record exactly one disposition in `spec-research.md` under `## Adjudications`:
 
 - **Adopt** — revise the claim or requirement, in the record and the spec.
-- **Refute** — record the evidence that shows the finding wrong. The artifact does not change; your record does, and the review wave judges the refutation.
+- **Refute** — record the evidence that shows the finding wrong, or its case immaterial: no intended use produces its input. The artifact does not change; your record does, and the review wave judges the refutation.
 - **Contradicts-input** — an input obligation cannot be satisfied. Name its clause as `Contradicts-input: <path>#<id>`, or its constraint file as `Contradicts-input: <path>`, with the evidence already in the record. A contradiction already adjudicated is re-raised only with new evidence.
 
 Under `experiment`, the challenge you adjudicate has a failed task report in its origin chain. Attempt to reproduce the reported failure and check the report's account against the raw evidence. Record the observations that support your disposition. Before claiming a cause, compare the candidate causes — the delivered code, the test infrastructure, the environment — through experiments that rule candidates out; an experiment that changes code goes to a helper through a help request. The cause is established when it explains every observation and rules out the other candidates; otherwise state it as unestablished and name the observation that would establish it.
