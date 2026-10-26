@@ -1889,10 +1889,7 @@ async function inspectPipeline(args) {
     const remaining = planTasks.filter((t) => !isDone(t.id)).map((t) => t.id);
     out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null, blocked: next && blockedBy(next.id) ? next.id : null };
     lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
-    if (!planTasks.length) {
-      take(`no tasks in ${art.phase}/tasks/`);
-      stopped = true;
-    } else if (cyclic) {
+    if (cyclic) {
       take(`invalid plan: ${art.phase}/tasks/${cyclic}.md depends on a cycle or a missing task`);
       stopped = true;
     } else if (badReport) {

@@ -22,7 +22,6 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `task <phase>/<id>`                                  | That task's worker                                                                                             |
 | `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is repaired (§ Dispatch)                                 |
 | `build review` / `document review`                   | A review wave of the phase's reviewer                                                                          |
-| `no tasks in <phase>/tasks/`                         | The plan producer wrote no task files: re-dispatch it                                                          |
 | `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
 | `INVALID LINE <path>` / `INVALID IDS <path>`         | The file's author fixes it                                                                                     |

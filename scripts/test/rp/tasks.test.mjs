@@ -145,4 +145,35 @@ describe("rp tasks, reports, phase reviews", () => {
     review("4-document/document-review-1.md", "approved", [...DOC, "4-document/tasks/document-task-1.md", "4-document/tasks/document-task-1-report-1.md"]);
     assert.match(check(root), /complete through phase 4 — target reached[\s\S]*frontier complete/);
   });
+
+  const BUILD_WORK = [...TASKS, "3-build/tasks/build-task-1-report-1.md", "3-build/tasks/build-task-2-report-1.md"];
+  const DOC_INPUTS = ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md", "3-build/build-review-1.md", ...BUILD_WORK];
+  const planWithoutTasks = {
+    "3-build": () => {
+      approveChain(2);
+      stampPlan();
+      return PLAN_BASE;
+    },
+    "4-document": () => {
+      buildDone();
+      write(root, "4-document/document-plan.md", "# Document plan\n\n## Overview\n\nNothing to document.\n");
+      write(root, "4-document/document-plan-research.md", "# Doc research\n");
+      rp(root, "stamp", P("4-document/document-plan.md"), ...DOC_INPUTS.flatMap((f) => ["--pin", P(f)]));
+      return ["4-document/document-plan.md", "4-document/document-plan-research.md", ...DOC_INPUTS];
+    },
+  };
+  for (const [phase, prefix, targetPhase] of [["3-build", "build", 3], ["4-document", "document", 4]])
+    test(`${phase}: a plan without tasks has every task done; its phase review decides the phase`, () => {
+      const plan = planWithoutTasks[phase]();
+      configure({ targetPhase });
+      review(`${phase}/${prefix}-plan-review-1.md`, "approved", plan);
+      let output = check(root);
+      assert.match(output, new RegExp(`tasks\\s+${phase}: planned 0\\s+done \\[\\]`));
+      assert.match(output, new RegExp(`frontier ${prefix} review`));
+      review(`${phase}/${prefix}-review-1.md`, "rejected", plan);
+      assert.match(check(root), new RegExp(`frontier converge ${phase}/${prefix}-plan\\.md`));
+      review(`${phase}/${prefix}-review-2.md`, "approved", plan);
+      output = check(root);
+      assert.match(output, new RegExp(`complete through phase ${targetPhase} — target reached[\\s\\S]*frontier complete`));
+    });
 });
