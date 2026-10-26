@@ -23,7 +23,7 @@
 - Record: <document-plan-research.md path>
 - Tasks: <one line per task file: path>
 - Design doc: <path>
-- Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path>
+- Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path; none when empty>
 - Spec: <path>
 - Task reports: <one line per report: path>
 - Pinned inputs: <one line per file pinned by document-plan.md: path>   <!-- current approving input reviews, adjudicated challenges, production-lane inputs -->

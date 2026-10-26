@@ -238,8 +238,10 @@ const ARTIFACTS = [
   { path: "1-spec/spec.md", record: "1-spec/spec-research.md", prefix: "spec", phase: "1-spec", requires: ["0-intent/intent.md"] },
   { path: "2-design-doc/design-doc.md", record: "2-design-doc/design-doc-research.md", prefix: "design-doc", phase: "2-design-doc", requires: ["0-intent/intent.md", "1-spec/spec.md"] },
   { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
-  { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresReview: "build", review: "document" },
+  { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresPhase: "3-build", review: "document" },
 ];
+// The review whose wave completes a phase: the phase review when the plan has tasks, otherwise the artifact's own.
+const completingPrefix = (art, taskFilesOf) => (art.review && taskFilesOf(art.phase).length ? art.review : art.prefix);
 // The patch ids that reports of phases after `phase` record: their work is no input to its review.
 function laterPatchIds(phase, reports) {
   const index = (name) => ARTIFACTS.findIndex((art) => art.phase === name);
@@ -580,12 +582,13 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
   const record = inScope(sc, art.record);
   // Retention includes adjudicated challenges until the producer replaces its package.
   const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
-  const build = art.requiresReview ? [...taskFilesOf("3-build"), ...reportFilesOf("3-build")] : [];
-  const inputs = currentPackage([...art.requires, ...build, ...retained]);
+  const upstream = ARTIFACTS.find((a) => a.phase === art.requiresPhase);
+  const work = upstream ? [...taskFilesOf(upstream.phase), ...reportFilesOf(upstream.phase)] : [];
+  const inputs = currentPackage([...art.requires, ...work, ...retained]);
   let ready = true;
   const approvals = art.requires.map((path) => ARTIFACTS.find((a) => a.path === path)?.prefix).filter(Boolean);
-  if (art.requiresReview) approvals.push(art.requiresReview);
-  for (const input of approvals) {
+  if (upstream) approvals.push(completingPrefix(upstream, taskFilesOf));
+  for (const input of [...new Set(approvals)]) {
     const wave = waveValidity(input, "", latestWaveOf(input, ""));
     if (wave.current) for (const pair of currentPackage(wave.reviews.map((r) => r.rel))) inputs.set(...pair);
     else ready = false;
@@ -1889,10 +1892,7 @@ async function inspectPipeline(args) {
     const remaining = planTasks.filter((t) => !isDone(t.id)).map((t) => t.id);
     out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null, blocked: next && blockedBy(next.id) ? next.id : null };
     lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
-    if (!planTasks.length) {
-      take(`no tasks in ${art.phase}/tasks/`);
-      stopped = true;
-    } else if (cyclic) {
+    if (cyclic) {
       take(`invalid plan: ${art.phase}/tasks/${cyclic}.md depends on a cycle or a missing task`);
       stopped = true;
     } else if (badReport) {
@@ -1901,6 +1901,10 @@ async function inspectPipeline(args) {
     } else if (remaining.length) {
       take(`${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}`);
       stopped = true;
+    }
+    if (completingPrefix(art, taskFilesOf) === art.prefix) {
+      phaseDone(phaseNo);
+      continue;
     }
     // Phase review: the plan package, reports, and the code.
     const rl = laneStates(art.review, "");

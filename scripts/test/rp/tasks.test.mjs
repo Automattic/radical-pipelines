@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import { parseFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import { P, write, read, rp, root, configure, check, PLAN_BASE, review, pairs, registered, stampPlan, TASKS, report, approveChain, buildDone, useFixture } from "./fixture.mjs";
@@ -144,5 +146,51 @@ describe("rp tasks, reports, phase reviews", () => {
     assert.match(check(root), /frontier document review/);
     review("4-document/document-review-1.md", "approved", [...DOC, "4-document/tasks/document-task-1.md", "4-document/tasks/document-task-1-report-1.md"]);
     assert.match(check(root), /complete through phase 4 — target reached[\s\S]*frontier complete/);
+  });
+
+  const BUILD_WORK = [...TASKS, "3-build/tasks/build-task-1-report-1.md", "3-build/tasks/build-task-2-report-1.md"];
+  const DOC_INPUTS = ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md", "3-build/build-review-1.md", ...BUILD_WORK];
+  const planWithoutTasks = {
+    "3-build": () => {
+      approveChain(2);
+      stampPlan();
+      return PLAN_BASE;
+    },
+    "4-document": () => {
+      buildDone();
+      write(root, "4-document/document-plan.md", "# Document plan\n\n## Overview\n\nNothing to document.\n");
+      write(root, "4-document/document-plan-research.md", "# Doc research\n");
+      rp(root, "stamp", P("4-document/document-plan.md"), ...DOC_INPUTS.flatMap((f) => ["--pin", P(f)]));
+      return ["4-document/document-plan.md", "4-document/document-plan-research.md", ...DOC_INPUTS];
+    },
+  };
+  for (const [phase, prefix, targetPhase] of [["3-build", "build", 3], ["4-document", "document", 4]])
+    test(`${phase}: the approval of a plan without tasks completes the phase, with no phase review`, () => {
+      const plan = planWithoutTasks[phase]();
+      configure({ targetPhase });
+      let output = check(root);
+      assert.match(output, new RegExp(`complete through phase ${targetPhase - 1} \\(target ${targetPhase}\\)`));
+      assert.match(output, new RegExp(`frontier review wave ${phase}/${prefix}-plan\\.md`));
+      review(`${phase}/${prefix}-plan-review-1.md`, "approved", plan);
+      output = check(root);
+      assert.match(output, new RegExp(`tasks\\s+${phase}: planned 0\\s+done \\[\\]`));
+      assert.doesNotMatch(output, new RegExp(`${prefix}\\s+review:`));
+      assert.match(output, new RegExp(`complete through phase ${targetPhase} — target reached[\\s\\S]*frontier complete`));
+    });
+
+  test("after a build without tasks, the document plan requires the build plan's approval in place of a build review", () => {
+    const build = planWithoutTasks["3-build"]();
+    review("3-build/build-plan-review-1.md", "approved", build);
+    const inputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md"];
+    write(root, "4-document/document-plan.md", "# Document plan\n\n## Overview\n\nWhat is documented.\n");
+    write(root, "4-document/document-plan-research.md", "# Doc research\n");
+    rp(root, "stamp", P("4-document/document-plan.md"), ...inputs.flatMap((f) => ["--pin", P(f)]));
+    let output = check(root);
+    assert.match(output, /document-plan\.md\s+FRESH/);
+    assert.match(output, /frontier review wave 4-document\/document-plan\.md/);
+    rmSync(join(root, P("3-build/build-plan-review-1.md")));
+    output = check(root);
+    assert.doesNotMatch(output, /document-plan\.md\s+FRESH/);
+    assert.match(output, /frontier review wave 3-build\/build-plan\.md/);
   });
 });

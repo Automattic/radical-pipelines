@@ -15,7 +15,6 @@ flowchart TD
     C -->|task| TASK["Dispatch its worker"]
     C -->|blocked task| BLOCKED["Repair what the report names; dispatch its worker"]
     C -->|build or document review| PR["Run the review-wave procedure with the phase reviewer"]
-    C -->|no task files| NOTASK["Re-dispatch the plan producer"]
     C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]
     C -->|INVALID FRONTMATTER| FRONTMATTER["Orchestrator repairs the frontmatter, then re-stamps the file"]
     C -->|INVALID LINE or IDS| LINE["Have the file's author fix it"]
@@ -29,7 +28,6 @@ flowchart TD
     TASK --> LAND
     BLOCKED --> LAND
     PR --> LAND
-    NOTASK --> LAND
     ATTEMPT --> LAND
     FRONTMATTER --> A
     LINE --> LAND

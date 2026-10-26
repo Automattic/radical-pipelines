@@ -22,7 +22,7 @@
 - Net change: <the `rp diff` command for the pipeline>
 - Spec: <spec.md path>; <its approving review paths>
 - Design doc: <design-doc.md path>; <its approving review paths>
-- Build plan: <build-plan.md path>; <its approving review paths>; <its tasks and reports>; <approving build review path>
+- Build plan: <build-plan.md path>; <its approving review paths>; <its tasks and reports>; <approving build review path; none when empty>
 - Task reports: <one line per report: path>   <!-- none when empty -->
 - Phase folder: <one line per existing file: path>
 
