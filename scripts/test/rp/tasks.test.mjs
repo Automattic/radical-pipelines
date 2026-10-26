@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { describe, test } from "node:test";
 import { parseFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import { P, write, read, rp, root, configure, check, PLAN_BASE, review, pairs, registered, stampPlan, TASKS, report, approveChain, buildDone, useFixture } from "./fixture.mjs";
@@ -183,8 +185,12 @@ describe("rp tasks, reports, phase reviews", () => {
     write(root, "4-document/document-plan.md", "# Document plan\n\n## Overview\n\nWhat is documented.\n");
     write(root, "4-document/document-plan-research.md", "# Doc research\n");
     rp(root, "stamp", P("4-document/document-plan.md"), ...inputs.flatMap((f) => ["--pin", P(f)]));
-    const output = check(root);
+    let output = check(root);
     assert.match(output, /document-plan\.md\s+FRESH/);
     assert.match(output, /frontier review wave 4-document\/document-plan\.md/);
+    rmSync(join(root, P("3-build/build-plan-review-1.md")));
+    output = check(root);
+    assert.doesNotMatch(output, /document-plan\.md\s+FRESH/);
+    assert.match(output, /frontier review wave 3-build\/build-plan\.md/);
   });
 });

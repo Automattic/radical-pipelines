@@ -582,12 +582,12 @@ function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, task
   const record = inScope(sc, art.record);
   // Retention includes adjudicated challenges until the producer replaces its package.
   const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
-  const phase = ARTIFACTS.find((a) => a.phase === art.requiresPhase);
-  const work = phase ? [...taskFilesOf(phase.phase), ...reportFilesOf(phase.phase)] : [];
+  const upstream = ARTIFACTS.find((a) => a.phase === art.requiresPhase);
+  const work = upstream ? [...taskFilesOf(upstream.phase), ...reportFilesOf(upstream.phase)] : [];
   const inputs = currentPackage([...art.requires, ...work, ...retained]);
   let ready = true;
   const approvals = art.requires.map((path) => ARTIFACTS.find((a) => a.path === path)?.prefix).filter(Boolean);
-  if (phase) approvals.push(completingPrefix(phase, taskFilesOf));
+  if (upstream) approvals.push(completingPrefix(upstream, taskFilesOf));
   for (const input of [...new Set(approvals)]) {
     const wave = waveValidity(input, "", latestWaveOf(input, ""));
     if (wave.current) for (const pair of currentPackage(wave.reviews.map((r) => r.rel))) inputs.set(...pair);
