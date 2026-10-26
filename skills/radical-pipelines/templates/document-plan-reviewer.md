@@ -21,7 +21,7 @@
 <!-- Fresh: the package judged -->
 - Spec: <spec.md path>
 - Design doc: <design-doc.md path>
-- Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path>
+- Build plan: <build-plan.md path>; <its tasks and reports>; <approving build review path, or none>
 - document-plan.md: <path>
 - Tasks: <one line per task file: path>
 - document-plan-research.md: <path>

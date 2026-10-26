@@ -163,17 +163,28 @@ describe("rp tasks, reports, phase reviews", () => {
     },
   };
   for (const [phase, prefix, targetPhase] of [["3-build", "build", 3], ["4-document", "document", 4]])
-    test(`${phase}: a plan without tasks has every task done; its phase review decides the phase`, () => {
+    test(`${phase}: the approval of a plan without tasks completes the phase, with no phase review`, () => {
       const plan = planWithoutTasks[phase]();
       configure({ targetPhase });
-      review(`${phase}/${prefix}-plan-review-1.md`, "approved", plan);
       let output = check(root);
-      assert.match(output, new RegExp(`tasks\\s+${phase}: planned 0\\s+done \\[\\]`));
-      assert.match(output, new RegExp(`frontier ${prefix} review`));
-      review(`${phase}/${prefix}-review-1.md`, "rejected", plan);
-      assert.match(check(root), new RegExp(`frontier converge ${phase}/${prefix}-plan\\.md`));
-      review(`${phase}/${prefix}-review-2.md`, "approved", plan);
+      assert.match(output, new RegExp(`complete through phase ${targetPhase - 1} \\(target ${targetPhase}\\)`));
+      assert.match(output, new RegExp(`frontier review wave ${phase}/${prefix}-plan\\.md`));
+      review(`${phase}/${prefix}-plan-review-1.md`, "approved", plan);
       output = check(root);
+      assert.match(output, new RegExp(`tasks\\s+${phase}: planned 0\\s+done \\[\\]`));
+      assert.doesNotMatch(output, new RegExp(`${prefix}\\s+review:`));
       assert.match(output, new RegExp(`complete through phase ${targetPhase} — target reached[\\s\\S]*frontier complete`));
     });
+
+  test("after a build without tasks, the document plan requires the build plan's approval in place of a build review", () => {
+    const build = planWithoutTasks["3-build"]();
+    review("3-build/build-plan-review-1.md", "approved", build);
+    const inputs = ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md", "1-spec/spec-review-1.md", "2-design-doc/design-doc-review-1.md", "3-build/build-plan-review-1.md"];
+    write(root, "4-document/document-plan.md", "# Document plan\n\n## Overview\n\nWhat is documented.\n");
+    write(root, "4-document/document-plan-research.md", "# Doc research\n");
+    rp(root, "stamp", P("4-document/document-plan.md"), ...inputs.flatMap((f) => ["--pin", P(f)]));
+    const output = check(root);
+    assert.match(output, /document-plan\.md\s+FRESH/);
+    assert.match(output, /frontier review wave 4-document\/document-plan\.md/);
+  });
 });
