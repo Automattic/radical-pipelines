@@ -22,7 +22,6 @@
 
 ## Materials
 
-
 <!-- Standing: every mode -->
 - Intent: <path>
 - Phase folder: <one line per existing file: path>

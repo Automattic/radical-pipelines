@@ -31,7 +31,10 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 - **Done-set** — the tasks whose latest report's `outcome` is `completed` and whose `reviewed` pins are fresh.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start and merge. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder.
-- **Code delta** — the code a phase review has not seen: the diff outside the pipelines folder from the state the review is credited with to the inspected tip. That state is built in three steps: start from the first parent of the commit that added the review; merge the base into it with `git merge-tree`, keeping any conflict markers; then replay, in order, each later commit outside the base whose patch id a later phase's task report records, skipping any that conflicts.
+- **Code delta** — the code a phase review has not seen: the diff outside the pipelines folder from the state the review is credited with to the inspected tip. That state is built in three steps:
+  1. start from the first parent of the commit that added the review;
+  2. merge the base into it with `git merge-tree`, keeping any conflict markers;
+  3. replay, in order, each later commit outside the base whose patch id a later phase's task report records, skipping any that conflicts.
 - **Episode** — the waves an artifact has been through since its last valid, current wave; a counter `rp check` reports, never a condition it acts on.
 - **Assumption** — every pending load-bearing claim, labeled `assumed` with a stable id — `spec-assumption-<n>` in the spec, the artifact's own prefix downstream — and its verification condition. Questions and risks that depend on it cite that id. Recording a risk as accepted leaves the assumption it depends on open.
 
@@ -99,7 +102,7 @@ A file is `INVALID IDS` when any of these holds:
 - a carried id does not exist in the upstream artifact;
 - a Markdown file in a plan's tasks folder is misnamed.
 
-A stamp follows the commit of what it stamps and is committed on top of it, on the branch the work landed on. A task report names the commits its task made and lands in a commit of its own after them.
+**Landing** a file is committing it, stamping it, and committing the stamp on top, on the branch the work landed on. A task report names the commits its task made and lands in a commit of its own after them.
 
 ## Pins by file
 
@@ -147,18 +150,43 @@ An owner answer is a constraint or a proposal, as the owner rules, whose `origin
 
 ## The frontier
 
-`rp check <pipeline folder>` reads `run-config.md`, reports every phase up to its target, and names the **frontier** — the first item of:
+`rp check <pipeline folder>` reads `run-config.md`, reports every phase up to its target, and names the **frontier** — the first item of the following, printed as the `frontier` line that `loop.md` dispatches:
 
-1. **A contradiction** — malformed frontmatter → you repair and re-stamp it; malformed fixed line or id declarations → its author fixes it; mirror drift → stamp it; an undeclared lane or symlink → stop and tell the owner. File format is checked first; nothing is computed from a malformed file.
-2. **A pending claim targeting owner territory** → owner escalation. A claim is pending when all of these hold: it is unanswered, it is its lane's latest verdict, its wave is closed with no `rejected` lane, its `reviewed` pins are fresh, and its target is unchanged. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
+1. **A contradiction** — file format is checked first; nothing is computed from a malformed file:
+   1. malformed frontmatter → `INVALID FRONTMATTER <path>`;
+   2. a malformed fixed line or id declaration → `INVALID LINE <path>` or `INVALID IDS <path>`;
+   3. mirror drift → `stamp <path>`;
+   4. an undeclared lane or a symlink → `undeclared lane <path>` or `symlink <path>`.
+2. **A pending claim targeting owner territory** → `claim <review> → <target> (owner escalation)`. A claim is pending when all of these hold: it is unanswered, it is its lane's latest verdict, its wave is closed with no `rejected` lane, its `reviewed` pins are fresh, and its target is unchanged. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
 3. **Per phase, in order**:
-   - Open production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / rejected wave / pending challenge). A lane waits until every `after` lane's valid wave is current, recursively. When every open lane's valid wave is current → consolidate.
-   - Then the root artifact, in this order: missing → converge; no recorded package → stamp what its producer consumed; stale, or with a pending challenge, or with a closed wave that rejected → converge with the package change, that wave's reviews, and every pending challenge on it; an unstamped review → stamp it; an invalid review → its reviewer finishes it; no current valid wave → a review wave.
-   - In build and document, once the plan's valid wave is current: an unstamped report of any attempt → stamp it; an invalid report → its worker finishes it; otherwise the next task — the lowest-numbered task that is not done and whose dependencies are done — reported as `blocked <phase>/<task id>` when its latest report is fresh and `blocked`; all tasks done → the phase review wave; a current valid phase-review wave completes the phase — or the plan's own, when it has no tasks.
-4. **Complete** — every challenge and claim targeting a phase within the target is resolved, and every phase through the target has a current valid wave over a fresh artifact → close-out. A base that does not resolve is an error, never completion.
+   - Open production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / rejected wave / pending challenge). A lane waits until every `after` lane's valid wave is current, recursively. When every open lane's valid wave is current → `consolidate <artifact>`.
+   - Then the root artifact, the first that holds:
+     1. missing → `converge <artifact>`;
+     2. no recorded package → `stamp <artifact>`;
+     3. stale, or with a pending challenge, or with a closed wave that rejected → `converge <artifact>`;
+     4. an unfinished review → `stamp <review>` when unstamped, else `INVALID REVIEW <review>`;
+     5. no current valid wave → `review wave <artifact>`.
+   - In build and document, once the plan's valid wave is current, the first that holds:
+     1. a task that depends on a cycle or a missing task → `invalid plan: …`;
+     2. an unfinished report of any attempt → `stamp <report>` when unstamped, else `INVALID REPORT <report>`;
+     3. a task not done — the lowest-numbered whose dependencies are done → `task <phase>/<task id>`, or `blocked <phase>/<task id>` when its latest report is fresh and `blocked`;
+     4. a plan without tasks → the phase is complete;
+     5. an unfinished phase review → `stamp <review>` when unstamped, else `INVALID REVIEW <review>`;
+     6. a closed phase-review wave that rejected → `converge <plan>`;
+     7. no current valid phase-review wave → `build review` or `document review`;
+     8. a current valid phase-review wave → the phase is complete.
+4. **Complete** → `complete` when every challenge and claim targeting a phase within the target is resolved, and every phase through the target has a current valid wave over a fresh artifact; `challenges or claims still adjudicated, awaiting approval` when the phases are complete and such a challenge is not. A base that does not resolve is an error, never completion.
 
 `rp check` also reports, from review frontmatter, the number of **waves this episode** and, under **`recurs`**, every `prior-finding` reference in the episode's reviews.
 
 ## Discovery
 
-Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. To find pipelines for an issue: fetch; collect the tree id of every `<pipelines folder root>/<pipeline slug>` at each branch tip; keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history (those are the live ones); read their `0-intent/intent.md` and the base branch's; keep those whose `origin` names the issue. Branch and folder names are not used to find pipelines; only the `origin` line is. `rp check --ref` then reads each pipeline at its tip.
+Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. To find pipelines for an issue:
+
+1. Fetch.
+2. Collect the tree id of every `<pipelines folder root>/<pipeline slug>` at each branch tip.
+3. Keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history: those are the live ones.
+4. Read their `0-intent/intent.md` and the base branch's.
+5. Keep those whose `origin` names the issue.
+
+Branch and folder names are not used to find pipelines; only the `origin` line is. `rp check --ref` then reads each pipeline at its tip.
