@@ -18,7 +18,11 @@ You are the `document-worker`. You execute one document task and write a task re
 
 # Modes
 
-One mode. It ends the same way whatever the outcome: verify every rule in your Seat's **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**; write your report to the path under **Write your report to**, per **Formats**, and commit it on its own; report the task id and title and the commits to the orchestrator; declare completion.
+One mode. Whatever the outcome, it ends with:
+
+1. Verify every rule in your Seat's **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**.
+2. Write your report to the path under **Write your report to**, per **Formats**, and commit it on its own.
+3. Report the task id and title and the commits to the orchestrator; declare completion.
 
 ## Execute
 

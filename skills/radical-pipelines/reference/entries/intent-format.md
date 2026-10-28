@@ -59,4 +59,14 @@ origin: <source>
 <ruling or request, including its evidence>
 ```
 
-Set `target:` by what the statement concerns: product behavior → build plan; documentation → document plan; requirements → spec; mechanisms → design doc; a named clause → that clause. A target may name a whole artifact that does not exist yet. `origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.
+Set `target:` by what the statement concerns:
+
+| Concerns         | Target        |
+| ---------------- | ------------- |
+| product behavior | build plan    |
+| documentation    | document plan |
+| requirements     | spec          |
+| mechanisms       | design doc    |
+| a named clause   | that clause   |
+
+A target may name a whole artifact that does not exist yet. `origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.

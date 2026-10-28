@@ -31,7 +31,10 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 - **Done-set** — the tasks whose latest report's `outcome` is `completed` and whose `reviewed` pins are fresh.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start and merge. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder.
-- **Code delta** — the code a phase review has not seen: the diff outside the pipelines folder from the state the review is credited with to the inspected tip. That state is built in three steps: start from the first parent of the commit that added the review; merge the base into it with `git merge-tree`, keeping any conflict markers; then replay, in order, each later commit outside the base whose patch id a later phase's task report records, skipping any that conflicts.
+- **Code delta** — the code a phase review has not seen: the diff outside the pipelines folder from the state the review is credited with to the inspected tip. That state is built in three steps:
+  1. start from the first parent of the commit that added the review;
+  2. merge the base into it with `git merge-tree`, keeping any conflict markers;
+  3. replay, in order, each later commit outside the base whose patch id a later phase's task report records, skipping any that conflicts.
 - **Episode** — the waves an artifact has been through since its last valid, current wave; a counter `rp check` reports, never a condition it acts on.
 - **Assumption** — every pending load-bearing claim, labeled `assumed` with a stable id — `spec-assumption-<n>` in the spec, the artifact's own prefix downstream — and its verification condition. Questions and risks that depend on it cite that id. Recording a risk as accepted leaves the assumption it depends on open.
 

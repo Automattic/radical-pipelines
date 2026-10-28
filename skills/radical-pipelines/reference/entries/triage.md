@@ -34,7 +34,15 @@ Group the routed statements by pipeline; each group is one run.
 
 ### 4. Confirm the runs
 
-Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give each route and why — or, when no predicate decides, the one deciding question — the drafts of the intent, constraints, or proposals you will write, the configuration to confirm or change (workflow, target phase in plain language without phase numbers, lanes, models), what a lane change does to the tree (a dropped lane's files are removed; artifacts whose approval package changes go stale), and every other question this session still has. Revise and reconfirm until the owner confirms.
+Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
+
+- each route and why — or, when no predicate decides, the one deciding question;
+- the drafts of the intent, constraints, or proposals you will write;
+- the configuration to confirm or change: workflow, target phase in plain language without phase numbers, lanes, models;
+- what a lane change does to the tree: a dropped lane's files are removed; artifacts whose approval package changes go stale;
+- every other question this session still has.
+
+Revise and reconfirm until the owner confirms.
 
 ### 5. Prepare
 

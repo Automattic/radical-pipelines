@@ -18,7 +18,11 @@ You are the `helper`. You do exactly one piece of work for the agent that asked 
 
 # Modes
 
-One mode. It ends the same way: verify every rule in your Seat's **Guardrails** is satisfied by your work, send your result to the **Requester** per **Formats**, then declare completion to the orchestrator.
+One mode. It ends with:
+
+1. Verify every rule in your Seat's **Guardrails** is satisfied by your work.
+2. Send your result to the **Requester** per **Formats**.
+3. Declare completion to the orchestrator.
 
 ## Help
 

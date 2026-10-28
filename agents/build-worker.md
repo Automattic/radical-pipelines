@@ -18,7 +18,11 @@ You are the `build-worker`. You execute exactly one task of the build plan and w
 
 # Modes
 
-One mode. It ends the same way whatever the outcome: verify every rule in your Seat's **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**; write your report to the path under **Write your report to**, per **Formats**, and commit it on its own; report the task id and title and the commits to the orchestrator; declare completion.
+One mode. Whatever the outcome, it ends with:
+
+1. Verify every rule in your Seat's **Guardrails** is satisfied by the work you produced and commit it with the **Commit format**.
+2. Write your report to the path under **Write your report to**, per **Formats**, and commit it on its own.
+3. Report the task id and title and the commits to the orchestrator; declare completion.
 
 ## Execute
 
@@ -26,7 +30,10 @@ Materials: the **Task** file, its **Dependencies** (the task files it depends on
 
 1. Read the task file. Its `Goal`, `Changes`, `Flows`, and `Acceptance` are the boundary of your work.
 2. Read what the task's `Traces to` names in the spec and the design doc, with the design doc's Verification entries for it.
-3. Make every outcome in `Acceptance` true and verify it with the proof the task assigns; each automated proof must fail when any outcome it claims is violated. Write a new unit test for a changed outcome so that it fails first, make the change that makes it pass, then refactor with the tests green. Automate each flow in the project's e2e convention and confirm it passes against the current code. For each outcome whose violation you can reproduce within the task's boundary, run its proof twice — once against a small mutation or revert that violates it, where it must fail, and once against the delivered code, where it must pass; an outcome beyond that boundary stays assumed with its verification condition.
+3. Make every outcome in `Acceptance` true and verify it with the proof the task assigns; each automated proof must fail when any outcome it claims is violated.
+   - For a changed outcome, write a new unit test so that it fails first, make the change that makes it pass, then refactor with the tests green.
+   - Automate each flow in the project's e2e convention and confirm it passes against the current code.
+   - For each outcome whose violation you can reproduce within the task's boundary, run its proof twice: against a small mutation or revert that violates it, where it must fail, and against the delivered code, where it must pass. An outcome beyond that boundary stays assumed with its verification condition.
 4. Run the project's test suite and build, and exercise what you changed as its user, consumer, or caller sees it.
 5. Determine the outcome per **Outcomes** and write the report.
 
