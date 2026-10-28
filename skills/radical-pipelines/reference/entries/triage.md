@@ -53,7 +53,7 @@ Prepare every route of a run before starting it. Address every worktree by absol
 1. Pipeline slug and branch per `../run/state.md` § Names.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
 3. `<pipelines folder root>/<pipeline slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `origin: starts-from` records the starting branch and `origin: re-attempts` the prior pipeline's slug.
-4. Commit following the **Commit format** convention; `rp stamp <intent> --mirror`; commit the stamp in that format.
+4. Land it (`../run/state.md` § Frontmatter) with `rp stamp <intent> --mirror`; both commits follow the **Commit format** convention.
 
 Every branch and worktree you create — the pipeline's here, a lane's later — fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.
 
@@ -61,11 +61,11 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; later input joins it.
 2. Write the input per `intent-format.md` § Later input. Record the statement as given, with its evidence; diagnosing any cause is the job of the producer and reviewer of the target artifact.
-3. Commit; `rp stamp <input> --mirror`; commit the stamp.
+3. Land it with `rp stamp <input> --mirror`.
 
 **Continue**: use the pipeline's branch and worktree, creating them when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
 
-**Rescope**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), commit, `rp stamp <intent> --mirror`, commit the stamp; then Continue.
+**Rescope**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), and land it with `rp stamp <intent> --mirror`; then Continue.
 
 ### 6. Run
 

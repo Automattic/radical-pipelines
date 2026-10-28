@@ -102,7 +102,7 @@ A file is `INVALID IDS` when any of these holds:
 - a carried id does not exist in the upstream artifact;
 - a Markdown file in a plan's tasks folder is misnamed.
 
-A stamp follows the commit of what it stamps and is committed on top of it, on the branch the work landed on. A task report names the commits its task made and lands in a commit of its own after them.
+**Landing** a file is committing it, stamping it, and committing the stamp on top, on the branch the work landed on. A task report names the commits its task made and lands in a commit of its own after them.
 
 ## Pins by file
 
@@ -150,15 +150,31 @@ An owner answer is a constraint or a proposal, as the owner rules, whose `origin
 
 ## The frontier
 
-`rp check <pipeline folder>` reads `run-config.md`, reports every phase up to its target, and names the **frontier** — the first item of:
+`rp check <pipeline folder>` reads `run-config.md`, reports every phase up to its target, and names the **frontier** — the first item of the following, printed as the `frontier` line that `loop.md` dispatches:
 
-1. **A contradiction** — malformed frontmatter → you repair and re-stamp it; malformed fixed line or id declarations → its author fixes it; mirror drift → stamp it; an undeclared lane or symlink → stop and tell the owner. File format is checked first; nothing is computed from a malformed file.
-2. **A pending claim targeting owner territory** → owner escalation. A claim is pending when all of these hold: it is unanswered, it is its lane's latest verdict, its wave is closed with no `rejected` lane, its `reviewed` pins are fresh, and its target is unchanged. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
+1. **A contradiction** — file format is checked first; nothing is computed from a malformed file:
+   - malformed frontmatter → `INVALID FRONTMATTER <path>`;
+   - a malformed fixed line or id declaration → `INVALID LINE <path>` or `INVALID IDS <path>`;
+   - mirror drift → `stamp <path>`;
+   - an undeclared lane or a symlink → `undeclared lane <path>` or `symlink <path>`.
+2. **A pending claim targeting owner territory** → `claim <review> → <target> (owner escalation)`. A claim is pending when all of these hold: it is unanswered, it is its lane's latest verdict, its wave is closed with no `rejected` lane, its `reviewed` pins are fresh, and its target is unchanged. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
 3. **Per phase, in order**:
-   - Open production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / rejected wave / pending challenge). A lane waits until every `after` lane's valid wave is current, recursively. When every open lane's valid wave is current → consolidate.
-   - Then the root artifact, in this order: missing → converge; no recorded package → stamp what its producer consumed; stale, or with a pending challenge, or with a closed wave that rejected → converge with the package change, that wave's reviews, and every pending challenge on it; an unstamped review → stamp it; an invalid review → its reviewer finishes it; no current valid wave → a review wave.
-   - In build and document, once the plan's valid wave is current: an unstamped report of any attempt → stamp it; an invalid report → its worker finishes it; otherwise the next task — the lowest-numbered task that is not done and whose dependencies are done — reported as `blocked <phase>/<task id>` when its latest report is fresh and `blocked`; all tasks done → the phase review wave; a current valid phase-review wave completes the phase — or the plan's own, when it has no tasks.
-4. **Complete** — every challenge and claim targeting a phase within the target is resolved, and every phase through the target has a current valid wave over a fresh artifact → close-out. A base that does not resolve is an error, never completion.
+   - Open production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / rejected wave / pending challenge). A lane waits until every `after` lane's valid wave is current, recursively. When every open lane's valid wave is current → `consolidate <artifact>`.
+   - Then the root artifact, the first that holds:
+     - missing → `converge <artifact>`;
+     - no recorded package → `stamp <artifact>`;
+     - stale, or with a pending challenge, or with a closed wave that rejected → `converge <artifact>`;
+     - an unstamped review → `stamp <review>`;
+     - an invalid review → `INVALID REVIEW <review>`;
+     - no current valid wave → `review wave <artifact>`.
+   - In build and document, once the plan's valid wave is current, the first that holds:
+     - a task that depends on a cycle or a missing task → `invalid plan: …`;
+     - an unstamped report of any attempt → `stamp <report>`;
+     - an invalid report → `INVALID REPORT <report>`;
+     - a task not done — the lowest-numbered whose dependencies are done → `task <phase>/<task id>`, or `blocked <phase>/<task id>` when its latest report is fresh and `blocked`;
+     - no current valid phase-review wave → `build review` or `document review`, or `converge <plan>` when the closed wave rejected;
+     - a current valid phase-review wave completes the phase — or the plan's own, when it has no tasks.
+4. **Complete** → `complete` when every challenge and claim targeting a phase within the target is resolved, and every phase through the target has a current valid wave over a fresh artifact; `challenges or claims still adjudicated, awaiting approval` when the phases are complete and such a challenge is not. A base that does not resolve is an error, never completion.
 
 `rp check` also reports, from review frontmatter, the number of **waves this episode** and, under **`recurs`**, every `prior-finding` reference in the episode's reviews.
 

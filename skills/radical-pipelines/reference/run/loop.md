@@ -27,7 +27,7 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
 | `converge <artifact>`                                | Its producer, mode Converge, with what the artifact's line lists: the package change under **Input changes**, the closed wave's reviews under **Review lanes**, every pending challenge under **Challenges** or **Task reports**. When the rejected wave is a build or document review, dispatch the phase's plan producer: it adopts the findings by adding corrective tasks |
-| `stamp <file>`                                       | The file has never been stamped, or its frontmatter no longer matches its body: stamp it (§ Stamp on landing)  |
+| `stamp <file>`                                       | Stamp it (§ Stamp on landing)                                                                                  |
 | `review wave <artifact>`                             | A review wave                                                                                                  |
 | `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
 | `task <phase>/<id>`                                  | That task's worker                                                                                             |
@@ -37,8 +37,8 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 | `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
 | `INVALID LINE <path>` / `INVALID IDS <path>`         | The file's author fixes it                                                                                     |
 | `invalid plan: …`                                    | The plan producer, mode Converge                                                                             |
-| `challenges or claims still adjudicated, awaiting approval` | The artifact has adjudicated the challenge but has no approving wave yet: a review wave of each artifact the report line names |
-| `undeclared lane <path>` / `symlink <path>`          | The tree holds a lane the run configuration lacks, or a symlink: stop and tell the owner                       |
+| `challenges or claims still adjudicated, awaiting approval` | A review wave of each artifact the report line names                                                    |
+| `undeclared lane <path>` / `symlink <path>`          | Stop and tell the owner                                                                                        |
 | `complete`                                           | Close-out                                                                                                      |
 
 `complete through phase …` is status; dispatch the `frontier` line.
@@ -59,12 +59,11 @@ The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and ma
 
 ## Stamp on landing
 
-After every agent commit, stamp before anyone consumes the result and before terminating the agent. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
+After every agent commit, stamp before anyone consumes the result and before terminating the agent; the stamps land on top of it (`state.md` § Frontmatter). Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
 
 - A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every challenge it adjudicated; its record: `rp stamp <record> --mirror`. Each task file of a plan: `rp stamp <task> --mirror`.
 - A review's initial stamp: `rp stamp <review> --reviewed <each artifact-package file> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a challenge declares `origin:` in its body.
 - A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. Later stamps preserve that package.
-- Commit the stamps on top of the landing.
 
 ## Review diffs
 
@@ -100,6 +99,6 @@ After consolidation, any later convergence of the root artifact runs without lan
 
 ## Owner escalation
 
-A pending claim targets owner territory. Fire `escalation-raised`; the run stops through close-out with the dossier: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. Explain the choice and its consequences in the owner's terms. Record the answer through `../entries/intent-format.md` § Later input; commit, `rp stamp <input> --mirror`, and commit the stamp.
+A pending claim targets owner territory. Fire `escalation-raised`; the run stops through close-out with the dossier: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. Explain the choice and its consequences in the owner's terms. Record the answer through `../entries/intent-format.md` § Later input and land it with `rp stamp <input> --mirror`.
 
 You write no verdict and originate no constraint or proposal.
