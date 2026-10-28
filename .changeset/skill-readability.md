@@ -1,0 +1,5 @@
+---
+"@automattic/radical-pipelines": patch
+---
+
+Write the skill and the profiles for a reader: sequences and parallel sets that were single semicolon-chained sentences — every profile's mode ending, the design doc's topics, the build worker's proof steps, the loop's landing steps and dispatch rules, the frontier's priority chain, triage's confirmation message, the report's fields, the later-input target mapping, the stalled-agent definition, the assisted steps — are lists; bullets that carried several rules are one rule each; the producers' rules on binding inputs move from the Converge procedure to a Rules group. Landing — commit, stamp, commit the stamp — is defined once in the state reference and cited where it was spelled out; the state reference names the frontier line each condition prints and the loop keeps the dispatch, instead of both stating the action. Copies of the same block now match across profiles: disposition lists, the reviewers' mode ending, standing-materials placement, and the spec runbook's standing materials with its template.

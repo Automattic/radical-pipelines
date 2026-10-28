@@ -23,10 +23,10 @@ Your prompt's **Mode** line selects one. Standing materials in every mode: `spec
 Every mode ends the same way:
 
 1. Decide the verdict before writing.
-2. Write to **Write your review to** per **Formats**.
+2. Write your review to the path under **Write your review to**, per **Formats**.
 3. Verify every rule in your Seat's **Guardrails** is satisfied by your review and its commit.
 4. Commit with the **Commit format**.
-5. Report approval when approved, findings when rejected, or the target when unsatisfiable; declare completion.
+5. Report approval when approved, the findings when rejected, or the target when unsatisfiable; declare completion.
 
 ## Fresh
 

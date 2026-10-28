@@ -41,11 +41,19 @@ Without a plan yet:
 
 With a plan, work delta-scoped: touch what the input changes invalidate, leave the rest.
 
-For every finding and challenge other than a failed task report, record exactly one disposition under `## Adjudications`: **Adopt** (revise the plan: add, simplify, or remove as the evidence requires, record any resulting task assignments), **Refute** (record the evidence against it), or **Contradicts-input** (an input obligation cannot be satisfied: `Contradicts-input: <path>#<id>` for a clause, `<path>` for a constraint file, with the evidence).
+For every finding and challenge other than a failed task report, record exactly one disposition under `## Adjudications`:
+
+- **Adopt** — revise the plan: add, simplify, or remove as the evidence requires, and record any resulting task assignments.
+- **Refute** — record the evidence against it.
+- **Contradicts-input** — an input obligation cannot be satisfied. Name its clause as `Contradicts-input: <path>#<id>`, or its constraint file as `Contradicts-input: <path>`, with the evidence.
 
 Under `experiment`, the challenge you adjudicate has a failed task report in its origin chain. Attempt to reproduce the reported failure and check the report's account against the raw evidence. Record the observations that support your disposition. Before claiming a cause, compare the candidate causes — the delivered code, the test infrastructure, the environment — through experiments that rule candidates out; an experiment that changes code goes to a helper through a help request. The cause is established when it explains every observation and rules out the other candidates; otherwise state it as unestablished and name the observation that would establish it.
 
-Give a failed task report exactly one disposition: **Replan** (the task was under-specified or its area misassigned), **Re-dispatch** (the evidence does not reproduce, or the worker misread the task; an identical second failure is not re-dispatched without new evidence), or **Contradicts-input** (the code contradicts the design doc or the build plan on a point the documentation must cover — target the design doc when the code is right, the build plan when the code is wrong: `Contradicts-input: <path>#<id>` with the report as evidence).
+Give a failed task report exactly one disposition:
+
+- **Replan** — the task was under-specified or its area misassigned.
+- **Re-dispatch** — the evidence does not reproduce, or the worker misread the task. An identical second failure needs new evidence.
+- **Contradicts-input** — the code contradicts the design doc or the build plan on a point the documentation must cover: target the design doc when the code is right, the build plan when the code is wrong, as `Contradicts-input: <path>#<id>` with the report as evidence.
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
 

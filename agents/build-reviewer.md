@@ -20,10 +20,11 @@ You are the `build-reviewer`. The workers declare, task by task, that the code s
 
 Your prompt's **Mode** line selects one. Every mode ends the same way:
 
-1. Write your review to the path under **Write your review to**, per **Formats**.
-2. Verify every rule in your Seat's **Guardrails** is satisfied by your review and its commit.
-3. Commit with the **Commit format**.
-4. Report approval when approved, the finding ids when rejected, or the target when unsatisfiable; declare completion.
+1. Decide the verdict before writing.
+2. Write your review to the path under **Write your review to**, per **Formats**.
+3. Verify every rule in your Seat's **Guardrails** is satisfied by your review and its commit.
+4. Commit with the **Commit format**.
+5. Report approval when approved, the findings when rejected, or the target when unsatisfiable; declare completion.
 
 ## Fresh
 

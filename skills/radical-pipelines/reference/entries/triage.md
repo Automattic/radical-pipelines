@@ -63,9 +63,15 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 2. Write the input per `intent-format.md` § Later input. Record the statement as given, with its evidence; diagnosing any cause is the job of the producer and reviewer of the target artifact.
 3. Land it with `rp stamp <input> --mirror`.
 
-**Continue**: use the pipeline's branch and worktree, creating them when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
+**Continue**
 
-**Rescope**: modify the issue (`manage-issues.md`), re-synthesize `intent.md` (`intent-format.md`), and land it with `rp stamp <intent> --mirror`; then Continue.
+1. Use the pipeline's branch and worktree, creating them when this machine lacks them; for a merged pipeline, create the branch named in `../run/state.md` § Names from the base branch.
+
+**Rescope**
+
+1. Modify the issue (`manage-issues.md`).
+2. Re-synthesize `intent.md` (`intent-format.md`) and land it with `rp stamp <intent> --mirror`.
+3. Continue.
 
 ### 6. Run
 
