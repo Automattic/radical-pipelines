@@ -1,5 +1,13 @@
 # @automattic/radical-pipelines
 
+## 0.20.2
+
+### Patch Changes
+
+- [#359](https://github.com/Automattic/radical-pipelines/pull/359) [`d1691ff`](https://github.com/Automattic/radical-pipelines/commit/d1691ff9f219c1c3552039fecd509860a1065834) Thanks [@luisherranz](https://github.com/luisherranz)! - Complete a build or document phase on the approval of its plan when the plan has no tasks, instead of stopping the run to re-dispatch the plan producer: with no work delivered there is nothing for a phase review to judge, so none runs. After a build without tasks, the document plan pins the build plan's approval in place of a build review.
+
+- [#361](https://github.com/Automattic/radical-pipelines/pull/361) [`6240017`](https://github.com/Automattic/radical-pipelines/commit/6240017b12c065d936f1c30b83e2ee5dcf182eed) Thanks [@luisherranz](https://github.com/luisherranz)! - Write the skill and the profiles for a reader: sequences and parallel sets that were single semicolon-chained sentences — every profile's mode ending, the design doc's topics, the build worker's proof steps, the loop's landing steps and dispatch rules, the frontier's priority chain, triage's confirmation message, the report's fields, the later-input target mapping, the stalled-agent definition, the assisted steps — are lists; bullets that carried several rules are one rule each; the producers' rules on binding inputs move from the Converge procedure to a Rules group. Landing — commit, stamp, commit the stamp — is defined once in the state reference and cited where it was spelled out; the state reference names the frontier line each condition prints and the loop keeps the dispatch, instead of both stating the action. Copies of the same block now match across profiles: disposition lists, standing-materials placement, the spec runbook's standing materials with its template, and the reviewers' mode ending — every reviewer decides its verdict before writing and reports approval, the findings, or the target by verdict.
+
 ## 0.20.1
 
 ### Patch Changes
