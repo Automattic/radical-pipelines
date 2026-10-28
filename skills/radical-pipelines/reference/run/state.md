@@ -164,20 +164,17 @@ An owner answer is a constraint or a proposal, as the owner rules, whose `origin
      1. missing → `converge <artifact>`;
      2. no recorded package → `stamp <artifact>`;
      3. stale, or with a pending challenge, or with a closed wave that rejected → `converge <artifact>`;
-     4. an unstamped review → `stamp <review>`;
-     5. an invalid review → `INVALID REVIEW <review>`;
-     6. no current valid wave → `review wave <artifact>`.
+     4. an unfinished review → `stamp <review>` when unstamped, else `INVALID REVIEW <review>`;
+     5. no current valid wave → `review wave <artifact>`.
    - In build and document, once the plan's valid wave is current, the first that holds:
      1. a task that depends on a cycle or a missing task → `invalid plan: …`;
-     2. an unstamped report of any attempt → `stamp <report>`;
-     3. an invalid report → `INVALID REPORT <report>`;
-     4. a task not done — the lowest-numbered whose dependencies are done → `task <phase>/<task id>`, or `blocked <phase>/<task id>` when its latest report is fresh and `blocked`;
-     5. a plan without tasks → the phase is complete;
-     6. an unstamped phase review → `stamp <review>`;
-     7. an invalid phase review → `INVALID REVIEW <review>`;
-     8. a closed phase-review wave that rejected → `converge <plan>`;
-     9. no current valid phase-review wave → `build review` or `document review`;
-     10. a current valid phase-review wave → the phase is complete.
+     2. an unfinished report of any attempt → `stamp <report>` when unstamped, else `INVALID REPORT <report>`;
+     3. a task not done — the lowest-numbered whose dependencies are done → `task <phase>/<task id>`, or `blocked <phase>/<task id>` when its latest report is fresh and `blocked`;
+     4. a plan without tasks → the phase is complete;
+     5. an unfinished phase review → `stamp <review>` when unstamped, else `INVALID REVIEW <review>`;
+     6. a closed phase-review wave that rejected → `converge <plan>`;
+     7. no current valid phase-review wave → `build review` or `document review`;
+     8. a current valid phase-review wave → the phase is complete.
 4. **Complete** → `complete` when every challenge and claim targeting a phase within the target is resolved, and every phase through the target has a current valid wave over a fresh artifact; `challenges or claims still adjudicated, awaiting approval` when the phases are complete and such a challenge is not. A base that does not resolve is an error, never completion.
 
 `rp check` also reports, from review frontmatter, the number of **waves this episode** and, under **`recurs`**, every `prior-finding` reference in the episode's reviews.
