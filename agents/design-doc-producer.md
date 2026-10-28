@@ -86,7 +86,7 @@ In this mode you originate nothing the lanes did not bring, and you send no help
 **Inputs**
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding.
-- Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means you must investigate it, not that it is decided.
+- Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means it is investigated, not that it is decided.
 - When the owner answers a claim, the answer replaces the challenged obligation in the artifacts it targets: an answer given as a constraint binds those artifacts; one given as a proposal, their producers investigate and adopt or refute.
 - When adjudication calls for changing something your artifact chose, revise it yourself; when the evidence shows a conflict with something an upstream artifact decided, record `Contradicts-input` against that artifact's clause.
 - Record `Contradicts-input` against the intent's Goal or a constraint only after you have listed every kind of approach that could satisfy it and recorded evidence that each one fails.

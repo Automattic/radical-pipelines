@@ -153,31 +153,43 @@ An owner answer is a constraint or a proposal, as the owner rules, whose `origin
 `rp check <pipeline folder>` reads `run-config.md`, reports every phase up to its target, and names the **frontier** — the first item of the following, printed as the `frontier` line that `loop.md` dispatches:
 
 1. **A contradiction** — file format is checked first; nothing is computed from a malformed file:
-   - malformed frontmatter → `INVALID FRONTMATTER <path>`;
-   - a malformed fixed line or id declaration → `INVALID LINE <path>` or `INVALID IDS <path>`;
-   - mirror drift → `stamp <path>`;
-   - an undeclared lane or a symlink → `undeclared lane <path>` or `symlink <path>`.
+   1. malformed frontmatter → `INVALID FRONTMATTER <path>`;
+   2. a malformed fixed line or id declaration → `INVALID LINE <path>` or `INVALID IDS <path>`;
+   3. mirror drift → `stamp <path>`;
+   4. an undeclared lane or a symlink → `undeclared lane <path>` or `symlink <path>`.
 2. **A pending claim targeting owner territory** → `claim <review> → <target> (owner escalation)`. A claim is pending when all of these hold: it is unanswered, it is its lane's latest verdict, its wave is closed with no `rejected` lane, its `reviewed` pins are fresh, and its target is unchanged. A claim whose wave is still open, or whose wave has a rejection, waits for that wave.
 3. **Per phase, in order**:
    - Open production lanes first, each a sub-pipeline of the root artifact (missing / stale / wave / rejected wave / pending challenge). A lane waits until every `after` lane's valid wave is current, recursively. When every open lane's valid wave is current → `consolidate <artifact>`.
    - Then the root artifact, the first that holds:
-     - missing → `converge <artifact>`;
-     - no recorded package → `stamp <artifact>`;
-     - stale, or with a pending challenge, or with a closed wave that rejected → `converge <artifact>`;
-     - an unstamped review → `stamp <review>`;
-     - an invalid review → `INVALID REVIEW <review>`;
-     - no current valid wave → `review wave <artifact>`.
+     1. missing → `converge <artifact>`;
+     2. no recorded package → `stamp <artifact>`;
+     3. stale, or with a pending challenge, or with a closed wave that rejected → `converge <artifact>`;
+     4. an unstamped review → `stamp <review>`;
+     5. an invalid review → `INVALID REVIEW <review>`;
+     6. no current valid wave → `review wave <artifact>`.
    - In build and document, once the plan's valid wave is current, the first that holds:
-     - a task that depends on a cycle or a missing task → `invalid plan: …`;
-     - an unstamped report of any attempt → `stamp <report>`;
-     - an invalid report → `INVALID REPORT <report>`;
-     - a task not done — the lowest-numbered whose dependencies are done → `task <phase>/<task id>`, or `blocked <phase>/<task id>` when its latest report is fresh and `blocked`;
-     - no current valid phase-review wave → `build review` or `document review`, or `converge <plan>` when the closed wave rejected;
-     - a current valid phase-review wave completes the phase — or the plan's own, when it has no tasks.
+     1. a task that depends on a cycle or a missing task → `invalid plan: …`;
+     2. an unstamped report of any attempt → `stamp <report>`;
+     3. an invalid report → `INVALID REPORT <report>`;
+     4. a task not done — the lowest-numbered whose dependencies are done → `task <phase>/<task id>`, or `blocked <phase>/<task id>` when its latest report is fresh and `blocked`;
+     5. a plan without tasks → the phase is complete;
+     6. an unstamped phase review → `stamp <review>`;
+     7. an invalid phase review → `INVALID REVIEW <review>`;
+     8. a closed phase-review wave that rejected → `converge <plan>`;
+     9. no current valid phase-review wave → `build review` or `document review`;
+     10. a current valid phase-review wave → the phase is complete.
 4. **Complete** → `complete` when every challenge and claim targeting a phase within the target is resolved, and every phase through the target has a current valid wave over a fresh artifact; `challenges or claims still adjudicated, awaiting approval` when the phases are complete and such a challenge is not. A base that does not resolve is an error, never completion.
 
 `rp check` also reports, from review frontmatter, the number of **waves this episode** and, under **`recurs`**, every `prior-finding` reference in the episode's reviews.
 
 ## Discovery
 
-Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. To find pipelines for an issue: fetch; collect the tree id of every `<pipelines folder root>/<pipeline slug>` at each branch tip; keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history (those are the live ones); read their `0-intent/intent.md` and the base branch's; keep those whose `origin` names the issue. Branch and folder names are not used to find pipelines; only the `origin` line is. `rp check --ref` then reads each pipeline at its tip.
+Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. To find pipelines for an issue:
+
+1. Fetch.
+2. Collect the tree id of every `<pipelines folder root>/<pipeline slug>` at each branch tip.
+3. Keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history: those are the live ones.
+4. Read their `0-intent/intent.md` and the base branch's.
+5. Keep those whose `origin` names the issue.
+
+Branch and folder names are not used to find pipelines; only the `origin` line is. `rp check --ref` then reads each pipeline at its tip.

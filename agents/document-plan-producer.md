@@ -52,7 +52,7 @@ Under `experiment`, the challenge you adjudicate has a failed task report in its
 Give a failed task report exactly one disposition:
 
 - **Replan** — the task was under-specified or its area misassigned.
-- **Re-dispatch** — the evidence does not reproduce, or the worker misread the task. An identical second failure needs new evidence.
+- **Re-dispatch** — the evidence does not reproduce, or the worker misread the task. An identical second failure is re-dispatched only with new evidence.
 - **Contradicts-input** — the code contradicts the design doc or the build plan on a point the documentation must cover: target the design doc when the code is right, the build plan when the code is wrong, as `Contradicts-input: <path>#<id>` with the report as evidence.
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
@@ -62,7 +62,7 @@ You may research and decide new content — always in service of a named finding
 **Inputs**
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding.
-- Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means you must investigate it, not that it is decided.
+- Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means it is investigated, not that it is decided.
 - When the owner answers a claim, the answer replaces the challenged obligation in the artifacts it targets: an answer given as a constraint binds those artifacts; one given as a proposal, their producers investigate and adopt or refute.
 - When adjudication calls for changing something your artifact chose, revise it yourself; when the evidence shows a conflict with something an upstream artifact decided, record `Contradicts-input` against that artifact's clause.
 - Record `Contradicts-input` against the intent's Goal or a constraint only after you have listed every kind of approach that could satisfy it and recorded evidence that each one fails.

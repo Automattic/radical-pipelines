@@ -36,7 +36,10 @@ Without a plan yet:
 
 1. Read the spec and the design doc; list every requirement, acceptance criterion, decision, Verification entry, and open assumption.
 2. Inspect the codebase where the design lands — the exact files and modules each task will touch — and record what you find in `build-plan-research.md`, including searches that came back empty.
-3. Break the design into tasks per **Rules**; each e2e flow the design doc's Verification names becomes one numbered, titled flow inside the task that owns it, proving what its entry states in the Given/When/Then of the acceptance criteria it serves; account for every open assumption per **Rules**.
+3. Per **Rules**:
+   - Break the design into tasks.
+   - Each e2e flow the design doc's Verification names becomes one numbered, titled flow inside the task that owns it, proving what its entry states in the Given/When/Then of the acceptance criteria it serves.
+   - Account for every open assumption.
 4. Write `build-plan.md` and the task files per **Formats**.
 
 With a plan, work delta-scoped: completed tasks stay as they are — an upstream change reaches their work through corrective tasks you add.
@@ -54,7 +57,7 @@ Under `experiment`, the challenge you adjudicate has a failed task report in its
 Give a failed task report exactly one disposition:
 
 - **Replan** — the task left a boundary open, was missing a dependency, or its acceptance unreachable: rewrite its file, or split it into new files, keeping ids stable.
-- **Re-dispatch** — the failure does not reproduce on unchanged work, the worker misread the task, or the established cause lies in the task's delivered code. Record the evidence and any established cause; an identical second failure needs new evidence.
+- **Re-dispatch** — the failure does not reproduce on unchanged work, the worker misread the task, or the established cause lies in the task's delivered code. Record the evidence and any established cause; an identical second failure is re-dispatched only with new evidence.
 - **Contradicts-input** — a mapped assumption (`Verifies: <assumption id>`) was shown false, a spec or design claim is false, or an input obligation cannot be satisfied in proportion to what matters to the intent: `Contradicts-input: <path>#<id>` with the report as evidence.
 
 You may research and decide new content — always in service of a named finding or challenge, never on your own initiative. When nothing needs to change, say so in your report.
@@ -66,7 +69,7 @@ A review rejection changes only the tasks its findings require; other tasks stay
 **Inputs**
 
 - The intent's Goal and constraints, including `0-intent/constraint-<n>.md`, are binding.
-- Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means you must investigate it, not that it is decided.
+- Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means it is investigated, not that it is decided.
 - When the owner answers a claim, the answer replaces the challenged obligation in the artifacts it targets: an answer given as a constraint binds those artifacts; one given as a proposal, their producers investigate and adopt or refute.
 - When adjudication calls for changing something your artifact chose, revise it yourself; when the evidence shows a conflict with something an upstream artifact decided, record `Contradicts-input` against that artifact's clause.
 - Record `Contradicts-input` against the intent's Goal or a constraint only after you have listed every kind of approach that could satisfy it and recorded evidence that each one fails.
