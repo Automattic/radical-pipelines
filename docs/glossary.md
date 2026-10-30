@@ -23,6 +23,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Guardrails** — The project convention listing the rules agents must satisfy — prose a profile follows, or a check it runs. Producers and workers satisfy them before completing; reviewers evaluate them and log each outcome.
 - **Helper** — A fresh agent that does one bounded piece of work — an answer, an observation, or a change — for the agent that asked, under that agent's Seat, and returns the result to it.
 - **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none, less the intent's leading origin lines.
+- **Intended use** — A use the intent names, or one that the project's documentation or code shows a consumer making. It is how agents judge whether a case matters: an input an artifact or the code merely admits, or a consumer no source shows, is not intended use.
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
