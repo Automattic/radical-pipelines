@@ -3,7 +3,7 @@
 The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined here: no synonyms or alternate notation.
 
 - **Agents** — The project convention supplying defaults for profile models and named lanes.
-- **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: where pipelines start and merge.
+- **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: where pipelines start.
 - **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable assumption id and stays in the open-assumption register until verified or fallen.
 - **Base** — The merge-base of the inspected tip with the branch its run configuration's `base` names.
 - **Blocker** — A report of malformed materials, an unreadable input, or a broken seat or its environment, with the evidence locating the failure there. A worker reports it before its first write, and a `blocked` report after; a producer or reviewer may report it whenever found.

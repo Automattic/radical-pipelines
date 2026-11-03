@@ -29,7 +29,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
   - A failed task report stops being a challenge when its task changes before adjudication. A blocked report is not a challenge: its task stays pending, and you repair what the report names and re-dispatch (`loop.md` § Dispatch).
 - **Under experiment** — an artifact while a challenge unresolved on it is a failed task report or has one in its `origin` chain. `rp check` ends its `converge` and `review wave` lines with ` (experiment)`; their agents run under `Execution: experiment`.
 - **Done-set** — the tasks whose latest report's `outcome` is `completed` and whose `reviewed` pins are fresh.
-- **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start and merge. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
+- **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder.
 - **Code delta** — the code a phase review has not seen: the diff outside the pipelines folder from the state the review is credited with to the inspected tip. That state is built in three steps:
   1. start from the first parent of the commit that added the review;
@@ -44,7 +44,7 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
 
 - `workflow`: `autonomous` or `assisted`.
 - `target-phase`: an integer from 1 through 4.
-- `base`: the branch the pipeline merges into — the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
+- `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
 - `lanes`, optional: a list of lane objects. Each contains only non-empty strings `profile`, `id`, and `brief`; a review lane may add `materials` — unique pipeline-relative paths from the artifact's review package — and a production lane may add `after` — unique ids of lanes declared by the same profile. Omitted `lanes` means no named lanes; omitted `materials` selects the full review package; omitted `after` means no dependencies. Every list is non-empty when present.
 
 Lane ids start with a lowercase letter or digit and continue with those or hyphens; they are unique per profile. `after` dependencies form no cycle. Assisted configurations have no lanes. The profiles map as follows:
