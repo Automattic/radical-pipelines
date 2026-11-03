@@ -52,7 +52,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Proposal** — A direction or hypothesis to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `target:` and `origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
 - **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
 - **Reference** — The set of (member, identity) pairs a wave is expected to have reviewed: for a live artifact, what the artifact pins expanded to its review package; for a closed lane, the `lane-packages` entry the root recorded at consolidation.
-- **Reported failure** — A result observed outside the run that contradicts the work — a command the owner ran, CI, a bug — recorded as given, with its evidence, in `0-intent/failure-<n>.md`. It carries no ruling, so the owner approves nothing: its targets investigate it and adopt or refute it.
+- **Reported failure** — A result observed outside the run that contradicts the work — a command the owner ran, CI, a bug — recorded as given, with its evidence, in `0-intent/failure-<n>.md`. It carries no ruling: its targets investigate it and adopt or refute it.
 - **Resources** — The project convention describing what agents may use — environments, services, accounts, data, tools — and how; distinct from guardrails, which are what they must satisfy.
 - **Run configuration** — The workflow, target phase, base branch, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
 - **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.

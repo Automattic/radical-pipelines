@@ -2,6 +2,8 @@
 
 The owner brings work: an issue, PR feedback, a CI failure, a bug, a correction. You classify it, route it, and only then dispatch. Read `../run/state.md` first.
 
+Triage decides from the request, the pipelines' phase-0 files, and `rp check`. What the request points to — code, logs, results, screenshots, machines — is read by the agents you dispatch.
+
 ## Steps
 
 ### 1. Normalize into an issue
@@ -16,7 +18,7 @@ When the issue declares dependencies on other issues, check them through the **I
 
 ### 3. Route
 
-A request carries one or more statements; route each by the first predicate that holds, judged from the request, the pipelines' phase-0 files, and `rp check`:
+A request carries one or more statements; route each by the first predicate that holds:
 
 | Predicate                                                                           | Route                                                                     |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -37,7 +39,7 @@ Group the routed statements by pipeline; each group is one run.
 Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
 
 - each route and why — or, when no predicate decides, the one deciding question;
-- the drafts of the intent, constraints, or proposals you will write;
+- the text of each intent, constraint, proposal, or failure you will write;
 - the configuration to confirm or change: workflow, target phase in plain language without phase numbers, lanes, models;
 - what a lane change does to the tree: a dropped lane's files are removed; artifacts whose approval package changes go stale;
 - the questions steps 1 to 3 left open.
