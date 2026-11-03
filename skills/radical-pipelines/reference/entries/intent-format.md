@@ -53,8 +53,8 @@ Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n
 ```markdown
 # <Constraint | Proposal | Failure> <n>: <title>
 
-target: <path>[#<id>][, …]
-origin: <source>
+target: <path relative to the pipeline folder>[#<id>][, …]
+origin: issue <canonical reference> | <URL> | <path relative to the pipeline folder>
 
 <the owner's ruling, request, or failure>
 ```
@@ -71,4 +71,4 @@ Set `target:` by what the statement concerns:
 | mechanisms       | design doc    |
 | a named clause   | that clause   |
 
-A target may name a whole artifact that does not exist yet. `origin:` names the source: `issue <canonical reference>`, or the URL or pipeline path it came from. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.
+A target may name a whole artifact that does not exist yet. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.

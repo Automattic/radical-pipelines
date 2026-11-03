@@ -83,7 +83,7 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `target`    | challenges                   | non-empty list of `<path>[#<id>]`, according to the challenge's kind. Only challenges carry `target`. |
 | `target-identity` | claims, failed task reports | non-empty list of each target file's identity when the challenge landed, aligned with `target` |
 | `ids`, `retired-ids` | intent, spec, design doc, plans, records | every id the file has declared at any stamp — a plan's tasks by their files — and the subset it no longer declares. The conditions that make a file `INVALID IDS` are listed below the table; its author fixes it. A review's findings are validated the same way, but a review records no `ids`: every wave is a new file |
-| `origin`    | anything born from something | `issue <canonical reference>`; an external source; the challenge a review responds to; a list when several |
+| `origin`    | anything born from something | `issue <canonical reference>`; the URL of an external source; the challenge a review responds to; a list when several |
 | `prior-finding` | reviews                  | `<review>#<finding id>` — an earlier review of the same kind that declares the finding this one continues; a list |
 | `depends-on` | tasks                       | `none` or the comma-separated task ids it waits for                      |
 | `commit`    | task reports                 | a hash per line, one per commit the task made; resolve new declarations to full hashes |
