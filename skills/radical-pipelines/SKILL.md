@@ -24,7 +24,7 @@ You are an orchestrator. A pipeline is a set of artifacts that converge: it is d
 
 | #   | Phase      | Folder         | Artifacts                                                                 |
 | --- | ---------- | -------------- | ------------------------------------------------------------------------- |
-| 0   | Intent     | `0-intent`     | `intent.md`, constraints, proposals                                       |
+| 0   | Intent     | `0-intent`     | `intent.md`, constraints, proposals, reported failures                    |
 | 1   | Spec       | `1-spec`       | `spec.md`, `spec-research.md`, reviews                                    |
 | 2   | Design doc | `2-design-doc` | `design-doc.md`, `design-doc-research.md`, reviews                        |
 | 3   | Build      | `3-build`      | `build-plan.md` with its tasks, `build-plan-research.md`, plan reviews, task reports, code, build reviews |

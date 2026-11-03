@@ -48,16 +48,18 @@ In `intent.md`, every item other than the Goal is declared by its id (`../run/st
 
 ## Later input
 
-Write one `0-intent/constraint-<n>.md` per binding ruling, or `0-intent/proposal-<n>.md` per request to investigate. Each file is self-contained — a reader understands it without the conversation it came from — and states its substance at the scope the owner gave it; the filename identifies its kind. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
+Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure. Each file is self-contained — a reader understands it without the conversation it came from — and states its substance at the scope the owner gave it; the filename identifies its kind. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
 
 ```markdown
-# <Constraint | Proposal> <n>: <title>
+# <Constraint | Proposal | Failure> <n>: <title>
 
 target: <path>[#<id>][, …]
 origin: <source>
 
-<ruling or request, including its evidence>
+<ruling, request, or failure, including its evidence>
 ```
+
+A failure states what was run, where, and what it produced. Save its evidence — output, logs, results folders — in `0-intent/failure-<n>/`, with secrets and personal data removed, and cite each item by relative path.
 
 Set `target:` by what the statement concerns:
 

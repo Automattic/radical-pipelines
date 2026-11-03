@@ -27,7 +27,7 @@
 - Phase folder: <one line per existing file: path>
 - spec.md: <path>
 - spec-research.md: <path>
-- Challenge: <challenge path>; <origin chain: review and record paths>   <!-- one per pending constraint, proposal, or claim -->
+- Challenge: <challenge path>; <origin chain: review and record paths>   <!-- one per pending constraint, proposal, reported failure, or claim -->
 - Task report: <challenge path>; <origin chain: review and record paths>   <!-- one per pending failed report -->
 
 <!-- Converge: additions, each when it applies -->

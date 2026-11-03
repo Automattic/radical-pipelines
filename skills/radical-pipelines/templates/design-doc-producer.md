@@ -28,7 +28,7 @@
 - Spec: <spec.md path>; <spec-research.md path>; <approving spec review paths>
 - design-doc.md: <path>
 - design-doc-research.md: <path>
-- Challenge: <challenge path>; <origin chain: review and record paths>   <!-- one per pending constraint, proposal, or claim -->
+- Challenge: <challenge path>; <origin chain: review and record paths>   <!-- one per pending constraint, proposal, reported failure, or claim -->
 - Task report: <challenge path>; <origin chain: review and record paths>   <!-- one per pending failed report -->
 
 <!-- Converge: additions, each when it applies -->

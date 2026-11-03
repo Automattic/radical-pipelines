@@ -38,7 +38,7 @@ flowchart TD
     PREP --> P1["Create the branch at its start ref and create the worktree"]
     P1 --> P1A["Synthesize, approve, commit, and stamp the intent"]
     PREP --> P2["Select or create the pipeline branch and worktree"]
-    P2 --> P2A["Synthesize and obtain approval; write one constraint or proposal per item; commit and stamp"]
+    P2 --> P2A["Synthesize and obtain approval for each ruling or request; record each reported failure as given, with its evidence; write one constraint, proposal, or failure per item; commit and stamp"]
     PREP --> P3["Ensure the continuation branch and worktree exist"]
     PREP --> P4["Modify the issue; re-synthesize the intent; commit and stamp"]
     P4 --> P3
