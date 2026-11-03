@@ -36,10 +36,12 @@ Group the routed statements by pipeline; each group is one run.
 
 ### 4. Confirm the runs
 
-Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
+A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.md`, or steps 1 to 3 left a question open. Every other run starts under its `run-config.md` without one.
+
+For the runs that need it, propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
 
 - each route and why — or, when no predicate decides, the one deciding question;
-- the text of each intent, constraint, proposal, or failure you will write;
+- the text of each intent, constraint, or proposal you will write;
 - the configuration to confirm or change: workflow, target phase in plain language without phase numbers, lanes, models;
 - what a lane change does to the tree: a dropped lane's files are removed; artifacts whose approval package changes go stale;
 - the questions steps 1 to 3 left open.
@@ -77,4 +79,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) as confirmed; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) with the configuration the run starts under; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
