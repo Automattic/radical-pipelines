@@ -48,7 +48,7 @@ In `intent.md`, every item other than the Goal is declared by its id (`../run/st
 
 ## Later input
 
-Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure; the filename identifies its kind. Each file holds only what the owner gave — their statement, at the scope they gave it, and the evidence they pointed to — in the fewest words that carry it, and a reader understands it without the conversation it came from. A cause, a reading of the evidence, an affected clause, or a remedy the owner did not state is left to the target's producer and reviewer. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
+Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure; the filename identifies its kind. Each file holds only what the owner gave — their statement, at the scope they gave it, and the evidence they pointed to — in the fewest words that carry it, and a reader understands it without the conversation it came from. A cause, a reading of the evidence, an affected artifact or clause, or a remedy the owner did not state is left to the target's producer and reviewer. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
 
 ```markdown
 # <Constraint | Proposal | Failure> <n>: <title>
@@ -59,7 +59,7 @@ origin: <source>
 <the owner's ruling, request, or failure>
 ```
 
-A failure states what was run, where, and the result reported. Save its evidence — the reported output and the logs and results folders it names — in `0-intent/failure-<n>/`, with secrets and personal data removed, and cite each item by relative path.
+A failure states what was run, where, and the result as the owner put it; the detail stays in its evidence. Save its evidence — the reported output and the logs and results folders it names — in `0-intent/failure-<n>/`, with secrets and personal data removed, and cite each item by relative path.
 
 Set `target:` by what the statement concerns:
 
