@@ -36,7 +36,7 @@ Group the routed statements by pipeline; each group is one run.
 
 ### 4. Confirm the runs
 
-A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.md`, or steps 1 to 3 left a question open. Every other run starts under its `run-config.md` without one.
+A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.md` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `run-config.md` without one.
 
 For the runs that need it, propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
 
