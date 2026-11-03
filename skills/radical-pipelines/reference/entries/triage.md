@@ -60,7 +60,7 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 **Later input**
 
 1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; later input joins it.
-2. Write the input per `intent-format.md` § Later input. Record the statement as given, with its evidence; diagnosing any cause is the job of the producer and reviewer of the target artifact.
+2. Write the input per `intent-format.md` § Later input.
 3. Land it with `rp stamp <input> --mirror`.
 
 **Continue**

@@ -48,7 +48,7 @@ In `intent.md`, every item other than the Goal is declared by its id (`../run/st
 
 ## Later input
 
-Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure. Each file is self-contained — a reader understands it without the conversation it came from — and states its substance at the scope the owner gave it; the filename identifies its kind. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
+Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure; the filename identifies its kind. Each file holds only what the owner gave — their statement, at the scope they gave it, and the evidence they pointed to — in the fewest words that carry it, and a reader understands it without the conversation it came from. A cause, a reading of the evidence, an affected clause, or a remedy the owner did not state is left to the target's producer and reviewer. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
 
 ```markdown
 # <Constraint | Proposal | Failure> <n>: <title>
@@ -56,10 +56,10 @@ Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n
 target: <path>[#<id>][, …]
 origin: <source>
 
-<ruling, request, or failure, including its evidence>
+<the owner's ruling, request, or failure>
 ```
 
-A failure states what was run, where, and what it produced. Save its evidence — output, logs, results folders — in `0-intent/failure-<n>/`, with secrets and personal data removed, and cite each item by relative path.
+A failure states what was run, where, and the result reported. Save its evidence — the reported output and the logs and results folders it names — in `0-intent/failure-<n>/`, with secrets and personal data removed, and cite each item by relative path.
 
 Set `target:` by what the statement concerns:
 
@@ -71,4 +71,4 @@ Set `target:` by what the statement concerns:
 | mechanisms       | design doc    |
 | a named clause   | that clause   |
 
-A target may name a whole artifact that does not exist yet. `origin:` names the source. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.
+A target may name a whole artifact that does not exist yet. `origin:` names the source: `issue <canonical reference>`, or the URL or pipeline path it came from. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.

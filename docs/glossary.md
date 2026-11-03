@@ -28,7 +28,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Inspection** — Observing what already exists without creating evidence.
 - **Issue** — The unit of work a pipeline realizes.
 - **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
-- **Later input** — What the owner brings after the intent: a `0-intent/constraint-<n>.md` binding ruling, a `0-intent/proposal-<n>.md` request to investigate, or a `0-intent/failure-<n>.md` reported failure, each naming its targets. Together with the assisted workflow, it is how the pipeline records human intervention.
+- **Later input** — What the owner brings after the intent: a `0-intent/constraint-<n>.md` binding ruling, a `0-intent/proposal-<n>.md` request to investigate, or a `0-intent/failure-<n>.md` reported failure, each naming its targets and holding only what the owner gave — their statement and its evidence — in the fewest words that carry it. Together with the assisted workflow, it is how the pipeline records human intervention.
 - **Landing** — Committing a file, stamping it, and committing the stamp on top, on the branch the work belongs to.
 - **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
 - **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
