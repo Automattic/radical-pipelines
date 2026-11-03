@@ -36,8 +36,7 @@ Consult the **Artifact storage** convention for the remotes and the upstream bra
 
 1. Fire `before-merging-pr`.
 2. Merge it with your own tools.
-3. Ensure the pipeline branch is merged into the artifact base and pushed.
-4. Fire `after-merging-pr` and report the outcome.
+3. Fire `after-merging-pr` and report the outcome.
 
 When the owner reports the pull request merged, continue at step 3.
 
