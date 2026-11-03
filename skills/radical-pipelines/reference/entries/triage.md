@@ -16,7 +16,7 @@ When the issue declares dependencies on other issues, check them through the **I
 
 ### 3. Route
 
-A request carries one or more statements; route each by the first predicate that holds:
+A request carries one or more statements; route each by the first predicate that holds, judged from the request, the pipelines' phase-0 files, and `rp check`:
 
 | Predicate                                                                           | Route                                                                     |
 | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |

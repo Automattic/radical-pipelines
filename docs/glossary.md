@@ -35,7 +35,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Must-fix finding** — A finding that leaves the artifact unable to do its job; the only ground on which a review rejects.
 - **Net change** — The pipeline's code outside the pipelines folder: the diff from its base to its tip.
 - **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Findings** when rejecting and **Non-blocking findings** when approving.
-- **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner.
+- **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner. Outside the assisted workflow it leaves every investigation to agents.
 - **Origin** — The source from which something was born: an issue reference, an external source, or a challenge it responds to.
 - **Outcome** — A task report's conclusion: `completed`; `failed`, the worker observed the result and it contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, something the worker was given failed it — malformed materials, an unreadable input, or a broken seat or its environment — and the report names what failed, with the evidence locating it.
 - **Owner** — The human running the pipeline; talks only to the orchestrator.

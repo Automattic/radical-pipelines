@@ -15,7 +15,7 @@ flowchart TD
     E -->|Wait| WAIT["Wait"]
     E -->|Proceed| MANY
     MANY -->|Yes| PICK["The one the request identifies; otherwise the owner chooses"]
-    MANY -->|No| ROUTE{"Route each statement by its first matching predicate"}
+    MANY -->|No| ROUTE{"Route each statement by its first matching predicate, judged from the request, phase-0 files, and rp check"}
     PICK --> ROUTE
     ROUTE --> R1["Record an answer to a pending owner escalation"]
     ROUTE --> R2["Continue the matching live pipeline"]
