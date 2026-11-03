@@ -26,7 +26,7 @@ flowchart TD
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
     ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
     QUESTION --> GROUP
-    GROUP --> CONFIRM["Propose the current configuration or Agents defaults; ask once about workflow, target, lanes, models, and remaining questions"]
+    GROUP --> CONFIRM["Propose the current configuration or Agents defaults; ask once about workflow, target, lanes, models, and the questions earlier steps left open"]
     R1 --> GROUP["Group routes by pipeline into runs"]
     R2 --> GROUP
     R3 --> GROUP

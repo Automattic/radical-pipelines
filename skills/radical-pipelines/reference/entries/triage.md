@@ -40,7 +40,7 @@ Propose each run's configuration: its current `run-config.md`, else the **Agents
 - the drafts of the intent, constraints, or proposals you will write;
 - the configuration to confirm or change: workflow, target phase in plain language without phase numbers, lanes, models;
 - what a lane change does to the tree: a dropped lane's files are removed; artifacts whose approval package changes go stale;
-- every other question this session still has.
+- the questions steps 1 to 3 left open.
 
 Revise and reconfirm until the owner confirms.
 

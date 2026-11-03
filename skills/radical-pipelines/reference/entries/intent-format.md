@@ -54,12 +54,12 @@ Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n
 # <Constraint | Proposal | Failure> <n>: <title>
 
 target: <path relative to the pipeline folder>[#<id>][, …]
-origin: issue <canonical reference> | <URL> | <path relative to the pipeline folder>
+origin: issue <canonical reference> | <URL of the source> | <path of the claim it answers>
 
 <the owner's ruling, request, or failure>
 ```
 
-A failure states what was run, where, and the result as the owner put it; the detail stays in its evidence. Save its evidence — the reported output and the logs and results folders it names — in `0-intent/failure-<n>/`, with secrets and personal data removed, and cite each item by relative path.
+A failure states what was run, where, and the result as the owner put it, and points to its evidence: the output the owner gave, saved in `0-intent/failure-<n>/` with secrets and personal data removed, and the paths that output names. The detail stays in the evidence.
 
 Set `target:` by what the statement concerns:
 
