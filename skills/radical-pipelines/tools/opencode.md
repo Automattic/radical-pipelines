@@ -24,7 +24,7 @@ When a role's run ends, you receive `<subagent sessionID="<session ID>" state="â
 
 ## Termination
 
-`opencode api DELETE /api/session/<session ID>` deletes the role and its subagents.
+A finished role needs none. Stop a running role with `opencode api POST /api/session/<session ID>/interrupt`, then each of its subagents, which `opencode api GET "/api/session?parentID=<session ID>"` lists; interrupting an idle session does nothing. Keep every role's session: it is the role's transcript.
 
 ## Health ticks
 

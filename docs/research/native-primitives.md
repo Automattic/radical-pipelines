@@ -157,7 +157,7 @@ Research for the v4 redesign. Sources are official docs. For opencode, some fact
 | Seat it in a worktree | `worktree_create` plus `session_move(sessionID)` on the child (unconfirmed for a running child). Otherwise none: plugin needed (`session.create` at a location). |
 | Wake it later with a message, same context | `subagent` with `sessionID` (running or finished). |
 | Know when it finished or failed | Automatic `<subagent state=completed\|error\|cancelled>` message to the parent. |
-| Terminate it | None as a model tool. `opencode api delete /api/session/{id}` through the shell, or a plugin (`session.remove`). |
+| Terminate it | None as a model tool. `opencode api POST /api/session/{id}/interrupt` through the shell stops a run and keeps the session (`session.interrupt`); `DELETE /api/session/{id}` (`session.remove`) also destroys the transcript. |
 | Periodic health tick | Experimental schedule tool (`experimental.schedules`; wakes the calling session; cron, interval, and gated checks). Otherwise none: plugin needed. |
 | Scope its tools | Agent `permissions` rules (also for children). Child permission requests reach the user; relay to the parent is unconfirmed, so a plugin is needed for that. |
 | Ship profiles and the skill | Skill: a `skills` config path or `ctx.skill.transform`. Profiles: agent files. Registration from code is unconfirmed (no `add` in the agent editor), so a plugin or install step writes the files. |

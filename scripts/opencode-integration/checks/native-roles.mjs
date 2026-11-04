@@ -4,7 +4,8 @@
  * created for the orchestrator, moved into a worktree, and prompted through
  * the `subagent` tool runs there; a finished child is woken again by
  * `sessionID`; a background run notifies its parent when it ends; and
- * deleting the child terminates it.
+ * interrupting the child stops it and keeps its session, which its parent
+ * lists among its children.
  */
 
 import assert from "node:assert/strict";
@@ -95,10 +96,14 @@ export async function run(ctx) {
     assert.equal((await getSession(server, childID)).location?.directory, worktree, "the seat survives a wake");
   });
 
-  await runCheck(results, "deleting the child terminates it", async () => {
-    const deleted = await request(server, "DELETE", `/api/session/${childID}`);
-    assert.ok(deleted.status >= 200 && deleted.status < 300, `delete returned ${deleted.status}`);
-    const after = await request(server, "GET", `/api/session/${childID}`);
-    assert.equal(after.status, 404);
+  await runCheck(results, "interrupting the child stops it and keeps its session", async () => {
+    const interrupted = await request(server, "POST", `/api/session/${childID}/interrupt`);
+    assert.equal(interrupted.status, 200, `interrupt returned ${interrupted.status}`);
+    assert.equal(typeof interrupted.body.interrupted, "boolean");
+    const children = await request(server, "GET", `/api/session?parentID=${encodeURIComponent(orchestrator.id)}`);
+    assert.equal(children.status, 200, `children list returned ${children.status}`);
+    assert.ok(children.body.data.some((session) => session.id === childID), "the parent lists the child");
+    const messages = await request(server, "GET", `/api/session/${childID}/message`);
+    assert.ok(messages.status === 200 && messages.body.data.length > 0, "the child's transcript remains");
   });
 }
