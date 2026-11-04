@@ -54,7 +54,6 @@ Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-onl
 - Proposals, in the intent or `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means it is investigated, not that it is decided.
 - A reported failure, `0-intent/failure-<n>.md`, is evidence: reproduce it and check its account against the raw evidence it points to before acting on it.
 - Intended use is a use the intent names, or one that the project's documentation or code shows a consumer making. An input that an artifact or the code merely admits is not intended use, and neither is a consumer that no source shows.
-- Behavior intended use relies on and the intent does not ask to change stays as it is; a clause that changes it is a defect, never a risk.
 
 **Requirements**
 
