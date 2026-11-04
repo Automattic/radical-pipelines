@@ -78,7 +78,7 @@ artifact: intent | spec | design-doc | implementation
 cites: <thread path | evidence path>
 ```
 
-- **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and, for lane instances, `spec-producer-<lane>`, `design-doc-producer-<lane>`, and `reviewer-<lane>`. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`, and a lane producer with its candidate's artifact. The opener is any role but `owner`.
+- **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and `reviewer-<lane>` for a review lane. Production lanes open no threads: the grammar accepts `spec-producer-<lane>` and `design-doc-producer-<lane>` only so earlier closed threads stay readable, and an `open` or `disagreement` thread with such a party is malformed. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`. The opener is any role but `owner`.
 - **Messages** — each headed `## <role> — <commit>`, written by the opener, the thread's owner, or, for an owner's answer, by you as `owner`.
 - **Awaits** — an `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Status** — the opener closes `closed: approved` or `closed: withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which a role opens for a disagreement on what the intent means or demands, citing the thread it comes from, or for evidence that every kind of approach fails an intent goal or constraint, citing that evidence; you close it `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
@@ -97,7 +97,7 @@ Lane ids start with a lowercase letter or digit and continue with those or hyphe
 
 Its body is free prose — the model of each profile and lane, the owner's directions for the run; `rp` ignores it.
 
-The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes its open threads `closed: withdrawn`. Terminate agents working under a changed lane.
+The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `closed: withdrawn`. Terminate agents working under a changed lane.
 
 ## Names
 
@@ -117,7 +117,7 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 1. A malformed frontmatter, thread header, or `target:` line → `INVALID <path>: <reason>`. Nothing is computed from a malformed file.
 2. A thread with `status: disagreement` → `escalate <thread>`.
 3. The lowest phase whose role has work — a thread awaiting the role, in any phase, or its artifact missing or stale, in a phase through the target:
-   - production lanes declared and the root missing → `lane <artifact> <id>` for each candidate missing, stale, or awaited by a thread, else `consolidate <artifact>`;
+   - production lanes declared and the root missing → `lane <artifact> <id>` for each candidate missing or stale, else `consolidate <artifact>`;
    - the artifact missing → `produce <artifact>`;
    - the artifact stale, or a thread awaiting its owner → `respond <artifact>`;
    - phase 4 → `review <lane>` for each lane not approved or with a thread awaiting its reviewer.

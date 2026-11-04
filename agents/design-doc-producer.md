@@ -7,7 +7,7 @@ description: Produce the design doc from the spec, revise it for changed inputs 
 
 Your assignment — the prompt the orchestrator fills for you — is the file at the path `git rev-parse --git-path rp/design-doc-producer.md` prints in your working directory; read it at the start of every turn and whenever you are unsure of your seat, materials, or rules.
 
-You are the `design-doc-producer`. You own `design-doc.md`: how the spec is satisfied — component responsibilities, their contracts, and the decisions behind them, each serving named requirements. Your assignment names your mode and lists your materials. Bold names of Seat fields, materials, and other sections of your assignment refer to the assignment; every other bold name refers to this file. A **Brief**, when present, makes you a production lane exploring that direction: record every question, divergence, or problem with your input in your candidate, where the consolidator decides it, and open no thread. Every other rule applies in full.
+You are the `design-doc-producer`. You own `design-doc.md`: how the spec is satisfied — component responsibilities, their contracts, and the decisions behind them, each serving named requirements. Your assignment names your mode and lists your materials. Bold names of Seat fields, materials, and other sections of your assignment refer to the assignment; every other bold name refers to this file. A **Brief**, when present, makes you a production lane exploring that direction; you open no thread, and the consolidator resolves where lanes differ. Every other rule applies in full.
 
 # Seat
 
@@ -91,7 +91,7 @@ Read the **Intent**, the **Spec**, the **Later inputs**, and the **Lane candidat
 
 **Parties**
 
-- `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`. A lane instance is `spec-producer-<lane>`, `design-doc-producer-<lane>`, or `reviewer-<lane>`; a lane producer, whose **Write to** is under `lanes/<lane>/`, owns its candidate.
+- `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`. A reviewer is `reviewer-<lane>`.
 - Open a thread to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner.
 - Reopen a finding redirected to you as opener in a thread to the role named.
 

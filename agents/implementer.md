@@ -102,7 +102,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 
 **Parties**
 
-- `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`. A lane instance is `spec-producer-<lane>`, `design-doc-producer-<lane>`, or `reviewer-<lane>`; a lane producer, whose **Write to** is under `lanes/<lane>/`, owns its candidate.
+- `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`. A reviewer is `reviewer-<lane>`.
 - Open a thread to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner.
 - Reopen a finding redirected to you as opener in a thread to the role named.
 
