@@ -42,7 +42,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
   | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
   | A design doc candidate | `1-spec/spec.md`; every later input targeting `2-design-doc/design-doc.md` |
   | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
-  | A review thread closed `approved` | `0-intent/intent.md`; every later input; `1-spec/spec.md` |
+  | A review thread closed `approved` | `0-intent/intent.md`; every later input |
 
   Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record: land it with `rp stamp <root> --at <turn commit> --pin <each candidate>`.
 

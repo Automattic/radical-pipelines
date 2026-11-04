@@ -7,10 +7,6 @@
 - Supporting folder: <path>
 - Subagent model: <model, in the form `tools/<tool>.md` § Models states>
 
-## Mode
-
-Review
-
 ## Brief
 
 <the lane's brief; optional>
@@ -19,12 +15,8 @@ Review
 
 - Intent: <0-intent/intent.md path>
 - Later inputs: <one line per constraint, proposal, or failure file: path>
-- Spec: <1-spec/spec.md path>
-- Notes: <3-implementation/notes.md path>
 - Net change: <path of the saved diff>
 - Your last approval: <commit> — <path of the saved diff since it>   <!-- when the lane approved before -->
-- Design doc: <2-design-doc/design-doc.md path>
-- Threads: <threads/ path>
 
 ## Threads addressed to you
 

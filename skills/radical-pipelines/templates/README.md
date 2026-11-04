@@ -5,7 +5,7 @@ One template per profile. Build every assignment from its template: fill every s
 Slots:
 
 - `Seat` — Worktree, Branch, Turn commit, Supporting folder (`../reference/run/state.md` § Names, § Terms), and Subagent model (`../reference/conventions/agents.md`); the implementer adds its Base branch, a reviewer its Lane.
-- `Mode` — one of the profile's modes.
+- `Mode` — one of the profile's modes; the reviewer has none.
 - `Brief` — a lane's brief, verbatim.
 - `Materials` — per mode.
 - `Threads addressed to you` — every thread awaiting the role, or `none`.

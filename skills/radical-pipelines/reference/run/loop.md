@@ -57,8 +57,18 @@ A production lane is a `spec-producer` or `design-doc-producer` lane declared in
 A review lane is one `reviewer` with its brief; every lane must approve.
 
 1. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, to a file outside the worktree. For a lane that approved before, also save the diff from the commit its last approval names to the tip, outside the pipelines folder.
-2. For each `review <lane>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them.
-3. Wake the lane's reviewer there with its **Lane**, its **Brief**, the net change, and, when the lane approved before, the commit its last approval names with the diff since it. Lanes run in parallel.
+2. For each `review <lane>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Set its sparse checkout, `<pipeline folder>` being relative to the repository root:
+
+   ```sh
+   git -C <worktree> sparse-checkout set --no-cone '/*' \
+     '!/<pipeline folder>/1-spec/' '!/<pipeline folder>/2-design-doc/' '!/<pipeline folder>/3-implementation/' \
+     '!/<pipeline folder>/threads/*' \
+     '/<pipeline folder>/threads/*-reviewer-<lane>-implementer-*' \
+     '/<pipeline folder>/threads/*-reviewer-<lane>-owner-*' \
+     '/<pipeline folder>/threads/reviewer-<lane>/'
+   ```
+
+3. Wake the lane's reviewer there with its **Lane**, its **Brief**, the intent, the later inputs, the net change, its threads, and, when the lane approved before, the commit its last approval names with the diff since it. Lanes run in parallel.
 
 ## Owner escalation
 

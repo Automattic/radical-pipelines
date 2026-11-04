@@ -28,7 +28,7 @@ The phases are:
 - **Phase 1. Spec.** Requirements, acceptance criteria, exclusions, and the cases considered and not required. Every requirement traces to the intent.
 - **Phase 2. Design doc.** Component responsibilities, their contracts, and the decisions behind them, each serving named requirements.
 - **Phase 3. Implementation.** The code, its tests, and its documentation, built by one implementer that holds the whole change.
-- **Phase 4. Review.** The change judged as a whole against the intent, by reviewers who have not seen the discussion.
+- **Phase 4. Review.** The change judged as a whole against the intent, by reviewers who see only what a pull-request reviewer sees: the issue and the change.
 
 The full model, and why it differs from the previous architecture, is in [docs/model.md](./docs/model.md). Terms are defined in the [glossary](./docs/glossary.md).
 
@@ -37,7 +37,7 @@ The full model, and why it differs from the previous architecture, is in [docs/m
 Each artifact has one owner, which answers for it:
 
 - **The orchestrator** is the session that runs the skill. It talks with the owner, records phase 0, creates branches and worktrees, wakes the role the pipeline's state names, and opens the pull request. It judges no content and relays no message.
-- **`spec-producer`** owns the spec, **`design-doc-producer`** the design doc, and **`implementer`** the code, its tests, its documentation, and `notes.md`, the file it resumes from. **`reviewer`** owns the review thread of its lane.
+- **`spec-producer`** owns the spec, **`design-doc-producer`** the design doc, and **`implementer`** the code, its tests, its documentation, and `notes.md`, the file it resumes from. **`reviewer`** owns the review thread of its lane and talks only with the implementer, who carries a finding that questions a requirement or a design decision to that clause's owner.
 
 Each role works from its assignment: the filled prompt the orchestrator writes into the role's worktree git directory before every turn, which the role rereads at each turn and after a compaction. Every role delegates bounded work to its tool's own subagents, on the subagent model its assignment names, and stays responsible for what they return.
 
