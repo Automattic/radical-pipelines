@@ -4,7 +4,7 @@
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-node rp.mjs stamp <file> [--pin <path>]... [--reviewed]
+node rp.mjs stamp <file> [--pin <candidate>]...
 node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
 ```
 
@@ -12,7 +12,7 @@ Each command accepts only its options and one positional argument. A command tha
 
 ## Pipeline files
 
-The pipelines folder root is the first non-blank line under the heading `### Pipelines folder root` in `.rp.md` at the repository root, read from the working tree, with surrounding backticks and a trailing `/` removed. Without that heading, it is `.pipelines`. A pipeline folder is `<pipelines folder root>/<pipeline slug>`.
+A pipeline folder is `<pipelines folder root>/<pipeline slug>`. `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder they are given; `pipelines` reads it from the conventions (§ `pipelines`).
 
 `rp` reads these files of a pipeline folder and ignores every other file:
 
@@ -26,7 +26,7 @@ The pipelines folder root is the first non-blank line under the heading `### Pip
 | `2-design-doc/design-doc.md` | Design doc | `inputs` |
 | `2-design-doc/lanes/<id>/design-doc.md` | Design doc candidate | `inputs` |
 | `3-implementation/notes.md` | Implementation notes | `inputs` |
-| `threads/<name>.md` | Thread | `reviewed` |
+| `threads/<name>.md` | Thread | `inputs` and `reviewed`, on an approval only |
 
 Frontmatter is a JSON object between a first line `---` and the next line `---`. A key outside the table, or frontmatter on a file that carries none, makes the file `INVALID`.
 
@@ -58,15 +58,14 @@ The body is ignored. A missing `run-config.md` or one that breaks these rules st
 
 `inputs` is a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, or a candidate.
 
-| Artifact | Required inputs |
+| What carries `inputs` | Required inputs |
 | --- | --- |
-| `1-spec/spec.md` and its candidates | `0-intent/intent.md` |
-| `2-design-doc/design-doc.md` and its candidates | `1-spec/spec.md` |
-| `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md` |
+| `1-spec/spec.md` and its candidates | `0-intent/intent.md`; every later input targeting `1-spec/spec.md` |
+| `2-design-doc/design-doc.md` and its candidates | `1-spec/spec.md`; every later input targeting `2-design-doc/design-doc.md` |
+| `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
+| An approval (§ Threads) | `0-intent/intent.md`; every later input; `1-spec/spec.md` |
 
-Every later input whose `target:` names an artifact is also a required input of that artifact and of its candidates.
-
-- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. Pins of anything else, such as the candidates a consolidated root merged, are checked for grammar only.
+- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. Other pins, such as the candidates a consolidated root merged, are checked for grammar only.
 - **Missing**: the file is absent. `notes.md` is also missing until the first line of its body is exactly `status: done`.
 - **Fresh**: neither.
 
@@ -87,8 +86,8 @@ owner: <role>
 artifact: intent | spec | design-doc | implementation
 ```
 
-- `<role>` is `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane id>` for each review lane, or `owner`.
-- `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`.
+- `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so threads of a removed lane stay valid.
+- `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`. A lane role owns its candidate.
 - The opener is any role but `owner`, and differs from the owner.
 - A thread to `owner` has status `disagreement` or `closed: answered`; no other thread has either.
 
@@ -96,19 +95,20 @@ After the header, every line that starts with `## ` outside fenced code is a mes
 
 An `open` thread awaits its opener when the thread's owner wrote the last message, and its owner otherwise. No other thread awaits anyone.
 
-A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. A review thread closed `approved` must carry `reviewed`, and only such a thread may.
+A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An **approval** is a review thread closed `approved`. An approval must carry `inputs` and `reviewed`, and no other thread carries frontmatter.
 
 ## Net change
 
-The net change is the stable patch id of the diff from the merge-base of `base` and a commit to that commit, outside the pipelines folder root:
+The net change is the diff from the merge-base of `base` and a commit to that commit, outside the pipelines folder root. Its id is the sha1 of its changed lines alone:
 
 ```sh
-git diff --binary --no-renames <base>...<commit> -- . ':(top,exclude,literal)<pipelines folder root>' | git patch-id --stable
+git diff -U0 --no-renames --binary <base>...<commit> -- . ':(top,exclude,literal)<pipelines folder root>' \
+  | grep -v -e '^@@' -e '^index ' | sha1sum
 ```
 
-An empty diff has the id `0000000000000000000000000000000000000000`. A merge from the base leaves the id unchanged; a conflict resolution changes it. A `base` that does not resolve, or has no merge-base with the commit, stops the command.
+A merge from the base that changes nothing of the change leaves the id unchanged, even when it edits the change's context or shifts its line numbers; a conflict resolution or a whitespace change changes it. A `base` that does not resolve, or has no merge-base with the commit, stops the command.
 
-A review lane is **approved** when its highest-numbered review thread is `closed: approved` with `reviewed` equal to the net change at the tip.
+A review lane is **approved** when its highest-numbered review thread is an approval that is fresh and whose `reviewed` equals the net change id at the tip. Approval is computed for the configured review lanes.
 
 ## `check`
 
@@ -124,11 +124,12 @@ The frontier is every action of the first rule that holds:
 
 1. **`INVALID <path>: <reason>`** for each malformed file.
 2. **`escalate <thread>`** for each `disagreement` thread.
-3. The lowest phase through the target whose role has work: an `open` thread awaiting the role, or the phase's artifact missing or stale. Phases 1 to 3 belong to their artifact's owner, phase 4 to the reviewers.
-   - Production lanes configured and the root missing: **`lane <artifact> <lane id>`** for each candidate missing or stale, else **`consolidate <artifact>`**.
-   - The artifact missing: **`produce <artifact>`**.
-   - Otherwise, the artifact stale or a thread awaiting the role: **`respond <artifact>`**.
-   - Phase 4: **`review <lane id>`** for each lane not approved or with a thread awaiting `reviewer-<lane id>`.
+3. The lowest phase whose roles have work. Phases 1 to 3 belong to their artifact's profile, lane roles included, and phase 4 to the reviewers. Work is an `open` thread awaiting the role, in any phase, or the artifact missing or stale, through the target:
+   - **`lane <artifact> <lane id>`** for each lane a thread awaits, and, while the root is missing, each configured lane whose candidate is missing or stale.
+   - Production lanes configured, the root missing, and no lane action: **`consolidate <artifact>`**.
+   - The artifact missing, without production lanes: **`produce <artifact>`**.
+   - The artifact stale, or a thread awaiting the artifact's owner: **`respond <artifact>`**. Beyond the target, only the thread counts.
+   - Phase 4: **`review <lane id>`** for each lane a thread awaits, and, at target phase 4, each configured lane not approved.
 4. **`complete`**.
 
 ### Output
@@ -140,30 +141,30 @@ frontier <action>[ <target>][ <lane id>][: <reason>]
 lane <artifact> <lane id> <state>              for each production lane while its root is missing
 artifact <artifact> <state>                    for each phase through the target, after its lanes
 net-change <patch id>                          at target phase 4
-review <lane id> approved|unapproved           at target phase 4, for each review lane
+review <lane id> <approval>                    at target phase 4, for each review lane
 thread <thread> <status>[ awaits <role>]
 ```
 
-`<state>` is `missing`, `fresh`, or `stale <changed input>[ <changed input>]...`. On `INVALID`, only the frontier lines are printed. Paths are relative to the pipeline folder.
+`<state>` is `missing`, `fresh`, or `stale <changed input>[ <changed input>]...`. `<approval>` is `approved`, `unapproved`, or `stale <changed input>...` for a latest approval whose pins changed. On `INVALID`, only the frontier lines are printed. Paths are relative to the pipeline folder.
 
 `--json` prints one object:
 
-- `pipeline`, `tip`, `targetPhase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role), and `changed` (the changed inputs of a stale artifact or candidate).
+- `pipeline`, `tip`, `targetPhase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role), and `changed` (the changed inputs of a stale artifact, candidate, or approval).
 - `phases`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`.
-- `netChange`, `reviews` (`lane`, `approved`): at target phase 4, unless `INVALID`.
+- `netChange`, `reviews` (`lane`, `approved`, `stale` when its latest approval is stale): at target phase 4, unless `INVALID`.
 
 ## `stamp`
 
 ```text
-node rp.mjs stamp <file> [--pin <path>]... [--reviewed]
+node rp.mjs stamp <file> [--pin <candidate>]...
 ```
 
-`stamp` writes frontmatter and keeps the body byte for byte. It writes nothing when the frontmatter would not change.
+`stamp` reads the pipeline from the working tree, pins the file's required inputs (§ `inputs`) at their identities there, and keeps the body byte for byte. It writes nothing when the frontmatter would not change, so stamping twice changes nothing.
 
-- `--pin` records `inputs` on an artifact or candidate. The pins given replace the previous set, sorted by path. Each pinned file is in the same pipeline folder.
-- `--reviewed` records `reviewed` on a review thread closed `approved`: the net change at the commit its last message names. The base comes from the working tree's `run-config.md`.
+- **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation.
+- **An approval**: `inputs` becomes its required inputs, and `reviewed` the net change id at the commit its last message names, with the base from `run-config.md`.
 
-A stamp without options, an option on the wrong kind of file, a file, pin, or commit that cannot be read, or malformed frontmatter stops the command.
+Any other file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate that is missing, another pipeline file that is `INVALID`, a commit that does not resolve, or malformed frontmatter stops the command.
 
 ## `pipelines`
 
@@ -171,7 +172,7 @@ A stamp without options, an option on the wrong kind of file, a file, pin, or co
 node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
 ```
 
-Fetching is the caller's job. `pipelines` reads every local branch and remote-tracking branch tip:
+Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `### Pipelines folder root` in `.rp.local.md` at the repository root, else in `.rp.md`, read from the working tree, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. `pipelines` reads every local branch and remote-tracking branch tip:
 
 1. Collect each `<pipelines folder root>/<slug>` folder at each tip, with its tree id.
 2. Read its `run-config.md`; its `base` names the base branch.
@@ -189,7 +190,7 @@ These fill details the specification leaves open; the prose aligns with them.
 
 - **A thread to `owner`** opens as `disagreement` and closes `closed: answered`; `open`, `closed: approved`, and `closed: withdrawn` are `INVALID` there.
 - **A message by `owner`** on any thread leaves it awaiting the thread's owner.
-- **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it.
+- **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it. Beyond the target, a thread's owner gets `respond` even when its artifact is missing.
+- **A thread awaiting a lane** wakes that lane with `lane`, whether or not the lane is still configured and whether or not the root exists.
+- **A re-stamp without `--pin`** keeps the candidate pins a root recorded, so the record of a consolidation survives later stamps.
 - **Strict keys**: unknown frontmatter, `run-config.md`, and lane keys are `INVALID` or stop the command.
-- **An empty net change** has the all-zero id, so an implementation without code changes can still be approved.
-- **The pipelines folder root** comes from the working tree's `.rp.md`, also for `--ref` and discovery.
