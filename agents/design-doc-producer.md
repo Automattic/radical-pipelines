@@ -93,7 +93,7 @@ Write `design-doc.md` at **Write to** from the candidates, treating divergence a
 **Threads**
 
 - A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`, `<n>` being one more than the highest number in `threads/` when you open it. Its format is under **Formats**.
-- Roles: `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`; `owner`, the person, owns `intent`. A reviewer is `reviewer-<lane>`.
+- A role's name is `<profile>[-<lane>]`. `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`; `owner`, the person, owns `intent`. A lane instance is `spec-producer-<lane>`, `design-doc-producer-<lane>`, or `reviewer-<lane>`; a lane producer, whose **Write to** is under `lanes/<lane>/`, owns its candidate.
 - Open a thread to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner. A finding cites what it questions — the artifact's path and id, or a file and line — and the observed evidence.
 - Answer every finding of a message awaiting you: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence. Reopen a redirected finding in a thread to the role named.
@@ -187,4 +187,4 @@ artifact: intent | spec | design-doc | implementation
 <what changed, or the evidence it stands on>
 ```
 
-`<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.
+`<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.

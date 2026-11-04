@@ -24,7 +24,7 @@ Your prompt's **Mode** line selects one. Every mode ends the same way:
 1. Answer every finding in the **Threads addressed to you** per **Threads**, each change in its own commit, cited in your answer.
 2. Run the project's test suite and build, and exercise what you changed the way its user, consumer, or caller reaches it.
 3. Verify every rule under **Guardrails** is satisfied.
-4. Update `notes.md` at **Write to**, per **Formats**: `status: done` when every requirement holds, every proof passes, and the suite and build are green; `status: in progress` otherwise.
+4. Update `notes.md` at **Write to**, per **Formats**: `status: done` when every requirement holds, every proof passes, and no failure is yours to fix (**Guardrails**); `status: in progress` otherwise.
 5. Commit with the **Commit format** and end your turn (**Protocol**).
 
 ## Implement
@@ -87,7 +87,7 @@ Diff each changed input since the commit named and revise the change for what it
 **Guardrails**
 
 - An unsatisfied rule is work: fix its underlying cause before ending your turn. Never bypass a rule's check — no `--no-verify`, no skip, no commented-out check.
-- Every other failure is yours to fix before ending your turn, unless it is intermittent — it passes when rerun on unchanged work — and your change leaves the code or files it exercises unchanged: record it in `notes.md`.
+- A failure is yours to fix when the change caused it or an intent outcome depends on it; one that reproduces on the base and that the change leaves untouched is recorded in `notes.md`.
 
 **Observation**
 
@@ -99,7 +99,7 @@ Diff each changed input since the commit named and revise the change for what it
 **Threads**
 
 - A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`, `<n>` being one more than the highest number in `threads/` when you open it. Its format is under **Formats**.
-- Roles: `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`; `owner`, the person, owns `intent`. A reviewer is `reviewer-<lane>`.
+- A role's name is `<profile>[-<lane>]`. `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`; `owner`, the person, owns `intent`. A lane instance is `spec-producer-<lane>`, `design-doc-producer-<lane>`, or `reviewer-<lane>`; a lane producer, whose **Write to** is under `lanes/<lane>/`, owns its candidate.
 - Open a thread to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner. A finding cites what it questions — the artifact's path and id, or a file and line — and the observed evidence.
 - Answer every finding of a message awaiting you: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence. Reopen a redirected finding in a thread to the role named.
@@ -142,7 +142,7 @@ status: in progress | done
 
 ## Assumptions
 
-<!-- <assumption id>: observed: <how> | refuted: <how>, and the thread that carries it -->
+<!-- <assumption id>: observed: <how> | refuted: <how> -->
 ```
 
 A thread, its four header lines first:
@@ -166,4 +166,4 @@ artifact: intent | spec | design-doc | implementation
 <what changed, or the evidence it stands on>
 ```
 
-`<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.
+`<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.

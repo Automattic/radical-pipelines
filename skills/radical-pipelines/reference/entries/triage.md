@@ -43,7 +43,7 @@ For the runs that need it, propose each run's configuration: its current `run-co
 - each route and why — or, when no predicate decides, the one deciding question;
 - the text of each intent, constraint, or proposal you will write;
 - the configuration to confirm or change: target phase in plain language without phase numbers, lanes, models;
-- what a lane change does to the tree: a dropped production lane's candidate is removed, and an artifact whose candidates change goes stale;
+- what a lane change does to the tree: a dropped production lane's folder is removed;
 - the questions steps 1 to 3 left open.
 
 Revise and reconfirm until the owner confirms.

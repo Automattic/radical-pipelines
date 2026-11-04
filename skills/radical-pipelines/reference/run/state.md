@@ -6,6 +6,8 @@ Everything about a pipeline is computed from its tree at any commit. `rp` — `n
 - `rp stamp <file>` writes the file's frontmatter (§ Frontmatter).
 - `rp pipelines <repo path> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery).
 
+`check` and `stamp` derive the pipelines folder root from the path they are given; `pipelines` reads it from the project's conventions, `.rp.local.md` first.
+
 `rp check` is the only source of the frontier. When what you see in the tree disagrees with what `rp check` reports, or the frontier names something this skill gives you no way to dispatch, stop and tell the owner the skill has a defect; never work around it.
 
 ## Files
@@ -18,9 +20,9 @@ Paths are relative to the pipeline folder.
 | `0-intent/intent.md` | The intent (`../entries/intent-format.md`) | You, on the owner's approval |
 | `0-intent/constraint-<n>.md`, `0-intent/proposal-<n>.md`, `0-intent/failure-<n>.md` | Later input (`../entries/intent-format.md` § Later input) | You, on the owner's approval |
 | `1-spec/spec.md` | The spec | `spec-producer` |
-| `1-spec/lanes/<lane>/spec.md` | A production lane's candidate spec | That lane's `spec-producer` |
+| `1-spec/lanes/<lane>/spec.md` | A production lane's candidate spec | `spec-producer-<lane>` |
 | `2-design-doc/design-doc.md` | The design doc | `design-doc-producer` |
-| `2-design-doc/lanes/<lane>/design-doc.md` | A production lane's candidate design doc | That lane's `design-doc-producer` |
+| `2-design-doc/lanes/<lane>/design-doc.md` | A production lane's candidate design doc | `design-doc-producer-<lane>` |
 | `3-implementation/notes.md` | The implementer's resumption file; the code, tests, and documentation live outside the pipelines folder | `implementer` |
 | `threads/<n>-<opener>-<owner>-<artifact>.md` | A thread (§ Threads) | Its parties |
 
@@ -31,22 +33,23 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
 - **Identity** — the first 12 hexadecimal characters of the git blob hash of a file's body: everything below its frontmatter, or the whole file when it has none.
 - **Pin** — `<path>@<identity>`.
 - **Later input** — a constraint, proposal, or failure file. Its `target:` line names the artifacts it targets, each as an artifact path with an optional `#<id>`.
-- **Required inputs** — what an artifact consumes:
+- **Required inputs** — what an artifact or an approval consumes:
 
-  | Artifact | Required inputs |
+  | File | Required inputs |
   | --- | --- |
   | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
   | A spec candidate | `0-intent/intent.md`; every later input targeting `1-spec/spec.md` |
   | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
   | A design doc candidate | `1-spec/spec.md`; every later input targeting `2-design-doc/design-doc.md` |
   | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
+  | A review thread closed `approved` | `0-intent/intent.md`; every later input; `1-spec/spec.md` |
 
   Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record.
 
-- **Stale** — an artifact with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one.
+- **Stale** — an artifact or an approved review thread with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its first body line is `status: done`.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
-- **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is its `git patch-id --stable`.
+- **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is a hash of the changed lines alone: the diff with no context lines, with hunk headers and index lines removed. A merge from the base that changes nothing of the change leaves it unchanged; a change of whitespace changes it.
 - **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause.
 
 ## Frontmatter
@@ -55,10 +58,10 @@ Frontmatter is a JSON object between `---` lines at the top of a file. Only `rp 
 
 | Key | File | Value |
 | --- | --- | --- |
-| `inputs` | An artifact | List of pins: every required input at its current identity when stamped; on a root with declared production lanes, also every candidate |
+| `inputs` | An artifact, or a review thread closed `approved` | List of pins: every required input at its identity in the tree stamped; on a consolidated root, also the candidates it merged |
 | `reviewed` | A review thread closed `approved` (§ Threads) | The net change's id at the commit its last message names |
 
-No other file carries frontmatter. **Landing** a role's turn is verifying its commits are on its branch, running `rp stamp` on its artifact when it exists and on every review thread the turn closed `approved`, and committing the stamps on top.
+No other file carries frontmatter. `rp stamp <file>` derives the required inputs from the file's kind and pins them at their identities in the tree it runs on. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the stamps on top.
 
 ## Threads
 
@@ -73,11 +76,11 @@ owner: <role>
 artifact: intent | spec | design-doc | implementation
 ```
 
-- **Roles** — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>` for each review lane, and `owner`, the person. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`. The opener is any role but `owner`.
+- **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and, for lane instances, `spec-producer-<lane>`, `design-doc-producer-<lane>`, and `reviewer-<lane>`. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`, and a lane producer with its candidate's artifact. The opener is any role but `owner`.
 - **Messages** — each headed `## <role> — <commit>`, written by the opener, the thread's owner, or, for an owner's answer, by you as `owner`.
 - **Awaits** — an `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Status** — the opener closes `closed: approved` or `closed: withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which either party of another thread opens to escalate what the intent means or demands, citing the thread it comes from, or the evidence that every kind of approach fails the intent item; you close it `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
-- **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `closed: approved` and its `reviewed` equals the current net change's id.
+- **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `closed: approved`, fresh, and with `reviewed` equal to the current net change's id.
 
 ## Run configuration
 
@@ -109,8 +112,8 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 
 1. A malformed frontmatter, thread header, or `target:` line → `INVALID <path>: <reason>`. Nothing is computed from a malformed file.
 2. A thread with `status: disagreement` → `escalate <thread>`.
-3. The lowest phase through the target whose role has work — a thread awaiting the role, or its artifact missing or stale:
-   - production lanes declared and the root missing → `lane <artifact> <id>` for each candidate missing or stale, else `consolidate <artifact>`;
+3. The lowest phase whose role has work — a thread awaiting the role, in any phase, or its artifact missing or stale, in a phase through the target:
+   - production lanes declared and the root missing → `lane <artifact> <id>` for each candidate missing, stale, or awaited by a thread, else `consolidate <artifact>`;
    - the artifact missing → `produce <artifact>`;
    - the artifact stale, or a thread awaiting its owner → `respond <artifact>`;
    - phase 4 → `review <lane>` for each lane not approved or with a thread awaiting its reviewer.

@@ -62,8 +62,8 @@ Write `spec.md` at **Write to** from the candidates, treating divergence as evid
 **Requirements**
 
 - A requirement is an observable outcome — what the software does, for whom, under what conditions — verifiable by using the running software. One that describes how something is built is restated as the behavior it guarantees.
-- Every requirement carries its origin: `from-intent <intent item>` when the intent states it, citing the intent's id or the later input's path; `derived <observed input>` when you inferred it, naming the input observed in intended use that makes the case matter.
-- A derived case without an observed input is an open assumption, not a requirement.
+- Every requirement carries its origin: `from-intent <intent item>` when the intent states it, citing the intent's id or the later input's path; `derived <intent item> <observed input>` when you inferred it, naming the intent item it serves and the input observed in intended use that makes the case matter.
+- A derived requirement without both is an open assumption, not a requirement.
 - An edge case, and a term that decides which inputs a requirement covers, is named by the inputs that produce it and where they are produced, never by a category.
 - An acceptance criterion states the input, where the outcome is observed, and the outcome, never the fixtures, sequences, or variants that prove it.
 - An existing test is evidence that behavior exists today, never a requirement in itself.
@@ -80,7 +80,7 @@ Write `spec.md` at **Write to** from the candidates, treating divergence as evid
 **Threads**
 
 - A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`, `<n>` being one more than the highest number in `threads/` when you open it. Its format is under **Formats**.
-- Roles: `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`; `owner`, the person, owns `intent`. A reviewer is `reviewer-<lane>`.
+- A role's name is `<profile>[-<lane>]`. `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`; `owner`, the person, owns `intent`. A lane instance is `spec-producer-<lane>`, `design-doc-producer-<lane>`, or `reviewer-<lane>`; a lane producer, whose **Write to** is under `lanes/<lane>/`, owns its candidate.
 - Open a thread to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner. A finding cites what it questions — the artifact's path and id, or a file and line — and the observed evidence.
 - Answer every finding of a message awaiting you: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence. Reopen a redirected finding in a thread to the role named.
@@ -118,7 +118,7 @@ Frontmatter on every file is the orchestrator's; leave it untouched.
 
 spec-requirement-1: <observable outcome>
 
-origin: from-intent <intent id or later-input path> | derived <input observed in intended use, and where>
+origin: from-intent <intent id or later-input path> | derived <intent item it serves> <input observed in intended use, and where>
 
 <!-- The claims it rests on, each `observed: <how>` or `assumed: <what will confirm it>`. -->
 
@@ -160,4 +160,4 @@ artifact: intent | spec | design-doc | implementation
 <what changed, or the evidence it stands on>
 ```
 
-`<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.
+`<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.

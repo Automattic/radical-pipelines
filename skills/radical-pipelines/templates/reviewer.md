@@ -16,6 +16,7 @@ Review
 ## Materials
 
 - Intent: <0-intent/intent.md path>
+- Later inputs: <one line per constraint, proposal, or failure file: path>
 - Spec: <1-spec/spec.md path>
 - Notes: <3-implementation/notes.md path>
 - Net change: <path of the saved diff>
