@@ -62,7 +62,7 @@ Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-onl
 - A derived requirement without both is an open assumption, not a requirement.
 - Where the intent's words decide a question, follow them. Where they leave it open, choose the reading the Goal and intended use support, write the requirements it yields as `derived`, and record the other reading in one line under Considered and not required.
 - An edge case, and a term that decides which inputs a requirement covers, is named by the inputs that produce it and where they are produced, never by a category.
-- Acceptance criteria collectively verify each requirement's outcomes; inputs that exercise the same outcome are one criterion.
+- Acceptance criteria collectively verify each requirement's outcomes and the cases that matter to the intent.
 - An acceptance criterion states the input, where the outcome is observed, and the outcome, never the fixtures, sequences, or variants that prove it.
 - An existing test is evidence that behavior exists today, never a requirement in itself.
 - Considered and not required lists, one line each, every case you examined and left out because no intended use produces it.

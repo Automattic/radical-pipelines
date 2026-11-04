@@ -54,7 +54,7 @@ The section **Considered and not required** lists, one line each, the cases the 
 
 Every claim is `observed: <how>` or `assumed: <what will confirm it>`. A claim about current behavior that could have been observed by running the software and was not is a finding against the spec.
 
-Acceptance criteria state the input, where the outcome is observed, and the outcome. They never prescribe fixtures, sequences, or variants: inputs that exercise the same outcome are one criterion, so the design doc's proofs and the implementer's tests do not multiply per variant.
+Acceptance criteria state the input, where the outcome is observed, and the outcome. They never prescribe fixtures, sequences, or variants.
 
 ### Design doc
 
@@ -78,7 +78,7 @@ Tests follow the classical school: a test exercises the delivered path from the 
 
 Each configured review lane spawns a `reviewer` with its brief. The reviewer reviews the change as a developer outside the pipeline reviews a pull request: it receives the intent and its later inputs — the issue — and the net change — the pull request — and nothing else. It does not know the spec, the design doc, or the notes exist: its worktree is a sparse checkout that leaves out the pipeline's `1-spec/`, `2-design-doc/`, and `3-implementation/` folders. It runs the suite and the build, drives the changed behavior, and records the evidence.
 
-Its findings are proportion and correctness against the intent: behavior the intent asked for that is missing or wrong; a mechanism, guard, test, or documentation passage that no intent outcome needs; a bug fixed for the enumerated case rather than its cause; a convention of the project broken. A finding that a case is uncovered names the input that produces it in intended use. Every message, approval included, records the outcome of each finding rule and each guardrail, so proportion is judged, not assumed.
+Its findings are proportion and correctness against the intent: behavior the intent asked for that is missing or wrong; a mechanism, guard, test, or documentation passage that no intent outcome needs; a bug fixed for the enumerated case rather than its cause; a convention of the project broken. A finding that a case is uncovered names the input that produces it in intended use.
 
 The reviewer talks only with the implementer, the author of the change. When a finding questions what a requirement or a design decision demands, the implementer does not defend the clause: it opens a thread to the clause's owner carrying the finding, and answers the reviewer with the result — the change revised, or the owner's evidence that the clause stands.
 
