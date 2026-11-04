@@ -2,6 +2,8 @@
 
 This describes an issue body or pipeline intent, the input to phase 1.
 
+Before writing an intent, constraint, or proposal, show the owner the exact text you will write and the artifacts it targets, and ask whether each item binds (a constraint) or is open to investigation (a proposal); write it only after they approve. A failure the owner reports is recorded as given, without a ruling (§ Later input).
+
 ## Origin lines
 
 At the top of `0-intent/intent.md`, before the title, write these plain machine-readable lines:
