@@ -5,13 +5,13 @@ import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, check, frontier, lane, pipeline,
 
 const SPEC_LANES = [lane("spec-producer", "a"), lane("spec-producer", "b"), lane("reviewer", "security")];
 const candidate = (id, folder = "1-spec", name = "spec.md") => `${folder}/lanes/${id}/${name}`;
-function produce(id, ...pins) {
+function produce(id) {
   write(candidate(id), `# Spec candidate ${id}\n`);
-  stamp(candidate(id), ...(pins.length ? pins : [INTENT]));
+  stamp(candidate(id));
 }
 function consolidate() {
   write(SPEC, "# Spec\n");
-  stamp(SPEC, INTENT, candidate("a"), candidate("b"));
+  stamp(SPEC, candidate("a"), candidate("b"));
 }
 
 describe("production lanes", () => {
@@ -35,8 +35,8 @@ describe("production lanes", () => {
     produce("b");
     write("0-intent/constraint-1.md", `target: ${SPEC}\n`);
     assert.deepEqual(frontier(), [`lane ${SPEC} a`, `lane ${SPEC} b`]);
-    stamp(candidate("a"), INTENT, "0-intent/constraint-1.md");
-    assert.deepEqual(check().frontier, [{ action: "lane", target: SPEC, lane: "b", changed: ["0-intent/constraint-1.md"] }]);
+    stamp(candidate("a"));
+    assert.deepEqual(check().frontier, [{ action: "lane", target: SPEC, lane: "b", threads: [], changed: ["0-intent/constraint-1.md"] }]);
     assert.deepEqual(check().phases[0].lanes.map((entry) => [entry.id, entry.state]), [["a", "fresh"], ["b", "stale"]]);
   });
 
@@ -78,7 +78,7 @@ describe("production lanes", () => {
     pipeline(1, { lanes: [...SPEC_LANES, lane("design-doc-producer", "x")] });
     assert.deepEqual(frontier(), [`lane ${DESIGN} x`]);
     write(candidate("x", "2-design-doc", "design-doc.md"), "# Design candidate\n");
-    stamp(candidate("x", "2-design-doc", "design-doc.md"), SPEC);
+    stamp(candidate("x", "2-design-doc", "design-doc.md"));
     assert.deepEqual(frontier(), [`consolidate ${DESIGN}`]);
   });
 
@@ -104,5 +104,48 @@ describe("production lanes", () => {
     pipeline(0, { lanes: SPEC_LANES, targetPhase: 1 });
     produce("a");
     assert.equal(rp("check", abs(P(""))), `frontier lane ${SPEC} b\nlane ${SPEC} a fresh\nlane ${SPEC} b missing\nartifact ${SPEC} missing\n`);
+  });
+
+  describe("lane roles", () => {
+    const LANES = [lane("design-doc-producer", "a"), lane("design-doc-producer", "b")];
+    const toSpec = (laneId, n = 1, replied = false) => thread({ n, opener: `design-doc-producer-${laneId}`, owner: "spec-producer", artifact: "spec",
+      messages: [[`design-doc-producer-${laneId}`, "aaaaaaa"], ...(replied ? [["spec-producer", "bbbbbbb"]] : [])] });
+
+    it("two lanes open threads with the same number to the upstream owner", () => {
+      pipeline(1, { lanes: LANES });
+      toSpec("a");
+      toSpec("b");
+      assert.deepEqual(check().frontier, [{ action: "respond", target: SPEC, threads: ["threads/1-design-doc-producer-a-spec-producer-spec.md", "threads/1-design-doc-producer-b-spec-producer-spec.md"] }]);
+    });
+
+    it("a reply wakes the lane that opened the thread, with the thread, even when its candidate is fresh", () => {
+      pipeline(1, { lanes: LANES });
+      write(candidate("a", "2-design-doc", "design-doc.md"), "# a\n");
+      stamp(candidate("a", "2-design-doc", "design-doc.md"));
+      toSpec("a", 1, true);
+      assert.deepEqual(check().frontier, [
+        { action: "lane", target: DESIGN, lane: "b", threads: [] },
+        { action: "lane", target: DESIGN, lane: "a", threads: ["threads/1-design-doc-producer-a-spec-producer-spec.md"] },
+      ]);
+    });
+
+    it("a thread awaiting a lane is its work after the root exists", () => {
+      pipeline(2, { lanes: LANES });
+      thread({ opener: "design-doc-producer", owner: "design-doc-producer-b", artifact: "design-doc" });
+      assert.deepEqual(frontier(), [`lane ${DESIGN} b`]);
+    });
+
+    it("a thread awaiting a lane no longer configured is still its work", () => {
+      pipeline(2, { lanes: [lane("reviewer", "x")] });
+      toSpec("gone", 1, true);
+      assert.deepEqual(frontier(), [`lane ${DESIGN} gone`]);
+    });
+
+    it("a removed lane's closed threads stay valid history", () => {
+      pipeline(3, { targetPhase: 3 });
+      thread({ status: "closed: withdrawn", opener: "design-doc-producer-gone", owner: "spec-producer", artifact: "spec" });
+      thread({ status: "closed: approved", opener: "reviewer-gone", owner: "spec-producer", artifact: "spec" });
+      assert.deepEqual(frontier(), ["complete"]);
+    });
   });
 });

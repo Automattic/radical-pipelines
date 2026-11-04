@@ -82,8 +82,8 @@ describe("command line", () => {
     ["a missing option value", ["check", ".pipelines/demo", "--ref"], /--ref expects a value/],
     ["a second positional argument", ["check", ".pipelines/demo", "extra"], /unexpected argument: extra/],
     ["a missing positional argument", ["check"], /missing <pipeline folder>/],
-    ["a path inside a pipeline folder", ["check", ".pipelines/demo/1-spec"], /not a pipeline folder/],
-    ["the pipelines folder root itself", ["check", ".pipelines"], /not inside the pipelines folder root/],
+    ["a path inside a pipeline folder", ["check", ".pipelines/demo/1-spec"], /cannot read run-config.md: missing/],
+    ["a folder without parent", ["check", ".pipelines"], /a pipeline folder is <pipelines folder root>\/<pipeline slug>: \.pipelines/],
   ];
   for (const [what, [command, ...args], message] of errors)
     it(`stops on ${what}`, () => {

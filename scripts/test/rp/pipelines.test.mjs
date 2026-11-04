@@ -60,15 +60,26 @@ describe("pipelines", () => {
     assert.equal(rp("pipelines", root, "--issue", "9"), "");
   });
 
-  it("reads the pipelines folder root from .rp.md in the working tree", () => {
-    git(root, "checkout", "--quiet", "main");
-    writeFile(".rp.md", "### Pipelines folder root\n\nwork/\n");
-    commitAll("conventions");
-    git(root, "checkout", "--quiet", "-b", "a", "main");
-    recordPipeline("work/one", 4);
-    recordPipeline(".pipelines/ignored", 4);
-    commitAll("pipelines");
-    assert.deepEqual(discover().map(({ folder }) => folder), ["work/one"]);
+  const roots = [
+    ["no conventions", {}, ".pipelines"],
+    [".rp.md", { ".rp.md": "work/" }, "work"],
+    [".rp.local.md over .rp.md", { ".rp.md": "work/", ".rp.local.md": "`local`" }, "local"],
+    [".rp.md when .rp.local.md has no heading", { ".rp.md": "work/", ".rp.local.md": null }, "work"],
+  ];
+  for (const [what, files, expectedRoot] of roots)
+    it(`reads the pipelines folder root from ${what} in the working tree`, () => {
+      for (const [name, value] of Object.entries(files)) writeFile(name, value === null ? "# Local\n\n### Other\n\nx\n" : `# Conventions\n\n### Pipelines folder root\n\n${value}\n\n### Other\n\ny\n`);
+      git(root, "checkout", "--quiet", "-b", "a", "main");
+      for (const folder of ["work/one", "local/two", ".pipelines/three"]) recordPipeline(folder, 4);
+      commitAll("pipelines");
+      assert.deepEqual(discover().map(({ folder }) => folder.split("/")[0]), [expectedRoot]);
+    });
+
+  it("stops on a Pipelines folder root heading without a usable value", () => {
+    writeFile(".rp.local.md", "### Pipelines folder root\n\n../outside\n");
+    const out = run("pipelines", root);
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /\.rp\.local\.md: Pipelines folder root must be a relative folder/);
   });
 
   it("stops when a pipeline folder at a tip has no readable run-config.md", () => {

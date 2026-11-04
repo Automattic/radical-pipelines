@@ -162,28 +162,39 @@ function locate(argument) {
   return { root, rel };
 }
 
-// The pipelines folder root: the first line under `### Pipelines folder root` in the repository's `.rp.md`, else `.pipelines`.
+// The pipelines folder root discovery reads: the first non-blank line under `### Pipelines folder root` in `.rp.local.md`,
+// else in `.rp.md`, else `.pipelines`.
 export function pipelinesFolderRoot(root) {
-  const conventions = join(root, ".rp.md");
-  if (!existsSync(conventions)) return ".pipelines";
-  const lines = readFileSync(conventions, "utf8").split(/\r?\n/);
-  const heading = lines.findIndex((line) => /^### Pipelines folder root[\t ]*$/.test(line));
-  if (heading === -1) return ".pipelines";
-  const value = lines.slice(heading + 1).find((line) => line.trim())?.trim();
-  if (!value || /^#{1,6} /.test(value)) fail(".rp.md: Pipelines folder root has no value");
-  const path = value.replace(/^`(.*)`$/, "$1").replace(/\/+$/, "").replace(/^\.\//, "");
-  if (!path || path === "." || path.startsWith("/") || path.split("/").some((segment) => !segment || segment === "." || segment === ".."))
-    fail(`.rp.md: Pipelines folder root must be a relative folder inside the repository: ${value}`);
-  return path;
+  for (const name of [".rp.local.md", ".rp.md"]) {
+    const conventions = join(root, name);
+    if (!existsSync(conventions)) continue;
+    const lines = readFileSync(conventions, "utf8").split(/\r?\n/);
+    const heading = lines.findIndex((line) => /^### Pipelines folder root[\t ]*$/.test(line));
+    if (heading === -1) continue;
+    const value = lines.slice(heading + 1).find((line) => line.trim())?.trim();
+    if (!value || /^#{1,6} /.test(value)) fail(`${name}: Pipelines folder root has no value`);
+    const path = value.replace(/^`(.*)`$/, "$1").replace(/\/+$/, "").replace(/^\.\//, "");
+    if (!path || path === "." || path.startsWith("/") || path.split("/").some((segment) => !segment || segment === "." || segment === ".."))
+      fail(`${name}: Pipelines folder root must be a relative folder inside the repository: ${value}`);
+    return path;
+  }
+  return ".pipelines";
 }
 
-// A pipeline folder is `<pipelines folder root>/<pipeline slug>`; `inner` is a path inside it.
-function pipelineOf(root, rel, command) {
-  const pipelinesRoot = pipelinesFolderRoot(root);
-  if (!rel.startsWith(`${pipelinesRoot}/`)) fail(`${command}: not inside the pipelines folder root ${pipelinesRoot}: ${rel}`);
-  const [slug, ...inner] = rel.slice(pipelinesRoot.length + 1).split("/");
-  if (!slug) fail(`${command}: not a pipeline folder: ${rel}`);
-  return { pipelinesRoot, folder: `${pipelinesRoot}/${slug}`, inner: inner.join("/") };
+// A pipeline folder is `<pipelines folder root>/<pipeline slug>`: its parent is the pipelines folder root.
+function pipelineFolder(folder, command) {
+  const at = folder.lastIndexOf("/");
+  if (at <= 0) fail(`${command}: a pipeline folder is <pipelines folder root>/<pipeline slug>: ${folder || "."}`);
+  return { folder, pipelinesRoot: folder.slice(0, at) };
+}
+// A pipeline file: the pipeline folder holding it and its path inside, the longest suffix that names a pipeline file.
+function pipelineFileOf(rel, command) {
+  const parts = rel.split("/");
+  for (let length = parts.length - 1; length >= 1; length--) {
+    const inner = parts.slice(-length).join("/");
+    if (kindOf(inner)) return { ...pipelineFolder(parts.slice(0, -length).join("/"), command), inner };
+  }
+  fail(`${command}: not a pipeline file: ${rel}`);
 }
 
 // --- frontmatter and identity ---------------------------------------------------
@@ -236,7 +247,7 @@ export const PHASES = [
 ];
 const IMPLEMENTATION = PHASES[2];
 const REVIEW_PHASE = 4;
-// The artifacts a thread names, each with the role that owns it; `owner` is the person.
+// The artifacts a thread names, each with the profile of the role that owns it; `owner` is the person.
 const OWNERS = { intent: "owner", ...Object.fromEntries(PHASES.map((phase) => [phase.token, phase.owner])) };
 const LANE_PROFILES = ["spec-producer", "design-doc-producer", "reviewer"];
 const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
@@ -337,7 +348,6 @@ export function reviewLanes(config) {
   const lanes = config.lanes.filter((lane) => lane.profile === "reviewer");
   return lanes.length ? lanes : [{ profile: "reviewer", id: "default" }];
 }
-const reviewer = (lane) => `reviewer-${lane.id}`;
 
 // `inputs`: a list of `<path>@<identity>`, one per pinned file.
 function parseInputs(value) {
@@ -369,12 +379,20 @@ const STATUSES = ["open", "closed: approved", "closed: withdrawn", "closed: answ
 const OWNER_STATUSES = ["disagreement", "closed: answered"];
 const MESSAGE = /^## (\S+) — ([0-9a-f]{7,64})$/;
 
-// A review thread: one a review lane opens to the implementer about the implementation.
-export const isReview = (thread) => thread.opener.startsWith("reviewer-") && thread.owner === IMPLEMENTATION.owner;
+// A thread role, `<profile>[-<lane>]`: its profile and lane, or null when the grammar does not hold.
+export function parseRole(role) {
+  if (["owner", "implementer", "spec-producer", "design-doc-producer"].includes(role)) return { profile: role, lane: null };
+  const match = role.match(/^(spec-producer|design-doc-producer|reviewer)-([a-z0-9][a-z0-9-]*)$/);
+  return match ? { profile: match[1], lane: match[2] } : null;
+}
+
+// A review thread: one a review lane opens to the implementer.
+export const isReview = (thread) => parseRole(thread.opener).profile === "reviewer" && thread.owner === IMPLEMENTATION.owner;
+// An approval: a review thread closed approved.
+const isApproval = (thread) => isReview(thread) && thread.status === "closed: approved";
 
 // A thread: its header (the first four lines of its body) and its messages, or Invalid.
-// `reviewers` are the roles of the configured review lanes.
-export function parseThread(name, body, reviewers) {
+export function parseThread(name, body) {
   const number = name.match(/^([1-9]\d*)-.+\.md$/)?.[1];
   if (!number) invalid("thread file name must be <n>-<opener>-<owner>-<artifact>.md");
   const lines = body.split("\n").map((line) => line.replace(/\r$/, ""));
@@ -388,9 +406,9 @@ export function parseThread(name, body, reviewers) {
   if (lines[4] !== undefined && lines[4] !== "") invalid(`thread header must end with a blank line, got: ${lines[4]}`);
   if (!STATUSES.includes(thread.status)) invalid(`status must be one of ${STATUSES.join(" | ")}`);
   if (!Object.hasOwn(OWNERS, thread.artifact)) invalid(`artifact must be one of ${Object.keys(OWNERS).join(", ")}`);
-  if (OWNERS[thread.artifact] !== thread.owner) invalid(`owner of ${thread.artifact} is ${OWNERS[thread.artifact]}`);
-  const roles = [...new Set(Object.values(OWNERS).filter((role) => role !== "owner")), ...reviewers];
-  if (!roles.includes(thread.opener)) invalid(`opener must be one of ${roles.join(", ")}`);
+  for (const key of ["opener", "owner"]) if (!parseRole(thread[key])) invalid(`${key} must be a role <profile>[-<lane>]: ${thread[key]}`);
+  if (parseRole(thread.owner).profile !== OWNERS[thread.artifact]) invalid(`owner of ${thread.artifact} is ${OWNERS[thread.artifact]}[-<lane>]`);
+  if (thread.opener === "owner") invalid("owner opens no thread");
   if (thread.opener === thread.owner) invalid("opener and owner must differ");
   if ((thread.owner === "owner") !== OWNER_STATUSES.includes(thread.status))
     invalid(`${OWNER_STATUSES.join(" and ")} are the statuses of a thread to owner, and only of it`);
@@ -417,7 +435,6 @@ export function readState(files) {
   if (!files.has("run-config.md")) fail("cannot read run-config.md: missing");
   if (!files.has(INTENT)) fail(`cannot read ${INTENT}: missing`);
   const config = parseOrFail("run-config.md", () => parseConfig(files.get("run-config.md")));
-  const reviewers = reviewLanes(config).map(reviewer);
   const state = { config, docs: new Map(), threads: [], invalid: [] };
   for (const [path, bytes] of [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
     const kind = kindOf(path);
@@ -426,13 +443,13 @@ export function readState(files) {
       const { data, body, stamped } = frontmatterOf(bytes);
       const text = body.toString("utf8");
       if (kind.kind === "thread") {
-        onlyKeys(data, ["reviewed"]);
-        const thread = { path, ...parseThread(path.slice("threads/".length), text, reviewers) };
-        const approval = isReview(thread) && thread.status === "closed: approved";
-        if ("reviewed" in data && (typeof data.reviewed !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(data.reviewed))) invalid("reviewed must be a patch id");
-        if ("reviewed" in data && !approval) invalid("reviewed is recorded only on a review thread closed: approved");
-        if (approval && !("reviewed" in data)) invalid("a review thread closed: approved needs reviewed: stamp it with --reviewed");
-        state.threads.push({ ...thread, reviewed: data.reviewed ?? null });
+        const thread = { path, kind: "thread", ...parseThread(path.slice("threads/".length), text) };
+        if (isApproval(thread)) {
+          onlyKeys(data, ["inputs", "reviewed"]);
+          if (!("inputs" in data) || !("reviewed" in data)) invalid("a review thread closed: approved needs inputs and reviewed: stamp it");
+          if (typeof data.reviewed !== "string" || !/^[0-9a-f]{40}$/.test(data.reviewed)) invalid("reviewed must be a net change id");
+        } else if (stamped) invalid("carries no frontmatter: only a review thread closed: approved is stamped");
+        state.threads.push({ ...thread, inputs: parseInputs(data.inputs), reviewed: data.reviewed ?? null });
         continue;
       }
       if (!pins(kind) && stamped) invalid("carries no frontmatter");
@@ -453,16 +470,17 @@ function parseOrFail(path, parse) {
 
 // --- state ------------------------------------------------------------------------
 
-// The inputs a phase's artifact and its candidates must pin: its upstream artifacts and every later input that targets it.
-export function requiredInputs(state, phase) {
-  const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && doc.targets.includes(phase.artifact)).map((doc) => doc.path);
-  return [...phase.upstream, ...later];
+// The required inputs of what carries `inputs`. An artifact or candidate: its phase's upstream artifacts and every later
+// input that targets its phase's artifact. An approval: the intent, every later input, and the spec.
+export function requiredInputs(state, subject) {
+  const later = [...state.docs.values()].filter((doc) => doc.kind === "later");
+  if (subject.kind === "thread") return [INTENT, ...later.map((doc) => doc.path), PHASES[0].artifact];
+  return [...subject.phase.upstream, ...later.filter((doc) => doc.targets.includes(subject.phase.artifact)).map((doc) => doc.path)];
 }
 
-// The required inputs of a file that are unpinned, or pinned at an identity that differs from the current one.
-export function staleInputs(state, path) {
-  const doc = state.docs.get(path);
-  return requiredInputs(state, doc.phase).filter((input) => !doc.inputs.has(input) || doc.inputs.get(input) !== state.docs.get(input)?.identity);
+// The required inputs of a subject that are unpinned, or pinned at an identity that differs from the current one.
+export function staleInputs(state, subject) {
+  return requiredInputs(state, subject).filter((input) => !subject.inputs.has(input) || subject.inputs.get(input) !== state.docs.get(input)?.identity);
 }
 
 // The implementation is done when the first line of `notes.md`'s body is `status: done`.
@@ -471,7 +489,7 @@ const implementationDone = (state) => /^status: done\r?$/.test(state.docs.get(IM
 // A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done.
 function statusOf(state, path) {
   if (!state.docs.has(path) || (path === IMPLEMENTATION.artifact && !implementationDone(state))) return { state: "missing" };
-  const stale = staleInputs(state, path);
+  const stale = staleInputs(state, state.docs.get(path));
   return stale.length ? { state: "stale", stale } : { state: "fresh" };
 }
 
@@ -481,51 +499,63 @@ export function awaitedRole(thread) {
   return thread.messages.at(-1).author === thread.owner ? thread.opener : thread.owner;
 }
 const awaiting = (state, role) => state.threads.filter((thread) => awaitedRole(thread) === role).map((thread) => thread.path);
+// The lanes of a profile that threads await, configured or not.
+const awaitedLanes = (state, profile) => [...new Set(state.threads.map(awaitedRole).filter(Boolean).map(parseRole)
+  .filter((role) => role.profile === profile && role.lane !== null).map((role) => role.lane))].sort();
+const roleOf = (profile, laneId) => `${profile}-${laneId}`;
 
-// A review lane is approved when its highest-numbered review thread is closed approved at the current net change.
-function approved(state, lane) {
-  const latest = state.threads.filter((thread) => isReview(thread) && thread.opener === reviewer(lane)).sort((a, b) => b.number - a.number)[0];
-  return latest?.status === "closed: approved" && latest.reviewed === state.netChange;
+// A review lane's approval: its highest-numbered review thread, when closed approved, fresh, and at the current net change.
+function approvalOf(state, lane) {
+  const latest = state.threads.filter((thread) => isReview(thread) && thread.opener === roleOf("reviewer", lane.id)).sort((a, b) => b.number - a.number)[0];
+  if (latest?.status !== "closed: approved") return { approved: false };
+  const stale = staleInputs(state, latest);
+  return { approved: !stale.length && latest.reviewed === state.netChange, ...(stale.length ? { stale } : {}) };
 }
 
-// The net change: the patch id of the diff from the merge-base with the base to the tip, outside the pipelines folder root.
-// An empty diff has the all-zero id.
-export function netChange(root, base, tip, pipelinesRoot) {
+// The net change id: the sha1 of the diff from the merge-base with the base to a commit, outside the pipelines folder
+// root, without context lines, hunk headers, or index lines: the changed lines alone.
+export function netChange(root, base, commit, pipelinesRoot) {
   const baseCommit = requireCommit(root, base, "base");
-  if (!gitText(root, ["merge-base", "--all", baseCommit, tip])) fail(`no merge-base between ${base} and ${tip}`);
-  const diff = gitBytes(root, ["diff", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
-    `${baseCommit}...${tip}`, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
-  if (!diff.length) return "0".repeat(40);
-  const id = gitText(root, ["patch-id", "--stable"], diff).split(/\s+/)[0];
-  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(id)) fail("git patch-id produced no id");
-  return id;
+  if (!gitText(root, ["merge-base", "--all", baseCommit, commit])) fail(`no merge-base between ${base} and ${commit}`);
+  const diff = gitBytes(root, ["diff", "-U0", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
+    `${baseCommit}...${commit}`, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
+  const changed = diff.toString("latin1").split("\n").filter((line) => !line.startsWith("@@") && !line.startsWith("index ")).join("\n");
+  return createHash("sha1").update(Buffer.from(changed, "latin1")).digest("hex");
 }
 
-const candidateOf = (phase, lane) => `${phase.folder}/lanes/${lane.id}/${basename(phase.artifact)}`;
-// A phase's candidates matter while its root is missing.
+const candidateOf = (phase, laneId) => `${phase.folder}/lanes/${laneId}/${basename(phase.artifact)}`;
+// A phase's configured candidates matter while its root is missing.
 const lanesOpen = (state, phase) => statusOf(state, phase.artifact).state === "missing" ? productionLanes(state.config, phase) : [];
 
-// The actions for a phase whose role has work, or null: lanes then consolidate, produce, or respond.
+// The actions for a phase whose roles have work, or null. Threads awaiting a role are work in any phase; a missing or stale
+// artifact only through the target. A lane role's work is `lane`; the root's is consolidate, produce, or respond.
 function phaseActions(state, phase) {
-  const threads = awaiting(state, phase.owner);
+  const inTarget = phase.n <= state.config.targetPhase;
   const status = statusOf(state, phase.artifact);
-  if (status.state === "missing") {
-    const lanes = lanesOpen(state, phase);
-    if (!lanes.length) return [{ action: "produce", target: phase.artifact, threads }];
-    const pending = lanes.map((lane) => ({ lane, ...statusOf(state, candidateOf(phase, lane)) })).filter((entry) => entry.state !== "fresh");
-    return pending.length
-      ? pending.map(({ lane, stale }) => ({ action: "lane", target: phase.artifact, lane: lane.id, ...(stale ? { changed: stale } : {}) }))
-      : [{ action: "consolidate", target: phase.artifact, threads }];
-  }
-  if (status.state === "stale" || threads.length) return [{ action: "respond", target: phase.artifact, threads, ...(status.stale ? { changed: status.stale } : {}) }];
-  return null;
+  const lanes = inTarget ? lanesOpen(state, phase) : [];
+  const laneIds = [...new Set([
+    ...lanes.filter((lane) => statusOf(state, candidateOf(phase, lane.id)).state !== "fresh").map((lane) => lane.id),
+    ...awaitedLanes(state, phase.owner),
+  ])];
+  const actions = laneIds.map((id) => {
+    const stale = statusOf(state, candidateOf(phase, id)).stale;
+    return { action: "lane", target: phase.artifact, lane: id, threads: awaiting(state, roleOf(phase.owner, id)), ...(stale ? { changed: stale } : {}) };
+  });
+  const threads = awaiting(state, phase.owner);
+  if (inTarget && status.state === "missing") {
+    if (!lanes.length) actions.push({ action: "produce", target: phase.artifact, threads });
+    else if (!actions.length) actions.push({ action: "consolidate", target: phase.artifact, threads });
+  } else if ((inTarget && status.state === "stale") || threads.length)
+    actions.push({ action: "respond", target: phase.artifact, threads, ...(inTarget && status.stale ? { changed: status.stale } : {}) });
+  return actions.length ? actions : null;
 }
 
-// The review lanes with work: not approved, or with a thread awaiting their reviewer.
+// The review lanes with work: through the target, each configured lane not approved; in any phase, each lane a thread awaits.
 function reviewActions(state) {
-  const actions = reviewLanes(state.config).map((lane) => ({ lane, threads: awaiting(state, reviewer(lane)) }))
-    .filter(({ lane, threads }) => !approved(state, lane) || threads.length)
-    .map(({ lane, threads }) => ({ action: "review", target: lane.id, threads }));
+  const lanes = [...(state.config.targetPhase === REVIEW_PHASE ? reviewLanes(state.config) : []).map((lane) => ({ lane, ...approvalOf(state, lane) }))
+    .filter((entry) => !entry.approved).map((entry) => [entry.lane.id, entry.stale]), ...awaitedLanes(state, "reviewer").map((id) => [id])];
+  const ids = lanes.filter(([id], at) => lanes.findIndex(([other]) => other === id) === at);
+  const actions = ids.map(([id, stale]) => ({ action: "review", target: id, threads: awaiting(state, roleOf("reviewer", id)), ...(stale ? { changed: stale } : {}) }));
   return actions.length ? actions : null;
 }
 
@@ -534,19 +564,18 @@ export function frontier(state) {
   if (state.invalid.length) return state.invalid.map(({ path, reason }) => ({ action: "INVALID", target: path, reason }));
   const escalations = state.threads.filter((thread) => thread.status === "disagreement");
   if (escalations.length) return escalations.map((thread) => ({ action: "escalate", target: thread.path }));
-  for (const phase of PHASES.filter((phase) => phase.n <= state.config.targetPhase)) {
+  for (const phase of PHASES) {
     const actions = phaseActions(state, phase);
     if (actions) return actions;
   }
-  return (state.config.targetPhase === REVIEW_PHASE && reviewActions(state)) || [{ action: "complete" }];
+  return reviewActions(state) ?? [{ action: "complete" }];
 }
 
 // --- check ------------------------------------------------------------------------
 
 async function cmdCheck(args) {
   const { root, rel } = locate(args._[0] ?? fail("check: missing <pipeline folder>"));
-  const { pipelinesRoot, folder, inner } = pipelineOf(root, rel, "check");
-  if (inner) fail(`check: not a pipeline folder: ${rel}`);
+  const { folder, pipelinesRoot } = pipelineFolder(rel, "check");
   const tip = args.ref ? requireCommit(root, args.ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
   const state = readState(args.ref ? await readCommit(root, tip, folder) : readWorktree(root, folder));
   const target = state.config.targetPhase;
@@ -557,11 +586,11 @@ async function cmdCheck(args) {
       phase: phase.folder,
       artifact: phase.artifact,
       ...statusOf(state, phase.artifact),
-      lanes: lanesOpen(state, phase).map((lane) => ({ id: lane.id, path: candidateOf(phase, lane), ...statusOf(state, candidateOf(phase, lane)) })),
+      lanes: lanesOpen(state, phase).map((lane) => ({ id: lane.id, path: candidateOf(phase, lane.id), ...statusOf(state, candidateOf(phase, lane.id)) })),
     }));
     if (target === REVIEW_PHASE) {
       report.netChange = state.netChange;
-      report.reviews = reviewLanes(state.config).map((lane) => ({ lane: lane.id, approved: approved(state, lane) }));
+      report.reviews = reviewLanes(state.config).map((lane) => ({ lane: lane.id, ...approvalOf(state, lane) }));
     }
     report.threads = state.threads.map((thread) => ({ path: thread.path, status: thread.status, opener: thread.opener, owner: thread.owner,
       artifact: thread.artifact, awaits: awaitedRole(thread), reviewed: thread.reviewed }));
@@ -574,51 +603,53 @@ async function cmdCheck(args) {
     lines.push(`artifact ${phase.artifact} ${status(phase)}`);
   }
   if (report.netChange) lines.push(`net-change ${report.netChange}`);
-  for (const review of report.reviews ?? []) lines.push(`review ${review.lane} ${review.approved ? "approved" : "unapproved"}`);
+  for (const review of report.reviews ?? []) lines.push(`review ${review.lane} ${review.approved ? "approved" : review.stale ? `stale ${review.stale.join(" ")}` : "unapproved"}`);
   for (const thread of report.threads ?? []) lines.push(`thread ${thread.path} ${thread.status}${thread.awaits ? ` awaits ${thread.awaits}` : ""}`);
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
 // --- stamp ------------------------------------------------------------------------
 
+// Pins a file's required inputs, derived from its kind, at their identities in the working tree. An artifact keeps the
+// candidate pins it recorded, or records those `--pin` names; an approval also records `reviewed`.
 function cmdStamp(args) {
   const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
-  const { pipelinesRoot, folder, inner } = pipelineOf(root, rel, "stamp");
+  const { folder, pipelinesRoot, inner } = pipelineFileOf(rel, "stamp");
   const kind = kindOf(inner);
-  if (!pins(kind) && kind?.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
-  if (!args.pin.length && !args.reviewed) fail("stamp: nothing to stamp: pass --pin or --reviewed");
-  const read = (path) => {
-    const abs = join(root, path);
-    if (!existsSync(abs) || !lstatSync(abs).isFile()) fail(`stamp: cannot read ${path}: not a regular file`);
-    return readFileSync(abs);
-  };
-  const parsed = (path, parse) => parseOrFail(`stamp: ${path}`, parse);
-  const bytes = read(rel);
-  const { data, body } = parsed(rel, () => frontmatterOf(bytes));
+  if (!pins(kind) && kind.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
+  const files = readWorktree(root, folder);
+  if (!files.has(inner)) fail(`stamp: cannot read ${rel}: not a regular file`);
+  const state = readState(files);
+  const blocking = state.invalid.find((entry) => entry.path !== inner || kind.kind !== "thread");
+  if (blocking) fail(`stamp: ${folder}/${blocking.path}: ${blocking.reason}`);
+  const bytes = files.get(inner);
+  const { data, body } = parseOrFail(`stamp: ${rel}`, () => frontmatterOf(bytes));
+  const subject = kind.kind === "thread" ? parseOrFail(`stamp: ${rel}`, () => ({ kind: "thread", ...parseThread(basename(inner), body.toString("utf8")) })) : kind;
+  if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only a review thread closed: approved is stamped`);
+  parseOrFail(`stamp: ${rel}`, () => onlyKeys(data, kind.kind === "thread" ? ["inputs", "reviewed"] : ["inputs"]));
+  const inputs = new Map();
+  for (const path of requiredInputs(state, subject)) {
+    if (!state.docs.has(path)) fail(`stamp: cannot pin ${folder}/${path}: missing`);
+    inputs.set(path, state.docs.get(path).identity);
+  }
+  const isCandidateOfRoot = (path) => kind.kind === "artifact" && kindOf(path)?.kind === "candidate" && kindOf(path).phase === kind.phase;
   if (args.pin.length) {
-    if (!pins(kind)) fail(`stamp: --pin applies to an artifact: ${rel}`);
-    const inputs = new Map();
+    if (kind.kind !== "artifact" || !kind.phase.lanes) fail(`stamp: --pin applies to a spec or design doc: ${rel}`);
     for (const pin of args.pin) {
       const located = locate(pin);
-      if (located.root !== root) fail(`stamp: --pin outside the repository: ${pin}`);
-      if (!located.rel.startsWith(`${folder}/`)) fail(`stamp: --pin outside the pipeline folder ${folder}: ${pin}`);
-      const path = located.rel.slice(folder.length + 1);
-      if (!pinnable(path)) fail(`stamp: --pin names no pipeline artifact: ${pin}`);
-      if (inputs.has(path)) fail(`stamp: --pin names ${path} twice`);
-      const pinned = read(located.rel);
-      parsed(located.rel, () => frontmatterOf(pinned));
-      inputs.set(path, identity(pinned));
+      const path = located.root === root && located.rel.startsWith(`${folder}/`) ? located.rel.slice(folder.length + 1) : null;
+      if (!path || !isCandidateOfRoot(path)) fail(`stamp: --pin must name a candidate of ${rel}: ${pin}`);
+      if (!state.docs.has(path)) fail(`stamp: cannot pin ${folder}/${path}: missing`);
+      inputs.set(path, state.docs.get(path).identity);
     }
-    data.inputs = [...inputs].sort(([a], [b]) => a < b ? -1 : 1).map(([path, id]) => `${path}@${id}`);
+  } else {
+    const recorded = parseOrFail(`stamp: ${rel}`, () => parseInputs(data.inputs));
+    for (const [path, id] of recorded) if (isCandidateOfRoot(path)) inputs.set(path, id);
   }
-  if (args.reviewed) {
-    if (kind.kind !== "thread") fail(`stamp: --reviewed applies to a thread: ${rel}`);
-    const configPath = `${folder}/run-config.md`;
-    const config = parsed(configPath, () => parseConfig(read(configPath)));
-    const thread = parsed(rel, () => parseThread(basename(inner), body.toString("utf8"), reviewLanes(config).map(reviewer)));
-    if (!isReview(thread) || thread.status !== "closed: approved") fail(`stamp: --reviewed applies to a review thread closed: approved: ${rel}`);
-    const commit = requireCommit(root, thread.messages.at(-1).commit, "the last message's commit");
-    data.reviewed = netChange(root, config.base, commit, pipelinesRoot);
+  data.inputs = [...inputs].sort(([a], [b]) => a < b ? -1 : 1).map(([path, id]) => `${path}@${id}`);
+  if (kind.kind === "thread") {
+    const commit = requireCommit(root, subject.messages.at(-1).commit, "the last message's commit");
+    data.reviewed = netChange(root, state.config.base, commit, pipelinesRoot);
   }
   const stamped = renderFrontmatter(data, body);
   if (!stamped.equals(bytes)) writeFileSync(join(root, rel), stamped);
@@ -687,13 +718,13 @@ async function cmdPipelines(args) {
 
 const COMMANDS = {
   check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
-  stamp: { run: cmdStamp, options: { "--pin": "list", "--reviewed": "flag" } },
+  stamp: { run: cmdStamp, options: { "--pin": "list" } },
   pipelines: { run: cmdPipelines, options: { "--issue": "value", "--json": "flag" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], pin: [], reviewed: false, json: false, ref: null, issue: null };
+  const args = { _: [], pin: [], json: false, ref: null, issue: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -714,7 +745,7 @@ const USAGE = `rp — Radical Pipelines state tooling
 
 Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-  node rp.mjs stamp <file> [--pin <path>]... [--reviewed]
+  node rp.mjs stamp <file> [--pin <candidate>]...
   node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
 
 See README.md beside this script.

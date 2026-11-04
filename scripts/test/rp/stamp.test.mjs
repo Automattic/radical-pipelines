@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { identity, splitFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
-import { execFileSync } from "node:child_process";
-import { DESIGN, INTENT, NOTES, P, SPEC, abs, check, commitAll, git, pipeline, read, REVIEW, root, run, stamp, thread, TO_SPEC, useRepo, write, writeFile } from "./fixture.mjs";
+import {
+  DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_SPEC, UPSTREAM,
+  abs, check, commitAll, configure, git, lane, pipeline, read, remove, root, run, stamp, thread, useRepo, write, writeFile,
+} from "./fixture.mjs";
+
+const id = (rel) => identity(readFileSync(abs(P(rel))));
+const pin = (rel) => `${rel}@${id(rel)}`;
+const inputsOf = (rel) => JSON.parse(splitFrontmatter(readFileSync(abs(P(rel)))).json).inputs;
+const frontmatterOf = (rel) => JSON.parse(splitFrontmatter(readFileSync(abs(P(rel)))).json);
 
 describe("identity", () => {
   useRepo();
@@ -13,96 +21,135 @@ describe("identity", () => {
     const body = "# Spec\r\n\nNo trailing newline";
     write(SPEC, `---\n{"inputs": []}\n---\n${body}`);
     const blob = execFileSync("git", ["hash-object", "--stdin", "--no-filters"], { cwd: root, input: body, encoding: "utf8" });
-    assert.equal(identity(readFileSync(abs(P(SPEC)))), blob.slice(0, 12));
+    assert.equal(id(SPEC), blob.slice(0, 12));
   });
 
   it("is the whole file's blob hash when there is no frontmatter", () => {
     write(INTENT, "# Intent\n");
-    assert.equal(identity(readFileSync(abs(P(INTENT)))), git(root, "hash-object", abs(P(INTENT))).slice(0, 12));
+    assert.equal(id(INTENT), git(root, "hash-object", abs(P(INTENT))).slice(0, 12));
   });
 
   it("is unchanged by stamping", () => {
     pipeline(0);
     write(SPEC, "# Spec\r\nBody without final newline");
-    const before = identity(readFileSync(abs(P(SPEC))));
-    stamp(SPEC, INTENT);
-    assert.equal(identity(readFileSync(abs(P(SPEC)))), before);
+    const before = id(SPEC);
+    stamp(SPEC);
+    assert.equal(id(SPEC), before);
     assert.equal(splitFrontmatter(readFileSync(abs(P(SPEC)))).body.toString("latin1"), "# Spec\r\nBody without final newline");
   });
 });
 
-describe("stamp", () => {
+describe("stamp derives the required inputs", () => {
   useRepo();
 
-  it("records inputs as <path>@<identity>, sorted, replacing the previous set", () => {
-    pipeline(2);
-    write(NOTES, "# Notes\n");
-    stamp(NOTES, DESIGN, SPEC);
-    const pins = (rel) => `${rel}@${identity(readFileSync(abs(P(rel))))}`;
-    assert.deepEqual(JSON.parse(splitFrontmatter(readFileSync(abs(P(NOTES)))).json).inputs, [pins(SPEC), pins(DESIGN)]);
-    stamp(NOTES, SPEC);
-    assert.deepEqual(JSON.parse(splitFrontmatter(readFileSync(abs(P(NOTES)))).json).inputs, [pins(SPEC)]);
-  });
+  const subjects = [
+    [SPEC, UPSTREAM[SPEC]],
+    [DESIGN, UPSTREAM[DESIGN]],
+    [NOTES, UPSTREAM[NOTES]],
+    ["1-spec/lanes/a/spec.md", UPSTREAM[SPEC], SPEC],
+    ["2-design-doc/lanes/a/design-doc.md", UPSTREAM[DESIGN], DESIGN],
+  ];
+  for (const [subject, upstream, root = subject] of subjects)
+    it(`of ${subject}: its upstream artifacts and the later inputs targeting ${root}`, () => {
+      pipeline(3, { lanes: [lane("spec-producer", "a"), lane("design-doc-producer", "a")] });
+      write("0-intent/constraint-1.md", `target: ${root}#item-1\n`);
+      write("0-intent/proposal-1.md", `target: ${[SPEC, DESIGN, NOTES].find((path) => path !== root)}\n`);
+      write(subject, "# Body\n");
+      stamp(subject);
+      assert.deepEqual(inputsOf(subject), [...upstream, "0-intent/constraint-1.md"].sort().map(pin));
+    });
 
-  it("is idempotent: a second identical stamp leaves the bytes unchanged", () => {
+  it("pins the identities in the working tree it runs on, uncommitted changes included", () => {
     pipeline(1);
-    const first = read(SPEC);
-    stamp(SPEC, INTENT);
-    assert.equal(read(SPEC), first);
+    write(INTENT, `${read(INTENT)}Uncommitted.\n`);
+    stamp(SPEC);
+    assert.deepEqual(inputsOf(SPEC), [pin(INTENT)]);
+    assert.equal(check().phases[0].state, "fresh");
   });
 
-  it("pins a lane candidate", () => {
+  it("drops a pin that is no longer required", () => {
     pipeline(1);
-    write("1-spec/lanes/a/spec.md", "# Candidate\n");
-    write(DESIGN, "# Design\n");
-    stamp(DESIGN, SPEC, "1-spec/lanes/a/spec.md");
-    assert.match(read(DESIGN), /1-spec\/lanes\/a\/spec\.md@[0-9a-f]{12}/);
+    write("0-intent/failure-1.md", `target: ${SPEC}\n`);
+    stamp(SPEC);
+    assert.equal(inputsOf(SPEC).length, 2);
+    write("0-intent/failure-1.md", `target: ${DESIGN}\n`);
+    stamp(SPEC);
+    assert.deepEqual(inputsOf(SPEC), [pin(INTENT)]);
   });
 
-  it("records reviewed on a review thread closed approved as the net change at its last message's commit", () => {
+  it("changes nothing when stamped twice", () => {
     pipeline(3);
+    for (const rel of [SPEC, DESIGN, NOTES]) stamp(rel);
+    assert.equal(git(root, "status", "--porcelain"), "");
+  });
+
+  it("records the candidates --pin names on a consolidated root, and keeps them on a later stamp", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a"), lane("spec-producer", "b")] });
+    for (const id of ["a", "b"]) { write(`1-spec/lanes/${id}/spec.md`, `# ${id}\n`); stamp(`1-spec/lanes/${id}/spec.md`); }
+    write(SPEC, "# Spec\n");
+    stamp(SPEC, "1-spec/lanes/a/spec.md", "1-spec/lanes/b/spec.md");
+    const recorded = [pin(INTENT), pin("1-spec/lanes/a/spec.md"), pin("1-spec/lanes/b/spec.md")];
+    assert.deepEqual(inputsOf(SPEC), recorded);
+    write("1-spec/lanes/a/spec.md", "# changed\n");
+    remove("1-spec/lanes/b/spec.md");
+    write(INTENT, `${read(INTENT)}More.\n`);
+    stamp(SPEC);
+    assert.deepEqual(inputsOf(SPEC), [pin(INTENT), ...recorded.slice(1)]);
+    stamp(SPEC, "1-spec/lanes/a/spec.md");
+    assert.deepEqual(inputsOf(SPEC), [pin(INTENT), pin("1-spec/lanes/a/spec.md")]);
+  });
+});
+
+describe("stamp of an approval", () => {
+  useRepo();
+
+  it("pins the intent, every later input, and the spec, and records the net change at its last message's commit", () => {
+    pipeline(3);
+    write("0-intent/constraint-1.md", `target: ${NOTES}\n`);
+    write("0-intent/proposal-1.md", `target: ${DESIGN}\n`);
+    stamp(DESIGN);
+    stamp(NOTES);
     writeFile("src/app.js", "export const a = 2;\n");
     const reviewedAt = commitAll("change");
     const atReview = check().netChange;
     const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abc1234"], ["implementer", "abc1234"], ["reviewer-default", reviewedAt.slice(0, 9)]] });
     writeFile("src/app.js", "export const a = 3;\n");
     commitAll("later change");
-    const out = run("stamp", abs(P(path)), "--reviewed");
-    assert.equal(out.status, 0, out.stderr);
-    const reviewed = JSON.parse(splitFrontmatter(readFileSync(abs(P(path)))).json).reviewed;
-    assert.equal(reviewed, atReview);
-    assert.notEqual(reviewed, check().netChange);
+    stamp(path);
+    assert.deepEqual(frontmatterOf(path), {
+      inputs: [pin("0-intent/constraint-1.md"), pin(INTENT), pin("0-intent/proposal-1.md"), pin(SPEC)],
+      reviewed: atReview,
+    });
+    assert.notEqual(atReview, check().netChange);
     assert.match(read(path), /^---\n[\s\S]*\n---\nstatus: closed: approved\n/);
+    const before = read(path);
+    stamp(path);
+    assert.equal(read(path), before);
   });
+});
 
-  it("refuses --reviewed when the last message's commit does not resolve", () => {
-    pipeline(3);
-    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abcdef1"]] });
-    const out = run("stamp", abs(P(path)), "--reviewed");
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /the last message's commit does not resolve to a commit: abcdef1/);
-  });
+describe("stamp refuses", () => {
+  useRepo();
 
   const refusals = [
-    ["no option", () => [P(SPEC)], /nothing to stamp/],
-    ["the intent", () => [P(INTENT), "--pin", P(SPEC)], /not an artifact or thread/],
-    ["a later input", () => [P("0-intent/constraint-1.md"), "--pin", P(INTENT)], /not an artifact or thread/],
-    ["--pin on a thread", () => [P("threads/1-design-doc-producer-spec-producer-spec.md"), "--pin", P(INTENT)], /--pin applies to an artifact/],
-    ["--pin outside the pipeline", () => [P(SPEC), "--pin", "src/app.js"], /outside the pipeline folder/],
-    ["--pin of a thread", () => [P(SPEC), "--pin", P("threads/1-design-doc-producer-spec-producer-spec.md")], /names no pipeline artifact/],
-    ["--pin of a missing file", () => [P(SPEC), "--pin", P(DESIGN)], /cannot read/],
-    ["the same pin twice", () => [P(SPEC), "--pin", P(INTENT), "--pin", P(INTENT)], /twice/],
-    ["--reviewed on an artifact", () => [P(SPEC), "--reviewed"], /--reviewed applies to a thread/],
-    ["--reviewed on a thread that is not a review thread", () => [P("threads/1-design-doc-producer-spec-producer-spec.md"), "--reviewed"], /review thread closed: approved/],
-    ["--reviewed on an open review thread", () => [P("threads/2-reviewer-default-implementer-implementation.md"), "--reviewed"], /review thread closed: approved/],
-    ["run-config.md", () => [P("run-config.md"), "--pin", P(INTENT)], /not an artifact or thread/],
-    ["a file outside the pipelines folder root", () => ["src/app.js", "--pin", P(INTENT)], /not inside the pipelines folder root/],
-    ["an unknown option", () => [P(SPEC), "--mirror"], /unknown option/],
+    ["the intent", () => [P(INTENT)], /not an artifact or thread/],
+    ["a later input", () => [P("0-intent/constraint-1.md")], /not an artifact or thread/],
+    ["run-config.md", () => [P("run-config.md")], /not an artifact or thread/],
+    ["a file outside a pipeline folder", () => ["src/app.js"], /not a pipeline file/],
+    ["a thread that is not a review thread", () => [P("threads/1-design-doc-producer-spec-producer-spec.md")], /only a review thread closed: approved is stamped/],
+    ["an open review thread", () => [P("threads/2-reviewer-default-implementer-implementation.md")], /only a review thread closed: approved is stamped/],
+    ["--pin on notes.md", () => [P(NOTES), "--pin", P("1-spec/lanes/a/spec.md")], /--pin applies to a spec or design doc/],
+    ["--pin on a candidate", () => [P("1-spec/lanes/a/spec.md"), "--pin", P("1-spec/lanes/a/spec.md")], /--pin applies to a spec or design doc/],
+    ["--pin naming something other than a candidate", () => [P(SPEC), "--pin", P(INTENT)], /--pin must name a candidate/],
+    ["--pin naming another phase's candidate", () => [P(DESIGN), "--pin", P("1-spec/lanes/a/spec.md")], /--pin must name a candidate/],
+    ["--pin naming a missing candidate", () => [P(SPEC), "--pin", P("1-spec/lanes/b/spec.md")], /cannot pin .*1-spec\/lanes\/b\/spec.md: missing/],
+    ["an option that no longer exists", () => [P(SPEC), "--reviewed"], /unknown option: --reviewed/],
   ];
   for (const [name, args, message] of refusals)
-    it(`refuses ${name}`, () => {
-      pipeline(1);
+    it(name, () => {
+      pipeline(3, { lanes: [lane("spec-producer", "a"), lane("spec-producer", "b")] });
       write("0-intent/constraint-1.md", "target: 1-spec/spec.md\n");
+      write("1-spec/lanes/a/spec.md", "# a\n");
       thread({ status: "closed: approved", ...TO_SPEC });
       thread({ n: 2, ...REVIEW() });
       const before = read(SPEC);
@@ -112,18 +159,44 @@ describe("stamp", () => {
       assert.equal(read(SPEC), before);
     });
 
-  it("refuses a file whose frontmatter is malformed, leaving it untouched", () => {
+  it("a required input that is missing", () => {
+    pipeline(0);
+    write(DESIGN, "# Design\n");
+    const out = run("stamp", abs(P(DESIGN)));
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /cannot pin .*1-spec\/spec.md: missing/);
+  });
+
+  it("while another pipeline file is INVALID", () => {
+    pipeline(1);
+    write("0-intent/constraint-1.md", "no target\n");
+    const out = run("stamp", abs(P(SPEC)));
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /constraint-1.md: later input has no target/);
+  });
+
+  it("a file whose own frontmatter is malformed, leaving it untouched", () => {
     pipeline(0);
     write(SPEC, "---\nnot json\n---\n# Spec\n");
-    const out = run("stamp", abs(P(SPEC)), "--pin", abs(P(INTENT)));
+    const out = run("stamp", abs(P(SPEC)));
     assert.equal(out.status, 1);
     assert.match(out.stderr, /not valid JSON/);
     assert.equal(read(SPEC), "---\nnot json\n---\n# Spec\n");
   });
 
-  it("writes nothing when the stamp records what the file already holds", () => {
-    pipeline(1);
-    stamp(SPEC, INTENT);
-    assert.equal(git(root, "status", "--porcelain", "--", P(SPEC)), "");
+  it("an approval whose last message's commit does not resolve", () => {
+    pipeline(3);
+    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abcdef1"]] });
+    const out = run("stamp", abs(P(path)));
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /the last message's commit does not resolve to a commit: abcdef1/);
+  });
+
+  it("a folder that has no parent pipelines folder root", () => {
+    for (const [rel, contents] of [["demo/run-config.md", '---\n{"target-phase": 1, "base": "main"}\n---\n'], ["demo/0-intent/intent.md", "# I\n"], ["demo/1-spec/spec.md", "# S\n"]]) writeFile(rel, contents);
+    const out = run("stamp", abs("demo/1-spec/spec.md"));
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /a pipeline folder is <pipelines folder root>\/<pipeline slug>: demo/);
+    configure();
   });
 });

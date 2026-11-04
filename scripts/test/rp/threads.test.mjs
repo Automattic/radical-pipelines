@@ -1,15 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { Invalid, awaitedRole, isReview, parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
+import { Invalid, awaitedRole, isReview, parseRole, parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import { REVIEW, TO_SPEC, check, frontier, lane, pipeline, thread, useRepo, write } from "./fixture.mjs";
 
-const REVIEWERS = ["reviewer-default"];
 const NAME = "1-implementer-spec-producer-spec.md";
 const HEADER = "status: open\nopener: implementer\nowner: spec-producer\nartifact: spec\n";
 const MESSAGE = "## implementer — abc1234\n\nspec-requirement-2 has no observed input.\n";
 const valid = `${HEADER}\n${MESSAGE}`;
-const parse = (name, body) => parseThread(name, body, REVIEWERS);
+const parse = (name, body) => parseThread(name, body);
 const rejects = (name, body, reason) => assert.throws(() => parse(name, body), (error) => error instanceof Invalid && reason.test(error.message));
 
 describe("thread parsing", () => {
@@ -50,10 +49,14 @@ describe("thread parsing", () => {
     ["a header not followed by a blank line", NAME, `${HEADER}${MESSAGE}`, /header must end with a blank line/],
     ["an unknown status", NAME, valid.replace("status: open", "status: closed"), /status must be one of/],
     ["an artifact path instead of a token", NAME, valid.replace("artifact: spec", "artifact: 1-spec/spec.md"), /artifact must be one of/],
-    ["an owner that does not own the artifact", NAME, valid.replace("artifact: spec", "artifact: implementation"), /owner of implementation is implementer/],
-    ["an unknown opener", "1-spec-reviewer-spec-producer-spec.md", valid.replace("opener: implementer", "opener: spec-reviewer"), /opener must be one of/],
-    ["a reviewer of an unconfigured lane", "1-reviewer-x-spec-producer-spec.md", valid.replace(/implementer/g, "reviewer-x"), /opener must be one of/],
-    ["owner as opener", "1-owner-spec-producer-spec.md", valid.replace(/implementer/g, "owner"), /opener must be one of/],
+    ["an owner that does not own the artifact", NAME, valid.replace("artifact: spec", "artifact: implementation"), /owner of implementation is implementer\[-<lane>\]/],
+    ["an unknown opener", "1-spec-reviewer-spec-producer-spec.md", valid.replace("opener: implementer", "opener: spec-reviewer"), /opener must be a role/],
+    ["a reviewer without lane", "1-reviewer-spec-producer-spec.md", valid.replace(/implementer/g, "reviewer"), /opener must be a role/],
+    ["an implementer with a lane", "1-implementer-a-spec-producer-spec.md", valid.replace(/implementer/g, "implementer-a"), /opener must be a role/],
+    ["a malformed lane", "1-reviewer-A-spec-producer-spec.md", valid.replace(/implementer/g, "reviewer-A"), /opener must be a role/],
+    ["an unknown owner", NAME.replace("spec-producer", "spec-writer"), valid.replace("owner: spec-producer", "owner: spec-writer"), /owner must be a role/],
+    ["a lane owner of another profile's artifact", "1-implementer-design-doc-producer-a-spec.md", valid.replace("owner: spec-producer", "owner: design-doc-producer-a"), /owner of spec is spec-producer\[-<lane>\]/],
+    ["owner as opener", "1-owner-spec-producer-spec.md", valid.replace(/implementer/g, "owner"), /owner opens no thread/],
     ["opener equal to owner", "1-spec-producer-spec-producer-spec.md", valid.replace(/implementer/g, "spec-producer"), /must differ/],
     ["disagreement on a thread to a role", NAME, valid.replace("open", "disagreement"), /statuses of a thread to owner/],
     ["closed: answered on a thread to a role", NAME, valid.replace("open", "closed: answered"), /statuses of a thread to owner/],
@@ -70,6 +73,30 @@ describe("thread parsing", () => {
 
   it("accepts disagreement and closed: answered on a thread to owner", () => {
     for (const status of ["disagreement", "closed: answered"]) assert.equal(parse("1-implementer-owner-intent.md", toOwner(status)).status, status);
+  });
+});
+
+describe("thread roles", () => {
+  const roles = [
+    ["owner", { profile: "owner", lane: null }],
+    ["implementer", { profile: "implementer", lane: null }],
+    ["spec-producer", { profile: "spec-producer", lane: null }],
+    ["design-doc-producer", { profile: "design-doc-producer", lane: null }],
+    ["spec-producer-a", { profile: "spec-producer", lane: "a" }],
+    ["design-doc-producer-fast-1", { profile: "design-doc-producer", lane: "fast-1" }],
+    ["reviewer-security", { profile: "reviewer", lane: "security" }],
+    ["reviewer", null],
+    ["reviewer-", null],
+    ["reviewer--x", null],
+    ["implementer-a", null],
+    ["owner-a", null],
+    ["orchestrator", null],
+  ];
+  for (const [role, parsed] of roles) it(`${role} is ${parsed ? `${parsed.profile}${parsed.lane ? ` lane ${parsed.lane}` : ""}` : "not a role"}`, () => assert.deepEqual(parseRole(role), parsed));
+
+  it("lane owners pair with their profile's artifact", () => {
+    const body = "status: open\nopener: design-doc-producer\nowner: design-doc-producer-a\nartifact: design-doc\n\n## design-doc-producer — abc1234\n";
+    assert.equal(parse("1-design-doc-producer-design-doc-producer-a-design-doc.md", body).owner, "design-doc-producer-a");
   });
 });
 
@@ -108,23 +135,27 @@ describe("threads in a pipeline", () => {
     assert.deepEqual(invalidPaths(), []);
   });
 
-  it("accepts the reviewer role of each configured review lane and no other", () => {
+  it("accepts a reviewer of a lane that is not configured", () => {
     pipeline(3, { lanes: [lane("reviewer", "security")] });
     thread({ opener: "reviewer-security", owner: "implementer", artifact: "implementation" });
-    thread({ n: 2, ...REVIEW("default") });
-    assert.deepEqual(invalidPaths(), ["INVALID threads/2-reviewer-default-implementer-implementation.md"]);
+    thread({ n: 2, ...REVIEW("gone"), status: "closed: withdrawn" });
+    assert.deepEqual(invalidPaths(), []);
   });
 
+  const STAMP = { inputs: ["0-intent/intent.md@0123456789ab"], reviewed: "0".repeat(40) };
   const reviewedCases = [
-    ["a review thread closed approved without reviewed", { status: "closed: approved", ...REVIEW() }, true],
-    ["reviewed on an open review thread", { ...REVIEW(), frontmatter: { reviewed: "0".repeat(40) } }, true],
-    ["reviewed on a reviewer's approved thread to another owner", { status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec", frontmatter: { reviewed: "0".repeat(40) } }, true],
-    ["reviewed on another role's approved thread", { status: "closed: approved", ...TO_SPEC, frontmatter: { reviewed: "0".repeat(40) } }, true],
-    ["reviewed that is not a patch id", { status: "closed: approved", ...REVIEW(), frontmatter: { reviewed: "abc" } }, true],
-    ["any other frontmatter key", { ...TO_SPEC, frontmatter: { inputs: [] } }, true],
-    ["another role's approved thread without reviewed", { status: "closed: approved", ...TO_SPEC }, false],
-    ["a reviewer's approved thread to another owner without reviewed", { status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" }, false],
-    ["a review thread closed approved with reviewed", { status: "closed: approved", ...REVIEW(), frontmatter: { reviewed: "0".repeat(40) } }, false],
+    ["an approval without frontmatter", { status: "closed: approved", ...REVIEW() }, true],
+    ["an approval without inputs", { status: "closed: approved", ...REVIEW(), frontmatter: { reviewed: STAMP.reviewed } }, true],
+    ["an approval without reviewed", { status: "closed: approved", ...REVIEW(), frontmatter: { inputs: STAMP.inputs } }, true],
+    ["an approval with a malformed reviewed", { status: "closed: approved", ...REVIEW(), frontmatter: { ...STAMP, reviewed: "abc" } }, true],
+    ["an approval with a malformed pin", { status: "closed: approved", ...REVIEW(), frontmatter: { ...STAMP, inputs: ["0-intent/intent.md"] } }, true],
+    ["an approval with another key", { status: "closed: approved", ...REVIEW(), frontmatter: { ...STAMP, lane: "x" } }, true],
+    ["frontmatter on an open review thread", { ...REVIEW(), frontmatter: STAMP }, true],
+    ["frontmatter on a reviewer's approved thread to another owner", { status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec", frontmatter: STAMP }, true],
+    ["frontmatter on another role's approved thread", { status: "closed: approved", ...TO_SPEC, frontmatter: STAMP }, true],
+    ["another role's approved thread without frontmatter", { status: "closed: approved", ...TO_SPEC }, false],
+    ["a reviewer's approved thread to another owner without frontmatter", { status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" }, false],
+    ["an approval with inputs and reviewed", { status: "closed: approved", ...REVIEW(), frontmatter: STAMP }, false],
   ];
   for (const [what, fields, isInvalid] of reviewedCases)
     it(`${isInvalid ? "rejects" : "accepts"} ${what}`, () => {

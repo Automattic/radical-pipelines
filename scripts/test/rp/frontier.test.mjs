@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_DESIGN, TO_OWNER, TO_SPEC,
-  abs, approve, check, commitAll, configure, frontier, lane, pipeline, read, remove, rp, run, thread, useRepo, write, writeFile,
+  abs, approve, check, commitAll, configure, frontier, lane, pipeline, read, remove, rp, run, stamp, thread, useRepo, write, writeFile,
 } from "./fixture.mjs";
 
 const replied = (parties, n = 1) => thread({ n, ...parties, messages: [[parties.opener, "aaaaaaa"], [parties.owner, "bbbbbbb"]] });
@@ -150,11 +150,23 @@ describe("frontier", () => {
       assert.deepEqual(frontier(), [`produce ${DESIGN}`]);
     });
 
-    it("phases beyond the target have no work", () => {
+    it("a missing or stale artifact beyond the target is no work", () => {
       pipeline(1, { targetPhase: 1 });
-      thread(TO_DESIGN);
+      write(DESIGN, "# Unstamped design\n");
       assert.deepEqual(frontier(), ["complete"]);
     });
+
+    for (const [targetPhase, upTo, parties, expected] of [
+      [1, 1, TO_DESIGN, `respond ${DESIGN}`],
+      [2, 2, REVIEW(), `respond ${NOTES}`],
+      [3, 3, { ...REVIEW(), owner: "spec-producer", artifact: "spec", replied: true }, "review default"],
+    ])
+      it(`a thread awaiting a role beyond target phase ${targetPhase} is still its work: ${expected}`, () => {
+        pipeline(upTo, { targetPhase });
+        const { replied: wasReplied, ...fields } = parties;
+        if (wasReplied) replied(fields); else thread(fields);
+        assert.deepEqual(frontier(), [expected]);
+      });
 
     it("closed threads await nobody", () => {
       pipeline(3, { targetPhase: 3 });
@@ -200,6 +212,27 @@ describe("frontier", () => {
       writeFile("src/app.js", "export const a = 3;\n");
       commitAll("change");
       assert.deepEqual(frontier(), ["review default"]);
+      assert.deepEqual(check().reviews, [{ lane: "default", approved: false }]);
+    });
+
+    it("an approval goes stale when a required input changes or a later input lands", () => {
+      pipeline(3);
+      approve();
+      assert.deepEqual(frontier(), ["complete"]);
+      write("0-intent/proposal-1.md", `target: ${NOTES}\n`);
+      assert.deepEqual(frontier(), [`respond ${NOTES}`]);
+      stamp(NOTES);
+      assert.deepEqual(check().frontier, [{ action: "review", target: "default", threads: [], changed: ["0-intent/proposal-1.md"] }]);
+      assert.deepEqual(check().reviews, [{ lane: "default", approved: false, stale: ["0-intent/proposal-1.md"] }]);
+      approve("default", 2);
+      assert.deepEqual(frontier(), ["complete"]);
+    });
+
+    it("an approval whose pins match but whose net change differs is not approved", () => {
+      pipeline(3);
+      approve();
+      writeFile("src/app.js", "export const a = 9;\n");
+      commitAll("change");
       assert.deepEqual(check().reviews, [{ lane: "default", approved: false }]);
     });
 

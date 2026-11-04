@@ -48,8 +48,9 @@ export function configure({ targetPhase = 4, base = "main", lanes } = {}) {
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 
-export function stamp(rel, ...pins) {
-  return rp("stamp", abs(P(rel)), ...pins.flatMap((pin) => ["--pin", abs(P(pin))]));
+// Stamps a file with its derived required inputs; `candidates` are the extra pins of a consolidated root.
+export function stamp(rel, ...candidates) {
+  return rp("stamp", abs(P(rel)), ...candidates.flatMap((pin) => ["--pin", abs(P(pin))]));
 }
 export const UPSTREAM = { [SPEC]: [INTENT], [DESIGN]: [SPEC], [NOTES]: [SPEC, DESIGN] };
 
@@ -76,7 +77,7 @@ export const TO_OWNER = { opener: "spec-producer", owner: "owner", artifact: "in
 export function approve(laneId = "default", n = 1) {
   const head = git(root, "rev-parse", "HEAD").trim();
   const path = thread({ n, status: "closed: approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
-  rp("stamp", abs(P(path)), "--reviewed");
+  rp("stamp", abs(P(path)));
   return path;
 }
 
@@ -85,9 +86,9 @@ export function approve(laneId = "default", n = 1) {
 export function pipeline(upTo = 3, config = {}) {
   configure(config);
   write(INTENT, "origin: issue 7\n\n# Intent\n\n## Goal\n\nUsers can export.\n");
-  if (upTo >= 1) { write(SPEC, "# Spec\n\nRequirement.\n"); stamp(SPEC, INTENT); }
-  if (upTo >= 2) { write(DESIGN, "# Design doc\n\nDecision.\n"); stamp(DESIGN, SPEC); }
-  if (upTo >= 3) { write(NOTES, "status: done\n\n# Notes\n"); stamp(NOTES, SPEC, DESIGN); }
+  if (upTo >= 1) { write(SPEC, "# Spec\n\nRequirement.\n"); stamp(SPEC); }
+  if (upTo >= 2) { write(DESIGN, "# Design doc\n\nDecision.\n"); stamp(DESIGN); }
+  if (upTo >= 3) { write(NOTES, "status: done\n\n# Notes\n"); stamp(NOTES); }
   return commitAll("pipeline");
 }
 
