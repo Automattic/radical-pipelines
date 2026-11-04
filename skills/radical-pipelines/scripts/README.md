@@ -86,7 +86,7 @@ owner: <role>
 artifact: intent | spec | design-doc | implementation
 ```
 
-- `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so threads of a removed lane stay valid.
+- `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. An `open` thread awaiting a lane role whose lane `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; for review lanes, `default` is declared only while no `reviewer` lane is.
 - `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`. A lane role owns its candidate.
 - The opener is any role but `owner`, and differs from the owner.
 - A thread to `owner` has status `disagreement` or `closed: answered`; no other thread has either.
@@ -99,14 +99,14 @@ A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An *
 
 ## Net change
 
-The net change is the diff from the merge-base of `base` and a commit to that commit, outside the pipelines folder root. Its id is the sha1 of its changed lines alone:
+The net change is the diff from the merge-base of `base` and a commit to that commit, outside the pipelines folder root. Its id is the sha1 of its changed lines with one line of context on each side, without hunk headers or index lines:
 
 ```sh
-git diff -U0 --no-renames --binary <base>...<commit> -- . ':(top,exclude,literal)<pipelines folder root>' \
+git diff -U1 --no-renames --binary <base>...<commit> -- . ':(top,exclude,literal)<pipelines folder root>' \
   | grep -v -e '^@@' -e '^index ' | sha1sum
 ```
 
-A merge from the base that changes nothing of the change leaves the id unchanged, even when it edits the change's context or shifts its line numbers; a conflict resolution or a whitespace change changes it. A `base` that does not resolve, or has no merge-base with the commit, stops the command.
+The context locates each edit, so the same edit at two places hashes differently. A merge from the base that touches no line of the change or adjacent to it leaves the id unchanged, even when it shifts line numbers; a conflict resolution or a whitespace change changes it. A `base` that does not resolve, or has no merge-base with the commit, stops the command.
 
 A review lane is **approved** when its highest-numbered review thread is an approval that is fresh and whose `reviewed` equals the net change id at the tip. Approval is computed for the configured review lanes.
 
@@ -116,7 +116,7 @@ A review lane is **approved** when its highest-numbered review thread is an appr
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 ```
 
-`check` reads the pipeline files from the working tree, or with `--ref` from that commit. The tip is `HEAD`, or the `--ref` commit. A pipeline file that is a symlink or not a regular file, or a file where a pipeline folder belongs, stops the command.
+`check` reads the pipeline files from the working tree, or with `--ref` from that commit. The tip is `HEAD`, or the `--ref` commit. A pipeline file that is a symlink or not a regular file, a folder where a pipeline file belongs, or a file where a pipeline folder belongs stops `check` and `stamp`, in the working tree and at a ref alike.
 
 ### Frontier
 
@@ -159,12 +159,12 @@ thread <thread> <status>[ awaits <role>]
 node rp.mjs stamp <file> [--pin <candidate>]...
 ```
 
-`stamp` reads the pipeline from the working tree, pins the file's required inputs (§ `inputs`) at their identities there, and keeps the body byte for byte. It writes nothing when the frontmatter would not change, so stamping twice changes nothing.
+`stamp` pins the file's required inputs (§ `inputs`) at their identities in the tree of the commit that last changed the file's body on `HEAD`'s history, the role's own commit, so an input edited after it, committed or not, is not certified. A commit that changed only the frontmatter, such as an earlier stamp, is passed over. `stamp` keeps the body byte for byte, and writes nothing when the frontmatter would not change, so stamping twice changes nothing.
 
 - **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation.
-- **An approval**: `inputs` becomes its required inputs, and `reviewed` the net change id at the commit its last message names, with the base from `run-config.md`.
+- **An approval**: `inputs` becomes its required inputs, and `reviewed` the net change id at the commit its last message names, with the base from `run-config.md` in the same tree.
 
-Any other file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate that is missing, another pipeline file that is `INVALID`, a commit that does not resolve, or malformed frontmatter stops the command.
+A file with no commit, a body with changes `HEAD` does not hold, any other kind of file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate that is missing, another pipeline file `INVALID` in that commit's tree, a commit that does not resolve, or malformed frontmatter stops the command.
 
 ## `pipelines`
 
@@ -172,7 +172,7 @@ Any other file, `--pin` on anything but a spec or design doc or naming anything 
 node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
 ```
 
-Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `### Pipelines folder root` in `.rp.local.md` at the repository root, else in `.rp.md`, read from the working tree, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. `pipelines` reads every local branch and remote-tracking branch tip:
+Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `### Pipelines folder root` in `.rp.local.md` at the root of the main checkout, else in `.rp.md` there, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. The main checkout is the parent of `git rev-parse --git-common-dir` in a linked worktree, and the worktree itself otherwise, so a linked worktree sees the git-ignored `.rp.local.md`. `pipelines` reads every local branch and remote-tracking branch tip:
 
 1. Collect each `<pipelines folder root>/<slug>` folder at each tip, with its tree id.
 2. Read its `run-config.md`; its `base` names the base branch.
@@ -191,6 +191,7 @@ These fill details the specification leaves open; the prose aligns with them.
 - **A thread to `owner`** opens as `disagreement` and closes `closed: answered`; `open`, `closed: approved`, and `closed: withdrawn` are `INVALID` there.
 - **A message by `owner`** on any thread leaves it awaiting the thread's owner.
 - **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it. Beyond the target, a thread's owner gets `respond` even when its artifact is missing.
-- **A thread awaiting a lane** wakes that lane with `lane`, whether or not the lane is still configured and whether or not the root exists.
+- **A thread awaiting a configured lane** wakes that lane with `lane`, whether or not the root exists.
+- **An approval's pins** come from the commit that last changed the thread's body, the reviewer's closing commit, by the same rule as an artifact's.
 - **A re-stamp without `--pin`** keeps the candidate pins a root recorded, so the record of a consolidation survives later stamps.
 - **Strict keys**: unknown frontmatter, `run-config.md`, and lane keys are `INVALID` or stop the command.
