@@ -162,11 +162,19 @@ function locate(argument) {
   return { root, rel };
 }
 
-// The pipelines folder root discovery reads: the first non-blank line under `### Pipelines folder root` in `.rp.local.md`,
-// else in `.rp.md`, else `.pipelines`.
+// The main checkout of a repository: the parent of the common git directory in a linked worktree, else the worktree itself.
+function mainCheckout(root) {
+  const dir = (option) => realpathSync(resolve(root, gitText(root, ["rev-parse", option])));
+  const common = dir("--git-common-dir");
+  return common === dir("--git-dir") ? root : dirname(common);
+}
+
+// The pipelines folder root discovery reads from the main checkout: the first non-blank line under
+// `### Pipelines folder root` in `.rp.local.md`, else in `.rp.md`, else `.pipelines`.
 export function pipelinesFolderRoot(root) {
+  const checkout = mainCheckout(root);
   for (const name of [".rp.local.md", ".rp.md"]) {
-    const conventions = join(root, name);
+    const conventions = join(checkout, name);
     if (!existsSync(conventions)) continue;
     const lines = readFileSync(conventions, "utf8").split(/\r?\n/);
     const heading = lines.findIndex((line) => /^### Pipelines folder root[\t ]*$/.test(line));
@@ -287,7 +295,8 @@ function readWorktree(root, folder) {
     for (const name of readdirSync(join(base, rel)).sort()) {
       const child = rel ? `${rel}/${name}` : name;
       const stat = lstatSync(join(base, child));
-      if (holdsFiles(child) && !stat.isDirectory()) fail(`cannot read ${folder}/${child}: not a folder`);
+      if (holdsFiles(child) && !stat.isDirectory()) fail(`cannot read ${folder}/${child}: a file where a folder belongs`);
+      if (kindOf(child) && stat.isDirectory()) fail(`cannot read ${folder}/${child}: a folder where a pipeline file belongs`);
       if (stat.isDirectory()) { if (holdsFiles(child)) visit(child); }
       else if (kindOf(child)) {
         if (!stat.isFile()) fail(`cannot read ${folder}/${child}: not a regular file`);
@@ -306,7 +315,10 @@ async function readCommit(root, commit, folder) {
   const wanted = [];
   for (const entry of entries) {
     const rel = entry.path.slice(folder.length + 1);
-    if (holdsFiles(rel)) fail(`cannot read ${commit}:${entry.path}: not a folder`);
+    if (holdsFiles(rel)) fail(`cannot read ${commit}:${entry.path}: a file where a folder belongs`);
+    const parts = rel.split("/");
+    for (let length = 1; length < parts.length; length++)
+      if (kindOf(parts.slice(0, length).join("/"))) fail(`cannot read ${commit}:${folder}/${parts.slice(0, length).join("/")}: a folder where a pipeline file belongs`);
     if (!kindOf(rel)) continue;
     if (!["100644", "100755"].includes(entry.mode)) fail(`cannot read ${commit}:${entry.path}: not a regular file`);
     wanted.push({ rel, oid: entry.oid });
@@ -342,7 +354,9 @@ export function parseConfig(bytes) {
 }
 
 // The production lanes configured for a phase.
-const productionLanes = (config, phase) => phase.lanes ? config.lanes.filter((lane) => lane.profile === phase.owner) : [];
+// The lanes the configuration declares for a lane profile, review lanes' `default` included.
+const lanesOf = (config, profile) => profile === "reviewer" ? reviewLanes(config) : config.lanes.filter((lane) => lane.profile === profile);
+const productionLanes = (config, phase) => phase.lanes ? lanesOf(config, phase.owner) : [];
 // The review lanes: the configured ones, or one lane `default`.
 export function reviewLanes(config) {
   const lanes = config.lanes.filter((lane) => lane.profile === "reviewer");
@@ -449,6 +463,8 @@ export function readState(files) {
           if (!("inputs" in data) || !("reviewed" in data)) invalid("a review thread closed: approved needs inputs and reviewed: stamp it");
           if (typeof data.reviewed !== "string" || !/^[0-9a-f]{40}$/.test(data.reviewed)) invalid("reviewed must be a net change id");
         } else if (stamped) invalid("carries no frontmatter: only a review thread closed: approved is stamped");
+        const awaited = awaitedRole(thread) && parseRole(awaitedRole(thread));
+        if (awaited?.lane && !lanesOf(config, awaited.profile).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
         state.threads.push({ ...thread, inputs: parseInputs(data.inputs), reviewed: data.reviewed ?? null });
         continue;
       }
@@ -513,11 +529,11 @@ function approvalOf(state, lane) {
 }
 
 // The net change id: the sha1 of the diff from the merge-base with the base to a commit, outside the pipelines folder
-// root, without context lines, hunk headers, or index lines: the changed lines alone.
+// root, with one line of context and without hunk headers or index lines: the changed lines and what locates them.
 export function netChange(root, base, commit, pipelinesRoot) {
   const baseCommit = requireCommit(root, base, "base");
   if (!gitText(root, ["merge-base", "--all", baseCommit, commit])) fail(`no merge-base between ${base} and ${commit}`);
-  const diff = gitBytes(root, ["diff", "-U0", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
+  const diff = gitBytes(root, ["diff", "-U1", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
     `${baseCommit}...${commit}`, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
   const changed = diff.toString("latin1").split("\n").filter((line) => !line.startsWith("@@") && !line.startsWith("index ")).join("\n");
   return createHash("sha1").update(Buffer.from(changed, "latin1")).digest("hex");
@@ -610,18 +626,31 @@ async function cmdCheck(args) {
 
 // --- stamp ------------------------------------------------------------------------
 
-// Pins a file's required inputs, derived from its kind, at their identities in the working tree. An artifact keeps the
-// candidate pins it recorded, or records those `--pin` names; an approval also records `reviewed`.
-function cmdStamp(args) {
+// The commit that last changed a file's body on HEAD's history: what its role read is that commit's tree.
+async function bodyCommit(root, path, bytes) {
+  const commits = gitText(root, ["log", "--format=%H", "HEAD", "--", `:(top,literal)${path}`]).split("\n").filter(Boolean);
+  if (!commits.length) fail(`stamp: ${path} has no commit: commit its body before stamping`);
+  const versions = await readObjects(root, commits.flatMap((commit) => [`${commit}:${path}`, `${commit}^:${path}`]));
+  const bodyAt = (at) => versions[at] && identity(versions[at]);
+  if (bodyAt(0) !== identity(bytes)) fail(`stamp: ${path} has body changes HEAD does not hold: commit them before stamping`);
+  const changed = commits.findIndex((_, i) => bodyAt(2 * i) !== bodyAt(2 * i + 1));
+  return commits[changed === -1 ? commits.length - 1 : changed];
+}
+
+// Pins a file's required inputs, derived from its kind, at their identities in the tree of the commit that last changed
+// its body. An artifact keeps the candidate pins it recorded, or records those `--pin` names; an approval also records
+// `reviewed`.
+async function cmdStamp(args) {
   const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
   const { folder, pipelinesRoot, inner } = pipelineFileOf(rel, "stamp");
   const kind = kindOf(inner);
   if (!pins(kind) && kind.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
   const files = readWorktree(root, folder);
   if (!files.has(inner)) fail(`stamp: cannot read ${rel}: not a regular file`);
-  const state = readState(files);
+  const commit = await bodyCommit(root, rel, files.get(inner));
+  const state = readState(await readCommit(root, commit, folder));
   const blocking = state.invalid.find((entry) => entry.path !== inner || kind.kind !== "thread");
-  if (blocking) fail(`stamp: ${folder}/${blocking.path}: ${blocking.reason}`);
+  if (blocking) fail(`stamp: ${commit}:${folder}/${blocking.path}: ${blocking.reason}`);
   const bytes = files.get(inner);
   const { data, body } = parseOrFail(`stamp: ${rel}`, () => frontmatterOf(bytes));
   const subject = kind.kind === "thread" ? parseOrFail(`stamp: ${rel}`, () => ({ kind: "thread", ...parseThread(basename(inner), body.toString("utf8")) })) : kind;
@@ -629,7 +658,7 @@ function cmdStamp(args) {
   parseOrFail(`stamp: ${rel}`, () => onlyKeys(data, kind.kind === "thread" ? ["inputs", "reviewed"] : ["inputs"]));
   const inputs = new Map();
   for (const path of requiredInputs(state, subject)) {
-    if (!state.docs.has(path)) fail(`stamp: cannot pin ${folder}/${path}: missing`);
+    if (!state.docs.has(path)) fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`);
     inputs.set(path, state.docs.get(path).identity);
   }
   const isCandidateOfRoot = (path) => kind.kind === "artifact" && kindOf(path)?.kind === "candidate" && kindOf(path).phase === kind.phase;
@@ -639,7 +668,7 @@ function cmdStamp(args) {
       const located = locate(pin);
       const path = located.root === root && located.rel.startsWith(`${folder}/`) ? located.rel.slice(folder.length + 1) : null;
       if (!path || !isCandidateOfRoot(path)) fail(`stamp: --pin must name a candidate of ${rel}: ${pin}`);
-      if (!state.docs.has(path)) fail(`stamp: cannot pin ${folder}/${path}: missing`);
+      if (!state.docs.has(path)) fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`);
       inputs.set(path, state.docs.get(path).identity);
     }
   } else {
@@ -648,8 +677,8 @@ function cmdStamp(args) {
   }
   data.inputs = [...inputs].sort(([a], [b]) => a < b ? -1 : 1).map(([path, id]) => `${path}@${id}`);
   if (kind.kind === "thread") {
-    const commit = requireCommit(root, subject.messages.at(-1).commit, "the last message's commit");
-    data.reviewed = netChange(root, state.config.base, commit, pipelinesRoot);
+    const reviewedAt = requireCommit(root, subject.messages.at(-1).commit, "the last message's commit");
+    data.reviewed = netChange(root, state.config.base, reviewedAt, pipelinesRoot);
   }
   const stamped = renderFrontmatter(data, body);
   if (!stamped.equals(bytes)) writeFileSync(join(root, rel), stamped);

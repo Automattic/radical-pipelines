@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, check, frontier, lane, pipeline, read, remove, rp, stamp, thread, useRepo, write } from "./fixture.mjs";
+import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, check, frontier, lane, pipeline, read, land, remove, revise, rp, thread, useRepo, write } from "./fixture.mjs";
 
 const SPEC_LANES = [lane("spec-producer", "a"), lane("spec-producer", "b"), lane("reviewer", "security")];
 const candidate = (id, folder = "1-spec", name = "spec.md") => `${folder}/lanes/${id}/${name}`;
 function produce(id) {
   write(candidate(id), `# Spec candidate ${id}\n`);
-  stamp(candidate(id));
+  land(candidate(id));
 }
 function consolidate() {
   write(SPEC, "# Spec\n");
-  stamp(SPEC, candidate("a"), candidate("b"));
+  land(SPEC, candidate("a"), candidate("b"));
 }
 
 describe("production lanes", () => {
@@ -35,7 +35,7 @@ describe("production lanes", () => {
     produce("b");
     write("0-intent/constraint-1.md", `target: ${SPEC}\n`);
     assert.deepEqual(frontier(), [`lane ${SPEC} a`, `lane ${SPEC} b`]);
-    stamp(candidate("a"));
+    revise(candidate("a"));
     assert.deepEqual(check().frontier, [{ action: "lane", target: SPEC, lane: "b", threads: [], changed: ["0-intent/constraint-1.md"] }]);
     assert.deepEqual(check().phases[0].lanes.map((entry) => [entry.id, entry.state]), [["a", "fresh"], ["b", "stale"]]);
   });
@@ -78,7 +78,7 @@ describe("production lanes", () => {
     pipeline(1, { lanes: [...SPEC_LANES, lane("design-doc-producer", "x")] });
     assert.deepEqual(frontier(), [`lane ${DESIGN} x`]);
     write(candidate("x", "2-design-doc", "design-doc.md"), "# Design candidate\n");
-    stamp(candidate("x", "2-design-doc", "design-doc.md"));
+    land(candidate("x", "2-design-doc", "design-doc.md"));
     assert.deepEqual(frontier(), [`consolidate ${DESIGN}`]);
   });
 
@@ -121,7 +121,7 @@ describe("production lanes", () => {
     it("a reply wakes the lane that opened the thread, with the thread, even when its candidate is fresh", () => {
       pipeline(1, { lanes: LANES });
       write(candidate("a", "2-design-doc", "design-doc.md"), "# a\n");
-      stamp(candidate("a", "2-design-doc", "design-doc.md"));
+      land(candidate("a", "2-design-doc", "design-doc.md"));
       toSpec("a", 1, true);
       assert.deepEqual(check().frontier, [
         { action: "lane", target: DESIGN, lane: "b", threads: [] },
@@ -135,11 +135,27 @@ describe("production lanes", () => {
       assert.deepEqual(frontier(), [`lane ${DESIGN} b`]);
     });
 
-    it("a thread awaiting a lane no longer configured is still its work", () => {
-      pipeline(2, { lanes: [lane("reviewer", "x")] });
-      toSpec("gone", 1, true);
-      assert.deepEqual(frontier(), [`lane ${DESIGN} gone`]);
-    });
+    // [what, lanes configured, thread fields, INVALID]
+    const awaitingLane = (opener, owner, artifact, ownerLast = false) => ({ opener, owner, artifact, messages: [[opener, "aaaaaaa"], ...(ownerLast ? [[owner, "bbbbbbb"]] : [])] });
+    const dropped = [
+      ["a disagreement opened by a dropped lane", [], awaitingLane("spec-producer-gone", "owner", "intent"), false],
+      ["an open thread awaiting a dropped design doc lane", [], awaitingLane("design-doc-producer-gone", "spec-producer", "spec", true), true],
+      ["an open thread awaiting a dropped spec lane, as owner", [], awaitingLane("design-doc-producer", "spec-producer-gone", "spec"), true],
+      ["an open thread awaiting a dropped review lane", [lane("reviewer", "x")], awaitingLane("reviewer-gone", "implementer", "implementation", true), true],
+      ["an open thread awaiting reviewer-default once review lanes are configured", [lane("reviewer", "x")], awaitingLane("reviewer-default", "implementer", "implementation", true), true],
+      ["an open thread awaiting reviewer-default with no review lane configured", [], awaitingLane("reviewer-default", "implementer", "implementation", true), false],
+      ["an open thread awaiting a configured lane", [lane("design-doc-producer", "a")], awaitingLane("design-doc-producer-a", "spec-producer", "spec", true), false],
+      ["an open thread of a dropped lane awaiting a configured role", [], awaitingLane("design-doc-producer-gone", "spec-producer", "spec"), false],
+      ["a withdrawn thread of a dropped lane", [], { ...awaitingLane("design-doc-producer-gone", "spec-producer", "spec", true), status: "closed: withdrawn" }, false],
+    ];
+    for (const [what, lanes, fields, isInvalid] of dropped)
+      it(`${isInvalid ? "rejects" : "accepts"} ${what}`, () => {
+        pipeline(3, { lanes: lanes.length ? lanes : undefined });
+        if (fields.owner === "owner") fields.status = "disagreement";
+        const path = thread(fields);
+        const invalid = check().frontier.filter((entry) => entry.action === "INVALID");
+        assert.deepEqual(invalid, isInvalid ? [{ action: "INVALID", target: path, reason: "lane not configured; close the thread withdrawn" }] : []);
+      });
 
     it("a removed lane's closed threads stay valid history", () => {
       pipeline(3, { targetPhase: 3 });

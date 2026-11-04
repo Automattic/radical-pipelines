@@ -52,6 +52,16 @@ export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 export function stamp(rel, ...candidates) {
   return rp("stamp", abs(P(rel)), ...candidates.flatMap((pin) => ["--pin", abs(P(pin))]));
 }
+// Lands a role's turn: commits the working tree, then stamps the file.
+export function land(rel, ...candidates) {
+  commitAll(`land ${rel}`);
+  return stamp(rel, ...candidates);
+}
+// A role revises a file's body and its turn lands.
+export function revise(rel, text = "Revised.") {
+  write(rel, `${read(rel)}${text}\n`);
+  return land(rel);
+}
 export const UPSTREAM = { [SPEC]: [INTENT], [DESIGN]: [SPEC], [NOTES]: [SPEC, DESIGN] };
 
 export function commitAll(subject = "work") {
@@ -73,11 +83,11 @@ export const TO_SPEC = { opener: "design-doc-producer", owner: "spec-producer", 
 export const TO_DESIGN = { opener: "implementer", owner: "design-doc-producer", artifact: "design-doc" };
 export const REVIEW = (lane = "default") => ({ opener: `reviewer-${lane}`, owner: "implementer", artifact: "implementation" });
 export const TO_OWNER = { opener: "spec-producer", owner: "owner", artifact: "intent", status: "disagreement" };
-// A review thread closed approved at HEAD, stamped.
+// A review thread closed approved at HEAD, landed and stamped.
 export function approve(laneId = "default", n = 1) {
   const head = git(root, "rev-parse", "HEAD").trim();
   const path = thread({ n, status: "closed: approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
-  rp("stamp", abs(P(path)));
+  land(path);
   return path;
 }
 
@@ -86,10 +96,11 @@ export function approve(laneId = "default", n = 1) {
 export function pipeline(upTo = 3, config = {}) {
   configure(config);
   write(INTENT, "origin: issue 7\n\n# Intent\n\n## Goal\n\nUsers can export.\n");
-  if (upTo >= 1) { write(SPEC, "# Spec\n\nRequirement.\n"); stamp(SPEC); }
-  if (upTo >= 2) { write(DESIGN, "# Design doc\n\nDecision.\n"); stamp(DESIGN); }
-  if (upTo >= 3) { write(NOTES, "status: done\n\n# Notes\n"); stamp(NOTES); }
-  return commitAll("pipeline");
+  const artifacts = [[SPEC, "# Spec\n\nRequirement.\n"], [DESIGN, "# Design doc\n\nDecision.\n"], [NOTES, "status: done\n\n# Notes\n"]].slice(0, upTo);
+  for (const [rel, body] of artifacts) write(rel, body);
+  commitAll("pipeline");
+  for (const [rel] of artifacts) stamp(rel);
+  return commitAll("stamps");
 }
 
 export function newRepo() {

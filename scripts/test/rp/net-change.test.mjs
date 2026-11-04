@@ -7,7 +7,7 @@ import { P, abs, approve, check, commitAll, configure, frontier, git, pipeline, 
 
 // The net change id computed with bare git, as the README states it.
 function expected(base = "main", exclude = ".pipelines") {
-  const diff = execFileSync("git", ["diff", "-U0", "--no-renames", "--binary", `${base}...HEAD`, "--", ".", `:(top,exclude,literal)${exclude}`], { cwd: root, encoding: "latin1" });
+  const diff = execFileSync("git", ["diff", "-U1", "--no-renames", "--binary", `${base}...HEAD`, "--", ".", `:(top,exclude,literal)${exclude}`], { cwd: root, encoding: "latin1" });
   const changed = diff.split("\n").filter((line) => !line.startsWith("@@") && !line.startsWith("index ")).join("\n");
   return createHash("sha1").update(Buffer.from(changed, "latin1")).digest("hex");
 }
@@ -52,10 +52,12 @@ describe("net change", () => {
     assert.equal(check().netChange, before);
   });
 
+  // The pipeline edits line 6 of src/lines.txt; the base then changes something no line adjacent to it.
+  // An adjacent base edit conflicts, and a conflict resolution changes the id (below).
   for (const [what, change] of [
-    ["in other files", () => writeFile("src/other.js", "export const b = 1;\n")],
-    ["in the context of the changed line", () => writeFile("src/lines.txt", LINES({ 4: "base edit" }))],
-    ["far away in the same file, shifting line numbers", () => writeFile("src/lines.txt", `prepended\n${LINES()}`)],
+    ["other files", () => writeFile("src/other.js", "export const b = 1;\n")],
+    ["a line two lines away", () => writeFile("src/lines.txt", LINES({ 4: "base edit", 8: "base edit" }))],
+    ["the start of the file, shifting line numbers", () => writeFile("src/lines.txt", `prepended\n${LINES()}`)],
   ])
     it(`is unchanged by a merge from the base that changes ${what}, so an approval stays current`, () => {
       git(root, "checkout", "--quiet", "main");
@@ -71,7 +73,23 @@ describe("net change", () => {
       mergeBase(change);
       assert.equal(check().netChange, before);
       assert.deepEqual(frontier(), ["complete"]);
+      assert.equal(check().netChange, expected());
     });
+
+  it("tells apart the same edit at different places in one file", () => {
+    git(root, "checkout", "--quiet", "main");
+    writeFile("src/lines.txt", LINES({ 2: "same", 9: "same" }));
+    commitAll("lines");
+    git(root, "checkout", "--quiet", "demo");
+    git(root, "merge", "--quiet", "--no-edit", "main");
+    pipeline(3);
+    writeFile("src/lines.txt", LINES({ 2: "edited", 9: "same" }));
+    commitAll("first");
+    const first = check().netChange;
+    writeFile("src/lines.txt", LINES({ 2: "same", 9: "edited" }));
+    commitAll("second");
+    assert.notEqual(check().netChange, first);
+  });
 
   it("changes with a conflict resolution, so the approval goes stale", () => {
     pipeline(3);

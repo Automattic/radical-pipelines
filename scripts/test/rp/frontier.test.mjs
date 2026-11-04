@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_DESIGN, TO_OWNER, TO_SPEC,
-  abs, approve, check, commitAll, configure, frontier, lane, pipeline, read, remove, rp, run, stamp, thread, useRepo, write, writeFile,
+  abs, approve, check, commitAll, configure, frontier, lane, pipeline, read, remove, revise, rp, run, thread, useRepo, write, writeFile,
 } from "./fixture.mjs";
 
 const replied = (parties, n = 1) => thread({ n, ...parties, messages: [[parties.opener, "aaaaaaa"], [parties.owner, "bbbbbbb"]] });
@@ -221,7 +221,7 @@ describe("frontier", () => {
       assert.deepEqual(frontier(), ["complete"]);
       write("0-intent/proposal-1.md", `target: ${NOTES}\n`);
       assert.deepEqual(frontier(), [`respond ${NOTES}`]);
-      stamp(NOTES);
+      revise(NOTES);
       assert.deepEqual(check().frontier, [{ action: "review", target: "default", threads: [], changed: ["0-intent/proposal-1.md"] }]);
       assert.deepEqual(check().reviews, [{ lane: "default", approved: false, stale: ["0-intent/proposal-1.md"] }]);
       approve("default", 2);

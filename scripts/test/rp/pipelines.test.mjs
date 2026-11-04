@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { rmSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { commitAll, git, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
@@ -74,6 +75,23 @@ describe("pipelines", () => {
       commitAll("pipelines");
       assert.deepEqual(discover().map(({ folder }) => folder.split("/")[0]), [expectedRoot]);
     });
+
+  it("reads the conventions from the main checkout when run in a linked worktree", () => {
+    git(root, "checkout", "--quiet", "main");
+    writeFile(".git/info/exclude", ".rp.local.md\n.wt/\n");
+    writeFile(".rp.md", "### Pipelines folder root\n\nwork/\n");
+    git(root, "add", ".rp.md");
+    git(root, "commit", "--quiet", "-m", "conventions");
+    writeFile(".rp.local.md", "### Pipelines folder root\n\nlocal/\n");
+    git(root, "checkout", "--quiet", "-b", "a", "main");
+    for (const folder of ["work/one", "local/two"]) recordPipeline(folder, 4);
+    commitAll("pipelines");
+    git(root, "worktree", "add", "--quiet", "-b", "linked", ".wt", "main");
+    const linked = JSON.parse(rp("pipelines", `${root}/.wt`, "--json")).map(({ folder }) => folder);
+    assert.deepEqual(linked, ["local/two"]);
+    rmSync(`${root}/.rp.local.md`);
+    assert.deepEqual(JSON.parse(rp("pipelines", `${root}/.wt/src`, "--json")).map(({ folder }) => folder), ["work/one"]);
+  });
 
   it("stops on a Pipelines folder root heading without a usable value", () => {
     writeFile(".rp.local.md", "### Pipelines folder root\n\n../outside\n");

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, symlinkSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, P, SPEC, abs, check, commitAll, frontier, git, pipeline, read, remove, root, rp, run, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, P, SPEC, abs, check, commitAll, frontier, git, lane, pipeline, read, remove, root, rp, run, useRepo, write, writeFile } from "./fixture.mjs";
 
 describe("reading a pipeline", () => {
   useRepo();
@@ -48,13 +48,26 @@ describe("reading a pipeline", () => {
       assert.match(out.stderr, /threads\/1-implementer-spec-producer-spec\.md: not a regular file/);
     });
 
-  it("stops on a file where a pipeline folder belongs", () => {
-    pipeline(1);
-    writeFile(P("threads"), "not a folder\n");
-    const out = run("check", abs(P("")));
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /threads: not a folder/);
-  });
+  // [what, how it is made, the reason]
+  const wrongKinds = [
+    ["a file where the threads folder belongs", () => writeFile(P("threads"), "x\n"), /threads: a file where a folder belongs/],
+    ["a file where a lane folder belongs", () => writeFile(P("1-spec/lanes/a"), "x\n"), /1-spec\/lanes\/a: a file where a folder belongs/],
+    ["a folder where the spec belongs", () => { remove(SPEC); writeFile(P(`${SPEC}/x.md`), "x\n"); }, /1-spec\/spec.md: a folder where a pipeline file belongs/],
+    ["a folder where a thread belongs", () => writeFile(P("threads/1-x.md/y"), "x\n"), /threads\/1-x.md: a folder where a pipeline file belongs/],
+    ["a folder where run-config.md belongs", () => { remove("run-config.md"); writeFile(P("run-config.md/x"), "x\n"); }, /run-config.md: a folder where a pipeline file belongs/],
+  ];
+  for (const [what, make, message] of wrongKinds)
+    for (const ref of [false, true])
+      it(`stops on ${what}${ref ? " at a ref" : " in the working tree"}`, () => {
+        pipeline(1, { lanes: [lane("spec-producer", "a")] });
+        make();
+        if (ref) commitAll("wrong kind");
+        for (const args of [["check", abs(P("")), ...(ref ? ["--ref", "HEAD"] : [])], ...(ref ? [] : [["stamp", abs(P(SPEC))]])]) {
+          const out = run(...args);
+          assert.equal(out.status, 1);
+          assert.match(out.stderr, message);
+        }
+      });
 
   it("ignores files that are not pipeline files", () => {
     pipeline(3);

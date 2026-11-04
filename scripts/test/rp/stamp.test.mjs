@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { identity, splitFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import {
   DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_SPEC, UPSTREAM,
-  abs, check, commitAll, configure, git, lane, pipeline, read, remove, root, run, stamp, thread, useRepo, write, writeFile,
+  abs, check, commitAll, configure, git, land, lane, pipeline, read, remove, revise, root, run, stamp, thread, useRepo, write, writeFile,
 } from "./fixture.mjs";
 
 const id = (rel) => identity(readFileSync(abs(P(rel))));
@@ -33,7 +33,7 @@ describe("identity", () => {
     pipeline(0);
     write(SPEC, "# Spec\r\nBody without final newline");
     const before = id(SPEC);
-    stamp(SPEC);
+    land(SPEC);
     assert.equal(id(SPEC), before);
     assert.equal(splitFrontmatter(readFileSync(abs(P(SPEC)))).body.toString("latin1"), "# Spec\r\nBody without final newline");
   });
@@ -55,14 +55,33 @@ describe("stamp derives the required inputs", () => {
       write("0-intent/constraint-1.md", `target: ${root}#item-1\n`);
       write("0-intent/proposal-1.md", `target: ${[SPEC, DESIGN, NOTES].find((path) => path !== root)}\n`);
       write(subject, "# Body\n");
-      stamp(subject);
+      land(subject);
       assert.deepEqual(inputsOf(subject), [...upstream, "0-intent/constraint-1.md"].sort().map(pin));
     });
 
-  it("pins the identities in the working tree it runs on, uncommitted changes included", () => {
+  // How the input changes after the artifact's commit: [what, change].
+  const later = [
+    ["uncommitted", () => write(INTENT, `${read(INTENT)}Uncommitted.\n`)],
+    ["committed after the artifact", () => { write(INTENT, `${read(INTENT)}Committed later.\n`); commitAll("intent later"); }],
+    ["committed after a stamp commit of the artifact", () => { commitAll("stamp"); write(INTENT, `${read(INTENT)}Later.\n`); commitAll("intent later"); }],
+  ];
+  for (const [what, change] of later)
+    it(`pins the identities at the commit that last changed the artifact's body, not an input changed ${what}`, () => {
+      pipeline(0);
+      write(SPEC, "# Spec\n");
+      const atCommit = id(INTENT);
+      land(SPEC);
+      change();
+      stamp(SPEC);
+      assert.deepEqual(inputsOf(SPEC), [`${INTENT}@${atCommit}`]);
+      assert.notEqual(id(INTENT), atCommit);
+      assert.deepEqual(check().phases[0].stale, [INTENT]);
+    });
+
+  it("pins the inputs a revision of the body read", () => {
     pipeline(1);
-    write(INTENT, `${read(INTENT)}Uncommitted.\n`);
-    stamp(SPEC);
+    write(INTENT, `${read(INTENT)}Changed.\n`);
+    revise(SPEC);
     assert.deepEqual(inputsOf(SPEC), [pin(INTENT)]);
     assert.equal(check().phases[0].state, "fresh");
   });
@@ -70,10 +89,10 @@ describe("stamp derives the required inputs", () => {
   it("drops a pin that is no longer required", () => {
     pipeline(1);
     write("0-intent/failure-1.md", `target: ${SPEC}\n`);
-    stamp(SPEC);
+    revise(SPEC);
     assert.equal(inputsOf(SPEC).length, 2);
     write("0-intent/failure-1.md", `target: ${DESIGN}\n`);
-    stamp(SPEC);
+    revise(SPEC, "Again.");
     assert.deepEqual(inputsOf(SPEC), [pin(INTENT)]);
   });
 
@@ -85,15 +104,16 @@ describe("stamp derives the required inputs", () => {
 
   it("records the candidates --pin names on a consolidated root, and keeps them on a later stamp", () => {
     pipeline(0, { lanes: [lane("spec-producer", "a"), lane("spec-producer", "b")] });
-    for (const id of ["a", "b"]) { write(`1-spec/lanes/${id}/spec.md`, `# ${id}\n`); stamp(`1-spec/lanes/${id}/spec.md`); }
+    for (const id of ["a", "b"]) { write(`1-spec/lanes/${id}/spec.md`, `# ${id}\n`); land(`1-spec/lanes/${id}/spec.md`); }
     write(SPEC, "# Spec\n");
-    stamp(SPEC, "1-spec/lanes/a/spec.md", "1-spec/lanes/b/spec.md");
+    land(SPEC, "1-spec/lanes/a/spec.md", "1-spec/lanes/b/spec.md");
     const recorded = [pin(INTENT), pin("1-spec/lanes/a/spec.md"), pin("1-spec/lanes/b/spec.md")];
     assert.deepEqual(inputsOf(SPEC), recorded);
+    commitAll("stamp");
     write("1-spec/lanes/a/spec.md", "# changed\n");
     remove("1-spec/lanes/b/spec.md");
     write(INTENT, `${read(INTENT)}More.\n`);
-    stamp(SPEC);
+    revise(SPEC);
     assert.deepEqual(inputsOf(SPEC), [pin(INTENT), ...recorded.slice(1)]);
     stamp(SPEC, "1-spec/lanes/a/spec.md");
     assert.deepEqual(inputsOf(SPEC), [pin(INTENT), pin("1-spec/lanes/a/spec.md")]);
@@ -107,8 +127,6 @@ describe("stamp of an approval", () => {
     pipeline(3);
     write("0-intent/constraint-1.md", `target: ${NOTES}\n`);
     write("0-intent/proposal-1.md", `target: ${DESIGN}\n`);
-    stamp(DESIGN);
-    stamp(NOTES);
     writeFile("src/app.js", "export const a = 2;\n");
     const reviewedAt = commitAll("change");
     const atReview = check().netChange;
@@ -152,6 +170,7 @@ describe("stamp refuses", () => {
       write("1-spec/lanes/a/spec.md", "# a\n");
       thread({ status: "closed: approved", ...TO_SPEC });
       thread({ n: 2, ...REVIEW() });
+      commitAll("setup");
       const before = read(SPEC);
       const out = run("stamp", ...args().map((arg) => arg.startsWith("--") ? arg : abs(arg)));
       assert.equal(out.status, 1);
@@ -162,6 +181,7 @@ describe("stamp refuses", () => {
   it("a required input that is missing", () => {
     pipeline(0);
     write(DESIGN, "# Design\n");
+    commitAll("design");
     const out = run("stamp", abs(P(DESIGN)));
     assert.equal(out.status, 1);
     assert.match(out.stderr, /cannot pin .*1-spec\/spec.md: missing/);
@@ -170,6 +190,8 @@ describe("stamp refuses", () => {
   it("while another pipeline file is INVALID", () => {
     pipeline(1);
     write("0-intent/constraint-1.md", "no target\n");
+    write(SPEC, `${read(SPEC)}Revised.\n`);
+    commitAll("revise");
     const out = run("stamp", abs(P(SPEC)));
     assert.equal(out.status, 1);
     assert.match(out.stderr, /constraint-1.md: later input has no target/);
@@ -178,6 +200,7 @@ describe("stamp refuses", () => {
   it("a file whose own frontmatter is malformed, leaving it untouched", () => {
     pipeline(0);
     write(SPEC, "---\nnot json\n---\n# Spec\n");
+    commitAll("malformed");
     const out = run("stamp", abs(P(SPEC)));
     assert.equal(out.status, 1);
     assert.match(out.stderr, /not valid JSON/);
@@ -187,9 +210,26 @@ describe("stamp refuses", () => {
   it("an approval whose last message's commit does not resolve", () => {
     pipeline(3);
     const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abcdef1"]] });
+    commitAll("approve");
     const out = run("stamp", abs(P(path)));
     assert.equal(out.status, 1);
     assert.match(out.stderr, /the last message's commit does not resolve to a commit: abcdef1/);
+  });
+
+  it("an artifact with no commit", () => {
+    pipeline(0);
+    write(SPEC, "# Spec\n");
+    const out = run("stamp", abs(P(SPEC)));
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /1-spec\/spec.md has no commit: commit its body before stamping/);
+  });
+
+  it("an artifact whose body has uncommitted changes", () => {
+    pipeline(1);
+    write(SPEC, `${read(SPEC)}Uncommitted.\n`);
+    const out = run("stamp", abs(P(SPEC)));
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /has body changes HEAD does not hold/);
   });
 
   it("a folder that has no parent pipelines folder root", () => {

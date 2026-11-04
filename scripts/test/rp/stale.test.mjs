@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { identity, splitFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
-import { DESIGN, INTENT, NOTES, SPEC, UPSTREAM, check, pipeline, read, remove, stamp, useRepo, write } from "./fixture.mjs";
+import { DESIGN, INTENT, NOTES, SPEC, UPSTREAM, check, pipeline, read, remove, revise, useRepo, write } from "./fixture.mjs";
 
 const states = () => Object.fromEntries(check().phases.map((phase) => [phase.artifact, phase.state === "stale" ? phase.stale : phase.state]));
 const change = (rel) => write(rel, read(rel).replace(/\n$/, "\nChanged.\n"));
@@ -45,7 +45,7 @@ describe("stale", () => {
       pipeline(3);
       write("0-intent/constraint-1.md", `# Constraint 1: limit\n\ntarget: ${artifact}#item-1, ${artifact}\norigin: issue 7\n\nKeep it small.\n`);
       assert.deepEqual(states()[artifact], ["0-intent/constraint-1.md"]);
-      stamp(artifact);
+      revise(artifact);
       assert.equal(states()[artifact], "fresh");
       change("0-intent/constraint-1.md");
       assert.deepEqual(states()[artifact], ["0-intent/constraint-1.md"]);
@@ -61,7 +61,6 @@ describe("stale", () => {
     pipeline(3);
     write("0-intent/failure-1.md", `target: ${SPEC}\n`);
     write("0-intent/proposal-1.md", `target: ${DESIGN}\n`);
-    stamp(SPEC);
     const { body } = splitFrontmatter(Buffer.from(read(SPEC)));
     const pins = ["0-intent/failure-1.md", "0-intent/proposal-1.md", INTENT].map((rel) => `${rel}@${identity(Buffer.from(read(rel)))}`);
     write(SPEC, `---\n${JSON.stringify({ inputs: pins })}\n---\n${body}`);
