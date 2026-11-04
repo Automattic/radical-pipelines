@@ -6,15 +6,13 @@
 import { dirname } from "node:path";
 
 import { requestServer, sessionReadError } from "./client.mjs";
-import { recordError } from "./diagnostics.mjs";
-import { resolveSession } from "./ledger.mjs";
 
 /**
  * `globalThis` key backing the per-session record of activated skills.
  *
- * Shares the re-import rationale of `LEDGER_KEY`. Each entry lists the
- * packaged skills a session has been seen to activate, and whether what a
- * checkpoint sealed away has been recovered from its stored history.
+ * Held on `globalThis` so a re-imported module keeps them. Each entry lists
+ * the packaged skills a session has been seen to activate, and whether what
+ * a checkpoint sealed away has been recovered from its stored history.
  */
 const SKILL_ACTIVATIONS_KEY = Symbol.for("radical-pipelines.opencode.skillActivations");
 
@@ -51,8 +49,8 @@ function getSkillRecoveries() {
 }
 
 /**
- * Upper bound on held skill-activation records. Every root session the hook
- * sees gets one; the oldest is evicted past this bound and, if it still
+ * Upper bound on held skill-activation records. Every session the hook sees
+ * gets one; the oldest is evicted past this bound and, if it still
  * matters, derived again from the session's stored history.
  */
 const SKILL_ACTIVATIONS_CAP = 4096;
@@ -69,18 +67,6 @@ function holdSkillActivations(sessionID, record) {
   records.set(sessionID, record);
   while (records.size > SKILL_ACTIVATIONS_CAP) {
     records.delete(records.keys().next().value);
-  }
-}
-
-/**
- * Drop a deleted session's skill-activation record.
- *
- * @param {object} event The event received from `ctx.event.subscribe`.
- * @returns {void}
- */
-function forgetSkillActivations(event) {
-  if (event?.type === "session.deleted" && typeof event.data?.sessionID === "string") {
-    getSkillActivations().delete(event.data.sessionID);
   }
 }
 
@@ -334,20 +320,15 @@ function renderSkillResupply(skills) {
  * What a checkpoint sealed is not in any request: until a session's stored
  * history has been read, it is read — once, shared by the requests that
  * arrive meanwhile, and again on the next request when it fails or the
- * server is unreachable; meanwhile the record serves as far as it goes. A
- * spawned agent never activates the skill and is skipped.
+ * server is unreachable; meanwhile the record serves as far as it goes.
  *
  * @param {{ sessionID: string, system: Array<{ type: string, text: string }>, messages: Array<object> }} event
  *   The `context` hook event.
- * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function, readSession: Function }} deps
- *   `readSession` reaches `resolveSession`.
+ * @param {{ server: { baseURL: string, password: string } | null, skills: Array<object>, requestFn?: Function }} deps
  * @returns {Promise<void>}
  */
-async function onContext(event, { server, skills, requestFn, readSession }) {
+async function onContext(event, { server, skills, requestFn }) {
   const { sessionID } = event;
-  if ((await resolveSession(sessionID, { readSession })).spawn) {
-    return;
-  }
   const observed = packagedSkillActivations(activeSkillActivations(event.messages, skills), skills);
   const records = getSkillActivations();
   let record = records.get(sessionID);
@@ -360,21 +341,12 @@ async function onContext(event, { server, skills, requestFn, readSession }) {
     const recoveries = getSkillRecoveries();
     let recovery = recoveries.get(sessionID);
     if (!recovery) {
-      recovery = readSealedSkillActivations(server, sessionID, skills, requestFn)
-        .catch((error) => {
-          recordError({ type: "skill.resupply.unreadable", sessionID, error: String(error), at: Date.now() });
-          throw error;
-        })
-        .finally(() => recoveries.delete(sessionID));
+      recovery = readSealedSkillActivations(server, sessionID, skills, requestFn).finally(() =>
+        recoveries.delete(sessionID),
+      );
       recoveries.set(sessionID, recovery);
     }
     const sealed = await recovery.catch(() => undefined);
-    // The session may have been deleted meanwhile; its record is gone and
-    // stays gone.
-    record = records.get(sessionID);
-    if (!record) {
-      return;
-    }
     if (sealed) {
       record.skills = packagedSkillActivations([...sealed, ...record.skills], skills);
       record.recovered = true;
@@ -392,7 +364,6 @@ async function onContext(event, { server, skills, requestFn, readSession }) {
 
 export {
   activeSkillActivations,
-  forgetSkillActivations,
   getSkillActivations,
   holdSkillActivations,
   listSessionMessages,

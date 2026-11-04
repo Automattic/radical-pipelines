@@ -1,7 +1,7 @@
 /**
  * Reaching the opencode server: resolving how to address the running
- * process, the authenticated HTTP client, and the session reads the tools and
- * loops share.
+ * process, and the authenticated HTTP client the skill re-supply reads a
+ * session's stored history with.
  */
 
 import {
@@ -179,40 +179,9 @@ function requestServer(server, method, path, body, requestFn = fetchRequest) {
 }
 
 /**
- * Tags observed on a dead-target session error, across the two shapes it
- * appears in: the in-process `ctx.session.prompt` rejection (`name`/`_tag`
- * `"Session.NotFoundError"`, no HTTP status — verified live against the
- * tested runtime) and the raw HTTP response body (`_tag: "SessionNotFoundError"`,
- * no dot, alongside a 404 status).
- */
-const SESSION_NOT_FOUND_TAGS = new Set(["Session.NotFoundError", "SessionNotFoundError"]);
-
-/**
- * Check whether an error thrown by `ctx.session.prompt` reports a dead
- * (nonexistent) target session.
- *
- * `rp_send` uses this to turn a dead-target failure into a returned tool
- * result instead of letting it propagate as a thrown error.
- *
- * @param {*} error The error caught from `ctx.session.prompt`.
- * @returns {boolean} `true` when `error` represents a dead-target session
- *   error (see `SESSION_NOT_FOUND_TAGS`) or carries an HTTP 404 status.
- */
-function isSessionNotFoundError(error) {
-  return (
-    error?.status === 404 ||
-    SESSION_NOT_FOUND_TAGS.has(error?.name) ||
-    SESSION_NOT_FOUND_TAGS.has(error?._tag)
-  );
-}
-
-/**
  * Build the error a non-2xx read of a *session-addressed* endpoint throws.
  *
- * The status travels on the error so a caller can tell a target that no
- * longer exists from a transport failure it should keep retrying (see
- * `isSessionNotFoundError`). The message stays the request line, which is
- * what the bounded error log surfaces.
+ * The status travels on the error; the message is the request line.
  *
  * @param {string} request The request line, e.g. `"GET /api/session/x/inbox"`.
  * @param {number} status The HTTP status the server answered with.
@@ -224,183 +193,9 @@ function sessionReadError(request, status) {
   return error;
 }
 
-/**
- * Check whether opencode currently reports a session as running.
- *
- * Backs the loop tick's idle check and would back any other liveness read;
- * reads `GET /api/session/active`, whose body envelopes the object keyed by
- * the session IDs currently running as `{ data: {...} }` — every opencode
- * HTTP GET response is wrapped in this `data` envelope, verified live against
- * the tested runtime.
- *
- * @param {{ baseURL: string, password: string }} server A server resolved by
- *   `resolveServer`.
- * @param {string} sessionID The session ID to check.
- * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<boolean>} `true` when `sessionID` is a key of the
- *   `/api/session/active` response's `data` object.
- * @throws {Error} On a non-2xx response. A failed read means the session's
- *   state is unknown, not that it is idle; treating it as idle would let a
- *   health-loop tick inject into a busy session.
- */
-async function isSessionActive(server, sessionID, requestFn) {
-  const response = await requestServer(server, "GET", "/api/session/active", undefined, requestFn);
-  if (response.status < 200 || response.status >= 300) {
-    throw new Error(`GET /api/session/active returned ${response.status}`);
-  }
-  const active = response.body?.data;
-  return Boolean(active && Object.prototype.hasOwnProperty.call(active, sessionID));
-}
-
-/**
- * Read a session's last-activity timestamp.
- *
- * @param {{ baseURL: string, password: string }} server A resolved server.
- * @param {string} sessionID The session ID to read.
- * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<number>} The session record's `time.updated` timestamp.
- * @throws {Error} When the read fails or the timestamp is absent.
- */
-async function getSessionUpdatedAt(server, sessionID, requestFn) {
-  const response = await requestServer(
-    server,
-    "GET",
-    `/api/session/${sessionID}`,
-    undefined,
-    requestFn,
-  );
-  if (response.status < 200 || response.status >= 300) {
-    throw sessionReadError(`GET /api/session/${sessionID}`, response.status);
-  }
-  const updated = response.body?.data?.time?.updated;
-  if (!Number.isFinite(updated)) {
-    throw new Error(`GET /api/session/${sessionID} response is missing time.updated`);
-  }
-  return updated;
-}
-
-/**
- * Read a session's admitted-but-undelivered inbox items.
- *
- * Backs the loop tick's coalescing: an item whose `payload.text` equals the
- * loop's prompt is a previous injection still awaiting delivery.
- *
- * @param {{ baseURL: string, password: string }} server A resolved server.
- * @param {string} sessionID The session ID to read.
- * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<Array<object>>} The pending inbox items.
- * @throws {Error} On a non-2xx response — pending state unknown means the
- *   tick must not inject on top of a possibly pending prompt.
- */
-async function getSessionInbox(server, sessionID, requestFn) {
-  const response = await requestServer(server, "GET", `/api/session/${sessionID}/inbox`, undefined, requestFn);
-  if (response.status < 200 || response.status >= 300) {
-    throw sessionReadError(`GET /api/session/${sessionID}/inbox`, response.status);
-  }
-  return response.body?.data ?? [];
-}
-
-/**
- * Read a session's projected messages, newest first, parts included.
- *
- * Backs the loop tick's failed-probe evaluation (locating the injected
- * input and its responding turn) and the dead-stream gate (the newest
- * assistant message's `content` part states).
- *
- * @param {{ baseURL: string, password: string }} server A resolved server.
- * @param {string} sessionID The session ID to read.
- * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<Array<object>>} The session's messages, newest first.
- * @throws {Error} On a non-2xx response.
- */
-async function getSessionMessages(server, sessionID, requestFn) {
-  // An explicit limit well above the server's default page: probe anchors
-  // must stay visible across many intervening turns (see
-  // `findProbeResponse`'s aging note).
-  const response = await requestServer(
-    server,
-    "GET",
-    `/api/session/${sessionID}/message?limit=200`,
-    undefined,
-    requestFn,
-  );
-  if (response.status < 200 || response.status >= 300) {
-    throw sessionReadError(`GET /api/session/${sessionID}/message`, response.status);
-  }
-  return response.body?.data ?? [];
-}
-
-/**
- * Promote a pending queued inbox item to steer delivery in place.
- *
- * The loop tick's stale-path coalescing: a parked queue copy of the monitor
- * prompt cannot reach a running session, so it is converted to a steer —
- * which wakes session execution — instead of injecting a duplicate.
- *
- * @param {{ baseURL: string, password: string }} server A resolved server.
- * @param {string} sessionID The session owning the inbox item.
- * @param {string} inboxID The pending inbox item to promote.
- * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<void>} Resolves when the promotion is accepted.
- * @throws {Error} On a non-2xx response.
- */
-async function promoteInboxItem(server, sessionID, inboxID, requestFn) {
-  const response = await requestServer(
-    server,
-    "PATCH",
-    `/api/session/${sessionID}/inbox/${inboxID}`,
-    { delivery: "steer" },
-    requestFn,
-  );
-  if (response.status < 200 || response.status >= 300) {
-    throw new Error(`PATCH /api/session/${sessionID}/inbox/${inboxID} returned ${response.status}`);
-  }
-}
-
-/**
- * Interrupt a session's in-flight execution. With `resume=true` execution
- * resumes with pending steering input and next-in-line control items;
- * queued prompts stay parked until the session next idles.
- *
- * The loop tick's dead-stream escalation — fired only when a steer is
- * already pending, which the resumed execution then delivers: verified live
- * to unstick a session whose provider stream died mid-tool-call.
- *
- * @param {{ baseURL: string, password: string }} server A resolved server.
- * @param {string} sessionID The session ID to interrupt.
- * @param {(url: URL, init: object) => Promise<{status: number, body: *}>} [requestFn]
- *   Injectable request function, forwarded to `requestServer`.
- * @returns {Promise<void>} Resolves when the interrupt is accepted.
- * @throws {Error} On a non-2xx response.
- */
-async function interruptSession(server, sessionID, requestFn) {
-  const response = await requestServer(
-    server,
-    "POST",
-    `/api/session/${sessionID}/interrupt?resume=true`,
-    undefined,
-    requestFn,
-  );
-  if (response.status < 200 || response.status >= 300) {
-    throw new Error(`POST /api/session/${sessionID}/interrupt returned ${response.status}`);
-  }
-}
-
 export {
   buildBasicAuthHeader,
   fetchRequest,
-  getSessionInbox,
-  getSessionMessages,
-  getSessionUpdatedAt,
-  interruptSession,
-  isSessionActive,
-  isSessionNotFoundError,
-  promoteInboxItem,
   readServiceRecordFile,
   requestServer,
   resolveServer,
