@@ -2,6 +2,8 @@
 
 The owner brings work: an issue, PR feedback, a CI failure, a bug, a correction. You classify it, route it, and only then dispatch. Read `../run/state.md` first.
 
+Triage decides from the request, the pipelines' phase-0 files, and `rp check`. What the request points to — code, logs, results, screenshots, machines — is read by the agents you dispatch, once phase 0 records it per `intent-format.md`.
+
 ## Steps
 
 ### 1. Normalize into an issue
@@ -34,13 +36,15 @@ Group the routed statements by pipeline; each group is one run.
 
 ### 4. Confirm the runs
 
-Propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
+A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.md` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `run-config.md` without one.
+
+For the runs that need it, propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
 
 - each route and why — or, when no predicate decides, the one deciding question;
-- the drafts of the intent, constraints, or proposals you will write;
+- the text of each intent, constraint, or proposal you will write;
 - the configuration to confirm or change: workflow, target phase in plain language without phase numbers, lanes, models;
 - what a lane change does to the tree: a dropped lane's files are removed; artifacts whose approval package changes go stale;
-- every other question this session still has.
+- the questions steps 1 to 3 left open.
 
 Revise and reconfirm until the owner confirms.
 
@@ -60,7 +64,7 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 **Later input**
 
 1. Use a live pipeline's branch and worktree; for a merged pipeline, create a branch named per `../run/state.md` § Names from the base branch, with a worktree. One live branch per pipeline; later input joins it.
-2. Write the input per `intent-format.md` § Later input. Record the statement as given, with its evidence; diagnosing any cause is the job of the producer and reviewer of the target artifact.
+2. Write the input per `intent-format.md` § Later input.
 3. Land it with `rp stamp <input> --mirror`.
 
 **Continue**
@@ -75,4 +79,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) as confirmed; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) with the configuration the run starts under; commit. Then fire `run-started`. Autonomous: `../run/loop.md`. Assisted: `../run/assisted.md`.

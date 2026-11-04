@@ -63,7 +63,7 @@ Output:
 
 - `configuration` carries the lane fingerprints.
 - `challenges` has one entry per (challenge, target), in each file's target order, with its state and `inScope`; entries for one target artifact share adjudication and resolution. `challengeResolved` is true when every target artifact is resolved.
-- `materials` carries `inputChanges` (`added`, `removed`, and `changed` paths, plus required-approval `ready`), `reviewLanes` (`lane` and `path` for every review of a rejected closed wave), `challenges` (pending constraint, proposal, and claim paths), and `taskReports` (pending failed-report paths). An artifact under experiment carries `experiment`.
+- `materials` carries `inputChanges` (`added`, `removed`, and `changed` paths, plus required-approval `ready`), `reviewLanes` (`lane` and `path` for every review of a rejected closed wave), `challenges` (pending constraint, proposal, reported-failure, and claim paths), and `taskReports` (pending failed-report paths). An artifact under experiment carries `experiment`.
 
 Each command accepts only its documented options and one positional argument. Any other value, missing value, duplicate single option, or unknown option is an error.
 

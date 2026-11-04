@@ -11,10 +11,11 @@ const commitAt = (date, subject) => {
   git(root, "add", "-A");
   execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", subject], { cwd: root, env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date } });
 };
-const constraint = (n, target, origin = "issue 7") => {
-  write(root, `0-intent/constraint-${n}.md`, `# Constraint ${n}\n\ntarget: ${target}\norigin: ${origin}\n\nRuling.\n`);
-  rp(root, "stamp", P(`0-intent/constraint-${n}.md`), "--mirror");
+const laterInput = (kind, n, target, origin = "issue 7") => {
+  write(root, `0-intent/${kind}-${n}.md`, `# ${kind} ${n}\n\ntarget: ${target}\norigin: ${origin}\n\nThe input.\n`);
+  rp(root, "stamp", P(`0-intent/${kind}-${n}.md`), "--mirror");
 };
+const constraint = (n, target, origin) => laterInput("constraint", n, target, origin);
 const SPEC_WITH = (inputs) => [...SPEC, ...inputs];
 
 describe("rp metrics", () => {
@@ -33,22 +34,24 @@ describe("rp metrics", () => {
     assert.match(metrics(), new RegExp(`^elapsed   1d 2h 3m  \\(${added.replace(/\+/g, "\\+")} → ${at(86400 + 7200 + 180).replace(/\+/g, "\\+")}\\)$`, "m"));
   });
 
-  test("a correction costs the waves carrying it through the first valid one; earlier and later waves are not counted", () => {
-    stampSpec();
-    approveSpec(1);
-    constraint(1, "1-spec/spec.md#spec-requirement-1", "1-spec/spec-review-1.md");
-    rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P("0-intent/constraint-1.md"));
-    const carried = SPEC_WITH(["0-intent/constraint-1.md"]);
-    review("1-spec/spec-review-2.md", "rejected", carried);
-    let state = json();
-    assert.deepEqual(state.laterInputs, [{ path: "0-intent/constraint-1.md", kind: "constraint", origin: "1-spec/spec-review-1.md", corrections: [{ artifact: "1-spec/spec.md", waves: 1, accepted: false }] }]);
-    assert.match(metrics(), /^input     0-intent\/constraint-1\.md \(constraint, origin: 1-spec\/spec-review-1\.md\) → 1-spec\/spec\.md  1 wave so far$/m);
-    review("1-spec/spec-review-3.md", "approved", carried);
-    review("1-spec/spec-review-4.md", "rejected", carried);
-    state = json();
-    assert.deepEqual(state.laterInputs[0].corrections, [{ artifact: "1-spec/spec.md", waves: 2, accepted: true }]);
-    assert.match(metrics(), /→ 1-spec\/spec\.md  accepted after 2 waves$/m);
-  });
+  for (const kind of ["constraint", "proposal", "failure"])
+    test(`a ${kind} costs the waves carrying it through the first valid one; earlier and later waves are not counted`, () => {
+      stampSpec();
+      approveSpec(1);
+      const path = `0-intent/${kind}-1.md`;
+      laterInput(kind, 1, "1-spec/spec.md#spec-requirement-1", "1-spec/spec-review-1.md");
+      rp(root, "stamp", P("1-spec/spec.md"), "--pin", P("0-intent/intent.md"), "--pin", P(path));
+      const carried = SPEC_WITH([path]);
+      review("1-spec/spec-review-2.md", "rejected", carried);
+      let state = json();
+      assert.deepEqual(state.laterInputs, [{ path, kind, origin: "1-spec/spec-review-1.md", corrections: [{ artifact: "1-spec/spec.md", waves: 1, accepted: false }] }]);
+      assert.match(metrics(), new RegExp(`^input     0-intent/${kind}-1\\.md \\(${kind}, origin: 1-spec/spec-review-1\\.md\\) → 1-spec/spec\\.md  1 wave so far$`, "m"));
+      review("1-spec/spec-review-3.md", "approved", carried);
+      review("1-spec/spec-review-4.md", "rejected", carried);
+      state = json();
+      assert.deepEqual(state.laterInputs[0].corrections, [{ artifact: "1-spec/spec.md", waves: 2, accepted: true }]);
+      assert.match(metrics(), /→ 1-spec\/spec\.md  accepted after 2 waves$/m);
+    });
 
   test("acceptance needs every declared lane's approval in one carrying wave", () => {
     configure({ targetPhase: 1, lanes: [lane("spec-reviewer", "security")] });

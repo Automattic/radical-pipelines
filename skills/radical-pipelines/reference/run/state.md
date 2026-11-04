@@ -22,12 +22,12 @@ Everything about a pipeline is computed from the working tree at any commit. `rp
   - A wave is **current** when it is valid and its reference equals the package required now. For a live artifact, the required package can only be satisfied when every input approval it requires is itself valid and current, recursively.
 - **Verdict** — a review's conclusion: `approved`, `rejected`, or `unsatisfiable`. An `unsatisfiable` verdict names a `target`: an artifact clause `<path>#<id>` or a constraint file.
 - **Outcome** — a task report's conclusion: `completed`; `failed` — the worker observed the result and it contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked` — something the worker was given failed it (malformed materials, an unreadable input, or a broken seat or its environment), and the report names what failed with the evidence locating it.
-- **Challenge** — a file asking for work on its targets: a constraint, a proposal, an `unsatisfiable` verdict (a **claim**), or a failed task report.
-  - Targets: a constraint or proposal targets one or more phase artifacts, whole or by clause; a claim targets one existing artifact clause or constraint file; a failed report targets its task (`build-plan.md#build-task-3`). Once landed, the recorded targets are what count, even when the targeted text has since been removed.
+- **Challenge** — a file asking for work on its targets: a constraint, a proposal, an `unsatisfiable` verdict (a **claim**), or a **failure**. A failure is a failed task report or a **reported failure**: a result observed outside the run that contradicts the work — a command the owner ran, CI, a bug — recorded as `0-intent/failure-<n>.md`.
+  - Targets: a constraint, proposal, or reported failure targets one or more phase artifacts, whole or by clause; a claim targets one existing artifact clause or constraint file; a failed report targets its task (`build-plan.md#build-task-3`). Once landed, the recorded targets are what count, even when the targeted text has since been removed.
   - State is per target artifact; several clauses of one artifact are adjudicated together, each with its own disposition in the record. On a target, a challenge is **pending** until the target **adjudicates** it by pinning it (the disposition lives in the record), and **resolved** when the target has a current valid wave that names the challenge, or when a closed wave of the target corroborates an `unsatisfiable` verdict citing the challenge as `origin` — the target has raised its own claim one layer up. The challenge is resolved when every target is. A claim on owner territory is resolved by the owner's answer.
   - A claim is its lane's verdict: it persists until resolved, superseded (its target changed, or its lane reviewed again), or moot (the artifact it judged changed); once its target has adjudicated it, it stays unresolved there until resolved.
   - A failed task report stops being a challenge when its task changes before adjudication. A blocked report is not a challenge: its task stays pending, and you repair what the report names and re-dispatch (`loop.md` § Dispatch).
-- **Under experiment** — an artifact while a challenge unresolved on it is a failed task report or has one in its `origin` chain. `rp check` ends its `converge` and `review wave` lines with ` (experiment)`; their agents run under `Execution: experiment`.
+- **Under experiment** — an artifact while a challenge unresolved on it is a failure or has one in its `origin` chain. `rp check` ends its `converge` and `review wave` lines with ` (experiment)`; their agents run under `Execution: experiment`.
 - **Done-set** — the tasks whose latest report's `outcome` is `completed` and whose `reviewed` pins are fresh.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder.
@@ -83,7 +83,7 @@ Frontmatter is a JSON object between `---` lines; the last value of a repeated k
 | `target`    | challenges                   | non-empty list of `<path>[#<id>]`, according to the challenge's kind. Only challenges carry `target`. |
 | `target-identity` | claims, failed task reports | non-empty list of each target file's identity when the challenge landed, aligned with `target` |
 | `ids`, `retired-ids` | intent, spec, design doc, plans, records | every id the file has declared at any stamp — a plan's tasks by their files — and the subset it no longer declares. The conditions that make a file `INVALID IDS` are listed below the table; its author fixes it. A review's findings are validated the same way, but a review records no `ids`: every wave is a new file |
-| `origin`    | anything born from something | `issue <canonical reference>`; an external source; the challenge a review responds to; a list when several |
+| `origin`    | anything born from something | `issue <canonical reference>`; the URL of an external source; the challenge a review responds to; a list when several |
 | `prior-finding` | reviews                  | `<review>#<finding id>` — an earlier review of the same kind that declares the finding this one continues; a list |
 | `depends-on` | tasks                       | `none` or the comma-separated task ids it waits for                      |
 | `commit`    | task reports                 | a hash per line, one per commit the task made; resolve new declarations to full hashes |
@@ -114,7 +114,7 @@ Each open production lane adjudicates its root's pending challenges before conso
 | -------------------------------------- | ---------------------------------------------------------------------------- |
 | `run-config.md`                        | none                                                                         |
 | `0-intent/intent.md`                   | none; `origin`: `issue <canonical reference>`                                |
-| `0-intent/constraint-<n>.md`, `0-intent/proposal-<n>.md` | none; `target`, `origin`                                          |
+| `0-intent/constraint-<n>.md`, `0-intent/proposal-<n>.md`, `0-intent/failure-<n>.md` | none; `target`, `origin`                  |
 | `1-spec/spec.md`                       | `intent.md`; every challenge it adjudicated; when consolidated, every lane's `spec.md`, record, and approving reviews |
 | spec or design production-lane artifact | what its root artifact would, plus each `after` lane's artifact, record, and approving reviews |
 | `2-design-doc/design-doc.md`           | `intent.md`, `spec.md`, approving spec wave; challenges; lanes when consolidated |
@@ -144,7 +144,7 @@ Each open production lane adjudicates its root's pending challenges before conso
 
 ## Owner territory
 
-Owner territory is what the work must satisfy: the intent's Goal and Constraints, and `0-intent/constraint-<n>.md`. Proposals, in the intent or in `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means it must be investigated, not that it is decided. A requirement or mechanism an agent chose can be revised by its producer and reviewer; a Goal or constraint that cannot be satisfied is escalated to the owner. Records cite the phase-0 sources.
+Owner territory is what the work must satisfy: the intent's Goal and Constraints, and `0-intent/constraint-<n>.md`. Proposals, in the intent or in `0-intent/proposal-<n>.md`, are investigated and adopted or refuted with evidence; the owner approving a proposal means it must be investigated, not that it is decided. A reported failure is evidence, not a ruling: its targets investigate it and adopt or refute it. A requirement or mechanism an agent chose can be revised by its producer and reviewer; a Goal or constraint that cannot be satisfied is escalated to the owner. Records cite the phase-0 sources.
 
 An owner answer is a constraint or a proposal, as the owner rules, whose `origin` names the claim and whose targets include the root artifact of the phase that raised it. It replaces the challenged obligation within those targets: a constraint binds them; a proposal they investigate and adopt or refute.
 

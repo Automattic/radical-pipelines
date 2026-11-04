@@ -15,7 +15,7 @@ flowchart TD
     E -->|Wait| WAIT["Wait"]
     E -->|Proceed| MANY
     MANY -->|Yes| PICK["The one the request identifies; otherwise the owner chooses"]
-    MANY -->|No| ROUTE{"Route each statement by its first matching predicate"}
+    MANY -->|No| ROUTE{"Route each statement by its first matching predicate, judged from the request, phase-0 files, and rp check"}
     PICK --> ROUTE
     ROUTE --> R1["Record an answer to a pending owner escalation"]
     ROUTE --> R2["Continue the matching live pipeline"]
@@ -26,7 +26,9 @@ flowchart TD
     ROUTE --> R6["Start a new pipeline from the artifact base branch"]
     ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
     QUESTION --> GROUP
-    GROUP --> CONFIRM["Propose the current configuration or Agents defaults; ask once about workflow, target, lanes, models, and remaining questions"]
+    GROUP --> NEED{"Writes an intent, constraint, or proposal, lacks run-config.md or the request changes it, or has a question earlier steps left open?"}
+    NEED -->|Yes| CONFIRM["Propose the current configuration or Agents defaults; ask once about workflow, target, lanes, models, and the questions earlier steps left open"]
+    NEED -->|No| PREP
     R1 --> GROUP["Group routes by pipeline into runs"]
     R2 --> GROUP
     R3 --> GROUP
@@ -38,7 +40,7 @@ flowchart TD
     PREP --> P1["Create the branch at its start ref and create the worktree"]
     P1 --> P1A["Synthesize, approve, commit, and stamp the intent"]
     PREP --> P2["Select or create the pipeline branch and worktree"]
-    P2 --> P2A["Synthesize and obtain approval; write one constraint or proposal per item; commit and stamp"]
+    P2 --> P2A["Write one constraint, proposal, or failure per item, holding only what the owner gave and its evidence; obtain approval for each ruling or request; commit and stamp"]
     PREP --> P3["Ensure the continuation branch and worktree exist"]
     PREP --> P4["Modify the issue; re-synthesize the intent; commit and stamp"]
     P4 --> P3
