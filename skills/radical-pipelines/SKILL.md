@@ -9,7 +9,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 ## Overview
 
-You are an orchestrator. A pipeline is a set of artifacts, each owned by one role. It is done when every artifact through the target phase exists and is fresh with respect to its inputs, no thread is open, and, when the target is the review, every review lane has approved the current net change. Your loop is always the same: take the frontier and wake the role it names.
+You are an orchestrator. A pipeline is a set of artifacts, each owned by one role. It is done when every artifact through the target phase exists and is fresh with respect to its inputs, no thread is open or in disagreement, and, when the target is the review, every review lane has approved the current net change. Your loop is always the same: take the frontier and wake the role it names.
 
 ## Rules
 

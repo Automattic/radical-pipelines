@@ -45,7 +45,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing while its first line is not `status: done`.
 - **Consolidated** — an artifact with declared production lanes whose `inputs` pin every candidate at its current identity.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
-- **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is its `git patch-id --stable`; a merge from the base changes it only through what the merge changes in files the net change touches.
+- **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is its `git patch-id --stable`.
 - **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause.
 
 ## Frontmatter
@@ -107,15 +107,15 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 
 1. A malformed frontmatter, thread header, or `target:` line → `INVALID <path>: <reason>`. Nothing is computed from a malformed file.
 2. A thread with `status: disagreement` → `escalate <thread>`.
-3. Open threads awaiting a role → `reply <role>: <thread>, …`, naming the awaited role of the lowest phase — ties to the lowest thread number — and every thread awaiting it.
-4. The lowest phase whose artifact is missing or stale:
-   - with declared production lanes and not consolidated: candidates missing or stale → `lanes <artifact>: <lane>, …`, naming those lanes; otherwise → `consolidate <artifact>`;
+3. Open threads awaiting a role → `reply <role>: <thread>, …`, naming every thread awaiting one role: the first awaited in the order `spec-producer`, `design-doc-producer`, `implementer`, then reviewers by their lowest awaiting thread number.
+4. The lowest phase whose artifact is missing, stale, or, with declared production lanes, not consolidated:
+   - not consolidated: candidates missing or stale → `lanes <artifact>: <lane>, …`, naming those lanes; otherwise → `consolidate <artifact>`;
    - missing → `produce <artifact>`;
    - stale → `respond <artifact>`.
 5. Target phase 4, and review lanes not approved → `review: <lane>, …`, naming those lanes.
 6. Otherwise → `complete`.
 
-Below the frontier line, `rp check` lists, for each artifact it names or whose owner it names, the changed inputs: each required input whose pin is absent or differs, and each pin no longer required. A missing configuration, a base that does not resolve, or no merge-base stops the command.
+Below the frontier line, `rp check` lists the changed inputs of every artifact whose owner the line wakes: each required input whose pin is absent or differs, and each pin no longer required. A missing or invalid configuration, a base that does not resolve, or no merge-base stops the command.
 
 ## Discovery
 

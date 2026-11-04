@@ -12,7 +12,7 @@ Health tick for pipeline <pipeline slug> on branch <pipeline branch>, worktree <
 
 Inspect the run and lane worktrees, available agent logs, and messaging state.
 
-1. **Pending permission requests** — answer each using the active tool's procedure.
+1. **Pending permission requests** — handle each per `tools/<tool>.md`; an agent with one pending is blocked, not stalled.
 2. **Stalled agents** — an agent that has not declared completion of its turn and either:
    - ended its turn without sending a message while no reply and no running command was pending; or
    - has produced no commit, file write, or tool output for the threshold.

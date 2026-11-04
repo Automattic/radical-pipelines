@@ -38,7 +38,7 @@ Materials: the **Intent** and the **Later inputs**.
 Materials: the Produce materials, `spec.md` at **Write to**, the **Changed inputs**, and the **Threads addressed to you**.
 
 1. Diff each changed input since the commit named and revise what the change invalidates; leave the rest.
-2. Answer every finding per **Threads**. A case you show that no intended use produces gets a line under Considered and not required.
+2. Answer every finding per **Threads**.
 
 ## Consolidate
 
@@ -47,7 +47,7 @@ Materials: the Produce materials and the **Lane candidates**, read-only.
 Write `spec.md` at **Write to** from the candidates, treating divergence as evidence:
 
 - A requirement or case every lane reached is kept.
-- A requirement or case only one lane reached is a question: keep it only when you observe intended use producing its input; otherwise list it under Considered and not required.
+- A requirement or case only one lane reached is a question: keep it only when you observe intended use producing its input.
 - Where lanes chose differently on the same question, decide from the observed evidence and record the alternative in one line under Considered and not required.
 
 # Rules

@@ -54,7 +54,7 @@ A production lane is a `spec-producer` or `design-doc-producer` lane declared in
 A review lane is one `reviewer` with its brief; every lane must approve.
 
 1. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, to a file outside the worktree.
-2. Give each lane the frontier names its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them.
+2. Give each lane you wake its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them.
 3. Wake each lane's reviewer there, in parallel, with its **Lane**, its **Brief**, the net change, and, when the lane approved before, the commit its last approval names.
 
 ## Owner escalation
