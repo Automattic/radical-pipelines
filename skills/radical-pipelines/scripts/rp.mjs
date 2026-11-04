@@ -1,1262 +1,50 @@
 #!/usr/bin/env node
-// rp — state tooling for Radical Pipelines.
-// Zero dependencies. Serves the spec in ../reference/run/state.md; everything
-// it does can be done with bare git. Commands: stamp, check, metrics, diff.
+// rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
+// Commands: check, stamp, pipelines. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, openSync, closeSync, existsSync, readdirSync, lstatSync, realpathSync, mkdtempSync, rmSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
-const SHORT = 12;
+// What cannot be read, or a command used wrongly: stops the command.
+class RpError extends Error {}
+const fail = (message) => { throw new RpError(message); };
+// A malformed pipeline file: the frontier is INVALID and nothing is computed from it.
+export class Invalid extends Error {}
+const invalid = (reason) => { throw new Invalid(reason); };
 
-function die(msg) {
-  process.stderr.write(`rp: ${msg}\n`);
-  process.exit(1);
-}
-
-function validBranch(name) {
-  try {
-    execFileSync("git", ["check-ref-format", "--branch", name], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function repositoryFor(argument) {
-  const requested = resolve(process.cwd(), argument);
-  let at = existsSync(requested) && lstatSync(requested).isDirectory() ? requested : dirname(requested);
-  while (!existsSync(at)) {
-    const parent = dirname(at);
-    if (parent === at) break;
-    at = parent;
-  }
-  try {
-    execFileSync("git", ["-C", at, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
-    let root = at;
-    while (!existsSync(join(root, ".git"))) {
-      const parent = dirname(root);
-      if (parent === root) die(`cannot locate a git repository for: ${argument}`);
-      root = parent;
-    }
-    return { root, abs: requested };
-  } catch {
-    die(`cannot locate a git repository for: ${argument}`);
-  }
-}
-
-// --- frontmatter ------------------------------------------------------------
-
-// The body is every byte after the closing delimiter line, exactly as git hashes it: nothing is
-// normalized. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
-export function parseFrontmatter(raw, validate = validateFrontmatter) {
-  const open = raw.match(/^---\r?\n/);
-  if (!open) return { data: null, body: raw };
-  const rest = raw.slice(open[0].length);
-  const close = rest.match(/(?:^|\n)---\r?(?:\n|$)/);
-  if (!close) return { data: null, body: raw, error: "missing closing --- delimiter" };
-  const body = rest.slice(close.index + close[0].length);
-  let object;
-  try {
-    object = JSON.parse(rest.slice(0, close.index));
-  } catch (error) {
-    return { data: null, body, error: `invalid JSON: ${error.message}` };
-  }
-  if (object === null || Array.isArray(object) || typeof object !== "object" || Object.getPrototypeOf(object) !== Object.prototype)
-    return { data: null, body, error: "frontmatter must be a JSON object" };
-  const data = new Map(Object.entries(object));
-  const error = validate?.(data);
-  if (error) return { data: null, body, error };
-  return { data, body };
-}
-
-function validateFrontmatter(data) {
-  const lists = new Set(["pins", "reviewed", "prior-finding", "depends-on", "commit", "patch-ids", "target", "target-identity", "ids", "retired-ids"]);
-  const scalars = new Set(["verdict", "brief", "outcome", "head", "lane", "attempt"]);
-  const strings = (value) => Array.isArray(value) && value.every((item) => typeof item === "string");
-  const errors = [];
-  for (const [key, value] of data) {
-    if (lists.has(key) && !strings(value)) errors.push(`${key} must be a list of strings`);
-    else if (scalars.has(key) && typeof value !== "string") errors.push(`${key} must be a string`);
-    else if (key === "origin" && !(typeof value === "string" || (strings(value) && value.length))) errors.push("origin must be a string or non-empty list of strings");
-    else if (key === "lane-packages") {
-      const error = lanePackagesError(value);
-      if (error) errors.push(error);
-    }
-    else if (!lists.has(key) && !scalars.has(key) && key !== "origin" && key !== "lane-packages" && !(typeof value === "string" || strings(value)))
-      errors.push(`${key} must be a string or list of strings`);
-    if ((key === "target" || key === "target-identity") && strings(value) && !value.length) errors.push(`${key} must be a non-empty list`);
-    if ((key === "pins" || key === "reviewed") && strings(value) && value.some((pin) => pinParts(pin) && !pipelineFileRole(pinParts(pin).path))) errors.push(`${key} must name pipeline state`);
-    if (key === "patch-ids" && strings(value) && value.some((id) => !PATCH_ID.test(id))) errors.push("patch-ids must contain patch ids");
-  }
-  return errors.join("; ") || null;
-}
-
-function lanePackagesError(value) {
-  if (!Array.isArray(value)) return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
-  const artifacts = new Set();
-  for (const entry of value) {
-    if (!Array.isArray(entry) || entry.length !== 3 || typeof entry[0] !== "string" || !entry[0])
-      return "lane-packages must be a list of [artifact path, consumed lane pins, reference pins]";
-    const [artifact, binding, reference] = entry;
-    if (!pipelineFileRole(artifact)?.productionArtifact) return `lane-packages artifact path must name a production lane artifact: ${artifact}`;
-    if (artifacts.has(artifact)) return `lane-packages has duplicate artifact path: ${artifact}`;
-    if (!pinPackage(binding)) return `lane-packages consumed lane pins for ${artifact} must be a non-empty pin package`;
-    if (!pinPackage(reference)) return `lane-packages reference pins for ${artifact} must be a non-empty pin package`;
-    artifacts.add(artifact);
-  }
-  return null;
-}
-
-export function renderFrontmatter(data, body) {
-  const object = Object.fromEntries([...data].filter(([, value]) => !Array.isArray(value) || value.length));
-  return `---\n${JSON.stringify(object, null, 2)}\n---\n${body}`;
-}
-
-// --- identity: hash of the body only ----------------------------------------
-
-// Computed in process as git computes a blob hash — `sha1("blob <bytes>\0" + bytes)` — so it
-// equals `git hash-object --stdin` of the hashed bytes, byte for byte, without spawning anything.
-export function identity(content, rel = "") {
-  const bytes = identityBytes(Buffer.isBuffer(content) ? content : Buffer.from(content, "utf8"), rel);
-  return createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex").slice(0, SHORT);
-}
-
-const originSource = (value) => /^(?:starts-from|re-attempts)\s+\S+$/.test(value) || /^issue\s+\S(?:.*\S)?$/.test(value);
-const originLine = (line) => originSource(line.match(/^origin:[^\S\n]*([^\n]*)\n?$/)?.[1].trim() ?? "");
-
-// The hashed bytes: the body, less the intent's leading origin lines.
-function identityBytes(bytes, rel) {
-  const raw = bytes.toString("latin1");
-  const open = raw.match(/^---\r?\n/);
-  const close = open && raw.slice(open[0].length).match(/(?:^|\n)---\r?(?:\n|$)/);
-  let body = close ? bytes.subarray(open[0].length + close.index + close[0].length) : bytes;
-  while (rel === "0-intent/intent.md" && body.length) {
-    const end = body.indexOf(10);
-    const next = end === -1 ? body.length : end + 1;
-    if (!originLine(body.subarray(0, next).toString("utf8"))) break;
-    body = body.subarray(next);
-  }
-  return body;
-}
-
-function readPipelineFile(base, rel) {
-  const abs = join(base, rel);
-  if (!existsSync(abs) || !lstatSync(abs).isFile()) return null;
-  const bytes = readFileSync(abs);
-  const text = bytes.toString("utf8");
-  return { ...parseFrontmatter(text), text, identity: identity(bytes, rel) };
-}
-
-const IDENTITY = /^[0-9a-f]{12}$/;
-const PATCH_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
-const artifactFiles = (paths) => paths.filter((path) => path !== "run-config.md");
+// --- git ----------------------------------------------------------------------
 
 // Git reads its input from a file: a synchronous child can stall reading piped input to its end.
 function gitBytes(root, args, input) {
   const run = (stdin) => execFileSync("git", args, { cwd: root, maxBuffer: Infinity, stdio: [stdin, "pipe", "pipe"] });
-  if (input === undefined) return run("ignore");
-  const directory = mkdtempSync(join(tmpdir(), "rp-input-"));
   try {
-    const path = join(directory, "input");
-    writeFileSync(path, input);
-    const fd = openSync(path, "r");
-    try { return run(fd); } finally { closeSync(fd); }
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+    if (input === undefined) return run("ignore");
+    const directory = mkdtempSync(join(tmpdir(), "rp-input-"));
+    try {
+      const path = join(directory, "input");
+      writeFileSync(path, input);
+      const fd = openSync(path, "r");
+      try { return run(fd); } finally { closeSync(fd); }
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  } catch (error) {
+    fail(`git ${args.join(" ")}: ${error.stderr?.toString("utf8").trim() || error.message}`);
+  }
 }
 const gitText = (root, args, input) => gitBytes(root, args, input).toString("utf8").trim();
-const DIFF_OPTIONS = ["-r", "-p", "--binary", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color"];
 
-// The base: the merge-base of the tip with the configured base branch.
-function pipelineBase(root, branch, tip) {
-  let base;
-  try { base = gitText(root, ["rev-parse", "--verify", "--quiet", `${branch}^{commit}`]); }
-  catch { throw new Error(`base does not resolve: ${branch}`); }
-  try { return gitText(root, ["merge-base", tip, base]); }
-  catch { throw new Error(`no merge-base between ${branch} and ${tip}`); }
+// The commit a revision names, or null when it names none.
+function commitOf(root, revision) {
+  try {
+    return execFileSync("git", ["rev-parse", "--verify", "--quiet", "--end-of-options", `${revision}^{commit}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+  } catch { return null; }
 }
-
-// Code outside the pipelines folder: the diff between two trees.
-const codeDiff = (root, from, to, pipelinesRoot) => gitBytes(root, ["diff-tree", ...DIFF_OPTIONS, from, to, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
-
-// A merge's tree; a conflicted merge keeps its markers. Any other failure stops the computation.
-function mergedTree(root, args) {
-  let output, conflicted = false;
-  try { output = gitBytes(root, ["merge-tree", "--write-tree", "--no-messages", ...args]); }
-  catch (error) {
-    if (error.status !== 1 || !error.stdout?.length) throw new Error(`merge-tree ${args.join(" ")}: ${error.stderr?.toString("utf8").trim() || error.message}`);
-    output = error.stdout;
-    conflicted = true;
-  }
-  const tree = output.toString("ascii").split("\n")[0];
-  if (!PATCH_ID.test(tree)) throw new Error(`merge-tree ${args.join(" ")}: invalid tree`);
-  return { tree, conflicted };
-}
-
-// Each commit's patch id, keyed by commit; a merge or an empty commit has none.
-function patchIds(root, commits) {
-  if (!commits.length) return new Map();
-  const patches = gitBytes(root, ["diff-tree", "--stdin", "--root", ...DIFF_OPTIONS], `${[...new Set(commits)].join("\n")}\n`);
-  const output = patches.length ? gitText(root, ["patch-id", "--stable"], patches) : "";
-  return new Map((output ? output.split("\n") : []).map((line) => {
-    const [id, commit, extra] = line.split(" ");
-    if (!PATCH_ID.test(id) || !PATCH_ID.test(commit) || extra !== undefined) throw new Error("invalid patch-id output");
-    return [commit, id];
-  }));
-}
-
-// A phase review's code delta: the tip's code outside the pipelines folder beyond what the review saw —
-// the first parent of the commit adding the review, merged with the base, then each later commit
-// outside the base whose patch id a later phase's report records, replayed in order.
-function codeDelta(root, { tip, base, review, attributed, pipelinesRoot }) {
-  const added = gitText(root, ["log", "--format=%H", "--no-renames", "--diff-filter=A", "-1", tip, "--", `:(top,literal)${review}`]);
-  if (!PATCH_ID.test(added)) throw new Error(`${review}: no commit adds this review`);
-  const reviewed = gitText(root, ["rev-list", "--parents", "-n", "1", added]).split(" ")[1];
-  if (!reviewed) throw new Error(`${review}: the commit adding it has no parent`);
-  let expected = mergedTree(root, [reviewed, base]).tree;
-  if (attributed.size) {
-    const listed = gitText(root, ["rev-list", "--reverse", "--topo-order", "--no-merges", tip, "--not", reviewed, base]);
-    const commits = listed ? listed.split("\n") : [];
-    const ids = patchIds(root, commits);
-    for (const commit of commits.filter((commit) => attributed.has(ids.get(commit)))) {
-      const replay = mergedTree(root, ["--merge-base", `${commit}^`, expected, commit]);
-      if (!replay.conflicted) expected = replay.tree;
-    }
-  }
-  return codeDiff(root, expected, tip, pipelinesRoot);
-}
-const VERDICTS = new Set(["approved", "rejected", "unsatisfiable"]);
-let REPORT, reportOf; // `<phase>/tasks/<task id>-report-<k>.md`, defined with the id vocabulary below.
-// Mirrors: the projection of a body's declarations, rewritten whole by every `--mirror`.
-const MIRRORS = ["verdict", "brief", "target", "origin", "outcome", "prior-finding", "depends-on", "commit", "attempt"];
-// The artifacts, in phase order, with what each one requires as pins.
-const ARTIFACTS = [
-  { path: "1-spec/spec.md", record: "1-spec/spec-research.md", prefix: "spec", phase: "1-spec", requires: ["0-intent/intent.md"] },
-  { path: "2-design-doc/design-doc.md", record: "2-design-doc/design-doc-research.md", prefix: "design-doc", phase: "2-design-doc", requires: ["0-intent/intent.md", "1-spec/spec.md"] },
-  { path: "3-build/build-plan.md", record: "3-build/build-plan-research.md", prefix: "build-plan", phase: "3-build", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md"], review: "build" },
-  { path: "4-document/document-plan.md", record: "4-document/document-plan-research.md", prefix: "document-plan", phase: "4-document", requires: ["1-spec/spec.md", "2-design-doc/design-doc.md", "3-build/build-plan.md"], requiresPhase: "3-build", review: "document" },
-];
-// The review whose wave completes a phase: the phase review when the plan has tasks, otherwise the artifact's own.
-const completingPrefix = (art, taskFilesOf) => (art.review && taskFilesOf(art.phase).length ? art.review : art.prefix);
-// The patch ids that reports of phases after `phase` record: their work is no input to its review.
-function laterPatchIds(phase, reports) {
-  const index = (name) => ARTIFACTS.findIndex((art) => art.phase === name);
-  return new Set(reports.filter(({ rel }) => index(reportOf(rel)[1]) > index(phase)).flatMap(({ data }) => data?.get("patch-ids") ?? []));
-}
-const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
-const LANE_PROFILES = new Map([
-  ["spec-reviewer", { prefix: "spec", kind: "review" }],
-  ["design-doc-reviewer", { prefix: "design-doc", kind: "review" }],
-  ["build-plan-reviewer", { prefix: "build-plan", kind: "review" }],
-  ["build-reviewer", { prefix: "build", kind: "review" }],
-  ["document-plan-reviewer", { prefix: "document-plan", kind: "review" }],
-  ["document-reviewer", { prefix: "document", kind: "review" }],
-  ["spec-producer", { prefix: "spec", kind: "production" }],
-  ["design-doc-producer", { prefix: "design-doc", kind: "production" }],
-]);
-function reviewArtifact(rel) {
-  const name = basename(rel);
-  for (const art of ARTIFACTS) {
-    for (const prefix of [art.prefix, art.review].filter(Boolean)) {
-      const match = name.match(new RegExp(`^${prefix}-review-(?:(.+)-)?([1-9]\\d*)\\.md$`));
-      if (match) return { art, prefix, lane: match[1] ?? "", wave: Number(match[2]) };
-    }
-  }
-  return null;
-}
-
-const laneProfile = (prefix, kind) => [...LANE_PROFILES].find(([, value]) => value.prefix === prefix && value.kind === kind)?.[0] ?? null;
-
-const laneScope = (phase, id) => `${phase}/lanes/${id}/`;
-
-// The folders holding pipeline state: the pipeline folder, each phase folder, its `tasks/`, and each
-// `lanes/<lane>/`. A segment pattern is a set of names, a literal name, or any name (null).
-const PHASES = ["0-intent", ...ARTIFACTS.map((art) => art.phase)];
-const STATE_FOLDERS = [[], [PHASES], [PHASES, "tasks"], [PHASES, "lanes", null]];
-const segmentMatches = (pattern, segment) => Array.isArray(pattern) ? pattern.includes(segment) : pattern === null || pattern === segment;
-// Whether a folder, by its segments, holds state (`exact`) or leads to a folder that does.
-function stateFolder(segments, exact = true) {
-  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return false;
-  return STATE_FOLDERS.some((pattern) => (exact ? pattern.length === segments.length : pattern.length >= segments.length) &&
-    segments.every((segment, index) => segmentMatches(pattern[index], segment)));
-}
-
-// One path classifier supplies state, scopes, review identity, and lane-bearing files: a file in a
-// state folder is state; every other path is not (null).
-function pipelineFileRole(rel) {
-  const parts = rel.split("/");
-  const name = parts.pop();
-  if (!name || name === "." || name === ".." || !stateFolder(parts)) return null;
-  const laned = parts[1] === "lanes";
-  const art = ARTIFACTS.find((candidate) => candidate.phase === parts[0]);
-  const productionLane = laned ? { id: parts[2], profile: art ? laneProfile(art.prefix, "production") : null } : null;
-  const scope = laned ? laneScope(parts[0], parts[2]) : "";
-  if (!art) return { scope, productionLane };
-  const review = reviewArtifact(rel);
-  const placedReview = review && review.art === art && parts[1] !== "tasks" ? review : null;
-  const namedReview = placedReview?.lane ? { id: placedReview.lane, profile: laneProfile(placedReview.prefix, "review") } : null;
-  return {
-    art,
-    scope,
-    productionLane,
-    productionArtifact: laned && name === basename(art.path),
-    review: placedReview,
-    namedReview,
-  };
-}
-
-// The fingerprint of a lane: the identity of its whole declaration — id, brief, materials, after.
-export function laneFingerprint({ id, brief = "", materials = "", after = "" }) {
-  const list = (value, separator) => (Array.isArray(value) ? value : String(value).split(separator)).map((item) => String(item).trim()).filter(Boolean).join(separator);
-  return identity(`${id}\n${String(brief).trim()}\n${list(materials, ",")}\n${list(after, "+")}\n`);
-}
-
-function runConfiguration(read, command) {
-  const raw = read("run-config.md");
-  if (raw === null || raw === undefined) throw new Error(`${command}: missing run-config.md`);
-  const parsed = parseFrontmatter(raw, null);
-  const invalid = (reason) => { throw new Error(`${command}: INVALID RUN CONFIG run-config.md: ${reason}`); };
-  if (parsed.error) invalid(parsed.error);
-  if (parsed.data === null) invalid("frontmatter is required");
-  const object = Object.fromEntries(parsed.data);
-  const optionalList = (container, key, label) => {
-    if (!Object.hasOwn(container, key)) return null;
-    if (!Array.isArray(container[key])) invalid(`${label} must be an array`);
-    if (!container[key].length) invalid(`${label} must be non-empty when present`);
-    return container[key];
-  };
-  const keys = new Set(["workflow", "target-phase", "base", "lanes"]);
-  const unknown = Object.keys(object).find((key) => !keys.has(key));
-  if (unknown !== undefined) invalid(`unknown key: ${unknown}`);
-  if (!["autonomous", "assisted"].includes(object.workflow)) invalid('workflow must be "autonomous" or "assisted"');
-  if (!Number.isInteger(object["target-phase"]) || object["target-phase"] < 1 || object["target-phase"] > ARTIFACTS.length)
-    invalid(`target-phase must be an integer from 1 to ${ARTIFACTS.length}`);
-  if (typeof object.base !== "string" || !validBranch(object.base)) invalid("base must be a branch name");
-  const declaredLanes = optionalList(object, "lanes", "lanes") ?? [];
-  const lanes = [];
-  for (const [index, value] of declaredLanes.entries()) {
-    const at = `lanes[${index}]`;
-    if (value === null || Array.isArray(value) || typeof value !== "object") invalid(`${at} must be an object`);
-    const allowed = new Set(["profile", "id", "brief", "materials", "after"]);
-    const extra = Object.keys(value).find((key) => !allowed.has(key));
-    if (extra !== undefined) invalid(`${at} has unknown key: ${extra}`);
-    if (typeof value.profile !== "string") invalid(`${at}.profile must be a string`);
-    const profile = LANE_PROFILES.get(value.profile);
-    if (!profile) invalid(`${at}.profile is unknown: ${value.profile}`);
-    if (typeof value.id !== "string") invalid(`${at}.id must be a string`);
-    if (!LANE_ID.test(value.id)) invalid(`${at}.id is invalid: ${value.id}`);
-    if (typeof value.brief !== "string" || !value.brief.trim()) invalid(`${at}.brief must be a non-empty string`);
-    if (profile.kind === "review" && Object.hasOwn(value, "after")) invalid(`${at}.after applies to production lanes only`);
-    if (profile.kind === "production" && Object.hasOwn(value, "materials")) invalid(`${at}.materials applies to review lanes only`);
-    const materials = optionalList(value, "materials", `${at}.materials`);
-    const after = optionalList(value, "after", `${at}.after`);
-    if (Object.hasOwn(value, "materials")) {
-      if (materials.some((path) => typeof path !== "string")) invalid(`${at}.materials must be an array of paths`);
-      for (const path of materials) {
-        const parts = path.split("/");
-        if (parts.length < 2 || parts.some((part) => !part || part === "." || part === "..") || path.startsWith("/") || path.includes("@"))
-          invalid(`${at}.materials has invalid path: ${path}`);
-      }
-      if (new Set(materials).size !== materials.length) invalid(`${at}.materials has duplicate paths`);
-    }
-    if (Object.hasOwn(value, "after")) {
-      if (after.some((id) => typeof id !== "string" || !LANE_ID.test(id))) invalid(`${at}.after must be an array of lane ids`);
-      if (new Set(after).size !== after.length) invalid(`${at}.after has duplicate lane ids`);
-    }
-    const lane = {
-      profile: value.profile,
-      id: value.id,
-      brief: value.brief,
-      ...(Object.hasOwn(value, "materials") ? { materials: value.materials } : {}),
-      ...(Object.hasOwn(value, "after") ? { after: value.after } : {}),
-    };
-    lanes.push({ ...lane, ...profile, fingerprint: laneFingerprint(lane) });
-  }
-  if (object.workflow === "assisted" && lanes.length) invalid("assisted workflow cannot declare lanes");
-  for (const profile of LANE_PROFILES.keys()) {
-    const declared = lanes.filter((lane) => lane.profile === profile);
-    const duplicate = declared.find((lane, index) => declared.findIndex((other) => other.id === lane.id) !== index);
-    if (duplicate) invalid(`duplicate lane id "${duplicate.id}" for profile "${profile}"`);
-    if (LANE_PROFILES.get(profile).kind !== "production") continue;
-    const ids = new Set(declared.map((lane) => lane.id));
-    for (const lane of declared) for (const dependency of lane.after ?? [])
-      if (!ids.has(dependency)) invalid(`lane "${lane.id}" comes after undeclared lane "${dependency}" of profile "${profile}"`);
-    const visited = new Set();
-    const visit = (id, stack = new Set()) => {
-      if (stack.has(id)) invalid(`production lanes of profile "${profile}" depend on each other in a cycle`);
-      if (visited.has(id)) return;
-      visited.add(id);
-      const lane = declared.find((candidate) => candidate.id === id);
-      for (const dependency of lane?.after ?? []) visit(dependency, new Set([...stack, id]));
-    };
-    for (const lane of declared) visit(lane.id);
-  }
-  const decl = {};
-  for (const lane of lanes) {
-    decl[lane.prefix] ??= { review: [], production: [] };
-    decl[lane.prefix][lane.kind].push({
-      id: lane.id,
-      fingerprint: lane.fingerprint,
-      materials: lane.materials ?? null,
-      after: lane.after ?? [],
-    });
-  }
-  for (const [prefix, declaration] of Object.entries(decl)) {
-    const branches = [
-      ...declaration.review.map((lane) => `review-${lane.id}`),
-      ...declaration.production.map((lane) => lane.id),
-      ...declaration.production.flatMap((producer) => declaration.review.map((reviewer) => `${producer.id}-review-${reviewer.id}`)),
-    ];
-    const collision = branches.find((branch, index) => branches.indexOf(branch) !== index);
-    if (collision) invalid(`lanes for "${prefix}" expand to the same auxiliary branch: ${collision}`);
-  }
-  return {
-    workflow: object.workflow,
-    targetPhase: object["target-phase"],
-    base: object.base,
-    lanes,
-    decl,
-  };
-}
-function reviewPackageMembers(art, prefix, scope, pinned, tasks, reports) {
-  const path = (rel) => (scope ? `${scope}${basename(rel)}` : rel);
-  const base = [path(art.path), path(art.record), ...pinned];
-  const members = art.review && prefix === art.prefix ? [...base, ...tasks] : art.review && prefix === art.review ? [...base, ...tasks, ...reports] : base;
-  return [...new Set(members)];
-}
-
-function pinPackage(entries) {
-  if (!Array.isArray(entries) || !entries.length) return null;
-  const parts = entries.map((entry) => typeof entry === "string" ? pinParts(entry) : null);
-  if (parts.some((p) => !p?.path || !pipelineFileRole(p.path) || !IDENTITY.test(p.sha)) || new Set(parts.map((p) => p.path)).size !== parts.length) return null;
-  return new Map(parts.map((p) => [p.path, p.sha]));
-}
-
-// The only package comparison: equality of sets of (member, identity) pairs.
-// Diagnostics are collected during the same comparison, never used as another predicate.
-function equalPackages(a, b, differences = null) {
-  if (!a || !b) {
-    if (differences) differences.members = true;
-    return false;
-  }
-  const pairs = (p) => new Set([...p].map((pair) => JSON.stringify(pair)));
-  const left = pairs(a), right = pairs(b);
-  let equal = true;
-  for (const [source, other, otherPairs] of [[a, b, right], [b, a, left]]) {
-    for (const pair of source) {
-      if (!IDENTITY.test(pair[1]) || !otherPairs.has(JSON.stringify(pair))) {
-        equal = false;
-        if (differences) {
-          if (!other.has(pair[0])) differences.members = true;
-          else differences.identities.add(pair[0]);
-        }
-      }
-    }
-  }
-  return equal;
-}
-
-const packagePins = (p) => [...p].map(([path, sha]) => `${path}@${sha}`);
-const projectPackage = (p, paths) => p && new Map(paths.map((path) => [path, p.get(path)]));
-const reviewProjection = (p, paths) => paths === null ? p : projectPackage(p, paths);
-const inScope = (sc, rel) => (sc ? `${sc}${rel.split("/").pop()}` : rel);
-
-function artifactReviewPackage(art, prefix, scope, consumed, identityOf, tasks = [], reports = []) {
-  if (!consumed) return null;
-  const record = scope ? `${scope}${basename(art.record)}` : art.record;
-  const inputs = new Map([...consumed].filter(([path]) => path !== record));
-  const members = reviewPackageMembers(art, prefix, scope, [...new Set([...inputs.keys(), ...art.requires])], tasks, reports);
-  return new Map(members.map((path) => [path, inputs.has(path) || art.requires.includes(path) ? inputs.get(path) : identityOf(path)]));
-}
-
-const reviewLanesFor = (configuration, prefix) => [{ id: "", fingerprint: null, materials: null }, ...(configuration.decl[prefix]?.review ?? [])];
-const laneMatches = (doc, fingerprint) => fingerprint === null || doc?.data.get("lane") === fingerprint;
-
-function materialPathsFor(configuration, prefix, scope, lane) {
-  const art = ARTIFACTS.find((candidate) => candidate.prefix === prefix || candidate.review === prefix);
-  const materials = reviewLanesFor(configuration, prefix).find((candidate) => candidate.id === lane)?.materials ?? null;
-  if (materials === null) return null;
-  return materials.map((path) => scope && (path === art.path || path === art.record) ? inScope(scope, path) : path);
-}
-
-function reviewDocuments(inspect, prefix, scope) {
-  return inspect.list().flatMap((path) => {
-    const role = pipelineFileRole(path);
-    if (role.scope !== scope || role.review?.prefix !== prefix) return [];
-    const document = inspect.document(path);
-    return document ? [{ ...document, data: document.data ?? new Map(), rel: path, lane: role.review.lane, wave: role.review.wave }] : [];
-  });
-}
-
-// A review judges a reference: its `reviewed` equals the lane's projection and a phase review's code delta is empty.
-function judges(review, prefix, reference, paths, inspect) {
-  return equalPackages(pinPackage(review.data.get("reviewed")), reviewProjection(reference, paths)) &&
-    (!ARTIFACTS.some((art) => art.review === prefix) || inspect.codeCurrent(review.rel));
-}
-
-function evaluateWave(configuration, prefix, scope, wave, { reference, required }, inspect) {
-  const invalid = { valid: false, current: false, closed: false, reviews: [] };
-  if (!wave || !reference) return invalid;
-  const available = reviewDocuments(inspect, prefix, scope).filter((review) => review.wave === wave);
-  const lanes = reviewLanesFor(configuration, prefix);
-  const reviews = lanes.map((lane) => available.find((review) => review.lane === lane.id));
-  for (let index = 0; index < reviews.length; index++) {
-    const review = reviews[index];
-    if (!review || !VERDICTS.has(review.data.get("verdict")) || !laneMatches(review, lanes[index].fingerprint)) return invalid;
-    const paths = materialPathsFor(configuration, prefix, scope, lanes[index].id);
-    if (!judges(review, prefix, reference, paths, inspect)) return invalid;
-  }
-  const valid = reviews.every((review) => review.data.get("verdict") === "approved");
-  const applicable = equalPackages(reference, required);
-  return { valid, current: valid && applicable, closed: applicable, reviews, package: reference };
-}
-
-function authoritativeReviewContext(configuration, prefix, scope, inspect) {
-  const art = ARTIFACTS.find((candidate) => candidate.prefix === prefix || candidate.review === prefix);
-  if (scope && art?.prefix === prefix) {
-    const root = inspect.document(art.path);
-    const recorded = laneReferences(root?.data).get(inScope(scope, art.path));
-    const rootPins = pinPackage(root?.data?.get("pins"));
-    const binding = rootPins && new Map([...rootPins].filter(([path]) => path.startsWith(scope)));
-    const product = [inScope(scope, art.path), inScope(scope, art.record)];
-    if (recorded && equalPackages(recorded.binding, binding) && equalPackages(projectPackage(binding, product), projectPackage(recorded.reference, product))) {
-      const reviews = reviewDocuments(inspect, prefix, scope);
-      const waves = new Set(reviews.filter((review) => recorded.binding.has(review.rel)).map((review) => review.wave));
-      for (const wave of waves) {
-        const state = evaluateWave(configuration, prefix, scope, wave, { reference: recorded.reference, required: recorded.reference }, inspect);
-        if (!state.current) continue;
-        const consumed = new Map([
-          ...projectPackage(recorded.reference, product),
-          ...state.reviews.map((review) => [review.rel, inspect.identityOf(review.rel)]),
-        ]);
-        if (equalPackages(consumed, recorded.binding)) return { reference: recorded.reference, binding: recorded.binding, closed: true };
-      }
-    }
-  }
-  const artifact = inspect.document(inScope(scope, art.path));
-  const markdown = inspect.list();
-  const plan = planOf(art.phase);
-  const tasks = plan ? markdown.filter((path) => path.startsWith(`${art.phase}/tasks/`) && taskFile(plan).test(basename(path))) : [];
-  const reports = markdown.filter((path) => reportOf(path) && path.startsWith(`${art.phase}/`));
-  return {
-    reference: artifactReviewPackage(art, prefix, scope, pinPackage(artifact?.data?.get("pins")), inspect.identityOf, tasks, reports),
-    binding: null,
-    closed: false,
-  };
-}
-
-function validateRunConfiguration(configuration, inspect, command) {
-  const invalid = (reason) => { throw new Error(`${command}: INVALID RUN CONFIG run-config.md: ${reason}`); };
-  for (const lane of configuration.lanes.filter((candidate) => candidate.kind === "review" && candidate.materials)) {
-    const art = ARTIFACTS.find((candidate) => candidate.prefix === lane.prefix || candidate.review === lane.prefix);
-    const production = configuration.decl[lane.prefix]?.production ?? [];
-    for (const scope of ["", ...production.map((candidate) => laneScope(art.phase, candidate.id))]) {
-      const artifactPath = inScope(scope, art.path);
-      const reference = authoritativeReviewContext(configuration, lane.prefix, scope, inspect).reference;
-      if (!reference) continue;
-      const selected = materialPathsFor(configuration, lane.prefix, scope, lane.id);
-      const packagePaths = new Set(reference?.keys() ?? []);
-      const outside = selected.filter((path) => !packagePaths.has(path));
-      if (outside.length) invalid(`materials for review lane "${lane.id}" are outside the ${artifactPath} package: ${outside.join(", ")}`);
-    }
-  }
-  return configuration;
-}
-
-// The pins-by-file table, shared by stamp and every live currency predicate.
-function requiredPackageOf(prefix, sc, { identityOf, dependsOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf }) {
-  const currentPackage = (paths) => new Map([...new Set(paths)].map((path) => [path, identityOf(path)]));
-  const report = reportOf(prefix);
-  if (report) {
-    const [, phase, id] = report;
-    const task = `${phase}/tasks/${id}.md`;
-    const inputs = currentPackage([task, ...dependsOf(task).map((dep) => `${phase}/tasks/${dep}.md`)]);
-    return { inputs, review: inputs, ready: true };
-  }
-  const art = ARTIFACTS.find((a) => a.prefix === prefix || a.review === prefix);
-  const recorded = pinPackage(pinsByPath.get(inScope(sc, art.path)));
-  const record = inScope(sc, art.record);
-  // Retention includes adjudicated challenges until the producer replaces its package.
-  const retained = [...(recorded?.keys() ?? [])].filter((path) => path !== record);
-  const upstream = ARTIFACTS.find((a) => a.phase === art.requiresPhase);
-  const work = upstream ? [...taskFilesOf(upstream.phase), ...reportFilesOf(upstream.phase)] : [];
-  const inputs = currentPackage([...art.requires, ...work, ...retained]);
-  let ready = true;
-  const approvals = art.requires.map((path) => ARTIFACTS.find((a) => a.path === path)?.prefix).filter(Boolean);
-  if (upstream) approvals.push(completingPrefix(upstream, taskFilesOf));
-  for (const input of [...new Set(approvals)]) {
-    const wave = waveValidity(input, "", latestWaveOf(input, ""));
-    if (wave.current) for (const pair of currentPackage(wave.reviews.map((r) => r.rel))) inputs.set(...pair);
-    else ready = false;
-  }
-  const lanes = productionLanesOf(art.prefix);
-  const dependencies = sc ? lanes.find((lane) => laneScope(art.phase, lane.id) === sc)?.after ?? [] : lanes.map((lane) => lane.id);
-  for (const lane of dependencies) {
-    const dependency = lanePackageOf(art, laneScope(art.phase, lane));
-    for (const pair of dependency.package) inputs.set(...pair);
-    if (!dependency.ready) ready = false;
-  }
-  return {
-    inputs,
-    review: ready ? artifactReviewPackage(art, prefix, sc, inputs, identityOf, taskFilesOf(art.phase), reportFilesOf(art.phase)) : null,
-    ready,
-  };
-}
-
-// A root records independent references, bound to the lane pins it consumed.
-function laneReferences(data) {
-  return new Map((data?.get("lane-packages") ?? []).map(([artifact, binding, reference]) =>
-    [artifact, { binding: pinPackage(binding), reference: pinPackage(reference) }]));
-}
-// Ids are `<prefix>-<word>-<n>`: the prefix names the artifact class that originates the id, the
-// word its concept. An artifact originates the words under its prefix, numbered from 1 without gaps
-// and never reused; an id under another prefix is carried and must exist in the upstream artifact.
-// A challenge targets an artifact's claimable ids. A plan declares a task by its file.
-const IDS = {
-  "0-intent/intent.md": { prefix: "intent", declares: ["constraint", "context", "proposal"], claimable: ["goal", "constraint"] },
-  "1-spec/spec.md": { prefix: "spec", declares: ["requirement", "acceptance-criterion", "exclusion", "assumption"] },
-  "2-design-doc/design-doc.md": { prefix: "design-doc", declares: ["decision", "assumption"], upstream: "1-spec/spec.md", carries: ["assumption"] },
-  "3-build/build-plan.md": { prefix: "build", declares: ["assumption", "task"], upstream: "2-design-doc/design-doc.md", carries: ["assumption"] },
-  "4-document/document-plan.md": { prefix: "document", declares: ["assumption", "task"], upstream: "3-build/build-plan.md", carries: ["assumption"] },
-};
-// A phase's record originates `question`, its reviews `finding`.
-const RECORD_WORDS = ["question"], REVIEW_WORDS = ["finding"];
-// The words each class originates; an id's word is one of its class's.
-const WORDS = new Map(Object.entries(IDS).map(([path, e]) => [e.prefix, ARTIFACTS.some((a) => a.path === path) ? [...e.declares, ...RECORD_WORDS, ...REVIEW_WORDS] : e.declares]));
-const PREFIX = Object.values(IDS).map((e) => e.prefix).join("|");
-const ID = new RegExp(String.raw`^(${PREFIX})-([a-z]+(?:-[a-z]+)*)-([1-9]\d*)$`);
-function parseId(id) {
-  if (id === "intent-goal") return { prefix: "intent", word: "goal" };
-  const m = id.match(ID);
-  return m && WORDS.get(m[1]).includes(m[2]) ? { prefix: m[1], word: m[2], n: Number(m[3]) } : null;
-}
-const numberOf = (id) => parseId(id).n;
-// The vocabulary entry of a root or lane artifact, review, or record.
-function idsEntry(rel) {
-  const parts = rel.split("/");
-  if (!pipelineFileRole(rel) || parts.length < 2 || parts[1] === "tasks") return null;
-  const phase = parts[0], name = parts.at(-1);
-  const root = IDS[`${phase}/${name}`];
-  if (root) return root;
-  const prefix = prefixOf(phase);
-  if (prefix && reviewArtifact(rel)?.art.phase === phase) return { prefix, declares: REVIEW_WORDS, history: false };
-  if (prefix && ARTIFACTS.some((a) => a.phase === phase && basename(a.record) === name)) return { prefix, declares: RECORD_WORDS };
-  return null;
-}
-// A Markdown file in a plan's tasks folder is a task or a report of that plan, or it is misnamed.
-function strayTaskFile(rel) {
-  const m = rel.match(/^([^/]+)\/tasks\/([^/]+\.md)$/);
-  const plan = m && planOf(m[1]);
-  return plan && !taskFile(plan).test(m[2]) && !reportOf(rel) ? `${m[2]} is not a ${plan.prefix} task or its report` : null;
-}
-const planOf = (phase) => Object.entries(IDS).find(([path, e]) => path.startsWith(`${phase}/`) && e.declares.includes("task"))?.[1] ?? null;
-const taskFile = (entry) => new RegExp(String.raw`^${entry.prefix}-task-[1-9]\d*\.md$`);
-const TASK_ID = String.raw`(?:${PREFIX})-task-[1-9]\d*`;
-REPORT = new RegExp(String.raw`^([^/]+)/tasks/(${TASK_ID})-report-([1-9]\d*)\.md$`);
-// The match of a report path whose task the phase's plan declares.
-reportOf = (rel) => { const m = rel.match(REPORT); return m && planOf(m[1]) && taskFile(planOf(m[1])).test(`${m[2]}.md`) ? m : null; };
-const prefixOf = (phase) => Object.entries(IDS).find(([path]) => path.startsWith(`${phase}/`))?.[1].prefix ?? null;
-const claimableWords = (entry) => entry.claimable ?? entry.declares;
-// Later input, by its kind: a constraint (its targets satisfy it), a proposal (its targets adopt or
-// refute it), or a reported failure (its targets investigate it). Each is a challenge; a constraint
-// is also owner territory.
-const laterInput = (rel) => rel.match(/^0-intent\/(constraint|proposal|failure)-[1-9]\d*\.md$/)?.[1] ?? null;
-// Owner territory: what the work must satisfy — the intent's Goal or a constraint.
-function ownerTerritory(target) {
-  const found = targetItem(target);
-  return Boolean(found) && (found.path === "0-intent/intent.md" ? Boolean(found.item) : !found.item && laterInput(found.path) === "constraint");
-}
-// A target's item, when its path and id are in the vocabulary.
-function targetItem(target) {
-  const [path, item] = target.split("#");
-  const entry = IDS[path];
-  if (!entry) return item === undefined && laterInput(path) === "constraint" ? { path, item } : null;
-  if (item === undefined) return { path, item };
-  const id = parseId(item);
-  return id && id.prefix === entry.prefix && claimableWords(entry).includes(id.word) ? { path, item } : null;
-}
-
-// An id is declared by the line `<id>: <text>`; OPENING finds a line opening with an id in any form, MENTION any occurrence.
-const ID_TOKEN = String.raw`[a-z][a-z-]*-[1-9]\d*(?![A-Za-z0-9-])`;
-const DECLARATION = new RegExp(String.raw`^(${ID_TOKEN}): \S`);
-const OPENING = new RegExp(String.raw`^[\t ]*(?:(?:#{1,6}|[-*+>]|\d+[.)])[\t ]+)*[*_\x60]*(${ID_TOKEN})`, "gm");
-const MENTION = new RegExp(String.raw`(?<![A-Za-z0-9#-])${ID_TOKEN}`, "g");
-const declaredBy = (line) => line.match(DECLARATION)?.[1] ?? null;
-// Every id the body declares, with how many times each is declared.
-function declaredIds(body) {
-  const counts = new Map();
-  for (const id of outsideFences(body).split("\n").map(declaredBy)) if (id && parseId(id)) counts.set(id, (counts.get(id) ?? 0) + 1);
-  return counts;
-}
-
-// What an artifact declares now: the ids under its prefix and words in its body — a task by its
-// file — and the ids it carries. Every declaration keyed `<prefix>-<word>-<n>` is an id; a line
-// opening with one the file declares is its declaration; an id it originates occurs only once
-// declared, now or at an earlier stamp (`recorded`).
-function currentIds(entry, body, tasks, recorded = []) {
-  const own = (id) => parseId(id).prefix === entry.prefix && parseId(id).word !== "task" && entry.declares.includes(parseId(id).word);
-  const carried = (id) => parseId(id).prefix !== entry.prefix && (entry.carries ?? []).includes(parseId(id).word);
-  const structural = outsideFences(body);
-  const stray = structural.split("\n").map(declaredBy).find((key) => key && ID.test(key) && !parseId(key));
-  if (stray) {
-    const prefix = stray.match(ID)[1];
-    return { invalid: `${stray} is not an id: the ${prefix} words are ${WORDS.get(prefix).join(", ")}` };
-  }
-  const declared = declaredIds(body);
-  for (const { 1: id, index } of structural.matchAll(OPENING)) {
-    if (!parseId(id) || !(own(id) || carried(id))) continue;
-    const line = structural.slice(index).split("\n", 1)[0];
-    if (declaredBy(line) !== id) return { invalid: `${id} opens a line that is not its declaration \`${id}: <text>\`` };
-  }
-  const duplicate = [...declared].find(([id, n]) => n > 1 && (own(id) || carried(id)));
-  if (duplicate) return { invalid: `${duplicate[0]} is declared more than once` };
-  const ids = [...declared.keys()].filter((id) => own(id) || carried(id));
-  const files = entry.declares.includes("task") ? tasks.filter((name) => taskFile(entry).test(name)).map((name) => name.replace(/\.md$/, "")) : [];
-  const current = new Set([...ids, ...files]);
-  const undeclared = [...structural.matchAll(MENTION)].map(([id]) => id)
-    .find((id) => parseId(id)?.prefix === entry.prefix && entry.declares.includes(parseId(id).word) && !current.has(id) && !recorded.includes(id));
-  if (undeclared) return { invalid: `${undeclared} occurs but is not declared` };
-  return { ids: current };
-}
-
-// Every id an artifact has declared: those recorded by a stamp and those it declares now.
-function knownIds(data, body, rel, tasks) {
-  const current = currentIds(idsEntry(rel), body, tasks, data?.get("ids") ?? []);
-  return new Set([...(data?.get("ids") ?? []), ...(current.ids ?? [])]);
-}
-
-// A review's findings: declared once, numbered from 1, recorded nowhere — a wave is a new file.
-function declaredOnce(entry, body) {
-  const current = currentIds(entry, body, []);
-  if (current.invalid) return current;
-  for (const word of entry.declares) {
-    const own = [...current.ids].filter((id) => parseId(id).word === word).map(numberOf).sort((a, b) => a - b);
-    const gap = own.findIndex((n, i) => n !== i + 1);
-    if (gap !== -1) return { invalid: `${entry.prefix}-${word}-${gap + 1} is missing: ids are numbered from 1 without gaps` };
-  }
-  return {};
-}
-
-// The `ids` and `retired-ids` projection of an artifact, or why its declarations are invalid:
-// `error` when the recorded fields are malformed, `invalid` when the declarations are.
-// `read(path)` returns a pipeline file's text; `list(dir)` the file names of a pipeline folder.
-function artifactIds(data, body, rel, read, list) {
-  const entry = idsEntry(rel);
-  const fields = ["ids", "retired-ids"];
-  const stray = strayTaskFile(rel);
-  if (stray) return { invalid: stray };
-  if (!entry || entry.history === false) return fields.some((key) => data?.has(key)) ? { error: "ids and retired-ids belong to an artifact with recorded ids" } : entry ? declaredOnce(entry, body) : {};
-  const accepted = (id) => {
-    const p = parseId(id);
-    return p && p.word !== "goal" && (p.prefix === entry.prefix ? entry.declares.includes(p.word) : (entry.carries ?? []).includes(p.word));
-  };
-  for (const key of fields) {
-    const ids = data?.get(key) ?? [];
-    if (ids.some((id) => !accepted(id)) || new Set(ids).size !== ids.length) return { error: `${key} must be a list of unique declared ids` };
-  }
-  const tasksOf = (path) => list(`${path.split("/")[0]}/tasks`) ?? [];
-  const current = currentIds(entry, body, tasksOf(rel), data?.get("ids") ?? []);
-  if (current.invalid) return current;
-  const seen = new Set(data?.get("ids") ?? []);
-  const retired = new Set(data?.get("retired-ids") ?? []);
-  for (const id of seen) if (!current.ids.has(id)) retired.add(id);
-  for (const id of retired) {
-    if (!seen.has(id)) return { error: `retired id ${id} is absent from ids` };
-    if (current.ids.has(id)) return { invalid: `retired id ${id} is declared again` };
-  }
-  const known = new Set([...seen, ...current.ids]);
-  const carried = [...known].filter((id) => parseId(id).prefix !== entry.prefix);
-  if (carried.length) {
-    const text = read(entry.upstream);
-    const parsed = text === null || text === undefined ? null : parseFrontmatter(text);
-    const upstream = parsed ? knownIds(parsed.data, parsed.body, entry.upstream, tasksOf(entry.upstream)) : new Set();
-    const missing = carried.find((id) => !upstream.has(id));
-    if (missing) return { invalid: `${missing} is not declared by ${entry.upstream}` };
-  }
-  for (const word of entry.declares) {
-    const own = [...known].filter((id) => parseId(id).prefix === entry.prefix && parseId(id).word === word).map(numberOf).sort((a, b) => a - b);
-    const gap = own.findIndex((n, i) => n !== i + 1);
-    if (gap !== -1) return { invalid: `${entry.prefix}-${word}-${gap + 1} is missing: ids are numbered from 1 without gaps` };
-  }
-  const projection = new Map([["ids", [...known]], ["retired-ids", [...retired]]]);
-  const drift = fields.filter((key) => {
-    const stored = data?.get(key) ?? [];
-    const expected = projection.get(key);
-    return stored.length !== expected.length || expected.some((id) => !stored.includes(id));
-  });
-  return { projection, drift };
-}
-
-function targetAllowed(target, kind) {
-  const found = targetItem(target);
-  if (!found) return false;
-  const { path, item } = found;
-  if (kind === "claim") return Boolean(item) || ownerTerritory(target);
-  return ARTIFACTS.some((a) => a.path === path) && (kind !== "failed report" || Boolean(item));
-}
-
-function targetExists(target, read, list, kind) {
-  if (!targetAllowed(target, kind)) return false;
-  const { path, item } = targetItem(target);
-  const artifact = read(path);
-  if (artifact === null || artifact === undefined) return !item && kind !== "claim";
-  const source = item && parseId(item).word === "task" ? `${path.split("/")[0]}/tasks/${item}.md` : path;
-  const text = source === path ? artifact : read(source);
-  if (text === null || text === undefined) return false;
-  const parsed = parseFrontmatter(text);
-  const ids = parsed.error ? {} : artifactIds(parsed.data, parsed.body, source, read, list);
-  const error = parsed.error ?? ids.error;
-  if (error) die(`stamp: INVALID FRONTMATTER ${source}: ${error}`);
-  if (ids.invalid) die(`stamp: INVALID IDS ${source}: ${ids.invalid}`);
-  if (!item || source !== path) return true;
-  // intent-goal addresses a section; other ids address items.
-  if (item === "intent-goal") return /^## Goal[^\S\n]*$/mi.test(outsideFences(parsed.body));
-  return declaredIds(parsed.body).has(item);
-}
-
-function challengeKind(rel, data) {
-  const input = laterInput(rel);
-  if (input) return input;
-  const review = reviewArtifact(rel);
-  if (review && rel.startsWith(`${review.art.phase}/`) && data.get("verdict") === "unsatisfiable") return "claim";
-  if (reportOf(rel) && data.get("outcome") === "failed") return "failed report";
-  return null;
-}
-
-function reportTarget(rel) {
-  const report = reportOf(rel);
-  return report ? `${ARTIFACTS.find((a) => a.phase === report[1]).path}#${report[2]}` : null;
-}
-
-// Field representation rules shared by stamp and check; existence belongs to landing.
-function targetRepresentationErrors(rel, data, body) {
-  if (data === null) return [];
-  const kind = challengeKind(rel, data);
-  const targets = data.get("target"), identities = data.get("target-identity");
-  const errors = [];
-  const invalid = (field, reason) => errors.push({ field, reason });
-  if (!kind && (targets !== undefined || identities !== undefined || projectBody(body, rel).has("target"))) invalid("target", "only challenges may carry target fields");
-  if (kind || targets !== undefined || identities !== undefined) {
-    if (!Array.isArray(targets) || !targets.length) invalid("target", "expected a non-empty list");
-    else {
-      if (new Set(targets).size !== targets.length) invalid("target", "duplicate entries");
-      if (kind === "claim" && targets.length !== 1) invalid("target", "a claim names one clause or constraint file");
-      if (targets.some((target) => !targetAllowed(target, kind))) invalid("target", "outside the challenge's target territory");
-      const ownTask = reportTarget(rel);
-      if (ownTask && (targets.length !== 1 || targets[0] !== ownTask)) invalid("target", `expected its own task: ${ownTask}`);
-    }
-    if (laterInput(rel)) {
-      if (identities !== undefined) invalid("target-identity", "only claims and failed reports record target identities");
-      if (!data.has("origin")) invalid("origin", "later input names its source");
-    } else if (!Array.isArray(identities) || !identities.length) invalid("target-identity", "expected a non-empty list aligned with target");
-    else {
-      if (identities.length !== targets?.length) invalid("target-identity", "must have one identity per target");
-      if (identities.some((id) => !IDENTITY.test(id))) invalid("target-identity", "expected 12-character hexadecimal identities");
-    }
-  }
-  return errors;
-}
-
-function targetPairs(rel, data) {
-  return (data.get("target") ?? ["?"]).map((target, i) => ({
-    rel, target, targetPath: target.split("#")[0], targetIdentity: data.get("target-identity")?.[i],
-  }));
-}
-
-// An owner answer is a constraint or a proposal citing the claim and targeting its artifact.
-function ownerAnswer(review, documents) {
-  const artifact = reviewArtifact(review)?.art.path;
-  return documents.find((doc) => ["constraint", "proposal"].includes(laterInput(doc.rel))
-    && [].concat(doc.data.get("origin") ?? []).includes(review)
-    && targetPairs(doc.rel, doc.data).some(({ targetPath }) => targetPath === artifact));
-}
-
-// Keep line positions while hiding Markdown fenced code from structural readers.
-function outsideFences(text) {
-  let fence = null;
-  return text
-    .split("\n")
-    .map((line) => {
-      if (fence) {
-        const close = line.match(/^ {0,3}(`+|~+)[\t ]*\r?$/);
-        if (close && close[1][0] === fence.character && close[1].length >= fence.length) fence = null;
-        return "";
-      }
-      const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-      if (open && (open[1][0] === "~" || !open[2].includes("`"))) {
-        fence = { character: open[1][0], length: open[1].length };
-        return "";
-      }
-      return line;
-    })
-    .join("\n");
-}
-
-// The projection of a body: every declaration in its fixed form, keyed as the frontmatter mirrors it.
-export function projectBody(body, rel = "") {
-  const structural = outsideFences(body);
-  const p = new Map();
-  const malformed = (message) => p.set("malformed", [...(p.get("malformed") ?? []), message]);
-  const fixed = (key) => [...structural.matchAll(new RegExp(`^${key}:[^\\S\\n]*(.*)$`, "gm"))].map((m) => m[1].trim());
-  const singleton = (key, accept, expectation) => {
-    const lines = fixed(key);
-    if (lines.length > 1) malformed(`${key}: repeated singleton declaration`);
-    for (const value of lines) {
-      if (accept(value)) p.set(key, value);
-      else malformed(`${key}: expected ${expectation}, got: ${value}`);
-    }
-  };
-  singleton("verdict", (value) => ["approved", "rejected", "unsatisfiable"].includes(value), "approved | rejected | unsatisfiable");
-  singleton("brief", Boolean, "text");
-  singleton("target", (value) => {
-    const targets = value.split(",").map((t) => t.trim());
-    return targets.every((t) => /^[^#,\s]+(?:#[^#,\s]+)?$/.test(t)) && new Set(targets).size === targets.length;
-  }, "<path>[#<id>][, …]");
-  if (p.has("target")) p.set("target", p.get("target").split(",").map((t) => t.trim()));
-  const originValid = (value) => originSource(value) || /^(?:\S+\/\S+|\S+\.md(?:#\S+)?)$/.test(value);
-  const origins = [];
-  for (const value of fixed("origin")) {
-    if (originValid(value)) origins.push(value);
-    else malformed(`origin: expected issue <reference>, a source declaration, or a path, got: ${value}`);
-  }
-  if (origins.length === 1) p.set("origin", origins[0]);
-  else if (origins.length > 1) p.set("origin", origins);
-  singleton("outcome", (value) => ["completed", "failed", "blocked"].includes(value), "completed | failed | blocked");
-  const priors = [];
-  for (const value of fixed("prior-finding")) {
-    const match = value.match(new RegExp(String.raw`^(([^#\s]+)#((?:${PREFIX})-finding-[1-9]\d*))$`));
-    const cited = match && pipelineFileRole(match[2])?.review, citing = pipelineFileRole(rel)?.review;
-    const prior = cited && prefixOf(cited.art.phase) === parseId(match[3])?.prefix
-      && (!citing || (cited.prefix === citing.prefix && cited.wave < citing.wave));
-    if (prior) priors.push(match[1]);
-    else malformed(`prior-finding: expected <an earlier review of this kind>#<finding id of its phase>, got: ${value}`);
-  }
-  if (priors.length) p.set("prior-finding", priors);
-  for (const value of fixed("depends-on")) {
-    if (value === "none") p.set("depends-on", []);
-    else if (new RegExp(String.raw`^${TASK_ID}(\s*,\s*${TASK_ID})*$`).test(value)) {
-      const ids = value.split(",").map((x) => x.trim());
-      if (new Set(ids).size !== ids.length) malformed(`depends-on: duplicate ids: ${value}`);
-      else p.set("depends-on", ids);
-    } else malformed(`depends-on: expected none or task ids, got: ${value}`);
-  }
-  const commits = [];
-  for (const value of fixed("commit")) {
-    if (/^[0-9a-f]{7,40}$/.test(value)) commits.push(value);
-    else malformed(`commit: expected a commit hash, got: ${value}`);
-  }
-  if (commits.length) p.set("commit", commits);
-  const report = reportOf(rel);
-  if (report) {
-    p.set("attempt", report[3]);
-    if (challengeKind(rel, p) === "failed report" && !p.has("target"))
-      p.set("target", [reportTarget(rel)]);
-  }
-  return p;
-}
-
-// The mirrors whose frontmatter value differs from the body's projection.
-export function mirrorDrift(data, body, rel) {
-  const p = projectBody(body, rel);
-  const norm = (v) => JSON.stringify(v === undefined ? [] : [].concat(v));
-  return MIRRORS.filter((k) => (k === "commit" ? !commitsMatch(p.get(k), data.get(k)) : norm(p.get(k)) !== norm(data.get(k))));
-}
-
-// Commits are stored canonical; a body may name the same commits by abbreviation.
-function commitsMatch(bodyHashes = [], stored = []) {
-  return bodyHashes.length === stored.length && bodyHashes.every((h, i) => stored[i].startsWith(h));
-}
-
-// A command path: lexically inside the repository, with no symlinked component.
-function containedPath(command, root, abs) {
-  const rel = relative(root, abs);
-  if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) die(`${command}: outside the repository: ${rel}`);
-  let current = root;
-  for (const part of rel.split(sep)) {
-    current = join(current, part);
-    if (existsSync(current) && lstatSync(current).isSymbolicLink()) die(`${command}: refusing a symlinked path: ${rel}`);
-  }
-  return abs;
-}
-
-// The pipeline folder is the nearest ancestor of `file` that contains `0-intent`.
-function pipelineFolder(root, file) {
-  let dir = resolve(file, "..");
-  while (dir.startsWith(root)) {
-    if (existsSync(join(dir, "0-intent"))) return dir;
-    const up = resolve(dir, "..");
-    if (up === dir) break;
-    dir = up;
-  }
-  die(`cannot locate the pipeline folder (no 0-intent ancestor) for ${relative(root, file)}`);
-}
-
-// --- stamp ------------------------------------------------------------------
-
-// Replace every mirror with the body's projection. `target-identity` is what the stamp observed
-// when the target landed: it is kept while the target stays the same.
-function mirrorBody(body, fm, rel, identityOf) {
-  const p = projectBody(body, rel);
-  if (p.has("malformed")) die(`stamp: INVALID ${p.get("malformed").join("; ")} — a fixed line is mirrored whole or not at all; its author fixes it`);
-  const previous = new Map(challengeKind(rel, fm) === challengeKind(rel, p) ? (fm.get("target") ?? []).map((target, i) => [target, fm.get("target-identity")?.[i]]) : []);
-  for (const k of MIRRORS) fm.delete(k);
-  for (const [k, v] of p) fm.set(k, v);
-  if (!p.has("target") || laterInput(rel)) fm.delete("target-identity");
-  else fm.set("target-identity", p.get("target").map((target) => previous.get(target) || identityOf(target.split("#")[0]) || ""));
-}
-
-async function cmdStamp(args) {
-  const file = args._[0] || die("stamp: missing <file>");
-  const { root, abs } = repositoryFor(file);
-  if (!existsSync(abs)) die(`stamp: no such file: ${file}`);
-  containedPath("stamp", root, abs);
-  const base = pipelineFolder(root, abs);
-  const rel = relative(base, abs);
-  if (!pipelineFileRole(rel)) die(`stamp: not pipeline state: ${rel}`);
-
-  const parsedFrontmatter = readPipelineFile(base, rel);
-  if (!parsedFrontmatter) die(`stamp: no such file: ${file}`);
-  if (parsedFrontmatter.error) die(`stamp: INVALID FRONTMATTER ${relative(root, abs)}: ${parsedFrontmatter.error}`);
-  const { data, body } = parsedFrontmatter;
-  const fm = data ?? new Map();
-  const landedCommits = fm.get("commit") ?? [];
-  const landedPatchIds = fm.get("patch-ids") ?? [];
-  const landedTargets = new Map((fm.get("target") ?? []).map((target, i) => [target, laterInput(rel) || fm.get("target-identity")?.[i]]));
-  const readAt = (path) => {
-    const source = readPipelineFile(base, path);
-    if (source?.error) die(`stamp: INVALID FRONTMATTER ${path}: ${source.error}`);
-    return source;
-  };
-  const previousKind = challengeKind(rel, fm);
-  const listAt = (dir) => (existsSync(join(base, dir)) ? readdirSync(join(base, dir)) : null);
-  const ids = artifactIds(data, body, rel, (path) => readAt(path)?.text ?? null, listAt);
-  if (ids.error) die(`stamp: INVALID FRONTMATTER ${rel}: ${ids.error}`);
-  if (ids.invalid) die(`stamp: INVALID IDS ${rel}: ${ids.invalid}`);
-  const report = reportOf(rel);
-  const role = pipelineFileRole(rel);
-  const phaseReview = role.review?.prefix === role.art?.review && Boolean(role.review);
-  const artifact = rel === role.art?.path || role.productionArtifact ? role.art : null;
-  const siblingRecord = artifact ? `${dirname(rel)}/${basename(artifact.record)}` : null;
-
-  const laneForPath = () => {
-    const needsConfiguration = role.namedReview || role.productionArtifact || (role.review && role.productionLane);
-    if (!needsConfiguration) return null;
-    const config = runConfiguration((path) => readPipelineFile(base, path)?.text ?? null, "stamp");
-    validateRunConfiguration(config, {
-      list: () => walk(base).filter((entry) => entry.type === "blob" && entry.rel.endsWith(".md")).map((entry) => entry.rel),
-      document: (path) => readAt(path),
-      identityOf: (path) => readAt(path)?.identity ?? null,
-    }, "stamp");
-    const production = role.productionLane && config.lanes.find((lane) => lane.profile === role.productionLane.profile && lane.id === role.productionLane.id);
-    if (role.productionLane && !production) die(`stamp: path names an undeclared lane: ${rel}`);
-    if (role.namedReview) {
-      return config.lanes.find((lane) => lane.profile === role.namedReview.profile && lane.id === role.namedReview.id) ??
-        die(`stamp: path names an undeclared lane: ${rel}`);
-    }
-    return role.productionArtifact ? production : null;
-  };
-  const priorLane = fm.get("lane");
-  fm.delete("lane");
-  const pathLane = laneForPath();
-  if (pathLane) fm.set("lane", pathLane.fingerprint);
-  const laneChanged = priorLane !== fm.get("lane") || Boolean(data?.has("lane")) !== fm.has("lane");
-
-  const pinList = (paths) =>
-    paths.map((p) => {
-      const target = containedPath("stamp", root, resolve(root, p));
-      if (!target.startsWith(base + "/")) die(`stamp: a pin stays inside the pipeline folder: ${p}`);
-      const path = relative(base, target);
-      if (!pipelineFileRole(path)) die(`stamp: not pipeline state: ${path}`);
-      const sha = readAt(path)?.identity ?? die(`stamp: cannot pin missing file: ${p}`);
-      return `${path}@${sha}`;
-    });
-
-  let consumed = false;
-  if (args.pin.length) {
-    const pins = pinList(args.pin);
-    if (pins.some((pin) => pinParts(pin)?.path === siblingRecord)) die(`stamp: an artifact never pins its sibling record: ${siblingRecord}`);
-    if (artifact && rel === artifact.path) {
-      const previous = laneReferences(fm);
-      const recorded = pinPackage(pins);
-      const references = [];
-      for (const path of recorded?.keys() ?? []) {
-        const pinned = pipelineFileRole(path);
-        if (!pinned?.productionArtifact || pinned.art !== artifact) continue;
-        const scope = pinned.scope;
-        const binding = new Map([...recorded].filter(([member]) => member.startsWith(scope)));
-        const prior = previous.get(path);
-        const input = readAt(path).data;
-        const reference = prior && equalPackages(prior.binding, binding) ? prior.reference :
-          artifactReviewPackage(artifact, artifact.prefix, scope, pinPackage(input?.get("pins")), (member) => readAt(member)?.identity ?? null);
-        if (reference) references.push([path, packagePins(binding), packagePins(reference)]);
-      }
-      fm.delete("lane-packages");
-      if (references.length) fm.set("lane-packages", references);
-    }
-    fm.set("pins", pins);
-    consumed = true;
-  }
-  if (args.reviewed.length) {
-    if (fm.has("reviewed")) die("stamp: reviewed pins are immutable; a changed review is a new file");
-    const reviewed = pinList(args.reviewed);
-    const review = role.review;
-    if (review && !review.lane) {
-      const scope = role.scope;
-      const artifactPath = scope ? `${scope}${basename(review.art.path)}` : review.art.path;
-      const artifactFile = join(base, artifactPath);
-      const artifactData = existsSync(artifactFile) ? readAt(artifactPath).data : null;
-      const consumed = pinPackage(artifactData?.get("pins"));
-      if (!consumed)
-        die(`stamp: INVALID REVIEW PACKAGE ${rel}: artifact package is unrecorded or invalid`);
-      const taskFolder = join(base, review.art.phase, "tasks");
-      const names = existsSync(taskFolder) ? readdirSync(taskFolder) : [];
-      const tasks = names.filter((name) => planOf(review.art.phase) && taskFile(planOf(review.art.phase)).test(name)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const reports = names.filter((name) => reportOf(`${review.art.phase}/tasks/${name}`)).map((name) => `${review.art.phase}/tasks/${name}`);
-      const expected = artifactReviewPackage(review.art, review.prefix, scope, consumed, (path) => readAt(path)?.identity ?? null, tasks, reports);
-      if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: INVALID REVIEW PACKAGE ${rel}: reviewed must equal the complete artifact package`);
-    }
-    fm.set("reviewed", reviewed);
-    if (report) {
-      const expected = requiredPackageOf(rel, "", {
-        identityOf: (path) => readAt(path)?.identity ?? null,
-        dependsOf: (task) => {
-          return [].concat(readAt(task)?.data?.get("depends-on") ?? []);
-        },
-      }).review;
-      if (!equalPackages(pinPackage(reviewed), expected)) die(`stamp: a task report reviews exactly its task and its dependencies: --reviewed ${[...expected.keys()].join(" --reviewed ")}`);
-    }
-    if (report) {
-      const prior = readdirSync(join(base, report[1], "tasks"))
-        .map((name) => ({ name, match: name.match(new RegExp(`^${report[2]}-report-(\\d+)\\.md$`)) }))
-        .filter(({ match }) => match && Number(match[1]) !== Number(report[3]))
-        .filter(({ name, match }) => {
-          const priorRel = `${report[1]}/tasks/${name}`;
-          const parsed = readAt(priorRel);
-          return pinPackage(parsed.data?.get("reviewed")) && parsed.data.get("attempt") === match[1] && ["completed", "failed", "blocked"].includes(parsed.data.get("outcome")) && mirrorDrift(parsed.data, parsed.body, priorRel).length === 0;
-        })
-        .map(({ match }) => Number(match[1]));
-      const next = Math.max(0, ...prior) + 1;
-      if (Number(report[3]) !== next) die(`stamp: INVALID REPORT ${rel}: expected attempt ${next}`);
-    }
-    consumed = true;
-  }
-  if (args.mirror) {
-    mirrorBody(body, fm, rel, (path) => readAt(path)?.identity ?? null);
-    const kind = challengeKind(rel, fm);
-    const targets = fm.get("target") ?? [];
-    const readable = (path) => {
-      return readAt(path)?.text ?? null;
-    };
-    if (kind) {
-      for (const target of targets)
-        if (!(previousKind === kind && landedTargets.get(target)) && !targetExists(target, readable, listAt, kind)) die(`stamp: INVALID TARGET ${target}`);
-    }
-    for (const prior of fm.get("prior-finding") ?? []) {
-      const [path, id] = prior.split("#");
-      const text = readable(path);
-      if (text === null || !declaredIds(parseFrontmatter(text).body).has(id)) die(`stamp: INVALID PRIOR FINDING ${prior}: the review declares no such finding`);
-    }
-  }
-  const targetError = targetRepresentationErrors(rel, fm, body)[0];
-  if (targetError) die(`stamp: ${targetError.field === "target" ? `INVALID TARGET ${(fm.get("target") ?? []).join(", ") || "?"}` : `INVALID FRONTMATTER ${rel}: ${targetError.field}`}: ${targetError.reason}`);
-  // Preserve observed patch ids while the commit declaration remains the same.
-  if (report && landedCommits.length && commitsMatch(fm.get("commit"), landedCommits)) {
-    fm.set("commit", landedCommits);
-    fm.set("patch-ids", landedPatchIds);
-  } else if (fm.has("commit")) {
-    const canonical = [].concat(fm.get("commit") ?? []).map((h) => {
-      try {
-        return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${h}^{commit}`], { cwd: root, encoding: "utf8" }).trim();
-      } catch {
-        die(`stamp: commit: names a commit that does not exist or is ambiguous: ${h}`);
-      }
-    });
-    fm.set("commit", canonical);
-    if (report) {
-      const ids = patchIds(root, canonical);
-      fm.set("patch-ids", canonical.flatMap((commit) => ids.get(commit) ?? []));
-    }
-  } else if (report) fm.delete("patch-ids");
-  if (report) {
-    fm.set("attempt", report[3]);
-  }
-  if (phaseReview || report) fm.delete("head");
-  else if (consumed) {
-    try {
-      fm.set("head", execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim().slice(0, SHORT));
-    } catch {
-      /* no commits yet: no head to record */
-    }
-  }
-  for (const [key, value] of ids.projection ?? []) {
-    if (value.length) fm.set(key, value);
-    else fm.delete(key);
-  }
-  const frontmatterError = validateFrontmatter(fm);
-  if (frontmatterError) die(`stamp: INVALID FRONTMATTER ${rel}: ${frontmatterError}`);
-  if (!fm.size && !laneChanged) {
-    process.stdout.write(`nothing to mirror ${relative(root, abs)}\n`);
-    return;
-  }
-
-  writeFileSync(abs, renderFrontmatter(fm, body));
-  process.stdout.write(`stamped ${relative(root, abs)}\n`);
-}
-
-// --- check ------------------------------------------------------------------
-
-function pinParts(entry) {
-  const at = entry.lastIndexOf("@");
-  return at === -1 ? null : { path: entry.slice(0, at), sha: entry.slice(at + 1) };
-}
-
-// A folder that is or leads to a state folder, by its path.
-const leadsToState = (rel) => stateFolder(rel ? rel.split("/") : [], false);
-// Whether a path belongs to pipeline state, whatever its entry's type: a folder that is or leads to a
-// state folder, or a file in a state folder. Only such a folder is traversed when it is a directory.
-const inState = (rel) => leadsToState(rel) || Boolean(pipelineFileRole(rel));
-
-// Pipeline state holds files and folders only: a symlink is never followed, it is reported.
-function walk(dir, rel = "", out = []) {
-  if (!inState(rel)) return out;
-  const st = lstatSync(dir);
-  const type = st.isSymbolicLink() ? "symlink" : st.isDirectory() ? "tree" : st.isFile() ? "blob" : "other";
-  out.push({ rel, type });
-  if (type === "tree" && leadsToState(rel)) for (const name of readdirSync(dir)) walk(join(dir, name), rel ? `${rel}/${name}` : name, out);
-  return out;
-}
-
-// The manifest is the boundary: unlisted members may be unwritten; listed members must be readable.
-function indexedTreeReader(entries, load, context) {
-  const members = new Map(entries.map((entry) => [entry.rel, entry]));
-  const fail = (rel, reason) => new Error(`check: cannot read ${context}${rel ? `/${rel}` : ""}: ${reason}`);
-  if (members.get("")?.type !== "tree") throw fail("", "expected a pipeline tree");
-  for (const entry of entries)
-    if (!["tree", "blob", "symlink"].includes(entry.type)) throw fail(entry.rel, `not a regular blob or directory: ${entry.type}`);
-  const contents = new Map(), texts = new Map();
-  return {
-    list: () => entries.filter((e) => e.type !== "symlink" && e.rel.endsWith(".md") && pipelineFileRole(e.rel)).map((e) => e.rel),
-    symlinks: () => entries.filter((e) => e.type === "symlink").map((e) => e.rel),
-    read: (rel, bytes = false) => {
-      const entry = members.get(rel);
-      if (!entry) return null;
-      try {
-        if (entry.type !== "blob") throw new Error(`not a regular blob: ${entry.type}`);
-        if (!contents.has(rel)) {
-          const content = load(entry);
-          if (!Buffer.isBuffer(content)) throw new Error("listed entry has no readable content");
-          contents.set(rel, content);
-        }
-        if (bytes) return contents.get(rel);
-        if (!texts.has(rel)) texts.set(rel, contents.get(rel).toString("utf8"));
-        return texts.get(rel);
-      } catch (error) { throw fail(rel, error.message); }
-    },
-  };
+function requireCommit(root, revision, what) {
+  return commitOf(root, revision) ?? fail(`${what} does not resolve to a commit: ${revision}`);
 }
 
 function gitStream(root, args, input) {
@@ -1264,9 +52,9 @@ function gitStream(root, args, input) {
   const errors = [];
   child.stderr.on("data", (chunk) => errors.push(chunk));
   let failure;
-  const finished = new Promise((resolve) => {
+  const finished = new Promise((done) => {
     child.on("error", (error) => { failure = error; });
-    child.on("close", (code, signal) => resolve(failure ?? (code === 0 ? null : new Error(`git ${args[0]} exited ${signal ?? code}: ${Buffer.concat(errors).toString("utf8").trim()}`))));
+    child.on("close", (code, signal) => done(failure ?? (code === 0 ? null : new Error(`git ${args[0]} exited ${signal ?? code}: ${Buffer.concat(errors).toString("utf8").trim()}`))));
   });
   if (input !== undefined) {
     child.stdin.on("error", (error) => { failure = error; });
@@ -1275,65 +63,12 @@ function gitStream(root, args, input) {
   return { child, finished };
 }
 
-// A tree to read the pipeline from: the working tree, or a ref (`--ref`).
-async function treeReader(root, abs, ref) {
-  const pipelineRel = relative(root, abs);
-  if (!ref) {
-    let entries;
-    try { entries = walk(abs); }
-    catch (error) { throw new Error(`check: cannot read worktree:${pipelineRel}: ${error.message}`); }
-    return indexedTreeReader(entries, ({ rel }) => {
-      const path = join(abs, rel);
-      if (!lstatSync(path).isFile()) throw new Error("listed entry is no longer a regular file");
-      return readFileSync(path);
-    }, `worktree:${pipelineRel}`);
-  }
-  // One listing per level: the pipeline folder, then the children of each directory leading to state.
-  const entries = [];
-  let reading = pipelineRel;
-  const list = async (pathspecs) => {
-    const listing = gitStream(root, ["ls-tree", "-z", ref, "--", ...pathspecs]);
-    const listed = [];
-    let pending = Buffer.alloc(0);
-    try {
-      for await (const chunk of listing.child.stdout) {
-        pending = Buffer.concat([pending, chunk]);
-        let end;
-        while ((end = pending.indexOf(0)) !== -1) {
-          const line = pending.subarray(0, end).toString("utf8");
-          const tab = line.indexOf("\t");
-          const path = line.slice(tab + 1);
-          reading = path || pipelineRel;
-          const metadata = line.slice(0, tab).match(/^(040000|100644|100755|120000|160000) (tree|blob|commit) ([0-9a-f]{40}|[0-9a-f]{64})(?![\s\S])/);
-          if (tab === -1 || !metadata || !path) throw new Error("invalid ls-tree entry");
-          const [, mode, type, oid] = metadata;
-          if (type !== ({ "040000": "tree", "100644": "blob", "100755": "blob", "120000": "blob", "160000": "commit" })[mode]) throw new Error("invalid ls-tree mode/type");
-          if (path !== pipelineRel && !path.startsWith(`${pipelineRel}/`)) throw new Error("ls-tree entry outside the pipeline");
-          listed.push({ type: mode === "120000" ? "symlink" : type, oid, rel: path === pipelineRel ? "" : path.slice(pipelineRel.length + 1) });
-          pending = pending.subarray(end + 1);
-        }
-      }
-      const failure = await listing.finished;
-      if (failure) throw failure;
-      if (pending.length) throw new Error("truncated ls-tree entry");
-    } catch (error) {
-      listing.child.kill();
-      await listing.finished;
-      throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
-    }
-    return listed.filter((entry) => inState(entry.rel));
-  };
-  let level = await list([pipelineRel]);
-  while (level.length) {
-    entries.push(...level);
-    const folders = level.filter((entry) => entry.type === "tree" && leadsToState(entry.rel));
-    level = folders.length ? await list(folders.map((entry) => `${entry.rel ? `${pipelineRel}/${entry.rel}` : pipelineRel}/`)) : [];
-  }
-  const contents = new Map();
-  const reader = indexedTreeReader(entries, ({ rel }) => contents.get(rel), `${ref}:${pipelineRel}`);
-  const regular = entries.filter((e) => e.type === "blob" && pipelineFileRole(e.rel));
-  // Object ids keep tabs and newlines in paths out of the line-oriented batch protocol.
-  const batch = gitStream(root, ["cat-file", "--batch"], regular.map((e) => `${e.oid}\n`).join(""));
+// Object contents through one streamed `git cat-file --batch`: a Buffer per name, or null when the name is missing.
+// A name is an object id or `<tree-ish>:<path>`; any object other than a blob stops the command.
+async function readObjects(root, names) {
+  if (!names.length) return [];
+  for (const name of names) if (/[\n\r]/.test(name)) fail(`cannot read object with a newline in its name: ${JSON.stringify(name)}`);
+  const batch = gitStream(root, ["cat-file", "--batch"], names.map((name) => `${name}\n`).join(""));
   const stream = batch.child.stdout[Symbol.asyncIterator]();
   let chunk = Buffer.alloc(0), offset = 0;
   const available = async () => {
@@ -1349,7 +84,7 @@ async function treeReader(root, abs, ref) {
       const end = chunk.indexOf(10, offset);
       parts.push(chunk.subarray(offset, end === -1 ? chunk.length : end));
       offset = end === -1 ? chunk.length : end + 1;
-      if (end !== -1) return Buffer.concat(parts).toString("ascii");
+      if (end !== -1) return Buffer.concat(parts).toString("utf8");
     }
     throw new Error("unexpected end of batch header");
   };
@@ -1365,17 +100,19 @@ async function treeReader(root, abs, ref) {
     }
     return result;
   };
-  reading = pipelineRel;
+  const contents = [];
+  let reading = names[0];
   try {
-    for (const entry of regular) {
-      reading = `${pipelineRel}/${entry.rel}`;
+    for (const name of names) {
+      reading = name;
       const header = await line();
-      const metadata = header.match(/^([0-9a-f]{40}|[0-9a-f]{64}) blob (\d+)(?![\s\S])/);
-      if (!metadata || metadata[1] !== entry.oid || !Number.isSafeInteger(Number(metadata[2]))) throw new Error(`invalid batch response: ${header}`);
-      const size = Number(metadata[2]);
-      const content = await bytes(size);
+      if (header === `${name} missing`) { contents.push(null); continue; }
+      const metadata = header.match(/^([0-9a-f]{40}|[0-9a-f]{64}) ([a-z]+) (\d+)$/);
+      if (!metadata) throw new Error(`invalid batch response: ${header}`);
+      const content = await bytes(Number(metadata[3]));
       if ((await bytes(1))[0] !== 10) throw new Error("invalid batch object terminator");
-      contents.set(entry.rel, content);
+      if (metadata[2] !== "blob") throw new Error(`not a file: ${metadata[2]}`);
+      contents.push(content);
     }
     if (await available()) throw new Error("unexpected trailing batch output");
     const failure = await batch.finished;
@@ -1383,785 +120,625 @@ async function treeReader(root, abs, ref) {
   } catch (error) {
     batch.child.kill();
     batch.child.stdout.destroy();
-    batch.child.stdin.destroy();
+    batch.child.stdin?.destroy();
     await batch.finished;
-    throw new Error(`check: cannot read ${ref}:${reading}: ${error.message}`);
+    fail(`cannot read ${reading}: ${error.message}`);
   }
-  return reader;
+  return contents;
 }
 
-// The pipeline folder's name is the pipeline slug: one segment, a valid git ref, without `_`.
-function pipelineSlugOf(abs) {
-  const slug = basename(abs);
-  if (!slug || slug.includes("_") || !validBranch(slug)) die(`check: pipeline slug must be a valid git ref without _: ${slug}`);
-  return slug;
-}
-
-// The state of a pipeline: the check's report and the facts it was computed from.
-async function inspectPipeline(args) {
-  const folder = args._[0] || die("check: missing <pipeline-folder>");
-  const { root, abs } = repositoryFor(folder);
-  containedPath("check", root, abs);
-  pipelineSlugOf(abs);
-  const pipelineRel = relative(root, abs);
-  const rev = (r, what) => {
-    try {
-      return execFileSync("git", ["rev-parse", "--verify", "--quiet", `${r}^{commit}`], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    } catch {
-      die(`check: ${what} does not resolve: ${r}`);
-    }
-  };
-  const ref = args.ref ? rev(args.ref, "--ref") : null;
-  const tree = await treeReader(root, abs, ref);
-  const configuration = runConfiguration((path) => tree.read(path), "check");
-  const decl = configuration.decl;
-  const reviewLanesOf = (prefix) => reviewLanesFor(configuration, prefix);
-  const productionLanesOf = (prefix) => decl[prefix]?.production ?? [];
-
-  // Documents, each in its scope: the root ("") or a production lane ("<phase>/lanes/<id>/").
-  // A file whose recorded fields differ from its body's projection contradicts the tree.
-  const texts = new Map();
-  const listIn = (dir) => tree.list().filter((rel) => rel.startsWith(`${dir}/`) && !rel.slice(dir.length + 1).includes("/")).map((rel) => basename(rel));
-  const all = artifactFiles(tree.list())
-    .sort()
-    .map((rel) => {
-      const text = tree.read(rel);
-      texts.set(rel, text);
-      const { data: parsed, body, error: parseError } = parseFrontmatter(text);
-      const ids = parseError ? {} : artifactIds(parsed, body, rel, (path) => tree.read(path), listIn);
-      const data = parsed ?? new Map();
-      const frontmatterError = parseError || ids.error || targetRepresentationErrors(rel, parsed, body).map(({ field, reason }) => `${field}: ${reason}`).join("; ") || null;
-      const drift = frontmatterError ? [] : [...new Set([...mirrorDrift(data, body, rel), ...(ids.drift ?? []), ...(!parsed && laterInput(rel) ? ["target", "origin"] : [])])];
-      if (drift.length) for (const k of MIRRORS) data.delete(k);
-      const role = pipelineFileRole(rel);
-      return { rel, name: rel.split("/").pop(), data, scope: role.scope, role, drift, frontmatterError, invalidIds: ids.invalid ?? null, malformed: projectBody(body, rel).get("malformed") ?? [] };
-    });
-
-  const identityOf = (rel) => {
-    const bytes = tree.read(rel, true);
-    return bytes === null ? null : identity(bytes, rel);
-  };
-  const currentPackage = (paths) => new Map([...new Set(paths)].map((path) => [path, identityOf(path)]));
-  const docsOf = (sc) => all.filter((d) => d.scope === sc);
-  const pinsByPath = new Map(all.filter((d) => Array.isArray(d.data.get("pins"))).map((d) => [d.rel, d.data.get("pins")]));
-
-  // Reviews: `<prefix>-review-[<lane>-]<wave>.md`; the implicit lane has no id. Only declared lanes review.
-  const allReviewsOf = (sc) => docsOf(sc).filter((doc) => doc.role.review).map((doc) => ({
-    ...doc,
-    prefix: doc.role.review.prefix,
-    lane: doc.role.review.lane,
-    wave: doc.role.review.wave,
-  }));
-  const declaredReview = (r) => reviewLanesOf(r.prefix).some((l) => l.id === r.lane);
-  const reviewsOf = (sc) => allReviewsOf(sc).filter(declaredReview);
-  // Lane scopes are the declared production lanes; a folder the declaration lacks is a defect, never a lane.
-  const scopes = ["", ...new Set(all.filter((doc) => doc.role.productionLane).map((doc) => doc.scope))];
-  const declaredScopes = new Set(ARTIFACTS.flatMap((a) => productionLanesOf(a.prefix).map((l) => laneScope(a.phase, l.id))));
-  const undeclared = [
-    ...scopes.filter((sc) => sc && !declaredScopes.has(sc)),
-    ...scopes.flatMap((sc) => allReviewsOf(sc).filter((r) => !declaredReview(r)).map((r) => r.rel)),
-  ];
-
-  // Task files and their latest reports.
-  const taskFiles = all
-    .filter((d) => d.rel.split("/")[1] === "tasks" && d.rel.split("/").length === 3 && planOf(d.rel.split("/")[0]) && taskFile(planOf(d.rel.split("/")[0])).test(d.name))
-    .map((d) => ({ rel: d.rel, phase: d.rel.split("/")[0], id: d.name.replace(/\.md$/, ""), deps: [].concat(d.data.get("depends-on") ?? []) }));
-  const taskFilesOf = (phase) => taskFiles.filter((t) => t.phase === phase).map((t) => t.rel);
-  const reports = new Map();
-  const reportFilesOf = (phase) => all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${phase}/`)).map((d) => d.rel);
-  // Facts about code require a valid representation and a real merge-base: computed after contradictions.
-  let tip = null, base = null;
-  const pipelinesRoot = relative(root, dirname(abs)) || ".";
-  const codeCurrents = new Map();
-  const codeCurrent = (rel) => {
-    if (!codeCurrents.has(rel)) {
-      const attributed = laterPatchIds(pipelineFileRole(rel).art.phase, all.filter((d) => reportOf(d.rel)));
-      codeCurrents.set(rel, !codeDelta(root, { tip, base, review: `${pipelineRel}/${rel}`, attributed, pipelinesRoot }).length);
-    }
-    return codeCurrents.get(rel);
-  };
-
-  const inspection = {
-    list: () => all.map((doc) => doc.rel),
-    document: (path) => all.find((doc) => doc.rel === path) ?? null,
-    identityOf,
-    codeCurrent,
-  };
-  validateRunConfiguration(configuration, inspection, "check");
-
-  // What a review judges: the artifact package; plans add tasks, phase reviews add reports.
-  const contextOf = (prefix, sc) => {
-    const context = authoritativeReviewContext(configuration, prefix, sc, inspection);
-    return context.closed ? { reference: context.reference, required: context.reference } :
-      { reference: context.reference, required: requiredPackageOf(prefix, sc, packageContext).review };
-  };
-  const reviewFresh = (r, prefix, sc) => {
-    const { required: packageMap } = contextOf(prefix, sc);
-    return judges(r, prefix, packageMap, materialPathsFor(configuration, prefix, sc, r.lane), inspection);
-  };
-  const waveValidity = (prefix, sc, wave, context = contextOf(prefix, sc)) => {
-    return evaluateWave(configuration, prefix, sc, wave, context, inspection);
-  };
-  const latestWaveOf = (prefix, sc) => Math.max(0, ...reviewsOf(sc).filter((r) => r.prefix === prefix).map((r) => r.wave));
-  const closedLanePackage = (prefix, sc) => {
-    const context = authoritativeReviewContext(configuration, prefix, sc, inspection);
-    return context.closed ? context.binding : null;
-  };
-  const lanePackageOf = (art, sc) => {
-    const closed = closedLanePackage(art.prefix, sc);
-    if (closed) return { package: closed, ready: true };
-    const approval = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc));
-    return {
-      package: currentPackage([inScope(sc, art.path), inScope(sc, art.record), ...(approval.current ? approval.reviews.map((r) => r.rel) : [])]),
-      ready: approval.current,
-    };
-  };
-
-  const packageContext = {
-    identityOf, pinsByPath, taskFilesOf, reportFilesOf, waveValidity, latestWaveOf, productionLanesOf, lanePackageOf,
-    dependsOf: (task) => taskFiles.find((t) => t.rel === task)?.deps ?? [],
-  };
-  for (const t of all.filter((d) => reportOf(d.rel))) {
-    const [, phase, id, k] = reportOf(t.rel);
-    const key = `${phase}/${id}`;
-    const attempt = Number(k);
-    if (!reports.has(key) || reports.get(key).attempt < attempt)
-      reports.set(key, { rel: t.rel, data: t.data, phase, id, attempt, outcome: t.data.get("outcome") ?? (t.data.has("reviewed") ? "invalid" : "unstamped"), fresh: equalPackages(pinPackage(t.data.get("reviewed")), requiredPackageOf(t.rel, "", packageContext).review) });
-  }
-
-  // Lanes of one artifact in one scope: each declared lane's latest review (by wave).
-  const laneStates = (prefix, sc) => {
-    const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
-    const currentWave = latestWaveOf(prefix, sc);
-    const wave = waveValidity(prefix, sc, currentWave);
-    return reviewLanesOf(prefix).map(({ id: lane, fingerprint }) => {
-      const mine = rs.filter((r) => r.lane === lane);
-      const r = mine.length ? mine.reduce((a, b) => (a.wave >= b.wave ? a : b)) : null;
-      if (!r) return { lane, verdict: "none", current: false };
-      return {
-        lane,
-        verdict: !r.data.has("reviewed") ? "unstamped" : (r.data.get("verdict") ?? "invalid"),
-        brief: r.data.get("brief") ?? "",
-        fresh: reviewFresh(r, prefix, sc) && laneMatches(r, fingerprint),
-        wave: r.wave,
-        current: r.wave === currentWave,
-        waveApproved: wave.current,
-        waveClosed: wave.closed,
-        review: r,
-      };
-    });
-  };
-  // A wave is closed when every declared lane has a stamped, fresh review in the current wave.
-  const waveClosed = (lanes) => lanes.length > 0 && lanes.every((l) => l.current && l.waveClosed);
-  // A review landed without its pins is stamped; one stamped without a verdict is invalid.
-  const unstampedReview = (lanes) => {
-    const l = lanes.find((l) => l.verdict === "unstamped" || l.verdict === "invalid");
-    return l && (l.verdict === "unstamped" ? `stamp ${l.review.rel}` : `INVALID REVIEW ${l.review.rel}: no verdict line`);
-  };
-
-  // Waves since every declared lane approved together — a counter for the owner, never a gate.
-  const episodeOf = (prefix, sc) => {
-    const rs = reviewsOf(sc).filter((r) => r.prefix === prefix);
-    const waves = [...new Set(rs.map((r) => r.wave))];
-    const last = waves.length ? Math.max(...waves) : 0;
-    const approvedAll = (w) => waveValidity(prefix, sc, w).current;
-    const lastApproved = Math.max(0, ...waves.filter(approvedAll));
-    const start = lastApproved;
-    const episode = Math.max(0, last - start);
-    const recurs = rs.filter((r) => r.wave > start).flatMap((r) => [].concat(r.data.get("prior-finding") ?? []));
-    return { episode, recurs, last };
-  };
-
-  const out = {
-    pipeline: pipelineRel,
-    ref,
-    configuration: {
-      workflow: configuration.workflow,
-      targetPhase: configuration.targetPhase,
-      base: configuration.base,
-      lanes: configuration.lanes.map(({ prefix, kind, ...lane }) => lane),
-    },
-    contradictions: [], challenges: [], claims: [], lanes: [], artifacts: [], tasks: {}, counters: {}, frontier: null,
-  };
-  const lines = [ref ? `${pipelineRel} @ ${args.ref} (${ref.slice(0, SHORT)})` : pipelineRel];
-  let frontier = null;
-  const take = (item) => {
-    if (!frontier) frontier = item;
-  };
-
-  // 0. Contradictions: malformed files (their author fixes them); mirrors that no longer project
-  // their body; lanes the declaration lacks.
-  for (const d of all.filter((d) => d.frontmatterError)) {
-    out.contradictions.push({ path: d.rel, invalid: d.frontmatterError });
-    lines.push(`INVALID FRONTMATTER ${d.rel}: ${d.frontmatterError}`);
-    take(`INVALID FRONTMATTER ${d.rel}`);
-  }
-  for (const d of all.filter((d) => d.malformed.length)) {
-    out.contradictions.push({ path: d.rel, invalid: d.malformed });
-    lines.push(`INVALID LINE ${d.rel}: ${d.malformed.join("; ")}`);
-    take(`INVALID LINE ${d.rel}`);
-  }
-  for (const d of all.filter((d) => d.invalidIds)) {
-    out.contradictions.push({ path: d.rel, invalid: [d.invalidIds] });
-    lines.push(`INVALID IDS ${d.rel}: ${d.invalidIds}`);
-    take(`INVALID IDS ${d.rel}`);
-  }
-  for (const d of all.filter((d) => d.drift.length)) {
-    out.contradictions.push({ path: d.rel, mirrors: d.drift });
-    lines.push(`mirror   ${d.rel}  differs from the body: ${d.drift.join(", ")}`);
-    take(`stamp ${d.rel}`);
-  }
-  for (const path of undeclared) {
-    out.contradictions.push({ path, lane: "undeclared" });
-    lines.push(`lane     ${path}  UNDECLARED`);
-    take(`undeclared lane ${path}`);
-  }
-  for (const path of tree.symlinks()) {
-    out.contradictions.push({ path, symlink: true });
-    lines.push(`symlink  ${path}`);
-    take(`symlink ${path}`);
-  }
-  const facts = { root, pipelineRel, all, configuration, inspection, reviewsOf, latestWaveOf };
-  if (out.contradictions.length) {
-    out.frontier = frontier;
-    lines.push(`frontier ${frontier}`);
-    return { out, lines, ...facts };
-  }
-
-  tip = ref ?? rev("HEAD", "HEAD");
-  base = pipelineBase(root, configuration.base, tip);
-  out.base = base.slice(0, SHORT);
-  const phaseOfTarget = (targetPath) => ARTIFACTS.findIndex((a) => a.path === targetPath) + 1;
-  const inScopePhase = (targetPath) => targetPath.startsWith("0-intent/") || phaseOfTarget(targetPath) <= configuration.targetPhase;
-  const inputStateOf = (doc, art, sc, fingerprint = null) => {
-    const pins = doc?.data.get("pins");
-    const recorded = pinPackage(pins);
-    const { inputs: requiredPackage, ready: requirementsReady } = requiredPackageOf(art.prefix, sc, packageContext);
-    const diff = { members: false, identities: new Set() };
-    equalPackages(recorded, requiredPackage, diff);
-    const stale = !Array.isArray(pins) || pins.length === 0 ? [] : [
-      ...(diff.members || !requirementsReady ? ["package members"] : []),
-      ...(diff.identities.size ? [`package identities: ${[...diff.identities].join(", ")}`] : []),
-      ...(!laneMatches(doc, fingerprint) ? ["lane declaration"] : []),
-    ];
-    const state = !Array.isArray(pins) || pins.length === 0 ? "unstamped" : stale.length ? "stale" : "fresh";
-    const inputChanges = state === "stale" ? {
-      added: [...requiredPackage.keys()].filter((path) => !recorded?.has(path)),
-      removed: [...(recorded?.keys() ?? [])].filter((path) => !requiredPackage.has(path)),
-      changed: [...diff.identities],
-      ready: requirementsReady,
-    } : null;
-    return { state, stale, inputChanges };
-  };
-
-  // pending → adjudicated (the target pins it) → resolved (the target approved
-  // carrying the pin), or resolved by escalation (a closed wave of the target
-  // corroborated an unsatisfiable verdict citing it). Owner territory resolves through its answer.
-  const adjudicated = (item) => !!pinPackage(pinsByPath.get(item.targetPath))?.has(item.rel);
-  const resolutionOf = (item) => {
-    if (ownerTerritory(item.target)) {
-      const answer = ownerAnswer(item.rel, all);
-      return answer ? { state: "resolved", detail: `answered by ${answer.rel}` } : { state: "pending" };
-    }
-    const targetArtifact = ARTIFACTS.find((x) => x.path === item.targetPath);
-    if (!targetArtifact) return { state: "pending" };
-    const lanes = laneStates(targetArtifact.prefix, "");
-    for (const l of lanes)
-      if (l.review && challengeKind(l.review.rel, l.review.data) === "claim" && l.fresh && waveClosed(lanes) && !lanes.some((x) => x.verdict === "rejected") && [].concat(l.review.data.get("origin") ?? []).includes(item.rel))
-        return { state: "resolved", detail: `escalated by ${l.review.rel}` };
-    if (!adjudicated(item)) return { state: "pending" };
-    const approved = waveValidity(targetArtifact.prefix, "", latestWaveOf(targetArtifact.prefix, "")).current;
-    return approved ? { state: "resolved", detail: `${item.targetPath} approved carrying it` } : { state: "adjudicated", detail: `by ${item.targetPath}, awaiting approval` };
-  };
-
-  // 1. Challenges: constraints, proposals, reported failures, and failed task reports — a report
-  // stops being one when its task changes before its target adjudicates it.
-  const challenges = [
-    ...all.filter((d) => laterInput(d.rel)).flatMap((d) => targetPairs(d.rel, d.data).map((t) => ({ ...t, kind: laterInput(d.rel) }))),
-    ...[...reports.values()].filter((t) => challengeKind(t.rel, t.data) === "failed report").flatMap((t) => targetPairs(t.rel, t.data).map((pair) => ({ ...pair, kind: `failed task ${t.id}` })).filter((pair) => t.fresh || adjudicated(pair))),
-  ].map((t) => {
-    const resolution = resolutionOf(t);
-    return { ...t, resolution, unresolved: resolution.state !== "resolved" };
+// `git ls-tree -z` entries under a tree-ish, with their mode, type, object id, and path.
+function lsTree(root, treeish, path, recursive) {
+  const output = gitBytes(root, ["ls-tree", ...(recursive ? ["-r"] : []), "-z", treeish, "--", path]).toString("utf8");
+  return output.split("\0").filter(Boolean).map((entry) => {
+    const match = entry.match(/^(\d{6}) (blob|tree|commit) ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/s);
+    if (!match) fail(`cannot read ${treeish}:${path}: invalid ls-tree entry`);
+    return { mode: match[1], type: match[2], oid: match[3], path: match[4] };
   });
-  let unresolvedInScope = false;
-  for (const t of challenges) {
-    const res = t.resolution;
-    const scoped = inScopePhase(t.targetPath);
-    const label = res.state === "pending" ? (scoped ? "PENDING" : "pending, beyond the target phase") : `${res.state}${res.detail ? ` (${res.detail})` : ""}`;
-    const challengeResolved = challenges.filter((pair) => pair.rel === t.rel).every((pair) => pair.resolution.state === "resolved");
-    out.challenges.push({ path: t.rel, kind: t.kind, target: t.target, state: res.state, detail: res.detail ?? null, inScope: scoped, challengeResolved });
-    lines.push(`challenge ${t.rel} (${t.kind}) → ${t.target}  ${label}`);
-    if (t.unresolved && scoped) unresolvedInScope = true;
-  }
-
-  // 2. Claims: an unsatisfiable verdict whose wave closed with no rejection.
-  const claims = [];
-  for (const sc of scopes)
-    for (const r of reviewsOf(sc)) {
-      if (challengeKind(r.rel, r.data) !== "claim") continue;
-      // A claim is its lane's verdict: the lane's latest review is the one that stands.
-      const lanes = laneStates(r.prefix, sc);
-      const mine = lanes.find((l) => l.review?.rel === r.rel);
-      const later = reviewsOf(sc).some((x) => x.prefix === r.prefix && x.lane === r.lane && x.wave > r.wave);
-      for (const pair of targetPairs(r.rel, r.data)) {
-        const c = {
-          ...pair,
-          fresh: mine ? mine.fresh : reviewFresh(r, r.prefix, sc),
-          waveOpen: !waveClosed(lanes),
-          rejected: lanes.some((l) => l.verdict === "rejected"),
-        };
-        const cur = identityOf(c.targetPath);
-        const unchanged = equalPackages(new Map([[c.targetPath, c.targetIdentity]]), new Map([[c.targetPath, cur]]));
-        const res = resolutionOf(c);
-        c.adjudicated = res.state === "adjudicated";
-        if (later) c.state = "superseded (its lane reviewed again)";
-        else if (c.targetIdentity && !unchanged) c.state = "superseded (target changed)";
-        else if (res.state === "resolved") c.state = `resolved (${res.detail})`;
-        else if (!c.fresh) c.state = "moot (claiming artifact changed)";
-        else if (c.waveOpen) c.state = "wave open";
-        else if (c.rejected) c.state = "held (a lane rejected; adjudicate first)";
-        else if (res.state === "adjudicated") c.state = `adjudicated (${res.detail})`;
-        else c.state = c.targetIdentity ? "pending" : "pending (no target-identity)";
-        claims.push(c);
-      }
-    }
-  for (const c of claims) {
-    const scoped = inScopePhase(c.targetPath);
-    if (c.state === "pending") c.state = !scoped ? "pending, beyond the target phase" : ownerTerritory(c.target) ? "PENDING — owner escalation" : "PENDING";
-    // A claim is unresolved while its target has adjudicated it, or while it persists: until resolved, superseded, or moot.
-    c.unresolved = c.adjudicated || !/^(resolved|superseded|moot)/.test(c.state);
-    out.claims.push({ review: c.rel, target: c.target, state: c.state, inScope: scoped });
-    lines.push(`claim    ${c.rel} → ${c.target}  ${c.state}`);
-    if (c.state === "PENDING — owner escalation") take(`claim ${c.rel} → ${c.target} (owner escalation)`);
-    if (c.unresolved && scoped) unresolvedInScope = true;
-  }
-
-  // Under experiment: an artifact while a challenge unresolved on it is a failure — a failed task
-  // report or a reported failure — or has one in its `origin` chain. An origin that names no
-  // pipeline file ends its chain.
-  const failureInOriginChain = (rel, seen = new Set()) => {
-    if (seen.has(rel)) return false;
-    seen.add(rel);
-    const doc = all.find((d) => d.rel === rel);
-    return !!doc && (["failed report", "failure"].includes(challengeKind(rel, doc.data))
-      || [].concat(doc.data.get("origin") ?? []).some((origin) => failureInOriginChain(origin.split("#")[0], seen)));
-  };
-  const underExperiment = (art) => [...challenges, ...claims].some((c) => c.unresolved && c.targetPath === art.path && failureInOriginChain(c.rel));
-  const dispatch = (action, path, art) => `${action} ${path}${underExperiment(art) ? " (experiment)" : ""}`;
-
-  // 3. Phases in order, up to the target; a phase's production lanes come before its root artifact.
-  const pendingChallenges = [...challenges.filter((t) => t.resolution.state === "pending"), ...claims.filter((c) => c.state.startsWith("PENDING"))];
-  const convergenceOf = (art, sc, st) => {
-    const path = inScope(sc, art.path);
-    const consumed = pinPackage(pinsByPath.get(path));
-    const pending = [...new Set(pendingChallenges.filter((c) => c.targetPath === art.path && (!sc || !consumed?.has(c.rel))).map((c) => c.rel))];
-    const taskReports = pending.filter((rel) => challengeKind(rel, all.find((d) => d.rel === rel).data) === "failed report");
-    const challenges = pending.filter((rel) => !taskReports.includes(rel));
-    const rejectedReviews = (prefix) => {
-      const lanes = laneStates(prefix, sc);
-      const complete = waveValidity(prefix, sc, latestWaveOf(prefix, sc)).reviews.length > 0;
-      return complete && lanes.some((l) => l.verdict === "rejected") ? lanes.map((l) => ({ lane: l.lane, path: l.review.rel })) : [];
-    };
-    const artifactReviews = rejectedReviews(art.prefix);
-    const phaseReviews = !sc && art.review ? rejectedReviews(art.review) : [];
-    const reviewLanes = [...artifactReviews, ...phaseReviews];
-    const materials = { inputChanges: st.inputChanges ?? null, reviewLanes, challenges, taskReports };
-    const needed = st.state === "missing" || st.state === "stale" || pending.length > 0 || artifactReviews.length > 0;
-    const inputText = materials.inputChanges ? [
-      ...["added", "removed", "changed"].filter((key) => materials.inputChanges[key].length).map((key) => `${key} [${materials.inputChanges[key].join(", ")}]`),
-      ...(!materials.inputChanges.ready ? ["input approvals pending"] : []),
-    ].join("; ") || st.stale.join("; ") : "";
-    const text = [
-      ...(materials.inputChanges ? [`Input changes: ${inputText}`] : []),
-      ...(reviewLanes.length ? [`Review lanes: ${reviewLanes.map((r) => `${r.lane || "·"} — ${r.path}`).join(", ")}`] : []),
-      ...(challenges.length ? [`Challenges: ${challenges.join(", ")}`] : []),
-      ...(taskReports.length ? [`Task reports: ${taskReports.join(", ")}`] : []),
-    ].map((part) => `  ${part}`).join("");
-    return { needed, phaseRejected: phaseReviews.length > 0, materials, text };
-  };
-  const render = (ls) => (ls.length ? ls.map((l) => `${l.lane || "·"}:${l.verdict}${l.verdict !== "none" && l.verdict !== "unstamped" ? (l.fresh ? "" : " (stale)") : ""}`).join(" ") : "none");
-  const artifactState = (doc, art, sc, fingerprint = null) => {
-    const { state, stale, inputChanges } = inputStateOf(doc, art, sc, fingerprint);
-    const lanes = laneStates(art.prefix, sc);
-    const e = episodeOf(art.prefix, sc);
-    const approved = waveValidity(art.prefix, sc, latestWaveOf(art.prefix, sc)).current;
-    return { state, stale, inputChanges, lanes, approved, episode: e.episode, recurs: e.recurs };
-  };
-  const nextFor = (art, path, st, convergence) =>
-    st.state === "unstamped" ? `stamp ${path}` : convergence.needed ? dispatch("converge", path, art) : (unstampedReview(st.lanes) ?? dispatch("review wave", path, art));
-  let through = 0;
-  let stopped = false;
-  const phaseDone = (phaseNo) => {
-    if (!stopped && phaseNo === through + 1) through = phaseNo;
-  };
-  for (const [i, art] of ARTIFACTS.entries()) {
-    const phaseNo = i + 1;
-    if (phaseNo > configuration.targetPhase) break;
-    const name = art.path.split("/")[1];
-    const rootExists = texts.has(art.path);
-    const declaredLanes = productionLanesOf(art.prefix);
-    const laneScopes = declaredLanes.map((l) => laneScope(art.phase, l.id)).sort();
-    const laneOf = (sc) => declaredLanes.find((l) => laneScope(art.phase, l.id) === sc);
-    const closedPackage = (sc) => closedLanePackage(art.prefix, sc);
-    const lanePackage = (sc) => lanePackageOf(art, sc).package;
-    const laneApproved = (sc) => {
-      if (closedPackage(sc)) return true;
-      const lane = laneOf(sc);
-      if (lane.after.some((dep) => !laneApproved(laneScope(art.phase, dep)))) return false;
-      const doc = all.find((d) => d.rel === `${sc}${name}`);
-      return !!doc && (() => {
-        const st = artifactState(doc, art, sc, lane.fingerprint);
-        return st.state === "fresh" && st.approved;
-      })();
-    };
-    let lanesReady = laneScopes.length > 0;
-    for (const sc of laneScopes) {
-      const { after, fingerprint } = laneOf(sc);
-      const waiting = after.filter((dep) => !laneApproved(laneScope(art.phase, dep)));
-      const doc = all.find((d) => d.rel === `${sc}${name}`);
-      const st = doc ? artifactState(doc, art, sc, fingerprint) : { state: "missing", stale: [], lanes: [], approved: false, episode: 0, recurs: [] };
-      const closed = !!closedPackage(sc);
-      const convergence = convergenceOf(art, sc, st);
-      const ok = closed || (st.approved && st.state === "fresh" && !waiting.length && !convergence.needed);
-      if (!ok) lanesReady = false;
-      const { inputChanges, ...laneState } = st;
-      out.lanes.push({ lane: sc, artifact: `${sc}${name}`, ...laneState, materials: closed ? undefined : convergence.materials, lanes: st.lanes.map(({ review, ...x }) => x), after, waiting, closed });
-      lines.push(`lane     ${sc}${name}  ${closed ? "closed" : st.state.toUpperCase()}${!closed && st.stale.length ? ` — ${st.stale.join("; ")}` : ""}${!closed && waiting.length ? `  waiting for ${waiting.join(", ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${closed ? "" : convergence.text}`);
-      if (!closed && !ok && !waiting.length) take(nextFor(art, `${sc}${name}`, st, convergence));
-      if (st.episode || st.recurs.length) out.counters[`${sc}${art.prefix}`] = { episode: st.episode, recurs: st.recurs };
-    }
-    const laneCandidates = laneScopes.filter(laneApproved).map((sc) => ({ lane: sc, package: [...lanePackage(sc).keys()] }));
-    const needsConsolidation = laneScopes.some((sc) => !closedPackage(sc) && laneApproved(sc));
-    const renderCandidates = () => lines.push(`Lane candidates  ${laneCandidates.map((candidate) => `${candidate.lane}: ${candidate.package.join(", ")}`).join("; ")}`);
-    if (!rootExists) {
-      const convergence = convergenceOf(art, "", { state: "missing" });
-      out.artifacts.push({ artifact: art.path, state: "missing", experiment: underExperiment(art), materials: convergence.materials, consolidate: laneScopes.length ? lanesReady : undefined, ...(lanesReady ? { laneCandidates } : {}) });
-      lines.push(`artifact ${art.path}  MISSING${laneScopes.length ? (lanesReady ? " — every lane approved: consolidate" : " — lanes in progress") : ""}${convergence.text}`);
-      if (laneScopes.length && lanesReady) {
-        renderCandidates();
-        take(`consolidate ${art.path}`);
-      }
-      else if (!laneScopes.length) take(dispatch("converge", art.path, art));
-      stopped = true;
-      continue;
-    }
-    const st = artifactState(all.find((d) => d.rel === art.path), art, "");
-    const convergence = convergenceOf(art, "", st);
-    const { inputChanges, ...artifact } = st;
-    out.artifacts.push({ artifact: art.path, ...artifact, experiment: underExperiment(art), materials: convergence.materials, lanes: st.lanes.map(({ review, ...x }) => x), ...(lanesReady && needsConsolidation ? { consolidate: true, laneCandidates } : {}) });
-    if (st.episode || st.recurs.length) out.counters[art.prefix] = { episode: st.episode, recurs: st.recurs };
-    lines.push(`artifact ${art.path}  ${st.state.toUpperCase()}${st.stale.length ? ` — ${st.stale.join("; ")}` : ""}  reviews: ${render(st.lanes)}${st.approved ? "  APPROVED" : ""}${convergence.text}`);
-    if (st.state !== "fresh" || !st.approved || needsConsolidation || convergence.needed) {
-      if (lanesReady && needsConsolidation) {
-        renderCandidates();
-        take(`consolidate ${art.path}`);
-      } else take(nextFor(art, art.path, st, convergence));
-      stopped = true;
-    }
-    if (!art.review) {
-      if (st.state === "fresh" && st.approved) phaseDone(phaseNo);
-      continue;
-    }
-    // Build and document: the phase's task files, their latest reports, then the phase review.
-    const planTasks = taskFiles.filter((t) => t.phase === art.phase).sort((x, y) => numberOf(x.id) - numberOf(y.id));
-    const phaseReports = [...reports.values()].filter((t) => t.phase === art.phase);
-    const latestOf = (id) => phaseReports.find((t) => t.id === id);
-    const isDone = (id) => {
-      const r = latestOf(id);
-      return !!r && r.outcome === "completed" && r.fresh;
-    };
-    // A fresh blocked report leaves its task pending: the environment, not the plan, is what changes before the next attempt.
-    const blockedBy = (id) => {
-      const r = latestOf(id);
-      return !!r && r.outcome === "blocked" && r.fresh;
-    };
-    const done = planTasks.filter((t) => isDone(t.id)).map((t) => t.id);
-    const open = phaseReports.filter((t) => !isDone(t.id)).map((t) => `${t.id}:${t.outcome}${t.outcome === "completed" ? " (stale)" : ""}`);
-    // Every attempt is a report: landed without its pins it is stamped; stamped without an outcome it is invalid.
-    const reportDocs = all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${art.phase}/`));
-    const badReport = reportDocs.map((d) => (!d.data.has("reviewed") ? `stamp ${d.rel}` : !d.data.has("outcome") ? `INVALID REPORT ${d.rel}: no outcome line` : null)).find(Boolean);
-    const cyclic = (() => {
-      const byId = new Map(planTasks.map((t) => [t.id, t]));
-      const seen = new Set();
-      const visit = (id, stack) => {
-        if (stack.has(id)) return true;
-        if (seen.has(id)) return false;
-        seen.add(id);
-        return (byId.get(id)?.deps ?? []).some((d) => !byId.has(d) || visit(d, new Set([...stack, id])));
-      };
-      return planTasks.find((t) => visit(t.id, new Set()))?.id ?? null;
-    })();
-    const next = planTasks.find((t) => !isDone(t.id) && t.deps.every(isDone));
-    const remaining = planTasks.filter((t) => !isDone(t.id)).map((t) => t.id);
-    out.tasks[art.phase] = { planned: planTasks.map((t) => t.id), done, open, next: next?.id ?? null, blocked: next && blockedBy(next.id) ? next.id : null };
-    lines.push(`tasks    ${art.phase}: planned ${planTasks.length}  done [${done.join(", ")}]${open.length ? `  open [${open.join(", ")}]` : ""}${next ? `  next ${next.id}` : ""}`);
-    if (cyclic) {
-      take(`invalid plan: ${art.phase}/tasks/${cyclic}.md depends on a cycle or a missing task`);
-      stopped = true;
-    } else if (badReport) {
-      take(badReport);
-      stopped = true;
-    } else if (remaining.length) {
-      take(`${blockedBy(next.id) ? "blocked" : "task"} ${art.phase}/${next.id}`);
-      stopped = true;
-    }
-    if (completingPrefix(art, taskFilesOf) === art.prefix) {
-      phaseDone(phaseNo);
-      continue;
-    }
-    // Phase review: the plan package, reports, and the code.
-    const rl = laneStates(art.review, "");
-    const e = episodeOf(art.review, "");
-    const rApproved = waveValidity(art.review, "", latestWaveOf(art.review, "")).current;
-    out[`${art.review}Review`] = { lanes: rl.map(({ review, ...x }) => x), approved: rApproved, episode: e.episode, recurs: e.recurs };
-    if (e.episode || e.recurs.length) out.counters[art.review] = { episode: e.episode, recurs: e.recurs };
-    lines.push(`${art.review.padEnd(8)} review: ${render(rl)}${rApproved ? "  APPROVED" : ""}`);
-    if (!rApproved) {
-      take(unstampedReview(rl) ?? (convergence.phaseRejected ? dispatch("converge", art.path, art) : `${art.review} review`));
-      stopped = true;
-    } else {
-      phaseDone(phaseNo);
-    }
-  }
-
-  // 4. Counters and completion.
-  for (const [label, c] of Object.entries(out.counters))
-    lines.push(`counter  ${label}: ${c.episode} wave${c.episode === 1 ? "" : "s"} this episode${c.recurs.length ? `  recurs: ${c.recurs.join(", ")}` : ""}`);
-  out.completeThrough = through;
-  out.complete = !frontier && !unresolvedInScope && through >= configuration.targetPhase;
-  if (!frontier && unresolvedInScope) frontier = "challenges or claims still adjudicated, awaiting approval";
-  if (!frontier && !out.complete) die(`check: no frontier before target phase ${configuration.targetPhase}`);
-  if (!frontier) frontier = "complete";
-  out.frontier = frontier;
-  lines.push(`complete through phase ${through}${out.complete ? " — target reached" : ` (target ${configuration.targetPhase})`}`);
-  lines.push(`frontier ${frontier}`);
-  return { out, lines, tip, ...facts };
 }
+
+// --- repository -----------------------------------------------------------------
+
+const posix = (path) => path.split(sep).join("/");
+
+// The repository and the repository-relative path of a command argument, which need not exist.
+function locate(argument) {
+  const requested = resolve(process.cwd(), argument);
+  let existing = requested;
+  const missing = [];
+  while (!existsSync(existing)) {
+    missing.unshift(basename(existing));
+    const parent = dirname(existing);
+    if (parent === existing) fail(`cannot locate a git repository for: ${argument}`);
+    existing = parent;
+  }
+  const found = realpathSync(existing);
+  const real = join(found, ...missing);
+  let root;
+  try { root = realpathSync(execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: statSync(found).isDirectory() ? found : dirname(found), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()); }
+  catch { fail(`cannot locate a git repository for: ${argument}`); }
+  const rel = posix(relative(root, real));
+  if (rel.startsWith("..") || resolve(root, rel) !== real) fail(`outside the repository ${root}: ${argument}`);
+  return { root, rel };
+}
+
+// The pipelines folder root: the first line under `### Pipelines folder root` in the repository's `.rp.md`, else `.pipelines`.
+export function pipelinesFolderRoot(root) {
+  const conventions = join(root, ".rp.md");
+  if (!existsSync(conventions)) return ".pipelines";
+  const lines = readFileSync(conventions, "utf8").split(/\r?\n/);
+  const heading = lines.findIndex((line) => /^### Pipelines folder root[\t ]*$/.test(line));
+  if (heading === -1) return ".pipelines";
+  const value = lines.slice(heading + 1).find((line) => line.trim())?.trim();
+  if (!value || /^#{1,6} /.test(value)) fail(".rp.md: Pipelines folder root has no value");
+  const path = value.replace(/^`(.*)`$/, "$1").replace(/\/+$/, "").replace(/^\.\//, "");
+  if (!path || path === "." || path.startsWith("/") || path.split("/").some((segment) => !segment || segment === "." || segment === ".."))
+    fail(`.rp.md: Pipelines folder root must be a relative folder inside the repository: ${value}`);
+  return path;
+}
+
+// A pipeline folder is `<pipelines folder root>/<pipeline slug>`; `inner` is a path inside it.
+function pipelineOf(root, rel, command) {
+  const pipelinesRoot = pipelinesFolderRoot(root);
+  if (!rel.startsWith(`${pipelinesRoot}/`)) fail(`${command}: not inside the pipelines folder root ${pipelinesRoot}: ${rel}`);
+  const [slug, ...inner] = rel.slice(pipelinesRoot.length + 1).split("/");
+  if (!slug) fail(`${command}: not a pipeline folder: ${rel}`);
+  return { pipelinesRoot, folder: `${pipelinesRoot}/${slug}`, inner: inner.join("/") };
+}
+
+// --- frontmatter and identity ---------------------------------------------------
+
+// The frontmatter is the JSON between a first line `---` and the next line `---`; the body is every byte after it,
+// exactly as git hashes it. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
+export function splitFrontmatter(bytes) {
+  const raw = bytes.toString("latin1");
+  const open = raw.match(/^---\r?\n/);
+  if (!open) return { json: null, body: bytes };
+  const close = raw.slice(open[0].length).match(/(?:^|\n)---\r?(?:\n|$)/);
+  if (!close) return { json: null, body: bytes, error: "frontmatter has no closing --- line" };
+  const start = open[0].length;
+  return { json: bytes.subarray(start, start + close.index).toString("utf8"), body: bytes.subarray(start + close.index + close[0].length) };
+}
+
+// A file's frontmatter fields (empty when it has none) and its body, or Invalid.
+export function frontmatterOf(bytes) {
+  const { json, body, error } = splitFrontmatter(bytes);
+  if (error) invalid(error);
+  if (json === null) return { data: {}, body, stamped: false };
+  let data;
+  try { data = JSON.parse(json); } catch (parseError) { invalid(`frontmatter is not valid JSON: ${parseError.message}`); }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) invalid("frontmatter must be a JSON object");
+  return { data, body, stamped: true };
+}
+
+function onlyKeys(data, allowed) {
+  for (const key of Object.keys(data)) if (!allowed.includes(key)) invalid(`unexpected frontmatter key: ${key}`);
+}
+
+// Identity: the first 12 hexadecimal characters of the git blob hash of the body below the frontmatter.
+export function identity(bytes) {
+  const { body } = splitFrontmatter(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes, "utf8"));
+  return createHash("sha1").update(`blob ${body.length}\0`).update(body).digest("hex").slice(0, 12);
+}
+
+export function renderFrontmatter(data, body) {
+  return Buffer.concat([Buffer.from(`---\n${JSON.stringify(data, null, 2)}\n---\n`, "utf8"), body]);
+}
+
+// --- pipeline files -------------------------------------------------------------
+
+// The phases with an artifact, in order. A phase's artifact pins its upstream artifacts.
+export const PHASES = [
+  { n: 0, folder: "0-intent", artifact: "0-intent/intent.md", owner: "orchestrator", upstream: [] },
+  { n: 1, folder: "1-spec", artifact: "1-spec/spec.md", owner: "spec-producer", upstream: ["0-intent/intent.md"], lanes: true },
+  { n: 2, folder: "2-design-doc", artifact: "2-design-doc/design-doc.md", owner: "design-doc-producer", upstream: ["1-spec/spec.md"], lanes: true },
+  { n: 3, folder: "3-implementation", artifact: "3-implementation/notes.md", owner: "implementer", upstream: ["1-spec/spec.md", "2-design-doc/design-doc.md"] },
+];
+const REVIEW_PHASE = 4;
+const ROLES = ["orchestrator", "spec-producer", "design-doc-producer", "implementer", "reviewer"];
+const LANE_PROFILES = ["spec-producer", "design-doc-producer", "reviewer"];
+const LANE_ID = /^[a-z0-9][a-z0-9-]*$/;
+const LATER_INPUT = /^0-intent\/(?:constraint|proposal|failure)-[1-9]\d*\.md$/;
+const THREAD = /^threads\/[^/]+\.md$/;
+
+// What a pipeline-relative path is: run-config, a phase artifact, a later input, a lane candidate, a thread, or nothing.
+export function kindOf(rel) {
+  if (rel === "run-config.md") return { kind: "config" };
+  if (LATER_INPUT.test(rel)) return { kind: "later", phase: PHASES[0] };
+  if (THREAD.test(rel)) return { kind: "thread" };
+  for (const phase of PHASES) {
+    if (rel === phase.artifact) return { kind: "artifact", phase };
+    const prefix = `${phase.folder}/lanes/`, name = `/${basename(phase.artifact)}`;
+    if (phase.lanes && rel.startsWith(prefix) && rel.endsWith(name)) {
+      const lane = rel.slice(prefix.length, -name.length);
+      if (!lane.includes("/")) return { kind: "candidate", phase, lane };
+    }
+  }
+  return null;
+}
+// The folders that can hold pipeline files.
+const holdsFiles = (rel) => rel === "" || rel === "threads" || PHASES.some((phase) =>
+  rel === phase.folder || (phase.lanes && (rel === `${phase.folder}/lanes` || new RegExp(`^${phase.folder}/lanes/[^/]+$`).test(rel))));
+
+// The phase a path belongs to, and the role that owns it.
+const phaseOf = (rel) => PHASES.find((phase) => rel.startsWith(`${phase.folder}/`)) ?? null;
+const ownerOf = (rel) => phaseOf(rel)?.owner ?? null;
+// What a thread or a later input may name: a phase artifact or a later input.
+const addressable = (rel) => ["artifact", "later"].includes(kindOf(rel)?.kind);
+// What a pin may name: any phase artifact, later input, or lane candidate.
+const pinnable = (rel) => ["artifact", "later", "candidate"].includes(kindOf(rel)?.kind);
+
+// The pipeline's files, by pipeline-relative path, from the working tree.
+function readWorktree(root, folder) {
+  const base = join(root, folder);
+  if (!existsSync(base) || !lstatSync(base).isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
+  const files = new Map();
+  const visit = (rel) => {
+    for (const name of readdirSync(join(base, rel)).sort()) {
+      const child = rel ? `${rel}/${name}` : name;
+      const stat = lstatSync(join(base, child));
+      if (holdsFiles(child) && !stat.isDirectory()) fail(`cannot read ${folder}/${child}: not a folder`);
+      if (stat.isDirectory()) { if (holdsFiles(child)) visit(child); }
+      else if (kindOf(child)) {
+        if (!stat.isFile()) fail(`cannot read ${folder}/${child}: not a regular file`);
+        files.set(child, readFileSync(join(base, child)));
+      }
+    }
+  };
+  visit("");
+  return files;
+}
+
+// The pipeline's files, by pipeline-relative path, from a commit.
+async function readCommit(root, commit, folder) {
+  const entries = lsTree(root, commit, `${folder}/`, true);
+  if (!entries.length) fail(`cannot read ${commit}:${folder}: no such folder`);
+  const wanted = [];
+  for (const entry of entries) {
+    const rel = entry.path.slice(folder.length + 1);
+    if (holdsFiles(rel)) fail(`cannot read ${commit}:${entry.path}: not a folder`);
+    if (!kindOf(rel)) continue;
+    if (!["100644", "100755"].includes(entry.mode)) fail(`cannot read ${commit}:${entry.path}: not a regular file`);
+    wanted.push({ rel, oid: entry.oid });
+  }
+  const contents = await readObjects(root, wanted.map((entry) => entry.oid));
+  return new Map(wanted.map((entry, i) => [entry.rel, contents[i]]));
+}
+
+// --- parsing ----------------------------------------------------------------------
+
+// run-config.md: target phase, base branch, and lanes.
+export function parseConfig(bytes) {
+  const { data, stamped } = frontmatterOf(bytes);
+  if (!stamped) invalid("run-config.md has no frontmatter");
+  onlyKeys(data, ["target-phase", "base", "lanes"]);
+  const targetPhase = data["target-phase"];
+  if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) invalid("target-phase must be an integer from 1 to 4");
+  if (typeof data.base !== "string" || !data.base.trim()) invalid("base must be a branch name");
+  const lanes = data.lanes ?? [];
+  if (!Array.isArray(lanes)) invalid("lanes must be a list");
+  const seen = new Set();
+  for (const lane of lanes) {
+    if (lane === null || typeof lane !== "object" || Array.isArray(lane)) invalid("a lane must be an object");
+    for (const key of Object.keys(lane)) if (!["profile", "id", "brief", "model"].includes(key)) invalid(`unexpected lane key: ${key}`);
+    if (!LANE_PROFILES.includes(lane.profile)) invalid(`lane profile must be one of ${LANE_PROFILES.join(", ")}`);
+    if (typeof lane.id !== "string" || !LANE_ID.test(lane.id)) invalid(`lane id must match ${LANE_ID.source}`);
+    if (typeof lane.brief !== "string" || !lane.brief.trim()) invalid(`lane ${lane.id} needs a brief`);
+    if ("model" in lane && (typeof lane.model !== "string" || !lane.model.trim())) invalid(`lane ${lane.id} model must be a string`);
+    const key = `${lane.profile}/${lane.id}`;
+    if (seen.has(key)) invalid(`duplicate lane: ${key}`);
+    seen.add(key);
+  }
+  return { targetPhase, base: data.base, lanes };
+}
+
+// The production lanes configured for a phase.
+const productionLanes = (config, phase) => phase.lanes ? config.lanes.filter((lane) => lane.profile === phase.owner) : [];
+// The review lanes: the configured ones, or one implicit lane `review`.
+export function reviewLanes(config) {
+  const lanes = config.lanes.filter((lane) => lane.profile === "reviewer");
+  return lanes.length ? lanes : [{ profile: "reviewer", id: "review" }];
+}
+
+// `inputs`: a list of `<path>@<identity>`, one per pinned file.
+function parseInputs(value) {
+  if (value === undefined) return new Map();
+  if (!Array.isArray(value)) invalid("inputs must be a list");
+  const inputs = new Map();
+  for (const entry of value) {
+    const match = typeof entry === "string" && entry.match(/^(.+)@([0-9a-f]{12})$/);
+    if (!match) invalid(`inputs entry must be <path>@<identity>: ${JSON.stringify(entry)}`);
+    if (!pinnable(match[1])) invalid(`inputs entry names no pipeline artifact: ${match[1]}`);
+    if (inputs.has(match[1])) invalid(`inputs pins ${match[1]} twice`);
+    inputs.set(match[1], match[2]);
+  }
+  return inputs;
+}
+
+// A later input's `target:` line: the artifacts it targets.
+export function parseTargets(body) {
+  const line = body.match(/^target:[\t ]*(.*?)[\t ]*\r?$/m);
+  if (!line) invalid("later input has no target: line");
+  const targets = line[1].split(",").map((item) => item.trim().replace(/#.*$/, ""));
+  for (const target of targets)
+    if (!PHASES.slice(1).some((phase) => phase.artifact === target)) invalid(`target must name ${PHASES.slice(1).map((phase) => phase.artifact).join(", ")}: ${target || "(empty)"}`);
+  return [...new Set(targets)];
+}
+
+const STATUSES = ["open", "closed: approved", "closed: withdrawn", "disagreement"];
+const MESSAGE = /^## (\S+) — ([0-9a-f]{7,64})$/;
+
+// A thread: its header (the first lines of its body) and its messages, or Invalid.
+export function parseThread(name, body) {
+  const number = name.match(/^([1-9]\d*)-.+\.md$/)?.[1];
+  if (!number) invalid("thread file name must be <n>-<opener>-<owner>-<artifact>.md");
+  const lines = body.split("\n").map((line) => line.replace(/\r$/, ""));
+  let at = 0;
+  const field = (key, optional) => {
+    const match = lines[at]?.match(/^([a-z]+): (.*\S)$/);
+    if (match?.[1] === key) { at++; return match[2]; }
+    if (!optional) invalid(`thread header line ${at + 1} must be ${key}: <value>`);
+    return null;
+  };
+  const thread = { number: Number(number), status: field("status"), opener: field("opener"), owner: field("owner"), artifact: field("artifact"), lane: field("lane", true), territory: field("territory", true) };
+  if (lines[at] !== undefined && lines[at] !== "") invalid(`thread header must end with a blank line, got: ${lines[at]}`);
+  if (!STATUSES.includes(thread.status)) invalid(`status must be one of ${STATUSES.join(" | ")}`);
+  for (const key of ["opener", "owner"]) if (!ROLES.includes(thread[key])) invalid(`${key} must be one of ${ROLES.join(", ")}`);
+  if (thread.opener === thread.owner) invalid("opener and owner must differ");
+  if (!addressable(thread.artifact)) invalid(`artifact must be a phase artifact or a later input: ${thread.artifact}`);
+  if (ownerOf(thread.artifact) !== thread.owner) invalid(`owner of ${thread.artifact} is ${ownerOf(thread.artifact)}`);
+  if ((thread.opener === "reviewer") !== (thread.lane !== null)) invalid("lane: is required on a reviewer's thread and only there");
+  if (thread.lane !== null && !LANE_ID.test(thread.lane)) invalid(`lane must match ${LANE_ID.source}`);
+  if (thread.territory !== null && thread.territory !== "owner") invalid("territory must be owner");
+  if (!name.startsWith(`${number}-${thread.opener}-${thread.owner}-`) || name.length <= `${number}-${thread.opener}-${thread.owner}-.md`.length)
+    invalid(`thread file name must be ${number}-${thread.opener}-${thread.owner}-<artifact>.md`);
+  thread.messages = [];
+  let fence = null;
+  for (const line of lines.slice(at)) {
+    const marker = line.match(/^(`{3,}|~{3,})/)?.[1];
+    if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) { fence = fence ? null : marker; continue; }
+    if (fence || !line.startsWith("## ")) continue;
+    const match = line.match(MESSAGE);
+    if (!match) invalid(`message heading must be ## <author> — <commit>: ${line}`);
+    if (![thread.opener, thread.owner].includes(match[1])) invalid(`message author must be the opener or the owner: ${match[1]}`);
+    thread.messages.push({ author: match[1], commit: match[2] });
+  }
+  if (!thread.messages.length) invalid("thread has no message");
+  if (thread.messages[0].author !== thread.opener) invalid("the first message must be the opener's");
+  return thread;
+}
+
+// Every file of a pipeline, parsed. A malformed file is collected as invalid, never computed from.
+export function readState(files) {
+  const state = { config: null, docs: new Map(), threads: [], invalid: [] };
+  const attempt = (path, parse) => {
+    try { return parse(); } catch (error) {
+      if (!(error instanceof Invalid)) throw error;
+      state.invalid.push({ path, reason: error.message });
+      return null;
+    }
+  };
+  if (!files.has("run-config.md")) state.invalid.push({ path: "run-config.md", reason: "missing" });
+  else state.config = attempt("run-config.md", () => parseConfig(files.get("run-config.md")));
+  const numbers = new Map();
+  for (const [path, bytes] of [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
+    const kind = kindOf(path);
+    if (kind.kind === "config") continue;
+    attempt(path, () => {
+      const { data, body } = frontmatterOf(bytes);
+      const text = body.toString("utf8");
+      if (kind.kind === "thread") {
+        onlyKeys(data, ["reviewed"]);
+        const thread = { path, ...parseThread(path.slice("threads/".length), text) };
+        const approval = thread.opener === "reviewer" && thread.status === "closed: approved";
+        if ("reviewed" in data && (typeof data.reviewed !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(data.reviewed))) invalid("reviewed must be a patch id");
+        if ("reviewed" in data && !approval) invalid("reviewed is recorded only on a reviewer's thread closed: approved");
+        if (approval && !("reviewed" in data)) invalid("a reviewer's thread closed: approved needs reviewed: stamp it with --reviewed");
+        if (state.config && thread.lane !== null && !reviewLanes(state.config).some((lane) => lane.id === thread.lane)) invalid(`review lane is not configured: ${thread.lane}`);
+        if (numbers.has(thread.number)) invalid(`thread number ${thread.number} is also ${numbers.get(thread.number)}`);
+        numbers.set(thread.number, path);
+        state.threads.push({ ...thread, reviewed: data.reviewed ?? null });
+        return;
+      }
+      onlyKeys(data, kind.phase.upstream.length ? ["inputs"] : []);
+      if (kind.kind === "candidate" && state.config && !productionLanes(state.config, kind.phase).some((lane) => lane.id === kind.lane))
+        invalid(`production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
+      state.docs.set(path, { ...kind, path, identity: identity(bytes), inputs: parseInputs(data.inputs), body: text, targets: kind.kind === "later" ? parseTargets(text) : [] });
+    });
+  }
+  return state;
+}
+
+// --- state ------------------------------------------------------------------------
+
+// The inputs a phase's artifact must pin: its upstream artifacts and every later input that targets it.
+export function requiredInputs(state, phase) {
+  const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && doc.targets.includes(phase.artifact)).map((doc) => doc.path);
+  return [...phase.upstream, ...later];
+}
+
+// The inputs that make a file stale: a required input it does not pin, and a pin whose identity differs now.
+export function staleInputs(state, path) {
+  const doc = state.docs.get(path);
+  const stale = requiredInputs(state, doc.phase).filter((input) => !doc.inputs.has(input));
+  for (const [input, pinned] of doc.inputs) if (state.docs.get(input)?.identity !== pinned) stale.push(input);
+  return [...new Set(stale)];
+}
+
+// A file's status: missing, stale (with the inputs that make it so), or fresh.
+function statusOf(state, path) {
+  if (!state.docs.has(path)) return { state: "missing" };
+  const stale = staleInputs(state, path);
+  return stale.length ? { state: "stale", stale } : { state: "fresh" };
+}
+
+// The implementation is done when the first line of `notes.md`'s body is `status: done`.
+const IMPLEMENTATION = PHASES[3];
+const implementationDone = (state) => /^status: done\r?$/.test(state.docs.get(IMPLEMENTATION.artifact)?.body.split("\n")[0] ?? "");
+
+// Whose turn a thread is: nobody's when closed; the owner's (person) on a disagreement on owner territory;
+// otherwise the addressee of its last message — the owner after the opener wrote, the opener after the owner wrote.
+export function turnOf(thread) {
+  if (thread.status.startsWith("closed")) return null;
+  if (thread.status === "disagreement" && thread.territory === "owner") return "escalation";
+  return thread.messages.at(-1).author === thread.opener ? "owner" : "opener";
+}
+
+// The threads awaiting the owner of a phase's artifacts.
+const awaitingOwner = (state, phase) => state.threads.filter((thread) => turnOf(thread) === "owner" && phaseOf(thread.artifact) === phase);
+
+// A review lane is approved when a thread of its reviewer is closed approved at the current net change.
+const approved = (state, lane) => state.threads.some((thread) =>
+  thread.opener === "reviewer" && thread.lane === lane.id && thread.status === "closed: approved" && thread.reviewed === state.netChange);
+
+// The net change: the patch id of the diff from the merge-base with the base to the tip, outside the pipelines folder root.
+// An empty diff has the all-zero id.
+export function netChange(root, base, tip, pipelinesRoot) {
+  const baseCommit = requireCommit(root, base, "base");
+  if (!gitText(root, ["merge-base", "--all", baseCommit, tip])) fail(`no merge-base between ${base} and ${tip}`);
+  const diff = gitBytes(root, ["diff", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
+    `${baseCommit}...${tip}`, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
+  if (!diff.length) return "0".repeat(40);
+  const id = gitText(root, ["patch-id", "--stable"], diff).split(/\s+/)[0];
+  if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(id)) fail("git patch-id produced no id");
+  return id;
+}
+
+// The actions rule 3 names for a phase: produce, lanes then consolidate, or respond; null when it needs nothing.
+function phaseActions(state, phase) {
+  const awaiting = awaitingOwner(state, phase).map((thread) => thread.path);
+  if (phase.n <= state.config.targetPhase) {
+    const status = statusOf(state, phase.artifact);
+    if (status.state === "missing") {
+      const lanes = productionLanes(state.config, phase);
+      if (!lanes.length) return [{ action: "produce", target: phase.artifact }];
+      const pending = lanes.filter((lane) => statusOf(state, candidateOf(phase, lane)).state !== "fresh");
+      return pending.length ? pending.map((lane) => ({ action: "lane", target: `${phase.folder}/${lane.id}` })) : [{ action: "consolidate", target: phase.artifact }];
+    }
+    if (status.state === "stale" || awaiting.length) return [{ action: "respond", target: phase.artifact, threads: awaiting }];
+    if (phase === IMPLEMENTATION && !implementationDone(state)) return [{ action: "produce", target: phase.artifact }];
+  } else if (awaiting.length) return [{ action: "respond", target: phase.artifact, threads: awaiting }];
+  return null;
+}
+const candidateOf = (phase, lane) => `${phase.folder}/lanes/${lane.id}/${basename(phase.artifact)}`;
+
+// The frontier: every action of the first rule that holds.
+export function frontier(state) {
+  if (state.invalid.length) return state.invalid.map(({ path, reason }) => ({ action: "INVALID", target: path, reason }));
+  const escalations = state.threads.filter((thread) => turnOf(thread) === "escalation");
+  if (escalations.length) return escalations.map((thread) => ({ action: "escalation", target: thread.path }));
+  for (const phase of PHASES) {
+    const actions = phaseActions(state, phase);
+    if (actions) return actions;
+  }
+  const replies = state.threads.filter((thread) => turnOf(thread) === "opener");
+  if (replies.length) return replies.map((thread) => ({ action: "reply", target: thread.path }));
+  if (state.config.targetPhase === REVIEW_PHASE) {
+    const pending = reviewLanes(state.config).filter((lane) => !approved(state, lane));
+    if (pending.length) return pending.map((lane) => ({ action: "review", target: lane.id }));
+  }
+  return [{ action: "complete" }];
+}
+
+// --- check ------------------------------------------------------------------------
 
 async function cmdCheck(args) {
-  const { out, lines } = await inspectPipeline(args);
-  process.stdout.write(args.json ? JSON.stringify(out, null, 2) + "\n" : lines.join("\n") + "\n");
-}
-
-// --- metrics ----------------------------------------------------------------
-
-// The commits reachable from the tip that touch a path, with every side of every merge.
-const pathLog = (root, tip, path, options) => gitText(root, ["log", "--full-history", ...options, tip, "--", `:(top,literal)${path}`]);
-
-// The author time of a path's history at the tip: `added` is the commit adding it, `touched` the last commit changing it.
-function authored(root, tip, path, when) {
-  const filter = when === "added" ? ["--no-renames", "--diff-filter=A"] : [];
-  const time = pathLog(root, tip, path, ["--format=%aI", ...filter, "-1"]);
-  if (!time) throw new Error(`metrics: no commit ${when === "added" ? "adds" : "touches"} ${path}`);
-  return time;
-}
-
-function duration(seconds) {
-  const parts = [];
-  let rest = seconds;
-  for (const [unit, size] of [["d", 86400], ["h", 3600], ["m", 60]]) {
-    const count = Math.floor(rest / size);
-    if (count || parts.length) parts.push(`${count}${unit}`);
-    rest -= count * size;
-  }
-  return parts.length ? parts.join(" ") : `${rest}s`;
-}
-
-const plural = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
-
-// The success metrics, measured from the tree and its history. Human intervention is later input —
-// every `0-intent/constraint-<n>.md`, `proposal-<n>.md`, or `failure-<n>.md` — and the assisted workflow.
-async function cmdMetrics(args) {
-  const { out, tip, root, pipelineRel, all, configuration, inspection, reviewsOf, latestWaveOf } = await inspectPipeline(args);
-  if (out.contradictions.length) die(`metrics: ${out.frontier}`);
-  const from = authored(root, tip, `${pipelineRel}/0-intent/intent.md`, "added");
-  const to = authored(root, tip, pipelineRel, "touched");
-  const elapsed = { from, to, seconds: Math.round((Date.parse(to) - Date.parse(from)) / 1000) };
-
-  // A wave's reference is the package its implicit lane judged: stamp fixes it as the complete artifact
-  // package. A correction is a later input on one target artifact; its cost is the target's waves whose
-  // reference carries it, through the first valid one.
-  const correction = (art, rel) => {
-    let waves = 0;
-    for (let wave = 1; wave <= latestWaveOf(art.prefix, ""); wave++) {
-      const reference = pinPackage(reviewsOf("").find((r) => r.prefix === art.prefix && r.lane === "" && r.wave === wave)?.data.get("reviewed"));
-      if (!reference?.has(rel)) continue;
-      waves++;
-      if (evaluateWave(configuration, art.prefix, "", wave, { reference, required: reference }, inspection).valid) return { artifact: art.path, waves, accepted: true };
+  const { root, rel } = locate(args._[0] ?? fail("check: missing <pipeline folder>"));
+  const { pipelinesRoot, folder, inner } = pipelineOf(root, rel, "check");
+  if (inner) fail(`check: not a pipeline folder: ${rel}`);
+  const tip = args.ref ? requireCommit(root, args.ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
+  const state = readState(args.ref ? await readCommit(root, tip, folder) : readWorktree(root, folder));
+  const report = { pipeline: folder, tip };
+  if (!state.invalid.length) {
+    const target = state.config.targetPhase;
+    if (target === REVIEW_PHASE) state.netChange = netChange(root, state.config.base, tip, pipelinesRoot);
+    report.targetPhase = target;
+    report.phases = PHASES.filter((phase) => phase.n <= target).map((phase) => ({
+      phase: phase.folder,
+      artifact: phase.artifact,
+      ...statusOf(state, phase.artifact),
+      ...(phase === IMPLEMENTATION && state.docs.has(phase.artifact) ? { done: implementationDone(state) } : {}),
+      lanes: productionLanes(state.config, phase).map((lane) => ({ id: lane.id, path: candidateOf(phase, lane), ...statusOf(state, candidateOf(phase, lane)) })),
+    }));
+    if (target === REVIEW_PHASE) {
+      report.netChange = state.netChange;
+      report.reviews = reviewLanes(state.config).map((lane) => ({ lane: lane.id, approved: approved(state, lane) }));
     }
-    return { artifact: art.path, waves, accepted: false };
-  };
-  const laterInputs = all.filter((d) => laterInput(d.rel)).map((d) => ({
-    path: d.rel,
-    kind: laterInput(d.rel),
-    origin: d.data.get("origin"),
-    corrections: [...new Set(targetPairs(d.rel, d.data).map((t) => t.targetPath))].map((path) => correction(ARTIFACTS.find((a) => a.path === path), d.rel)),
-  }));
-
-  // A commit ran under the workflow of the run configuration in its tree. A phase ran when its folder
-  // holds state, assisted when any commit touching its folder ran assisted — with none, under the
-  // current configuration; its later inputs are those targeting its artifact.
-  const workflows = new Map();
-  const workflowAt = (commit) => {
-    if (!workflows.has(commit)) workflows.set(commit, runConfiguration((path) => {
-      try { return gitBytes(root, ["show", `${commit}:${pipelineRel}/${path}`]).toString("utf8"); } catch { return null; }
-    }, `metrics: ${commit.slice(0, SHORT)}`).workflow);
-    return workflows.get(commit);
-  };
-  const workflowOf = (art) => {
-    const listed = pathLog(root, tip, `${pipelineRel}/${art.phase}`, ["--format=%H"]);
-    return (listed ? listed.split("\n").map(workflowAt) : [configuration.workflow]).includes("assisted") ? "assisted" : "autonomous";
-  };
-  // Work is autonomous when it ran under the autonomous workflow with no later input on it.
-  const how = (assisted, inputs) => (assisted ? "assisted" : inputs.length ? "intervened" : "autonomous");
-  const phases = ARTIFACTS.slice(0, configuration.targetPhase).map((art) => {
-    const ran = all.some((d) => d.rel.startsWith(`${art.phase}/`));
-    const workflow = ran ? workflowOf(art) : null;
-    const inputs = laterInputs.filter((input) => input.corrections.some((c) => c.artifact === art.path)).map((input) => input.path);
-    const plan = planOf(art.phase);
-    return {
-      phase: art.phase,
-      ran,
-      workflow,
-      autonomous: ran ? how(workflow === "assisted", inputs) === "autonomous" : null,
-      laterInputs: inputs,
-      waves: latestWaveOf(art.prefix, ""),
-      ...(art.review ? {
-        tasks: all.filter((d) => d.rel.startsWith(`${art.phase}/tasks/`) && taskFile(plan).test(d.name)).length,
-        attempts: all.filter((d) => reportOf(d.rel) && d.rel.startsWith(`${art.phase}/`)).length,
-        reviewWaves: latestWaveOf(art.review, ""),
-      } : {}),
-    };
-  });
-  const ran = phases.filter((p) => p.ran);
-  const autonomy = { autonomous: ran.filter((p) => p.autonomous).length, ran: ran.length };
-  const assisted = ran.some((p) => p.workflow === "assisted");
-  const completion = { complete: out.complete, through: out.completeThrough, targetPhase: configuration.targetPhase, autonomous: out.complete && how(assisted, laterInputs) === "autonomous" };
-  const metrics = { pipeline: pipelineRel, ref: out.ref, elapsed, laterInputs, phases, autonomy, completion };
-
-  const inputsOf = (paths) => (paths.length ? `  inputs: ${paths.join(", ")}` : "");
-  const lines = [out.ref ? `${pipelineRel} @ ${args.ref} (${out.ref.slice(0, SHORT)})` : pipelineRel];
-  lines.push(`elapsed   ${duration(elapsed.seconds)}  (${from} → ${to})`);
-  for (const input of laterInputs)
-    for (const c of input.corrections)
-      lines.push(`input     ${input.path} (${input.kind}, origin: ${[].concat(input.origin).join(", ")}) → ${c.artifact}  ${c.accepted ? `accepted after ${plural(c.waves, "wave")}` : `${plural(c.waves, "wave")} so far`}`);
-  for (const [i, p] of phases.entries()) {
-    const counts = [`waves ${p.waves}`, ...("tasks" in p ? [`tasks ${p.tasks}`, `attempts ${p.attempts}`, `${ARTIFACTS[i].review} review waves ${p.reviewWaves}`] : [])];
-    lines.push(`phase     ${p.phase.padEnd(12)}  ${p.ran ? `${how(p.workflow === "assisted", p.laterInputs).padEnd(10)}  ${counts.join("  ")}${inputsOf(p.laterInputs)}` : "not run"}`);
+    report.threads = state.threads.map((thread) => {
+      const turn = turnOf(thread);
+      return { path: thread.path, status: thread.status, opener: thread.opener, owner: thread.owner, artifact: thread.artifact, lane: thread.lane, territory: thread.territory,
+        awaits: turn === "escalation" ? "escalation" : turn ? thread[turn] : null, reviewed: thread.reviewed };
+    });
   }
-  lines.push(`autonomy  ${autonomy.autonomous}/${autonomy.ran} phases ran autonomously`);
-  lines.push(`complete  through phase ${completion.through}${completion.complete ? ` — target reached  ${how(assisted, laterInputs)}${inputsOf(laterInputs.map((input) => input.path))}` : ` (target ${completion.targetPhase})`}`);
-  process.stdout.write(args.json ? JSON.stringify(metrics, null, 2) + "\n" : lines.join("\n") + "\n");
+  report.frontier = frontier(state);
+  if (args.json) return process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  const lines = [];
+  const status = (entry) => entry.state === "stale" ? `stale ${entry.stale.join(" ")}` : entry.state === "fresh" && "done" in entry ? (entry.done ? "done" : "in-progress") : entry.state;
+  for (const phase of report.phases ?? []) {
+    for (const lane of phase.lanes) lines.push(`lane ${phase.phase}/${lane.id} ${status(lane)}`);
+    lines.push(`artifact ${phase.artifact} ${status(phase)}`);
+  }
+  if (report.netChange) lines.push(`net-change ${report.netChange}`);
+  for (const review of report.reviews ?? []) lines.push(`review ${review.lane} ${review.approved ? "approved" : "unapproved"}`);
+  for (const thread of report.threads ?? []) lines.push(`thread ${thread.path} ${thread.status}${thread.awaits ? ` awaits ${thread.awaits}` : ""}`);
+  for (const entry of report.frontier)
+    lines.push(`frontier ${entry.action}${entry.target ? ` ${entry.target}` : ""}${entry.reason ? `: ${entry.reason}` : ""}`);
+  process.stdout.write(`${lines.join("\n")}\n`);
 }
 
-// A phase review's diff: the net change without --review, the code delta of the review named by --review.
-async function cmdDiff(args) {
-  const folder = args._[0] || die("diff: missing <pipeline-folder>");
-  const { root, abs } = repositoryFor(folder);
-  containedPath("diff", root, abs);
-  pipelineSlugOf(abs);
-  const tip = gitText(root, ["rev-parse", "--verify", `${args.ref ?? "HEAD"}^{commit}`]);
-  const tree = await treeReader(root, abs, args.ref ? tip : null);
-  const base = pipelineBase(root, runConfiguration((path) => tree.read(path), "diff").base, tip);
-  const pipelinesRoot = relative(root, dirname(abs)) || ".";
-  if (!args.review) return process.stdout.write(codeDiff(root, base, tip, pipelinesRoot));
-  const path = relative(abs, containedPath("diff", root, resolve(root, args.review)));
-  const role = pipelineFileRole(path);
-  if (path.startsWith("../") || !role || role.scope || !role.review || role.review.prefix !== role.art.review || tree.read(path) === null) die(`diff: not a phase review of this pipeline: ${args.review}`);
-  const reports = tree.list().filter((rel) => reportOf(rel)).map((rel) => {
-    const parsed = parseFrontmatter(tree.read(rel));
-    if (parsed.error) die(`diff: INVALID FRONTMATTER ${rel}: ${parsed.error}`);
-    return { rel, data: parsed.data };
-  });
-  process.stdout.write(codeDelta(root, { tip, base, review: `${relative(root, abs)}/${path}`, attributed: laterPatchIds(role.art.phase, reports), pipelinesRoot }));
+// --- stamp ------------------------------------------------------------------------
+
+function cmdStamp(args) {
+  const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
+  const { pipelinesRoot, folder, inner } = pipelineOf(root, rel, "stamp");
+  const kind = kindOf(inner);
+  if (!kind || kind.kind === "config") fail(`stamp: not a pipeline artifact or thread: ${rel}`);
+  if (!args.pin.length && !args.reviewed) fail("stamp: nothing to stamp: pass --pin or --reviewed");
+  const read = (path) => {
+    const abs = join(root, path);
+    if (!existsSync(abs) || !lstatSync(abs).isFile()) fail(`stamp: cannot read ${path}: not a regular file`);
+    return readFileSync(abs);
+  };
+  const parsed = (path, parse) => {
+    try { return parse(); } catch (error) { if (error instanceof Invalid) fail(`stamp: ${path}: ${error.message}`); throw error; }
+  };
+  const bytes = read(rel);
+  const { data, body } = parsed(rel, () => frontmatterOf(bytes));
+  if (args.pin.length) {
+    if (!["artifact", "candidate"].includes(kind.kind) || !kind.phase.upstream.length) fail(`stamp: --pin applies to an artifact with inputs: ${rel}`);
+    const inputs = new Map();
+    for (const pin of args.pin) {
+      const located = locate(pin);
+      if (located.root !== root) fail(`stamp: --pin outside the repository: ${pin}`);
+      if (!located.rel.startsWith(`${folder}/`)) fail(`stamp: --pin outside the pipeline folder ${folder}: ${pin}`);
+      const path = located.rel.slice(folder.length + 1);
+      if (!pinnable(path)) fail(`stamp: --pin names no pipeline artifact: ${pin}`);
+      if (inputs.has(path)) fail(`stamp: --pin names ${path} twice`);
+      const pinned = read(located.rel);
+      parsed(located.rel, () => frontmatterOf(pinned));
+      inputs.set(path, identity(pinned));
+    }
+    data.inputs = [...inputs].sort(([a], [b]) => a < b ? -1 : 1).map(([path, id]) => `${path}@${id}`);
+  }
+  if (args.reviewed) {
+    if (kind.kind !== "thread") fail(`stamp: --reviewed applies to a thread: ${rel}`);
+    const thread = parsed(rel, () => parseThread(basename(inner), body.toString("utf8")));
+    if (thread.opener !== "reviewer" || thread.status !== "closed: approved") fail(`stamp: --reviewed applies to a reviewer's thread closed: approved: ${rel}`);
+    const configPath = `${folder}/run-config.md`;
+    const config = parsed(configPath, () => parseConfig(read(configPath)));
+    data.reviewed = netChange(root, config.base, requireCommit(root, "HEAD", "HEAD"), pipelinesRoot);
+  }
+  const stamped = renderFrontmatter(data, body);
+  if (!stamped.equals(bytes)) writeFileSync(join(root, rel), stamped);
 }
 
-// --- cli --------------------------------------------------------------------
+// --- pipelines --------------------------------------------------------------------
 
-const COMMAND_OPTIONS = {
-  stamp: new Set(["--pin", "--reviewed", "--mirror"]),
-  check: new Set(["--json", "--ref"]),
-  metrics: new Set(["--json", "--ref"]),
-  diff: new Set(["--ref", "--review"]),
+// The origin lines that open an intent's body.
+export function originsOf(body) {
+  const origins = [];
+  for (const line of body.split("\n")) {
+    const match = line.replace(/\r$/, "").match(/^origin:[\t ]*(.*\S)[\t ]*$/);
+    if (!match) break;
+    origins.push(match[1]);
+  }
+  return origins;
+}
+
+// Every live pipeline folder at a branch tip, and every merged one in a base branch's tree, optionally filtered by issue.
+async function cmdPipelines(args) {
+  const { root } = locate(args._[0] ?? fail("pipelines: missing <repo path>"));
+  const pipelinesRoot = pipelinesFolderRoot(root);
+  const refs = gitText(root, ["for-each-ref", "--format=%(objectname) %(objecttype) %(symref) %(refname)", "refs/heads", "refs/remotes"])
+    .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref]) => type === "commit" && !symref)
+    .map(([commit, , , refname]) => ({ commit, name: refname.replace(/^refs\/(?:heads|remotes)\//, "") }));
+  // Pipeline folders at each tip, with the files discovery reads.
+  const found = [];
+  for (const ref of refs)
+    for (const entry of lsTree(root, ref.commit, `${pipelinesRoot}/`, false))
+      if (entry.type === "tree") found.push({ ref, folder: entry.path, tree: entry.oid });
+  const files = await readObjects(root, found.flatMap(({ tree }) => [`${tree}:run-config.md`, `${tree}:0-intent/intent.md`]));
+  const parse = (where, parser) => {
+    try { return parser(); } catch (error) { if (error instanceof Invalid) fail(`pipelines: ${where}: ${error.message}`); throw error; }
+  };
+  const history = new Map();
+  // Every tree id a folder had in a base branch's history.
+  const treesInHistory = async (base, folder) => {
+    const key = `${base}\0${folder}`;
+    if (!history.has(key)) {
+      const commits = gitText(root, ["log", "--full-history", "--format=%H", base, "--", `:(top,literal)${folder}`]).split("\n").filter(Boolean);
+      const trees = gitText(root, ["cat-file", "--batch-check"], [base, ...commits].map((commit) => `${commit}:${folder}\n`).join(""))
+        .split("\n").map((line) => line.match(/^([0-9a-f]{40}|[0-9a-f]{64}) tree /)?.[1]).filter(Boolean);
+      history.set(key, new Set(trees));
+    }
+    return history.get(key);
+  };
+  const pipelines = new Map();
+  for (const [i, { ref, folder, tree }] of found.entries()) {
+    const [config, intent] = [files[2 * i], files[2 * i + 1]];
+    if (!config) fail(`pipelines: cannot read ${ref.name}:${folder}/run-config.md`);
+    const { base } = parse(`${ref.name}:${folder}/run-config.md`, () => parseConfig(config));
+    const baseCommit = requireCommit(root, base, `base of ${ref.name}:${folder}`);
+    if (!(await treesInHistory(baseCommit, folder)).has(tree)) {
+      if (!intent) fail(`pipelines: cannot read ${ref.name}:${folder}/0-intent/intent.md`);
+      pipelines.set(`${ref.name}\0${folder}`, { state: "live", ref: ref.name, commit: ref.commit, folder, origins: originsOf(parse(`${ref.name}:${folder}/0-intent/intent.md`, () => frontmatterOf(intent)).body.toString("utf8")) });
+    } else if (!pipelines.has(`${base}\0${folder}`)) {
+      const [merged] = await readObjects(root, [`${baseCommit}:${folder}/0-intent/intent.md`]);
+      if (merged) pipelines.set(`${base}\0${folder}`, { state: "merged", ref: base, commit: baseCommit, folder, origins: originsOf(parse(`${base}:${folder}/0-intent/intent.md`, () => frontmatterOf(merged)).body.toString("utf8")) });
+    }
+  }
+  const result = [...pipelines.values()].filter((pipeline) => args.issue === null || pipeline.origins.includes(`issue ${args.issue}`))
+    .sort((a, b) => a.folder.localeCompare(b.folder) || a.state.localeCompare(b.state) || a.ref.localeCompare(b.ref));
+  if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
+}
+
+// --- cli --------------------------------------------------------------------------
+
+const COMMANDS = {
+  check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
+  stamp: { run: cmdStamp, options: { "--pin": "list", "--reviewed": "flag" } },
+  pipelines: { run: cmdPipelines, options: { "--issue": "value", "--json": "flag" } },
 };
 
-function parseArgs(command, argv) {
-  const args = { _: [], pin: [], reviewed: [], mirror: false, json: false, ref: null };
+export function parseArgs(command, argv) {
+  const { options } = COMMANDS[command];
+  const args = { _: [], pin: [], reviewed: false, json: false, ref: null, issue: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    // Every option is validated here: an unknown one, a missing value, or a value out of range is an error.
-    const value = () => (i + 1 < argv.length ? argv[++i] : die(`${a} expects a value`));
-    if (a.startsWith("--") && !COMMAND_OPTIONS[command].has(a)) die(`${command}: option ${a} is not allowed`);
-    if (a.startsWith("--") && !["--pin", "--reviewed"].includes(a) && used.has(a)) die(`${command}: ${a} may appear only once`);
-    if (a.startsWith("--")) used.add(a);
-    if (a === "--pin") args.pin.push(value());
-    else if (a === "--reviewed") args.reviewed.push(value());
-    else if (a === "--mirror") args.mirror = true;
-    else if (a === "--json") args.json = true;
-    else if (a === "--ref") args.ref = value();
-    else if (a === "--review") args.review = value();
-    else if (a.startsWith("--")) die(`unknown option: ${a}`);
-    else args._.push(a);
+    const arg = argv[i];
+    if (!arg.startsWith("--")) { args._.push(arg); continue; }
+    const type = options[arg] ?? fail(`${command}: unknown option: ${arg}`);
+    if (type !== "list" && used.has(arg)) fail(`${command}: ${arg} may appear only once`);
+    used.add(arg);
+    const key = arg.slice(2);
+    if (type === "flag") { args[key] = true; continue; }
+    const value = i + 1 < argv.length ? argv[++i] : fail(`${command}: ${arg} expects a value`);
+    if (type === "list") args[key].push(value); else args[key] = value;
   }
-  if (args._.length > 1) die(`${command}: unexpected positional argument: ${args._[1]}`);
+  if (args._.length > 1) fail(`${command}: unexpected argument: ${args._[1]}`);
   return args;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
-  const [cmd, ...rest] = process.argv.slice(2);
-  const help = () =>
-    process.stdout.write(
-      `rp — Radical Pipelines state tooling
+const USAGE = `rp — Radical Pipelines state tooling
 
 Usage:
-  node rp.mjs stamp <file> [--pin <path>]... [--reviewed <path>]... [--mirror]
-  node rp.mjs check <pipeline-folder> [--ref <branch>] [--json]
-  node rp.mjs metrics <pipeline-folder> [--ref <branch>] [--json]
-  node rp.mjs diff <pipeline-folder> [--ref <branch>] [--review <phase review>]
+  node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
+  node rp.mjs stamp <file> [--pin <path>]... [--reviewed]
+  node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
 
-stamp writes frontmatter: pins, review pins (immutable), the lane derived from
-the path and run-config.md, --mirror copies of body declarations (verdict, brief, target,
-origin, outcome — completed | failed | blocked — prior-finding, a task's
-depends-on, a report's commit lines), a report's patch ids, and head — the diff base
-for artifact reviews and convergence. Identity is the first 12 hexadecimal characters of
-git's blob hash of every body byte: stamping never
-changes it. check reports the frontier: contradictions, owner escalations,
-then phases in order up to the target — converge artifacts, review waves, tasks,
-and completion. run-config.md supplies the workflow, target phase, base branch,
-and named lanes. Each named lane's fingerprint derives
-from its id, brief, materials, and after fields.
-metrics measures the success metrics: elapsed time, each later input and the
-waves its targets took to accept it, which phases ran autonomously, and whether
-the target was reached without human intervention.
-diff renders the net change from the base, or with --review that phase review's
-code delta.
-Spec: ../reference/run/state.md
-`,
-    );
-  if (!cmd || cmd === "--help" || cmd === "-h") {
-    help();
-  } else if (!COMMAND_OPTIONS[cmd]) {
-    die(`unknown command: ${cmd}`);
-  } else {
-    const args = parseArgs(cmd, rest);
-  switch (cmd) {
-    case "stamp":
-      try { await cmdStamp(args); }
-      catch (error) { die(error.message); }
-      break;
-    case "check":
-      try { await cmdCheck(args); }
-      catch (error) { die(error.message); }
-      break;
-    case "metrics":
-      try { await cmdMetrics(args); }
-      catch (error) { die(error.message); }
-      break;
-    case "diff":
-      try { await cmdDiff(args); }
-      catch (error) { die(error.message); }
-      break;
-  }
+See README.md beside this script.
+`;
+
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  const [command, ...rest] = process.argv.slice(2);
+  try {
+    if (!command || command === "--help" || command === "-h") process.stdout.write(USAGE);
+    else if (!Object.hasOwn(COMMANDS, command)) fail(`unknown command: ${command}`);
+    else await COMMANDS[command].run(parseArgs(command, rest));
+  } catch (error) {
+    if (!(error instanceof RpError)) throw error;
+    process.stderr.write(`rp: ${error.message}\n`);
+    process.exitCode = 1;
   }
 }
