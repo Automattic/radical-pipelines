@@ -163,7 +163,7 @@ A thread, its four header lines first:
 status: open | closed: approved | closed: withdrawn | disagreement
 opener: <role>
 owner: <role>
-artifact: <artifact>
+artifact: intent | spec | design-doc | implementation
 
 ## <your role> — <commit>
 
