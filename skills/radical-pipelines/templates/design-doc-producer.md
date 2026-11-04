@@ -2,40 +2,40 @@
 
 - Worktree: <absolute path>
 - Branch: <branch>
-- Commit format: <convention>
-- Guardrails: <rules | none>
-- Resources: <resources | none>
-- Execution: <inspection only | experiment>
 - Supporting folder: <path>
-
-## Brief
-
-<the lane's brief; omit the section without one>
-
-## Write to
-
-<the phase folder — root, or `lanes/<lane>/` — where your artifact and record land>
 
 ## Mode
 
-<Converge | Consolidate>
+<Produce | Respond | Consolidate>
+
+## Brief
+
+<the lane's brief; optional>
 
 ## Materials
 
-<!-- Standing: every mode -->
-- Intent: <path>
-- Phase folder: <one line per existing file: path>
-- Spec: <spec.md path>; <spec-research.md path>; <approving spec review paths>
-- design-doc.md: <path>
-- design-doc-research.md: <path>
-- Challenge: <challenge path>; <origin chain: review and record paths>   <!-- one per pending constraint, proposal, reported failure, or claim -->
-- Task report: <challenge path>; <origin chain: review and record paths>   <!-- one per pending failed report -->
+- Intent: <0-intent/intent.md path>
+- Spec: <1-spec/spec.md path>
+- Later inputs: <one line per constraint, proposal, or failure file targeting 2-design-doc/design-doc.md: path>
+- Changed inputs: <one line per changed input: path — changed since <commit>>   <!-- Respond -->
+- Lane candidates: <one line per lane: id — candidate path>   <!-- Consolidate -->
 
-<!-- Converge: additions, each when it applies -->
-- Lane inputs: <one line per consumed lane: artifact path; record path; approving review paths>   <!-- production lanes with `after` -->
-- Input changes: <package change>
-- Review lanes: <one line per review of the closed wave: lane — path>
-- Lane folders: <one line per lane: id — folder>   <!-- consolidations only -->
+## Threads addressed to you
 
-<!-- Consolidate: additions -->
-- Lane candidates: <one line per lane: id — read-only folder; design-doc.md path, design-doc-research.md path, approving review paths>
+<one line per thread: path | none>
+
+## Write to
+
+<2-design-doc/design-doc.md | 2-design-doc/lanes/<lane>/design-doc.md>
+
+## Guardrails
+
+<blocks | none>
+
+## Resources
+
+<blocks | none>
+
+## Commit format
+
+<convention>

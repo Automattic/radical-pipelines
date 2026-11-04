@@ -1,11 +1,14 @@
 # Prompt templates
 
-One template per profile. The orchestrator builds every prompt from its template: fill every slot, keep the headings verbatim — the profile references them by name — include only the Materials block of the selected mode, and list materials as explicit paths. An agent's materials are exactly what its prompt lists.
+One template per profile. Build every prompt from its template: fill every slot, keep the headings verbatim — the profile refers to them by name — and list materials as explicit paths. Keep only the material lines of the selected mode, and omit a section marked optional when it has nothing. A role's materials are exactly what its prompt lists.
 
 Slots:
 
-- `Seat` — Worktree, Branch, Commit format, Guardrails and Resources (`none` when the project has none), Execution (`inspection only` | `experiment` | `full`), Supporting folder.
-- `Brief` — a named lane's brief, verbatim; omitted for the implicit lane.
-- `Mode` — per profile.
-- `Materials` — per profile, filtered by the lane's `materials` when it declares them.
-- `Write to` / `Write your review to` / `Write your report to` — the folder or path the orchestrator computed (`../reference/run/state.md` § Names).
+- `Seat` — Worktree, Branch, and Supporting folder (`../reference/run/state.md` § Names); the implementer adds its Base branch, a reviewer its Lane.
+- `Mode` — one of the profile's modes.
+- `Brief` — a lane's brief, verbatim.
+- `Materials` — per mode.
+- `Threads addressed to you` — every thread awaiting the role, or `none`.
+- `Write to` — the artifact path, or `threads/` for a reviewer.
+- `Guardrails`, `Resources` — the `.rp.md` blocks whose `agents` include the profile, or `none`.
+- `Commit format` — the **Commit format** convention.
