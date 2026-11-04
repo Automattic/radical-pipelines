@@ -64,8 +64,8 @@ function gitStream(root, args, input) {
 }
 
 // Object contents through one streamed `git cat-file --batch`: a Buffer per name, or null when the name is missing.
-// A name is an object id or `<tree-ish>:<path>`; any object other than a blob stops the command.
-async function readObjects(root, names) {
+// A name is an object id or `<tree-ish>:<path>`; an object of a type outside `types` stops the command.
+async function readObjects(root, names, types = ["blob"]) {
   if (!names.length) return [];
   for (const name of names) if (/[\n\r]/.test(name)) fail(`cannot read object with a newline in its name: ${JSON.stringify(name)}`);
   const batch = gitStream(root, ["cat-file", "--batch"], names.map((name) => `${name}\n`).join(""));
@@ -111,7 +111,7 @@ async function readObjects(root, names) {
       if (!metadata) throw new Error(`invalid batch response: ${header}`);
       const content = await bytes(Number(metadata[3]));
       if ((await bytes(1))[0] !== 10) throw new Error("invalid batch object terminator");
-      if (metadata[2] !== "blob") throw new Error(`not a file: ${metadata[2]}`);
+      if (!types.includes(metadata[2])) throw new Error(`not a ${types.join(" or ")}: ${metadata[2]}`);
       contents.push(content);
     }
     if (await available()) throw new Error("unexpected trailing batch output");
@@ -126,6 +126,26 @@ async function readObjects(root, names) {
   }
   return contents;
 }
+
+// A raw tree object's entries: mode, name, and object id; `hexLength` is the repository's object id length.
+function treeEntries(bytes, hexLength) {
+  const entries = [];
+  for (let at = 0; at < bytes.length;) {
+    const space = bytes.indexOf(32, at), nul = bytes.indexOf(0, space);
+    if (space === -1 || nul === -1 || nul + 1 + hexLength / 2 > bytes.length) fail("cannot read a tree object: truncated entry");
+    entries.push({ mode: bytes.subarray(at, space).toString("ascii").padStart(6, "0"), name: bytes.subarray(space + 1, nul).toString("utf8"),
+      oid: bytes.subarray(nul + 1, nul + 1 + hexLength / 2).toString("hex") });
+    at = nul + 1 + hexLength / 2;
+  }
+  return entries;
+}
+// Each tree's entries by name, read through one batch; a missing tree has none.
+async function readTrees(root, oids) {
+  const distinct = [...new Set(oids)];
+  const contents = await readObjects(root, distinct, ["tree"]);
+  return new Map(distinct.map((oid, i) => [oid, new Map(contents[i] ? treeEntries(contents[i], oid.length).map((entry) => [entry.name, entry]) : [])]));
+}
+const REGULAR = ["100644", "100755"];
 
 // `git ls-tree -z` entries under a tree-ish, with their mode, type, object id, and path.
 function lsTree(root, treeish, path, recursive) {
@@ -331,11 +351,28 @@ async function readCommit(root, commit, folder, reads = null) {
 
 // --- parsing ----------------------------------------------------------------------
 
-// run-config.md: target phase, base, and lanes. Its body is ignored.
+// The conventions format this script reads and writes.
+export const FORMAT = 6;
+// The format a pipeline was written under: the integer `format` in run-config.md's JSON frontmatter, else `earlier`
+// (no run-config.md, no frontmatter, unreadable frontmatter, or no integer `format`). Nothing else is read.
+export function formatOf(bytes) {
+  if (!bytes) return "earlier";
+  const { json } = splitFrontmatter(bytes);
+  try { const format = JSON.parse(json ?? "null")?.format; return Number.isInteger(format) ? format : "earlier"; }
+  catch { return "earlier"; }
+}
+// Stops unless a pipeline is of the current format; `path` names its run-config.md.
+function requireFormat(bytes, path) {
+  const format = formatOf(bytes);
+  if (format === "earlier" || format < FORMAT) fail(`${path}: pipeline of an earlier format; it is not continued`);
+  if (format > FORMAT) fail(`${path}: pipeline of a newer format ${format}; update the skill`);
+}
+
+// run-config.md: format, target phase, base, and lanes. Its body is ignored.
 export function parseConfig(bytes) {
   const { data, stamped } = frontmatterOf(bytes);
   if (!stamped) invalid("no frontmatter");
-  onlyKeys(data, ["target-phase", "base", "lanes"]);
+  onlyKeys(data, ["format", "target-phase", "base", "lanes"]);
   const targetPhase = data["target-phase"];
   if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) invalid("target-phase must be an integer from 1 to 4");
   if (typeof data.base !== "string" || !data.base.trim()) invalid("base must be a branch name");
@@ -447,10 +484,11 @@ export function parseThread(name, body) {
 
 // Every file of a pipeline, parsed. A malformed file is collected as invalid, never computed from;
 // a missing or invalid run-config.md, or a missing intent, stops the command.
-export function readState(files) {
-  if (!files.has("run-config.md")) fail("cannot read run-config.md: missing");
-  if (!files.has(INTENT)) fail(`cannot read ${INTENT}: missing`);
-  const config = parseOrFail("run-config.md", () => parseConfig(files.get("run-config.md")));
+// `where` names the pipeline folder in messages.
+export function readState(files, where) {
+  requireFormat(files.get("run-config.md"), `${where}/run-config.md`);
+  if (!files.has(INTENT)) fail(`cannot read ${where}/${INTENT}: missing`);
+  const config = parseOrFail(`${where}/run-config.md`, () => parseConfig(files.get("run-config.md")));
   const state = { config, docs: new Map(), threads: [], invalid: [] };
   for (const [path, bytes] of [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
     const kind = kindOf(path);
@@ -613,7 +651,7 @@ async function cmdCheck(args) {
   const { root, rel } = locate(args._[0] ?? fail("check: missing <pipeline folder>"));
   const { folder, pipelinesRoot } = pipelineFolder(rel, "check");
   const tip = args.ref ? requireCommit(root, args.ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
-  const state = readState(args.ref ? await readCommit(root, tip, folder) : readWorktree(root, folder));
+  const state = readState(args.ref ? await readCommit(root, tip, folder) : readWorktree(root, folder), args.ref ? `${args.ref}:${folder}` : folder);
   const target = state.config.targetPhase;
   const base = target === REVIEW_PHASE ? baseOf(root, state.config.base, tip) : null;
   const judged = new Map();
@@ -679,7 +717,7 @@ async function cmdStamp(args) {
   // whether it applies), the subject's upstream artifacts, and the candidates `--pin` names.
   const upstream = upstreamOf(subject);
   const reads = (path) => path === "run-config.md" || path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || pinned.includes(path);
-  const state = readState(await readCommit(root, commit, folder, reads));
+  const state = readState(await readCommit(root, commit, folder, reads), `${args.at}:${folder}`);
   if (state.invalid.length) fail(`stamp: ${commit}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
   if (kind.kind === "candidate" && !productionLanes(state.config, kind.phase).some((lane) => lane.id === kind.lane)) fail(`stamp: ${rel}: production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
   const inputs = new Map();
@@ -710,50 +748,60 @@ export function originsOf(body) {
   return origins;
 }
 
-// Every live pipeline folder at a branch tip, and every merged one in a base branch's tree, optionally filtered by issue.
+// What discovery reads of a pipeline folder tree: its format and the origins its intent opens with. A pipeline of the
+// current format without an intent is malformed and stops the command; any other file or key is never read.
+async function discoverFolders(root, folders, where) {
+  const trees = await readTrees(root, folders.map((folder) => folder.tree));
+  const intentFolders = await readTrees(root, [...trees.values()].map((entries) => entries.get("0-intent")).filter((entry) => entry?.mode === "040000").map((entry) => entry.oid));
+  const regular = (entry) => REGULAR.includes(entry?.mode) ? entry.oid : null;
+  const oids = folders.map(({ tree }) => {
+    const entries = trees.get(tree), intentFolder = entries.get("0-intent");
+    return { config: regular(entries.get("run-config.md")), intent: intentFolder?.mode === "040000" ? regular(intentFolders.get(intentFolder.oid).get("intent.md")) : null };
+  });
+  const wanted = [...new Set(oids.flatMap(({ config, intent }) => [config, intent]).filter(Boolean))];
+  const blobs = new Map((await readObjects(root, wanted)).map((content, i) => [wanted[i], content]));
+  return folders.map((folder, i) => {
+    const format = formatOf(oids[i].config && blobs.get(oids[i].config));
+    const intent = oids[i].intent && blobs.get(oids[i].intent);
+    if (!intent && format === FORMAT) fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
+    return { ...folder, format, origins: intent ? originsOf(splitFrontmatter(intent).body.toString("utf8")) : [] };
+  });
+}
+
+// Every live pipeline folder at a branch tip, and every merged one in the base branch's tree, optionally filtered by issue.
 async function cmdPipelines(args) {
   const { root } = locate(args._[0] ?? fail("pipelines: missing <repo path>"));
+  const baseCommit = requireCommit(root, args.base ?? fail("pipelines: --base <artifact base branch> is required"), "--base");
   const pipelinesRoot = pipelinesFolderRoot(root);
   const refs = gitText(root, ["for-each-ref", "--format=%(objectname) %(objecttype) %(symref) %(refname)", "refs/heads", "refs/remotes"])
     .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref]) => type === "commit" && !symref)
     .map(([commit, , , refname]) => ({ commit, name: refname.replace(/^refs\/(?:heads|remotes)\//, "") }));
-  // Pipeline folders at each tip, with the files discovery reads.
-  const found = [];
-  for (const ref of refs)
-    for (const entry of lsTree(root, ref.commit, `${pipelinesRoot}/`, false))
-      if (entry.type === "tree") found.push({ ref, folder: entry.path, tree: entry.oid });
-  const files = await readObjects(root, found.flatMap(({ tree }) => [`${tree}:run-config.md`, `${tree}:0-intent/intent.md`]));
-  const parse = (where, parser) => parseOrFail(`pipelines: ${where}`, parser);
-  const history = new Map();
-  // Every tree id a folder had in a base branch's history.
-  const treesInHistory = async (base, folder) => {
-    const key = `${base}\0${folder}`;
-    if (!history.has(key)) {
-      const commits = gitText(root, ["log", "--full-history", "--format=%H", base, "--", `:(top,literal)${folder}`]).split("\n").filter(Boolean);
-      const trees = gitText(root, ["cat-file", "--batch-check"], [base, ...commits].map((commit) => `${commit}:${folder}\n`).join(""))
-        .split("\n").map((line) => line.match(/^([0-9a-f]{40}|[0-9a-f]{64}) tree /)?.[1]).filter(Boolean);
-      history.set(key, new Set(trees));
-    }
-    return history.get(key);
+  // The pipelines folder root's tree at a list of commits, through one batch; a commit without it has none.
+  const rootTrees = async (commits) => {
+    const listing = gitText(root, ["cat-file", "--batch-check"], commits.map((commit) => `${commit}:${pipelinesRoot}\n`).join("")).split("\n");
+    return commits.map((_, i) => listing[i]?.match(/^([0-9a-f]{40}|[0-9a-f]{64}) tree /)?.[1] ?? null);
   };
-  const pipelines = new Map();
-  for (const [i, { ref, folder, tree }] of found.entries()) {
-    const [config, intent] = [files[2 * i], files[2 * i + 1]];
-    if (!config) fail(`pipelines: cannot read ${ref.name}:${folder}/run-config.md`);
-    const { base } = parse(`${ref.name}:${folder}/run-config.md`, () => parseConfig(config));
-    const baseCommit = requireCommit(root, base, `base of ${ref.name}:${folder}`);
-    if (!(await treesInHistory(baseCommit, folder)).has(tree)) {
-      if (!intent) fail(`pipelines: cannot read ${ref.name}:${folder}/0-intent/intent.md`);
-      pipelines.set(`${ref.name}\0${folder}`, { state: "live", ref: ref.name, commit: ref.commit, folder, origins: originsOf(parse(`${ref.name}:${folder}/0-intent/intent.md`, () => frontmatterOf(intent)).body.toString("utf8")) });
-    } else if (!pipelines.has(`${base}\0${folder}`)) {
-      const [merged] = await readObjects(root, [`${baseCommit}:${folder}/0-intent/intent.md`]);
-      if (merged) pipelines.set(`${base}\0${folder}`, { state: "merged", ref: base, commit: baseCommit, folder, origins: originsOf(parse(`${base}:${folder}/0-intent/intent.md`, () => frontmatterOf(merged)).body.toString("utf8")) });
-    }
-  }
-  const result = [...pipelines.values()].filter((pipeline) => args.issue === null || pipeline.origins.includes(`issue ${args.issue}`))
+  // The pipeline folders under each root tree.
+  const foldersOf = async (trees) => {
+    const read = await readTrees(root, trees.filter(Boolean));
+    return trees.map((tree) => tree ? [...read.get(tree).values()].filter((entry) => entry.mode === "040000") : []);
+  };
+  // Every tree id each folder had in the base branch's history.
+  const history = gitText(root, ["log", "--full-history", "--format=%H", baseCommit, "--", `:(top,literal)${pipelinesRoot}`]).split("\n").filter(Boolean);
+  const seen = new Set((await foldersOf(await rootTrees([baseCommit, ...history]))).flat().map((entry) => `${entry.name}\0${entry.oid}`));
+  const live = [];
+  const tipFolders = await foldersOf(await rootTrees(refs.map((ref) => ref.commit)));
+  for (const [i, ref] of refs.entries())
+    for (const entry of tipFolders[i])
+      if (!seen.has(`${entry.name}\0${entry.oid}`)) live.push({ state: "live", ref: ref.name, commit: ref.commit, folder: `${pipelinesRoot}/${entry.name}`, tree: entry.oid });
+  const [baseFolders] = await foldersOf(await rootTrees([baseCommit]));
+  const merged = baseFolders.map((entry) => ({ state: "merged", ref: args.base, commit: baseCommit, folder: `${pipelinesRoot}/${entry.name}`, tree: entry.oid }));
+  const pipelines = await discoverFolders(root, [...live, ...merged], (pipeline) => `${pipeline.ref}:${pipeline.folder}`);
+  const result = pipelines.filter((pipeline) => args.issue === null || pipeline.origins.includes(`issue ${args.issue}`))
+    .map(({ state, format, ref, commit, folder, origins }) => ({ state, format, ref, commit, folder, origins }))
     .sort((a, b) => a.folder.localeCompare(b.folder) || a.state.localeCompare(b.state) || a.ref.localeCompare(b.ref));
   if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
+  if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.format} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
 }
 
 // --- cli --------------------------------------------------------------------------
@@ -761,12 +809,12 @@ async function cmdPipelines(args) {
 const COMMANDS = {
   check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
   stamp: { run: cmdStamp, options: { "--at": "value", "--pin": "list" } },
-  pipelines: { run: cmdPipelines, options: { "--issue": "value", "--json": "flag" } },
+  pipelines: { run: cmdPipelines, options: { "--base": "value", "--issue": "value", "--json": "flag" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null };
+  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null, base: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -788,7 +836,7 @@ const USAGE = `rp — Radical Pipelines state tooling
 Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
   node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
-  node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
+  node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
 
 See README.md beside this script.
 `;

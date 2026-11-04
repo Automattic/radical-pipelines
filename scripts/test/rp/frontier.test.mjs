@@ -52,19 +52,23 @@ describe("frontier", () => {
 
   describe("a configuration that cannot be read stops the command", () => {
     const configurations = [
-      ["run-config.md missing", () => remove("run-config.md"), /cannot read run-config.md: missing/],
-      ["run-config.md without frontmatter", () => write("run-config.md", "target-phase: 4\n"), /run-config.md: no frontmatter/],
+      ["run-config.md missing", () => remove("run-config.md"), /\.pipelines\/demo\/run-config.md: pipeline of an earlier format; it is not continued/],
+      ["run-config.md without format", () => write("run-config.md", '---\n{"target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
+      ["an earlier format", () => write("run-config.md", '---\n{"format": 5, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
+      ["a format that is not an integer", () => write("run-config.md", '---\n{"format": "6", "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format/],
+      ["a newer format", () => write("run-config.md", '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of a newer format 7; update the skill/],
+      ["run-config.md without frontmatter", () => write("run-config.md", "target-phase: 4\n"), /run-config.md: pipeline of an earlier format/],
       ["target-phase out of range", () => configure({ targetPhase: 5 }), /target-phase/],
       ["target-phase not an integer", () => configure({ targetPhase: "4" }), /target-phase/],
       ["an empty base", () => configure({ base: " " }), /base must be/],
-      ["an unknown key", () => write("run-config.md", '---\n{"target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /unexpected frontmatter key: workflow/],
+      ["an unknown key", () => write("run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /unexpected frontmatter key: workflow/],
       ["an empty lanes list", () => configure({ lanes: [] }), /lanes must be a non-empty list/],
       ["a lane with an unknown profile", () => configure({ lanes: [lane("spec-reviewer", "a")] }), /lane profile/],
       ["a lane without brief", () => configure({ lanes: [{ profile: "reviewer", id: "a" }] }), /needs a brief/],
       ["a lane with a malformed id", () => configure({ lanes: [lane("reviewer", "A b")] }), /lane id/],
       ["a lane with a model", () => configure({ lanes: [{ ...lane("reviewer", "a"), model: "x" }] }), /unexpected lane key: model/],
       ["a duplicate lane", () => configure({ lanes: [lane("reviewer", "a"), lane("reviewer", "a")] }), /duplicate lane/],
-      ["the intent missing", () => remove(INTENT), /cannot read 0-intent\/intent.md: missing/],
+      ["the intent missing", () => remove(INTENT), /cannot read \.pipelines\/demo\/0-intent\/intent.md: missing/],
     ];
     for (const [name, mutate, message] of configurations)
       it(`on ${name}`, () => {

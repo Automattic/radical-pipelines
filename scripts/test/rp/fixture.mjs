@@ -44,7 +44,7 @@ export const read = (rel) => readFileSync(abs(P(rel)), "utf8");
 export const remove = (rel) => rmSync(abs(P(rel)), { force: true, recursive: true });
 
 export function configure({ targetPhase = 4, base = "main", lanes } = {}) {
-  write("run-config.md", `---\n${JSON.stringify({ "target-phase": targetPhase, base, ...(lanes ? { lanes } : {}) }, null, 2)}\n---\n`);
+  write("run-config.md", `---\n${JSON.stringify({ format: 6, "target-phase": targetPhase, base, ...(lanes ? { lanes } : {}) }, null, 2)}\n---\n`);
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 

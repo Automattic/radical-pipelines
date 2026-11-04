@@ -179,7 +179,9 @@ describe("stamp validates only what it reads at the turn's commit", () => {
     ["a later input whose target: line is malformed", () => { write("0-intent/proposal-1.md", "target: elsewhere.md\n"); return commitAll("bad target"); }, DESIGN, /proposal-1.md: target must name/],
     ["a malformed required input", () => { write(SPEC, "---\n{\n---\n# Spec\n"); return commitAll("bad spec"); }, DESIGN, /1-spec\/spec.md: frontmatter is not valid JSON/],
     ["a folder where a required input belongs", () => { remove(SPEC); write(`${SPEC}/x`, "x\n"); return commitAll("spec folder"); }, DESIGN, /1-spec\/spec.md: a folder where a pipeline file belongs/],
-    ["a malformed run-config.md", () => { write("run-config.md", "---\n{}\n---\n"); return commitAll("bad config"); }, DESIGN, /run-config.md: target-phase/],
+    ["a run-config.md of an earlier format", () => { write("run-config.md", '---\n{"target-phase": 4, "base": "main"}\n---\n'); return commitAll("old config"); }, DESIGN, /run-config.md: pipeline of an earlier format; it is not continued/],
+    ["a run-config.md of a newer format", () => { write("run-config.md", '---\n{"format": 7}\n---\n'); return commitAll("new config"); }, DESIGN, /run-config.md: pipeline of a newer format 7; update the skill/],
+    ["a malformed run-config.md", () => { write("run-config.md", '---\n{"format": 6}\n---\n'); return commitAll("bad config"); }, DESIGN, /run-config.md: target-phase/],
   ];
   for (const [what, setup, file, reason] of cases)
     it(`${reason ? "stops on" : "ignores"} ${what}`, () => {
@@ -283,7 +285,7 @@ describe("stamp refuses", () => {
     });
 
   it("a folder that has no parent pipelines folder root", () => {
-    for (const [rel, contents] of [["demo/run-config.md", '---\n{"target-phase": 1, "base": "main"}\n---\n'], ["demo/0-intent/intent.md", "# I\n"], ["demo/1-spec/spec.md", "# S\n"]]) writeFile(rel, contents);
+    for (const [rel, contents] of [["demo/run-config.md", '---\n{"format": 6, "target-phase": 1, "base": "main"}\n---\n'], ["demo/0-intent/intent.md", "# I\n"], ["demo/1-spec/spec.md", "# S\n"]]) writeFile(rel, contents);
     const out = run("stamp", abs("demo/1-spec/spec.md"), "--at", "HEAD");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /a pipeline folder is <pipelines folder root>\/<pipeline slug>: demo/);
