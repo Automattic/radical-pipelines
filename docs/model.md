@@ -22,7 +22,7 @@ v4 keeps the promises and removes the structures that produced the failures.
 5. **The burden is on the clause.** A requirement or decision the owner did not state stands only with a trace to the intent and an input observed in intended use. In a dispute, observed stands and conceivable falls. A case dropped by mistake returns as a reported failure, as an observation; a mechanism kept by mistake stays forever.
 6. **Review the result, not the process.** One review, at the end, of the diff against the intent, by a reviewer who has not seen the discussion. Upstream artifacts are reviewed by the roles that consume them, while consuming them.
 7. **Redundancy by design, the same for every pipeline.** Where a second independent reading pays, the project configures it once for all its pipelines. Nobody estimates a task's difficulty.
-8. **Every turn starts from files.** A role reads its artifact, its inputs, and its threads, works, writes, and ends its turn. A role that dies is replaced by one that reads the same files.
+8. **Every turn starts from files.** A role reads its assignment, its artifact, its inputs, and its threads, works, writes, and ends its turn. A role that dies or compacts rereads the same files.
 
 ## Phases and artifacts
 
@@ -90,9 +90,11 @@ A review lane approves by closing its thread `approved` at the commit its turn s
 - **`implementer`.** Owns the code, tests, documentation, and `notes.md`. Modes: implement, respond.
 - **`reviewer`.** Owns its review thread. One mode.
 
-There is no helper profile. Every role delegates bounded work to its tool's subagents, in its own worktree, and remains responsible for the result.
+There is no helper profile. Every role delegates bounded work to its tool's subagents, in its own worktree, on the subagent model its assignment names, and remains responsible for the result. The project's **Agents** convention sets that model per profile and lane; without one, it is the role's own model.
 
 Roles persist within a phase when the tool allows it and are replaced by a fresh instance when it does not. A fresh instance reads the same files and continues. Roles are fresh across phases: the design doc's producer is never the spec's.
+
+**Assignments.** A role's prompt is a file, not a message: the orchestrator writes the filled template to `git rev-parse --git-path rp/<profile>.md` in the role's worktree — the worktree's private git directory, outside the tree — before every spawn and wake, and the message that starts a turn only says to read it. The profile, which is the role's system prompt, names that path. A compaction summarizes a role's messages but keeps its system prompt and its working directory, so the role can always reread its seat, materials, rules, and subagent model. No two instances of one profile share a worktree.
 
 ## Observation
 
