@@ -79,6 +79,7 @@ Every turn ends the same way: evaluate every rule under **Findings** and **Guard
 - A measurement from an earlier run is evidence for an assumption, never an observation.
 - Reuse an observation an upstream artifact records while the code it observed is unchanged; observe again what you bind an interface on or must verify yourself.
 - A claimed cause explains every observation and is distinguished from the competing causes by experiments; an unestablished cause names the observation that would establish it.
+- Report every observation that bears against a claim you make, with what explains it or that it is unexplained.
 
 **Threads**
 

@@ -104,6 +104,7 @@ Every role runs with full execution: it reads, runs, builds, drives the software
 
 - A claim about the present is observed, and the artifact states how.
 - A claim about the solution is assumed, and the artifact states what will confirm it.
+- An observation that bears against a claim is reported with the claim, with what explains it or that it is unexplained.
 
 A producer writes no solution code. A probe that answers "what does X do today" is observation; a spike that answers "would my approach work" is building, and belongs to the implementer.
 
