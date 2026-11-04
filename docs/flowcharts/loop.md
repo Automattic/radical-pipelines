@@ -25,7 +25,7 @@ flowchart TD
     AUTHOR --> WAIT
     WAIT["End the turn; resume on role reports and health ticks"] --> ENDED{"Every woken role ended its turn?"}
     ENDED -->|No| WAIT
-    ENDED -->|Yes| LAND["For each role: merge its lane branch into the pipeline branch; stamp its artifact and every review thread it closed approved; commit the stamps"]
+    ENDED -->|Yes| LAND["For each role, in its worktree: stamp its artifact and every review thread it closed approved; commit the stamps; then merge its lane branch into the pipeline branch"]
     LAND --> PC["Fire phase-completed for each phase that became complete; report one line per role to the owner"]
     PC --> A
 ```

@@ -3,7 +3,7 @@
 Read-only. The owner wants to know where things stand: one pipeline, or everything for an issue.
 
 1. `git fetch`.
-2. One pipeline: `rp check <pipeline folder> --json`. An issue: `rp pipelines <repo path> --issue <canonical issue reference>` (`../run/state.md` § Discovery), then the same check on each pipeline found.
+2. One pipeline: `rp check <pipeline folder> --json`. An issue: `rp pipelines <repo path> --issue <canonical issue reference>` (`../run/state.md` § Discovery), then the same check on each live pipeline found. Report a merged pipeline as `rp pipelines` lists it, reading its files from the base branch's tree.
 3. Render, per pipeline, from the check and the tree:
    - pipeline slug, branch, live or merged;
    - `origin`: issue; starts-from or re-attempts;

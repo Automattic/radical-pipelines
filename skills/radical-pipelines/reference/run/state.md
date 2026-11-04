@@ -3,7 +3,7 @@
 Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with three commands:
 
 - `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
-- `rp stamp <file>` writes the file's frontmatter (§ Frontmatter).
+- `rp stamp <file> [--pin <path>]...` writes the file's frontmatter (§ Frontmatter).
 - `rp pipelines <repo path> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery).
 
 `check` and `stamp` derive the pipelines folder root from the path they are given; `pipelines` reads it from the project's conventions, `.rp.local.md` first.
@@ -44,12 +44,12 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
   | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
   | A review thread closed `approved` | `0-intent/intent.md`; every later input; `1-spec/spec.md` |
 
-  Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record.
+  Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record: land it with `rp stamp <root> --pin <each candidate>`.
 
 - **Stale** — an artifact or an approved review thread with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its first body line is `status: done`.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
-- **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is a hash of the changed lines alone: the diff with no context lines, with hunk headers and index lines removed. A merge from the base that changes nothing of the change leaves it unchanged; a change of whitespace changes it.
+- **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is a hash of the changed lines with one line of context on each side, hunk headers and index lines removed: the context locates each edit. A merge from the base that touches nothing adjacent to the change leaves it unchanged; a change of whitespace changes it.
 - **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause.
 
 ## Frontmatter
@@ -58,10 +58,10 @@ Frontmatter is a JSON object between `---` lines at the top of a file. Only `rp 
 
 | Key | File | Value |
 | --- | --- | --- |
-| `inputs` | An artifact, or a review thread closed `approved` | List of pins: every required input at its identity in the tree stamped; on a consolidated root, also the candidates it merged |
+| `inputs` | An artifact, or a review thread closed `approved` | List of pins: every required input at its identity in the commit that last changed the file; on a consolidated root, also each candidate passed with `--pin` |
 | `reviewed` | A review thread closed `approved` (§ Threads) | The net change's id at the commit its last message names |
 
-No other file carries frontmatter. `rp stamp <file>` derives the required inputs from the file's kind and pins them at their identities in the tree it runs on. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the stamps on top.
+No other file carries frontmatter. `rp stamp <file>` derives the required inputs from the file's kind and pins them at their identities in the tree of the commit that last changed the file: the role's own commit. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the stamps on top.
 
 ## Threads
 
@@ -94,7 +94,7 @@ Lane ids start with a lowercase letter or digit and continue with those or hyphe
 
 Its body is free prose — the model of each profile and lane, the owner's directions for the run; `rp` ignores it.
 
-The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. In that commit, remove a dropped production lane's folder. Terminate agents working under a changed lane.
+The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes its open threads `closed: withdrawn`. Terminate agents working under a changed lane.
 
 ## Names
 

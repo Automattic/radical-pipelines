@@ -48,7 +48,7 @@ Throughout the run:
 A production lane is a `spec-producer` or `design-doc-producer` lane declared in `run-config.md`; it writes a candidate.
 
 1. For each `lane <artifact> <id>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Wake the lane's producer there — mode produce when its candidate is missing, else respond — with its **Brief**, its **Threads addressed to you**, and **Write to** `<phase folder>/lanes/<id>/<artifact>.md`. Lanes run in parallel.
-2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**.
+2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**. Land it with `rp stamp <root> --pin <each candidate>`.
 
 ## Review lanes
 
