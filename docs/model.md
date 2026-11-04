@@ -80,7 +80,7 @@ Its findings are proportion and correctness against the intent: behavior the int
 
 Each finding is addressed to the owner of what it questions: the implementer for code; the spec's owner for a requirement, cited by id; the design doc's owner for a decision, cited by id. After the first message the reviewer may read the design doc and the threads.
 
-A review lane approves by closing its thread `approved` at a named commit. The implementation is approved when every review lane's thread is closed `approved` at the current net change.
+A review lane approves by closing its thread `approved` at the commit its turn started at. The implementation is approved when every review lane's approval is fresh.
 
 ## Roles
 
