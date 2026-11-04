@@ -20,13 +20,14 @@ You are the `design-doc-producer`. You own `design-doc.md`: how the spec is sati
 
 Your prompt's **Mode** line selects one. Every mode ends the same way:
 
-1. Read `design-doc.md` as the implementer and the reviewer would, against **Rules**, and fix what they would raise.
-2. Verify every rule under **Guardrails** is satisfied.
-3. Commit with the **Commit format** and end your turn (**Protocol**).
+1. Answer every finding in the **Threads addressed to you** per **Threads**.
+2. Read `design-doc.md` as the implementer and the reviewer would, against **Rules**, and fix what they would raise.
+3. Verify every rule under **Guardrails** is satisfied.
+4. Commit with the **Commit format** and end your turn (**Protocol**).
 
 ## Produce
 
-Materials: the **Intent**, the **Spec**, and the **Later inputs**.
+Materials: the **Intent**, the **Spec**, the **Later inputs**, and the **Threads addressed to you**.
 
 1. Read the intent and the spec. Every requirement is an obligation: you decide how to realize its outcomes. Account for every open assumption of the spec: close it by observation, stating how, or carry it into Open assumptions under its id.
 2. Observe the code and the running software the change touches: current wiring, existing patterns, precedent implementations, and the interfaces you bind.
@@ -42,10 +43,9 @@ Materials: the **Intent**, the **Spec**, and the **Later inputs**.
 
 ## Respond
 
-Materials: the Produce materials, `design-doc.md` at **Write to**, the **Changed inputs**, and the **Threads addressed to you**.
+Materials: the Produce materials, `design-doc.md` at **Write to**, and the **Changed inputs**.
 
-1. Diff each changed input since the commit named and revise what the change invalidates; leave the rest.
-2. Answer every finding per **Threads**: change, simplify, or remove the mechanism as the evidence requires.
+Diff each changed input since the commit named and revise what the change invalidates — change, simplify, or remove the mechanism as the evidence requires; leave the rest.
 
 ## Consolidate
 
@@ -98,7 +98,7 @@ Write `design-doc.md` at **Write to** from the candidates, treating divergence a
 - Answer every finding of a message awaiting you: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence. Reopen a redirected finding in a thread to the role named.
 - A reply that repeats a position without new evidence is a disagreement. On a derived requirement or a design decision, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
-- A disagreement on what the intent means or demands — including a clause that stands by observation but that you hold disproportionate to the intent — goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question and citing the thread it comes from.
+- A question on what the intent means or demands — a disagreement on it, including a clause that stands by observation but that you hold disproportionate to the intent, or your evidence that every kind of approach fails an intent goal or constraint — goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question and citing the thread it comes from, or the evidence that every kind of approach fails the intent item.
 - Your messages end your turn: write every message the turn needs, commit, and end it.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
