@@ -43,18 +43,18 @@ In `intent.md`, every item other than the Goal is declared by its id (`../run/st
 
 - **Capture, do not converge.** This is a short owner-led capture pass, not phase 1. Record what the owner already holds and stop when they have nothing more.
 - **Lead with the goal, then invite.** A checklist of sections pressures the owner to manufacture answers and over-specify.
-- **Keep requirements, design, and implementation in their phases.** Acceptance criteria belong to phase 1, architecture to phase 2, task breakdown to phase 3.
+- **Keep requirements, design, and implementation in their phases.** Acceptance criteria belong to phase 1, architecture to phase 2, how the code is built to phase 3.
 - **Reflect hypotheses as open.** Capture what to investigate under Proposals, preserving its uncertainty.
 
 ## Later input
 
-Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure; the filename identifies its kind. Each file holds only what the owner gave — their statement, at the scope they gave it, and the evidence they pointed to — in the fewest words that carry it, and a reader understands it without the conversation it came from. A cause, a reading of the evidence, an affected artifact or clause, or a remedy the owner did not state is left to the target's producer and reviewer. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
+Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure; the filename identifies its kind. Each file holds only what the owner gave — their statement, at the scope they gave it, and the evidence they pointed to — in the fewest words that carry it, and a reader understands it without the conversation it came from. A cause, a reading of the evidence, an affected clause, or a remedy the owner did not state is left to the target's owner. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
 
 ```markdown
 # <Constraint | Proposal | Failure> <n>: <title>
 
 target: <path relative to the pipeline folder>[#<id>][, …]
-origin: issue <canonical reference> | <URL of the source> | <path of the claim it answers>
+origin: issue <canonical reference> | <URL of the source> | <path of the thread it answers>
 
 <the owner's ruling, request, or failure>
 ```
@@ -63,12 +63,11 @@ A failure states what was run, where, and the result as the owner put it, and po
 
 Set `target:` by what the statement concerns:
 
-| Concerns         | Target        |
-| ---------------- | ------------- |
-| product behavior | build plan    |
-| documentation    | document plan |
-| requirements     | spec          |
-| mechanisms       | design doc    |
-| a named clause   | that clause   |
+| Concerns                         | Target                        |
+| -------------------------------- | ----------------------------- |
+| product behavior, documentation  | `3-implementation/notes.md`   |
+| requirements                     | `1-spec/spec.md`              |
+| mechanisms                       | `2-design-doc/design-doc.md`  |
+| a named clause                   | that clause                   |
 
-A target may name a whole artifact that does not exist yet. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory. When a research record raised the question this input answers, cite the input's path in that record next to the question.
+A target may name an artifact that does not exist yet. For an owner escalation, record the answer defined in `../run/state.md` § Owner territory.
