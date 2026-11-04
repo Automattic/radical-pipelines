@@ -6,7 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -710,8 +710,11 @@ async function cmdStamp(args) {
   parseOrFail(`stamp: ${rel}`, () => onlyKeys(data, kind.kind === "thread" ? ["inputs", "reviewed"] : ["inputs"]));
   const isCandidateOfRoot = (path) => kind.kind === "artifact" && kindOf(path)?.kind === "candidate" && kindOf(path).phase === kind.phase;
   if (args.pin.length && (kind.kind !== "artifact" || !kind.phase.lanes)) fail(`stamp: --pin applies to a spec or design doc: ${rel}`);
+  // A `--pin` path is absolute or relative to the pipeline folder; it must be a file before it is classified.
   const pinned = args.pin.map((pin) => {
-    const located = locate(pin);
+    const tried = isAbsolute(pin) ? pin : join(root, folder, pin);
+    if (!existsSync(tried) || !statSync(tried).isFile()) fail(`stamp: cannot read --pin ${tried}: not a file`);
+    const located = locate(tried);
     const path = located.root === root && located.rel.startsWith(`${folder}/`) ? located.rel.slice(folder.length + 1) : null;
     return path && isCandidateOfRoot(path) ? path : fail(`stamp: --pin must name a candidate of ${rel}: ${pin}`);
   });

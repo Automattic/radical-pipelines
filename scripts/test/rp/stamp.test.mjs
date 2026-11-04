@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { identity, splitFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import {
-  DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_SPEC, UPSTREAM,
-  abs, check, commitAll, configure, git, land, lane, pipeline, read, remove, revise, root, run, stamp, stampAt, thread, useRepo, write, writeFile,
+  DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, SPEC, TO_SPEC, UPSTREAM,
+  abs, check, commitAll, configure, git, land, lane, pipeline, read, remove, revise, root, rp, run, stamp, stampAt, thread, useRepo, write, writeFile,
 } from "./fixture.mjs";
 
 const id = (rel) => identity(readFileSync(abs(P(rel))));
@@ -136,6 +137,36 @@ describe("stamp derives the required inputs", () => {
     stamp(SPEC, "1-spec/lanes/a/spec.md");
     assert.deepEqual(inputsOf(SPEC), [pin(INTENT), pin("1-spec/lanes/a/spec.md")]);
   });
+
+  // How a --pin names a candidate: [what, the argument for a pipeline-relative path].
+  const pinForms = [["relative to the pipeline folder", (rel) => rel], ["absolute", (rel) => abs(P(rel))]];
+  for (const [what, form] of pinForms)
+    it(`accepts a --pin path ${what}, whatever the process directory`, () => {
+      pipeline(0, { lanes: [lane("spec-producer", "a")] });
+      write("1-spec/lanes/a/spec.md", "# a\n");
+      land("1-spec/lanes/a/spec.md");
+      write(SPEC, "# Spec\n");
+      rp("stamp", abs(P(SPEC)), "--at", commitAll("consolidate"), "--pin", form("1-spec/lanes/a/spec.md"));
+      assert.deepEqual(inputsOf(SPEC), [pin(INTENT), pin("1-spec/lanes/a/spec.md")]);
+    });
+
+  it("reports a relative --pin that is no file by the path it tried", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    write(SPEC, "# Spec\n");
+    const out = run("stamp", abs(P(SPEC)), "--at", commitAll("consolidate"), "--pin", "lanes/a/spec.md");
+    assert.equal(out.status, 1);
+    assert.equal(out.stderr, `rp: stamp: cannot read --pin ${join(realpathSync(root), PIPELINE, "lanes/a/spec.md")}: not a file\n`);
+  });
+
+  it("reports a --pin file missing at the turn's commit as missing there", () => {
+    pipeline(0, { lanes: [lane("spec-producer", "a")] });
+    write(SPEC, "# Spec\n");
+    const turn = commitAll("consolidate");
+    write("1-spec/lanes/a/spec.md", "# a\n");
+    const out = run("stamp", abs(P(SPEC)), "--at", turn, "--pin", "1-spec/lanes/a/spec.md");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /cannot pin .*1-spec\/lanes\/a\/spec.md: missing/);
+  });
 });
 
 describe("stamp of an approval", () => {
@@ -224,7 +255,8 @@ describe("stamp refuses", () => {
     ["--pin on a candidate", () => [P("1-spec/lanes/a/spec.md"), "--pin", P("1-spec/lanes/a/spec.md")], /--pin applies to a spec or design doc/],
     ["--pin naming something other than a candidate", () => [P(SPEC), "--pin", P(INTENT)], /--pin must name a candidate/],
     ["--pin naming another phase's candidate", () => [P(DESIGN), "--pin", P("1-spec/lanes/a/spec.md")], /--pin must name a candidate/],
-    ["--pin naming a missing candidate", () => [P(SPEC), "--pin", P("1-spec/lanes/b/spec.md")], /cannot pin .*1-spec\/lanes\/b\/spec.md: missing/],
+    ["--pin naming a path that is no file", () => [P(SPEC), "--pin", P("1-spec/lanes/b/spec.md")], /cannot read --pin .*1-spec\/lanes\/b\/spec.md: not a file/],
+    ["--pin naming a folder", () => [P(SPEC), "--pin", P("1-spec/lanes/a")], /cannot read --pin .*1-spec\/lanes\/a: not a file/],
     ["an option that no longer exists", () => [P(SPEC), "--reviewed"], /unknown option: --reviewed/],
   ];
   for (const [name, args, message] of refusals)

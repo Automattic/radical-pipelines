@@ -165,12 +165,12 @@ node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 
 `--at` names the turn's commit: the tip of the role's worktree when it was woken. `stamp` pins the file's required inputs (§ `inputs`) at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit, or not committed, is not certified. `stamp` keeps the body byte for byte, and writes nothing when the frontmatter would not change, so stamping twice changes nothing.
 
-- **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation.
+- **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation. A `--pin` path is absolute or relative to the pipeline folder, whatever the process directory.
 - **An approval**: `inputs` becomes its required inputs, and `reviewed` the full hash of the `--at` commit.
 
 `stamp` validates only what it reads. From the working tree it reads the stamped file. At `--at` it reads `run-config.md`, the intent, every later input (its `target:` line says whether it applies), the stamped file's upstream artifacts, and the candidates `--pin` names. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
 
-A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate missing at `--at`, a file it reads that is malformed or of the wrong kind, or malformed frontmatter on the stamped file stops the command.
+A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc, a `--pin` path that is not a file (`cannot read --pin <path tried>: not a file`), a `--pin` file that is not one of its candidates, a required input or candidate missing at `--at`, a file it reads that is malformed or of the wrong kind, or malformed frontmatter on the stamped file stops the command.
 
 ## `pipelines`
 
