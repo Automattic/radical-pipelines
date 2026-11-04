@@ -6,7 +6,7 @@ Slots:
 
 - `Seat` — Worktree, Branch, Turn commit, Supporting folder (`../reference/run/state.md` § Names, § Terms), and Subagent model (`../reference/conventions/agents.md`); the implementer adds its Base branch, a reviewer its Lane.
 - `Mode` — one of the profile's modes; the reviewer has none.
-- `Brief` — a lane's brief, verbatim.
+- `Brief` — a lane's brief, verbatim, when it has one.
 - `Materials` — per mode.
 - `Threads addressed to you` — every thread awaiting the role, or `none`.
 - `Malformed files` — the `rp check` `INVALID` lines naming files the role wrote.

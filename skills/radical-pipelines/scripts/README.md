@@ -51,8 +51,8 @@ A file's identity is the first 12 hexadecimal characters of the git blob hash of
 - `format`: the conventions format the pipeline was written under, an integer; the current one is `6`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check` and `stamp` read only format 6 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
 - `target-phase`: an integer from 1 to 4. Phase 4 is review.
 - `base`: a revision that resolves to a commit.
-- `lanes` (optional, non-empty when present): each lane has only `profile`, `id`, and `brief`, all non-empty strings. `profile` is `spec-producer` or `design-doc-producer` for a production lane, or `reviewer` for a review lane. `id` matches `[a-z0-9][a-z0-9-]*` and is unique per profile.
-- Without a `reviewer` lane there is one review lane, `default`.
+- `lanes` (optional, non-empty when present): each lane has only `profile`, `id`, and an optional `brief`, all non-empty strings. `profile` is `spec-producer` or `design-doc-producer` for a production lane, or `reviewer` for a review lane. `id` matches `[a-z0-9][a-z0-9-]*` and is unique per profile.
+- Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
 
 The body is ignored. A missing `run-config.md` or one that breaks these rules stops `check`, as does a missing intent.
 
@@ -91,7 +91,7 @@ artifact: intent | spec | design-doc | implementation
 cites: <thread path | evidence path>
 ```
 
-- `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. Production lanes open no threads: an `open` or `disagreement` thread whose opener or owner is `spec-producer-<lane id>` or `design-doc-producer-<lane id>` is `INVALID <thread>: production lanes open no threads`; the grammar keeps those roles so closed threads stay readable. An `open` thread awaiting a review lane that `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; `default` is declared only while no `reviewer` lane is.
+- `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. Production lanes open no threads: an `open` or `disagreement` thread whose opener or owner is `spec-producer-<lane id>` or `design-doc-producer-<lane id>` is `INVALID <thread>: production lanes open no threads`; the grammar keeps those roles so closed threads stay readable. An `open` thread awaiting a review lane that `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; `default` is declared while no `reviewer` lane is, or when a lane declares it.
 - `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`.
 - The opener is any role but `owner`, and differs from the owner.
 - A thread to `owner` has status `disagreement` or `closed: answered`, and the `cites:` line with a non-empty value; no other thread has either status or the line. The value is not resolved.

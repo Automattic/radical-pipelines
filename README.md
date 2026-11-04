@@ -61,9 +61,9 @@ State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts
 
 ### Redundancy by configuration
 
-A project may configure **production lanes** for the spec and the design doc: named lanes, each with a brief and a model, that write candidates in parallel. The producer then consolidates them into the artifact. What every lane reached is kept; what only one lane reached is a question, answered by observing whether intended use produces it. Two independent readings of the intent show both what one reading missed and what it added.
+A project may configure **production lanes** for the spec and the design doc: named lanes, each with a model and an optional brief, that write candidates in parallel. The producer then consolidates them into the artifact. What every lane reached is kept; what only one lane reached is a question, answered by observing whether intended use produces it. Two independent readings of the intent show both what one reading missed and what it added.
 
-The review runs one **review lane** per configured `reviewer` lane, each with its brief, and every lane must approve. Lanes are configured once in the project's `.rp.md`, the same for every pipeline, and can run on models from different providers.
+The review runs one **review lane** per configured `reviewer` lane, each with its brief when it has one, and every lane must approve. Lanes are configured once in the project's `.rp.md`, the same for every pipeline, and can run on models from different providers.
 
 ### What the owner is asked
 

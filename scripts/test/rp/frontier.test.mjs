@@ -64,7 +64,8 @@ describe("frontier", () => {
       ["an unknown key", () => write("run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /unexpected frontmatter key: workflow/],
       ["an empty lanes list", () => configure({ lanes: [] }), /lanes must be a non-empty list/],
       ["a lane with an unknown profile", () => configure({ lanes: [lane("spec-reviewer", "a")] }), /lane profile/],
-      ["a lane without brief", () => configure({ lanes: [{ profile: "reviewer", id: "a" }] }), /needs a brief/],
+      ["a lane with an empty brief", () => configure({ lanes: [{ profile: "reviewer", id: "a", brief: " " }] }), /lane a: a brief must be a non-empty string/],
+      ["a lane with a brief that is not a string", () => configure({ lanes: [{ profile: "spec-producer", id: "a", brief: 1 }] }), /lane a: a brief must be a non-empty string/],
       ["a lane with a malformed id", () => configure({ lanes: [lane("reviewer", "A b")] }), /lane id/],
       ["a lane with a model", () => configure({ lanes: [{ ...lane("reviewer", "a"), model: "x" }] }), /unexpected lane key: model/],
       ["a duplicate lane", () => configure({ lanes: [lane("reviewer", "a"), lane("reviewer", "a")] }), /duplicate lane/],
@@ -77,6 +78,21 @@ describe("frontier", () => {
         const out = run("check", abs(P("")));
         assert.equal(out.status, 1);
         assert.match(out.stderr, message);
+      });
+
+    // [what, lanes, the frontier on a pipeline missing its spec, the frontier on a done implementation]
+    const briefless = [
+      ["production lanes without a brief", [{ profile: "spec-producer", id: "a" }, lane("spec-producer", "b")], ["lane 1-spec/spec.md a", "lane 1-spec/spec.md b"], ["review default"]],
+      ["review lanes without a brief", [{ profile: "reviewer", id: "a" }, lane("reviewer", "b")], ["produce 1-spec/spec.md"], ["review a", "review b"]],
+      ["default declared alongside another review lane", [{ profile: "reviewer", id: "default" }, lane("reviewer", "b")], ["produce 1-spec/spec.md"], ["review default", "review b"]],
+      ["default declared with a brief", [lane("reviewer", "default")], ["produce 1-spec/spec.md"], ["review default"]],
+    ];
+    for (const [what, lanes, missingSpec, done] of briefless)
+      it(`accepts ${what}`, () => {
+        pipeline(0, { lanes });
+        assert.deepEqual(frontier(), missingSpec);
+        pipeline(3, { lanes });
+        assert.deepEqual(frontier(), done);
       });
 
     it("accepts the same lane id under different profiles and ignores the body", () => {

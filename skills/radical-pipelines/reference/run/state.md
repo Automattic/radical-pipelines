@@ -91,9 +91,9 @@ cites: <thread path | evidence path>
 - `format`: the conventions format it was written under, `6`. `rp check` and `rp stamp` stop on a pipeline of another format.
 - `target-phase`: an integer from 1 through 4.
 - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
-- `lanes`, optional, non-empty when present: lane objects, each containing only non-empty strings `profile`, `id`, and `brief`. `profile` is `spec-producer` or `design-doc-producer` for a production lane, `reviewer` for a review lane.
+- `lanes`, optional, non-empty when present: lane objects, each containing only non-empty strings `profile`, `id`, and, optionally, `brief`. A lane without a brief covers its profile's whole scope. `profile` is `spec-producer` or `design-doc-producer` for a production lane, `reviewer` for a review lane.
 
-Lane ids start with a lowercase letter or digit and continue with those or hyphens; they are unique per profile. Without a `reviewer` lane, the review runs one lane, `default`, with no brief.
+Lane ids start with a lowercase letter or digit and continue with those or hyphens; they are unique per profile. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
 
 Its body is free prose — the model of each profile and lane, the owner's directions for the run; `rp` ignores it.
 

@@ -49,12 +49,12 @@ Throughout the run:
 
 A production lane is a `spec-producer` or `design-doc-producer` lane declared in `run-config.md`; it writes a candidate.
 
-1. For each `lane <artifact> <id>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Wake the lane's producer there — mode produce when its candidate is missing, else respond — with its **Brief** and **Write to** `<phase folder>/lanes/<id>/<artifact>.md`. Lanes run in parallel.
+1. For each `lane <artifact> <id>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Wake the lane's producer there — mode produce when its candidate is missing, else respond — with its **Brief**, when it has one, and **Write to** `<phase folder>/lanes/<id>/<artifact>.md`. Lanes run in parallel.
 2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**. Land it with `rp stamp <root> --at <turn commit> --pin <each candidate>`.
 
 ## Review lanes
 
-A review lane is one `reviewer` with its brief; every lane must approve.
+A review lane is one `reviewer`, with its brief when it has one; every lane must approve.
 
 1. For each `review <lane>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Set its sparse checkout, `<pipeline folder>` being relative to the repository root:
 
@@ -68,7 +68,7 @@ A review lane is one `reviewer` with its brief; every lane must approve.
    ```
 
 2. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, among the lane's **Prepared files** (`state.md` § Names). For a lane that approved before, also save there the diff from the commit its last approval names to the tip, outside the pipelines folder.
-3. Wake the lane's reviewer there with its **Lane**, its **Brief**, the intent, the later inputs, the net change, its threads, and, when the lane approved before, the commit its last approval names with the diff since it. Lanes run in parallel.
+3. Wake the lane's reviewer there with its **Lane**, its **Brief** when it has one, the intent, the later inputs, the net change, its threads, and, when the lane approved before, the commit its last approval names with the diff since it. Lanes run in parallel.
 
 ## Owner escalation
 

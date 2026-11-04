@@ -384,7 +384,7 @@ export function parseConfig(bytes) {
     for (const key of Object.keys(lane)) if (!["profile", "id", "brief"].includes(key)) invalid(`unexpected lane key: ${key}`);
     if (!LANE_PROFILES.includes(lane.profile)) invalid(`lane profile must be one of ${LANE_PROFILES.join(", ")}`);
     if (typeof lane.id !== "string" || !LANE_ID.test(lane.id)) invalid(`lane id must match ${LANE_ID.source}`);
-    if (typeof lane.brief !== "string" || !lane.brief.trim()) invalid(`lane ${lane.id} needs a brief`);
+    if ("brief" in lane && (typeof lane.brief !== "string" || !lane.brief.trim())) invalid(`lane ${lane.id}: a brief must be a non-empty string`);
     const key = `${lane.profile}/${lane.id}`;
     if (seen.has(key)) invalid(`duplicate lane: ${key}`);
     seen.add(key);
