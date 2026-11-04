@@ -81,7 +81,7 @@ A pipeline may stop at an earlier phase so the owner can read the spec or the de
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
 - **Compounding quality.** When a pipeline produces a bad result, incoming work targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
-- **The whole change, judged against the intent.** One implementer delivers the code, its tests, and its documentation together, and the review judges the change as a whole against what was asked: what is missing or wrong, and what no outcome of the intent needs.
+- **The whole change, judged against the intent.** One implementer delivers the code, its tests, and its documentation together, and the review judges the change as a whole against what was asked: anything wrong, missing, risky, or more than the intent needs.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
 ## Why now

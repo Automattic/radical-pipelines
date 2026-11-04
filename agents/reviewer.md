@@ -46,20 +46,8 @@ Every turn ends the same way: evaluate every rule under **Guardrails** against t
 
 **Findings**
 
-- Raise, against the intent:
-  - behavior the intent asks for that is missing or wrong;
-  - a mechanism, guard, test, or documentation passage that no intent outcome needs;
-  - a bug fixed for one case rather than its cause;
-  - a claim about today's behavior that running the software contradicts or could have observed;
-  - behavior intended use relies on that the change alters without the intent asking for it;
-  - code, tests, or documentation the change leaves without a purpose;
-  - documentation anywhere in the repository that the change made false, or a public surface it adds or changes left undocumented;
-  - a reason the documentation states that neither the intent nor the change supports;
-  - a convention of the project broken — its patterns, code style, inline API documentation, testing style, or documentation conventions — or a rule under **Guardrails** unsatisfied.
+- Raise anything wrong, missing, risky, or more than the intent needs, each finding with its file and line and why it matters.
 - A finding that a case is uncovered names the input that produces it in intended use.
-- Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run. A new test proves something no other test proves. A proof fails when what it proves is broken.
-- Documentation states what readers can now do, must now do, or no longer need to do, at the depth they act on it, and restates nothing readers already assume. Every concrete claim matches the shipped code when a reader follows it as intended.
-- The change and its commits refer to the software only, never to the pipeline or its artifacts; the code and its documentation describe the software as it is.
 - A failure is a finding when the change caused it, changes what it exercises, or an intent outcome depends on it. Any other — one that reproduces on the base, or passes when rerun on unchanged code — is not a finding.
 - Every finding and every approval rests on evidence you produced by running the software.
 - Report a defect class once, stated to cover every instance. Never manufacture findings; approve when the change survives your checks.
