@@ -2,7 +2,7 @@
 
 The owner brings work: an issue, PR feedback, a CI failure, a bug, a correction. You classify it, route it, and only then dispatch. Read `../run/state.md` first.
 
-Triage decides from the request, the pipelines' phase-0 files, and `rp check`. What the request points to — code, logs, results, screenshots, machines — is read by the agents you dispatch.
+Triage decides from the request, the pipelines' phase-0 files, and `rp check`. What the request points to — code, logs, results, screenshots, machines — is read by the agents you dispatch, once phase 0 records it per `intent-format.md`.
 
 ## Steps
 
