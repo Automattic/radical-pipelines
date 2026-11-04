@@ -1,6 +1,6 @@
 # Lifecycle hooks
 
-At each configured moment in either workflow, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`.
+At each configured moment of a run, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`.
 
 Report a failed instruction to the owner and continue. When the failed instruction is marked **blocking**, stop the run through close-out; if you are already closing out, continue with the remaining close-out actions. `run-ended` still fires.
 
@@ -23,8 +23,8 @@ Report a failed instruction to the owner and continue. When the failed instructi
 | `after-terminating-agent`      | An agent is terminated                                                                                  |
 | `phase-started`                | Work on a phase begins or resumes                                                                       |
 | `phase-completed`              | A phase becomes complete, phase 0 included, before the next dispatch                                    |
-| `before-merging-lanes`         | Lane branches are about to be merged into the branch their work belongs to                              |
-| `after-merging-lanes`          | Lane branches are merged into the branch their work belongs to                                          |
+| `before-merging-lanes`         | A lane branch is about to be merged into the pipeline branch                                            |
+| `after-merging-lanes`          | A lane branch is merged into the pipeline branch                                                        |
 | `escalation-raised`            | A pending owner escalation is surfaced                                                                  |
 | `run-ended`                    | The run stops: target phase complete, owner escalation pending, owner cancellation, or failure           |
 | `before-opening-pr`            | The owner asks to open a pull request, before any work                                                  |

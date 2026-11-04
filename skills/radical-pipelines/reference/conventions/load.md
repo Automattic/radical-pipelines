@@ -25,12 +25,12 @@ Find the repository's main root, even when running inside a worktree. Read in th
 | Guardrails             | Rules agents must satisfy                                                                                                                                                                                                                                                                             | No       |
 | Resources              | What agents have available and how to use it                                                                                                                                                                                                                                                          | No       |
 | Lifecycle hooks        | Instructions run at defined moments                                                                                                                                                                                                                                                                   | No       |
-| Agents                 | Defaults for profile models and named lanes (`agents.md`)                                                                                                                                                                                                                                             | No       |
+| Agents                 | Defaults for profile models and lanes (`agents.md`)                                                                                                                                                                                                                                                    | No       |
 | Health monitoring      | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                                                                                                                                                                                           | No       |
 
 ## Schema stamp
 
-`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 5.
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 6.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

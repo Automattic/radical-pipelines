@@ -13,14 +13,14 @@ Health tick for pipeline <pipeline slug> on branch <pipeline branch>, worktree <
 Inspect the run and lane worktrees, available agent logs, and messaging state.
 
 1. **Pending permission requests** — answer each using the active tool's procedure.
-2. **Stalled agents** — an agent that has not declared completion and either:
+2. **Stalled agents** — an agent that has not declared completion of its turn and either:
    - ended its turn without sending a message while no reply and no running command was pending; or
    - has produced no commit, file write, or tool output for the threshold.
 3. **Dead agents** — a session is gone, its turn failed, or it remains silent after a status request.
-4. **Failed messages** — an inter-agent message errored or was never delivered.
+4. **Failed messages** — a message to an agent errored or was never delivered.
 5. **Login or API-key errors** — an agent or the orchestrator hit a provider authentication failure.
 6. **Network failures** — a tool call failed with a transient network error.
-7. **Waves that never close** — compare every open wave's expected lanes with its reports and live agents. When every lane of a wave has reported, land it (`../run/loop.md` § One step, step 4); treat a missing report without a live agent as a dead agent.
+7. **Steps that never land** — compare the roles the current step woke with their reports and live agents. When every one has ended its turn, land them (`../run/loop.md` § One step, step 4); treat a missing report without a live agent as a dead agent.
 
 ## Recovery
 
@@ -34,7 +34,7 @@ Each issue occurrence gets two recovery attempts before escalation; a success re
 | Login or API-key error| Swap to an authenticated model the project's **Agents** section names | Re-dispatch on the new model             |
 | Network failure       | Retry the call                                                        | Wait one interval and retry              |
 
-A re-dispatched agent's task or lane waits for the new instance. When a re-dispatch changes an agent's identifier, send the new one to the agents that message it.
+A re-dispatched agent's work waits for the new instance.
 
 ## Escalation
 

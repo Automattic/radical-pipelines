@@ -2,6 +2,31 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 6
+
+Migrate from version 5.
+
+### Profiles
+
+Four profiles remain: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer`. In `Agents`, and in the `agents` of every `Guardrails` and `Resources` block:
+
+| Existing profile | Becomes |
+| --- | --- |
+| `build-worker`, `document-worker` | `implementer` |
+| `build-reviewer`, `document-reviewer` | `reviewer` |
+| `build-plan-producer`, `document-plan-producer`, `spec-reviewer`, `design-doc-reviewer`, `helper` | removed |
+
+When renamed blocks give one profile different models, ask the owner which to keep. Drop a block's removed profiles, and the block when none remain.
+
+### Lanes
+
+- `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
+- Remove every lane's `materials` and `after`.
+
+### Pipelines
+
+A pipeline started under an earlier version is not continued: further work on its issue starts a new pipeline.
+
 ## 5
 
 Migrate from version 4.

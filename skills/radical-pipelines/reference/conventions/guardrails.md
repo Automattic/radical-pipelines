@@ -15,4 +15,4 @@ Each rule is a block under `.rp.md`'s `Guardrails` section:
 
 ## Obligation
 
-Producers and workers satisfy every delivered rule before completing; an unsatisfied rule is work to do, never a reason to skip its check or to commit while it still fails. Reviewers evaluate each delivered rule against the work and log its outcome and evidence in the review; an unsatisfied rule is a finding.
+The producers and the implementer satisfy every delivered rule before ending their turn; an unsatisfied rule is work to do, never a reason to skip its check or to commit while it still fails. The reviewer evaluates each delivered rule against the change and records its outcome and evidence; an unsatisfied rule is a finding.
