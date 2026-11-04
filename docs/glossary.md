@@ -1,72 +1,63 @@
 # Glossary
 
-The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined here: no synonyms or alternate notation.
+The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined here: no synonyms or alternate notation. [The v4 model](./model.md) explains the design these terms describe.
 
-- **Agents** — The project convention supplying defaults for profile models and named lanes.
+- **Agents** — The project convention giving each profile's model and its lanes: production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`.
+- **Artifact** — A file a role owns and the pipeline's state is computed from: `spec.md`, `design-doc.md`, `notes.md`, and the production lanes' candidates.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: where pipelines start.
-- **Assumption** — A normative claim is either verified by a cited inspection or assumed; an assumed claim gets a stable assumption id and stays in the open-assumption register until verified or fallen.
+- **Awaiting** — Whose turn an `open` thread is: it awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Base** — The merge-base of the inspected tip with the branch its run configuration's `base` names.
-- **Blocker** — A report of malformed materials, an unreadable input, or a broken seat or its environment, with the evidence locating the failure there. A worker reports it before its first write, and a `blocked` report after; a producer or reviewer may report it whenever found.
-- **Brief** — A named lane's angle: what a reviewer verifies or what a producer explores; without one, the profile's full scope.
-- **Challenge** — A constraint file, proposal file, `unsatisfiable` verdict, or failure — a reported failure or a fresh failed task report — asking for work on its targets; adjudicated on a target when that target pins it, resolved there by its current approving wave or a corroborated escalation. Resolution is per target; the whole challenge resolves when every target does. An owner claim is resolved by its owner's answer.
-- **Claim** — An `unsatisfiable` review verdict with its target. A producer's `Contradicts-input` disposition is one source. A labeled normative statement in an artifact is also called a claim.
-- **Closure action** — A moment the owner invokes on a pipeline — opening or merging its pull request, both performed by the orchestrator, or closing without merging — bracketed by lifecycle hooks. Beyond those steps, work lives in hooks or with the owner.
-- **Code delta** — The code outside the pipelines folder that a phase review has not seen: the tip's difference from the reviewed code merged with the base, not counting work a later phase's task reports record.
-- **Consolidate** — A producer mode that merges lane candidates into one canonical artifact and record without originating new content.
-- **Consolidation** — A reviewer mode that audits the consolidated artifact against its lane folders, reusing approved checks where their claims and provenance are unchanged.
-- **Constraint** — A binding owner ruling, captured in the intent or a later `0-intent/constraint-<n>.md` with `target:` and `origin:`. An unsatisfiable constraint reaches the owner through a corroborated claim.
-- **Delta review** — A review mode that judges the adjudication of the reviewer's prior findings and the diff since its previous review, reuses untouched checks, and reruns affected checks. A finding that continues a prior one names it with `prior-finding`.
-- **Done-set** — The tasks whose latest report is `completed` with fresh pins.
-- **Episode** — The waves an artifact has been through since its last wave that is valid and current in the inspected context; `rp check` reports it as a counter.
-- **Experiment** — An action that creates a previously nonexistent observation through a test, probe, benchmark, build, generated input, or measurement.
-- **Failure** — A failed task report or a reported failure: an observed result that contradicts the work, with its evidence. While one is unresolved on an artifact, or in the `origin` chain of a challenge unresolved on it, the artifact is under experiment: its producer, reviewers, and helpers may run experiments on that failure, and the producer attempts to reproduce it and compares the candidate causes before its disposition.
-- **Frontier** — The first actionable item `rp check` names: a contradiction in the tree, a claim against owner territory, an artifact to converge, a phase's next step, or completion.
-- **Guardrails** — The project convention listing the rules agents must satisfy — prose a profile follows, or a check it runs. Producers and workers satisfy them before completing; reviewers evaluate them and log each outcome.
-- **Helper** — A fresh agent that does one bounded piece of work — an answer, an observation, or a change — for the agent that asked, under that agent's Seat, and returns the result to it.
-- **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below frontmatter, or the whole file when it has none, less the intent's leading origin lines.
-- **Intended use** — A use the intent names, or one that the project's documentation or code shows a consumer making. It is how agents judge whether a case matters: an input an artifact or the code merely admits, or a consumer no source shows, is not intended use.
-- **Inspection** — Observing what already exists without creating evidence.
+- **Blocker** — A role's report that something it was given failed it — its materials, its worktree, or the worktree's environment. The orchestrator repairs it and wakes the role again.
+- **Brief** — A lane's direction: what a production lane explores, or what a review lane verifies.
+- **Candidate** — A production lane's version of the spec or the design doc, written in `<phase folder>/lanes/<lane>/`. Candidates are required inputs only while their root artifact is missing.
+- **Closure action** — A moment the owner invokes on a pipeline: opening its pull request, merging it, or closing without merging. Each is bracketed by lifecycle hooks.
+- **Considered and not required** — The spec section listing, one line each, the cases its producer examined and left out because no intended use produces them.
+- **Consolidate** — The producer mode that writes the root artifact from the candidates: a case or decision every lane reached is kept; one only one lane reached is kept only when intended use is observed to produce its input; where lanes chose differently, the producer decides from the evidence and records the alternative in one line.
+- **Consolidated** — A root artifact written from candidates. It pins the candidates it merged, as a record.
+- **Constraint** — A binding owner ruling, in the intent or a later `0-intent/constraint-<n>.md` with `target:` and `origin:`. Constraints are owner territory.
+- **Disagreement** — A reply that repeats a position without new evidence. About a derived requirement or a design decision, it resolves inside its thread by observation. About what the intent means or demands, either party opens a thread to `owner` about `intent` with status `disagreement`, the only status that reaches the owner.
+- **Frontier** — What `rp check` says to do next: the first that holds of a malformed file (`INVALID`), a disagreement (`escalate`), the lowest phase whose role has work (`lane`, `consolidate`, `produce`, `respond`, or `review`), or `complete`.
+- **From-intent / derived** — The origin every requirement carries. `from-intent`: the intent states it, and the requirement cites the intent item. `derived`: the producer inferred it, and the requirement cites the input observed in intended use that makes the case material. A derived requirement without an observed input is written as an assumption.
+- **Guardrails** — The project convention listing the rules a profile must satisfy — prose it follows, or a check it runs. The reviewer evaluates each against the change.
+- **Identity** — The first 12 hexadecimal characters of Git's blob hash of a file's body: everything below its frontmatter, or the whole file when it has none.
+- **Instance name** — A spawned role's name, `<pipeline slug> <profile>[ <lane>]`.
+- **Intended use** — A use the intent names, or one that the project's documentation or code shows a consumer making. It is how roles judge whether a case matters: an input an artifact or the code merely admits, or a consumer no source shows, is not intended use.
 - **Issue** — The unit of work a pipeline realizes.
-- **Lane** — One instance of a role on one artifact. A reviewer's implicit lane has no id; named review lanes add verdicts; named production lanes each produce in `<phase>/lanes/<id>/` and are consolidated into the root artifact. A named lane's identity is its whole declaration — id, brief, materials, `after` — as one fingerprint.
-- **Later input** — What the owner brings after the intent: a `0-intent/constraint-<n>.md` binding ruling, a `0-intent/proposal-<n>.md` request to investigate, or a `0-intent/failure-<n>.md` reported failure, each naming its targets and holding only what the owner gave — their statement and its evidence — in the fewest words that carry it. Together with the assisted workflow, it is how the pipeline records human intervention.
-- **Landing** — Committing a file, stamping it, and committing the stamp on top, on the branch the work belongs to.
-- **Materials** — The explicit inputs listed in an agent's prompt, which are exactly the inputs that instance receives.
-- **Mode** — The selected procedure within an agent profile, such as Converge, Consolidate, Fresh, or Delta.
-- **Must-fix finding** — A finding that leaves the artifact unable to do its job; the only ground on which a review rejects.
-- **Net change** — The pipeline's code outside the pipelines folder: the diff from its base to its tip.
-- **Non-blocking finding** — A real finding that is not must-fix. Every reviewer's new non-blocking finding joins **Findings** when rejecting and **Non-blocking findings** when approving.
-- **Orchestrator** — The top-level agent executing the skill: loads conventions, creates topology, spawns and seats agents, stamps, computes the frontier with `rp check`, and reports to the owner. Outside the assisted workflow it leaves every investigation to agents.
-- **Origin** — The source from which something was born: an issue reference, the URL of an external source, or a challenge it responds to.
-- **Outcome** — A task report's conclusion: `completed`; `failed`, the worker observed the result and it contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; `blocked`, something the worker was given failed it — malformed materials, an unreadable input, or a broken seat or its environment — and the report names what failed, with the evidence locating it.
-- **Owner** — The human running the pipeline; talks only to the orchestrator.
-- **Owner escalation** — The run's stop, with an evidence dossier, caused by a pending claim on owner territory; the owner's answer becomes a constraint or a proposal, as the owner rules, citing the claim and targeting the artifact that raised it.
-- **Owner territory** — The intent's Goal and constraints, and later constraint files: what the work must satisfy.
-- **Phase** — One pipeline stage: Intent, Spec, Design doc, Build, or Document.
-- **Pin** — A frontmatter entry `<path>@<identity>` recording the exact input identity an artifact consumed.
-- **Pipeline** — A converging set of artifacts, done when everything through its target phase exists, is approved and fresh, its tasks are executed, every in-scope challenge and claim is resolved, and no phase review has a code delta.
+- **Landing** — Verifying a role's commits are on its branch, stamping its artifact and every review thread its turn closed `approved`, and committing the stamps on top.
+- **Later input** — What the owner brings after the intent: a constraint, a proposal, or a reported failure, each in `0-intent/` with `target:` naming the artifacts it targets and `origin:` naming where it came from, holding only what the owner gave in the fewest words that carry it. A later input is a required input of every artifact it targets.
+- **Missing** — An artifact whose file is absent. `notes.md` is also missing until the first line of its body is `status: done`.
+- **Mode** — The procedure a role's prompt selects: produce, respond, or consolidate for a producer; implement or respond for the implementer; the reviewer has one.
+- **Net change** — The pipeline's change outside the pipelines folder: the diff from its base to its tip. Its id is the diff's stable patch id, which a merge from the base branch does not alter.
+- **Notes** — `3-implementation/notes.md`, the implementer's resumption file: the inputs it started from, what is done, what remains, the decisions a successor should know, and the approaches that failed. `status: done` on its first line declares the implementation complete.
+- **Observed / assumed** — The label on every claim. A claim about current behavior is `observed: <how>`; a claim about what the solution will do is `assumed: <what will confirm it>`, and the implementer verifies it.
+- **Orchestrator** — The session running the skill. It triages with the owner, records phase 0, creates branches and worktrees, wakes the roles the frontier names, lands their turns, carries disagreements on owner territory to the owner, and opens the pull request. It judges no content and relays no message.
+- **Origin** — The source from which something was born: an issue reference, the URL of an external source, a pipeline it starts from or re-attempts, or the thread an owner's answer settles.
+- **Owner** — The person running the pipeline; talks only to the orchestrator. As a thread role, `owner` is the party of a thread about `intent`.
+- **Owner escalation** — A thread with status `disagreement`. The run stops; the owner's answer is recorded as a constraint or a proposal, as the owner rules, targeting the disputed artifact, and the thread is closed `closed: answered`.
+- **Owner territory** — What the intent means or demands: its Goal, its constraints, and later constraint files. Everything after the intent is chosen by a role and settled between roles.
+- **Phase** — One pipeline stage: Intent, Spec, Design doc, Implementation, or Review.
+- **Pin** — An entry `<path>@<identity>` in an artifact's `inputs` frontmatter, recording the exact version of an input it consumed.
+- **Pipeline** — A set of artifacts, each owned by one role. It is done when every artifact through the target phase exists and is not stale, no thread is open or in disagreement, and, when the target is the review, every review lane has approved the current net change.
 - **Pipeline branch** — The branch a pipeline's commits land on: the **Pipeline branch format** convention applied to its slug, with `_<n>` appended for work on the pipeline once merged. Lane branches extend it.
 - **Pipeline branch format** — The project convention giving the pipeline branch as a template over `<pipeline slug>`, defaulting to the slug itself.
 - **Pipeline slug** — The project convention deriving a pipeline's identifier from its issue, and that identifier: one path segment, a valid git ref, without `_`, naming the pipeline folder.
 - **Pipelines folder root** — The project convention naming where pipeline folders live, defaulting to `.pipelines/`.
-- **Producer** — The agent that owns an artifact and its record and can synthesize, adjudicate, or, where supported, consolidate them.
-- **Proposal** — A direction or hypothesis to investigate, captured in the intent or a later `0-intent/proposal-<n>.md` with `target:` and `origin:`. The pipeline adopts or refutes it with evidence; owner approval authorizes investigation.
-- **Record** — An artifact's companion research file preserving its Q&A, evidence, provenance, assumptions, and adjudications.
-- **Reference** — The set of (member, identity) pairs a wave is expected to have reviewed: for a live artifact, what the artifact pins expanded to its review package; for a closed lane, the `lane-packages` entry the root recorded at consolidation.
-- **Reported failure** — A result observed outside the run that contradicts the work — a command the owner ran, CI, a bug — recorded as given, with its evidence, in `0-intent/failure-<n>.md`. It carries no ruling: its targets investigate it and adopt or refute it.
-- **Resources** — The project convention describing what agents may use — environments, services, accounts, data, tools — and how; distinct from guardrails, which are what they must satisfy.
-- **Run configuration** — The workflow, target phase, base branch, lanes, models, and owner directions recorded in a pipeline's `run-config.md`.
-- **Reviewer** — An adversarial agent that verifies an artifact's declared chains, within its brief when it has one, writes a verdict, and never edits the artifact.
-- **Seating** — Starting a spawned agent inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
-- **Shipped code** — The code, tests, and configuration on the pipeline branch, with their comments and inline API documentation: what the build phase delivers and its review judges. The document phase delivers all other documentation.
-- **Stale** — A recorded package that differs from the required package by member or identity.
-- **Stamp** — The orchestrator's `rp stamp` operation, which adds pins and mirrored frontmatter after landing without changing body identity; mirrors are a projection of the body, rewritten whole on every `--mirror`.
-- **Supporting folder** — The folder beside what an agent writes, named after it without `.md`, holding the screenshots, logs, transcripts, and helper answers that file cites; it is not pipeline state.
-- **Target** — What a challenge addresses: an artifact clause or constraint file for a claim; its task for a failed report; one or more phase artifacts, whole or by clause, for a constraint, proposal, or reported failure.
+- **Production lane** — A named `spec-producer` or `design-doc-producer` lane with a brief and a model, which writes a candidate in its own branch and worktree, in parallel with the other lanes.
+- **Proposal** — A direction or hypothesis to investigate, in the intent or a later `0-intent/proposal-<n>.md` with `target:` and `origin:`. Roles adopt or refute it with evidence; the owner's approval authorizes investigation, not its outcome.
+- **Reported failure** — A result observed outside the run that contradicts the work — a command the owner ran, CI, a bug — recorded as given, with its evidence, in `0-intent/failure-<n>.md`. It carries no ruling: its targets' owners reproduce it and adopt or refute it.
+- **Required inputs** — What an artifact must pin: the spec and its candidates, the intent; the design doc and its candidates, the spec; `notes.md`, the spec and the design doc; each, also every later input targeting it.
+- **Resources** — The project convention describing what roles may run and use — environments, services, accounts, data, tools — and how.
+- **Review lane** — One `reviewer` with its brief, in its own branch and worktree. Without a configured lane, one lane named `default` runs. A review lane is approved when its latest review thread is `closed: approved` at the current net change; the implementation is approved when every lane is.
+- **Review thread** — A thread a review lane opens to `implementer` about `implementation`. Closed `approved`, it carries `reviewed`: the id of the net change it approved.
+- **Role names** — The parties of a thread: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>`, and `owner`. Each artifact pairs with its owner: `intent` with `owner`, `spec` with `spec-producer`, `design-doc` with `design-doc-producer`, `implementation` with `implementer`.
+- **Run configuration** — `run-config.md` at the pipeline folder root: the target phase, the base, and the lanes, with each profile's and lane's model and the owner's directions in its body.
+- **Seating** — Starting a role inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
+- **Stale** — An artifact with a required input that is unpinned or pinned at an identity that differs from the current one. Its owner responds by revising it.
+- **Stamp** — The orchestrator's `rp stamp` operation, which writes a file's frontmatter — `inputs` on an artifact, `reviewed` on an approving review thread — without changing its identity.
+- **Supporting folder** — The folder where a role keeps the screenshots, logs, command output, and transcripts its file cites: `1-spec/spec/`, `2-design-doc/design-doc/`, and `3-implementation/notes/` beside their artifacts; `<phase folder>/lanes/<lane>/<artifact>/` for a candidate; `threads/reviewer-<lane>/` for a reviewer. It is not pipeline state.
+- **Target** — What a later input addresses: one or more artifacts, whole or by clause id.
 - **Target phase** — The highest phase a run executes before stopping.
-- **Task report** — A per-attempt worker report, `tasks/<task id>-report-<k>.md`, landed in a commit of its own, naming the task it executed and its dependencies, and recording its outcome, claimed commits, checks, and failure evidence. Its `reviewed` pins are immutable; an unfinished report is completed in place.
-- **Triage** — The orchestrator decision point that normalizes incoming work, scans existing pipelines, selects a route, and confirms the run.
-- **Verdict** — A review's conclusion: `approved`, `rejected`, or `unsatisfiable`; the last names a target.
-- **Wave** — One review of an artifact by every one of its lanes, numbered per artifact; closed when every lane's review is stamped and fresh.
-- **Worker** — A fresh agent that executes one task of a build or document plan and writes its task report.
-- **Worktree** — A checkout of one branch. The orchestrator creates it and seats agents in it.
+- **Thread** — The conversation between two roles about one artifact, in one file, `threads/<n>-<opener>-<owner>-<artifact>.md`, opened by a role that consumes the artifact. Its status is `open`, `closed: approved`, `closed: withdrawn`, `closed: answered`, or `disagreement`. Each message ends its author's turn.
+- **Triage** — The orchestrator's entry for incoming work: it normalizes the request into an issue, scans the issue's pipelines, routes each statement, and confirms the runs that need it.
+- **Worktree** — A checkout of one branch. The orchestrator creates it and seats roles in it.
 - **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.
