@@ -118,7 +118,7 @@ A thread is the conversation between two roles about one artifact, recorded as o
 **Disagreement.** A reply that repeats a position without new evidence is a disagreement. Resolution depends on what is disputed:
 
 - A derived requirement or a design decision: resolved by observation, inside the thread. A clause whose defense cites an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact. No status marks this.
-- What the intent means or demands: owner territory. Either party opens a thread to `owner` about `intent`, with status `disagreement`, stating the question and citing the thread it comes from. `disagreement` is the only status that reaches the owner, and only a thread addressed to `owner` carries it. The orchestrator carries it to the owner, records the answer as later input targeting the disputed artifact, and closes the thread `closed: answered`. If a clause stands by observation and the reviewer still holds that satisfying it is disproportionate to the intent, the question is about the intent's scope and takes this route.
+- What the intent means or demands: owner territory. Either party opens a thread to `owner` about `intent`, with status `disagreement`, stating the question and citing the thread it comes from. A producer that shows, with evidence, that every kind of approach fails an intent goal or constraint opens the same thread citing that evidence. `disagreement` is the only status that reaches the owner, and only a thread addressed to `owner` carries it. The orchestrator carries it to the owner, records the answer as later input targeting the disputed artifact, and closes the thread `closed: answered`. If a clause stands by observation and the reviewer still holds that satisfying it is disproportionate to the intent, the question is about the intent's scope and takes this route.
 
 **What reaches the artifact.** Only the result: the artifact changes, or it does not. When a refutation establishes that a case is not material, the spec's **Considered and not required** gains a line, so the case is not raised again. Threads are never cited from artifacts.
 
@@ -166,7 +166,7 @@ A pipeline may target an earlier phase so the owner can read the spec or the des
 
 ## Conventions and tools
 
-Each project records its conventions in `.rp.md`: issues, pipeline slug, pipeline branch format, pipelines folder root, artifact storage, worktree folder root, commit format, pull-request format, guardrails, resources, lifecycle hooks, agents (models and lanes per profile), and health monitoring. Guardrails bind the implementer and the reviewer evaluates them. Resources name what every role may run.
+Each project records its conventions in `.rp.md`: issues, pipeline slug, pipeline branch format, pipelines folder root, artifact storage, worktree folder root, commit format, pull-request format, guardrails, resources, lifecycle hooks, agents (models and lanes per profile), and health monitoring. Guardrails bind every role they name, and the reviewer evaluates them against the change. Resources name what every role may run.
 
 The active tool's mechanics live in the skill's `tools/<tool>.md`: how to spawn a role on a model and profile, seat it in a worktree, wake it with a message, learn that it finished or failed, terminate it, and run health ticks. v4 prefers the tool's native primitives for every one of these and ships plugin code only where a tool lacks one.
 
