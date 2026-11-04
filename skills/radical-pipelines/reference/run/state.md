@@ -38,9 +38,9 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
   | File | Required inputs |
   | --- | --- |
   | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
-  | A spec candidate | `0-intent/intent.md`; every later input targeting `1-spec/spec.md` |
+  | A spec candidate | `0-intent/intent.md` |
   | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
-  | A design doc candidate | `1-spec/spec.md`; every later input targeting `2-design-doc/design-doc.md` |
+  | A design doc candidate | `1-spec/spec.md` |
   | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
   | A review thread closed `approved` | `0-intent/intent.md`; every later input |
 

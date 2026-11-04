@@ -33,12 +33,33 @@ describe("production lanes", () => {
     pipeline(0, { lanes: SPEC_LANES });
     produce("a");
     produce("b");
-    write("0-intent/constraint-1.md", `target: ${SPEC}\n`);
+    write(INTENT, `${read(INTENT)}More.\n`);
     assert.deepEqual(frontier(), [`lane ${SPEC} a`, `lane ${SPEC} b`]);
     revise(candidate("a"));
-    assert.deepEqual(check().frontier, [{ action: "lane", target: SPEC, lane: "b", threads: [], changed: ["0-intent/constraint-1.md"] }]);
+    assert.deepEqual(check().frontier, [{ action: "lane", target: SPEC, lane: "b", threads: [], changed: [INTENT] }]);
     assert.deepEqual(check().phases[0].lanes.map((entry) => [entry.id, entry.state]), [["a", "fresh"], ["b", "stale"]]);
   });
+
+  // [root, its lanes, what the lanes read]
+  const roots = [
+    [SPEC, SPEC_LANES, 0, (id) => candidate(id)],
+    [DESIGN, [lane("design-doc-producer", "a"), lane("design-doc-producer", "b")], 1, (id) => candidate(id, "2-design-doc", "design-doc.md")],
+  ];
+  for (const [root, lanes, upTo, candidateOf] of roots)
+    it(`leave the candidates fresh on a later input targeting ${root}, which the consolidated root pins`, () => {
+      pipeline(upTo, { lanes });
+      for (const id of ["a", "b"]) {
+        write(candidateOf(id), `# Candidate ${id}\n`);
+        land(candidateOf(id));
+      }
+      write("0-intent/constraint-1.md", `target: ${root}\n`);
+      assert.deepEqual(frontier(), [`consolidate ${root}`]);
+      assert.deepEqual(check().phases[upTo].lanes.map((entry) => entry.state), ["fresh", "fresh"]);
+      write(root, "# Root\n");
+      land(root, candidateOf("a"), candidateOf("b"));
+      assert.equal(check().phases[upTo].state, "fresh");
+      assert.match(read(root), /0-intent\/constraint-1\.md@/);
+    });
 
   it("consolidate once every candidate exists and is fresh", () => {
     pipeline(0, { lanes: SPEC_LANES });

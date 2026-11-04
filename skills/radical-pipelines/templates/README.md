@@ -1,6 +1,6 @@
 # Assignment templates
 
-One template per profile. Build every assignment from its template: fill every slot, keep the headings verbatim — the profile refers to them by name — and list materials as explicit paths. Keep only the material lines of the selected mode, and omit a section marked optional when it has nothing. A role's materials are exactly what its assignment lists.
+One template per profile. Build every assignment from its template: fill every slot, keep the headings verbatim — the profile refers to them by name — and list materials as explicit paths. Keep only the material lines of the selected mode and **Write to**, as their comments mark, and omit a section marked optional when it has nothing. A role's materials are exactly what its assignment lists.
 
 Slots:
 

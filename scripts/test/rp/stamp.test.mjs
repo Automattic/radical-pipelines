@@ -42,21 +42,22 @@ describe("identity", () => {
 describe("stamp derives the required inputs", () => {
   useRepo();
 
+  // [subject, its upstream artifacts, its root, whether it pins the later inputs targeting its root]
   const subjects = [
-    [SPEC, UPSTREAM[SPEC]],
-    [DESIGN, UPSTREAM[DESIGN]],
-    [NOTES, UPSTREAM[NOTES]],
-    ["1-spec/lanes/a/spec.md", UPSTREAM[SPEC], SPEC],
-    ["2-design-doc/lanes/a/design-doc.md", UPSTREAM[DESIGN], DESIGN],
+    [SPEC, UPSTREAM[SPEC], SPEC, true],
+    [DESIGN, UPSTREAM[DESIGN], DESIGN, true],
+    [NOTES, UPSTREAM[NOTES], NOTES, true],
+    ["1-spec/lanes/a/spec.md", UPSTREAM[SPEC], SPEC, false],
+    ["2-design-doc/lanes/a/design-doc.md", UPSTREAM[DESIGN], DESIGN, false],
   ];
-  for (const [subject, upstream, root = subject] of subjects)
-    it(`of ${subject}: its upstream artifacts and the later inputs targeting ${root}`, () => {
+  for (const [subject, upstream, root, pinsLater] of subjects)
+    it(`of ${subject}: its upstream artifacts${pinsLater ? " and the later inputs targeting it" : ", not the later inputs targeting " + root}`, () => {
       pipeline(3, { lanes: [lane("spec-producer", "a"), lane("design-doc-producer", "a")] });
       write("0-intent/constraint-1.md", `target: ${root}#item-1\n`);
       write("0-intent/proposal-1.md", `target: ${[SPEC, DESIGN, NOTES].find((path) => path !== root)}\n`);
       write(subject, "# Body\n");
       land(subject);
-      assert.deepEqual(inputsOf(subject), [...upstream, "0-intent/constraint-1.md"].sort().map(pin));
+      assert.deepEqual(inputsOf(subject), [...upstream, ...(pinsLater ? ["0-intent/constraint-1.md"] : [])].sort().map(pin));
     });
 
   // How the input changes after the turn's commit: [what, change].

@@ -18,7 +18,7 @@
 
 - Intent: <0-intent/intent.md path>
 - Spec: <1-spec/spec.md path>
-- Later inputs: <one line per constraint, proposal, or failure file targeting 2-design-doc/design-doc.md: path>
+- Later inputs: <one line per constraint, proposal, or failure file targeting 2-design-doc/design-doc.md: path>   <!-- Write to 2-design-doc/design-doc.md -->
 - Changed inputs: <one line per changed input: path — changed since <commit>>   <!-- Respond -->
 - Lane candidates: <one line per lane: id — candidate path>   <!-- Consolidate -->
 

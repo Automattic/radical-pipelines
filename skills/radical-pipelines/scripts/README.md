@@ -62,8 +62,10 @@ The body is ignored. A missing `run-config.md` or one that breaks these rules st
 
 | What carries `inputs` | Required inputs |
 | --- | --- |
-| `1-spec/spec.md` and its candidates | `0-intent/intent.md`; every later input targeting `1-spec/spec.md` |
-| `2-design-doc/design-doc.md` and its candidates | `1-spec/spec.md`; every later input targeting `2-design-doc/design-doc.md` |
+| `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
+| A spec candidate | `0-intent/intent.md` |
+| `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
+| A design doc candidate | `1-spec/spec.md` |
 | `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
 | An approval (§ Threads) | `0-intent/intent.md`; every later input |
 

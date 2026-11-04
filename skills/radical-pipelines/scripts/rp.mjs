@@ -530,10 +530,12 @@ function parseOrFail(path, parse) {
 
 // --- state ------------------------------------------------------------------------
 
-// The required inputs of what carries `inputs`. An artifact or candidate: its phase's upstream artifacts and every later
-// input that targets its phase's artifact. An approval: the intent and every later input.
+// The required inputs of what carries `inputs`. An artifact: its phase's upstream artifacts and every later input that
+// targets it. A candidate: its phase's upstream artifacts, what its lane reads; the later inputs targeting its root are
+// the root's. An approval: the intent and every later input.
 export function requiredInputs(state, subject) {
-  const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && (subject.kind === "thread" || doc.targets.includes(subject.phase.artifact)));
+  const consumes = (doc) => subject.kind === "thread" || (subject.kind === "artifact" && doc.targets.includes(subject.phase.artifact));
+  const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && consumes(doc));
   return [...upstreamOf(subject), ...later.map((doc) => doc.path)];
 }
 // The upstream artifacts a subject pins, before later inputs.
