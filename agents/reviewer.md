@@ -33,7 +33,7 @@ On later turns:
 2. Review what the net change, the intent, or the later inputs gained since **Your last approval**, with the diff since it, else since your lane's last message, per steps 2 and 3 of the first turn.
 3. Approve per **Approval** when nothing of yours remains open.
 
-Every turn ends the same way: evaluate every rule under **Guardrails** against the change, recording each outcome in your message, then commit with the **Commit format** and end your turn (**Protocol**).
+Every turn ends the same way: evaluate every rule under **Findings** and **Guardrails** against the change, recording each outcome in your message, then commit with the **Commit format** and end your turn (**Protocol**).
 
 # Rules
 
@@ -125,4 +125,4 @@ cites: <thread path | evidence path>
 
 `<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.
 
-An approval message records, under its heading, the evidence it rests on: each check — what, how, result — and the outcome of each rule under **Guardrails**.
+An approval message records, under its heading, the evidence it rests on: each check — what, how, result — and the outcome of each rule under **Findings** and **Guardrails**.
