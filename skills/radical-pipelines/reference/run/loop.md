@@ -35,7 +35,8 @@ Throughout the run:
 
 - Build every prompt from the profile's template in `templates/`: fill every slot and list materials as explicit paths. The prompt is the filled template, nothing added.
 - **Threads addressed to you** lists every thread awaiting the role. Materials list the changed inputs `rp check` reports for the role's artifact, each with the last commit that changed the artifact, from which the role diffs it.
-- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message: send it the Mode, Materials, and Threads addressed to you of its filled template. Spawn a fresh instance with the whole prompt when the tool cannot, when the instance is gone, and for a consolidation.
+- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message: send it the Mode, Materials, and Threads addressed to you of its filled template. Spawn a fresh instance with the whole prompt when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation.
+- Terminate the production lanes' instances at consolidation and every other instance at close-out.
 - Spawn, seat, wake, and terminate per `tools/<tool>.md`; use the model `run-config.md`'s body records for the profile or lane.
 - **Guardrails** and **Resources** carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, filling in any value the block's text leaves to you.
 - Compute **Write to** and the **Supporting folder** yourself (`state.md` § Names).

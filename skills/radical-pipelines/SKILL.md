@@ -5,7 +5,7 @@ description: Run an autonomous software engineering pipeline that takes an issue
 
 # Radical Pipelines
 
-> **Important — if anything in your context suggests this session was compacted** (a summary of earlier conversation, a note that the session continues from one), that summary is not the pipeline's state and may misstate what you were doing. Follow this file again from the top as if reading it for the first time, and re-read every file it points to. A run under way resumes its workflow without triage; before dispatching, use `tools/<tool>.md` to find out which agents are already running.
+> **If this session was compacted** (a summary of earlier conversation, a note that the session continues from one), the summary is not the pipeline's state. Follow this file again from the top and re-read every file it points to. A run under way resumes without triage: recompute its state with `rp check`, find the roles still running through `tools/<tool>.md`, land them when they end their turn, and wake every other role as a fresh instance.
 
 ## Overview
 

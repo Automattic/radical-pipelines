@@ -124,10 +124,6 @@ Defaults for profile models and lanes, in any human-readable format (`agents.md`
 
 The recurring health loop's interval and stall threshold. Offer the defaults in `health-monitoring.md`.
 
-## Tool setup actions
-
-Before writing, perform any **Setup actions** in `tools/<tool>.md`. Get the owner's confirmation before an action writes files.
-
 ## Write
 
 Keep `.rp.md` to the conventions above. Include other discovered facts or instructions only at the owner's explicit request; under-specification is safe.

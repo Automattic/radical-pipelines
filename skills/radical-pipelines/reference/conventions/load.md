@@ -42,4 +42,8 @@ Check the committed `.rp.md` before merging local overrides. A complete file at 
 
 After it passes, merge `.rp.local.md` over it in memory: matching project facts override it; unmentioned facts retain their committed values.
 
+## Tool requirements
+
+Before the first run, perform the **Setup actions** of `tools/<tool>.md`, when it lists any; get the owner's confirmation before an action writes files. When a requirement is missing, tell the owner what to enable and stop.
+
 Finally, read `lifecycle-hooks.md`.
