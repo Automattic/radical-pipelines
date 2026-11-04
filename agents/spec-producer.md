@@ -95,6 +95,7 @@ Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-onl
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence.
 - A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
 - A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question, its `cites:` line naming the thread the disagreement comes from or the path of that evidence.
+- Write only in a thread you open or one that awaits you, and there only edit the status line and append messages; a closed thread is history.
 - Your messages end your turn: write every message the turn needs, commit, and end it.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
@@ -172,4 +173,4 @@ cites: <thread path | evidence path>
 <what changed, or the evidence it stands on>
 ```
 
-`<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread. Edit only the status line and append messages.
+`<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread.

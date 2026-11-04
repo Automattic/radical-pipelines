@@ -129,7 +129,7 @@ A thread is the conversation between two roles about one artifact, recorded as o
 
 **What reaches the artifact.** Only the result: the artifact changes, or it does not. When a refutation establishes that a case is not material, the spec's **Considered and not required** gains a line, so the case is not raised again. Threads are never cited from artifacts.
 
-**Lifetime.** Threads stay in the pipeline folder. A closed thread is history.
+**Lifetime.** Threads stay in the pipeline folder. A role writes only in a thread it opens or one that awaits it, editing only the status line and appending messages; a closed thread is history.
 
 ## State
 
