@@ -2,6 +2,7 @@
 
 - Worktree: <absolute path>
 - Branch: <branch>
+- Turn commit: <the worktree's tip when woken>
 - Base branch: <run-config.md's base>
 - Supporting folder: <path>
 

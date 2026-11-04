@@ -4,7 +4,7 @@ One template per profile. Build every prompt from its template: fill every slot,
 
 Slots:
 
-- `Seat` — Worktree, Branch, and Supporting folder (`../reference/run/state.md` § Names); the implementer adds its Base branch, a reviewer its Lane.
+- `Seat` — Worktree, Branch, Turn commit, and Supporting folder (`../reference/run/state.md` § Names, § Terms); the implementer adds its Base branch, a reviewer its Lane.
 - `Mode` — one of the profile's modes.
 - `Brief` — a lane's brief, verbatim.
 - `Materials` — per mode.

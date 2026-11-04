@@ -3,7 +3,7 @@
 Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with three commands:
 
 - `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
-- `rp stamp <file> [--pin <path>]...` writes the file's frontmatter (§ Frontmatter).
+- `rp stamp <file> --at <turn commit> [--pin <path>]...` writes the file's frontmatter (§ Frontmatter).
 - `rp pipelines <repo path> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery).
 
 `check` and `stamp` derive the pipelines folder root from the path they are given; `pipelines` reads it from the project's conventions, `.rp.local.md` first.
@@ -44,12 +44,13 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
   | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
   | A review thread closed `approved` | `0-intent/intent.md`; every later input; `1-spec/spec.md` |
 
-  Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record: land it with `rp stamp <root> --pin <each candidate>`.
+  Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record: land it with `rp stamp <root> --at <turn commit> --pin <each candidate>`.
 
-- **Stale** — an artifact or an approved review thread with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one.
+- **Turn commit** — the tip of a role's worktree when you wake it. The prompt names it, and the role reads its materials at it.
+- **Stale** — an artifact or an approved review thread with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its `reviewed` commit's by anything other than clean merges of the base: `rp check` merges the current base into the `reviewed` commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict or a difference makes it stale.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its first body line is `status: done`.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
-- **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is a hash of the changed lines with one line of context on each side, hunk headers and index lines removed: the context locates each edit. A merge from the base that touches nothing adjacent to the change leaves it unchanged; a change of whitespace changes it.
+- **Net change** — `git diff <base>...<tip>` outside the pipelines folder: what the reviewer reads.
 - **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause.
 
 ## Frontmatter
@@ -58,10 +59,10 @@ Frontmatter is a JSON object between `---` lines at the top of a file. Only `rp 
 
 | Key | File | Value |
 | --- | --- | --- |
-| `inputs` | An artifact, or a review thread closed `approved` | List of pins: every required input at its identity in the commit that last changed the file; on a consolidated root, also each candidate passed with `--pin` |
-| `reviewed` | A review thread closed `approved` (§ Threads) | The net change's id at the commit its last message names |
+| `inputs` | An artifact, or a review thread closed `approved` | List of pins: every required input at its identity in the turn commit's tree; on a consolidated root, also each candidate passed with `--pin` |
+| `reviewed` | A review thread closed `approved` (§ Threads) | The turn commit: the code it approved |
 
-No other file carries frontmatter. `rp stamp <file>` derives the required inputs from the file's kind and pins them at their identities in the tree of the commit that last changed the file: the role's own commit. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the stamps on top.
+No other file carries frontmatter. `rp stamp <file> --at <turn commit>` derives the required inputs from the file's kind and pins them at their identities in that commit's tree, whether or not the turn changed the file. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp --at <turn commit>` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the stamps on top.
 
 ## Threads
 
@@ -80,7 +81,7 @@ artifact: intent | spec | design-doc | implementation
 - **Messages** — each headed `## <role> — <commit>`, written by the opener, the thread's owner, or, for an owner's answer, by you as `owner`.
 - **Awaits** — an `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Status** — the opener closes `closed: approved` or `closed: withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which either party of another thread opens to escalate what the intent means or demands, citing the thread it comes from, or the evidence that every kind of approach fails the intent item; you close it `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
-- **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `closed: approved`, fresh, and with `reviewed` equal to the current net change's id.
+- **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `closed: approved` and fresh.
 
 ## Run configuration
 

@@ -14,7 +14,7 @@ Throughout the run:
 2. Dispatch every line of its frontier (table below). `phase-started` fires the first time a step wakes a role of a phase, and again when work on it resumes.
 3. While roles work, end your turn with health monitoring active; their reports and health ticks resume the run.
 4. When every role the step woke has ended its turn, land each:
-   1. Land it in its worktree (`state.md` § Frontmatter).
+   1. Land it in its worktree at its turn commit (`state.md` § Frontmatter).
    2. Merge its lane branch, when it has one, into the pipeline branch (`before-`/`after-merging-lanes`).
    3. Fire `phase-completed` when a phase becomes complete.
    4. Give the owner a one-line report naming the role, what changed, and anything worth surfacing.
@@ -34,8 +34,9 @@ Throughout the run:
 ## Waking a role
 
 - Build every prompt from the profile's template in `templates/`: fill every slot and list materials as explicit paths. The prompt is the filled template, nothing added.
+- The **Turn commit** is the tip of the role's worktree when you wake it.
 - **Threads addressed to you** lists the threads `rp check` reports awaiting the role. **Changed inputs** lists the changed inputs it reports for the role's artifact, each with the last commit that changed the artifact, from which the role diffs it.
-- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message: send it the Mode, Materials, and Threads addressed to you of its filled template. Spawn a fresh instance with the whole prompt when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation.
+- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message: send it the Turn commit, Mode, Materials, and Threads addressed to you of its filled template. Spawn a fresh instance with the whole prompt when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation.
 - Terminate the production lanes' instances at consolidation and every other instance at close-out.
 - Spawn, seat, wake, and terminate per `tools/<tool>.md`; use the model `run-config.md`'s body records for the profile or lane.
 - **Guardrails** and **Resources** carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, filling in any value the block's text leaves to you.
@@ -48,15 +49,15 @@ Throughout the run:
 A production lane is a `spec-producer` or `design-doc-producer` lane declared in `run-config.md`; it writes a candidate.
 
 1. For each `lane <artifact> <id>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Wake the lane's producer there — mode produce when its candidate is missing, else respond — with its **Brief**, its **Threads addressed to you**, and **Write to** `<phase folder>/lanes/<id>/<artifact>.md`. Lanes run in parallel.
-2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**. Land it with `rp stamp <root> --pin <each candidate>`.
+2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**. Land it with `rp stamp <root> --at <turn commit> --pin <each candidate>`.
 
 ## Review lanes
 
 A review lane is one `reviewer` with its brief; every lane must approve.
 
-1. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, to a file outside the worktree.
+1. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, to a file outside the worktree. For a lane that approved before, also save the diff from the commit its last approval names to the tip, outside the pipelines folder.
 2. For each `review <lane>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them.
-3. Wake the lane's reviewer there with its **Lane**, its **Brief**, the net change, and, when the lane approved before, the commit its last approval names. Lanes run in parallel.
+3. Wake the lane's reviewer there with its **Lane**, its **Brief**, the net change, and, when the lane approved before, the commit its last approval names with the diff since it. Lanes run in parallel.
 
 ## Owner escalation
 

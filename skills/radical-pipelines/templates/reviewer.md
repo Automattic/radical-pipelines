@@ -2,6 +2,7 @@
 
 - Worktree: <absolute path>
 - Branch: <branch>
+- Turn commit: <the worktree's tip when woken>
 - Lane: <lane id>
 - Supporting folder: <path>
 
@@ -20,7 +21,7 @@ Review
 - Spec: <1-spec/spec.md path>
 - Notes: <3-implementation/notes.md path>
 - Net change: <path of the saved diff>
-- Your last approval: <commit>   <!-- when the lane approved before -->
+- Your last approval: <commit> — <path of the saved diff since it>   <!-- when the lane approved before -->
 - Design doc: <2-design-doc/design-doc.md path>
 - Threads: <threads/ path>
 

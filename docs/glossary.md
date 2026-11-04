@@ -23,11 +23,11 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Instance name** — A spawned role's name, `<pipeline slug> <profile>[ <lane>]`.
 - **Intended use** — A use the intent names, or one that the project's documentation or code shows a consumer making. It is how roles judge whether a case matters: an input an artifact or the code merely admits, or a consumer no source shows, is not intended use.
 - **Issue** — The unit of work a pipeline realizes.
-- **Landing** — Verifying a role's commits are on its branch, stamping its artifact and every review thread its turn closed `approved`, and committing the stamps on top.
+- **Landing** — Verifying a role's commits are on its branch, stamping its artifact and every review thread its turn closed `approved` at its turn commit, and committing the stamps on top.
 - **Later input** — What the owner brings after the intent: a constraint, a proposal, or a reported failure, each in `0-intent/` with `target:` naming the artifacts it targets and `origin:` naming where it came from, holding only what the owner gave in the fewest words that carry it. A later input is a required input of every artifact it targets.
 - **Missing** — An artifact whose file is absent. `notes.md` is also missing until the first line of its body is `status: done`.
 - **Mode** — The procedure a role's prompt selects: produce, respond, or consolidate for a producer; implement or respond for the implementer; the reviewer has one.
-- **Net change** — The pipeline's change outside the pipelines folder: the diff from its base to its tip. Its id is a hash of its changed lines with one line of context on each side, without hunk headers or index lines: a merge from the base branch that touches nothing adjacent to the change does not alter it, and a change of whitespace does.
+- **Net change** — The pipeline's change outside the pipelines folder: the diff from its base to its tip, what the reviewer reads.
 - **Notes** — `3-implementation/notes.md`, the implementer's resumption file: the inputs it started from, what is done, what remains, the decisions a successor should know, and the approaches that failed. `status: done` on its first line declares the implementation complete.
 - **Observed / assumed** — The label on every claim. A claim about current behavior is `observed: <how>`; a claim about what the solution will do is `assumed: <what will confirm it>`, and the implementer verifies it.
 - **Orchestrator** — The session running the skill. It triages with the owner, records phase 0, creates branches and worktrees, wakes the roles the frontier names, lands their turns, carries disagreements on owner territory to the owner, and opens the pull request. It judges no content and relays no message.
@@ -36,8 +36,8 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Owner escalation** — A thread with status `disagreement`. The run stops; the owner's answer is recorded as a constraint or a proposal, as the owner rules, targeting the disputed artifact, and the thread is closed `closed: answered`.
 - **Owner territory** — What the intent means or demands: its Goal, its constraints, and later constraint files. Everything after the intent is chosen by a role and settled between roles.
 - **Phase** — One pipeline stage: Intent, Spec, Design doc, Implementation, or Review.
-- **Pin** — An entry `<path>@<identity>` in the `inputs` frontmatter of an artifact or an approving review thread, recording the version of an input in the commit that last changed the file.
-- **Pipeline** — A set of artifacts, each owned by one role. It is done when every artifact through the target phase exists and is not stale, no thread is open or in disagreement, and, when the target is the review, every review lane has approved the current net change.
+- **Pin** — An entry `<path>@<identity>` in the `inputs` frontmatter of an artifact or an approving review thread, recording the version of an input at the turn commit.
+- **Pipeline** — A set of artifacts, each owned by one role. It is done when every artifact through the target phase exists and is not stale, no thread is open or in disagreement, and, when the target is the review, every review lane's approval is fresh.
 - **Pipeline branch** — The branch a pipeline's commits land on: the **Pipeline branch format** convention applied to its slug, with `_<n>` appended for work on the pipeline once merged. Lane branches extend it.
 - **Pipeline branch format** — The project convention giving the pipeline branch as a template over `<pipeline slug>`, defaulting to the slug itself.
 - **Pipeline slug** — The project convention deriving a pipeline's identifier from its issue, and that identifier: one path segment, a valid git ref, without `_`, naming the pipeline folder.
@@ -47,17 +47,18 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Reported failure** — A result observed outside the run that contradicts the work — a command the owner ran, CI, a bug — recorded as given, with its evidence, in `0-intent/failure-<n>.md`. It carries no ruling: its targets' owners reproduce it and adopt or refute it.
 - **Required inputs** — What an artifact must pin: the spec and its candidates, the intent; the design doc and its candidates, the spec; `notes.md`, the spec and the design doc; each, also every later input targeting it.
 - **Resources** — The project convention describing what roles may run and use — environments, services, accounts, data, tools — and how.
-- **Review lane** — One `reviewer` with its brief, in its own branch and worktree. Without a configured lane, one lane named `default` runs. A review lane is approved when its latest review thread is `closed: approved` at the current net change; the implementation is approved when every lane is.
-- **Review thread** — A thread a review lane opens to `implementer` about `implementation`. Closed `approved`, it carries `reviewed`: the id of the net change it approved.
+- **Review lane** — One `reviewer` with its brief, in its own branch and worktree. Without a configured lane, one lane named `default` runs. A review lane is approved when its latest review thread is `closed: approved` and fresh; the implementation is approved when every lane is.
+- **Review thread** — A thread a review lane opens to `implementer` about `implementation`. Closed `approved`, it pins the intent, every later input, and the spec, and carries `reviewed`: the turn commit whose code it approved. It is stale when a required input changed, or when the tip's code differs from that commit's by anything other than clean merges of the base.
 - **Role names** — The parties of a thread: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>`, and `owner`. Each artifact pairs with its owner: `intent` with `owner`, `spec` with `spec-producer`, `design-doc` with `design-doc-producer`, `implementation` with `implementer`.
 - **Run configuration** — `run-config.md` at the pipeline folder root: the target phase, the base, and the lanes, with each profile's and lane's model and the owner's directions in its body.
 - **Seating** — Starting a role inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
-- **Stale** — An artifact with a required input that is unpinned or pinned at an identity that differs from the current one. Its owner responds by revising it.
+- **Stale** — An artifact or approval with a required input that is unpinned or pinned at an identity that differs from the current one; an approval also when the code moved past it (see Review thread). Its owner responds by revising it.
 - **Stamp** — The orchestrator's `rp stamp` operation, which writes a file's frontmatter — `inputs` on an artifact, `reviewed` on an approving review thread — without changing its identity.
 - **Supporting folder** — The folder where a role keeps the screenshots, logs, command output, and transcripts its file cites: `1-spec/spec/`, `2-design-doc/design-doc/`, and `3-implementation/notes/` beside their artifacts; `<phase folder>/lanes/<lane>/<artifact>/` for a candidate; `threads/reviewer-<lane>/` for a reviewer. It is not pipeline state.
 - **Target** — What a later input addresses: one or more artifacts, whole or by clause id.
 - **Target phase** — The highest phase a run executes before stopping.
 - **Thread** — The conversation between two roles about one artifact, in one file, `threads/<n>-<opener>-<owner>-<artifact>.md`, opened by a role that consumes the artifact. Its status is `open`, `closed: approved`, `closed: withdrawn`, `closed: answered`, or `disagreement`. Each message ends its author's turn.
+- **Turn commit** — The tip of a role's worktree when the orchestrator wakes it. The role reads its materials at it, and landing stamps at it.
 - **Triage** — The orchestrator's entry for incoming work: it normalizes the request into an issue, scans the issue's pipelines, routes each statement, and confirms the runs that need it.
 - **Worktree** — A checkout of one branch. The orchestrator creates it and seats roles in it.
 - **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.

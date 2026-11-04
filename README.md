@@ -55,7 +55,7 @@ A dispute about a derived requirement or a design decision is settled inside its
 
 ### Pins and state
 
-Each artifact pins, in its frontmatter, the exact version of every input it consumed. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the net change, the pipeline's diff from its base outside the pipelines folder, so merging the base branch keeps approvals valid unless the merge changed the diff itself.
+Each artifact pins, in its frontmatter, the exact version of every input it consumed. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the intent, the later inputs, and the spec, and records the commit whose code it approved; it stays valid while the code differs from that commit's only by clean merges of the base branch.
 
 State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts/README.md#check) names the frontier, the next roles to wake. Any orchestrator, on any machine, continues a pipeline from its files.
 

@@ -10,7 +10,7 @@ Read-only. The owner wants to know where things stand: one pipeline, or everythi
    - configuration: target phase, lanes;
    - per phase: missing · stale · current, with each production lane's candidate;
    - open threads and the role each awaits; pending escalations;
-   - each review lane: approved at the current net change or not;
+   - each review lane: approved and fresh, or not;
    - the frontier.
 4. For an issue, render it as the root of a plain-text tree (`├`, `└`, `│`, `─`) whose pipeline nodes follow their `origin` links. Append `[merged]` to every merged pipeline.
 
