@@ -204,7 +204,7 @@ describe("frontier", () => {
       assert.deepEqual(check().frontier, [{ action: "review", target: "default", threads: ["threads/2-reviewer-default-spec-producer-spec.md"] }]);
     });
 
-    it("an approval goes stale when the net change changes", () => {
+    it("an approval goes stale when the implementer commits code", () => {
       pipeline(3);
       approve();
       commitAll("approval");
@@ -212,7 +212,7 @@ describe("frontier", () => {
       writeFile("src/app.js", "export const a = 3;\n");
       commitAll("change");
       assert.deepEqual(frontier(), ["review default"]);
-      assert.deepEqual(check().reviews, [{ lane: "default", approved: false }]);
+      assert.deepEqual(check().reviews, [{ lane: "default", approved: false, codeChanged: true }]);
     });
 
     it("an approval goes stale when a required input changes or a later input lands", () => {
@@ -228,12 +228,12 @@ describe("frontier", () => {
       assert.deepEqual(frontier(), ["complete"]);
     });
 
-    it("an approval whose pins match but whose net change differs is not approved", () => {
+    it("an approval whose pins match but whose code changed is not approved", () => {
       pipeline(3);
       approve();
       writeFile("src/app.js", "export const a = 9;\n");
       commitAll("change");
-      assert.deepEqual(check().reviews, [{ lane: "default", approved: false }]);
+      assert.deepEqual(check().reviews, [{ lane: "default", approved: false, codeChanged: true }]);
     });
 
     it("only the lane's highest-numbered review thread counts", () => {

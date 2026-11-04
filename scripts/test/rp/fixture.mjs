@@ -48,11 +48,13 @@ export function configure({ targetPhase = 4, base = "main", lanes } = {}) {
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 
-// Stamps a file with its derived required inputs; `candidates` are the extra pins of a consolidated root.
-export function stamp(rel, ...candidates) {
-  return rp("stamp", abs(P(rel)), ...candidates.flatMap((pin) => ["--pin", abs(P(pin))]));
+// Stamps a file with its derived required inputs at a turn's commit, HEAD by default; `candidates` are the extra pins
+// of a consolidated root.
+export function stampAt(at, rel, ...candidates) {
+  return rp("stamp", abs(P(rel)), "--at", at, ...candidates.flatMap((pin) => ["--pin", abs(P(pin))]));
 }
-// Lands a role's turn: commits the working tree, then stamps the file.
+export const stamp = (rel, ...candidates) => stampAt("HEAD", rel, ...candidates);
+// Lands a role's turn: commits the working tree, then stamps the file at that commit.
 export function land(rel, ...candidates) {
   commitAll(`land ${rel}`);
   return stamp(rel, ...candidates);
@@ -83,11 +85,13 @@ export const TO_SPEC = { opener: "design-doc-producer", owner: "spec-producer", 
 export const TO_DESIGN = { opener: "implementer", owner: "design-doc-producer", artifact: "design-doc" };
 export const REVIEW = (lane = "default") => ({ opener: `reviewer-${lane}`, owner: "implementer", artifact: "implementation" });
 export const TO_OWNER = { opener: "spec-producer", owner: "owner", artifact: "intent", status: "disagreement" };
-// A review thread closed approved at HEAD, landed and stamped.
+// A review thread closed approved by a turn that started at HEAD, landed, stamped at that commit, and committed.
 export function approve(laneId = "default", n = 1) {
   const head = git(root, "rev-parse", "HEAD").trim();
   const path = thread({ n, status: "closed: approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
-  land(path);
+  commitAll(`approve ${laneId}`);
+  stampAt(head, path);
+  commitAll(`stamp ${path}`);
   return path;
 }
 

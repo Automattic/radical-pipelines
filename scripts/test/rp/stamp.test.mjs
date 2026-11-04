@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { identity, splitFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import {
   DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_SPEC, UPSTREAM,
-  abs, check, commitAll, configure, git, land, lane, pipeline, read, remove, revise, root, run, stamp, thread, useRepo, write, writeFile,
+  abs, check, commitAll, configure, git, land, lane, pipeline, read, remove, revise, root, run, stamp, stampAt, thread, useRepo, write, writeFile,
 } from "./fixture.mjs";
 
 const id = (rel) => identity(readFileSync(abs(P(rel))));
@@ -59,24 +59,41 @@ describe("stamp derives the required inputs", () => {
       assert.deepEqual(inputsOf(subject), [...upstream, "0-intent/constraint-1.md"].sort().map(pin));
     });
 
-  // How the input changes after the artifact's commit: [what, change].
+  // How the input changes after the turn's commit: [what, change].
   const later = [
     ["uncommitted", () => write(INTENT, `${read(INTENT)}Uncommitted.\n`)],
-    ["committed after the artifact", () => { write(INTENT, `${read(INTENT)}Committed later.\n`); commitAll("intent later"); }],
-    ["committed after a stamp commit of the artifact", () => { commitAll("stamp"); write(INTENT, `${read(INTENT)}Later.\n`); commitAll("intent later"); }],
+    ["committed after the turn's commit", () => { write(INTENT, `${read(INTENT)}Committed later.\n`); commitAll("intent later"); }],
   ];
   for (const [what, change] of later)
-    it(`pins the identities at the commit that last changed the artifact's body, not an input changed ${what}`, () => {
+    it(`pins the identities at the --at commit, not an input changed ${what}`, () => {
       pipeline(0);
       write(SPEC, "# Spec\n");
-      const atCommit = id(INTENT);
-      land(SPEC);
+      const turn = commitAll("turn");
+      const atTurn = id(INTENT);
       change();
-      stamp(SPEC);
-      assert.deepEqual(inputsOf(SPEC), [`${INTENT}@${atCommit}`]);
-      assert.notEqual(id(INTENT), atCommit);
+      stampAt(turn, SPEC);
+      assert.deepEqual(inputsOf(SPEC), [`${INTENT}@${atTurn}`]);
+      assert.notEqual(id(INTENT), atTurn);
       assert.deepEqual(check().phases[0].stale, [INTENT]);
     });
+
+  it("makes a response that leaves the artifact unchanged fresh", () => {
+    pipeline(3);
+    write(INTENT, `${read(INTENT)}Clarified.\n`);
+    const turn = commitAll("intent changes");
+    assert.deepEqual(check().phases[0].stale, [INTENT]);
+    stampAt(turn, SPEC);
+    assert.equal(check().phases[0].state, "fresh");
+    assert.deepEqual(check().frontier, [{ action: "review", target: "default", threads: [] }]);
+  });
+
+  it("pins the inputs at a turn's commit even when the artifact is not committed yet", () => {
+    pipeline(0);
+    const turn = git(root, "rev-parse", "HEAD").trim();
+    write(SPEC, "# Spec\n");
+    stampAt(turn, SPEC);
+    assert.deepEqual(inputsOf(SPEC), [pin(INTENT)]);
+  });
 
   it("pins the inputs a revision of the body read", () => {
     pipeline(1);
@@ -123,25 +140,21 @@ describe("stamp derives the required inputs", () => {
 describe("stamp of an approval", () => {
   useRepo();
 
-  it("pins the intent, every later input, and the spec, and records the net change at its last message's commit", () => {
+  it("pins the intent, every later input, and the spec at the turn's commit, and records that commit as reviewed", () => {
     pipeline(3);
     write("0-intent/constraint-1.md", `target: ${NOTES}\n`);
     write("0-intent/proposal-1.md", `target: ${DESIGN}\n`);
     writeFile("src/app.js", "export const a = 2;\n");
-    const reviewedAt = commitAll("change");
-    const atReview = check().netChange;
-    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abc1234"], ["implementer", "abc1234"], ["reviewer-default", reviewedAt.slice(0, 9)]] });
-    writeFile("src/app.js", "export const a = 3;\n");
-    commitAll("later change");
-    stamp(path);
-    assert.deepEqual(frontmatterOf(path), {
-      inputs: [pin("0-intent/constraint-1.md"), pin(INTENT), pin("0-intent/proposal-1.md"), pin(SPEC)],
-      reviewed: atReview,
-    });
-    assert.notEqual(atReview, check().netChange);
+    const turn = commitAll("change");
+    const pins = [pin("0-intent/constraint-1.md"), pin(INTENT), pin("0-intent/proposal-1.md"), pin(SPEC)];
+    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", turn.slice(0, 9)]] });
+    write("0-intent/proposal-1.md", `target: ${DESIGN}\nChanged after the turn.\n`);
+    commitAll("later");
+    stampAt(turn.slice(0, 9), path);
+    assert.deepEqual(frontmatterOf(path), { inputs: pins, reviewed: turn });
     assert.match(read(path), /^---\n[\s\S]*\n---\nstatus: closed: approved\n/);
     const before = read(path);
-    stamp(path);
+    stampAt(turn, path);
     assert.equal(read(path), before);
   });
 });
@@ -172,7 +185,7 @@ describe("stamp refuses", () => {
       thread({ n: 2, ...REVIEW() });
       commitAll("setup");
       const before = read(SPEC);
-      const out = run("stamp", ...args().map((arg) => arg.startsWith("--") ? arg : abs(arg)));
+      const out = run("stamp", ...args().map((arg) => arg.startsWith("--") ? arg : abs(arg)), "--at", "HEAD");
       assert.equal(out.status, 1);
       assert.match(out.stderr, message);
       assert.equal(read(SPEC), before);
@@ -182,7 +195,7 @@ describe("stamp refuses", () => {
     pipeline(0);
     write(DESIGN, "# Design\n");
     commitAll("design");
-    const out = run("stamp", abs(P(DESIGN)));
+    const out = run("stamp", abs(P(DESIGN)), "--at", "HEAD");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /cannot pin .*1-spec\/spec.md: missing/);
   });
@@ -192,7 +205,7 @@ describe("stamp refuses", () => {
     write("0-intent/constraint-1.md", "no target\n");
     write(SPEC, `${read(SPEC)}Revised.\n`);
     commitAll("revise");
-    const out = run("stamp", abs(P(SPEC)));
+    const out = run("stamp", abs(P(SPEC)), "--at", "HEAD");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /constraint-1.md: later input has no target/);
   });
@@ -201,40 +214,29 @@ describe("stamp refuses", () => {
     pipeline(0);
     write(SPEC, "---\nnot json\n---\n# Spec\n");
     commitAll("malformed");
-    const out = run("stamp", abs(P(SPEC)));
+    const out = run("stamp", abs(P(SPEC)), "--at", "HEAD");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /not valid JSON/);
     assert.equal(read(SPEC), "---\nnot json\n---\n# Spec\n");
   });
 
-  it("an approval whose last message's commit does not resolve", () => {
-    pipeline(3);
-    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abcdef1"]] });
-    commitAll("approve");
-    const out = run("stamp", abs(P(path)));
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /the last message's commit does not resolve to a commit: abcdef1/);
-  });
-
-  it("an artifact with no commit", () => {
-    pipeline(0);
-    write(SPEC, "# Spec\n");
-    const out = run("stamp", abs(P(SPEC)));
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /1-spec\/spec.md has no commit: commit its body before stamping/);
-  });
-
-  it("an artifact whose body has uncommitted changes", () => {
-    pipeline(1);
-    write(SPEC, `${read(SPEC)}Uncommitted.\n`);
-    const out = run("stamp", abs(P(SPEC)));
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /has body changes HEAD does not hold/);
-  });
+  for (const [what, args, message] of [
+    ["--at missing", [], /--at <commit> names the turn's commit and is required/],
+    ["--at that names no commit", ["--at", "nope"], /--at does not resolve to a commit: nope/],
+    ["--at a commit without the pipeline", ["--at", "main"], /no such folder/],
+  ])
+    it(what, () => {
+      pipeline(1);
+      const before = read(SPEC);
+      const out = run("stamp", abs(P(SPEC)), ...args);
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, message);
+      assert.equal(read(SPEC), before);
+    });
 
   it("a folder that has no parent pipelines folder root", () => {
     for (const [rel, contents] of [["demo/run-config.md", '---\n{"target-phase": 1, "base": "main"}\n---\n'], ["demo/0-intent/intent.md", "# I\n"], ["demo/1-spec/spec.md", "# S\n"]]) writeFile(rel, contents);
-    const out = run("stamp", abs("demo/1-spec/spec.md"));
+    const out = run("stamp", abs("demo/1-spec/spec.md"), "--at", "HEAD");
     assert.equal(out.status, 1);
     assert.match(out.stderr, /a pipeline folder is <pipelines folder root>\/<pipeline slug>: demo/);
     configure();

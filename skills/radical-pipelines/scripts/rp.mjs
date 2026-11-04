@@ -461,7 +461,7 @@ export function readState(files) {
         if (isApproval(thread)) {
           onlyKeys(data, ["inputs", "reviewed"]);
           if (!("inputs" in data) || !("reviewed" in data)) invalid("a review thread closed: approved needs inputs and reviewed: stamp it");
-          if (typeof data.reviewed !== "string" || !/^[0-9a-f]{40}$/.test(data.reviewed)) invalid("reviewed must be a net change id");
+          if (typeof data.reviewed !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(data.reviewed)) invalid("reviewed must be a full commit hash");
         } else if (stamped) invalid("carries no frontmatter: only a review thread closed: approved is stamped");
         const awaited = awaitedRole(thread) && parseRole(awaitedRole(thread));
         if (awaited?.lane && !lanesOf(config, awaited.profile).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
@@ -520,23 +520,40 @@ const awaitedLanes = (state, profile) => [...new Set(state.threads.map(awaitedRo
   .filter((role) => role.profile === profile && role.lane !== null).map((role) => role.lane))].sort();
 const roleOf = (profile, laneId) => `${profile}-${laneId}`;
 
-// A review lane's approval: its highest-numbered review thread, when closed approved, fresh, and at the current net change.
+// A review lane's approval: its highest-numbered review thread, approved when closed approved and fresh. An approval is
+// stale on a changed required input, or when the tip's code is not the approved commit's plus clean merges of the base.
 function approvalOf(state, lane) {
   const latest = state.threads.filter((thread) => isReview(thread) && thread.opener === roleOf("reviewer", lane.id)).sort((a, b) => b.number - a.number)[0];
   if (latest?.status !== "closed: approved") return { approved: false };
   const stale = staleInputs(state, latest);
-  return { approved: !stale.length && latest.reviewed === state.netChange, ...(stale.length ? { stale } : {}) };
+  const codeChanged = state.codeChanged(latest.reviewed);
+  return { approved: !stale.length && !codeChanged, ...(stale.length ? { stale } : {}), ...(codeChanged ? { codeChanged } : {}) };
 }
 
-// The net change id: the sha1 of the diff from the merge-base with the base to a commit, outside the pipelines folder
-// root, with one line of context and without hunk headers or index lines: the changed lines and what locates them.
-export function netChange(root, base, commit, pipelinesRoot) {
+// The base: the merge-base of the tip with `run-config.md`'s base, the latest base the tip holds.
+export function baseOf(root, base, tip) {
   const baseCommit = requireCommit(root, base, "base");
-  if (!gitText(root, ["merge-base", "--all", baseCommit, commit])) fail(`no merge-base between ${base} and ${commit}`);
-  const diff = gitBytes(root, ["diff", "-U1", "--binary", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
-    `${baseCommit}...${commit}`, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`]);
-  const changed = diff.toString("latin1").split("\n").filter((line) => !line.startsWith("@@") && !line.startsWith("index ")).join("\n");
-  return createHash("sha1").update(Buffer.from(changed, "latin1")).digest("hex");
+  return gitText(root, ["merge-base", baseCommit, tip]) || fail(`no merge-base between ${base} and ${tip}`);
+}
+
+// Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the base:
+// a conflicting merge, or any difference from the merged tree.
+export function codeChanged(root, approved, base, tip, pipelinesRoot) {
+  const commit = requireCommit(root, approved, "reviewed");
+  if (commit === tip) return false;
+  let merged;
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", commit, base], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  catch (error) {
+    if (error.status === 1 && /^[0-9a-f]{40,64}\n/.test(error.stdout ?? "")) return true;
+    fail(`git merge-tree --write-tree (Git 2.38 or later) ${commit} ${base}: ${error.stderr?.toString().trim() || error.message}`);
+  }
+  const tree = merged.split("\n")[0];
+  try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
+  catch (error) {
+    if (error.status === 1) return true;
+    fail(`git diff ${tree} ${tip}: ${error.stderr?.toString().trim() || error.message}`);
+  }
+  return false;
 }
 
 const candidateOf = (phase, laneId) => `${phase.folder}/lanes/${laneId}/${basename(phase.artifact)}`;
@@ -569,9 +586,9 @@ function phaseActions(state, phase) {
 // The review lanes with work: through the target, each configured lane not approved; in any phase, each lane a thread awaits.
 function reviewActions(state) {
   const lanes = [...(state.config.targetPhase === REVIEW_PHASE ? reviewLanes(state.config) : []).map((lane) => ({ lane, ...approvalOf(state, lane) }))
-    .filter((entry) => !entry.approved).map((entry) => [entry.lane.id, entry.stale]), ...awaitedLanes(state, "reviewer").map((id) => [id])];
+    .filter((entry) => !entry.approved).map((entry) => [entry.lane.id, entry.stale, entry.codeChanged]), ...awaitedLanes(state, "reviewer").map((id) => [id])];
   const ids = lanes.filter(([id], at) => lanes.findIndex(([other]) => other === id) === at);
-  const actions = ids.map(([id, stale]) => ({ action: "review", target: id, threads: awaiting(state, roleOf("reviewer", id)), ...(stale ? { changed: stale } : {}) }));
+  const actions = ids.map(([id, stale, changed]) => ({ action: "review", target: id, threads: awaiting(state, roleOf("reviewer", id)), ...(stale ? { changed: stale } : {}), ...(changed ? { codeChanged: true } : {}) }));
   return actions.length ? actions : null;
 }
 
@@ -595,7 +612,12 @@ async function cmdCheck(args) {
   const tip = args.ref ? requireCommit(root, args.ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
   const state = readState(args.ref ? await readCommit(root, tip, folder) : readWorktree(root, folder));
   const target = state.config.targetPhase;
-  if (target === REVIEW_PHASE) state.netChange = netChange(root, state.config.base, tip, pipelinesRoot);
+  const base = target === REVIEW_PHASE ? baseOf(root, state.config.base, tip) : null;
+  const judged = new Map();
+  state.codeChanged = (approved) => {
+    if (!judged.has(approved)) judged.set(approved, codeChanged(root, approved, base, tip, pipelinesRoot));
+    return judged.get(approved);
+  };
   const report = { pipeline: folder, tip, targetPhase: target, frontier: frontier(state) };
   if (!state.invalid.length) {
     report.phases = PHASES.filter((phase) => phase.n <= target).map((phase) => ({
@@ -605,7 +627,7 @@ async function cmdCheck(args) {
       lanes: lanesOpen(state, phase).map((lane) => ({ id: lane.id, path: candidateOf(phase, lane.id), ...statusOf(state, candidateOf(phase, lane.id)) })),
     }));
     if (target === REVIEW_PHASE) {
-      report.netChange = state.netChange;
+      report.netChange = `${base}..${tip}`;
       report.reviews = reviewLanes(state.config).map((lane) => ({ lane: lane.id, ...approvalOf(state, lane) }));
     }
     report.threads = state.threads.map((thread) => ({ path: thread.path, status: thread.status, opener: thread.opener, owner: thread.owner,
@@ -619,42 +641,33 @@ async function cmdCheck(args) {
     lines.push(`artifact ${phase.artifact} ${status(phase)}`);
   }
   if (report.netChange) lines.push(`net-change ${report.netChange}`);
-  for (const review of report.reviews ?? []) lines.push(`review ${review.lane} ${review.approved ? "approved" : review.stale ? `stale ${review.stale.join(" ")}` : "unapproved"}`);
+  const approval = (review) => review.approved ? "approved" : review.stale || review.codeChanged ? ["stale", ...(review.stale ?? []), ...(review.codeChanged ? ["code"] : [])].join(" ") : "unapproved";
+  for (const review of report.reviews ?? []) lines.push(`review ${review.lane} ${approval(review)}`);
   for (const thread of report.threads ?? []) lines.push(`thread ${thread.path} ${thread.status}${thread.awaits ? ` awaits ${thread.awaits}` : ""}`);
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
 // --- stamp ------------------------------------------------------------------------
 
-// The commit that last changed a file's body on HEAD's history: what its role read is that commit's tree.
-async function bodyCommit(root, path, bytes) {
-  const commits = gitText(root, ["log", "--format=%H", "HEAD", "--", `:(top,literal)${path}`]).split("\n").filter(Boolean);
-  if (!commits.length) fail(`stamp: ${path} has no commit: commit its body before stamping`);
-  const versions = await readObjects(root, commits.flatMap((commit) => [`${commit}:${path}`, `${commit}^:${path}`]));
-  const bodyAt = (at) => versions[at] && identity(versions[at]);
-  if (bodyAt(0) !== identity(bytes)) fail(`stamp: ${path} has body changes HEAD does not hold: commit them before stamping`);
-  const changed = commits.findIndex((_, i) => bodyAt(2 * i) !== bodyAt(2 * i + 1));
-  return commits[changed === -1 ? commits.length - 1 : changed];
-}
-
-// Pins a file's required inputs, derived from its kind, at their identities in the tree of the commit that last changed
-// its body. An artifact keeps the candidate pins it recorded, or records those `--pin` names; an approval also records
-// `reviewed`.
+// Pins a file's required inputs, derived from its kind, at their identities in the tree of the turn's commit `--at`.
+// An artifact keeps the candidate pins it recorded, or records those `--pin` names; an approval also records the turn's
+// commit as `reviewed`.
 async function cmdStamp(args) {
   const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
-  const { folder, pipelinesRoot, inner } = pipelineFileOf(rel, "stamp");
+  const { folder, inner } = pipelineFileOf(rel, "stamp");
   const kind = kindOf(inner);
   if (!pins(kind) && kind.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
+  const commit = requireCommit(root, args.at ?? fail("stamp: --at <commit> names the turn's commit and is required"), "--at");
   const files = readWorktree(root, folder);
   if (!files.has(inner)) fail(`stamp: cannot read ${rel}: not a regular file`);
-  const commit = await bodyCommit(root, rel, files.get(inner));
   const state = readState(await readCommit(root, commit, folder));
-  const blocking = state.invalid.find((entry) => entry.path !== inner || kind.kind !== "thread");
+  const blocking = state.invalid.find((entry) => entry.path !== inner);
   if (blocking) fail(`stamp: ${commit}:${folder}/${blocking.path}: ${blocking.reason}`);
   const bytes = files.get(inner);
   const { data, body } = parseOrFail(`stamp: ${rel}`, () => frontmatterOf(bytes));
   const subject = kind.kind === "thread" ? parseOrFail(`stamp: ${rel}`, () => ({ kind: "thread", ...parseThread(basename(inner), body.toString("utf8")) })) : kind;
   if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only a review thread closed: approved is stamped`);
+  if (kind.kind === "candidate" && !productionLanes(state.config, kind.phase).some((lane) => lane.id === kind.lane)) fail(`stamp: ${rel}: production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
   parseOrFail(`stamp: ${rel}`, () => onlyKeys(data, kind.kind === "thread" ? ["inputs", "reviewed"] : ["inputs"]));
   const inputs = new Map();
   for (const path of requiredInputs(state, subject)) {
@@ -676,10 +689,7 @@ async function cmdStamp(args) {
     for (const [path, id] of recorded) if (isCandidateOfRoot(path)) inputs.set(path, id);
   }
   data.inputs = [...inputs].sort(([a], [b]) => a < b ? -1 : 1).map(([path, id]) => `${path}@${id}`);
-  if (kind.kind === "thread") {
-    const reviewedAt = requireCommit(root, subject.messages.at(-1).commit, "the last message's commit");
-    data.reviewed = netChange(root, state.config.base, reviewedAt, pipelinesRoot);
-  }
+  if (kind.kind === "thread") data.reviewed = commit;
   const stamped = renderFrontmatter(data, body);
   if (!stamped.equals(bytes)) writeFileSync(join(root, rel), stamped);
 }
@@ -747,13 +757,13 @@ async function cmdPipelines(args) {
 
 const COMMANDS = {
   check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
-  stamp: { run: cmdStamp, options: { "--pin": "list" } },
+  stamp: { run: cmdStamp, options: { "--at": "value", "--pin": "list" } },
   pipelines: { run: cmdPipelines, options: { "--issue": "value", "--json": "flag" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], pin: [], json: false, ref: null, issue: null };
+  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -774,7 +784,7 @@ const USAGE = `rp — Radical Pipelines state tooling
 
 Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-  node rp.mjs stamp <file> [--pin <candidate>]...
+  node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
   node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
 
 See README.md beside this script.

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { Invalid, awaitedRole, isReview, parseRole, parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
-import { REVIEW, TO_SPEC, check, frontier, lane, pipeline, thread, useRepo, write } from "./fixture.mjs";
+import { REVIEW, TO_SPEC, check, frontier, git, lane, pipeline, root, thread, useRepo, write } from "./fixture.mjs";
 
 const NAME = "1-implementer-spec-producer-spec.md";
 const HEADER = "status: open\nopener: implementer\nowner: spec-producer\nartifact: spec\n";
@@ -142,7 +142,7 @@ describe("threads in a pipeline", () => {
     assert.deepEqual(invalidPaths(), []);
   });
 
-  const STAMP = { inputs: ["0-intent/intent.md@0123456789ab"], reviewed: "0".repeat(40) };
+  const STAMP = { inputs: ["0-intent/intent.md@0123456789ab"], reviewed: "<HEAD>".padEnd(40, "0") };
   const reviewedCases = [
     ["an approval without frontmatter", { status: "closed: approved", ...REVIEW() }, true],
     ["an approval without inputs", { status: "closed: approved", ...REVIEW(), frontmatter: { reviewed: STAMP.reviewed } }, true],
@@ -160,7 +160,8 @@ describe("threads in a pipeline", () => {
   for (const [what, fields, isInvalid] of reviewedCases)
     it(`${isInvalid ? "rejects" : "accepts"} ${what}`, () => {
       pipeline(3);
-      const path = thread(fields);
+      const head = git(root, "rev-parse", "HEAD").trim();
+      const path = thread(fields.frontmatter?.reviewed === STAMP.reviewed ? { ...fields, frontmatter: { ...fields.frontmatter, reviewed: head } } : fields);
       assert.deepEqual(invalidPaths(), isInvalid ? [`INVALID ${path}`] : []);
     });
 
