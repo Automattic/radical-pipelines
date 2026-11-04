@@ -444,19 +444,23 @@ export const isReview = (thread) => parseRole(thread.opener).profile === "review
 // An approval: a review thread closed approved.
 const isApproval = (thread) => isReview(thread) && thread.status === "closed: approved";
 
-// A thread: its header (the first four lines of its body) and its messages, or Invalid.
+// A thread: its header (the first lines of its body: four, and `cites` on a thread to owner) and its messages, or Invalid.
 export function parseThread(name, body) {
   const number = name.match(/^([1-9]\d*)-.+\.md$/)?.[1];
   if (!number) invalid("thread file name must be <n>-<opener>-<owner>-<artifact>.md");
   const lines = body.split("\n").map((line) => line.replace(/\r$/, ""));
   const header = {};
-  ["status", "opener", "owner", "artifact"].forEach((key, at) => {
+  // A thread to owner extends the header with `cites`: the iteration reads the line it appends.
+  const keys = ["status", "opener", "owner", "artifact"];
+  for (const [at, key] of keys.entries()) {
     const match = lines[at]?.match(/^([a-z]+): (.*\S)$/);
-    if (match?.[1] !== key) invalid(`thread header line ${at + 1} must be ${key}: <value>`);
+    if (match?.[1] !== key) invalid(`thread header line ${at + 1} must be ${key}: <value>${key === "cites" ? " on a thread to owner" : ""}`);
     header[key] = match[2];
-  });
+    if (key === "artifact" && header.owner === "owner") keys.push("cites");
+  }
   const thread = { number: Number(number), ...header };
-  if (lines[4] !== undefined && lines[4] !== "") invalid(`thread header must end with a blank line, got: ${lines[4]}`);
+  const end = keys.length;
+  if (lines[end] !== undefined && lines[end] !== "") invalid(`thread header must end with a blank line, got: ${lines[end]}`);
   if (!STATUSES.includes(thread.status)) invalid(`status must be one of ${STATUSES.join(" | ")}`);
   if (!Object.hasOwn(OWNERS, thread.artifact)) invalid(`artifact must be one of ${Object.keys(OWNERS).join(", ")}`);
   for (const key of ["opener", "owner"]) if (!parseRole(thread[key])) invalid(`${key} must be a role <profile>[-<lane>]: ${thread[key]}`);
@@ -468,7 +472,7 @@ export function parseThread(name, body) {
   if (name !== `${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`) invalid(`thread file name must be ${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`);
   thread.messages = [];
   let fence = null;
-  for (const line of lines.slice(4)) {
+  for (const line of lines.slice(end)) {
     const marker = line.match(/^(`{3,}|~{3,})/)?.[1];
     if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) { fence = fence ? null : marker; continue; }
     if (fence || !line.startsWith("## ")) continue;

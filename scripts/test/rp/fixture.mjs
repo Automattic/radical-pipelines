@@ -72,10 +72,11 @@ export function commitAll(subject = "work") {
   return git(root, "rev-parse", "HEAD").trim();
 }
 
-// A thread file, named from its header; messages are [author, commit] pairs. Returns its pipeline-relative path.
-export function thread({ n = 1, status = "open", opener, owner, artifact, messages, frontmatter, name } = {}) {
+// A thread file, named from its header; messages are [author, commit] pairs. A thread to owner cites `cites`.
+// Returns its pipeline-relative path.
+export function thread({ n = 1, status = "open", opener, owner, artifact, messages, frontmatter, name, cites = "threads/0-cited.md" } = {}) {
   const path = `threads/${name ?? `${n}-${opener}-${owner}-${artifact}.md`}`;
-  const header = [`status: ${status}`, `opener: ${opener}`, `owner: ${owner}`, `artifact: ${artifact}`];
+  const header = [`status: ${status}`, `opener: ${opener}`, `owner: ${owner}`, `artifact: ${artifact}`, ...(owner === "owner" ? [`cites: ${cites}`] : [])];
   const body = (messages ?? [[opener, "abc1234"]]).map(([author, commit]) => `## ${author} — ${commit}\n\nFindings.\n`).join("\n");
   write(path, `${frontmatter ? `---\n${JSON.stringify(frontmatter)}\n---\n` : ""}${header.join("\n")}\n\n${body}`);
   return path;

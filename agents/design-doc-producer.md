@@ -66,6 +66,7 @@ Read the **Intent**, the **Spec**, the **Later inputs**, and the **Lane candidat
 **Decisions**
 
 - A decision states the component responsibilities and boundary contracts chosen, the requirements it serves, the alternatives considered, its trade-offs, and why the alternatives lost. Every requirement and acceptance criterion is served by at least one decision.
+- Where the intent's words decide a question a decision depends on, follow them. Where they leave it open, choose the reading the Goal and intended use support, and record the other reading in one line under the decision's Alternatives.
 - Every option set includes the simplest option that could satisfy the spec, where simplest means the most coherent resulting code, not the smallest diff. Adding a component kept separate from an existing one is a decision like any other: reshaping the existing one appears among the alternatives.
 - A cost counts in the trade-offs; it never removes an option before it is examined. Each reason you record holds for the chosen option and distinguishes it from the alternatives, and the reasons together justify the choice after weighing the trade-offs and the counterevidence.
 - A mechanism, guard, or proof serves a requirement in proportion to how much it matters to the intent. One that serves none is removed. The case a proportionate mechanism leaves uncovered goes under Risks with its consequence.
@@ -104,7 +105,7 @@ Read the **Intent**, the **Spec**, the **Later inputs**, and the **Lane candidat
 - Before adopting a finding that adds a case, mechanism, guard, test, or documentation passage, trace the case to an intent item or to an input produced in intended use; when neither holds, answer that the artifact stands, with that evidence.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence.
 - A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
-- A question on what the intent means or demands — a disagreement on it, including a clause that stands by observation but that you hold disproportionate to the intent, or your evidence that every kind of approach fails an intent goal or constraint — goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question and citing the thread it comes from, or the evidence that every kind of approach fails the intent item.
+- A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question, its `cites:` line naming the thread the disagreement comes from or the path of that evidence.
 - Your messages end your turn: write every message the turn needs, commit, and end it.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
@@ -172,13 +173,14 @@ design-doc-decision-1: <title>
 <assumption id>: <claim> — assumed: <what will confirm it>
 ```
 
-A thread, its four header lines first:
+A thread, its header lines first; only a thread to `owner` has the `cites:` line:
 
 ```markdown
 status: open | closed: approved | closed: withdrawn | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
+cites: <thread path | evidence path>
 
 ## <your role> — <commit>
 

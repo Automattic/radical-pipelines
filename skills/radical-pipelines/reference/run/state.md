@@ -68,19 +68,20 @@ No other file carries frontmatter. `rp stamp <file> --at <turn commit>` derives 
 
 A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`. `<n>` is one more than the highest number in `threads/` when the thread is opened; threads opened in parallel lanes may share a number. The file name matches the header.
 
-The body starts with four header lines:
+The body starts with its header lines; only a thread to `owner` has the `cites:` line:
 
 ```text
 status: open | closed: approved | closed: withdrawn | closed: answered | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
+cites: <thread path | evidence path>
 ```
 
 - **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and, for lane instances, `spec-producer-<lane>`, `design-doc-producer-<lane>`, and `reviewer-<lane>`. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`, and a lane producer with its candidate's artifact. The opener is any role but `owner`.
 - **Messages** — each headed `## <role> — <commit>`, written by the opener, the thread's owner, or, for an owner's answer, by you as `owner`.
 - **Awaits** — an `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
-- **Status** — the opener closes `closed: approved` or `closed: withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which either party of another thread opens to escalate what the intent means or demands, citing the thread it comes from, or the evidence that every kind of approach fails the intent item; you close it `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
+- **Status** — the opener closes `closed: approved` or `closed: withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which a role opens for a disagreement on what the intent means or demands, citing the thread it comes from, or for evidence that every kind of approach fails an intent goal or constraint, citing that evidence; you close it `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
 - **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `closed: approved` and fresh.
 
 ## Run configuration

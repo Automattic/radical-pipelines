@@ -61,6 +61,7 @@ Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-onl
 - A requirement is an observable outcome — what the software does, for whom, under what conditions — verifiable by using the running software. One that describes how something is built is restated as the behavior it guarantees.
 - Every requirement carries its origin: `from-intent <intent item>` when the intent states it, citing the intent's id or the later input's path; `derived <intent item> <observed input>` when you inferred it, naming the intent item it serves and the input observed in intended use that makes the case matter.
 - A derived requirement without both is an open assumption, not a requirement.
+- Where the intent's words decide a question, follow them. Where they leave it open, choose the reading the Goal and intended use support, write the requirements it yields as `derived`, and record the other reading in one line under Considered and not required.
 - An edge case, and a term that decides which inputs a requirement covers, is named by the inputs that produce it and where they are produced, never by a category.
 - Acceptance criteria collectively verify each requirement's outcomes and the cases that matter to the intent.
 - An acceptance criterion states the input, where the outcome is observed, and the outcome, never the fixtures, sequences, or variants that prove it.
@@ -92,7 +93,7 @@ Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-onl
 - Before adopting a finding that adds a case, mechanism, guard, test, or documentation passage, trace the case to an intent item or to an input produced in intended use; when neither holds, answer that the artifact stands, with that evidence.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence.
 - A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
-- A question on what the intent means or demands — a disagreement on it, including a clause that stands by observation but that you hold disproportionate to the intent, or your evidence that every kind of approach fails an intent goal or constraint — goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question and citing the thread it comes from, or the evidence that every kind of approach fails the intent item.
+- A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question, its `cites:` line naming the thread the disagreement comes from or the path of that evidence.
 - Your messages end your turn: write every message the turn needs, commit, and end it.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
@@ -140,19 +141,21 @@ spec-exclusion-1: <outcome the change does not deliver>
 ## Considered and not required
 
 - <case, named by its input> — <why no intended use produces it: observed: <how>>
+- <reading of <intent item> not taken> — <why the Goal and intended use support the one taken>
 
 ## Open assumptions
 
 spec-assumption-1: <claim> — assumed: <what will confirm it>
 ```
 
-A thread, its four header lines first:
+A thread, its header lines first; only a thread to `owner` has the `cites:` line:
 
 ```markdown
 status: open | closed: approved | closed: withdrawn | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
+cites: <thread path | evidence path>
 
 ## <your role> — <commit>
 

@@ -51,7 +51,7 @@ The burden is on the clause. A requirement or decision the owner did not state s
 
 Roles talk through threads: one file per conversation between two roles about one artifact, in the pipeline's `threads/` folder. A role that finds a problem in an artifact it consumes opens a thread to that artifact's owner; nobody opens one downstream. Each message ends its author's turn. The orchestrator wakes the addressee, which revises its artifact and answers each finding with the commit that addresses it, or with why the artifact stands.
 
-A dispute about a derived requirement or a design decision is settled inside its thread by observation. Only a question about what the intent means or demands reaches the owner. Artifacts hold only the final truth; the discussion stays in the threads.
+A dispute about a derived requirement or a design decision is settled inside its thread by observation. Where the intent's words leave a question open, the producer takes the reading the Goal and intended use support and records the other in the artifact, where the owner can correct it. Only a disagreement between roles about what the intent means or demands, or evidence that every kind of approach fails it, reaches the owner. Artifacts hold only the final truth; the discussion stays in the threads.
 
 ### Pins and state
 

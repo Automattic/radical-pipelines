@@ -79,19 +79,20 @@ A later input's body has a line `target: <artifact>[#<id>][, <artifact>[#<id>]].
 
 A thread file is named `<n>-<opener>-<owner>-<artifact>.md` after its header, with `<n>` a positive integer. Threads may share `<n>`.
 
-Its body begins with exactly four header lines, followed by a blank line:
+Its body begins with exactly four header lines, five on a thread to `owner`, followed by a blank line:
 
 ```text
 status: open | closed: approved | closed: withdrawn | closed: answered | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
+cites: <thread path | evidence path>
 ```
 
 - `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. An `open` thread awaiting a lane role whose lane `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; for review lanes, `default` is declared only while no `reviewer` lane is.
 - `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`. A lane role owns its candidate.
 - The opener is any role but `owner`, and differs from the owner.
-- A thread to `owner` has status `disagreement` or `closed: answered`; no other thread has either.
+- A thread to `owner` has status `disagreement` or `closed: answered`, and the `cites:` line with a non-empty value; no other thread has either status or the line. The value is not resolved.
 
 After the header, every line that starts with `## ` outside fenced code is a message heading: `## <author> — <commit>`, with `<author>` the opener, the thread's owner, or `owner`, an em dash, and 7 to 64 hexadecimal characters. Text before the first heading and between headings is free. A thread has at least one message, and the first is the opener's.
 

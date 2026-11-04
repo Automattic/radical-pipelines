@@ -24,7 +24,8 @@ describe("thread parsing", () => {
     it(`pairs ${owner} with ${artifact}`, () => {
       const status = owner === "owner" ? "disagreement" : "open";
       const name = `1-reviewer-default-${owner}-${artifact}.md`;
-      const body = `status: ${status}\nopener: reviewer-default\nowner: ${owner}\nartifact: ${artifact}\n\n## reviewer-default — abc1234\n`;
+      const cites = owner === "owner" ? "cites: threads/1-reviewer-default-implementer-implementation.md\n" : "";
+      const body = `status: ${status}\nopener: reviewer-default\nowner: ${owner}\nartifact: ${artifact}\n${cites}\n## reviewer-default — abc1234\n`;
       assert.equal(parse(name, body).artifact, artifact);
     });
 
@@ -38,7 +39,8 @@ describe("thread parsing", () => {
     assert.equal(parse(NAME, body).messages.length, 1);
   });
 
-  const toOwner = (status) => `status: ${status}\nopener: implementer\nowner: owner\nartifact: intent\n\n${MESSAGE}`;
+  const CITES = "cites: threads/1-implementer-spec-producer-spec.md\n";
+  const toOwner = (status, cites = CITES) => `status: ${status}\nopener: implementer\nowner: owner\nartifact: intent\n${cites}\n${MESSAGE}`;
   const malformed = [
     ["a file name without number", "implementer-spec-producer-spec.md", valid, /file name/],
     ["a file name not matching the header", "1-implementer-spec-producer-design-doc.md", valid, /file name must be 1-implementer-spec-producer-spec\.md/],
@@ -62,6 +64,10 @@ describe("thread parsing", () => {
     ["closed: answered on a thread to a role", NAME, valid.replace("open", "closed: answered"), /statuses of a thread to owner/],
     ["open on a thread to owner", "1-implementer-owner-intent.md", toOwner("open"), /statuses of a thread to owner/],
     ["closed: withdrawn on a thread to owner", "1-implementer-owner-intent.md", toOwner("closed: withdrawn"), /statuses of a thread to owner/],
+    ["a thread to owner without cites", "1-implementer-owner-intent.md", toOwner("disagreement", ""), /line 5 must be cites: <value> on a thread to owner/],
+    ["a thread to owner with an empty cites", "1-implementer-owner-intent.md", toOwner("disagreement", "cites: \n"), /line 5 must be cites/],
+    ["a thread to owner with another fifth line", "1-implementer-owner-intent.md", toOwner("disagreement", "cited: threads/1-a.md\n"), /line 5 must be cites/],
+    ["cites on a thread to a role", NAME, valid.replace("artifact: spec\n", `artifact: spec\n${CITES}`), /header must end with a blank line/],
     ["no message", NAME, `${HEADER}\nFindings without heading.\n`, /no message/],
     ["a first message by the owner", NAME, valid.replace("## implementer", "## spec-producer"), /first message must be the opener's/],
     ["a message by a third role", NAME, `${valid}\n## reviewer-default — abc1234\n`, /author must be the opener, the owner, or owner/],
@@ -71,8 +77,11 @@ describe("thread parsing", () => {
   ];
   for (const [what, name, body, reason] of malformed) it(`rejects ${what}`, () => rejects(name, body, reason));
 
-  it("accepts disagreement and closed: answered on a thread to owner", () => {
-    for (const status of ["disagreement", "closed: answered"]) assert.equal(parse("1-implementer-owner-intent.md", toOwner(status)).status, status);
+  it("accepts disagreement and closed: answered on a thread to owner, with what it cites", () => {
+    for (const status of ["disagreement", "closed: answered"]) {
+      const parsed = parse("1-implementer-owner-intent.md", toOwner(status));
+      assert.deepEqual([parsed.status, parsed.cites, parsed.messages.length], [status, "threads/1-implementer-spec-producer-spec.md", 1]);
+    }
   });
 });
 

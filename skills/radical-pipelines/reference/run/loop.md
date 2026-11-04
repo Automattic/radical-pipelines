@@ -72,6 +72,6 @@ A review lane is one `reviewer` with its brief; every lane must approve.
 
 ## Owner escalation
 
-A thread with `status: disagreement` asks the owner what the intent means or demands. Fire `escalation-raised`; the run stops through close-out with the dossier: the thread and the thread it cites, verbatim, and the intent items and artifact clauses they cite. Explain the choice and its consequences in the owner's terms.
+A thread with `status: disagreement` asks the owner what the intent means or demands. Fire `escalation-raised`; the run stops through close-out with the dossier: the thread and what its `cites:` line names, verbatim, and the intent items and artifact clauses they cite. Explain the choice and its consequences in the owner's terms.
 
 Record the answer through `../entries/intent-format.md` § Later input, as `state.md` § Owner territory defines it, and commit it. Then append to the thread a message headed `## owner — <that commit>` naming the input's path, set its status to `closed: answered`, and commit.
