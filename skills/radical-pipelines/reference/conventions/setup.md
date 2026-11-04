@@ -118,7 +118,7 @@ Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the
 
 ### Agents (optional)
 
-Defaults for profile models and lanes, in any human-readable format (`agents.md`).
+Defaults for profile models and lanes, in any human-readable format (`agents.md`). Propose two `reviewer` lanes without a brief, `default` and a second one, on models from different providers.
 
 ### Health monitoring (optional)
 
