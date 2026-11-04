@@ -91,8 +91,8 @@ artifact: intent | spec | design-doc | implementation
 cites: <thread path | evidence path>
 ```
 
-- `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. An `open` thread awaiting a lane role whose lane `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; for review lanes, `default` is declared only while no `reviewer` lane is.
-- `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`. A lane role owns its candidate.
+- `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. Production lanes open no threads: an `open` or `disagreement` thread whose opener or owner is `spec-producer-<lane id>` or `design-doc-producer-<lane id>` is `INVALID <thread>: production lanes open no threads`; the grammar keeps those roles so closed threads stay readable. An `open` thread awaiting a review lane that `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; `default` is declared only while no `reviewer` lane is.
+- `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`.
 - The opener is any role but `owner`, and differs from the owner.
 - A thread to `owner` has status `disagreement` or `closed: answered`, and the `cites:` line with a non-empty value; no other thread has either status or the line. The value is not resolved.
 
@@ -128,8 +128,8 @@ The frontier is every action of the first rule that holds:
 
 1. **`INVALID <path>: <reason>`** for each malformed file.
 2. **`escalate <thread>`** for each `disagreement` thread.
-3. The lowest phase whose roles have work. Phases 1 to 3 belong to their artifact's profile, lane roles included, and phase 4 to the reviewers. Work is an `open` thread awaiting the role, in any phase, or the artifact missing or stale, through the target:
-   - **`lane <artifact> <lane id>`** for each lane a thread awaits, and, while the root is missing, each configured lane whose candidate is missing or stale.
+3. The lowest phase whose roles have work. Phases 1 to 3 belong to their artifact's profile, its production lanes included, and phase 4 to the reviewers. Work is an `open` thread awaiting the role, in any phase, or the artifact missing or stale, through the target:
+   - **`lane <artifact> <lane id>`**, while the root is missing, for each configured lane whose candidate is missing or stale.
    - Production lanes configured, the root missing, and no lane action: **`consolidate <artifact>`**.
    - The artifact missing, without production lanes: **`produce <artifact>`**.
    - The artifact stale, or a thread awaiting the artifact's owner: **`respond <artifact>`**. Beyond the target, only the thread counts.
@@ -153,7 +153,7 @@ thread <thread> <status>[ awaits <role>]
 
 `--json` prints one object:
 
-- `pipeline`, `tip`, `targetPhase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role), and `changed` (the changed inputs of a stale artifact, candidate, or approval).
+- `pipeline`, `tip`, `targetPhase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role; not on `lane`), and `changed` (the changed inputs of a stale artifact, candidate, or approval).
 - `phases`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`.
 - `netChange` (`<base>..<tip>`), `reviews` (`lane`, `approved`, `stale` with the changed inputs, `codeChanged` when the code changed): at target phase 4, unless `INVALID`. A `review` frontier entry carries `changed` and `codeChanged` the same way.
 
@@ -201,7 +201,6 @@ These fill details the specification leaves open; the prose aligns with them.
 - **A thread to `owner`** opens as `disagreement` and closes `closed: answered`; `open`, `closed: approved`, and `closed: withdrawn` are `INVALID` there.
 - **A message by `owner`** on any thread leaves it awaiting the thread's owner.
 - **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it. Beyond the target, a thread's owner gets `respond` even when its artifact is missing.
-- **A thread awaiting a configured lane** wakes that lane with `lane`, whether or not the root exists.
 - **The base an approval is merged with** is the merge-base of the tip with the base branch, not the base branch's tip, so a base that moved without being merged leaves approvals fresh.
 - **A re-stamp without `--pin`** keeps the candidate pins a root recorded, so the record of a consolidation survives later stamps.
 - **Strict keys**: unknown frontmatter, `run-config.md`, and lane keys are `INVALID` or stop the command.

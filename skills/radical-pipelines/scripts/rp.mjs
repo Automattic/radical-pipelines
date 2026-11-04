@@ -393,9 +393,7 @@ export function parseConfig(bytes) {
 }
 
 // The production lanes configured for a phase.
-// The lanes the configuration declares for a lane profile, review lanes' `default` included.
-const lanesOf = (config, profile) => profile === "reviewer" ? reviewLanes(config) : config.lanes.filter((lane) => lane.profile === profile);
-const productionLanes = (config, phase) => phase.lanes ? lanesOf(config, phase.owner) : [];
+const productionLanes = (config, phase) => phase.lanes ? config.lanes.filter((lane) => lane.profile === phase.owner) : [];
 // The review lanes: the configured ones, or one lane `default`.
 export function reviewLanes(config) {
   const lanes = config.lanes.filter((lane) => lane.profile === "reviewer");
@@ -439,6 +437,8 @@ export function parseRole(role) {
   return match ? { profile: match[1], lane: match[2] } : null;
 }
 
+// A production lane's role: one that may name a closed thread of an earlier run, never a live one.
+const isProductionLane = (role) => { const parsed = parseRole(role); return parsed.lane !== null && parsed.profile !== "reviewer"; };
 // A review thread: one a review lane opens to the implementer.
 export const isReview = (thread) => parseRole(thread.opener).profile === "reviewer" && thread.owner === IMPLEMENTATION.owner;
 // An approval: a review thread closed approved.
@@ -469,6 +469,7 @@ export function parseThread(name, body) {
   if (thread.opener === thread.owner) invalid("opener and owner must differ");
   if ((thread.owner === "owner") !== OWNER_STATUSES.includes(thread.status))
     invalid(`${OWNER_STATUSES.join(" and ")} are the statuses of a thread to owner, and only of it`);
+  if (["open", "disagreement"].includes(thread.status) && [thread.opener, thread.owner].some(isProductionLane)) invalid("production lanes open no threads");
   if (name !== `${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`) invalid(`thread file name must be ${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`);
   thread.messages = [];
   let fence = null;
@@ -508,7 +509,7 @@ export function readState(files, where) {
           if (typeof data.reviewed !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(data.reviewed)) invalid("reviewed must be a full commit hash");
         } else if (stamped) invalid("carries no frontmatter: only a review thread closed: approved is stamped");
         const awaited = awaitedRole(thread) && parseRole(awaitedRole(thread));
-        if (awaited?.lane && !lanesOf(config, awaited.profile).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
+        if (awaited?.lane && !reviewLanes(config).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
         state.threads.push({ ...thread, inputs: parseInputs(data.inputs), reviewed: data.reviewed ?? null });
         continue;
       }
@@ -562,9 +563,9 @@ export function awaitedRole(thread) {
   return thread.messages.at(-1).author === thread.owner ? thread.opener : thread.owner;
 }
 const awaiting = (state, role) => state.threads.filter((thread) => awaitedRole(thread) === role).map((thread) => thread.path);
-// The lanes of a profile that threads await, configured or not.
-const awaitedLanes = (state, profile) => [...new Set(state.threads.map(awaitedRole).filter(Boolean).map(parseRole)
-  .filter((role) => role.profile === profile && role.lane !== null).map((role) => role.lane))].sort();
+// The review lanes that threads await.
+const awaitedReviewLanes = (state) => [...new Set(state.threads.map(awaitedRole).filter(Boolean).map(parseRole)
+  .filter((role) => role.profile === "reviewer").map((role) => role.lane))].sort();
 const roleOf = (profile, laneId) => `${profile}-${laneId}`;
 
 // A review lane's approval: its highest-numbered review thread, approved when closed approved and fresh. An approval is
@@ -608,19 +609,14 @@ const candidateOf = (phase, laneId) => `${phase.folder}/lanes/${laneId}/${basena
 const lanesOpen = (state, phase) => statusOf(state, phase.artifact).state === "missing" ? productionLanes(state.config, phase) : [];
 
 // The actions for a phase whose roles have work, or null. Threads awaiting a role are work in any phase; a missing or stale
-// artifact only through the target. A lane role's work is `lane`; the root's is consolidate, produce, or respond.
+// artifact only through the target. A lane's work is its candidate missing or stale while the root is missing; the root's
+// is consolidate, produce, or respond.
 function phaseActions(state, phase) {
   const inTarget = phase.n <= state.config.targetPhase;
   const status = statusOf(state, phase.artifact);
   const lanes = inTarget ? lanesOpen(state, phase) : [];
-  const laneIds = [...new Set([
-    ...lanes.filter((lane) => statusOf(state, candidateOf(phase, lane.id)).state !== "fresh").map((lane) => lane.id),
-    ...awaitedLanes(state, phase.owner),
-  ])];
-  const actions = laneIds.map((id) => {
-    const stale = statusOf(state, candidateOf(phase, id)).stale;
-    return { action: "lane", target: phase.artifact, lane: id, threads: awaiting(state, roleOf(phase.owner, id)), ...(stale ? { changed: stale } : {}) };
-  });
+  const actions = lanes.map((lane) => ({ lane, status: statusOf(state, candidateOf(phase, lane.id)) })).filter((entry) => entry.status.state !== "fresh")
+    .map(({ lane, status: candidate }) => ({ action: "lane", target: phase.artifact, lane: lane.id, ...(candidate.stale ? { changed: candidate.stale } : {}) }));
   const threads = awaiting(state, phase.owner);
   if (inTarget && status.state === "missing") {
     if (!lanes.length) actions.push({ action: "produce", target: phase.artifact, threads });
@@ -633,7 +629,7 @@ function phaseActions(state, phase) {
 // The review lanes with work: through the target, each configured lane not approved; in any phase, each lane a thread awaits.
 function reviewActions(state) {
   const lanes = [...(state.config.targetPhase === REVIEW_PHASE ? reviewLanes(state.config) : []).map((lane) => ({ lane, ...approvalOf(state, lane) }))
-    .filter((entry) => !entry.approved).map((entry) => [entry.lane.id, entry.stale, entry.codeChanged]), ...awaitedLanes(state, "reviewer").map((id) => [id])];
+    .filter((entry) => !entry.approved).map((entry) => [entry.lane.id, entry.stale, entry.codeChanged]), ...awaitedReviewLanes(state).map((id) => [id])];
   const ids = lanes.filter(([id], at) => lanes.findIndex(([other]) => other === id) === at);
   const actions = ids.map(([id, stale, changed]) => ({ action: "review", target: id, threads: awaiting(state, roleOf("reviewer", id)), ...(stale ? { changed: stale } : {}), ...(changed ? { codeChanged: true } : {}) }));
   return actions.length ? actions : null;

@@ -36,7 +36,7 @@ describe("production lanes", () => {
     write(INTENT, `${read(INTENT)}More.\n`);
     assert.deepEqual(frontier(), [`lane ${SPEC} a`, `lane ${SPEC} b`]);
     revise(candidate("a"));
-    assert.deepEqual(check().frontier, [{ action: "lane", target: SPEC, lane: "b", threads: [], changed: [INTENT] }]);
+    assert.deepEqual(check().frontier, [{ action: "lane", target: SPEC, lane: "b", changed: [INTENT] }]);
     assert.deepEqual(check().phases[0].lanes.map((entry) => [entry.id, entry.state]), [["a", "fresh"], ["b", "stale"]]);
   });
 
@@ -128,54 +128,30 @@ describe("production lanes", () => {
   });
 
   describe("lane roles", () => {
-    const LANES = [lane("design-doc-producer", "a"), lane("design-doc-producer", "b")];
-    const toSpec = (laneId, n = 1, replied = false) => thread({ n, opener: `design-doc-producer-${laneId}`, owner: "spec-producer", artifact: "spec",
-      messages: [[`design-doc-producer-${laneId}`, "aaaaaaa"], ...(replied ? [["spec-producer", "bbbbbbb"]] : [])] });
-
-    it("two lanes open threads with the same number to the upstream owner", () => {
-      pipeline(1, { lanes: LANES });
-      toSpec("a");
-      toSpec("b");
-      assert.deepEqual(check().frontier, [{ action: "respond", target: SPEC, threads: ["threads/1-design-doc-producer-a-spec-producer-spec.md", "threads/1-design-doc-producer-b-spec-producer-spec.md"] }]);
-    });
-
-    it("a reply wakes the lane that opened the thread, with the thread, even when its candidate is fresh", () => {
-      pipeline(1, { lanes: LANES });
-      write(candidate("a", "2-design-doc", "design-doc.md"), "# a\n");
-      land(candidate("a", "2-design-doc", "design-doc.md"));
-      toSpec("a", 1, true);
-      assert.deepEqual(check().frontier, [
-        { action: "lane", target: DESIGN, lane: "b", threads: [] },
-        { action: "lane", target: DESIGN, lane: "a", threads: ["threads/1-design-doc-producer-a-spec-producer-spec.md"] },
-      ]);
-    });
-
-    it("a thread awaiting a lane is its work after the root exists", () => {
-      pipeline(2, { lanes: LANES });
-      thread({ opener: "design-doc-producer", owner: "design-doc-producer-b", artifact: "design-doc" });
-      assert.deepEqual(frontier(), [`lane ${DESIGN} b`]);
-    });
-
-    // [what, lanes configured, thread fields, INVALID]
+    // [what, lanes configured, thread fields, INVALID reason or null]
     const awaitingLane = (opener, owner, artifact, ownerLast = false) => ({ opener, owner, artifact, messages: [[opener, "aaaaaaa"], ...(ownerLast ? [[owner, "bbbbbbb"]] : [])] });
-    const dropped = [
-      ["a disagreement opened by a dropped lane", [], awaitingLane("spec-producer-gone", "owner", "intent"), false],
-      ["an open thread awaiting a dropped design doc lane", [], awaitingLane("design-doc-producer-gone", "spec-producer", "spec", true), true],
-      ["an open thread awaiting a dropped spec lane, as owner", [], awaitingLane("design-doc-producer", "spec-producer-gone", "spec"), true],
-      ["an open thread awaiting a dropped review lane", [lane("reviewer", "x")], awaitingLane("reviewer-gone", "implementer", "implementation", true), true],
-      ["an open thread awaiting reviewer-default once review lanes are configured", [lane("reviewer", "x")], awaitingLane("reviewer-default", "implementer", "implementation", true), true],
-      ["an open thread awaiting reviewer-default with no review lane configured", [], awaitingLane("reviewer-default", "implementer", "implementation", true), false],
-      ["an open thread awaiting a configured lane", [lane("design-doc-producer", "a")], awaitingLane("design-doc-producer-a", "spec-producer", "spec", true), false],
-      ["an open thread of a dropped lane awaiting a configured role", [], awaitingLane("design-doc-producer-gone", "spec-producer", "spec"), false],
-      ["a withdrawn thread of a dropped lane", [], { ...awaitingLane("design-doc-producer-gone", "spec-producer", "spec", true), status: "closed: withdrawn" }, false],
+    const NO_THREADS = "production lanes open no threads";
+    const NOT_CONFIGURED = "lane not configured; close the thread withdrawn";
+    const DOC_LANE = [lane("design-doc-producer", "a")];
+    const cases = [
+      ["an open thread opened by a production lane", DOC_LANE, awaitingLane("design-doc-producer-a", "spec-producer", "spec"), NO_THREADS],
+      ["an open thread addressed to a production lane", DOC_LANE, awaitingLane("design-doc-producer", "design-doc-producer-a", "design-doc"), NO_THREADS],
+      ["a disagreement opened by a production lane", [], { ...awaitingLane("spec-producer-a", "owner", "intent"), status: "disagreement" }, NO_THREADS],
+      ["a withdrawn thread of a production lane", [], { ...awaitingLane("design-doc-producer-gone", "spec-producer", "spec", true), status: "closed: withdrawn" }, null],
+      ["an approved thread to a production lane", [], { ...awaitingLane("design-doc-producer", "spec-producer-gone", "spec", true), status: "closed: approved" }, null],
+      ["an answered thread of a production lane", [], { ...awaitingLane("spec-producer-gone", "owner", "intent"), status: "closed: answered" }, null],
+      ["an open thread awaiting a dropped review lane", [lane("reviewer", "x")], awaitingLane("reviewer-gone", "implementer", "implementation", true), NOT_CONFIGURED],
+      ["an open thread awaiting reviewer-default once review lanes are configured", [lane("reviewer", "x")], awaitingLane("reviewer-default", "implementer", "implementation", true), NOT_CONFIGURED],
+      ["an open thread awaiting reviewer-default with no review lane configured", [], awaitingLane("reviewer-default", "implementer", "implementation", true), null],
+      ["an open thread awaiting a configured review lane", [lane("reviewer", "x")], awaitingLane("reviewer-x", "implementer", "implementation", true), null],
+      ["an open thread of a dropped review lane awaiting a configured role", [lane("reviewer", "x")], awaitingLane("reviewer-gone", "implementer", "implementation"), null],
     ];
-    for (const [what, lanes, fields, isInvalid] of dropped)
-      it(`${isInvalid ? "rejects" : "accepts"} ${what}`, () => {
+    for (const [what, lanes, fields, reason] of cases)
+      it(`${reason ? "rejects" : "accepts"} ${what}`, () => {
         pipeline(3, { lanes: lanes.length ? lanes : undefined });
-        if (fields.owner === "owner") fields.status = "disagreement";
         const path = thread(fields);
         const invalid = check().frontier.filter((entry) => entry.action === "INVALID");
-        assert.deepEqual(invalid, isInvalid ? [{ action: "INVALID", target: path, reason: "lane not configured; close the thread withdrawn" }] : []);
+        assert.deepEqual(invalid, reason ? [{ action: "INVALID", target: path, reason }] : []);
       });
 
     it("a removed lane's closed threads stay valid history", () => {

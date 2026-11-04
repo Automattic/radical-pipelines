@@ -103,8 +103,8 @@ describe("thread roles", () => {
   ];
   for (const [role, parsed] of roles) it(`${role} is ${parsed ? `${parsed.profile}${parsed.lane ? ` lane ${parsed.lane}` : ""}` : "not a role"}`, () => assert.deepEqual(parseRole(role), parsed));
 
-  it("lane owners pair with their profile's artifact", () => {
-    const body = "status: open\nopener: design-doc-producer\nowner: design-doc-producer-a\nartifact: design-doc\n\n## design-doc-producer — abc1234\n";
+  it("production lane owners of closed threads pair with their profile's artifact", () => {
+    const body = "status: closed: withdrawn\nopener: design-doc-producer\nowner: design-doc-producer-a\nartifact: design-doc\n\n## design-doc-producer — abc1234\n";
     assert.equal(parse("1-design-doc-producer-design-doc-producer-a-design-doc.md", body).owner, "design-doc-producer-a");
   });
 });
