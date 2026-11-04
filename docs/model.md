@@ -15,7 +15,7 @@ v4 keeps the promises and removes the structures that produced the failures.
 
 ## Principles
 
-1. **The intent is the only authority.** Everything after it is chosen by an agent and is negotiable among agents. The owner decides only what the intent means or demands.
+1. **The intent is the only authority.** Everything after it is chosen by an agent and is negotiable among agents. The owner decides only what the intent means or demands. Behavior intended use relies on and the intent does not ask to change stays as it is: a clause that changes it is a defect, never a risk to record.
 2. **Observe the present, assume the future.** A claim about what the system does today is observed: read it, run it, drive it, reproduce it. A claim about what the solution will do is assumed and labeled, and the implementer verifies it. Nobody but the implementer writes solution code.
 3. **Artifacts hold the final truth only.** Discussion, provenance, and superseded text live in threads and in history. An artifact is what a reader needs now.
 4. **Each role owns one artifact and answers for it.** A finding is addressed to the owner of what it questions. Nobody defends what they do not own.
