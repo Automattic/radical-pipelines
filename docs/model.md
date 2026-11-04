@@ -106,8 +106,6 @@ Every role runs with full execution: it reads, runs, builds, drives the software
 - A claim about the solution is assumed, and the artifact states what will confirm it.
 - An observation that bears against a claim is reported with the claim, with what explains it or that it is unexplained.
 
-Evidence already committed is cited where it is. A role's supporting folder holds only the evidence it produces and copies of uncommitted evidence that will change or rotate, so a consolidator cites the lanes' evidence instead of copying it.
-
 A producer writes no solution code. A probe that answers "what does X do today" is observation; a spike that answers "would my approach work" is building, and belongs to the implementer.
 
 ## Threads
