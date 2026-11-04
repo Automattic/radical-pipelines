@@ -115,7 +115,7 @@ A `reviewed` that does not resolve to a commit stops `check`. A review lane is *
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 ```
 
-`check` reads the pipeline files from the working tree, or with `--ref` from that commit. The tip is `HEAD`, or the `--ref` commit. A pipeline file that is a symlink or not a regular file, a folder where a pipeline file belongs, or a file where a pipeline folder belongs stops `check` and `stamp`, in the working tree and at a ref alike.
+`check` reads the pipeline files from the working tree, or with `--ref` from that commit. The tip is `HEAD`, or the `--ref` commit. A pipeline file that is a symlink or not a regular file, a folder where a pipeline file belongs, or a file where a pipeline folder belongs stops `check`, in the working tree and at a ref alike. `check` validates every pipeline file.
 
 ### Frontier
 
@@ -163,7 +163,9 @@ node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 - **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation.
 - **An approval**: `inputs` becomes its required inputs, and `reviewed` the full hash of the `--at` commit.
 
-A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate missing at `--at`, another pipeline file `INVALID` at `--at`, or malformed frontmatter stops the command.
+`stamp` validates only what it reads. From the working tree it reads the stamped file. At `--at` it reads `run-config.md`, the intent, every later input (its `target:` line says whether it applies), the stamped file's upstream artifacts, and the candidates `--pin` names. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
+
+A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate missing at `--at`, a file it reads that is malformed or of the wrong kind, or malformed frontmatter on the stamped file stops the command.
 
 ## `pipelines`
 
