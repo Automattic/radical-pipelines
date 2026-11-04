@@ -5,7 +5,7 @@
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
-node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
+node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
 Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. Otherwise it exits 0, whatever the frontier.
@@ -18,7 +18,7 @@ A pipeline folder is `<pipelines folder root>/<pipeline slug>`. `check` and `sta
 
 | Path | What it is | Frontmatter keys |
 | --- | --- | --- |
-| `run-config.md` | Run configuration | `target-phase`, `base`, `lanes` |
+| `run-config.md` | Run configuration | `format`, `target-phase`, `base`, `lanes` |
 | `0-intent/intent.md` | Intent | no frontmatter |
 | `0-intent/constraint-<n>.md`, `proposal-<n>.md`, `failure-<n>.md` | Later input | no frontmatter |
 | `1-spec/spec.md` | Spec | `inputs` |
@@ -38,6 +38,7 @@ A file's identity is the first 12 hexadecimal characters of the git blob hash of
 
 ```json
 {
+  "format": 6,
   "target-phase": 4,
   "base": "main",
   "lanes": [
@@ -47,6 +48,7 @@ A file's identity is the first 12 hexadecimal characters of the git blob hash of
 }
 ```
 
+- `format`: the conventions format the pipeline was written under, an integer; the current one is `6`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check` and `stamp` read only format 6 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
 - `target-phase`: an integer from 1 to 4. Phase 4 is review.
 - `base`: a revision that resolves to a commit.
 - `lanes` (optional, non-empty when present): each lane has only `profile`, `id`, and `brief`, all non-empty strings. `profile` is `spec-producer` or `design-doc-producer` for a production lane, or `reviewer` for a review lane. `id` matches `[a-z0-9][a-z0-9-]*` and is unique per profile.
@@ -170,20 +172,24 @@ A missing `--at` or one that does not resolve, any other kind of file, `--pin` o
 ## `pipelines`
 
 ```text
-node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
+node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
 Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `### Pipelines folder root` in `.rp.local.md` at the root of the main checkout, else in `.rp.md` there, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. The main checkout is the parent of `git rev-parse --git-common-dir` in a linked worktree, and the worktree itself otherwise, so a linked worktree sees the git-ignored `.rp.local.md`. `pipelines` reads every local branch and remote-tracking branch tip:
 
 1. Collect each `<pipelines folder root>/<slug>` folder at each tip, with its tree id.
-2. Read its `run-config.md`; its `base` names the base branch.
-3. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the base branch's history.
-4. Otherwise it is **merged**, reported once from the base branch's tip when the folder exists there.
-5. With `--issue`, keep those whose intent opens with the line `origin: issue <ref>`.
+2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.
+3. Every folder in the tree of `--base` is **merged**, reported once from `--base`.
+4. With `--issue`, keep those whose intent opens with the line `origin: issue <ref>`.
 
-A pipeline folder at a tip without a readable `run-config.md` or intent, or whose base does not resolve, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+Of each pipeline folder, discovery reads only two things, so pipelines of every format are listed and none is validated:
 
-Without `--json`, one line per pipeline: `<live|merged> <ref> <pipeline folder>`. `--json` prints a list of `{state, ref, commit, folder, origins}`, where `origins` holds the values of the intent's leading `origin:` lines.
+- **`format`** (§ `run-config.md`): the integer `format` of `run-config.md` when it is a regular file with JSON frontmatter carrying one, else `earlier`.
+- **Origins**: the values of the leading `origin:` lines of `0-intent/intent.md`'s body when it is a regular file, frontmatter skipped. An intent with unclosed frontmatter has no origins.
+
+A pipeline of format 6 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+
+Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
 
 ## Decisions
 
