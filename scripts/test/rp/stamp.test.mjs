@@ -159,6 +159,54 @@ describe("stamp of an approval", () => {
   });
 });
 
+describe("stamp validates only what it reads at the turn's commit", () => {
+  useRepo();
+
+  // [what, how the turn's commit is broken and the working tree repaired, the file stamped, the reason it stops or null]
+  const cases = [
+    ["a malformed thread, repaired since", () => {
+      write("threads/1-x.md", "status: open\n");
+      const turn = commitAll("malformed thread");
+      remove("threads/1-x.md");
+      thread(TO_SPEC);
+      commitAll("repaired");
+      return turn;
+    }, DESIGN, null],
+    ["a malformed artifact that is not an input", () => { write(NOTES, "---\n{\n---\n"); return commitAll("bad notes"); }, SPEC, null],
+    ["a candidate of an unconfigured lane in another phase", () => { write("2-design-doc/lanes/x/design-doc.md", "# x\n"); return commitAll("stray"); }, SPEC, null],
+    ["a folder where an unrelated thread belongs", () => { write("threads/1-x.md/y", "x\n"); return commitAll("folder"); }, SPEC, null],
+    ["a malformed later input targeting the artifact", () => { write("0-intent/constraint-1.md", `---\n{}\n---\ntarget: ${DESIGN}\n`); return commitAll("bad input"); }, DESIGN, /constraint-1.md: carries no frontmatter/],
+    ["a later input whose target: line is malformed", () => { write("0-intent/proposal-1.md", "target: elsewhere.md\n"); return commitAll("bad target"); }, DESIGN, /proposal-1.md: target must name/],
+    ["a malformed required input", () => { write(SPEC, "---\n{\n---\n# Spec\n"); return commitAll("bad spec"); }, DESIGN, /1-spec\/spec.md: frontmatter is not valid JSON/],
+    ["a folder where a required input belongs", () => { remove(SPEC); write(`${SPEC}/x`, "x\n"); return commitAll("spec folder"); }, DESIGN, /1-spec\/spec.md: a folder where a pipeline file belongs/],
+    ["a malformed run-config.md", () => { write("run-config.md", "---\n{}\n---\n"); return commitAll("bad config"); }, DESIGN, /run-config.md: target-phase/],
+  ];
+  for (const [what, setup, file, reason] of cases)
+    it(`${reason ? "stops on" : "ignores"} ${what}`, () => {
+      pipeline(3);
+      const turn = setup();
+      const out = run("stamp", abs(P(file)), "--at", turn);
+      assert.equal(out.status, reason ? 1 : 0, out.stderr);
+      if (reason) assert.match(out.stderr, reason);
+    });
+
+  it("stops on a malformed candidate --pin names", () => {
+    pipeline(1, { lanes: [lane("design-doc-producer", "a")] });
+    write("2-design-doc/lanes/a/design-doc.md", "---\n[]\n---\n# a\n");
+    write(DESIGN, "# Design\n");
+    const out = run("stamp", abs(P(DESIGN)), "--at", commitAll("consolidate"), "--pin", abs(P("2-design-doc/lanes/a/design-doc.md")));
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /lanes\/a\/design-doc.md: frontmatter must be a JSON object/);
+  });
+
+  it("reads only the stamped file from the working tree", () => {
+    pipeline(3);
+    write("threads", "a file where a folder belongs\n");
+    stamp(SPEC);
+    assert.equal(run("check", abs(P(""))).status, 1);
+  });
+});
+
 describe("stamp refuses", () => {
   useRepo();
 

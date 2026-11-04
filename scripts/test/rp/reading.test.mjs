@@ -62,11 +62,9 @@ describe("reading a pipeline", () => {
         pipeline(1, { lanes: [lane("spec-producer", "a")] });
         make();
         if (ref) commitAll("wrong kind");
-        for (const args of [["check", abs(P("")), ...(ref ? ["--ref", "HEAD"] : [])], ...(ref ? [] : [["stamp", abs(P(SPEC)), "--at", "HEAD"]])]) {
-          const out = run(...args);
-          assert.equal(out.status, 1);
-          assert.match(out.stderr, message);
-        }
+        const out = run("check", abs(P("")), ...(ref ? ["--ref", "HEAD"] : []));
+        assert.equal(out.status, 1);
+        assert.match(out.stderr, message);
       });
 
   it("ignores files that are not pipeline files", () => {

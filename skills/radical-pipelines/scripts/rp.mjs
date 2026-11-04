@@ -308,18 +308,20 @@ function readWorktree(root, folder) {
   return files;
 }
 
-// The pipeline's files, by pipeline-relative path, from a commit.
-async function readCommit(root, commit, folder) {
+// The pipeline's files, by pipeline-relative path, from a commit. `reads`, when given, narrows them to the files an
+// operation reads: only those, and the paths that hold them, are validated.
+async function readCommit(root, commit, folder, reads = null) {
   const entries = lsTree(root, commit, `${folder}/`, true);
   if (!entries.length) fail(`cannot read ${commit}:${folder}: no such folder`);
   const wanted = [];
   for (const entry of entries) {
     const rel = entry.path.slice(folder.length + 1);
-    if (holdsFiles(rel)) fail(`cannot read ${commit}:${entry.path}: a file where a folder belongs`);
+    const read = (path) => Boolean(kindOf(path)) && (!reads || reads(path));
+    if (!reads && holdsFiles(rel)) fail(`cannot read ${commit}:${entry.path}: a file where a folder belongs`);
     const parts = rel.split("/");
     for (let length = 1; length < parts.length; length++)
-      if (kindOf(parts.slice(0, length).join("/"))) fail(`cannot read ${commit}:${folder}/${parts.slice(0, length).join("/")}: a folder where a pipeline file belongs`);
-    if (!kindOf(rel)) continue;
+      if (read(parts.slice(0, length).join("/"))) fail(`cannot read ${commit}:${folder}/${parts.slice(0, length).join("/")}: a folder where a pipeline file belongs`);
+    if (!read(rel)) continue;
     if (!["100644", "100755"].includes(entry.mode)) fail(`cannot read ${commit}:${entry.path}: not a regular file`);
     wanted.push({ rel, oid: entry.oid });
   }
@@ -489,10 +491,11 @@ function parseOrFail(path, parse) {
 // The required inputs of what carries `inputs`. An artifact or candidate: its phase's upstream artifacts and every later
 // input that targets its phase's artifact. An approval: the intent, every later input, and the spec.
 export function requiredInputs(state, subject) {
-  const later = [...state.docs.values()].filter((doc) => doc.kind === "later");
-  if (subject.kind === "thread") return [INTENT, ...later.map((doc) => doc.path), PHASES[0].artifact];
-  return [...subject.phase.upstream, ...later.filter((doc) => doc.targets.includes(subject.phase.artifact)).map((doc) => doc.path)];
+  const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && (subject.kind === "thread" || doc.targets.includes(subject.phase.artifact)));
+  return [...upstreamOf(subject), ...later.map((doc) => doc.path)];
 }
+// The upstream artifacts a subject pins, before later inputs.
+const upstreamOf = (subject) => subject.kind === "thread" ? [INTENT, PHASES[0].artifact] : subject.phase.upstream;
 
 // The required inputs of a subject that are unpinned, or pinned at an identity that differs from the current one.
 export function staleInputs(state, subject) {
@@ -658,40 +661,40 @@ async function cmdStamp(args) {
   const kind = kindOf(inner);
   if (!pins(kind) && kind.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
   const commit = requireCommit(root, args.at ?? fail("stamp: --at <commit> names the turn's commit and is required"), "--at");
-  const files = readWorktree(root, folder);
-  if (!files.has(inner)) fail(`stamp: cannot read ${rel}: not a regular file`);
-  const state = readState(await readCommit(root, commit, folder));
-  const blocking = state.invalid.find((entry) => entry.path !== inner);
-  if (blocking) fail(`stamp: ${commit}:${folder}/${blocking.path}: ${blocking.reason}`);
-  const bytes = files.get(inner);
+  const abs = join(root, rel);
+  if (!existsSync(abs) || !lstatSync(abs).isFile()) fail(`stamp: cannot read ${rel}: not a regular file`);
+  const bytes = readFileSync(abs);
   const { data, body } = parseOrFail(`stamp: ${rel}`, () => frontmatterOf(bytes));
   const subject = kind.kind === "thread" ? parseOrFail(`stamp: ${rel}`, () => ({ kind: "thread", ...parseThread(basename(inner), body.toString("utf8")) })) : kind;
   if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only a review thread closed: approved is stamped`);
-  if (kind.kind === "candidate" && !productionLanes(state.config, kind.phase).some((lane) => lane.id === kind.lane)) fail(`stamp: ${rel}: production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
   parseOrFail(`stamp: ${rel}`, () => onlyKeys(data, kind.kind === "thread" ? ["inputs", "reviewed"] : ["inputs"]));
+  const isCandidateOfRoot = (path) => kind.kind === "artifact" && kindOf(path)?.kind === "candidate" && kindOf(path).phase === kind.phase;
+  if (args.pin.length && (kind.kind !== "artifact" || !kind.phase.lanes)) fail(`stamp: --pin applies to a spec or design doc: ${rel}`);
+  const pinned = args.pin.map((pin) => {
+    const located = locate(pin);
+    const path = located.root === root && located.rel.startsWith(`${folder}/`) ? located.rel.slice(folder.length + 1) : null;
+    return path && isCandidateOfRoot(path) ? path : fail(`stamp: --pin must name a candidate of ${rel}: ${pin}`);
+  });
+  // What stamp reads at the turn's commit: the configuration, the intent, every later input (its `target:` line says
+  // whether it applies), the subject's upstream artifacts, and the candidates `--pin` names.
+  const upstream = upstreamOf(subject);
+  const reads = (path) => path === "run-config.md" || path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || pinned.includes(path);
+  const state = readState(await readCommit(root, commit, folder, reads));
+  if (state.invalid.length) fail(`stamp: ${commit}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
+  if (kind.kind === "candidate" && !productionLanes(state.config, kind.phase).some((lane) => lane.id === kind.lane)) fail(`stamp: ${rel}: production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
   const inputs = new Map();
-  for (const path of requiredInputs(state, subject)) {
+  for (const path of [...requiredInputs(state, subject), ...pinned]) {
     if (!state.docs.has(path)) fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`);
     inputs.set(path, state.docs.get(path).identity);
   }
-  const isCandidateOfRoot = (path) => kind.kind === "artifact" && kindOf(path)?.kind === "candidate" && kindOf(path).phase === kind.phase;
-  if (args.pin.length) {
-    if (kind.kind !== "artifact" || !kind.phase.lanes) fail(`stamp: --pin applies to a spec or design doc: ${rel}`);
-    for (const pin of args.pin) {
-      const located = locate(pin);
-      const path = located.root === root && located.rel.startsWith(`${folder}/`) ? located.rel.slice(folder.length + 1) : null;
-      if (!path || !isCandidateOfRoot(path)) fail(`stamp: --pin must name a candidate of ${rel}: ${pin}`);
-      if (!state.docs.has(path)) fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`);
-      inputs.set(path, state.docs.get(path).identity);
-    }
-  } else {
+  if (!pinned.length) {
     const recorded = parseOrFail(`stamp: ${rel}`, () => parseInputs(data.inputs));
     for (const [path, id] of recorded) if (isCandidateOfRoot(path)) inputs.set(path, id);
   }
   data.inputs = [...inputs].sort(([a], [b]) => a < b ? -1 : 1).map(([path, id]) => `${path}@${id}`);
   if (kind.kind === "thread") data.reviewed = commit;
   const stamped = renderFrontmatter(data, body);
-  if (!stamped.equals(bytes)) writeFileSync(join(root, rel), stamped);
+  if (!stamped.equals(bytes)) writeFileSync(abs, stamped);
 }
 
 // --- pipelines --------------------------------------------------------------------
