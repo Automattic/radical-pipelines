@@ -1,13 +1,13 @@
 # Close-out
 
-The run stops: the target phase is complete, an owner escalation is pending, the owner cancelled, or something failed.
+The run stops: the frontier is `complete`, an owner escalation is pending, the owner cancelled, or something failed.
 
 1. Cancel health monitoring (`../conventions/health-monitoring.md`); terminate every agent of the run.
 2. Make sure every commit and stamp is on the pipeline branch and pushed; remove lane worktrees and branches.
 3. Fire `run-ended` with the cause.
 4. Complete through the target phase: tell the owner the pipeline is ready for the closure actions below.
 5. Any other cause: report to the owner what stopped the run, the frontier as `rp check` shows it, and — for an escalation — the dossier (`loop.md` § Owner escalation). Leave the tree exactly as it is; a later triage continues from it.
-6. Report to the owner: pipeline, branch, pull requests, phases completed, constraints satisfied, proposals and reported failures adopted or refuted, pending claims.
+6. Report to the owner: pipeline, branch, pull requests, phases completed, constraints satisfied, proposals and reported failures adopted or refuted, and pending escalations.
 
 ## Closure actions
 
@@ -16,7 +16,7 @@ Closure actions are moments the owner invokes on a pipeline: opening its pull re
 ### Open the pull request
 
 1. Fire `before-opening-pr`.
-2. Open it, writing its title and description per the **PR format** convention. Compose the description from the artifacts and approving reviews through the phase reached, including tasks and reports when present — what shipped, why, how, and the non-blocking findings the reviews recorded.
+2. Open it, writing its title and description per the **PR format** convention. Compose the description from the intent, the spec, the design doc, `notes.md`, and the approving review threads: what shipped, why, and how.
    - `artifacts-in-repo`: push the pipeline branch and open the pull request from it onto the artifact base branch with your own tools.
    - `artifacts-in-fork`: perform the upstream PR transformation below.
 3. Fire `after-opening-pr` and report the outcome.
@@ -28,7 +28,7 @@ When the pull request already exists, update its description the same way.
 Consult the **Artifact storage** convention for the remotes and the upstream branch and commit formats, then:
 
 1. Generate a clean branch name for `upstream` from the upstream branch format — separate from the fork branch — and create the branch at `upstream`'s main branch.
-2. Apply `rp diff <pipeline folder>` — the net change — to the clean branch, resolve any conflicts with upstream's main branch, and commit in the upstream format.
+2. Apply the net change (`state.md` § Terms) to the clean branch, resolve any conflicts with upstream's main branch, and commit in the upstream format.
 3. Push the clean branch directly to `upstream`.
 4. Open the pull request in `upstream` from that clean branch. Its source branch lives in `upstream`, not in the fork — viewers of the pull request never see the fork.
 
