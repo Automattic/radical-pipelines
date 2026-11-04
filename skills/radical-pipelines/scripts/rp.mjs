@@ -527,13 +527,13 @@ function parseOrFail(path, parse) {
 // --- state ------------------------------------------------------------------------
 
 // The required inputs of what carries `inputs`. An artifact or candidate: its phase's upstream artifacts and every later
-// input that targets its phase's artifact. An approval: the intent, every later input, and the spec.
+// input that targets its phase's artifact. An approval: the intent and every later input.
 export function requiredInputs(state, subject) {
   const later = [...state.docs.values()].filter((doc) => doc.kind === "later" && (subject.kind === "thread" || doc.targets.includes(subject.phase.artifact)));
   return [...upstreamOf(subject), ...later.map((doc) => doc.path)];
 }
 // The upstream artifacts a subject pins, before later inputs.
-const upstreamOf = (subject) => subject.kind === "thread" ? [INTENT, PHASES[0].artifact] : subject.phase.upstream;
+const upstreamOf = (subject) => subject.kind === "thread" ? [INTENT] : subject.phase.upstream;
 
 // The required inputs of a subject that are unpinned, or pinned at an identity that differs from the current one.
 export function staleInputs(state, subject) {

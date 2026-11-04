@@ -65,7 +65,7 @@ The body is ignored. A missing `run-config.md` or one that breaks these rules st
 | `1-spec/spec.md` and its candidates | `0-intent/intent.md`; every later input targeting `1-spec/spec.md` |
 | `2-design-doc/design-doc.md` and its candidates | `1-spec/spec.md`; every later input targeting `2-design-doc/design-doc.md` |
 | `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
-| An approval (§ Threads) | `0-intent/intent.md`; every later input; `1-spec/spec.md` |
+| An approval (§ Threads) | `0-intent/intent.md`; every later input |
 
 - **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. Other pins, such as the candidates a consolidated root merged, are checked for grammar only.
 - **Missing**: the file is absent. `notes.md` is also missing until the first line of its body is exactly `status: done`.

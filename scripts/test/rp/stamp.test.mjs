@@ -140,13 +140,13 @@ describe("stamp derives the required inputs", () => {
 describe("stamp of an approval", () => {
   useRepo();
 
-  it("pins the intent, every later input, and the spec at the turn's commit, and records that commit as reviewed", () => {
+  it("pins the intent and every later input at the turn's commit, and records that commit as reviewed", () => {
     pipeline(3);
     write("0-intent/constraint-1.md", `target: ${NOTES}\n`);
     write("0-intent/proposal-1.md", `target: ${DESIGN}\n`);
     writeFile("src/app.js", "export const a = 2;\n");
     const turn = commitAll("change");
-    const pins = [pin("0-intent/constraint-1.md"), pin(INTENT), pin("0-intent/proposal-1.md"), pin(SPEC)];
+    const pins = [pin("0-intent/constraint-1.md"), pin(INTENT), pin("0-intent/proposal-1.md")];
     const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", turn.slice(0, 9)]] });
     write("0-intent/proposal-1.md", `target: ${DESIGN}\nChanged after the turn.\n`);
     commitAll("later");

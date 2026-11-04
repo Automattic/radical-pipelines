@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { P, SPEC, abs, approve, check, commitAll, configure, frontier, git, pipeline, read, root, rp, run, stampAt, thread, REVIEW, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, NOTES, P, SPEC, abs, approve, check, commitAll, configure, frontier, git, pipeline, read, root, rp, run, stampAt, thread, REVIEW, useRepo, write, writeFile } from "./fixture.mjs";
 
 const head = () => git(root, "rev-parse", "HEAD").trim();
 const review = () => check().reviews[0];
@@ -88,23 +88,32 @@ describe("approval freshness", () => {
       assert.deepEqual(frontier(), ["review default"]);
     });
 
-  it("goes stale when the spec changes", () => {
-    approvedEdit();
-    write(SPEC, `${read(SPEC)}Changed.\n`);
-    commitAll("spec");
-    assert.deepEqual(review(), { lane: "default", approved: false, stale: [SPEC] });
-  });
+  // A change to a pipeline file after the approval: [what, change, the approval's stale inputs].
+  for (const [what, change, stale] of [
+    ["the intent changes", () => write(INTENT, `${read(INTENT)}Changed.\n`), [INTENT]],
+    ["a later input targeting the spec lands", () => write("0-intent/constraint-1.md", `target: ${SPEC}\n`), ["0-intent/constraint-1.md"]],
+    ["a later input targeting notes.md lands", () => write("0-intent/failure-1.md", `target: ${NOTES}\n`), ["0-intent/failure-1.md"]],
+    ["the spec changes", () => write(SPEC, `${read(SPEC)}Changed.\n`), null],
+    ["the design doc changes", () => write(DESIGN, `${read(DESIGN)}Changed.\n`), null],
+    ["notes.md changes", () => write(NOTES, `${read(NOTES)}Changed.\n`), null],
+  ])
+    it(`${stale ? "goes stale" : "stays fresh"} when ${what}`, () => {
+      approvedEdit();
+      change();
+      commitAll("pipeline file");
+      assert.deepEqual(review(), stale ? { lane: "default", approved: false, stale } : { lane: "default", approved: true });
+    });
 
   it("prints the net change as <base>..<tip> and the approval's reasons", () => {
     approvedEdit();
     onBase(() => writeFile("src/other.js", "x\n"));
     git(root, "merge", "--quiet", "--no-edit", "main");
-    write(SPEC, `${read(SPEC)}Changed.\n`);
+    write(INTENT, `${read(INTENT)}Changed.\n`);
     writeFile("src/f.js", FUNCTIONS({ b: "return 3;" }));
     commitAll("both");
     const lines = rp("check", abs(P(""))).split("\n");
     assert.ok(lines.includes(`net-change ${git(root, "rev-parse", "main").trim()}..${head()}`));
-    assert.ok(lines.includes(`review default stale ${SPEC} code`));
+    assert.ok(lines.includes(`review default stale ${INTENT} code`));
   });
 
   it("uses the merge-base with the base run-config.md names", () => {
