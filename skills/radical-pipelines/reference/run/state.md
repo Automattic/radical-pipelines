@@ -2,9 +2,9 @@
 
 Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with three commands:
 
-- `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the `frontier` line. `--ref` reads the pipeline at that commit instead of the working tree.
+- `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
 - `rp stamp <file>` writes the file's frontmatter (§ Frontmatter).
-- `rp pipelines <pipelines folder root> <canonical issue reference>` lists the issue's pipelines (§ Discovery).
+- `rp pipelines <repo path> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery).
 
 `rp check` is the only source of the frontier. When what you see in the tree disagrees with what `rp check` reports, or the frontier names something this skill gives you no way to dispatch, stop and tell the owner the skill has a defect; never work around it.
 
@@ -35,15 +35,16 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
 
   | Artifact | Required inputs |
   | --- | --- |
-  | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it; when the run configuration declares `spec-producer` lanes, every candidate |
+  | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
   | A spec candidate | `0-intent/intent.md`; every later input targeting `1-spec/spec.md` |
-  | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it; when the run configuration declares `design-doc-producer` lanes, every candidate |
+  | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
   | A design doc candidate | `1-spec/spec.md`; every later input targeting `2-design-doc/design-doc.md` |
   | `3-implementation/notes.md` | `1-spec/spec.md`; `2-design-doc/design-doc.md`; every later input targeting it |
 
-- **Stale** — an artifact whose `inputs` differ from its required inputs at their current identities, by member or by identity.
-- **Missing** — an artifact whose file is absent; `notes.md` is also missing while its first line is not `status: done`.
-- **Consolidated** — an artifact with declared production lanes whose `inputs` pin every candidate at its current identity.
+  Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record.
+
+- **Stale** — an artifact with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one.
+- **Missing** — an artifact whose file is absent; `notes.md` is also missing until its first body line is `status: done`.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder. Its **id** is its `git patch-id --stable`.
 - **Owner territory** — what the intent means or demands: its Goal, its constraints, and `0-intent/constraint-<n>.md`. Proposals and reported failures are investigated and adopted or refuted with evidence. Everything after the intent is chosen by a role and settled between roles. An owner's answer is a constraint or a proposal, as the owner rules, whose `origin` names the thread it answers and whose `target` names the disputed artifact or clause.
@@ -54,7 +55,7 @@ Frontmatter is a JSON object between `---` lines at the top of a file. Only `rp 
 
 | Key | File | Value |
 | --- | --- | --- |
-| `inputs` | An artifact | List of pins: every required input at its current identity when stamped |
+| `inputs` | An artifact | List of pins: every required input at its current identity when stamped; on a root with declared production lanes, also every candidate |
 | `reviewed` | A review thread closed `approved` (§ Threads) | The net change's id at the commit its last message names |
 
 No other file carries frontmatter. **Landing** a role's turn is verifying its commits are on its branch, running `rp stamp` on its artifact when it exists and on every review thread the turn closed `approved`, and committing the stamps on top.
@@ -74,8 +75,8 @@ artifact: intent | spec | design-doc | implementation
 
 - **Roles** — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>` for each review lane, and `owner`, the person. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`. The opener is any role but `owner`.
 - **Messages** — each headed `## <role> — <commit>`, written by the opener, the thread's owner, or, for an owner's answer, by you as `owner`.
-- **Awaits** — an `open` thread awaits its opener when its last message is by the thread's owner, and the thread's owner otherwise.
-- **Status** — the opener closes `closed: approved` or `closed: withdrawn`; either party marks `disagreement`; a thread addressed to `owner` opens as `disagreement`; you close a `disagreement` as `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation).
+- **Awaits** — an `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
+- **Status** — the opener closes `closed: approved` or `closed: withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which either party of another thread opens to escalate what the intent means or demands, citing that thread; you close it `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
 - **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `closed: approved` and its `reviewed` equals the current net change's id.
 
 ## Run configuration
@@ -104,23 +105,22 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 
 ## The frontier
 
-`rp check <pipeline folder>` reads `run-config.md` and prints as the `frontier` line the first of these that holds, considering phases through the target only:
+`rp check <pipeline folder>` reads `run-config.md` and prints the frontier: the first of these that holds, one line per action.
 
 1. A malformed frontmatter, thread header, or `target:` line → `INVALID <path>: <reason>`. Nothing is computed from a malformed file.
 2. A thread with `status: disagreement` → `escalate <thread>`.
-3. Open threads awaiting a role → `reply <role>: <thread>, …`, naming every thread awaiting one role: the first awaited in the order `spec-producer`, `design-doc-producer`, `implementer`, then reviewers by their lowest awaiting thread number.
-4. The lowest phase whose artifact is missing, stale, or, with declared production lanes, not consolidated:
-   - not consolidated: candidates missing or stale → `lanes <artifact>: <lane>, …`, naming those lanes; otherwise → `consolidate <artifact>`;
-   - missing → `produce <artifact>`;
-   - stale → `respond <artifact>`.
-5. Target phase 4, and review lanes not approved → `review: <lane>, …`, naming those lanes.
-6. Otherwise → `complete`.
+3. The lowest phase through the target whose role has work — a thread awaiting the role, or its artifact missing or stale:
+   - production lanes declared and the root missing → `lane <artifact> <id>` for each candidate missing or stale, else `consolidate <artifact>`;
+   - the artifact missing → `produce <artifact>`;
+   - the artifact stale, or a thread awaiting its owner → `respond <artifact>`;
+   - phase 4 → `review <lane>` for each lane not approved or with a thread awaiting its reviewer.
+4. Otherwise → `complete`.
 
-Below the frontier line, `rp check` lists the changed inputs of every artifact whose owner the line wakes: each required input whose pin is absent or differs, and each pin no longer required. A missing or invalid configuration, a base that does not resolve, or no merge-base stops the command.
+Below the frontier, `rp check` lists the threads awaiting each woken role and the changed inputs of each stale artifact. A missing or invalid configuration, a base that does not resolve, or no merge-base stops the command.
 
 ## Discovery
 
-Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines` finds the pipelines for an issue:
+Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue:
 
 1. Collect the tree id of every `<pipelines folder root>/<pipeline slug>` at each branch tip.
 2. Keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history: those are the live ones.

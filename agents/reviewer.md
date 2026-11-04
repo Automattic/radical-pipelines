@@ -31,7 +31,7 @@ When your lane has no message yet:
 
 Otherwise:
 
-1. Read each answer in the threads addressed to you, and verify each claimed change by rerunning what it affects. Close, reply, or mark disagreement per **Threads**.
+1. Read each answer in the threads addressed to you, and verify each claimed change by rerunning what it affects. Close, reply, or escalate per **Threads**.
 2. Review what the net change gained since you last examined it — since **Your last approval**, else since your lane's last message — per steps 2 and 3 above.
 3. Approve per **Approval** when nothing of yours remains open.
 
@@ -82,8 +82,8 @@ Either way, end by evaluating every rule under **Guardrails** against the change
 - Open a thread to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner. A finding cites what it questions — the artifact's path and id, or a file and line — and the observed evidence.
 - Answer every finding of a message awaiting you: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence. Reopen a redirected finding in a thread to the role named.
-- A reply that repeats a position without new evidence is a disagreement. On a requirement or decision a role chose, observation settles it: a clause defended by an input observed in intended use stands; a clause defended by what could happen falls, and its owner revises the artifact.
-- On what the intent means or demands — including a clause that stands but that you hold disproportionate to the intent — set `status: disagreement`: the owner decides. Open a question only the owner can answer as a thread to `owner` about `intent`, with `status: disagreement`.
+- A reply that repeats a position without new evidence is a disagreement. On a derived requirement or a design decision, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
+- A disagreement on what the intent means or demands — including a clause that stands by observation but that you hold disproportionate to the intent — goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question and citing the thread it comes from.
 - Your messages end your turn: write every message the turn needs, commit, and end it.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
