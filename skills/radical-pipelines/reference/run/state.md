@@ -4,7 +4,7 @@ Everything about a pipeline is computed from its tree at any commit. `rp` — `n
 
 - `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
 - `rp stamp <file> --at <turn commit> [--pin <path>]...` writes the file's frontmatter (§ Frontmatter).
-- `rp pipelines <repo path> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery).
+- `rp pipelines <repo path> --base <artifact base branch> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery). The base branch comes from the **Artifact storage** convention.
 
 `check` and `stamp` derive the pipelines folder root from the path they are given; `pipelines` reads it from the project's conventions, `.rp.local.md` first.
 
@@ -87,6 +87,7 @@ artifact: intent | spec | design-doc | implementation
 
 `run-config.md` at the pipeline folder root states the configuration the tree is produced under. Its frontmatter is a JSON object containing only:
 
+- `format`: the conventions format it was written under, `6`. `rp check` and `rp stamp` stop on a pipeline of another format.
 - `target-phase`: an integer from 1 through 4.
 - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
 - `lanes`, optional, non-empty when present: lane objects, each containing only non-empty strings `profile`, `id`, and `brief`. `profile` is `spec-producer` or `design-doc-producer` for a production lane, `reviewer` for a review lane.
@@ -124,11 +125,12 @@ Below the frontier, `rp check` lists the threads awaiting each woken role and th
 
 ## Discovery
 
-Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue:
+Every live pipeline is a `<pipelines folder root>/<pipeline slug>/` folder at some branch tip; every merged one is in the base branch's tree. After `git fetch`, `rp pipelines --issue` finds the pipelines for an issue, reading only each pipeline's intent origins and `format`:
 
 1. Collect the tree id of every `<pipelines folder root>/<pipeline slug>` at each branch tip.
 2. Keep the pipelines whose tree id differs from every id that folder ever had in the base branch's history: those are the live ones.
 3. Read their `0-intent/intent.md` and the base branch's.
 4. Keep those whose `origin: issue` line names the issue.
+5. List each with its `format`: the value, or `earlier` when its `run-config.md` has none.
 
-Branch and folder names are not used to find pipelines; only the `origin` line is. `rp check --ref` then reads each pipeline at its tip.
+Branch and folder names are not used to find pipelines; only the `origin` line is. `rp check --ref` then reads each live pipeline of the current format at its tip.

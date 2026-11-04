@@ -12,7 +12,7 @@ Every pipeline traces to an issue. If the request has none, run `manage-issues.m
 
 ### 2. Scan
 
-`git fetch`, then `rp pipelines <repo path> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline found: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the base branch's tree.
+`git fetch`, then `rp pipelines <repo path> --base <artifact base branch> --issue <canonical issue reference>` (`../run/state.md` § Discovery), and `rp check <pipeline folder>` on each live pipeline of the current format: every pipeline that references the issue, its branch, its frontier, and its pending escalations. A merged pipeline is taken as `rp pipelines` lists it, its files read from the base branch's tree.
 
 When the issue declares dependencies on other issues, check them through the **Issues** convention: surface any that are not closed and let the owner choose to proceed or wait. An issue with no declared dependencies, or whose dependencies' state the tracker cannot report, proceeds without comment.
 
@@ -29,6 +29,8 @@ A request carries one or more statements; route each by the first predicate that
 | New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `origin: starts-from` names that branch |
 | New intent re-attempting an existing pipeline differently                           | A new pipeline; `origin: re-attempts` names it                            |
 | New intent                                                                          | A new pipeline from the base branch                                       |
+
+A pipeline of an earlier format is history, never continued and never given later input: work on its issue routes as new intent, from the base branch or, by the owner's choice, from that pipeline's tip.
 
 When several live pipelines match, take the one the request identifies — by name, or as the only one whose frontier it advances; otherwise ask the owner in step 4 which pipeline, and, for a new pipeline, which tip to start from.
 
@@ -78,4 +80,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) with the configuration the run starts under; commit. Then fire `run-started` and follow `../run/loop.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) with the current `format` and the configuration the run starts under; commit. Then fire `run-started` and follow `../run/loop.md`.

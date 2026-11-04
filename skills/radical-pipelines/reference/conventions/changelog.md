@@ -25,7 +25,7 @@ When renamed blocks give one profile different models, ask the owner which to ke
 
 ### Pipelines
 
-A pipeline started under an earlier version is not continued: further work on its issue starts a new pipeline.
+A pipeline whose `run-config.md` carries no `format` 6 is listed by discovery as `earlier` and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
 
 ## 5
 
