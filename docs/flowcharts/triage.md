@@ -1,57 +1,44 @@
 # Triage
 
-This chart mirrors [`reference/entries/triage.md`](../../skills/radical-pipelines/reference/entries/triage.md), from issue normalization and tree scanning through first-match routing, preparation, and run dispatch.
+This chart mirrors [`reference/entries/triage.md`](../../skills/radical-pipelines/reference/entries/triage.md), from issue normalization and the pipeline scan through first-match routing, confirmation, preparation, and the run.
 
 ```mermaid
 flowchart TD
-    A["Normalize the request into an issue"] --> SCAN["Scan every matching live and merged pipeline"]
-    SCAN --> B{"Declared dependencies?"}
-    B -->|No| MANY{"Several live pipelines match?"}
-    B -->|Yes| C{"Dependencies reportable?"}
-    C -->|No| MANY
-    C -->|Yes| D{"Any dependency open?"}
-    D -->|No| MANY
-    D -->|Yes| E{"Owner chooses"}
+    A{"The request has an issue?"} -->|No| MI["Manage issues: create it"]
+    A -->|Yes| SCAN
+    MI --> SCAN["git fetch; rp pipelines --issue; rp check on each pipeline found"]
+    SCAN --> B{"The issue declares dependencies the tracker reports open?"}
+    B -->|Yes| E{"Owner chooses"}
     E -->|Wait| WAIT["Wait"]
-    E -->|Proceed| MANY
-    MANY -->|Yes| PICK["The one the request identifies; otherwise the owner chooses"]
-    MANY -->|No| ROUTE{"Route each statement by its first matching predicate, judged from the request, phase-0 files, and rp check"}
-    PICK --> ROUTE
-    ROUTE --> R1["Record an answer to a pending owner escalation"]
-    ROUTE --> R2["Continue the matching live pipeline"]
-    ROUTE --> R3["Record later input"]
-    ROUTE --> R3R["Rescope the live pipeline, or start from its tip"]
-    ROUTE --> R4["Start a pipeline from an unmerged tip"]
-    ROUTE --> R5["Start a new re-attempt"]
-    ROUTE --> R6["Start a new pipeline from the artifact base branch"]
-    ROUTE -->|No predicate decides| QUESTION["Collect the one deciding question"]
-    QUESTION --> GROUP
-    GROUP --> NEED{"Writes an intent, constraint, or proposal, lacks run-config.md or the request changes it, or has a question earlier steps left open?"}
-    NEED -->|Yes| CONFIRM["Propose the current configuration or Agents defaults; ask once about workflow, target, lanes, models, and the questions earlier steps left open"]
-    NEED -->|No| PREP
-    R1 --> GROUP["Group routes by pipeline into runs"]
+    E -->|Proceed| ROUTE
+    B -->|No| ROUTE{"Route each statement by the first predicate that holds"}
+    ROUTE --> R1["Answers a pending escalation: record the answer and continue that pipeline"]
+    ROUTE --> R2["A live pipeline already calls for it: continue it"]
+    ROUTE --> R3["Concerns an existing pipeline's artifacts or code: later input on it"]
+    ROUTE --> R4["Changes a live pipeline's scope: the owner chooses to rescope it or start a new pipeline from its tip"]
+    ROUTE --> R5["New intent from another pipeline's unmerged tip: new pipeline, origin starts-from"]
+    ROUTE --> R6["New intent re-attempting a pipeline: new pipeline, origin re-attempts"]
+    ROUTE --> R7["New intent: new pipeline from the base branch"]
+    R1 --> GROUP["Group the routed statements by pipeline: one run each"]
     R2 --> GROUP
     R3 --> GROUP
-    R3R --> GROUP
     R4 --> GROUP
     R5 --> GROUP
     R6 --> GROUP
-    CONFIRM --> PREP{"Prepare every route of the next run"}
-    PREP --> P1["Create the branch at its start ref and create the worktree"]
-    P1 --> P1A["Synthesize, approve, commit, and stamp the intent"]
-    PREP --> P2["Select or create the pipeline branch and worktree"]
-    P2 --> P2A["Write one constraint, proposal, or failure per item, holding only what the owner gave and its evidence; obtain approval for each ruling or request; commit and stamp"]
-    PREP --> P3["Ensure the continuation branch and worktree exist"]
-    PREP --> P4["Modify the issue; re-synthesize the intent; commit and stamp"]
-    P4 --> P3
-    P1A --> DIRECTIONS["Record work directions as later input; write run-config.md; stamp and commit"]
-    P2A --> DIRECTIONS
-    P3 --> DIRECTIONS
-    DIRECTIONS --> START["Fire run-started"]
-    START --> MODE{"Confirmed workflow"}
-    MODE --> AUTO["Run the autonomous loop"]
-    MODE --> ASSISTED["Run the assisted phase"]
-    AUTO --> NEXT{"Another run?"}
-    ASSISTED --> NEXT
+    R7 --> GROUP
+    GROUP --> NEED{"Writes an intent, constraint, or proposal; no run-config.md or the request changes it; or a question left open?"}
+    NEED -->|Yes| CONFIRM["In one message: each route and why, the text to write, the configuration — target, lanes, models — what a lane change does to the tree, and the open questions; revise until the owner confirms"]
+    NEED -->|No| PREP
+    CONFIRM --> PREP{"Prepare every route of the run"}
+    PREP --> P1["New pipeline: slug and branch; branch at the start ref and worktree; synthesize and commit the intent"]
+    PREP --> P2["Later input: the live branch and worktree, or a new branch for a merged pipeline; write and commit each input"]
+    PREP --> P3["Continue: the pipeline's branch and worktree, created when missing"]
+    PREP --> P4["Rescope: modify the issue; re-synthesize and commit the intent; continue"]
+    P1 --> RUN
+    P2 --> RUN
+    P3 --> RUN
+    P4 --> RUN
+    RUN["Record unconsumed work directions as later input; write and commit run-config.md"] --> START["Fire run-started; run the loop"]
+    START --> NEXT{"Another run?"}
     NEXT -->|Yes| PREP
 ```

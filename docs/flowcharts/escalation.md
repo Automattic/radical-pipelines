@@ -1,33 +1,19 @@
-# Contradiction escalation
+# Owner escalation
 
-This chart mirrors the claim and owner-escalation path in [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md): a producer's evidence must survive review before a contradiction can move to its target or reach the owner.
+This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md) § Owner escalation and [`reference/run/state.md`](../../skills/radical-pipelines/reference/run/state.md) § Owner territory: only a disagreement about what the intent means or demands reaches the owner, and the answer returns as later input.
 
 ```mermaid
 flowchart TD
-    START{"Contradiction source"} -->|Producer records Contradicts-input| A["Run a review wave"]
-    START -->|Reviewer writes unsatisfiable| C
-    A --> C["Wait for every lane and close the wave"]
-    C --> D{"Closed-wave result"}
-    D -->|Any rejected| E["Producer adjudicates every lane"]
-    E --> A
-    D -->|Every approved| F{"Target pins the claim and this wave covers that target?"}
-    F -->|Yes| RESOLVED["The claim is resolved"]
-    F -->|No| APPROVED["The artifact is approved"]
-    D -->|Unsatisfiable and no rejection| G["Pending claim"]
-    G --> H{"Target in owner territory?"}
-    H -->|Yes| I["Close-out and assemble the dossier"]
-    I --> J["Give the owner the claim, evidence chain, and options"]
-    J --> K["Present the synthesized answer for approval; record it as a constraint or a proposal, as the owner rules, citing the claim and targeting its phase's root artifact; stamp and commit"]
-    K --> ANSWERED["The owner claim is answered; the new constraint or proposal is pending on its targets"]
-    ANSWERED --> N
-    H -->|No| N["Dispatch the target producer: Converge"]
-    N --> O{"Producer disposition"}
-    O -->|Adopt| P["Change the target"]
-    O -->|Refute| Q["Record the refutation"]
-    O -->|Contradicts input| R["Name the higher target; unsatisfiable review cites the claim as Origin"]
-    P --> S["Stamp the target with the claim pin"]
-    Q --> S
-    R --> S
-    S --> A
-    RESOLVED --> CASCADE["Converge stale downstream artifacts"]
+    A["A thread to owner about intent has status disagreement"] --> B["rp check names escalate thread"]
+    B --> C["Fire escalation-raised"]
+    C --> D["Close-out: stop the run with the dossier — the thread and the thread it cites, verbatim, and the intent items and artifact clauses they cite"]
+    D --> E["Explain the choice and its consequences to the owner"]
+    E --> F["The owner answers; a later triage routes the answer to this pipeline"]
+    F --> G{"The owner rules the answer"}
+    G -->|Binding| H["Write a constraint"]
+    G -->|Open to investigation| I["Write a proposal"]
+    H --> J["origin names the thread; target names the disputed artifact or clause; commit"]
+    I --> J
+    J --> K["Append a message headed owner with that commit, naming the input; set status closed: answered; commit"]
+    K --> L["The target is stale; the loop continues"]
 ```

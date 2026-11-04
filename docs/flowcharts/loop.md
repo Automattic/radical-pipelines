@@ -1,39 +1,31 @@
 # Autonomous loop
 
-This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md): each check selects the first frontier item, dispatches its resolver, stamps landed work, and repeats until close-out or owner escalation.
+This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md): each step runs `rp check`, wakes the roles its frontier names, waits for their turns to end, lands them, and repeats until the frontier is `complete` or `escalate`.
 
 ```mermaid
 flowchart TD
-    A["Run rp check"] --> STATUS["Treat complete-through-phase as status; read frontier"]
-    STATUS --> B["Take the first frontier item"]
-    B --> C{"Frontier"}
-    C -->|claim: owner escalation| OE["Close-out with the dossier"]
-    C -->|converge artifact| S["Dispatch producer: Converge with its input changes, the closed wave's reviews, and its pending challenges"]
-    C -->|stamp file| ST["Stamp its pins or mirrors"]
-    C -->|review wave| RW["Run the review-wave procedure"]
-    C -->|consolidate artifact| CON["Dispatch producer: Consolidate"]
-    C -->|task| TASK["Dispatch its worker"]
-    C -->|blocked task| BLOCKED["Repair what the report names; dispatch its worker"]
-    C -->|build or document review| PR["Run the review-wave procedure with the phase reviewer"]
-    C -->|INVALID REVIEW or REPORT| ATTEMPT["Have the attempt's agent finish the same file"]
-    C -->|INVALID FRONTMATTER| FRONTMATTER["Orchestrator repairs the frontmatter, then re-stamps the file"]
-    C -->|INVALID LINE or IDS| LINE["Have the file's author fix it"]
-    C -->|invalid plan| INVALIDPLAN["Dispatch the plan producer: Converge"]
-    C -->|adjudicated challenges or claims awaiting approval| AWAITING["Run a review wave for each named artifact"]
-    C -->|undeclared lane or symlink| DEFECT["Stop and tell the owner"]
+    START["Enter from triage; start health monitoring"] --> A["Run rp check"]
+    A --> C{"Frontier"}
+    C -->|INVALID with malformed frontmatter| FM["Repair the frontmatter and re-stamp"]
+    C -->|INVALID otherwise| AUTHOR["Wake the file's author to fix it, or fix it when you wrote it"]
+    C -->|escalate thread| OE["Owner escalation"]
+    C -->|lane artifact id| LANE["Give each lane its branch and worktree at the pipeline tip; wake its producer: produce, or respond when its candidate exists"]
+    C -->|consolidate artifact| CON["Terminate the lane instances; remove their worktrees and branches; wake a fresh producer: consolidate"]
+    C -->|produce artifact| PRODUCE["Wake its owner: produce, or implement for the implementer"]
+    C -->|respond artifact| RESPOND["Wake its owner: respond, with its changed inputs and the threads awaiting it"]
+    C -->|review lane| REVIEW["Save the net change; give each lane its branch and worktree at the pipeline tip; wake its reviewer"]
     C -->|complete| CLOSE["Close-out"]
-    S --> LAND["Verify and land agent commits"]
-    RW --> LAND
-    CON --> LAND
-    TASK --> LAND
-    BLOCKED --> LAND
-    PR --> LAND
-    ATTEMPT --> LAND
-    FRONTMATTER --> A
-    LINE --> LAND
-    INVALIDPLAN --> LAND
-    AWAITING --> LAND
-    LAND --> STAMP["Stamp before publication, deriving lanes from paths and run-config.md; repair frontmatter or return other INVALID results to the author; merge lane branches; fire phase hooks"]
-    STAMP --> A
-    ST --> A
+    OE --> CLOSE
+    FM --> A
+    LANE --> WAIT
+    CON --> WAIT
+    PRODUCE --> WAIT
+    RESPOND --> WAIT
+    REVIEW --> WAIT
+    AUTHOR --> WAIT
+    WAIT["End the turn; resume on role reports and health ticks"] --> ENDED{"Every woken role ended its turn?"}
+    ENDED -->|No| WAIT
+    ENDED -->|Yes| LAND["For each role: merge its lane branch into the pipeline branch; stamp its artifact and every review thread it closed approved; commit the stamps"]
+    LAND --> PC["Fire phase-completed for each phase that became complete; report one line per role to the owner"]
+    PC --> A
 ```
