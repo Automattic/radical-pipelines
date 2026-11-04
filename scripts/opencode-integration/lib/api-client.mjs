@@ -149,84 +149,6 @@ export async function getActiveSessionIDs(server) {
 }
 
 /**
- * Read a session's admitted-but-unpromoted inbox items.
- *
- * @param {{baseURL:string,password:string}} server
- * @param {string} sessionID
- * @returns {Promise<Array<object>>}
- */
-export async function getInbox(server, sessionID) {
-  const response = await request(server, "GET", `/api/session/${sessionID}/inbox`);
-  return data(response) ?? [];
-}
-
-/**
- * Interrupt a session's in-flight execution.
- *
- * @param {{baseURL:string,password:string}} server
- * @param {string} sessionID
- * @returns {Promise<number>} The HTTP status (204 on success).
- */
-export async function interrupt(server, sessionID) {
-  const response = await request(server, "POST", `/api/session/${sessionID}/interrupt`);
-  return response.status;
-}
-
-/**
- * Switch a session's model in place (the auth-recovery retry-1 action):
- * applies from the next turn without disrupting the current one.
- *
- * @param {{baseURL:string,password:string}} server
- * @param {string} sessionID
- * @param {{ providerID: string, id: string }} model
- * @returns {Promise<number>} The HTTP status (204 on success).
- */
-export async function switchModel(server, sessionID, model) {
-  const response = await request(server, "POST", `/api/session/${sessionID}/model`, { model });
-  return response.status;
-}
-
-/**
- * Give a session its own permission ruleset, so a check decides what the
- * session asks about rather than inheriting the sandbox's defaults.
- *
- * @param {{baseURL:string,password:string}} server
- * @param {string} sessionID
- * @param {Array<{ action: string, resource: string, effect: "allow"|"deny"|"ask" }>} permissions
- * @returns {Promise<number>} The HTTP status (204 on success).
- */
-export async function setSessionPermissions(server, sessionID, permissions) {
-  const response = await request(server, "PATCH", `/api/session/${sessionID}`, { permissions });
-  return response.status;
-}
-
-/**
- * Evaluate an action against a session's ruleset, raising a pending
- * permission request when the ruleset asks about it.
- *
- * @param {{baseURL:string,password:string}} server
- * @param {string} sessionID
- * @param {{ action: string, resources: string[] }} ask
- * @returns {Promise<{ id: string, effect: "allow"|"deny"|"ask" }>}
- */
-export async function createPermissionRequest(server, sessionID, { action, resources }) {
-  const response = await request(server, "POST", `/api/session/${sessionID}/permission`, { action, resources });
-  return data(response);
-}
-
-/**
- * Read a session's still-pending permission requests.
- *
- * @param {{baseURL:string,password:string}} server
- * @param {string} sessionID
- * @returns {Promise<Array<object>>}
- */
-export async function getPermissionRequests(server, sessionID) {
-  const response = await request(server, "GET", `/api/session/${sessionID}/permission`);
-  return data(response) ?? [];
-}
-
-/**
  * List every plugin opencode currently reports loaded, in this project's
  * scope.
  *
@@ -317,7 +239,7 @@ export async function pollUntil(fn, { timeoutMs = 20_000, intervalMs = 300, labe
  * @param {string} nonce The nonce embedded via `nativeToolPrompt`.
  * @returns {{ text: string|undefined, structuredJSON: *, error: {message: string}|undefined } | undefined}
  *   `undefined` while the call is still in flight. On success `text` is the
- *   tool result's raw rendered text (see the plugin's `toToolResult`) and
+ *   tool result's raw rendered text and
  *   `structuredJSON` is `JSON.parse(text)` when it parses, else `undefined`
  *   (the tool returned a bare string, rendered verbatim). A tool that threw
  *   settles with `error` instead of `text`.
@@ -375,7 +297,7 @@ export async function pollToolResult(server, sessionID, nonce, { timeoutMs, labe
  * @param {{baseURL:string,password:string}} server
  * @param {string} sessionID The session to drive (its model must be the
  *   stub provider's for the directive to be recognized).
- * @param {string} name The tool to call, e.g. `"rp_status"`.
+ * @param {string} name The tool to call, e.g. `"subagent"`.
  * @param {object} [args] The tool's arguments.
  * @param {{ timeoutMs?: number }} [options]
  * @returns {Promise<{ text: string|undefined, structuredJSON: *, error: {message: string}|undefined }>}

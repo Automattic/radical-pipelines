@@ -1,6 +1,6 @@
 /**
  * Plugin load and version-id reporting, skill registration, and isolated
- * agent-folder regeneration, driven against the sandbox's running `serve`
+ * agent-folder regeneration as subagents, driven against the sandbox's running `serve`
  * process.
  */
 
@@ -8,8 +8,9 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderSubagentProfile } from "../../../opencode/plugin.mjs";
 import { runCheck } from "../lib/check-runner.mjs";
-import { createSession, driveToolCall, listAgents, listPlugins, listSkills, pollUntil } from "../lib/api-client.mjs";
+import { createSession, listAgents, listPlugins, listSkills, pollUntil } from "../lib/api-client.mjs";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const AGENTS_SOURCE_DIR = join(REPO_ROOT, "agents");
@@ -18,11 +19,11 @@ const PACKAGE_JSON_PATH = join(REPO_ROOT, "package.json");
 /**
  * Run every check in this group.
  *
- * @param {{ server: object, stub: object, projectDir: string, xdgConfigHome: string, results: Array }} ctx
+ * @param {{ server: object, projectDir: string, xdgConfigHome: string, results: Array }} ctx
  * @returns {Promise<void>}
  */
 export async function run(ctx) {
-  const { server, stub, projectDir, xdgConfigHome, results } = ctx;
+  const { server, projectDir, xdgConfigHome, results } = ctx;
   const agentsDir = join(xdgConfigHome, "opencode", "agents");
   const materializedAgentsDir = join(agentsDir, "radical-pipelines");
 
@@ -80,7 +81,7 @@ export async function run(ctx) {
     );
   });
 
-  await runCheck(results, "agent materialization: every source profile is available under RP's namespace", async () => {
+  await runCheck(results, "agent materialization: every source profile is available as a subagent under RP's namespace", async () => {
     const sourceNames = readdirSync(AGENTS_SOURCE_DIR).filter((name) => name.endsWith(".md"));
     assert.ok(sourceNames.length > 0, "expected at least one source agent profile");
     const expectedIDs = sourceNames.map((name) => `radical-pipelines/${name.replace(/\.md$/, "")}`);
@@ -97,11 +98,12 @@ export async function run(ctx) {
 
     for (const id of expectedIDs) {
       assert.ok(agentIDs.has(id), `expected agent "${id}" to be recognized; got: ${JSON.stringify([...agentIDs])}`);
+      assert.equal(agents.find((agent) => agent.id === id).mode, "subagent", `expected "${id}" to register as a subagent`);
     }
   });
 
-  await runCheck(results, "agent materialization: materialized bytes match the source profile exactly", async () => {
-    const fileName = "helper.md";
+  await runCheck(results, "agent materialization: a materialized profile is its source rendered as a subagent", async () => {
+    const fileName = readdirSync(AGENTS_SOURCE_DIR).find((name) => name.endsWith(".md"));
     const sourceBytes = readFileSync(join(AGENTS_SOURCE_DIR, fileName), "utf8");
     const materializedPath = join(materializedAgentsDir, fileName);
     await pollUntil(async () => existsSync(materializedPath), {
@@ -109,47 +111,11 @@ export async function run(ctx) {
       label: `${fileName} to be materialized on disk`,
     });
     const materializedBytes = readFileSync(materializedPath, "utf8");
-    assert.equal(materializedBytes, sourceBytes);
+    assert.equal(materializedBytes, renderSubagentProfile(sourceBytes));
   });
 
   await runCheck(results, "agent folder regeneration: stray content disappears and outside content is untouched", async () => {
     assert.equal(existsSync(ctx.strayAgentPath), false, "the stray file inside RP's folder must be removed");
     assert.equal(readFileSync(ctx.outsideAgentPath, "utf8"), ctx.outsideAgentContent);
   });
-
-  await runCheck(
-    results,
-    "every RP tool is offered to the model by name, not only through Code Mode's execute wrapper",
-    async () => {
-      const session = await createSession(server, {
-        agent: "build",
-        directory: projectDir,
-        model: { providerID: "stub", id: "stub-model" },
-      });
-      await driveToolCall(server, session.id, "rp_status");
-      // opencode routes a registered tool by its `options.codemode`: only
-      // `codemode: false` reaches the model as a tool of its own. Every
-      // driven tool passes through the offered-name gate, so this asserts the
-      // whole set at once — the regression that silently moved
-      // all eight behind `execute` is invisible to a suite that only ever
-      // calls them one at a time.
-      const offered = stub.offeredToolNames();
-      const expected = [
-        "rp_loop_cancel",
-        "rp_loop_list",
-        "rp_loop_start",
-        "rp_permission_reply",
-        "rp_send",
-        "rp_spawn",
-        "rp_status",
-        "rp_terminate",
-      ];
-      const missing = expected.filter((name) => !offered.has(name));
-      assert.deepEqual(
-        missing,
-        [],
-        `expected every RP tool to be offered directly; missing: ${JSON.stringify(missing)}`,
-      );
-    },
-  );
 }

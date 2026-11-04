@@ -2,8 +2,9 @@
 /**
  * opencode integration suite.
  *
- * The integration suite exercises the RP coordination
- * layer against the latest stable `@opencode/cli` release, in an
+ * The integration suite exercises the RP plugin and the native mechanics the
+ * skill's opencode tool file relies on against the latest stable
+ * `@opencode/cli` release, in an
  * XDG-isolated sandbox, offline (an OpenAI-compatible SSE stub provider
  * backs every core-flow turn at zero cost). Lives outside `scripts/test/`,
  * so the fixed `npm test` gate never runs it.
@@ -23,28 +24,14 @@ import { createSandbox, destroySandbox, ensureCli, startServe, stopServe, STUB_P
 import { startStubProvider } from "./lib/stub-provider.mjs";
 
 import * as pluginAndMaterialization from "./checks/plugin-and-materialization.mjs";
-import * as spawnAndMessaging from "./checks/spawn-and-messaging.mjs";
-import * as healthLoop from "./checks/health-loop.mjs";
-import * as toolAccess from "./checks/tool-access.mjs";
-import * as permission from "./checks/permission.mjs";
-import * as status from "./checks/status.mjs";
-import * as interruptAndModelSwitch from "./checks/interrupt-and-model-switch.mjs";
-import * as authRecovery from "./checks/auth-recovery.mjs";
-import * as networkErrorProbe from "./checks/network-error-probe.mjs";
+import * as nativeRoles from "./checks/native-roles.mjs";
 import * as skillResupply from "./checks/skill-resupply.mjs";
 import * as networkSmoke from "./checks/network-smoke.mjs";
 
 /** Check groups run in every invocation: the hermetic, offline core path. */
 const CORE_CHECK_GROUPS = [
   ["Plugin load, skill registration, agent materialization", pluginAndMaterialization],
-  ["Spawn, seat, ledger, identity, messaging, termination", spawnAndMessaging],
-  ["Health loop", healthLoop],
-  ["Tool access tiers", toolAccess],
-  ["Permission adjudication", permission],
-  ["Status", status],
-  ["Interrupt and model switch", interruptAndModelSwitch],
-  ["Auth-error recovery", authRecovery],
-  ["Tool-call network-error probe", networkErrorProbe],
+  ["Native roles: seat, wake, notification, termination", nativeRoles],
   ["Skill re-supply across a checkpoint", skillResupply],
 ];
 
