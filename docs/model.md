@@ -46,7 +46,7 @@ Unchanged from v3: the owner's goal, constraints, and proposals, synthesized by 
 
 Requirements, acceptance criteria, exclusions, and the cases considered and not required.
 
-Every requirement carries its origin: `from-intent`, when the intent states it, with the intent item it cites; or `derived`, when the producer inferred it, with the input observed in intended use that makes the case material. A derived requirement without an observed input is written as an assumption, not a requirement.
+Every requirement carries its origin: `from-intent`, when the intent states it, with the intent item it cites; or `derived`, when the producer inferred it, with the intent item it serves and the input observed in intended use that makes the case material. A derived requirement without both is written as an assumption, not a requirement.
 
 The section **Considered and not required** lists, one line each, the cases the producer examined and left out because no intended use produces them. It is the spec's negative space: a consumer or reviewer who wonders about a case finds it there before raising it.
 
@@ -68,7 +68,7 @@ Order of work: first the smallest change that satisfies the intent's from-intent
 
 Boundaries: a new component, abstraction, dependency, or configuration surface that the design doc does not decide is a design change. The implementer opens a thread to the design doc's owner before writing it.
 
-Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run. A new test proves something no other test proves. Documentation states what readers can now do, must now do, or no longer need to do, at the depth they act on it; it restates nothing readers already assume.
+Tests follow the classical school: a test exercises the delivered path from the public interface whose outcome it proves; a test double replaces only what the test cannot run. A new test proves something no other test proves. A failure is the implementer's when the change caused it or an intent outcome depends on it; one that reproduces on the base and that the change leaves untouched is recorded in the notes. Documentation states what readers can now do, must now do, or no longer need to do, at the depth they act on it; it restates nothing readers already assume.
 
 `notes.md` is the implementer's resumption file: the identity of the design doc and spec it started from, what is done, what remains, the decisions it took within its boundaries that a successor should know, and the approaches that failed. It is updated at milestones and when a turn ends. `status: done` on its first lines declares the implementation complete. It carries no discussion.
 
@@ -84,7 +84,7 @@ A review lane approves by closing its thread `approved` at a named commit. The i
 
 ## Roles
 
-- **Orchestrator.** The session that runs the skill. It triages with the owner, creates the pipeline branch and worktree, records phase 0, wakes the role the frontier names, watches health, carries disagreements on owner territory to the owner, and opens the pull request. It judges no content and relays no message.
+- **Orchestrator.** The session that runs the skill. It triages with the owner, creates the pipeline branch and worktree, records phase 0, wakes the role the frontier names, watches health, carries disagreements on owner territory to the owner, and opens the pull request. It judges no content, relays no message, and writes no solution code: when publishing needs the change to apply onto a moved base, the implementer merges the base first and the review covers the resolution.
 - **`spec-producer`.** Owns `spec.md`. Modes: produce, respond, consolidate.
 - **`design-doc-producer`.** Owns `design-doc.md`. Modes: produce, respond, consolidate.
 - **`implementer`.** Owns the code, tests, documentation, and `notes.md`. Modes: implement, respond.
@@ -107,7 +107,7 @@ A producer writes no solution code. A probe that answers "what does X do today" 
 
 A thread is the conversation between two roles about one artifact, recorded as one file. It replaces review waves, adjudication records, help requests, and claims.
 
-**File.** `threads/<n>-<opener>-<owner>-<artifact>.md`. Its first lines declare `status`, `opener`, `owner`, and `artifact`. Roles are `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>`, and `owner`, the person; artifacts are `intent`, `spec`, `design-doc`, and `implementation`, each paired with its owner. `<n>` is one more than the highest number in `threads/` when the thread opens; threads opened in parallel may share a number, and the opener in the name keeps paths unique. Statuses are `open`, `closed: approved`, `closed: withdrawn`, `closed: answered`, and `disagreement`. The body is a sequence of messages, each headed by its author and the commit it refers to. A message is a batch: a list of findings, or a response to each finding of the previous message, as long as it needs to be.
+**File.** `threads/<n>-<opener>-<owner>-<artifact>.md`. Its first lines declare `status`, `opener`, `owner`, and `artifact`. A role's name in threads is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and `spec-producer-<lane>`, `design-doc-producer-<lane>`, `reviewer-<lane>` for lane instances. Thread roles are validated by that grammar, never against the current configuration, so a removed lane's threads stay readable history. Artifacts are `intent`, `spec`, `design-doc`, and `implementation`, each paired with its owner; a lane candidate's owner is its lane role. `<n>` is one more than the highest number in `threads/` when the thread opens; threads opened in parallel may share a number, and the opener in the name keeps paths unique. Statuses are `open`, `closed: approved`, `closed: withdrawn`, `closed: answered`, and `disagreement`. The body is a sequence of messages, each headed by its author and the commit it refers to. A message is a batch: a list of findings, or a response to each finding of the previous message, as long as it needs to be.
 
 **Who opens.** A role opens a thread to the owner of an artifact it consumes when it finds a problem while consuming: the design doc's producer to the spec's owner; the implementer to the design doc's or the spec's owner. The reviewer opens one thread per owner it addresses. Nobody opens a thread downstream: what an upstream artifact's change means for its consumers reaches them through the artifact and its pins.
 
@@ -129,22 +129,23 @@ A thread is the conversation between two roles about one artifact, recorded as o
 Everything about a pipeline is computed from its tree at any commit, as in v3, with far less to compute.
 
 - **Identity** is the first twelve hexadecimal characters of the blob hash of a file's body below its frontmatter. The orchestrator writes frontmatter; roles never do.
-- **Pins.** An artifact's frontmatter lists `inputs`: each file it consumed with its identity. The spec pins the intent and every later input that targets it; the design doc pins the spec and every later input that targets it; `notes.md` pins the spec, the design doc, and every later input that targets it. A consolidated root also pins the candidates it merged, as a record; candidates are required only while the root is missing. A review thread closed `approved` carries `reviewed`: the patch id of the net change it approved, the diff from the base to the tip outside the pipelines folder, which a merge from the base does not alter.
-- **Stale.** An artifact whose required input is unpinned or has a different identity now. A review lane is approved when its latest thread to the implementer is closed `approved` with `reviewed` equal to the current net change's id.
+- **Pins.** An artifact's frontmatter lists `inputs`: each required input with its identity. `rp stamp <artifact>` derives the required inputs from the artifact's kind and pins them at their identities in the tree it runs on; the orchestrator stamps in the role's worktree before merging anything into it, so the pins are what the role read. The spec pins the intent and every later input that targets it; the design doc pins the spec and every later input that targets it; `notes.md` pins the spec, the design doc, and every later input that targets it. A consolidated root also pins the candidates it merged, as a record; candidates are required only while the root is missing. A review thread closed `approved` pins the intent, every later input, the spec, and, as `reviewed`, the id of the net change it approved.
+- **Net change.** The diff from the base to the tip outside the pipelines folder. Its id is a hash of the changed lines alone: the diff with no context lines, with hunk headers and index lines removed, so a merge from the base that changes nothing of the change leaves it unchanged, and a change of whitespace changes it.
+- **Stale.** An artifact or approval whose required input is unpinned or has a different identity now. A review lane is approved when its latest thread to the implementer is closed `approved`, fresh, and with `reviewed` equal to the current net change's id.
 - **Missing.** An absent artifact; `notes.md` is also missing until its first body line is `status: done`.
 - **Awaiting.** An `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Frontier.** `rp check` prints the first that holds:
   1. a malformed frontmatter, thread header, or `target:` line: `INVALID <path>: <reason>`; nothing is computed from a malformed file;
   2. a thread with status `disagreement`: `escalate <thread>`;
-  3. the lowest phase through the target whose role has work, where work is a thread awaiting the role, or its artifact missing or stale:
+  3. the lowest phase whose role has work, where work is a thread awaiting the role, in any phase, or its artifact missing or stale, in a phase through the target:
      - a phase with production lanes and a missing root: `lane <artifact> <id>` for each candidate missing or stale, else `consolidate <artifact>`;
      - a missing artifact: `produce <artifact>`;
      - a stale artifact, or a thread awaiting its owner: `respond <artifact>`;
      - phase 4: `review <lane>` for each lane not approved or with a thread awaiting its reviewer;
   4. `complete`.
 
-  One line per action. Below the frontier, `rp check` lists the threads awaiting each woken role and the inputs that changed for each stale artifact. Because threads only run upstream, the lowest phase with work is always the party whose turn it is, and a role waiting on a thread it opened is never woken for its missing artifact.
-- **Script.** `rp` keeps three commands: `check`, `stamp`, and `pipelines <repo path> [--issue <ref>]` (discovery by the intent's origin, as v3). `run-config.md` carries `target-phase`, `base`, and `lanes` with `profile`, `id`, and `brief`; models live in its body, which `rp` ignores. Without a `reviewer` lane, one lane named `default` runs. Nothing else is computed.
+  One line per action. Below the frontier, `rp check` lists the threads awaiting each woken role and the inputs that changed for each stale artifact. Because threads only run upstream, the lowest phase with work is always the party whose turn it is, and a role waiting on a thread it opened is never woken for its missing artifact. A thread counts as work whatever the target, so lowering the target never completes a pipeline with an open thread.
+- **Script.** `rp` keeps three commands: `check`, `stamp`, and `pipelines <repo path> [--issue <ref>]` (discovery by the intent's origin, as v3). `check` and `stamp` derive the pipelines folder root from the pipeline folder they are given; `pipelines` reads it from the project's conventions, the local override first. `run-config.md` carries `target-phase`, `base`, and `lanes` with `profile`, `id`, and `brief`; models live in its body, which `rp` ignores. Without a `reviewer` lane, one lane named `default` runs. `check` describes a live branch; a merged pipeline is history in the base branch's tree. Nothing else is computed.
 
 The orchestrator stamps on landing, as in v3. There are no mirrors, packages, waves, episodes, lane packages, or task reports.
 
