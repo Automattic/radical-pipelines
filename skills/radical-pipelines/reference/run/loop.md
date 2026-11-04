@@ -14,7 +14,7 @@ Throughout the run:
 2. Dispatch every line of its frontier (table below). `phase-started` fires the first time a step wakes a role of a phase, and again when work on it resumes.
 3. While roles work, end your turn with health monitoring active; their reports and health ticks resume the run.
 4. When every role the step woke has ended its turn, land each:
-   1. Land it in its worktree at its turn commit (`state.md` § Frontmatter).
+   1. Land it in its worktree at its turn commit, read from its assignment file (`state.md` § Frontmatter).
    2. Merge its lane branch, when it has one, into the pipeline branch (`before-`/`after-merging-lanes`).
    3. Fire `phase-completed` when a phase becomes complete.
    4. Give the owner a one-line report naming the role, what changed, and anything worth surfacing.
@@ -37,7 +37,7 @@ Throughout the run:
 - The **Turn commit** is the tip of the role's worktree when you wake it.
 - Before every spawn and every wake, write the assignment to the role's **Assignment** path (`state.md` § Names), replacing the previous one.
 - **Threads addressed to you** lists the threads `rp check` reports awaiting the role. **Changed inputs** lists the changed inputs it reports for the role's artifact, each with the last commit that changed the artifact, from which the role diffs it.
-- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message; spawn a fresh instance when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation. The message that starts a turn, spawn and wake alike, is one line: `Your turn starts at <turn commit>: read your assignment.`
+- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message; spawn a fresh instance when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation. The message that starts a turn, spawn and wake alike, is exactly `Read your assignment.`
 - Terminate the production lanes' instances at consolidation and every other instance at close-out.
 - Spawn, seat, wake, and terminate per `tools/<tool>.md`; use the model `run-config.md`'s body records for the profile or lane, and fill the **Subagent model** with the subagent model it records, in the form `tools/<tool>.md` § Models states.
 - **Guardrails** and **Resources** carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, filling in any value the block's text leaves to you.

@@ -60,7 +60,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Target** — What a later input addresses: one or more artifacts, whole or by clause id.
 - **Target phase** — The highest phase a run executes before stopping.
 - **Thread** — The conversation between two roles about one artifact, in one file, `threads/<n>-<opener>-<owner>-<artifact>.md`, opened by a role that consumes the artifact. Its status is `open`, `closed: approved`, `closed: withdrawn`, `closed: answered`, or `disagreement`. Each message ends its author's turn.
-- **Turn commit** — The tip of a role's worktree when the orchestrator wakes it. The role reads its materials at it, and landing stamps at it.
+- **Turn commit** — The tip of a role's worktree when the orchestrator wakes it, named in its assignment. The role reads its materials at it, and landing stamps at it, reading it from the assignment.
 - **Triage** — The orchestrator's entry for incoming work: it normalizes the request into an issue, scans the issue's pipelines, routes each statement, and confirms the runs that need it.
 - **Worktree** — A checkout of one branch. The orchestrator creates it and seats roles in it.
 - **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.
