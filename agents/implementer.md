@@ -127,7 +127,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 # Protocol
 
 - **Blocker** — your materials are malformed, an input is unreadable, or your seat or its environment is broken: report it to the orchestrator, naming what failed with the evidence locating it, and stop.
-- **End of turn** — report to the orchestrator what you committed and which threads you wrote, and end with the exact statement "Completion declared: no work remains."
+- **End of turn** — end your turn only after every command and subagent you started has finished and you have acted on its result. Report to the orchestrator what you committed and which threads you wrote, and end with the exact statement "Completion declared: no work remains."
 
 # Formats
 

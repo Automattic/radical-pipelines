@@ -22,7 +22,7 @@ v4 keeps the promises and removes the structures that produced the failures.
 5. **The burden is on the clause.** A requirement or decision the owner did not state stands only with a trace to the intent and an input observed in intended use. In a dispute, observed stands and conceivable falls. A case dropped by mistake returns as a reported failure, as an observation; a mechanism kept by mistake stays forever.
 6. **Review the result, not the process.** One review, at the end, of the diff against the intent, by a reviewer who sees only what a pull-request reviewer sees. Upstream artifacts are reviewed by the roles that consume them, while consuming them.
 7. **Redundancy by design, the same for every pipeline.** Where a second independent reading pays, the project configures it once for all its pipelines. Nobody estimates a task's difficulty.
-8. **Every turn starts from files.** A role reads its assignment, its artifact, its inputs, and its threads, works, writes, and ends its turn. A role that dies or compacts rereads the same files.
+8. **Every turn starts from files.** A role reads its assignment, its artifact, its inputs, and its threads, works, writes, and ends its turn once every command and subagent it started has finished and it has acted on the result. A role that dies or compacts rereads the same files.
 
 ## Phases and artifacts
 
