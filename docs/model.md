@@ -156,7 +156,7 @@ The orchestrator stamps on landing, as in v3. There are no mirrors, packages, wa
 
 ## Production lanes
 
-A project may configure production lanes for the spec and the design doc: named lanes, each with a brief and a model, that produce a candidate in `lanes/<id>/` in parallel. When every candidate exists, the producer runs in consolidate mode and writes the root artifact.
+A project may configure production lanes for the spec and the design doc: named lanes, each with a brief and a model, that produce a candidate in `lanes/<id>/` in parallel. A lane opens no thread: it records every question, divergence, or problem with its input in its candidate. When every candidate exists, the producer runs in consolidate mode, writes the root artifact, and decides what the lanes recorded.
 
 Consolidation treats divergence as evidence. A case or decision every lane reached is kept. A case or decision only one lane reached is a question, answered by observing whether intended use produces its input; it is never kept by default. Where lanes chose differently on the same question, the consolidator decides from the observed evidence and records the alternative in one line. Lanes run on different models when the project configures them so.
 
