@@ -34,4 +34,4 @@ When a role's run ends, you receive `<subagent sessionID="<session ID>" state="â
 
 ## Models
 
-The `model` of each profile or lane comes from the project's `Agents` convention as a `provider/model[#variant]` string, or as a name `.rp.md`'s `## opencode` section defines; pass the string verbatim as `model`.
+The `model` of each profile or lane comes from the project's `Agents` convention as a `provider/model[#variant]` string, or as a name `.rp.md`'s `## opencode` section defines; pass the string verbatim as `model`. Fill the **Subagent model** with a `provider/model[#variant]` string too: a role passes it as `model` when it calls `subagent`.

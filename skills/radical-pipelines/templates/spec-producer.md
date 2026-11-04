@@ -4,6 +4,7 @@
 - Branch: <branch>
 - Turn commit: <the worktree's tip when woken>
 - Supporting folder: <path>
+- Subagent model: <model, in the form `tools/<tool>.md` § Models states>
 
 ## Mode
 

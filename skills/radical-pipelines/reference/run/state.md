@@ -46,7 +46,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
 
   Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record: land it with `rp stamp <root> --at <turn commit> --pin <each candidate>`.
 
-- **Turn commit** — the tip of a role's worktree when you wake it. The prompt names it, and the role reads its materials at it.
+- **Turn commit** — the tip of a role's worktree when you wake it. The assignment names it, and the role reads its materials at it.
 - **Stale** — an artifact or an approved review thread with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its `reviewed` commit's by anything other than clean merges of the base: `rp check` merges the current base into the `reviewed` commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict or a difference makes it stale.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its first body line is `status: done`.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
@@ -104,6 +104,7 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 - **Pipeline folder** — `<pipelines folder root>/<pipeline slug>/`.
 - **Pipeline branch** — where the pipeline's commits land: the **Pipeline branch format** convention applied to the slug; work on a merged pipeline appends `_<n>`.
 - **Lane branches** — `<pipeline branch>-<artifact>-<lane>` for a production lane, `<artifact>` being `spec` or `design-doc`; `<pipeline branch>-review-<lane>` for a review lane. Each branch has its worktree in the **Worktree folder root**.
+- **Assignment** — the file `git rev-parse --git-path rp/<profile>.md` resolves to in the role's worktree: the worktree's private git directory, outside the tree. It holds the role's filled template. No two instances of one profile share a worktree.
 - **Instance names** — `<pipeline slug> <profile>[ <lane>]`.
 - **Supporting folders** — a role's evidence folder: `1-spec/spec/`, `2-design-doc/design-doc/`, and `3-implementation/notes/` beside their artifacts; `<phase folder>/lanes/<lane>/<artifact>/` for a candidate's producer; `threads/reviewer-<lane>/` for a reviewer.
 - **Ids** — `<prefix>-<word>-<n>`: the prefix names the artifact — `intent`, `spec`, `design-doc` — and the word the concept. An item is declared by the line `<id>: <text>`; its content follows until the next declaration or heading. The intent originates `constraint`, `context`, and `proposal`, plus `intent-goal` for its Goal section; the spec `requirement`, `acceptance-criterion`, `exclusion`, and `assumption`; the design doc `decision` and `assumption`. An id is never renumbered or reused.

@@ -1,10 +1,10 @@
-# Prompt templates
+# Assignment templates
 
-One template per profile. Build every prompt from its template: fill every slot, keep the headings verbatim — the profile refers to them by name — and list materials as explicit paths. Keep only the material lines of the selected mode, and omit a section marked optional when it has nothing. A role's materials are exactly what its prompt lists.
+One template per profile. Build every assignment from its template: fill every slot, keep the headings verbatim — the profile refers to them by name — and list materials as explicit paths. Keep only the material lines of the selected mode, and omit a section marked optional when it has nothing. A role's materials are exactly what its assignment lists.
 
 Slots:
 
-- `Seat` — Worktree, Branch, Turn commit, and Supporting folder (`../reference/run/state.md` § Names, § Terms); the implementer adds its Base branch, a reviewer its Lane.
+- `Seat` — Worktree, Branch, Turn commit, Supporting folder (`../reference/run/state.md` § Names, § Terms), and Subagent model (`../reference/conventions/agents.md`); the implementer adds its Base branch, a reviewer its Lane.
 - `Mode` — one of the profile's modes.
 - `Brief` — a lane's brief, verbatim.
 - `Materials` — per mode.

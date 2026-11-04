@@ -1,6 +1,6 @@
 # Load project conventions
 
-Tool mechanics live in the skill. Project facts live in the project files and reach agents only through filled prompt slots.
+Tool mechanics live in the skill. Project facts live in the project files and reach agents only through filled assignment slots.
 
 ## Sources
 

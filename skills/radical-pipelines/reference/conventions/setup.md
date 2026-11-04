@@ -98,7 +98,7 @@ Capture:
 
 ### Commit format (optional)
 
-The format placed in agent prompts. Capture one example. Suggested: `<commit-description> (<profile>)`.
+The format placed in assignments. Capture one example. Suggested: `<commit-description> (<profile>)`.
 
 ### PR format (optional)
 

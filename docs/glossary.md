@@ -2,7 +2,8 @@
 
 The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined here: no synonyms or alternate notation. [The v4 model](./model.md) explains the design these terms describe.
 
-- **Agents** — The project convention giving each profile's model and its lanes: production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`.
+- **Agents** — The project convention giving each profile's model, its subagent model, and its lanes: production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`.
+- **Assignment** — A role's filled template, written by the orchestrator before every spawn and wake to `git rev-parse --git-path rp/<profile>.md` in the role's worktree, outside the tree. The message that starts a turn only says to read it, and the role rereads it whenever it is unsure of its seat, mode, materials, or rules.
 - **Artifact** — A file a role owns and the pipeline's state is computed from: `spec.md`, `design-doc.md`, `notes.md`, and the production lanes' candidates.
 - **Artifact storage** — The project convention naming where `.rp.md` and the pipelines folder live — the project's repository or a fork — and the artifact base branch: where pipelines start.
 - **Awaiting** — Whose turn an `open` thread is: it awaits its opener when its owner wrote the last message, and its owner otherwise.
@@ -26,7 +27,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Landing** — Verifying a role's commits are on its branch, stamping its artifact and every review thread its turn closed `approved` at its turn commit, and committing the stamps on top.
 - **Later input** — What the owner brings after the intent: a constraint, a proposal, or a reported failure, each in `0-intent/` with `target:` naming the artifacts it targets and `origin:` naming where it came from, holding only what the owner gave in the fewest words that carry it. A later input is a required input of every artifact it targets.
 - **Missing** — An artifact whose file is absent. `notes.md` is also missing until the first line of its body is `status: done`.
-- **Mode** — The procedure a role's prompt selects: produce, respond, or consolidate for a producer; implement or respond for the implementer; the reviewer has one.
+- **Mode** — The procedure a role's assignment selects: produce, respond, or consolidate for a producer; implement or respond for the implementer; the reviewer has one.
 - **Net change** — The pipeline's change outside the pipelines folder: the diff from its base to its tip, what the reviewer reads.
 - **Notes** — `3-implementation/notes.md`, the implementer's resumption file: the inputs it started from, what is done, what remains, the decisions a successor should know, and the approaches that failed. `status: done` on its first line declares the implementation complete.
 - **Observed / assumed** — The label on every claim. A claim about current behavior is `observed: <how>`; a claim about what the solution will do is `assumed: <what will confirm it>`, and the implementer verifies it.
@@ -54,6 +55,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Seating** — Starting a role inside its assigned worktree, its branch checked out, by the active tool's mechanics (`tools/<tool>.md`).
 - **Stale** — An artifact or approval with a required input that is unpinned or pinned at an identity that differs from the current one; an approval also when the code moved past it (see Review thread). Its owner responds by revising it.
 - **Stamp** — The orchestrator's `rp stamp` operation, which writes a file's frontmatter — `inputs` on an artifact, `reviewed` on an approving review thread — without changing its identity.
+- **Subagent model** — The model a role passes to the subagents it delegates to, named in its assignment's Seat. The **Agents** convention sets it per profile and lane; without one, it is the role's own model.
 - **Supporting folder** — The folder where a role keeps the screenshots, logs, command output, and transcripts its file cites: `1-spec/spec/`, `2-design-doc/design-doc/`, and `3-implementation/notes/` beside their artifacts; `<phase folder>/lanes/<lane>/<artifact>/` for a candidate; `threads/reviewer-<lane>/` for a reviewer. It is not pipeline state.
 - **Target** — What a later input addresses: one or more artifacts, whole or by clause id.
 - **Target phase** — The highest phase a run executes before stopping.

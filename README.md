@@ -39,7 +39,7 @@ Each artifact has one owner, which answers for it:
 - **The orchestrator** is the session that runs the skill. It talks with the owner, records phase 0, creates branches and worktrees, wakes the role the pipeline's state names, and opens the pull request. It judges no content and relays no message.
 - **`spec-producer`** owns the spec, **`design-doc-producer`** the design doc, and **`implementer`** the code, its tests, its documentation, and `notes.md`, the file it resumes from. **`reviewer`** owns the review thread of its lane.
 
-Every role delegates bounded work to its tool's own subagents and stays responsible for what they return.
+Each role works from its assignment: the filled prompt the orchestrator writes into the role's worktree git directory before every turn, which the role rereads at each turn and after a compaction. Every role delegates bounded work to its tool's own subagents, on the subagent model its assignment names, and stays responsible for what they return.
 
 ### Observe the present, assume the future
 
@@ -210,7 +210,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Guardrails             | Rules the project's agents must satisfy                                                    | No       |
 | Resources              | What every role may run and use — environments, services, accounts, data — and how         | No       |
 | Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
-| Agents                 | The model of each profile — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` — production lanes for the two producers, and review lanes for `reviewer` | No |
+| Agents                 | The model of each profile — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` — and of its subagents, production lanes for the two producers, and review lanes for `reviewer` | No |
 | Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.

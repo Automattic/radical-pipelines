@@ -5,6 +5,7 @@
 - Turn commit: <the worktree's tip when woken>
 - Lane: <lane id>
 - Supporting folder: <path>
+- Subagent model: <model, in the form `tools/<tool>.md` § Models states>
 
 ## Mode
 

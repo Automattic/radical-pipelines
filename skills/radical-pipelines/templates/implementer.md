@@ -5,6 +5,7 @@
 - Turn commit: <the worktree's tip when woken>
 - Base branch: <run-config.md's base>
 - Supporting folder: <path>
+- Subagent model: <model, in the form `tools/<tool>.md` § Models states>
 
 ## Mode
 

@@ -29,7 +29,7 @@ A finished role needs none. Stop a running role with `TaskStop` and its agent ID
 
 ## Models
 
-The `model` of each profile or lane comes from the project's `Agents` convention. Pass an alias (`opus`, `sonnet`, `haiku`, `fable`) as `model`; a name that is not an alias is mapped to one in `.rp.md`'s `## Claude Code` section.
+The `model` of each profile or lane comes from the project's `Agents` convention. Pass an alias (`opus`, `sonnet`, `haiku`, `fable`) as `model`; a name that is not an alias is mapped to one in `.rp.md`'s `## Claude Code` section. Fill the **Subagent model** with an alias too: a role passes it as `model` when it calls `Agent`.
 
 ## Unverified
 
