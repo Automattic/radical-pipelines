@@ -23,6 +23,10 @@
 
 <one line per thread: path | none>
 
+## Malformed files
+
+<one line per `rp check` INVALID line naming a file the role wrote; optional>
+
 ## Write to
 
 <3-implementation/notes.md path>

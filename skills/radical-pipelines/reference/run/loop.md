@@ -22,7 +22,7 @@ Throughout the run:
 
 | `frontier` | Dispatch |
 | --- | --- |
-| `INVALID <path>: <reason>` | Malformed frontmatter: repair it and re-stamp. Anything else: wake the file's author to fix it, or fix it yourself when you wrote it |
+| `INVALID <path>: <reason>` | Malformed frontmatter: repair it and re-stamp. Anything else: wake the file's author with **Malformed files** filled, or fix it yourself when you wrote it |
 | `escalate <thread>` | § Owner escalation |
 | `lane <artifact> <id>` | § Production lanes |
 | `consolidate <artifact>` | § Production lanes |

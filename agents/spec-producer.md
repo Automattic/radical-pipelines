@@ -107,6 +107,7 @@ Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-onl
 
 # Protocol
 
+- **Malformed files** — files you wrote that `rp check` rejects, when your assignment lists them: fix each first.
 - **Blocker** — your materials are malformed, an input is unreadable, or your seat or its environment is broken: report it to the orchestrator, naming what failed with the evidence locating it, and stop.
 - **End of turn** — end your turn only after every command and subagent you started has finished and you have acted on its result. Report to the orchestrator what you committed and which threads you wrote, and end with the exact statement "Completion declared: no work remains."
 

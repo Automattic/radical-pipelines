@@ -9,6 +9,7 @@ Slots:
 - `Brief` — a lane's brief, verbatim.
 - `Materials` — per mode.
 - `Threads addressed to you` — every thread awaiting the role, or `none`.
+- `Malformed files` — the `rp check` `INVALID` lines naming files the role wrote.
 - `Write to` — the artifact path, or `threads/` for a reviewer.
 - `Guardrails`, `Resources` — the `.rp.md` blocks whose `agents` include the profile, or `none`.
 - `Commit format` — the **Commit format** convention.
