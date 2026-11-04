@@ -76,9 +76,11 @@ Tests follow the classical school: a test exercises the delivered path from the 
 
 ### Review
 
-Each configured review lane spawns a `reviewer`, with its brief when it has one. The reviewer reviews the change as a developer outside the pipeline reviews a pull request: it receives the intent and its later inputs — the issue — and the net change — the pull request — and nothing else. It does not know the spec, the design doc, or the notes exist: its worktree is a sparse checkout that leaves out the pipeline's `1-spec/`, `2-design-doc/`, and `3-implementation/` folders. It runs the suite and the build, drives the changed behavior, and records the evidence.
+Each configured review lane spawns a `reviewer`, with its brief when it has one. The reviewer reviews the change as a developer outside the pipeline reviews a pull request: it receives the intent and its later inputs — the issue — and the net change — the pull request — and nothing else. It does not know the spec, the design doc, or the notes exist: its worktree is a sparse checkout that leaves out the pipeline's `1-spec/`, `2-design-doc/`, and `3-implementation/` folders. It runs something only when reading cannot settle a question.
 
-It raises anything wrong, missing, risky, or more than the intent needs, each finding with its file and line and why it matters, as a reviewer with no checklist does: an open list finds what a closed list of finding kinds omits. A finding that a case is uncovered names the input that produces it in intended use. Two review lanes on different models give the second reading, because models differ in what they judge, such as test proportion.
+It raises every change it would ask for, small or large, as a finding: anything wrong, missing, risky, or more than the issue needs, with its file and line and why it matters. The author fixes or refutes each one. A finding that a case is uncovered names the input that produces it in intended use. The reviewer approves when it would merge the change as it stands.
+
+A project runs two review lanes on models from different providers: one, without a brief, verifies by running the software; the other, with the brief "Review by reading the issue, the diff, and the code; run nothing.", reviews by reading only. In an experiment on two finished implementations, reviewers allowed to run things spent their turn building verification harnesses and raised at most one finding, most often none; the same model told to read only raised up to three, including redundant tests, fragile assertions, and misleading comments. The profile the reviewer uses did best of the variants allowed to run, and is the one validated with the read-only brief.
 
 The reviewer talks only with the implementer, the author of the change. When a finding questions what a requirement or a design decision demands, the implementer does not defend the clause: it opens a thread to the clause's owner carrying the finding, and answers the reviewer with the result — the change revised, or the owner's evidence that the clause stands.
 
@@ -162,7 +164,7 @@ Consolidation treats divergence as evidence. A case or decision every lane reach
 
 Lanes replace the v3 spec and design doc reviewers. Two independent readings of the intent show both what one reading missed and what one reading added; a reviewer shows only the first.
 
-There are no production lanes for the implementation. Review lanes are the reviewer's: each is one reviewer, with its brief when it has one, and all must approve.
+There are no production lanes for the implementation. Review lanes are the reviewer's: each is one reviewer, with its brief when it has one, and all must approve. A project runs two, on models from different providers: one verifies by running the software, the other reviews by reading only (§ Review).
 
 ## The owner
 
