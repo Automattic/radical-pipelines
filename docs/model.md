@@ -107,7 +107,7 @@ A producer writes no solution code. A probe that answers "what does X do today" 
 
 A thread is the conversation between two roles about one artifact, recorded as one file. It replaces review waves, adjudication records, help requests, and claims.
 
-**File.** `threads/<n>-<opener>-<owner>-<artifact>.md`, numbered per pipeline. Its first lines declare `status: open | closed: approved | closed: withdrawn | disagreement`, the opener, the owner addressed, and the artifact. Its body is a sequence of messages, each headed by its author and the commit it refers to. A message is a batch: a list of findings, or a response to each finding of the previous message, as long as it needs to be.
+**File.** `threads/<n>-<opener>-<owner>-<artifact>.md`. Its first lines declare `status`, `opener`, `owner`, and `artifact`. Roles are `spec-producer`, `design-doc-producer`, `implementer`, `reviewer-<lane>`, and `owner`, the person; artifacts are `intent`, `spec`, `design-doc`, and `implementation`, each paired with its owner. `<n>` is one more than the highest number in `threads/` when the thread opens; threads opened in parallel may share a number, and the opener in the name keeps paths unique. Statuses are `open`, `closed: approved`, `closed: withdrawn`, `closed: answered`, and `disagreement`. The body is a sequence of messages, each headed by its author and the commit it refers to. A message is a batch: a list of findings, or a response to each finding of the previous message, as long as it needs to be.
 
 **Who opens.** A role opens a thread to the owner of an artifact it consumes when it finds a problem while consuming: the design doc's producer to the spec's owner; the implementer to the design doc's or the spec's owner. The reviewer opens one thread per owner it addresses. Nobody opens a thread downstream: what an upstream artifact's change means for its consumers reaches them through the artifact and its pins.
 
@@ -115,10 +115,10 @@ A thread is the conversation between two roles about one artifact, recorded as o
 
 **Redirection.** A finding about something the addressee does not own is answered by naming the owner. The opener closes it there and reopens it with that owner.
 
-**Disagreement.** A reply that repeats a position without new evidence is a disagreement, and either party marks it. Resolution depends on what is disputed:
+**Disagreement.** A reply that repeats a position without new evidence is a disagreement. Resolution depends on what is disputed:
 
-- What the intent means or demands: owner territory. The orchestrator takes the thread to the owner, whose answer lands as later input.
-- A derived requirement or a design decision: resolved by observation. A clause whose defense cites an input observed in intended use stands; a clause defended by what could happen falls, and its owner revises the artifact. If the clause stands and the reviewer still holds that satisfying it is disproportionate to the intent, the question has become one about the intent's scope, and it goes to the owner.
+- A derived requirement or a design decision: resolved by observation, inside the thread. A clause whose defense cites an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact. No status marks this.
+- What the intent means or demands: owner territory. Either party opens a thread to `owner` about `intent`, with status `disagreement`, stating the question and citing the thread it comes from. `disagreement` is the only status that reaches the owner, and only a thread addressed to `owner` carries it. The orchestrator carries it to the owner, records the answer as later input targeting the disputed artifact, and closes the thread `closed: answered`. If a clause stands by observation and the reviewer still holds that satisfying it is disproportionate to the intent, the question is about the intent's scope and takes this route.
 
 **What reaches the artifact.** Only the result: the artifact changes, or it does not. When a refutation establishes that a case is not material, the spec's **Considered and not required** gains a line, so the case is not raised again. Threads are never cited from artifacts.
 
@@ -129,17 +129,22 @@ A thread is the conversation between two roles about one artifact, recorded as o
 Everything about a pipeline is computed from its tree at any commit, as in v3, with far less to compute.
 
 - **Identity** is the first twelve hexadecimal characters of the blob hash of a file's body below its frontmatter. The orchestrator writes frontmatter; roles never do.
-- **Pins.** An artifact's frontmatter lists `inputs`: each file it consumed with its identity. The spec pins the intent and every later input that targets it; the design doc pins the spec; `notes.md` pins the spec and the design doc. A review thread closed `approved` pins the net change it approved: the patch id of the diff from the base to the tip outside the pipelines folder, which a merge from the base does not alter.
-- **Stale.** An artifact whose pinned input has a different identity now. A review approval whose pinned net change differs from the current one.
+- **Pins.** An artifact's frontmatter lists `inputs`: each file it consumed with its identity. The spec pins the intent and every later input that targets it; the design doc pins the spec and every later input that targets it; `notes.md` pins the spec, the design doc, and every later input that targets it. A consolidated root also pins the candidates it merged, as a record; candidates are required only while the root is missing. A review thread closed `approved` carries `reviewed`: the patch id of the net change it approved, the diff from the base to the tip outside the pipelines folder, which a merge from the base does not alter.
+- **Stale.** An artifact whose required input is unpinned or has a different identity now. A review lane is approved when its latest thread to the implementer is closed `approved` with `reviewed` equal to the current net change's id.
+- **Missing.** An absent artifact; `notes.md` is also missing until its first body line is `status: done`.
+- **Awaiting.** An `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Frontier.** `rp check` prints the first that holds:
-  1. a malformed frontmatter or thread header: `INVALID <path>`;
-  2. a thread marked `disagreement` on owner territory: owner escalation;
-  3. the lowest phase whose artifact is missing or stale: wake its owner, in mode produce or respond, with every open thread addressed to it;
-  4. a thread whose last message awaits its addressee: wake the addressee;
-  5. production lanes not yet consolidated: wake the lanes, then the consolidator;
-  6. `notes.md` declaring `status: done` with no review lane approved at the current net change: wake each lane's reviewer;
-  7. complete.
-- **Script.** `rp` keeps three commands: `check`, `stamp`, and `pipelines` (discovery by the intent's origin, as v3). Nothing else is computed.
+  1. a malformed frontmatter, thread header, or `target:` line: `INVALID <path>: <reason>`; nothing is computed from a malformed file;
+  2. a thread with status `disagreement`: `escalate <thread>`;
+  3. the lowest phase through the target whose role has work, where work is a thread awaiting the role, or its artifact missing or stale:
+     - a phase with production lanes and a missing root: `lane <artifact> <id>` for each candidate missing or stale, else `consolidate <artifact>`;
+     - a missing artifact: `produce <artifact>`;
+     - a stale artifact, or a thread awaiting its owner: `respond <artifact>`;
+     - phase 4: `review <lane>` for each lane not approved or with a thread awaiting its reviewer;
+  4. `complete`.
+
+  One line per action. Below the frontier, `rp check` lists the threads awaiting each woken role and the inputs that changed for each stale artifact. Because threads only run upstream, the lowest phase with work is always the party whose turn it is, and a role waiting on a thread it opened is never woken for its missing artifact.
+- **Script.** `rp` keeps three commands: `check`, `stamp`, and `pipelines <repo path> [--issue <ref>]` (discovery by the intent's origin, as v3). `run-config.md` carries `target-phase`, `base`, and `lanes` with `profile`, `id`, and `brief`; models live in its body, which `rp` ignores. Without a `reviewer` lane, one lane named `default` runs. Nothing else is computed.
 
 The orchestrator stamps on landing, as in v3. There are no mirrors, packages, waves, episodes, lane packages, or task reports.
 
