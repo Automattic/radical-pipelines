@@ -33,7 +33,7 @@ export function rp(...args) {
 export const abs = (rel) => join(root, rel);
 export const check = (...args) => JSON.parse(rp("check", abs(PIPELINE), "--json", ...args));
 // The frontier as `<action> <target>` lines.
-export const frontier = (...args) => check(...args).frontier.map((entry) => [entry.action, entry.target].filter(Boolean).join(" "));
+export const frontier = (...args) => check(...args).frontier.map((entry) => [entry.action, entry.target, entry.lane].filter(Boolean).join(" "));
 
 export function writeFile(rel, contents) {
   mkdirSync(dirname(abs(rel)), { recursive: true });
@@ -59,11 +59,25 @@ export function commitAll(subject = "work") {
   return git(root, "rev-parse", "HEAD").trim();
 }
 
-// A thread file; messages are [author, commit] pairs.
-export function thread(name, { status = "open", opener, owner, artifact, lane: laneId, territory, messages, frontmatter } = {}) {
-  const header = [`status: ${status}`, `opener: ${opener}`, `owner: ${owner}`, `artifact: ${artifact}`, ...(laneId ? [`lane: ${laneId}`] : []), ...(territory ? [`territory: ${territory}`] : [])];
+// A thread file, named from its header; messages are [author, commit] pairs. Returns its pipeline-relative path.
+export function thread({ n = 1, status = "open", opener, owner, artifact, messages, frontmatter, name } = {}) {
+  const path = `threads/${name ?? `${n}-${opener}-${owner}-${artifact}.md`}`;
+  const header = [`status: ${status}`, `opener: ${opener}`, `owner: ${owner}`, `artifact: ${artifact}`];
   const body = (messages ?? [[opener, "abc1234"]]).map(([author, commit]) => `## ${author} — ${commit}\n\nFindings.\n`).join("\n");
-  write(`threads/${name}`, `${frontmatter ? `---\n${JSON.stringify(frontmatter)}\n---\n` : ""}${header.join("\n")}\n\n${body}`);
+  write(path, `${frontmatter ? `---\n${JSON.stringify(frontmatter)}\n---\n` : ""}${header.join("\n")}\n\n${body}`);
+  return path;
+}
+// The parties of each thread kind used across tests.
+export const TO_SPEC = { opener: "design-doc-producer", owner: "spec-producer", artifact: "spec" };
+export const TO_DESIGN = { opener: "implementer", owner: "design-doc-producer", artifact: "design-doc" };
+export const REVIEW = (lane = "default") => ({ opener: `reviewer-${lane}`, owner: "implementer", artifact: "implementation" });
+export const TO_OWNER = { opener: "spec-producer", owner: "owner", artifact: "intent", status: "disagreement" };
+// A review thread closed approved at HEAD, stamped.
+export function approve(laneId = "default", n = 1) {
+  const head = git(root, "rev-parse", "HEAD").trim();
+  const path = thread({ n, status: "closed: approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
+  rp("stamp", abs(P(path)), "--reviewed");
+  return path;
 }
 
 // A repository on `main` with code, then a `demo` branch carrying the pipeline through `upTo`:

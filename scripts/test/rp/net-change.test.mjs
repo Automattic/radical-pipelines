@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { describe, it } from "node:test";
 
-import { NOTES, P, abs, check, commitAll, configure, frontier, git, pipeline, root, rp, run, thread, useRepo, writeFile } from "./fixture.mjs";
+import { P, abs, approve, check, commitAll, configure, frontier, git, pipeline, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
 
 // The net change computed with bare git, as the README states it.
 function expected(base = "main", exclude = ".pipelines") {
@@ -10,9 +10,8 @@ function expected(base = "main", exclude = ".pipelines") {
   if (!diff.length) return "0".repeat(40);
   return execFileSync("git", ["patch-id", "--stable"], { cwd: root, input: diff, encoding: "utf8" }).split(" ")[0];
 }
-function approve() {
-  thread("1-reviewer-implementer-notes.md", { status: "closed: approved", opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review" });
-  rp("stamp", abs(P("threads/1-reviewer-implementer-notes.md")), "--reviewed");
+function approveAndCommit() {
+  approve();
   commitAll("approve");
 }
 
@@ -49,7 +48,7 @@ describe("net change", () => {
     pipeline(3);
     writeFile("src/app.js", "export const a = 2;\n");
     commitAll("change");
-    approve();
+    approveAndCommit();
     assert.deepEqual(frontier(), ["complete"]);
     const before = check().netChange;
     git(root, "checkout", "--quiet", "main");
@@ -67,7 +66,7 @@ describe("net change", () => {
     pipeline(3);
     writeFile("src/app.js", "export const a = 2;\n");
     commitAll("change");
-    approve();
+    approveAndCommit();
     const before = check().netChange;
     git(root, "checkout", "--quiet", "main");
     writeFile("src/app.js", "export const a = 5;\n");
@@ -78,7 +77,7 @@ describe("net change", () => {
     commitAll("resolve");
     assert.notEqual(check().netChange, before);
     assert.equal(check().netChange, expected());
-    assert.deepEqual(frontier(), ["review review"]);
+    assert.deepEqual(frontier(), ["review default"]);
   });
 
   it("changes when the branch changes code", () => {

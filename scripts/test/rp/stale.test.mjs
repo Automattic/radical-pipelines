@@ -12,7 +12,7 @@ describe("stale", () => {
 
   it("a pipeline whose every pin matches is fresh", () => {
     pipeline(3);
-    assert.deepEqual(states(), { [INTENT]: "fresh", [SPEC]: "fresh", [DESIGN]: "fresh", [NOTES]: "fresh" });
+    assert.deepEqual(states(), { [SPEC]: "fresh", [DESIGN]: "fresh", [NOTES]: "fresh" });
   });
 
   for (const [artifact, inputs] of Object.entries(UPSTREAM))
@@ -23,7 +23,7 @@ describe("stale", () => {
         assert.deepEqual(states()[artifact], [input]);
       });
 
-      it(`${artifact} stays fresh when only ${input}'s frontmatter changes`, () => {
+      if (input !== INTENT) it(`${artifact} stays fresh when only ${input}'s frontmatter changes`, () => {
         pipeline(3);
         const { json, body } = splitFrontmatter(Buffer.from(read(input)));
         write(input, `---\n${JSON.stringify(JSON.parse(json ?? "{}"))}\n---\n${body}`);
@@ -54,26 +54,22 @@ describe("stale", () => {
   it("a later input targets only the artifacts it names", () => {
     pipeline(3);
     write("0-intent/proposal-1.md", `target: ${DESIGN}\n`);
-    assert.deepEqual(states(), { [INTENT]: "fresh", [SPEC]: "fresh", [DESIGN]: ["0-intent/proposal-1.md"], [NOTES]: "fresh" });
+    assert.deepEqual(states(), { [SPEC]: "fresh", [DESIGN]: ["0-intent/proposal-1.md"], [NOTES]: "fresh" });
   });
 
-  it("a pin of a file that no longer exists is stale", () => {
+  it("a pin of a file that is not a required input never makes an artifact stale", () => {
     pipeline(3);
     write("0-intent/failure-1.md", `target: ${SPEC}\n`);
-    stamp(SPEC, INTENT, "0-intent/failure-1.md");
+    write("0-intent/proposal-1.md", `target: ${DESIGN}\n`);
+    stamp(SPEC, INTENT, "0-intent/failure-1.md", "0-intent/proposal-1.md");
     remove("0-intent/failure-1.md");
-    assert.deepEqual(states()[SPEC], ["0-intent/failure-1.md"]);
+    change("0-intent/proposal-1.md");
+    assert.equal(states()[SPEC], "fresh");
   });
 
   it("an unstamped artifact is stale on every input it must pin", () => {
     pipeline(2);
     write(NOTES, "status: done\n");
     assert.deepEqual(states()[NOTES], [SPEC, DESIGN]);
-  });
-
-  it("the intent pins nothing and is never stale", () => {
-    pipeline(3);
-    change(INTENT);
-    assert.equal(states()[INTENT], "fresh");
   });
 });

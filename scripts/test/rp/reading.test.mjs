@@ -62,7 +62,7 @@ describe("reading a pipeline", () => {
     write("0-intent/failure-1/output.log", "log");
     write("1-spec/draft.md", "# draft\n");
     write("notes.md", "x\n");
-    assert.deepEqual(frontier(), ["review review"]);
+    assert.deepEqual(frontier(), ["review default"]);
   });
 
   it("the identity of a CRLF intent is its bytes", () => {

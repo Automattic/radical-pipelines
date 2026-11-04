@@ -1,18 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, NOTES, P, SPEC, abs, check, commitAll, configure, frontier, lane, pipeline, read, remove, rp, stamp, thread, useRepo, write, writeFile } from "./fixture.mjs";
+import {
+  DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_DESIGN, TO_OWNER, TO_SPEC,
+  abs, approve, check, commitAll, configure, frontier, lane, pipeline, read, remove, rp, run, thread, useRepo, write, writeFile,
+} from "./fixture.mjs";
 
-const T = (name) => `threads/${name}`;
-// A reviewer's thread closed approved at the current net change.
-function approve(name, laneId = "review") {
-  thread(name, { status: "closed: approved", opener: "reviewer", owner: "implementer", artifact: NOTES, lane: laneId });
-  rp("stamp", abs(P(T(name))), "--reviewed");
-}
-const awaitingSpec = (name = "1-design-doc-producer-spec-producer-spec.md") =>
-  thread(name, { opener: "design-doc-producer", owner: "spec-producer", artifact: SPEC });
-const repliedBySpec = (name = "1-design-doc-producer-spec-producer-spec.md") =>
-  thread(name, { opener: "design-doc-producer", owner: "spec-producer", artifact: SPEC, messages: [["design-doc-producer", "abc1234"], ["spec-producer", "def5678"]] });
+const replied = (parties, n = 1) => thread({ n, ...parties, messages: [[parties.opener, "aaaaaaa"], [parties.owner, "bbbbbbb"]] });
 
 describe("frontier", () => {
   useRepo();
@@ -20,7 +14,7 @@ describe("frontier", () => {
   describe("1. INVALID", () => {
     it("names every malformed file and precedes every other rule", () => {
       pipeline(0);
-      thread("1-reviewer-orchestrator-intent.md", { status: "disagreement", opener: "reviewer", owner: "orchestrator", artifact: INTENT, lane: "review", territory: "owner" });
+      thread(TO_OWNER);
       write(DESIGN, "---\n{\n---\n");
       write("threads/2-x.md", "status: open\n");
       const report = check();
@@ -36,26 +30,17 @@ describe("frontier", () => {
     });
 
     const files = [
-      ["run-config.md missing", () => remove("run-config.md"), "run-config.md"],
-      ["run-config.md without frontmatter", () => write("run-config.md", "target-phase: 4\n"), "run-config.md"],
-      ["target-phase out of range", () => configure({ targetPhase: 5 }), "run-config.md"],
-      ["target-phase not an integer", () => configure({ targetPhase: "4" }), "run-config.md"],
-      ["an empty base", () => configure({ base: " " }), "run-config.md"],
-      ["an unknown run-config key", () => write("run-config.md", '---\n{"target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), "run-config.md"],
-      ["a lane with an unknown profile", () => configure({ lanes: [lane("spec-reviewer", "a")] }), "run-config.md"],
-      ["a lane without brief", () => configure({ lanes: [{ profile: "reviewer", id: "a" }] }), "run-config.md"],
-      ["a lane with a malformed id", () => configure({ lanes: [lane("reviewer", "A b")] }), "run-config.md"],
-      ["a lane with an unknown key", () => configure({ lanes: [{ ...lane("reviewer", "a"), after: [] }] }), "run-config.md"],
-      ["a duplicate lane", () => configure({ lanes: [lane("reviewer", "a"), lane("reviewer", "a")] }), "run-config.md"],
       ["unclosed frontmatter", () => write(SPEC, "---\n{}\n"), SPEC],
       ["frontmatter that is not an object", () => write(SPEC, "---\n[]\n---\n"), SPEC],
-      ["inputs on the intent", () => write(INTENT, '---\n{"inputs": []}\n---\n# I\n'), INTENT],
+      ["frontmatter on the intent", () => write(INTENT, "---\n{}\n---\n# I\n"), INTENT],
+      ["frontmatter on a later input", () => write("0-intent/proposal-1.md", `---\n{}\n---\ntarget: ${SPEC}\n`), "0-intent/proposal-1.md"],
       ["an inputs entry without identity", () => write(SPEC, `---\n{"inputs": ["${INTENT}"]}\n---\n`), SPEC],
       ["an inputs entry naming a non-artifact", () => write(SPEC, '---\n{"inputs": ["notes.txt@0123456789ab"]}\n---\n'), SPEC],
       ["an input pinned twice", () => write(SPEC, `---\n{"inputs": ["${INTENT}@0123456789ab", "${INTENT}@0123456789ac"]}\n---\n`), SPEC],
       ["a later input without target", () => write("0-intent/constraint-1.md", "# Constraint 1\n"), "0-intent/constraint-1.md"],
       ["a later input targeting a non-artifact", () => write("0-intent/proposal-1.md", "target: 0-intent/intent.md\n"), "0-intent/proposal-1.md"],
       ["a candidate of an unconfigured lane", () => write("1-spec/lanes/x/spec.md", "# C\n"), "1-spec/lanes/x/spec.md"],
+      ["a malformed thread header", () => write("threads/1-x.md", "status: open\n"), "threads/1-x.md"],
     ];
     for (const [name, mutate, path] of files)
       it(`holds for ${name}`, () => {
@@ -65,147 +50,178 @@ describe("frontier", () => {
       });
   });
 
-  describe("2. escalation", () => {
-    it("holds for a disagreement on owner territory, before a missing artifact", () => {
-      pipeline(0);
-      thread("1-design-doc-producer-spec-producer-spec.md", { status: "disagreement", opener: "design-doc-producer", owner: "spec-producer", artifact: SPEC, territory: "owner" });
-      thread("2-reviewer-implementer-notes.md", { status: "disagreement", opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review", territory: "owner" });
-      assert.deepEqual(frontier(), ["escalation threads/1-design-doc-producer-spec-producer-spec.md", "escalation threads/2-reviewer-implementer-notes.md"]);
-    });
+  describe("a configuration that cannot be read stops the command", () => {
+    const configurations = [
+      ["run-config.md missing", () => remove("run-config.md"), /cannot read run-config.md: missing/],
+      ["run-config.md without frontmatter", () => write("run-config.md", "target-phase: 4\n"), /run-config.md: no frontmatter/],
+      ["target-phase out of range", () => configure({ targetPhase: 5 }), /target-phase/],
+      ["target-phase not an integer", () => configure({ targetPhase: "4" }), /target-phase/],
+      ["an empty base", () => configure({ base: " " }), /base must be/],
+      ["an unknown key", () => write("run-config.md", '---\n{"target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /unexpected frontmatter key: workflow/],
+      ["an empty lanes list", () => configure({ lanes: [] }), /lanes must be a non-empty list/],
+      ["a lane with an unknown profile", () => configure({ lanes: [lane("spec-reviewer", "a")] }), /lane profile/],
+      ["a lane without brief", () => configure({ lanes: [{ profile: "reviewer", id: "a" }] }), /needs a brief/],
+      ["a lane with a malformed id", () => configure({ lanes: [lane("reviewer", "A b")] }), /lane id/],
+      ["a lane with a model", () => configure({ lanes: [{ ...lane("reviewer", "a"), model: "x" }] }), /unexpected lane key: model/],
+      ["a duplicate lane", () => configure({ lanes: [lane("reviewer", "a"), lane("reviewer", "a")] }), /duplicate lane/],
+      ["the intent missing", () => remove(INTENT), /cannot read 0-intent\/intent.md: missing/],
+    ];
+    for (const [name, mutate, message] of configurations)
+      it(`on ${name}`, () => {
+        pipeline(1);
+        mutate();
+        const out = run("check", abs(P("")));
+        assert.equal(out.status, 1);
+        assert.match(out.stderr, message);
+      });
 
-    it("does not hold for a disagreement outside owner territory: the addressee of the last message acts", () => {
-      pipeline(3);
-      thread("1-design-doc-producer-spec-producer-spec.md", { status: "disagreement", opener: "design-doc-producer", owner: "spec-producer", artifact: SPEC });
-      assert.deepEqual(frontier(), [`respond ${SPEC}`]);
-    });
-
-    it("does not hold for an open thread on owner territory", () => {
-      pipeline(3);
-      thread("1-design-doc-producer-spec-producer-spec.md", { opener: "design-doc-producer", owner: "spec-producer", artifact: SPEC, territory: "owner" });
-      assert.deepEqual(frontier(), [`respond ${SPEC}`]);
+    it("accepts the same lane id under different profiles and ignores the body", () => {
+      pipeline(3, { lanes: [lane("spec-producer", "a"), lane("reviewer", "a")] });
+      write("run-config.md", `${read("run-config.md")}\nModels: spec-producer a on a large model.\n`);
+      assert.deepEqual(frontier(), ["review a"]);
     });
   });
 
-  describe("3. produce or respond, lowest phase first", () => {
-    it("produces the intent when it is missing", () => {
-      configure();
-      write(SPEC, "# Spec\n");
-      assert.deepEqual(frontier(), [`produce ${INTENT}`]);
+  describe("2. escalate", () => {
+    it("holds for every disagreement thread, before a missing artifact", () => {
+      pipeline(0);
+      thread(TO_OWNER);
+      thread({ n: 2, ...TO_OWNER, opener: "reviewer-default" });
+      assert.deepEqual(frontier(), ["escalate threads/1-spec-producer-owner-intent.md", "escalate threads/2-reviewer-default-owner-intent.md"]);
     });
 
+    it("does not hold once the thread is closed answered", () => {
+      pipeline(3, { targetPhase: 3 });
+      thread({ ...TO_OWNER, status: "closed: answered", messages: [["spec-producer", "aaaaaaa"], ["owner", "bbbbbbb"]] });
+      assert.deepEqual(frontier(), ["complete"]);
+    });
+  });
+
+  describe("3. the lowest phase whose role has work", () => {
     for (const [upTo, artifact] of [[0, SPEC], [1, DESIGN], [2, NOTES]])
       it(`produces ${artifact} when it is the lowest missing artifact`, () => {
         pipeline(upTo);
         assert.deepEqual(frontier(), [`produce ${artifact}`]);
       });
 
-    it("produces the implementation while notes.md does not declare status: done", () => {
+    it("produces the implementation while notes.md's first body line is not status: done", () => {
       pipeline(3);
       write(NOTES, read(NOTES).replace("status: done\n", "status: in progress\n"));
       assert.deepEqual(frontier(), [`produce ${NOTES}`]);
       write(NOTES, read(NOTES).replace("status: in progress\n", "\nstatus: done\n"));
       assert.deepEqual(frontier(), [`produce ${NOTES}`]);
+      assert.equal(check().phases[2].state, "missing");
     });
 
-    it("responds on the lowest stale artifact", () => {
+    it("responds on the lowest stale artifact, with its changed inputs", () => {
       pipeline(3);
       write(SPEC, read(SPEC).replace("Requirement.", "Requirement changed."));
-      assert.deepEqual(frontier(), [`respond ${DESIGN}`]);
+      assert.deepEqual(check().frontier, [{ action: "respond", target: DESIGN, threads: [], changed: [SPEC] }]);
     });
 
-    it("responds on an artifact with a thread awaiting its owner, listing the threads", () => {
+    it("responds on an artifact with threads awaiting its owner, listing them", () => {
       pipeline(3);
-      awaitingSpec();
-      thread("2-reviewer-spec-producer-spec.md", { opener: "reviewer", owner: "spec-producer", artifact: SPEC, lane: "review" });
-      const report = check();
-      assert.deepEqual(report.frontier, [{ action: "respond", target: SPEC, threads: ["threads/1-design-doc-producer-spec-producer-spec.md", "threads/2-reviewer-spec-producer-spec.md"] }]);
+      thread(TO_SPEC);
+      thread({ n: 2, ...REVIEW(), owner: "spec-producer", artifact: "spec" });
+      assert.deepEqual(check().frontier, [{ action: "respond", target: SPEC, threads: ["threads/1-design-doc-producer-spec-producer-spec.md", "threads/2-reviewer-default-spec-producer-spec.md"] }]);
     });
 
-    it("a thread awaiting a lower phase's owner precedes a missing higher artifact", () => {
+    it("wakes the opener's role when the owner wrote last", () => {
+      pipeline(3);
+      replied(TO_SPEC);
+      assert.deepEqual(check().frontier, [{ action: "respond", target: DESIGN, threads: ["threads/1-design-doc-producer-spec-producer-spec.md"] }]);
+    });
+
+    it("produces the opener's missing artifact with the threads awaiting it", () => {
+      pipeline(2);
+      replied(TO_DESIGN);
+      assert.deepEqual(check().frontier, [{ action: "produce", target: NOTES, threads: ["threads/1-implementer-design-doc-producer-design-doc.md"] }]);
+    });
+
+    it("a role waiting on a thread it opened is not woken for its missing artifact", () => {
       pipeline(1);
-      awaitingSpec();
+      thread(TO_SPEC);
       assert.deepEqual(frontier(), [`respond ${SPEC}`]);
     });
 
-    it("a missing lower artifact precedes a thread awaiting a higher phase's owner", () => {
+    it("a missing lower artifact precedes a thread awaiting a higher phase's role", () => {
       pipeline(1);
-      thread("1-reviewer-implementer-notes.md", { opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review" });
+      thread(REVIEW());
       assert.deepEqual(frontier(), [`produce ${DESIGN}`]);
     });
 
-    it("a thread to the orchestrator about a later input makes the intent's owner respond", () => {
-      pipeline(3);
-      write("0-intent/constraint-1.md", `target: ${SPEC}\n`);
-      stamp(SPEC, INTENT, "0-intent/constraint-1.md");
-      thread("1-spec-producer-orchestrator-constraint-1.md", { opener: "spec-producer", owner: "orchestrator", artifact: "0-intent/constraint-1.md" });
-      assert.deepEqual(frontier(), [`respond ${INTENT}`]);
-    });
-
-    it("a thread awaiting the owner of an artifact beyond the target phase still wakes it", () => {
+    it("phases beyond the target have no work", () => {
       pipeline(1, { targetPhase: 1 });
-      thread("1-reviewer-implementer-notes.md", { opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review" });
-      assert.deepEqual(frontier(), [`respond ${NOTES}`]);
-    });
-  });
-
-  describe("4. reply", () => {
-    it("wakes the opener of every thread whose owner replied last", () => {
-      pipeline(3);
-      repliedBySpec();
-      thread("2-reviewer-implementer-notes.md", { opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review", messages: [["reviewer", "aaaaaaa"], ["implementer", "bbbbbbb"]] });
-      assert.deepEqual(frontier(), ["reply threads/1-design-doc-producer-spec-producer-spec.md", "reply threads/2-reviewer-implementer-notes.md"]);
-    });
-
-    it("follows produce and respond", () => {
-      pipeline(2);
-      repliedBySpec();
-      assert.deepEqual(frontier(), [`produce ${NOTES}`]);
-    });
-
-    it("precedes review", () => {
-      pipeline(3);
-      thread("1-reviewer-implementer-notes.md", { opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review", messages: [["reviewer", "aaaaaaa"], ["implementer", "bbbbbbb"]] });
-      assert.deepEqual(frontier(), ["reply threads/1-reviewer-implementer-notes.md"]);
+      thread(TO_DESIGN);
+      assert.deepEqual(frontier(), ["complete"]);
     });
 
     it("closed threads await nobody", () => {
       pipeline(3, { targetPhase: 3 });
-      thread("1-design-doc-producer-spec-producer-spec.md", { status: "closed: withdrawn", opener: "design-doc-producer", owner: "spec-producer", artifact: SPEC });
-      thread("2-implementer-design-doc-producer-design-doc.md", { status: "closed: approved", opener: "implementer", owner: "design-doc-producer", artifact: DESIGN, messages: [["implementer", "aaaaaaa"], ["design-doc-producer", "bbbbbbb"]] });
+      thread({ status: "closed: withdrawn", ...TO_SPEC });
+      replied({ status: "closed: approved", ...TO_DESIGN }, 2);
       assert.deepEqual(frontier(), ["complete"]);
+    });
+
+    it("a message by owner leaves the thread awaiting its owner", () => {
+      pipeline(3);
+      thread({ ...TO_SPEC, messages: [["design-doc-producer", "aaaaaaa"], ["spec-producer", "bbbbbbb"], ["owner", "ccccccc"]] });
+      assert.deepEqual(frontier(), [`respond ${SPEC}`]);
     });
   });
 
-  describe("6. review", () => {
-    it("wakes the implicit review lane when no review lane is configured", () => {
+  describe("phase 4: review", () => {
+    it("wakes the default lane when no review lane is configured", () => {
       pipeline(3);
-      assert.deepEqual(frontier(), ["review review"]);
+      assert.deepEqual(frontier(), ["review default"]);
     });
 
     it("wakes every configured review lane not approved at the current net change", () => {
       pipeline(3, { lanes: [lane("reviewer", "security"), lane("reviewer", "a11y")] });
       assert.deepEqual(frontier(), ["review security", "review a11y"]);
-      approve("1-reviewer-implementer-notes.md", "security");
+      approve("security");
       assert.deepEqual(frontier(), ["review a11y"]);
-      approve("2-reviewer-implementer-notes.md", "a11y");
+      approve("a11y");
       assert.deepEqual(frontier(), ["complete"]);
+    });
+
+    it("wakes an approved lane with a thread awaiting its reviewer", () => {
+      pipeline(3);
+      approve();
+      replied({ ...REVIEW(), owner: "spec-producer", artifact: "spec" }, 2);
+      assert.deepEqual(check().frontier, [{ action: "review", target: "default", threads: ["threads/2-reviewer-default-spec-producer-spec.md"] }]);
     });
 
     it("an approval goes stale when the net change changes", () => {
       pipeline(3);
-      approve("1-reviewer-implementer-notes.md");
+      approve();
       commitAll("approval");
       assert.deepEqual(frontier(), ["complete"]);
       writeFile("src/app.js", "export const a = 3;\n");
       commitAll("change");
-      assert.deepEqual(frontier(), ["review review"]);
-      assert.deepEqual(check().reviews, [{ lane: "review", approved: false }]);
+      assert.deepEqual(frontier(), ["review default"]);
+      assert.deepEqual(check().reviews, [{ lane: "default", approved: false }]);
     });
 
-    it("an approval of another lane does not count", () => {
+    it("only the lane's highest-numbered review thread counts", () => {
+      pipeline(3);
+      approve("default", 1);
+      thread({ n: 2, status: "closed: withdrawn", ...REVIEW() });
+      assert.deepEqual(frontier(), ["review default"]);
+      approve("default", 3);
+      assert.deepEqual(frontier(), ["complete"]);
+    });
+
+    it("a reviewer's approved thread to another owner does not approve", () => {
+      pipeline(3);
+      replied({ status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" });
+      assert.deepEqual(frontier(), ["review default"]);
+    });
+
+    it("another lane's approval does not count", () => {
       pipeline(3, { lanes: [lane("reviewer", "security"), lane("reviewer", "a11y")] });
-      approve("1-reviewer-implementer-notes.md", "security");
-      approve("2-reviewer-implementer-notes.md", "security");
+      approve("security", 1);
+      approve("security", 2);
       assert.deepEqual(frontier(), ["review a11y"]);
     });
 
@@ -216,30 +232,28 @@ describe("frontier", () => {
     });
   });
 
-  describe("7. complete", () => {
+  describe("complete", () => {
     for (const [targetPhase, upTo] of [[1, 1], [2, 2], [3, 3]])
       it(`holds at target phase ${targetPhase} once every artifact through it is fresh`, () => {
         pipeline(upTo, { targetPhase });
         assert.deepEqual(frontier(), ["complete"]);
-        assert.deepEqual(check().phases.map((phase) => phase.artifact), [INTENT, SPEC, DESIGN, NOTES].slice(0, targetPhase + 1));
+        assert.deepEqual(check().phases.map((phase) => phase.artifact), [SPEC, DESIGN, NOTES].slice(0, targetPhase));
       });
   });
 
-  it("prints one status line per artifact, lane, review, and thread, then the frontier", () => {
-    pipeline(3, { lanes: [lane("spec-producer", "a")] });
-    thread("1-reviewer-implementer-notes.md", { opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review" });
-    const out = rp("check", abs(P("")));
+  it("prints the frontier, then one line per artifact, open lane, review, and thread", () => {
+    pipeline(3);
+    write(DESIGN, read(DESIGN).replace("Decision.", "Decision changed."));
+    thread(REVIEW());
     const id = check().netChange;
-    assert.equal(out, [
-      `artifact ${INTENT} fresh`,
-      "lane 1-spec/a missing",
+    assert.equal(rp("check", abs(P(""))), [
+      `frontier respond ${NOTES}`,
       `artifact ${SPEC} fresh`,
       `artifact ${DESIGN} fresh`,
-      `artifact ${NOTES} done`,
+      `artifact ${NOTES} stale ${DESIGN}`,
       `net-change ${id}`,
-      "review review unapproved",
-      "thread threads/1-reviewer-implementer-notes.md open awaits implementer",
-      `frontier respond ${NOTES}`,
+      "review default unapproved",
+      "thread threads/1-reviewer-default-implementer-implementation.md open awaits implementer",
       "",
     ].join("\n"));
   });

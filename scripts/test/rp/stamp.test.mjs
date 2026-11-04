@@ -4,7 +4,7 @@ import { describe, it } from "node:test";
 
 import { identity, splitFrontmatter } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import { execFileSync } from "node:child_process";
-import { DESIGN, INTENT, NOTES, P, SPEC, abs, check, commitAll, git, pipeline, read, root, run, stamp, thread, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, NOTES, P, SPEC, abs, check, commitAll, git, pipeline, read, REVIEW, root, run, stamp, thread, TO_SPEC, useRepo, write, writeFile } from "./fixture.mjs";
 
 describe("identity", () => {
   useRepo();
@@ -59,29 +59,43 @@ describe("stamp", () => {
     assert.match(read(DESIGN), /1-spec\/lanes\/a\/spec\.md@[0-9a-f]{12}/);
   });
 
-  it("records reviewed on a reviewer's approved thread as the net-change patch id", () => {
+  it("records reviewed on a review thread closed approved as the net change at its last message's commit", () => {
     pipeline(3);
     writeFile("src/app.js", "export const a = 2;\n");
-    commitAll("change");
-    thread("1-reviewer-implementer-notes.md", { status: "closed: approved", opener: "reviewer", owner: "implementer", artifact: NOTES, lane: "review" });
-    const out = run("stamp", abs(P("threads/1-reviewer-implementer-notes.md")), "--reviewed");
+    const reviewedAt = commitAll("change");
+    const atReview = check().netChange;
+    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abc1234"], ["implementer", "abc1234"], ["reviewer-default", reviewedAt.slice(0, 9)]] });
+    writeFile("src/app.js", "export const a = 3;\n");
+    commitAll("later change");
+    const out = run("stamp", abs(P(path)), "--reviewed");
     assert.equal(out.status, 0, out.stderr);
-    const reviewed = JSON.parse(splitFrontmatter(readFileSync(abs(P("threads/1-reviewer-implementer-notes.md")))).json).reviewed;
-    assert.equal(reviewed, check().netChange);
-    assert.match(read("threads/1-reviewer-implementer-notes.md"), /^---\n[\s\S]*\n---\nstatus: closed: approved\n/);
+    const reviewed = JSON.parse(splitFrontmatter(readFileSync(abs(P(path)))).json).reviewed;
+    assert.equal(reviewed, atReview);
+    assert.notEqual(reviewed, check().netChange);
+    assert.match(read(path), /^---\n[\s\S]*\n---\nstatus: closed: approved\n/);
+  });
+
+  it("refuses --reviewed when the last message's commit does not resolve", () => {
+    pipeline(3);
+    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", "abcdef1"]] });
+    const out = run("stamp", abs(P(path)), "--reviewed");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /the last message's commit does not resolve to a commit: abcdef1/);
   });
 
   const refusals = [
     ["no option", () => [P(SPEC)], /nothing to stamp/],
-    ["--pin on the intent", () => [P(INTENT), "--pin", P(SPEC)], /--pin applies to an artifact with inputs/],
-    ["--pin on a later input", () => [P("0-intent/constraint-1.md"), "--pin", P(INTENT)], /--pin applies/],
+    ["the intent", () => [P(INTENT), "--pin", P(SPEC)], /not an artifact or thread/],
+    ["a later input", () => [P("0-intent/constraint-1.md"), "--pin", P(INTENT)], /not an artifact or thread/],
+    ["--pin on a thread", () => [P("threads/1-design-doc-producer-spec-producer-spec.md"), "--pin", P(INTENT)], /--pin applies to an artifact/],
     ["--pin outside the pipeline", () => [P(SPEC), "--pin", "src/app.js"], /outside the pipeline folder/],
-    ["--pin of a thread", () => [P(SPEC), "--pin", P("threads/1-implementer-spec-producer-spec.md")], /names no pipeline artifact/],
+    ["--pin of a thread", () => [P(SPEC), "--pin", P("threads/1-design-doc-producer-spec-producer-spec.md")], /names no pipeline artifact/],
     ["--pin of a missing file", () => [P(SPEC), "--pin", P(DESIGN)], /cannot read/],
     ["the same pin twice", () => [P(SPEC), "--pin", P(INTENT), "--pin", P(INTENT)], /twice/],
     ["--reviewed on an artifact", () => [P(SPEC), "--reviewed"], /--reviewed applies to a thread/],
-    ["--reviewed on an open thread", () => [P("threads/1-implementer-spec-producer-spec.md"), "--reviewed"], /closed: approved/],
-    ["run-config.md", () => [P("run-config.md"), "--pin", P(INTENT)], /not a pipeline artifact or thread/],
+    ["--reviewed on a thread that is not a review thread", () => [P("threads/1-design-doc-producer-spec-producer-spec.md"), "--reviewed"], /review thread closed: approved/],
+    ["--reviewed on an open review thread", () => [P("threads/2-reviewer-default-implementer-implementation.md"), "--reviewed"], /review thread closed: approved/],
+    ["run-config.md", () => [P("run-config.md"), "--pin", P(INTENT)], /not an artifact or thread/],
     ["a file outside the pipelines folder root", () => ["src/app.js", "--pin", P(INTENT)], /not inside the pipelines folder root/],
     ["an unknown option", () => [P(SPEC), "--mirror"], /unknown option/],
   ];
@@ -89,7 +103,8 @@ describe("stamp", () => {
     it(`refuses ${name}`, () => {
       pipeline(1);
       write("0-intent/constraint-1.md", "target: 1-spec/spec.md\n");
-      thread("1-implementer-spec-producer-spec.md", { opener: "implementer", owner: "spec-producer", artifact: SPEC });
+      thread({ status: "closed: approved", ...TO_SPEC });
+      thread({ n: 2, ...REVIEW() });
       const before = read(SPEC);
       const out = run("stamp", ...args().map((arg) => arg.startsWith("--") ? arg : abs(arg)));
       assert.equal(out.status, 1);
