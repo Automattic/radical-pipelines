@@ -260,22 +260,25 @@ Because this is a **private** repository, the token needs read access to private
 
 ## Integrating an agentic coding tool
 
-Radical Pipelines is generic; each supported tool gets a mechanics file in `skills/radical-pipelines/tools/` (e.g. `claude-code.md`, `opencode.md`) documenting how agents are spawned, seated, addressed, and terminated in that tool, its health loop, and any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
+Radical Pipelines is generic; each supported tool gets a mechanics file in `skills/radical-pipelines/tools/` (e.g. `claude-code.md`, `opencode.md`) stating, in the tool's own primitives, how the orchestrator spawns a role on a model and profile, seats it in a worktree, wakes it with a message, learns that its turn ended or failed, terminates it, and runs health ticks, plus any setup actions. Before writing one, verify the tool provides the capabilities the skill assumes.
 
 A tool must provide:
 
 1. **Custom agent definitions** — the repo's agent profiles (`agents/*.md`) can be registered as spawnable agent types.
-2. **Concurrent background agents** — several agents alive and working at once while the orchestrator continues.
-3. **Mid-run messaging** — a spawned agent can receive further messages across its lifetime, not just one prompt→result exchange.
-4. **Seating** — each agent starts with its working directory fixed inside an orchestrator-chosen git worktree.
-5. **Directed messaging with unique identity** — every spawned agent has an identifier that directs a message to it alone, known to the orchestrator: assigned at spawn (e.g. a name the orchestrator passes in) or returned by it (e.g. an id in the spawn result).
-6. **Session termination** — the orchestrator can end a spawned agent's session when its work ends.
-7. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on agents, or they can be disabled.
+2. **Concurrent background agents** — several roles alive and working at once while the orchestrator continues.
+3. **Turn-end notice** — the orchestrator learns when a role's turn ends, with its final reply, and when it fails.
+4. **Seating** — each role starts with its working directory fixed inside an orchestrator-chosen git worktree.
+5. **Addressing** — every role has an identifier, known to the orchestrator, that directs a message or a termination to it alone.
+6. **Session termination** — the orchestrator can end a role's session when its work ends.
+7. **Periodic wake-ups** — the orchestrator's session can be woken on an interval for health ticks.
+8. **Plain git worktrees** — the tool imposes no competing worktree or merge semantics on roles, or they can be disabled.
 
-Optional, needed only when the project configures the matching convention:
+Optional:
 
-8. **Per-spawn model selection** — spawning accepts a tool-native model/settings value (the `model` of the **Agents** convention).
+9. **Waking a finished role** — a message continues a role with its context. Without it, the orchestrator spawns a fresh instance with the whole prompt for every turn.
+10. **Per-spawn model selection** — spawning accepts a tool-native model value (the `model` of the **Agents** convention).
+11. **Delegation by roles** — a role can spawn its own subagents for bounded work.
 
-The rules file documents the tool's mechanics for the conventions — Team spawning, Health monitoring, worktrees — and surfaces any prerequisite the owner must meet before the tool is declared ready.
+The mechanics file prefers the tool's native primitives and surfaces any prerequisite the owner must meet, as **Setup actions** the orchestrator checks before the first run.
 
-**opencode** is the second realized tool. Its mechanics file is `skills/radical-pipelines/tools/opencode.md`. Because a rules file alone cannot supply capabilities the tool lacks natively, opencode also ships a packaging artifact — the zero-dependency plugin under `opencode/`, entered through `opencode/plugin.mjs` — that provides the coordination `rp_*` tools opencode has no native primitive for (agent spawning, directed messaging, session termination, health monitoring, status). `plugin.mjs` holds `setup` and re-exports every helper; each concern (the ledger, the server client, loops, permissions, skill re-supply, status, …) is a module beside it.
+**opencode** is the second realized tool. Its mechanics file is `skills/radical-pipelines/tools/opencode.md`, and it drives roles through opencode's own `subagent` tool, `opencode api`, and schedules. opencode also ships a packaging artifact — the zero-dependency plugin under `opencode/`, entered through `opencode/plugin.mjs` — for the two gaps opencode has no native primitive for: re-supplying the skill after compaction, and registering the agent profiles as subagents. `plugin.mjs` holds `setup`; each concern (skill registration, re-supply, agent profiles, the server client, the version) is a module beside it. [docs/opencode-plugin.md](./docs/opencode-plugin.md) documents both and the gaps accepted.
