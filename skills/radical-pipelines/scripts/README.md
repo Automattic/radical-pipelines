@@ -140,7 +140,7 @@ Without `--json`, the frontier comes first, one line per action, then one line p
 frontier <action>[ <target>][ <lane id>][: <reason>]
 lane <artifact> <lane id> <state>              for each production lane while its root is missing
 artifact <artifact> <state>                    for each phase through the target, after its lanes
-net-change <patch id>                          at target phase 4
+net-change <id>                                at target phase 4
 review <lane id> <approval>                    at target phase 4, for each review lane
 thread <thread> <status>[ awaits <role>]
 ```
