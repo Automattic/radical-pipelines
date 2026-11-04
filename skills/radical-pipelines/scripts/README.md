@@ -1,10 +1,10 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, stamps frontmatter, and discovers pipelines. It needs Node and git, nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, stamps frontmatter, and discovers pipelines. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-node rp.mjs stamp <file> [--pin <candidate>]...
+node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 node rp.mjs pipelines <repo path> [--issue <ref>] [--json]
 ```
 
@@ -95,20 +95,19 @@ After the header, every line that starts with `## ` outside fenced code is a mes
 
 An `open` thread awaits its opener when the thread's owner wrote the last message, and its owner otherwise. No other thread awaits anyone.
 
-A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An **approval** is a review thread closed `approved`. An approval must carry `inputs` and `reviewed`, and no other thread carries frontmatter.
+A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An **approval** is a review thread closed `approved`. An approval must carry `inputs` and `reviewed`, a full commit hash, and no other thread carries frontmatter.
 
-## Net change
+## Net change and approval
 
-The net change is the diff from the merge-base of `base` and a commit to that commit, outside the pipelines folder root. Its id is the sha1 of its changed lines with one line of context on each side, without hunk headers or index lines:
+The **base** is the merge-base of the tip with `run-config.md`'s `base`: the latest base the tip holds. A `base` that does not resolve, or has no merge-base with the tip, stops `check`. The **net change** is the diff `<base>..<tip>` outside the pipelines folder root: what the reviewer reads.
 
-```sh
-git diff -U1 --no-renames --binary <base>...<commit> -- . ':(top,exclude,literal)<pipelines folder root>' \
-  | grep -v -e '^@@' -e '^index ' | sha1sum
-```
+An approval's `reviewed` is the commit the reviewer's turn started at: the code it approved. The approval is **fresh** when no required input changed (§ `inputs`) and the tip's code is the approved commit's plus clean merges of the base:
 
-The context locates each edit, so the same edit at two places hashes differently. A merge from the base that touches no line of the change or adjacent to it leaves the id unchanged, even when it shifts line numbers; a conflict resolution or a whitespace change changes it. A `base` that does not resolve, or has no merge-base with the commit, stops the command.
+1. When `reviewed` is the tip, the code is the approved code.
+2. Otherwise, `git merge-tree --write-tree <reviewed> <base>`. A conflict changes the code.
+3. Otherwise, `git diff --quiet <merged tree> <tip> -- . ':(top,exclude,literal)<pipelines folder root>'`. Any difference changes the code.
 
-A review lane is **approved** when its highest-numbered review thread is an approval that is fresh and whose `reviewed` equals the net change id at the tip. Approval is computed for the configured review lanes.
+A `reviewed` that does not resolve to a commit stops `check`. A review lane is **approved** when its highest-numbered review thread is a fresh approval. Approval is computed for the configured review lanes.
 
 ## `check`
 
@@ -140,31 +139,31 @@ Without `--json`, the frontier comes first, one line per action, then one line p
 frontier <action>[ <target>][ <lane id>][: <reason>]
 lane <artifact> <lane id> <state>              for each production lane while its root is missing
 artifact <artifact> <state>                    for each phase through the target, after its lanes
-net-change <id>                                at target phase 4
+net-change <base>..<tip>                       at target phase 4
 review <lane id> <approval>                    at target phase 4, for each review lane
 thread <thread> <status>[ awaits <role>]
 ```
 
-`<state>` is `missing`, `fresh`, or `stale <changed input>[ <changed input>]...`. `<approval>` is `approved`, `unapproved`, or `stale <changed input>...` for a latest approval whose pins changed. On `INVALID`, only the frontier lines are printed. Paths are relative to the pipeline folder.
+`<state>` is `missing`, `fresh`, or `stale <changed input>[ <changed input>]...`. `<approval>` is `approved`, `unapproved` when the latest review thread is no approval, or `stale` followed by the changed inputs and, when the code changed, `code`. On `INVALID`, only the frontier lines are printed. Paths are relative to the pipeline folder.
 
 `--json` prints one object:
 
 - `pipeline`, `tip`, `targetPhase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role), and `changed` (the changed inputs of a stale artifact, candidate, or approval).
 - `phases`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`.
-- `netChange`, `reviews` (`lane`, `approved`, `stale` when its latest approval is stale): at target phase 4, unless `INVALID`.
+- `netChange` (`<base>..<tip>`), `reviews` (`lane`, `approved`, `stale` with the changed inputs, `codeChanged` when the code changed): at target phase 4, unless `INVALID`. A `review` frontier entry carries `changed` and `codeChanged` the same way.
 
 ## `stamp`
 
 ```text
-node rp.mjs stamp <file> [--pin <candidate>]...
+node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 ```
 
-`stamp` pins the file's required inputs (§ `inputs`) at their identities in the tree of the commit that last changed the file's body on `HEAD`'s history, the role's own commit, so an input edited after it, committed or not, is not certified. A commit that changed only the frontmatter, such as an earlier stamp, is passed over. `stamp` keeps the body byte for byte, and writes nothing when the frontmatter would not change, so stamping twice changes nothing.
+`--at` names the turn's commit: the tip of the role's worktree when it was woken. `stamp` pins the file's required inputs (§ `inputs`) at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit, or not committed, is not certified. `stamp` keeps the body byte for byte, and writes nothing when the frontmatter would not change, so stamping twice changes nothing.
 
 - **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation.
-- **An approval**: `inputs` becomes its required inputs, and `reviewed` the net change id at the commit its last message names, with the base from `run-config.md` in the same tree.
+- **An approval**: `inputs` becomes its required inputs, and `reviewed` the full hash of the `--at` commit.
 
-A file with no commit, a body with changes `HEAD` does not hold, any other kind of file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate that is missing, another pipeline file `INVALID` in that commit's tree, a commit that does not resolve, or malformed frontmatter stops the command.
+A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc or naming anything but its candidates, a required input or candidate missing at `--at`, another pipeline file `INVALID` at `--at`, or malformed frontmatter stops the command.
 
 ## `pipelines`
 
@@ -192,6 +191,6 @@ These fill details the specification leaves open; the prose aligns with them.
 - **A message by `owner`** on any thread leaves it awaiting the thread's owner.
 - **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it. Beyond the target, a thread's owner gets `respond` even when its artifact is missing.
 - **A thread awaiting a configured lane** wakes that lane with `lane`, whether or not the root exists.
-- **An approval's pins** come from the commit that last changed the thread's body, the reviewer's closing commit, by the same rule as an artifact's.
+- **The base an approval is merged with** is the merge-base of the tip with the base branch, not the base branch's tip, so a base that moved without being merged leaves approvals fresh.
 - **A re-stamp without `--pin`** keeps the candidate pins a root recorded, so the record of a consolidation survives later stamps.
 - **Strict keys**: unknown frontmatter, `run-config.md`, and lane keys are `INVALID` or stop the command.
