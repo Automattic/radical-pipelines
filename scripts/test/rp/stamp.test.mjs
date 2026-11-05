@@ -172,22 +172,6 @@ describe("stamp derives the required inputs", () => {
 describe("stamp of an approval", () => {
   useRepo();
 
-  it("reads run-config.md from the working tree and the inputs at the turn's commit, which need hold no configuration", () => {
-    pipeline(3);
-    const head = git(root, "rev-parse", "HEAD").trim();
-    const tree = execFileSync("git", ["mktree"], { cwd: root, input: `040000 tree ${git(root, "rev-parse", `${head}:${P("0-intent")}`).trim()}\t0-intent\n`, encoding: "utf8" }).trim();
-    const folders = execFileSync("git", ["mktree"], { cwd: root, input: `040000 tree ${tree}\tdemo\n`, encoding: "utf8" }).trim();
-    const top = execFileSync("git", ["mktree"], { cwd: root, input: `040000 tree ${folders}\t.pipelines\n`, encoding: "utf8" }).trim();
-    const change = execFileSync("git", ["commit-tree", top, "-m", "change"], { cwd: root, encoding: "utf8" }).trim();
-    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", change]] });
-    stampAt(change, path);
-    assert.deepEqual(frontmatterOf(path), { inputs: [pin(INTENT)], reviewed: change });
-    remove("run-config.md");
-    const out = run("stamp", abs(P(path)), "--at", change);
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /cannot read \.pipelines\/demo\/run-config\.md: not a regular file in the working tree/);
-  });
-
   it("pins the intent and every later input at the turn's commit, and records that commit as reviewed", () => {
     pipeline(3);
     write("0-intent/constraint-1.md", `target: ${NOTES}\n`);

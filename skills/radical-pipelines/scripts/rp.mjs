@@ -558,19 +558,17 @@ export function baseOf(root, base, tip) {
 }
 
 // Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the base:
-// a merge conflicting outside the pipelines folder root, or any difference there from the merged tree. The approved
-// commit need not be on the pipeline branch: a review lane's change holds none of the pipelines folder root.
+// a conflicting merge, or any difference from the merged tree.
 export function codeChanged(root, approved, base, tip, pipelinesRoot) {
   const commit = requireCommit(root, approved, "reviewed");
   if (commit === tip) return false;
   let merged;
-  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "-z", "--name-only", "--no-messages", commit, base], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", commit, base], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
   catch (error) {
-    if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${commit} ${base}: ${error.stderr?.toString().trim() || error.message}`);
-    merged = error.stdout;
+    if (error.status === 1 && /^[0-9a-f]{40,64}\n/.test(error.stdout ?? "")) return true;
+    fail(`git merge-tree --write-tree (Git 2.38 or later) ${commit} ${base}: ${error.stderr?.toString().trim() || error.message}`);
   }
-  const [tree, ...conflicted] = merged.split(/[\0\n]/).filter(Boolean);
-  if (conflicted.some((path) => path !== pipelinesRoot && !path.startsWith(`${pipelinesRoot}/`))) return true;
+  const tree = merged.split("\n")[0];
   try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
   catch (error) {
     if (error.status === 1) return true;
@@ -693,16 +691,11 @@ async function cmdStamp(args) {
     const path = located.root === root && located.rel.startsWith(`${folder}/`) ? located.rel.slice(folder.length + 1) : null;
     return path && isCandidateOfRoot(path) ? path : fail(`stamp: --pin must name a candidate of ${rel}: ${pin}`);
   });
-  // What stamp reads at the turn's commit: the intent, every later input (its `target:` line says whether it applies),
-  // the subject's upstream artifacts, and the candidates `--pin` names. The configuration is the working tree's, beside
-  // the stamped file: a review lane's change holds none.
+  // What stamp reads at the turn's commit: the configuration, the intent, every later input (its `target:` line says
+  // whether it applies), the subject's upstream artifacts, and the candidates `--pin` names.
   const upstream = upstreamOf(subject);
-  const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || pinned.includes(path);
-  const files = await readCommit(root, commit, folder, reads);
-  const config = join(root, folder, "run-config.md");
-  if (!existsSync(config) || !lstatSync(config).isFile()) fail(`stamp: cannot read ${folder}/run-config.md: not a regular file in the working tree`);
-  files.set("run-config.md", readFileSync(config));
-  const state = readState(files, `${args.at}:${folder}`);
+  const reads = (path) => path === "run-config.md" || path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || pinned.includes(path);
+  const state = readState(await readCommit(root, commit, folder, reads), `${args.at}:${folder}`);
   if (state.invalid.length) fail(`stamp: ${commit}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
   if (kind.kind === "candidate" && !productionLanes(state.config, kind.phase).some((lane) => lane.id === kind.lane)) fail(`stamp: ${rel}: production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
   const inputs = new Map();

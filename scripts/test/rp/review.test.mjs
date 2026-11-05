@@ -115,20 +115,28 @@ describe("review", () => {
     assert.equal(git(`${root}/.wt`, "status", "--porcelain"), "");
   });
 
-  // A lane's turn approved at its change, landed: the approval cherry-picked onto the pipeline branch and stamped there.
+  // A lane's turn approved at its change, landed: the approval stamped in the lane's worktree at the tip the change
+  // was built from, then cherry-picked onto the pipeline branch.
   function approveAtChange() {
-    const { change } = review("a");
-    writeFile(".git/info/exclude", ".wt/\n");
+    const { change, tip } = review("a");
+    writeFile(".git/info/exclude", ".wt/\n.clone/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
     writeFile(`.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, `status: closed: approved\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — ${change}\n\nMerge it.\n`);
     git(`${root}/.wt`, "add", "-A");
     git(`${root}/.wt`, "commit", "--quiet", "-m", "approve");
+    rp("stamp", `${root}/.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, "--at", tip);
+    git(`${root}/.wt`, "commit", "--quiet", "-am", "stamp");
     git(root, "cherry-pick", `${change}..demo-review-a`);
-    rp("stamp", abs(P("threads/4-reviewer-a-implementer-implementation.md")), "--at", change);
-    commitAll("stamp");
-    return change;
+    return { change, tip };
   }
-  const reviewOf = (laneId) => JSON.parse(rp("check", abs(PIPELINE), "--json")).reviews.find((entry) => entry.lane === laneId);
+  const reviewOf = (at = root) => JSON.parse(rp("check", `${at}/${PIPELINE}`, "--json")).reviews.find((entry) => entry.lane === "a");
+  const moveBase = () => {
+    git(root, "checkout", "--quiet", "main");
+    writeFile(".pipelines/other/0-intent/intent.md", "origin: issue 1\n\nFollow-up.\n");
+    writeFile("src/base.js", "export const b = 1;\n");
+    commitAll("base moves, another pipeline changes");
+    git(root, "checkout", "--quiet", "demo");
+  };
 
   it("gives the change the tip's net change: same merge-base with the base, same code", () => {
     const tip = scenario();
@@ -137,22 +145,35 @@ describe("review", () => {
     assert.equal(git(root, "diff", tip, change, "--", ".", ":(exclude).pipelines"), "");
   });
 
-  it("keeps an approval stamped at the change fresh off the pipeline branch, through base merges that touch other pipelines", () => {
+  it("anchors an approval to the pipeline-branch tip the change was built from", () => {
     scenario();
-    const change = approveAtChange();
-    assert.equal(JSON.parse(readFileSync(abs(P("threads/4-reviewer-a-implementer-implementation.md")), "utf8").split("---\n")[1]).reviewed, change);
-    assert.throws(() => execFileSync("git", ["merge-base", "--is-ancestor", change, "demo"], { cwd: root, stdio: "ignore" }));
-    assert.deepEqual(reviewOf("a"), { lane: "a", approved: true }, "after landing");
-    git(root, "checkout", "--quiet", "main");
-    writeFile(".pipelines/other/0-intent/intent.md", "origin: issue 1\n\nFollow-up.\n");
-    writeFile("src/base.js", "export const b = 1;\n");
-    commitAll("base moves, another pipeline changes");
-    git(root, "checkout", "--quiet", "demo");
-    git(root, "merge", "--quiet", "--no-edit", "main");
-    assert.deepEqual(reviewOf("a"), { lane: "a", approved: true }, "after the base merge");
-    writeFile("src/app.js", "export const a = 3;\n");
-    commitAll("code moves");
-    assert.deepEqual(reviewOf("a"), { lane: "a", approved: false, codeChanged: true });
+    const { tip } = approveAtChange();
+    assert.equal(JSON.parse(readFileSync(abs(P("threads/4-reviewer-a-implementer-implementation.md")), "utf8").split("---\n")[1]).reviewed, tip);
+    execFileSync("git", ["merge-base", "--is-ancestor", tip, "demo"], { cwd: root });
+    assert.deepEqual(reviewOf(), { lane: "a", approved: true });
+  });
+
+  // How the pipeline branch moves after the approval: [what, move, approved].
+  const after = [
+    ["the base moves without being merged", () => moveBase(), true],
+    ["the base, touching another pipeline, is merged", () => { moveBase(); git(root, "merge", "--quiet", "--no-edit", "main"); }, true],
+    ["the code changes", () => { writeFile("src/app.js", "export const a = 3;\n"); commitAll("code moves"); }, false],
+  ];
+  for (const [what, move, approved] of after)
+    it(`keeps an approval ${approved ? "fresh" : "stale"} when ${what}`, () => {
+      scenario();
+      approveAtChange();
+      move();
+      assert.deepEqual(reviewOf(), approved ? { lane: "a", approved: true } : { lane: "a", approved: false, codeChanged: true });
+    });
+
+  it("reads an approval on a clone of the pipeline branch that never had the change", () => {
+    scenario();
+    const { change } = approveAtChange();
+    git(root, "clone", "--quiet", "--no-local", "--single-branch", "--branch", "demo", root, `${root}/.clone`);
+    git(`${root}/.clone`, "fetch", "--quiet", "origin", "main:main");
+    assert.throws(() => execFileSync("git", ["cat-file", "-e", `${change}^{commit}`], { cwd: `${root}/.clone`, stdio: "ignore" }));
+    assert.deepEqual(reviewOf(`${root}/.clone`), { lane: "a", approved: true });
   });
 
   it("diffs a later turn from the change the last message names to the new tip", () => {

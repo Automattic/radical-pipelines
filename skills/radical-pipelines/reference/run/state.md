@@ -48,7 +48,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
   Candidates are required only while their root is missing. A consolidated root — one written from candidates — also pins the candidates it merged, as a record: land it with `rp stamp <root> --at <turn commit> --pin <each candidate>`.
 
 - **Turn commit** — the tip of a role's worktree when you wake it. The assignment names it, and the role reads its materials at it.
-- **Stale** — an artifact or an approved review thread with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its `reviewed` commit's by anything other than clean merges of the base: `rp check` merges the current base into the `reviewed` commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict or a difference outside the pipelines folder makes it stale.
+- **Stale** — an artifact or an approved review thread with a required input unpinned in its `inputs`, or pinned at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its `reviewed` commit's by anything other than clean merges of the base: `rp check` merges the current base into the `reviewed` commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict or a difference makes it stale.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its first body line is `status: done`.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
 - **Net change** — `git diff <base>...<tip>` outside the pipelines folder: what the reviewer reads.
@@ -61,9 +61,9 @@ Frontmatter is a JSON object between `---` lines at the top of a file. Only `rp 
 | Key | File | Value |
 | --- | --- | --- |
 | `inputs` | An artifact, or a review thread closed `approved` | List of pins: every required input at its identity in the turn commit's tree; on a consolidated root, also each candidate passed with `--pin` |
-| `reviewed` | A review thread closed `approved` (§ Threads) | The turn commit: the code it approved |
+| `reviewed` | A review thread closed `approved` (§ Threads) | The commit it is stamped at: the pipeline-branch commit whose code it approved |
 
-No other file carries frontmatter. `rp stamp <file> --at <turn commit>` derives the required inputs from the file's kind and pins them at their identities in that commit's tree, whether or not the turn changed the file. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp --at <turn commit>` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the stamps on top. A review lane's turn commit is the change `rp review` built, whose tree holds no `run-config.md`: cherry-pick the lane's commits after it onto the pipeline branch first, and land the turn in the pipeline worktree.
+No other file carries frontmatter. `rp stamp <file> --at <turn commit>` derives the required inputs from the file's kind and pins them at their identities in that commit's tree, whether or not the turn changed the file. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp --at <turn commit>` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the stamps on top. A review lane's turn commit is the change `rp review` built, which no pipeline branch holds: stamp its threads `--at` the `tip` its `rp review` printed, the pipeline-branch commit the change was built from, so an approval reads wherever the pipeline branch is.
 
 ## Threads
 

@@ -107,10 +107,10 @@ A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An *
 
 The **base** is the merge-base of the tip with `run-config.md`'s `base`: the latest base the tip holds. A `base` that does not resolve, or has no merge-base with the tip, stops `check`. The **net change** is the diff `<base>..<tip>` outside the pipelines folder root: what the reviewer reads.
 
-An approval's `reviewed` is the commit the reviewer's turn started at: the code it approved. The approval is **fresh** when no required input changed (§ `inputs`) and the tip's code is the approved commit's plus clean merges of the base:
+An approval's `reviewed` is the commit it was stamped at: the pipeline-branch commit whose code it approved. The approval is **fresh** when no required input changed (§ `inputs`) and the tip's code is the approved commit's plus clean merges of the base:
 
 1. When `reviewed` is the tip, the code is the approved code.
-2. Otherwise, `git merge-tree --write-tree <reviewed> <base>`. A conflict outside the pipelines folder root changes the code; `reviewed` need not be on the pipeline branch, and a review lane's change holds none of the pipelines folder root.
+2. Otherwise, `git merge-tree --write-tree <reviewed> <base>`. A conflict changes the code.
 3. Otherwise, `git diff --quiet <merged tree> <tip> -- . ':(top,exclude,literal)<pipelines folder root>'`. Any difference changes the code.
 
 A `reviewed` that does not resolve to a commit stops `check`. A review lane is **approved** when its highest-numbered review thread is a fresh approval. Approval is computed for the configured review lanes.
@@ -169,9 +169,9 @@ node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 - **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation. A `--pin` path is absolute or relative to the pipeline folder, whatever the process directory.
 - **An approval**: `inputs` becomes its required inputs, and `reviewed` the full hash of the `--at` commit.
 
-`stamp` validates only what it reads. From the working tree it reads the stamped file and the pipeline's `run-config.md`, so `--at` may be a review lane's change. At `--at` it reads the intent, every later input (its `target:` line says whether it applies), the stamped file's upstream artifacts, and the candidates `--pin` names. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
+`stamp` validates only what it reads. From the working tree it reads the stamped file. At `--at` it reads `run-config.md`, the intent, every later input (its `target:` line says whether it applies), the stamped file's upstream artifacts, and the candidates `--pin` names. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
 
-A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc, a `--pin` path that is not a file (`cannot read --pin <path tried>: not a file`), a `--pin` file that is not one of its candidates, a required input or candidate missing at `--at`, a `run-config.md` missing from the working tree, a file it reads that is malformed or of the wrong kind, or malformed frontmatter on the stamped file stops the command.
+A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc, a `--pin` path that is not a file (`cannot read --pin <path tried>: not a file`), a `--pin` file that is not one of its candidates, a required input or candidate missing at `--at`, a file it reads that is malformed or of the wrong kind, or malformed frontmatter on the stamped file stops the command.
 
 ## `pipelines`
 
