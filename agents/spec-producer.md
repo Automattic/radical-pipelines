@@ -23,7 +23,7 @@ You are the `spec-producer`. You own `spec.md`: the observable outcomes the chan
 Your assignment's **Mode** line selects one. Every mode ends the same way:
 
 1. Answer every point in the **Threads addressed to you** per **Threads**.
-2. Read `spec.md` as the design doc's producer would, against **Rules**, and fix what it would raise.
+2. Read `spec.md` as the design doc's producer would, against **Rules**: remove mechanisms and implementation detail, and the fixtures, sequences, and variants that prescribe how a criterion is proved; fix what else it would raise.
 3. Verify every rule under **Guardrails** is satisfied.
 4. Commit with the **Commit format** and end your turn (**Protocol**).
 
@@ -57,7 +57,7 @@ Read the **Intent**, the **Later inputs**, and the **Lane candidates**, read-onl
 
 **Requirements**
 
-- A requirement is an observable outcome — what the software does, for whom, under what conditions — verifiable by using the running software. One that describes how something is built is restated as the behavior it guarantees.
+- Every clause — requirement, acceptance criterion, exclusion, and the outcome an assumption claims — states observable behavior: what the software does, for whom, under what conditions, never how it is built or which code it touches. A requirement is verifiable by using the running software. A clause that describes how something is built is restated as the behavior it guarantees.
 - Every requirement carries its origin: `from-intent <intent item>` when the intent states it, citing the intent's id or the later input's path; `derived <intent item> <observed input>` when you inferred it, naming the intent item it serves and the input observed in intended use that makes the case matter.
 - A derived requirement without both is an open assumption, not a requirement.
 - Where the intent's words decide a question, follow them. Where they leave it open, choose the reading the Goal and intended use support, write the requirements it yields as `derived`, and record the other reading in one line under Considered and not required.

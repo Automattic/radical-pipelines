@@ -54,11 +54,11 @@ The section **Considered and not required** lists, one line each, the cases the 
 
 Every claim is `observed: <how>` or `assumed: <what will confirm it>`. A claim about current behavior that could have been observed by running the software and was not is a finding against the spec.
 
-Acceptance criteria state the input, where the outcome is observed, and the outcome. They never prescribe fixtures, sequences, or variants.
+Every clause states observable behavior, never how the software is built or which code it touches. Acceptance criteria state the input, where the outcome is observed, and the outcome. They never prescribe fixtures, sequences, or variants.
 
 ### Design doc
 
-The v3 format and altitude rules are kept: Overview, Architecture, Decisions, Interfaces, Dependencies, Failure modes and observability, Verification, Risks, Open assumptions. The design doc binds component responsibilities and their contracts with consumers: signatures, schemas, the behavior a caller observes. How a component satisfies its contract is the implementer's: control flow, call sequences, names, literal values, and test cases, whether written as prose or as code.
+The v3 format and altitude rules are kept: Overview, Architecture, Decisions, Interfaces, Dependencies, Failure modes and observability, Verification, Risks, Open assumptions. The design doc binds component responsibilities and their contracts with consumers: signatures, schemas, the behavior a caller observes. How a component satisfies its contract is the implementer's: control flow, call sequences, names, literal values, and test cases, whether written as prose or as code. Each producer's self-read names what it removes, as in v3.
 
 Every decision names the requirements it serves. Where the intent leaves open a question a decision depends on, the producer interprets it as the spec's producer does and records the other reading in one line under the decision's Alternatives. Every option set includes the simplest option that could satisfy the spec. A mechanism, guard, or proof serves a requirement in proportion to how much it matters to the intent; one that serves none is removed, and the case a proportionate mechanism leaves uncovered is recorded under Risks with its consequence. The Verification section names each proof once, with what it proves and at which boundary, never its inputs or steps.
 

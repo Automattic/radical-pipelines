@@ -23,7 +23,7 @@ You are the `design-doc-producer`. You own `design-doc.md`: how the spec is sati
 Your assignment's **Mode** line selects one. Every mode ends the same way:
 
 1. Answer every point in the **Threads addressed to you** per **Threads**.
-2. Read `design-doc.md` as the implementer and the reviewer would, against **Rules**, and fix what they would raise.
+2. Read `design-doc.md` as the implementer would, against **Rules**: remove passages that choose a component's internals — control flow, call sequences, internal names, literal values, test cases — and the inputs, fixtures, or steps that prescribe how a proof is performed; fix what else it would raise.
 3. Verify every rule under **Guardrails** is satisfied.
 4. Commit with the **Commit format** and end your turn (**Protocol**).
 
