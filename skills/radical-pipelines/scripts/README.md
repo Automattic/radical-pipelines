@@ -13,7 +13,7 @@ Each command accepts only its options and one positional argument. A command tha
 
 ## Pipeline files
 
-A pipeline folder is `<pipelines folder root>/<pipeline slug>`. `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder they are given; `pipelines` is given it.
+A pipeline folder is `<pipelines folder root>/<pipeline slug>`, a folder of the root that holds, at its top level, a phase folder `<digits>-<name>/` or `run-config.md` or `prompt.md`, or a phase folder under its `base/` folder, as each format kept its files; any other content of the root, such as tooling, is not a pipeline. `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder they are given; `pipelines` is given it.
 
 `rp` reads these files of a pipeline folder and ignores every other file:
 
@@ -181,7 +181,7 @@ node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--i
 
 Fetching is the caller's job. The pipelines folder root, absolute or relative to the process directory, selects the repository and names the folder of every pipeline, as a path inside it; it need not exist in the working tree. A path that is a file, the repository's root, or outside any repository stops the command. `pipelines` reads every local branch and remote-tracking branch tip:
 
-1. Collect each `<pipelines folder root>/<slug>` folder at each tip, with its tree id.
+1. Collect each pipeline folder (§ Pipeline files) of the pipelines folder root at each tip, with its tree id.
 2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.
 3. Every folder in the tree of `--base` is **merged**, reported once from `--base`.
 4. With `--issue`, keep those whose intent opens with the line `origin: issue <ref>`.
@@ -205,10 +205,12 @@ The pipeline branch is the branch checked out in the worktree that holds the pip
 
 The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/` and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md`. `review` builds two commits with a temporary index, touching no worktree:
 
-1. **Review base**: the base's tree without the pipelines folder root, plus the lane's view; its parent is the base; its message is `rp review base`.
-2. **Change**: the tip's tree without the pipelines folder root, plus the lane's view; its parent is the review base; its message is `rp review change`.
+1. **Review base**: the base's tree with the pipelines folder root replaced by the **lane's root**: the tip's root without its pipeline folders (§ Pipeline files), plus the lane's view; its parent is the base; its message is `rp review base`.
+2. **Change**: the tip's tree with the root replaced by the same lane's root; its parent is the review base; its message is `rp review change`.
 
-`git diff <review base> <change>` is the net change, and the lane's tree and history hold nothing else of any pipeline. The lane branch is `<pipeline branch>-review-<lane>`. When a worktree has it checked out, `review` runs `git reset --hard <change>` there; otherwise it creates or moves the branch to the change.
+It reads only commits and trees, through a temporary index, so no worktree's index, `HEAD`, or files affect them.
+
+`git diff <review base> <change>` is the net change; the root's tooling stays, at the tip's version, and the lane's tree and history hold no other pipeline. The lane branch is `<pipeline branch>-review-<lane>`. When a worktree has it checked out, `review` runs `git reset --hard <change>` there; otherwise it creates or moves the branch to the change.
 
 When the lane branch exists, its commits that `git cherry <tip> <lane branch>` marks `+`, other than a review base or a change, have not landed on the pipeline branch: `review` stops and names them, oldest first, and moves nothing.
 

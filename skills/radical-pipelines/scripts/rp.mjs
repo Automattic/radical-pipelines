@@ -736,6 +736,20 @@ export function originsOf(body) {
   return origins;
 }
 
+// A pipeline folder is a folder of the pipelines folder root that holds a pipeline file of some format: a phase folder
+// `<n>-<name>/`, directly or, in an earlier format, under `base/`; or `run-config.md`, or an earlier format's
+// `prompt.md`. Any other content of the root, such as a project's pipeline tooling, is not a pipeline.
+const isPhaseFolder = ([name, entry]) => entry.mode === "040000" && /^\d+-[^/]+$/.test(name);
+async function pipelineFoldersIn(root, entries) {
+  const folders = entries.filter((entry) => entry.mode === "040000");
+  const trees = await readTrees(root, folders.map((folder) => folder.oid));
+  const bases = await readTrees(root, folders.map((folder) => trees.get(folder.oid).get("base")).filter((entry) => entry?.mode === "040000").map((entry) => entry.oid));
+  return folders.filter((folder) => {
+    const tree = trees.get(folder.oid), base = tree.get("base");
+    return [...tree].some(isPhaseFolder) || ["run-config.md", "prompt.md"].some((name) => tree.has(name)) || (base?.mode === "040000" && [...bases.get(base.oid)].some(isPhaseFolder));
+  });
+}
+
 // What discovery reads of a pipeline folder tree: its format and the origins its intent opens with. A pipeline of the
 // current format without an intent is malformed and stops the command; any other file or key is never read.
 async function discoverFolders(root, folders, where) {
@@ -772,14 +786,15 @@ async function cmdPipelines(args) {
     const listing = gitText(root, ["cat-file", "--batch-check"], commits.map((commit) => `${commit}:${pipelinesRoot}\n`).join("")).split("\n");
     return commits.map((_, i) => listing[i]?.match(/^([0-9a-f]{40}|[0-9a-f]{64}) tree /)?.[1] ?? null);
   };
-  // The pipeline folders under each root tree.
-  const foldersOf = async (trees) => {
+  // The folders under each root tree, every one or only the pipeline folders.
+  const foldersOf = async (trees, pipelinesOnly = true) => {
     const read = await readTrees(root, trees.filter(Boolean));
-    return trees.map((tree) => tree ? [...read.get(tree).values()].filter((entry) => entry.mode === "040000") : []);
+    const all = trees.map((tree) => tree ? [...read.get(tree).values()].filter((entry) => entry.mode === "040000") : []);
+    return pipelinesOnly ? Promise.all(all.map((entries) => pipelineFoldersIn(root, entries))) : all;
   };
   // Every tree id each folder had in the base branch's history.
   const history = gitText(root, ["log", "--full-history", "--format=%H", baseCommit, "--", `:(top,literal)${pipelinesRoot}`]).split("\n").filter(Boolean);
-  const seen = new Set((await foldersOf(await rootTrees([baseCommit, ...history]))).flat().map((entry) => `${entry.name}\0${entry.oid}`));
+  const seen = new Set((await foldersOf(await rootTrees([baseCommit, ...history]), false)).flat().map((entry) => `${entry.name}\0${entry.oid}`));
   const live = [];
   const tipFolders = await foldersOf(await rootTrees(refs.map((ref) => ref.commit)));
   for (const [i, ref] of refs.entries())
@@ -800,24 +815,27 @@ async function cmdPipelines(args) {
 // The messages of the two commits `review` builds; `review` recognizes them on a lane branch it rebuilds.
 const REVIEW_BASE = "rp review base", REVIEW_CHANGE = "rp review change";
 
-// Runs git with its own index file, so building a tree touches no worktree's index.
+// Runs git plumbing with its own index file, which never consults a working tree: building a tree depends on no
+// worktree's index, HEAD, or files.
 function gitWithIndex(root, index, args, input) {
   try { return execFileSync("git", args, { cwd: root, input, encoding: "utf8", env: { ...process.env, GIT_INDEX_FILE: index }, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] }).trim(); }
   catch (error) { fail(`git ${args.join(" ")}: ${error.stderr?.toString().trim() || error.message}`); }
 }
+// `update-index --index-info` lines: each entry at its path, or removed with mode 0.
+const indexInfo = (entries, remove = false) => entries.map((entry) => `${remove ? "0" : entry.mode} ${remove ? "0".repeat(entry.oid.length) : entry.oid}\t${entry.path}\n`).join("");
 
-// The tree of `commit` outside the pipelines folder root, plus the review lane's view of the pipeline at the tip: its
-// `0-intent/` folder and the lane's own threads.
-function reviewTree(root, index, commit, pipelinesRoot, subset) {
+// The tree of `commit` with the pipelines folder root replaced by `rootEntries`, every file it holds.
+function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
   gitWithIndex(root, index, ["read-tree", commit]);
-  gitWithIndex(root, index, ["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", `:(top,literal)${pipelinesRoot}`]);
-  if (subset.length) gitWithIndex(root, index, ["update-index", "--index-info"], subset.map((entry) => `${entry.mode} ${entry.oid}\t${entry.path}\n`).join(""));
+  const removed = lsTree(root, commit, `${pipelinesRoot}/`, true);
+  const input = indexInfo(removed, true) + indexInfo(rootEntries);
+  if (input) gitWithIndex(root, index, ["update-index", "--index-info"], input);
   return gitWithIndex(root, index, ["write-tree"]);
 }
 
-// Builds a review lane's branch from the pipeline tip: a review base B, the merge-base with the configured base without
-// the pipelines folder root plus the lane's view of the pipeline, and a change C on it, the tip's tree treated the same
-// way, so `git diff B C` is the net change. The lane branch `<pipeline branch>-review-<lane>` moves to C, and its
+// Builds a review lane's branch from the pipeline tip: a review base B, the merge-base with the configured base, and a
+// change C on it, the tip; in both, the pipelines folder root is the tip's without its pipeline folders, plus the
+// lane's view of the pipeline, so `git diff B C` is the net change and the root's tooling stays. The lane branch `<pipeline branch>-review-<lane>` moves to C, and its
 // worktree with it, unless it holds review commits the pipeline branch lacks.
 async function cmdReview(args) {
   const { root, rel } = locate(args._[0] ?? fail("review: missing <pipeline folder>"));
@@ -840,12 +858,16 @@ async function cmdReview(args) {
       .filter((commit) => ![REVIEW_BASE, REVIEW_CHANGE].includes(gitText(root, ["log", "-1", "--format=%s", commit])));
     if (unlanded.length) fail(`review: ${laneBranch} has commits the pipeline branch lacks; land them first: ${unlanded.reverse().join(" ")}`);
   }
+  // The pipelines folder root both commits hold: the tip's, without its pipeline folders, plus the lane's view.
+  const rootEntries = lsTree(root, tip, `${pipelinesRoot}/`, false).map((entry) => ({ ...entry, name: entry.path.slice(pipelinesRoot.length + 1) }));
+  const pipelines = new Set((await pipelineFoldersIn(root, rootEntries)).map((entry) => `${entry.path}/`));
+  const kept = [...lsTree(root, tip, `${pipelinesRoot}/`, true).filter((entry) => ![...pipelines].some((prefix) => entry.path.startsWith(prefix))), ...subset];
   const directory = mkdtempSync(join(tmpdir(), "rp-review-"));
   let base, change;
   try {
     const index = join(directory, "index");
-    base = gitWithIndex(root, index, ["commit-tree", reviewTree(root, index, mergeBase, pipelinesRoot, subset), "-p", mergeBase, "-m", REVIEW_BASE]);
-    change = gitWithIndex(root, index, ["commit-tree", reviewTree(root, index, tip, pipelinesRoot, subset), "-p", base, "-m", REVIEW_CHANGE]);
+    base = gitWithIndex(root, index, ["commit-tree", treeWithRoot(root, index, mergeBase, pipelinesRoot, kept), "-p", mergeBase, "-m", REVIEW_BASE]);
+    change = gitWithIndex(root, index, ["commit-tree", treeWithRoot(root, index, tip, pipelinesRoot, kept), "-p", base, "-m", REVIEW_CHANGE]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
   const worktree = gitText(root, ["worktree", "list", "--porcelain"]).split("\n\n").map((record) => record.split("\n"))
     .find((lines) => lines.includes(`branch refs/heads/${laneBranch}`))?.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);

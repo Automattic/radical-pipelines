@@ -63,6 +63,51 @@ describe("review", () => {
     assert.equal(patchId(git(root, "diff", base, change)), patchId(netChange(tip)));
   });
 
+  // A pipelines folder root holding tooling and pipelines of every format in the base, and tooling the pipeline branch
+  // changed, with the pipeline worktree's copy of the tooling differing from its HEAD.
+  function tooling() {
+    git(root, "checkout", "--quiet", "main");
+    const files = {
+      ".pipelines/bin/env.mjs": "base env\n", ".pipelines/bin/node_modules/agent-browser/SKILL.md": "skill\n", ".pipelines/README.md": "root notes\n",
+      ".pipelines/v0/prompt.md": "v0\n", ".pipelines/v1/0-prompt/prompt.md": "v1\n", ".pipelines/v3/base/0-intent/intent.md": "v3\n",
+      ".pipelines/v3-spec/1-spec/spec.md": "spec only\n", ".pipelines/v5/run-config.md": "---\n{\"workflow\": \"x\"}\n---\n",
+    };
+    for (const [path, contents] of Object.entries(files)) writeFile(path, contents);
+    commitAll("tooling and earlier pipelines");
+    git(root, "checkout", "--quiet", "demo");
+    git(root, "merge", "--quiet", "--no-edit", "main");
+    pipeline(3, { lanes: LANES });
+    writeFile(".pipelines/bin/env.mjs", "pipeline env\n");
+    writeFile("src/app.js", "export const a = 2;\n");
+    const tip = commitAll("work");
+    writeFile(".pipelines/bin/env.mjs", "uncommitted env\n");
+    git(root, "add", ".pipelines/bin/env.mjs");
+    writeFile(".pipelines/bin/env.mjs", "unstaged env\n");
+    return tip;
+  }
+
+  it("keeps the root's tooling at the tip's version in both commits, and drops pipelines of every format", () => {
+    const tip = tooling();
+    const { base, change } = review("a");
+    const inRoot = (commit) => files(commit).filter((path) => path.startsWith(".pipelines/"));
+    assert.deepEqual(inRoot(change), [
+      ".pipelines/README.md", ".pipelines/bin/env.mjs", ".pipelines/bin/node_modules/agent-browser/SKILL.md", `${PIPELINE}/0-intent/intent.md`,
+    ]);
+    assert.deepEqual(inRoot(base), inRoot(change));
+    for (const commit of [base, change]) assert.equal(git(root, "show", `${commit}:.pipelines/bin/env.mjs`), "pipeline env\n");
+    assert.equal(git(root, "show", `${base}:src/app.js`), "export const a = 1;\n");
+    assert.equal(git(root, "diff", base, change, "--", ".pipelines"), "");
+    assert.equal(patchId(git(root, "diff", base, change)), patchId(netChange(tip)));
+  });
+
+  it("builds from commits alone, whatever the pipeline worktree holds", () => {
+    tooling();
+    const before = git(root, "status", "--porcelain");
+    review("a");
+    assert.equal(git(root, "status", "--porcelain"), before);
+    assert.equal(readFileSync(abs(".pipelines/bin/env.mjs"), "utf8"), "unstaged env\n");
+  });
+
   it("follows the base merged into the pipeline branch after the pipeline started", () => {
     scenario();
     git(root, "checkout", "--quiet", "main");
