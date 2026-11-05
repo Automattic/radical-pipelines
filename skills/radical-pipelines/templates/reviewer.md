@@ -1,43 +1,36 @@
-## Seat
+<!-- When the role wrote files `rp check` rejects. -->
+`rp check` rejects these files you wrote; fix them first: <one INVALID line per file>
 
-- Worktree: <absolute path>
-- Branch: <branch>
-- Turn commit: <the worktree's tip when woken>
-- Lane: <lane id>
-- Supporting folder: <path>
-- Subagent model: <model, in the form `tools/<tool>.md` § Models states>
+<!-- First turn: the lane has no open review thread. -->
+Review the code on this branch, `<branch>`, against `<base>`; its diff is <net change path>. It addresses this issue: <intent path>. Its later inputs: <later input paths>.   <!-- drop the last sentence without later inputs -->
 
-## Brief
+Review only this: <brief>   <!-- when the lane has a brief -->
 
-<the lane's brief; optional>
+Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 
-## Materials
+Write your review, as you would post it on the pull request, to <thread path>, starting with these lines:
 
-- Intent: <0-intent/intent.md path>
-- Later inputs: <one line per constraint, proposal, or failure file: path>
-- Net change: <path of the saved diff>
-- Your last approval: <commit> — <path of the saved diff since it>   <!-- when the lane approved before -->
+```
+status: open
+opener: reviewer-<lane>
+owner: implementer
+artifact: implementation
 
-## Threads addressed to you
+## reviewer-<lane> — <turn commit>
+```
 
-<one line per thread: path | none>
+If you would merge the change as it stands, write `status: closed: approved` instead.
 
-## Malformed files
+<!-- Later turn: the lane's open review thread awaits it. -->
+The author answered your review in <thread path>; what changed since your last message is <diff path>. Check each answer, review what changed, and append a message headed `## reviewer-<lane> — <turn commit>`. If you would merge the change as it stands, set the status line to `closed: approved`.
 
-<one line per `rp check` INVALID line naming a file the role wrote; optional>
+<!-- Both forms. -->
+Check the change against these rules and note each outcome in your review:   <!-- with the blocks, only when there are guardrails -->
 
-## Write to
+<guardrail blocks>
 
-<threads/ path>
+You can use:   <!-- with the blocks, only when there are resources -->
 
-## Guardrails
+<resource blocks>
 
-<blocks | none>
-
-## Resources
-
-<blocks | none>
-
-## Commit format
-
-<convention>
+Commit your review with this commit format: <convention>.

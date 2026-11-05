@@ -14,7 +14,7 @@ Throughout the run:
 2. Dispatch every line of its frontier (table below). `phase-started` fires the first time a step wakes a role of a phase, and again when work on it resumes.
 3. While roles work, end your turn with health monitoring active; their reports and health ticks resume the run.
 4. When every role the step woke has ended its turn, land each:
-   1. Land it in its worktree at its turn commit, read from its assignment file (`state.md` § Frontmatter).
+   1. Land it in its worktree at its turn commit, read from its assignment file — a reviewer's from the message heading line it fills (`state.md` § Frontmatter).
    2. Merge its lane branch, when it has one, into the pipeline branch (`before-`/`after-merging-lanes`).
    3. Fire `phase-completed` when a phase becomes complete.
    4. Give the owner a one-line report naming the role, what changed, and anything worth surfacing.
@@ -67,8 +67,8 @@ A review lane is one `reviewer`, with its brief when it has one; every lane must
      '/<pipeline folder>/threads/reviewer-<lane>/'
    ```
 
-2. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, among the lane's **Prepared files** (`state.md` § Names). For a lane that approved before, also save there the diff from the commit its last approval names to the tip, outside the pipelines folder.
-3. Wake the lane's reviewer there with its **Lane**, its **Brief** when it has one, the intent, the later inputs, the net change, its threads, and, when the lane approved before, the commit its last approval names with the diff since it. Lanes run in parallel.
+2. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, among the lane's **Prepared files** (`state.md` § Names). When the lane's open review thread awaits it, also save there the diff from the commit its last message names to the tip, outside the pipelines folder.
+3. Wake the lane's reviewer there with its assignment in the first-turn form when the lane has no open review thread, else in the later-turn form (`templates/reviewer.md`). Lanes run in parallel.
 
 ## Owner escalation
 
