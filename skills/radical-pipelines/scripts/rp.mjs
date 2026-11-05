@@ -190,14 +190,14 @@ function mainCheckout(root) {
 }
 
 // The pipelines folder root discovery reads from the main checkout: the first non-blank line under
-// `### Pipelines folder root` in `.rp.local.md`, else in `.rp.md`, else `.pipelines`.
+// a `Pipelines folder root` heading, at any level, in `.rp.local.md`, else in `.rp.md`, else `.pipelines`.
 export function pipelinesFolderRoot(root) {
   const checkout = mainCheckout(root);
   for (const name of [".rp.local.md", ".rp.md"]) {
     const conventions = join(checkout, name);
     if (!existsSync(conventions)) continue;
     const lines = readFileSync(conventions, "utf8").split(/\r?\n/);
-    const heading = lines.findIndex((line) => /^### Pipelines folder root[\t ]*$/.test(line));
+    const heading = lines.findIndex((line) => /^#{1,6} Pipelines folder root[\t ]*$/.test(line));
     if (heading === -1) continue;
     const value = lines.slice(heading + 1).find((line) => line.trim())?.trim();
     if (!value || /^#{1,6} /.test(value)) fail(`${name}: Pipelines folder root has no value`);

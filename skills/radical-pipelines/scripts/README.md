@@ -178,7 +178,7 @@ A missing `--at` or one that does not resolve, any other kind of file, `--pin` o
 node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
-Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `### Pipelines folder root` in `.rp.local.md` at the root of the main checkout, else in `.rp.md` there, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. The main checkout is the parent of `git rev-parse --git-common-dir` in a linked worktree, and the worktree itself otherwise, so a linked worktree sees the git-ignored `.rp.local.md`. `pipelines` reads every local branch and remote-tracking branch tip:
+Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `Pipelines folder root`, at any level, in `.rp.local.md` at the root of the main checkout, else in `.rp.md` there, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. The main checkout is the parent of `git rev-parse --git-common-dir` in a linked worktree, and the worktree itself otherwise, so a linked worktree sees the git-ignored `.rp.local.md`. `pipelines` reads every local branch and remote-tracking branch tip:
 
 1. Collect each `<pipelines folder root>/<slug>` folder at each tip, with its tree id.
 2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.
