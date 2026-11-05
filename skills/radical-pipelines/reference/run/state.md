@@ -108,7 +108,7 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 - **Assignment** — the file `git rev-parse --git-path rp/<profile>.md` resolves to in the role's worktree: the worktree's private git directory, outside the tree. It holds the role's filled template. No two instances of one profile share a worktree.
 - **Prepared files** — every other file you write for a role, such as a diff it reads or your scratch about it: in the folder `git rev-parse --git-path rp/` resolves to in the role's worktree, beside its assignment.
 - **Instance names** — `<pipeline slug> <profile>[ <lane>]`.
-- **Supporting folders** — a role's evidence folder: `1-spec/spec/`, `2-design-doc/design-doc/`, and `3-implementation/notes/` beside their artifacts; `<phase folder>/lanes/<lane>/<artifact>/` for a candidate's producer; `threads/reviewer-<lane>/` for a reviewer.
+- **Supporting folders** — a role's evidence folder: `1-spec/spec/`, `2-design-doc/design-doc/`, and `3-implementation/notes/` beside their artifacts; `<phase folder>/lanes/<lane>/<artifact>/` for a candidate's producer.
 - **Ids** — `<prefix>-<word>-<n>`: the prefix names the artifact — `intent`, `spec`, `design-doc` — and the word the concept. An item is declared by the line `<id>: <text>`; its content follows until the next declaration or heading. The intent originates `constraint`, `context`, and `proposal`, plus `intent-goal` for its Goal section; the spec `requirement`, `acceptance-criterion`, `exclusion`, and `assumption`; the design doc `decision` and `assumption`. An id is never renumbered or reused.
 
 ## The frontier

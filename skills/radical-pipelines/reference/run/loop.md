@@ -37,7 +37,7 @@ Throughout the run:
 - The **Turn commit** is the tip of the role's worktree when you wake it.
 - Before every spawn and every wake, write the assignment to the role's **Assignment** path (`state.md` § Names), replacing the previous one.
 - **Threads addressed to you** lists the threads `rp check` reports awaiting the role. **Changed inputs** lists the changed inputs it reports for the role's artifact, each with the last commit that changed the artifact, from which the role diffs it.
-- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message; spawn a fresh instance when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation. The message that starts a turn, spawn and wake alike, is exactly `Read your assignment.`
+- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message; spawn a fresh instance when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation. The message that starts a turn, spawn and wake alike, is exactly `Read your assignment: <absolute path>.`, the path being what `git rev-parse --path-format=absolute --git-path rp/<profile>.md` prints in the role's worktree.
 - Terminate the production lanes' instances at consolidation and every other instance at close-out.
 - Spawn, seat, wake, and terminate per `tools/<tool>.md`; use the model `run-config.md`'s body records for the profile or lane, and fill the **Subagent model** with the subagent model it records, in the form `tools/<tool>.md` § Models states.
 - **Guardrails** and **Resources** carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, filling in any value the block's text leaves to you.
@@ -63,8 +63,7 @@ A review lane is one `reviewer`, with its brief when it has one; every lane must
      '!/<pipeline folder>/1-spec/' '!/<pipeline folder>/2-design-doc/' '!/<pipeline folder>/3-implementation/' \
      '!/<pipeline folder>/threads/*' \
      '/<pipeline folder>/threads/*-reviewer-<lane>-implementer-*' \
-     '/<pipeline folder>/threads/*-reviewer-<lane>-owner-*' \
-     '/<pipeline folder>/threads/reviewer-<lane>/'
+     '/<pipeline folder>/threads/*-reviewer-<lane>-owner-*'
    ```
 
 2. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, among the lane's **Prepared files** (`state.md` § Names). When the lane's open review thread awaits it, also save there the diff from the commit its last message names to the tip, outside the pipelines folder.
