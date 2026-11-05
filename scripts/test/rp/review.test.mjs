@@ -100,6 +100,7 @@ describe("review", () => {
     const first = review("a");
     assert.deepEqual([first.branch, first.worktree], ["demo-review-a", null]);
     assert.equal(git(root, "rev-parse", "demo-review-a").trim(), first.change);
+    writeFile(".git/info/exclude", ".wt/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
     const reviewThread = `.wt/${PIPELINE}/threads/2-reviewer-a-implementer-implementation.md`;
     writeFile(reviewThread, `${readFileSync(abs(reviewThread), "utf8")}\n## reviewer-a — ${first.tip}\n\nAnother point.\n`);
@@ -114,9 +115,58 @@ describe("review", () => {
     assert.equal(git(`${root}/.wt`, "status", "--porcelain"), "");
   });
 
+  // A lane's turn approved at its change, landed: the approval cherry-picked onto the pipeline branch and stamped there.
+  function approveAtChange() {
+    const { change } = review("a");
+    writeFile(".git/info/exclude", ".wt/\n");
+    git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
+    writeFile(`.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, `status: closed: approved\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — ${change}\n\nMerge it.\n`);
+    git(`${root}/.wt`, "add", "-A");
+    git(`${root}/.wt`, "commit", "--quiet", "-m", "approve");
+    git(root, "cherry-pick", `${change}..demo-review-a`);
+    rp("stamp", abs(P("threads/4-reviewer-a-implementer-implementation.md")), "--at", change);
+    commitAll("stamp");
+    return change;
+  }
+  const reviewOf = (laneId) => JSON.parse(rp("check", abs(PIPELINE), "--json")).reviews.find((entry) => entry.lane === laneId);
+
+  it("gives the change the tip's net change: same merge-base with the base, same code", () => {
+    const tip = scenario();
+    const { change } = review("a");
+    assert.equal(git(root, "merge-base", "main", change).trim(), git(root, "merge-base", "main", tip).trim());
+    assert.equal(git(root, "diff", tip, change, "--", ".", ":(exclude).pipelines"), "");
+  });
+
+  it("keeps an approval stamped at the change fresh off the pipeline branch, through base merges that touch other pipelines", () => {
+    scenario();
+    const change = approveAtChange();
+    assert.equal(JSON.parse(readFileSync(abs(P("threads/4-reviewer-a-implementer-implementation.md")), "utf8").split("---\n")[1]).reviewed, change);
+    assert.throws(() => execFileSync("git", ["merge-base", "--is-ancestor", change, "demo"], { cwd: root, stdio: "ignore" }));
+    assert.deepEqual(reviewOf("a"), { lane: "a", approved: true }, "after landing");
+    git(root, "checkout", "--quiet", "main");
+    writeFile(".pipelines/other/0-intent/intent.md", "origin: issue 1\n\nFollow-up.\n");
+    writeFile("src/base.js", "export const b = 1;\n");
+    commitAll("base moves, another pipeline changes");
+    git(root, "checkout", "--quiet", "demo");
+    git(root, "merge", "--quiet", "--no-edit", "main");
+    assert.deepEqual(reviewOf("a"), { lane: "a", approved: true }, "after the base merge");
+    writeFile("src/app.js", "export const a = 3;\n");
+    commitAll("code moves");
+    assert.deepEqual(reviewOf("a"), { lane: "a", approved: false, codeChanged: true });
+  });
+
+  it("diffs a later turn from the change the last message names to the new tip", () => {
+    scenario();
+    const { change } = review("a");
+    writeFile("src/app.js", "export const a = 3;\n");
+    const tip = commitAll("answer");
+    assert.equal(git(root, "diff", change, tip, "--", ".", ":(exclude).pipelines"), git(root, "diff", "HEAD~1", tip, "--", ".", ":(exclude).pipelines"));
+  });
+
   it("stops, naming them, when the lane branch holds commits the pipeline branch lacks", () => {
     scenario();
     const { change } = review("a");
+    writeFile(".git/info/exclude", ".wt/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
     writeFile(`.wt/${PIPELINE}/threads/2-reviewer-a-implementer-implementation.md`, "status: open\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — abc1234\n\nUnlanded.\n");
     git(`${root}/.wt`, "commit", "--quiet", "-am", "review");
