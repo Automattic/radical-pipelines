@@ -13,7 +13,7 @@ Throughout the run:
 1. Run `rp check <worktree's absolute pipeline folder>`.
 2. Dispatch every line of its frontier (table below). `phase-started` fires the first time a step wakes a role of a phase, and again when work on it resumes.
 3. While roles work, end your turn with health monitoring active; their reports and health ticks resume the run.
-4. When every role the step woke has ended its turn, land each:
+4. A role has ended its turn when its report ends with "Completion declared: no work remains." or reports a blocker (§ Waking a role); after any other report the role is still working: wait for it. When every role the step woke has ended its turn, land each:
    1. Land it in its worktree at its turn commit, read from its assignment file — a reviewer's from the message heading line it fills (`state.md` § Frontmatter).
    2. Merge its lane branch, when it has one, into the pipeline branch (`before-`/`after-merging-lanes`).
    3. Fire `phase-completed` when a phase becomes complete.

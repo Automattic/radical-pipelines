@@ -17,7 +17,7 @@ Inspect the run and lane worktrees and the roles' state through `tools/<tool>.md
 3. **Dead roles** — a role whose session is gone or whose turn failed.
 4. **Login or API-key errors** — a role or the orchestrator hit a provider authentication failure.
 5. **Network failures** — a tool call failed with a transient network error.
-6. **Steps that never land** — compare the roles the current step woke with their reports and live sessions. When every one has ended its turn, land them (`../run/loop.md` § One step, step 4); treat a missing report without a live session as a dead role.
+6. **Steps that never land** — compare the roles the current step woke with their reports and live sessions. When every one has ended its turn, land them (`../run/loop.md` § One step, step 4); treat a role that has not ended its turn and has no live session as a dead role.
 
 ## Recovery
 
