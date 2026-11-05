@@ -103,7 +103,7 @@ describe("review", () => {
     writeFile(".git/info/exclude", ".wt/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
     const reviewThread = `.wt/${PIPELINE}/threads/2-reviewer-a-implementer-implementation.md`;
-    writeFile(reviewThread, `${readFileSync(abs(reviewThread), "utf8")}\n## reviewer-a — ${first.tip}\n\nAnother point.\n`);
+    writeFile(reviewThread, `${readFileSync(abs(reviewThread), "utf8")}\n## reviewer-a — ${first.change}\n\nAnother point.\n`);
     git(`${root}/.wt`, "commit", "--quiet", "-am", "review");
     git(root, "cherry-pick", `${first.change}..demo-review-a`);
     write("threads/2-reviewer-a-implementer-implementation.md", `${readFileSync(abs(P("threads/2-reviewer-a-implementer-implementation.md")), "utf8")}\n## implementer — ${head()}\n\nAnswered.\n`);
@@ -115,19 +115,30 @@ describe("review", () => {
     assert.equal(git(`${root}/.wt`, "status", "--porcelain"), "");
   });
 
-  // A lane's turn approved at its change, landed: the approval stamped in the lane's worktree at the tip the change
-  // was built from, then cherry-picked onto the pipeline branch.
-  function approveAtChange() {
-    const { change, tip } = review("a");
+  // A lane's turn approving its change: the reviewer's commit on the lane branch.
+  function approveInLane() {
+    const { change } = review("a");
     writeFile(".git/info/exclude", ".wt/\n.clone/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
     writeFile(`.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, `status: closed: approved\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — ${change}\n\nMerge it.\n`);
     git(`${root}/.wt`, "add", "-A");
     git(`${root}/.wt`, "commit", "--quiet", "-m", "approve");
-    rp("stamp", `${root}/.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, "--at", tip);
-    git(`${root}/.wt`, "commit", "--quiet", "-am", "stamp");
+    return change;
+  }
+  // Landing it: its commits after the change cherry-picked onto the pipeline branch, the approval stamped at its HEAD.
+  const APPROVAL = "threads/4-reviewer-a-implementer-implementation.md";
+  function land(change) {
     git(root, "cherry-pick", `${change}..demo-review-a`);
-    return { change, tip };
+    const anchor = head();
+    const out = run("stamp", abs(P(APPROVAL)), "--at", "HEAD");
+    if (out.status === 0) commitAll("stamp");
+    return { anchor, out };
+  }
+  function approveAtChange() {
+    const change = approveInLane();
+    const { anchor, out } = land(change);
+    assert.equal(out.status, 0, out.stderr);
+    return { change, anchor };
   }
   const reviewOf = (at = root) => JSON.parse(rp("check", `${at}/${PIPELINE}`, "--json")).reviews.find((entry) => entry.lane === "a");
   const moveBase = () => {
@@ -145,12 +156,41 @@ describe("review", () => {
     assert.equal(git(root, "diff", tip, change, "--", ".", ":(exclude).pipelines"), "");
   });
 
-  it("anchors an approval to the pipeline-branch tip the change was built from", () => {
+  it("anchors an approval to the pipeline-branch commit it lands on", () => {
     scenario();
-    const { tip } = approveAtChange();
-    assert.equal(JSON.parse(readFileSync(abs(P("threads/4-reviewer-a-implementer-implementation.md")), "utf8").split("---\n")[1]).reviewed, tip);
-    execFileSync("git", ["merge-base", "--is-ancestor", tip, "demo"], { cwd: root });
+    const { anchor } = approveAtChange();
+    assert.equal(JSON.parse(readFileSync(abs(P(APPROVAL)), "utf8").split("---\n")[1]).reviewed, anchor);
+    execFileSync("git", ["merge-base", "--is-ancestor", anchor, "demo"], { cwd: root });
     assert.deepEqual(reviewOf(), { lane: "a", approved: true });
+  });
+
+  it("stamps an approval landing after other lanes' thread commits", () => {
+    scenario();
+    const change = approveInLane();
+    write("threads/5-reviewer-a-b-implementer-implementation.md", "status: open\nopener: reviewer-a-b\nowner: implementer\nartifact: implementation\n\n## reviewer-a-b — abc1234\n\nA point.\n");
+    commitAll("another lane lands");
+    assert.equal(land(change).out.status, 0);
+    assert.deepEqual(reviewOf(), { lane: "a", approved: true });
+  });
+
+  it("stops stamping an approval whose anchor's code differs from the change it reviewed, writing nothing", () => {
+    scenario();
+    const change = approveInLane();
+    writeFile("src/app.js", "export const a = 3;\n");
+    commitAll("code moves after the build");
+    const { out } = land(change);
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, new RegExp(`HEAD differs from ${change}, the commit the reviewer's last heading names, outside \\.pipelines`));
+    assert.doesNotMatch(readFileSync(abs(P(APPROVAL)), "utf8"), /^---/);
+  });
+
+  it("stops stamping an approval whose reviewed commit cannot be read", () => {
+    pipeline(3, { lanes: LANES });
+    const path = thread({ n: 4, status: "closed: approved", ...REVIEW("a"), messages: [["reviewer-a", "1".repeat(40)]] });
+    commitAll("approval");
+    const out = run("stamp", abs(P(path)), "--at", "HEAD");
+    assert.equal(out.status, 1);
+    assert.match(out.stderr, /the commit the reviewer's last heading names does not resolve to a commit/);
   });
 
   // How the pipeline branch moves after the approval: [what, move, approved].

@@ -147,7 +147,7 @@ describe("approval freshness", () => {
     for (const [rel, contents] of Object.entries(files)) writeFile(`work/pipes/demo/${rel}`, contents);
     const turn = commitAll("pipeline");
     const approval = "work/pipes/demo/threads/1-reviewer-default-implementer-implementation.md";
-    writeFile(approval, "status: closed: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — abc1234\n");
+    writeFile(approval, `status: closed: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — ${turn}\n`);
     rp("stamp", abs(approval), "--at", turn);
     writeFile("work/pipes/other.md", "inside the root\n");
     commitAll("inside");

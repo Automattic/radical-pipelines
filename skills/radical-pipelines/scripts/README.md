@@ -167,7 +167,7 @@ node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 `--at` names the turn's commit: the tip of the role's worktree when it was woken. `stamp` pins the file's required inputs (§ `inputs`) at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit, or not committed, is not certified. `stamp` keeps the body byte for byte, and writes nothing when the frontmatter would not change, so stamping twice changes nothing.
 
 - **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation. A `--pin` path is absolute or relative to the pipeline folder, whatever the process directory.
-- **An approval**: `inputs` becomes its required inputs, and `reviewed` the full hash of the `--at` commit.
+- **An approval**: `inputs` becomes its required inputs, and `reviewed` the full hash of the `--at` commit. The `--at` commit's tree outside the pipelines folder root must equal that of the commit the reviewer's last message heading names, the change it reviewed; otherwise, or when that commit does not resolve, `stamp` stops and writes nothing.
 
 `stamp` validates only what it reads. From the working tree it reads the stamped file. At `--at` it reads `run-config.md`, the intent, every later input (its `target:` line says whether it applies), the stamped file's upstream artifacts, and the candidates `--pin` names. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
 
@@ -212,7 +212,7 @@ The **lane's view** of the pipeline is, at the tip, every file under `<pipeline 
 
 When the lane branch exists, its commits that `git cherry <tip> <lane branch>` marks `+`, other than a review base or a change, have not landed on the pipeline branch: `review` stops and names them, oldest first, and moves nothing.
 
-Without `--json`, it prints `branch <lane branch>`, `tip <tip>`, `base <review base>`, and `change <change>`, one per line. `--json` prints `{branch, tip, base, change, worktree}`, `worktree` being the path it reset or `null`.
+Without `--json`, it prints `branch <lane branch>`, `base <review base>`, and `change <change>`, one per line. `--json` prints `{branch, base, change, worktree}`, `worktree` being the path it reset or `null`.
 
 A detached `HEAD` where the pipeline folder is, a missing `--lane`, a lane `run-config.md` does not declare, an unreadable `run-config.md` or one of another format, a base that does not resolve or shares no merge-base with the tip, or a git failure stops the command.
 

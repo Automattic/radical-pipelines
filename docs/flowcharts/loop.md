@@ -25,7 +25,7 @@ flowchart TD
     AUTHOR --> WAIT
     WAIT["End the turn; resume on role reports and health ticks"] --> ENDED{"Every woken role ended its turn?"}
     ENDED -->|No| WAIT
-    ENDED -->|Yes| LAND["For each role, in its worktree at the turn commit its assignment names: stamp its artifact and every review thread it closed approved; a review lane's at the tip its change was built from; commit the stamps; then merge a production lane's branch, or cherry-pick a review lane's commits after its change, onto the pipeline branch"]
+    ENDED -->|Yes| LAND["For each role, at the turn commit its assignment names: a production lane or role stamps in its worktree; a review lane's commits after its change are cherry-picked onto the pipeline branch first and its approvals stamped at the pipeline worktree's HEAD, whose code must be the change's; commit the stamps; then merge a production lane's branch"]
     LAND --> PC["Fire phase-completed for each phase that became complete; report one line per role to the owner"]
     PC --> A
 ```

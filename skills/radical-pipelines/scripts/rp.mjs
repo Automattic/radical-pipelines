@@ -670,7 +670,7 @@ async function cmdCheck(args) {
 // commit as `reviewed`.
 async function cmdStamp(args) {
   const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
-  const { folder, inner } = pipelineFileOf(rel, "stamp");
+  const { folder, inner, pipelinesRoot } = pipelineFileOf(rel, "stamp");
   const kind = kindOf(inner);
   if (!pins(kind) && kind.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
   const commit = requireCommit(root, args.at ?? fail("stamp: --at <commit> names the turn's commit and is required"), "--at");
@@ -680,6 +680,16 @@ async function cmdStamp(args) {
   const { data, body } = parseOrFail(`stamp: ${rel}`, () => frontmatterOf(bytes));
   const subject = kind.kind === "thread" ? parseOrFail(`stamp: ${rel}`, () => ({ kind: "thread", ...parseThread(basename(inner), body.toString("utf8")) })) : kind;
   if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only a review thread closed: approved is stamped`);
+  if (kind.kind === "thread") {
+    // An approval's anchor holds the code its reviewer reviewed: the commit the reviewer's last heading names.
+    const named = subject.messages.findLast((message) => message.author === subject.opener).commit;
+    const reviewedCode = requireCommit(root, named, `stamp: ${rel}: the commit the reviewer's last heading names`);
+    try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", reviewedCode, commit, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
+    catch (error) {
+      if (error.status !== 1) fail(`git diff ${reviewedCode} ${commit}: ${error.stderr?.toString().trim() || error.message}`);
+      fail(`stamp: ${rel}: ${args.at} differs from ${named}, the commit the reviewer's last heading names, outside ${pipelinesRoot}`);
+    }
+  }
   parseOrFail(`stamp: ${rel}`, () => onlyKeys(data, kind.kind === "thread" ? ["inputs", "reviewed"] : ["inputs"]));
   const isCandidateOfRoot = (path) => kind.kind === "artifact" && kindOf(path)?.kind === "candidate" && kindOf(path).phase === kind.phase;
   if (args.pin.length && (kind.kind !== "artifact" || !kind.phase.lanes)) fail(`stamp: --pin applies to a spec or design doc: ${rel}`);
@@ -841,9 +851,9 @@ async function cmdReview(args) {
     .find((lines) => lines.includes(`branch refs/heads/${laneBranch}`))?.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
   if (worktree) gitText(worktree, ["reset", "--hard", "-q", change]);
   else gitText(root, ["update-ref", `refs/heads/${laneBranch}`, change]);
-  const result = { branch: laneBranch, tip, base, change, worktree: worktree ?? null };
+  const result = { branch: laneBranch, base, change, worktree: worktree ?? null };
   if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  process.stdout.write(`branch ${laneBranch}\ntip ${tip}\nbase ${base}\nchange ${change}\n`);
+  process.stdout.write(`branch ${laneBranch}\nbase ${base}\nchange ${change}\n`);
 }
 
 // --- cli --------------------------------------------------------------------------
