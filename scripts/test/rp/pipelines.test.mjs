@@ -108,14 +108,10 @@ describe("pipelines", () => {
     [".rp.md", { ".rp.md": "work/" }, "work"],
     [".rp.local.md over .rp.md", { ".rp.md": "work/", ".rp.local.md": "`local`" }, "local"],
     [".rp.md when .rp.local.md has no heading", { ".rp.md": "work/", ".rp.local.md": null }, "work"],
-    [".rp.md under a level-2 heading", { ".rp.md": ["work/", "##"] }, "work"],
   ];
   for (const [what, files, expectedRoot] of roots)
     it(`reads the pipelines folder root from ${what} in the working tree`, () => {
-      for (const [name, entry] of Object.entries(files)) {
-        const [value, level = "###"] = Array.isArray(entry) ? entry : [entry];
-        writeFile(name, value === null ? "# Local\n\n### Other\n\nx\n" : `# Conventions\n\n${level} Pipelines folder root\n\n${value}\n\n${level} Other\n\ny\n`);
-      }
+      for (const [name, value] of Object.entries(files)) writeFile(name, value === null ? "# Local\n\n### Other\n\nx\n" : `# Conventions\n\n### Pipelines folder root\n\n${value}\n\n### Other\n\ny\n`);
       git(root, "checkout", "--quiet", "-b", "a", "main");
       for (const folder of ["work/one", "local/two", ".pipelines/three"]) recordPipeline(folder, 4);
       commitAll("pipelines");
@@ -137,13 +133,6 @@ describe("pipelines", () => {
     assert.deepEqual(linked, ["local/two"]);
     rmSync(`${root}/.rp.local.md`);
     assert.deepEqual(JSON.parse(rp("pipelines", `${root}/.wt/src`, "--base", "main", "--json")).map(({ folder }) => folder), ["work/one"]);
-  });
-
-  it("stops on two Pipelines folder root headings in one file", () => {
-    writeFile(".rp.md", "## Pipelines folder root\n\nwork/\n\n## Tool\n\n### Pipelines folder root\n\nother/\n");
-    const out = run("pipelines", root, "--base", "main");
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /\.rp\.md: more than one Pipelines folder root heading/);
   });
 
   it("stops on a Pipelines folder root heading without a usable value", () => {

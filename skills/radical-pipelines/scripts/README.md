@@ -1,12 +1,11 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, stamps frontmatter, discovers pipelines, and fills a role's convention blocks. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, stamps frontmatter, and discovers pipelines. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
-node rp.mjs blocks <pipeline folder> --role <role> [--json]
 ```
 
 Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. Otherwise it exits 0, whatever the frontier.
@@ -179,7 +178,7 @@ A missing `--at` or one that does not resolve, any other kind of file, `--pin` o
 node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
-Fetching is the caller's job. The pipelines folder root is the first non-blank line of the `Pipelines folder root` convention (§ Conventions) in `.rp.local.md`, else in `.rp.md`, with surrounding backticks and a trailing `/` removed; without that convention in either, it is `.pipelines`. A value that is a heading, absolute, or leaves the repository stops the command. `pipelines` reads every local branch and remote-tracking branch tip:
+Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `### Pipelines folder root` in `.rp.local.md` at the root of the main checkout, else in `.rp.md` there, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. The main checkout is the parent of `git rev-parse --git-common-dir` in a linked worktree, and the worktree itself otherwise, so a linked worktree sees the git-ignored `.rp.local.md`. `pipelines` reads every local branch and remote-tracking branch tip:
 
 1. Collect each `<pipelines folder root>/<slug>` folder at each tip, with its tree id.
 2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.
@@ -194,43 +193,6 @@ Of each pipeline folder, discovery reads only two things, so pipelines of every 
 A pipeline of format 6 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
-
-## Conventions
-
-`pipelines` and `blocks` read `.rp.md` and `.rp.local.md` at the root of the main checkout: the parent of `git rev-parse --git-common-dir` in a linked worktree, and the worktree itself otherwise, so a linked worktree sees the git-ignored `.rp.local.md`. An absent file is skipped; one that cannot be read stops the command.
-
-A **convention** is the text under the one heading, at any level, titled with its name, up to the next heading of that level or higher; headings inside fenced code are not headings. Two headings with the name in one file stop the command.
-
-## `blocks`
-
-```text
-node rp.mjs blocks <pipeline folder> --role <role>
-```
-
-`--role` is a thread role other than `owner` (§ Threads). The pipeline slug is the pipeline folder's last segment, and the **agent name** is `<pipeline slug>-<role>`.
-
-A block of the `Guardrails` or `Resources` convention is a heading one level below the convention's, whose title is the block's name, followed by exactly two items, in either order:
-
-- its text: `- rule: <text>` in `Guardrails`, `- resource: <text>` in `Resources`, with the indented and blank lines after it;
-- `- agents: <profile>[, <profile>]...`, on one line, each profile one of `spec-producer`, `design-doc-producer`, `implementer`, `reviewer`, optionally in backticks.
-
-Text before the first block is ignored. Any other heading level, line, or item in a block, an empty text, an empty or unknown profile, or two blocks with one name in a file stops the command, naming the file and the block.
-
-A block of `.rp.local.md` replaces the block of `.rp.md` with its name, in its place; its other blocks follow. `blocks` keeps the blocks whose `agents` include the role's profile, drops their `agents` item, and replaces every `{agent}` in their text with the agent name. It prints each convention as the assignment carries it:
-
-```text
-## Guardrails
-
-### <name>
-
-<text>
-
-## Resources
-
-none
-```
-
-Blocks are separated by a blank line; a convention without one is `none`. `--json` prints `{agent, guardrails, resources}`, each a list of `{name, text}`.
 
 ## Decisions
 

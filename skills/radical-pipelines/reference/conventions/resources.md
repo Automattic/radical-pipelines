@@ -12,5 +12,3 @@ Each resource is a block under `.rp.md`'s `Resources` section:
 - resource: <what it is, how to reach it, what agents may do with it>
 - agents: <one or more profile names>
 ```
-
-A block's text may write `{agent}` for the agent's own name, such as a per-agent environment's id; `rp blocks` fills it (`../run/state.md`).
