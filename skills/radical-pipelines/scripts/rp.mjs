@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
-// Commands: check, stamp, pipelines. README.md beside this file is the contract.
+// Commands: check, stamp, pipelines, blocks. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -189,24 +189,107 @@ function mainCheckout(root) {
   return common === dir("--git-dir") ? root : dirname(common);
 }
 
-// The pipelines folder root discovery reads from the main checkout: the first non-blank line under
-// `### Pipelines folder root` in `.rp.local.md`, else in `.rp.md`, else `.pipelines`.
-export function pipelinesFolderRoot(root) {
+// --- conventions ------------------------------------------------------------------
+
+// The conventions files, from the main checkout, lowest precedence first: `.rp.md`, then `.rp.local.md`, which wins per
+// named unit. An absent file is skipped; one that cannot be read stops the command.
+function conventionFiles(root) {
   const checkout = mainCheckout(root);
-  for (const name of [".rp.local.md", ".rp.md"]) {
-    const conventions = join(checkout, name);
-    if (!existsSync(conventions)) continue;
-    const lines = readFileSync(conventions, "utf8").split(/\r?\n/);
-    const heading = lines.findIndex((line) => /^### Pipelines folder root[\t ]*$/.test(line));
-    if (heading === -1) continue;
-    const value = lines.slice(heading + 1).find((line) => line.trim())?.trim();
-    if (!value || /^#{1,6} /.test(value)) fail(`${name}: Pipelines folder root has no value`);
+  return [".rp.md", ".rp.local.md"].filter((name) => existsSync(join(checkout, name))).map((name) => {
+    try { return { name, lines: readFileSync(join(checkout, name), "utf8").split(/\r?\n/) }; }
+    catch (error) { fail(`cannot read ${name}: ${error.message}`); }
+  });
+}
+
+// A file's headings outside fenced code: line index, level, and title.
+function headingsOf(lines) {
+  const headings = [];
+  let fence = null;
+  for (const [at, line] of lines.entries()) {
+    const marker = line.match(/^(`{3,}|~{3,})/)?.[1];
+    if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) { fence = fence ? null : marker; continue; }
+    const heading = !fence && line.match(/^(#{1,6})[\t ]+(.+?)[\t ]*$/);
+    if (heading) headings.push({ at, level: heading[1].length, title: heading[2] });
+  }
+  return headings;
+}
+
+// A convention: the lines under the one heading titled `title`, at any level, up to the next heading of that level or
+// higher, with the headings inside it; null when the file has none. Two such headings stop the command.
+export function conventionOf(file, title) {
+  const headings = headingsOf(file.lines);
+  const found = headings.filter((heading) => heading.title === title);
+  if (!found.length) return null;
+  if (found.length > 1) fail(`${file.name}: more than one ${title} heading`);
+  const [{ at, level }] = found;
+  const end = headings.find((heading) => heading.at > at && heading.level <= level)?.at ?? file.lines.length;
+  return { level, lines: file.lines.slice(at + 1, end), headings: headings.filter((heading) => heading.at > at && heading.at < end).map((heading) => ({ ...heading, at: heading.at - at - 1 })) };
+}
+
+// The pipelines folder root: the first non-blank line of the Pipelines folder root convention in `.rp.local.md`, else in
+// `.rp.md`, else `.pipelines`.
+export function pipelinesFolderRoot(root) {
+  for (const file of conventionFiles(root).reverse()) {
+    const convention = conventionOf(file, "Pipelines folder root");
+    if (!convention) continue;
+    const value = convention.lines.find((line) => line.trim())?.trim();
+    if (!value || /^#{1,6} /.test(value)) fail(`${file.name}: Pipelines folder root has no value`);
     const path = value.replace(/^`(.*)`$/, "$1").replace(/\/+$/, "").replace(/^\.\//, "");
     if (!path || path === "." || path.startsWith("/") || path.split("/").some((segment) => !segment || segment === "." || segment === ".."))
-      fail(`${name}: Pipelines folder root must be a relative folder inside the repository: ${value}`);
+      fail(`${file.name}: Pipelines folder root must be a relative folder inside the repository: ${value}`);
     return path;
   }
   return ".pipelines";
+}
+
+// The block conventions and the item each block's text is under.
+const BLOCK_CONVENTIONS = { Guardrails: "rule", Resources: "resource" };
+const PROFILES = ["spec-producer", "design-doc-producer", "implementer", "reviewer"];
+
+// A block convention's blocks in one file: each heading one level below the convention's names a block, whose body is
+// its text item (`- rule:` or `- resource:`, with its indented continuation lines) and its `- agents:` item, a
+// comma-separated list of profiles. Anything else in a block stops the command.
+function blocksIn(file, title) {
+  const convention = conventionOf(file, title);
+  if (!convention) return [];
+  const key = BLOCK_CONVENTIONS[title];
+  const blocks = [];
+  for (const [i, heading] of convention.headings.entries()) {
+    const where = `${file.name}: ${title} block ${heading.title}`;
+    if (heading.level !== convention.level + 1) fail(`${where}: a block heading is one level below ${title}`);
+    if (blocks.some((block) => block.name === heading.title)) fail(`${where}: a second block with this name`);
+    const items = [];
+    for (const line of convention.lines.slice(heading.at + 1, convention.headings[i + 1]?.at ?? convention.lines.length)) {
+      const item = line.match(/^[-*+][\t ]+([a-z]+):[\t ]*(.*)$/);
+      if (item) items.push({ key: item[1], value: item[2], lines: [line] });
+      else if (!line.trim() || (/^[\t ]/.test(line) && items.length)) items.at(-1)?.lines.push(line);
+      else fail(`${where}: expected - ${key}: or - agents:, got: ${line}`);
+    }
+    const one = (name) => {
+      const found = items.filter((item) => item.key === name);
+      if (found.length !== 1) fail(`${where}: needs exactly one - ${name}: item`);
+      return found[0];
+    };
+    for (const item of items) if (![key, "agents"].includes(item.key)) fail(`${where}: unexpected item - ${item.key}:`);
+    const text = one(key), agents = one("agents");
+    while (text.lines.length > 1 && !text.lines.at(-1).trim()) text.lines.pop();
+    if (!text.value.trim() && text.lines.length === 1) fail(`${where}: - ${key}: is empty`);
+    if (agents.lines.some((line, at) => at > 0 && line.trim())) fail(`${where}: - agents: is one line`);
+    const profiles = agents.value.split(",").map((name) => name.trim().replace(/^`(.*)`$/, "$1"));
+    for (const profile of profiles) if (!PROFILES.includes(profile)) fail(`${where}: agents must name profiles among ${PROFILES.join(", ")}: ${profile || "(empty)"}`);
+    blocks.push({ name: heading.title, text: text.lines.join("\n"), agents: profiles });
+  }
+  return blocks;
+}
+
+// The blocks of a convention a role receives, by name: `.rp.local.md`'s replace `.rp.md`'s of the same name, and those
+// whose `agents` include the role's profile are kept, with `{agent}` replaced by the agent's name,
+// `<pipeline slug>-<role>`.
+export function blocksFor(root, title, slug, role) {
+  const merged = new Map();
+  for (const file of conventionFiles(root)) for (const block of blocksIn(file, title)) merged.set(block.name, block);
+  return [...merged.values()].filter((block) => block.agents.includes(parseRole(role).profile))
+    .map((block) => ({ name: block.name, text: block.text.replaceAll("{agent}", `${slug}-${role}`) }));
 }
 
 // A pipeline folder is `<pipelines folder root>/<pipeline slug>`: its parent is the pipelines folder root.
@@ -809,17 +892,36 @@ async function cmdPipelines(args) {
   if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.format} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
 }
 
+// --- blocks -------------------------------------------------------------------------
+
+// The Guardrails and Resources blocks a role's assignment carries, filled for the role, or `none` for each.
+async function cmdBlocks(args) {
+  const { root, rel } = locate(args._[0] ?? fail("blocks: missing <pipeline folder>"));
+  const { folder } = pipelineFolder(rel, "blocks");
+  const role = args.role ?? fail("blocks: --role <role> is required");
+  if (!parseRole(role) || role === "owner") fail(`blocks: --role must be a role <profile>[-<lane>] other than owner: ${role}`);
+  const slug = basename(folder);
+  const result = Object.fromEntries(Object.keys(BLOCK_CONVENTIONS).map((title) => [title.toLowerCase(), blocksFor(root, title, slug, role)]));
+  if (args.json) return process.stdout.write(`${JSON.stringify({ agent: `${slug}-${role}`, ...result }, null, 2)}\n`);
+  const section = (title) => {
+    const blocks = result[title.toLowerCase()];
+    return `## ${title}\n\n${blocks.length ? blocks.map((block) => `### ${block.name}\n\n${block.text}`).join("\n\n") : "none"}\n`;
+  };
+  process.stdout.write(Object.keys(BLOCK_CONVENTIONS).map(section).join("\n"));
+}
+
 // --- cli --------------------------------------------------------------------------
 
 const COMMANDS = {
   check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
   stamp: { run: cmdStamp, options: { "--at": "value", "--pin": "list" } },
   pipelines: { run: cmdPipelines, options: { "--base": "value", "--issue": "value", "--json": "flag" } },
+  blocks: { run: cmdBlocks, options: { "--role": "value", "--json": "flag" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null, base: null };
+  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null, base: null, role: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -842,6 +944,7 @@ Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
   node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
   node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
+  node rp.mjs blocks <pipeline folder> --role <role> [--json]
 
 See README.md beside this script.
 `;

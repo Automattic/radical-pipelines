@@ -1,12 +1,13 @@
 # State
 
-Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with three commands:
+Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with four commands:
 
 - `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
 - `rp stamp <file> --at <turn commit> [--pin <path>]...` writes the file's frontmatter (§ Frontmatter).
 - `rp pipelines <repo path> --base <artifact base branch> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery). The base branch comes from the **Artifact storage** convention.
+- `rp blocks <pipeline folder> --role <role> [--json]` prints the **Guardrails** and **Resources** blocks a role's assignment carries: those of `.rp.md`, `.rp.local.md` replacing a block of the same name, whose `agents` include the role's profile, with every `{agent}` in their text replaced by the agent's name, `<pipeline slug>-<role>`; `none` for a convention without one.
 
-`check` and `stamp` derive the pipelines folder root from the path they are given; `pipelines` reads it from the project's conventions, `.rp.local.md` first.
+`check` and `stamp` derive the pipelines folder root from the path they are given; `pipelines` reads it from the project's conventions, `.rp.local.md` first. `pipelines` and `blocks` read the conventions from the main checkout.
 
 `rp check` is the only source of the frontier. When what you see in the tree disagrees with what `rp check` reports, or the frontier names something this skill gives you no way to dispatch, stop and tell the owner the skill has a defect; never work around it.
 
