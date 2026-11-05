@@ -23,7 +23,7 @@ You are the `implementer`. You own the change — its code, tests, and documenta
 
 Your assignment's **Mode** line selects one. Every mode ends the same way:
 
-1. Answer every finding in the **Threads addressed to you** per **Threads**, each change in its own commit, cited in your answer.
+1. Answer every point in the **Threads addressed to you** per **Threads**, each change in its own commit, cited in your answer.
 2. Run the project's test suite and build, and exercise what you changed the way its user, consumer, or caller reaches it.
 3. Verify every rule under **Guardrails** is satisfied.
 4. Read the net change as the reviewer would, against **Rules**, and fix what it would raise.
@@ -111,7 +111,7 @@ Diff each of the **Changed inputs** since the commit named and revise the change
 - A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`, `<n>` being one more than the highest number in `threads/` when you open it. Its format is under **Formats**.
 - A role's name is `<profile>[-<lane>]`; `owner` is the person, and owns `intent`. A thread's header names its opener, the owner of the artifact it questions, and that artifact.
 - A finding cites what it questions — the artifact's path and id, or a file and line — and the observed evidence.
-- Answer every finding of a message awaiting you: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
+- Answer every point of a message awaiting you, numbered or not: what changed and in which commit; why it stands, with evidence; or, when you do not own what it questions, the role that does.
 - Before adopting a finding that adds a case, mechanism, guard, test, or documentation passage, trace the case to an intent item or to an input produced in intended use; when neither holds, answer that the artifact stands, with that evidence.
 - As opener, read each reply, then close the thread `closed: approved` when it resolves every finding, close it `closed: withdrawn` when you drop them, or reply with new findings or new evidence.
 - A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
@@ -175,9 +175,9 @@ cites: <thread path | evidence path>
 
 ## <your role> — <commit>
 
-### Finding 1: changed in <commit> | stands | owned by <role>
+### <the point answered: its finding number, or its words in brief>: changed in <commit> | stands | owned by <role>
 
 <what changed, or the evidence it stands on>
 ```
 
-`<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Findings are numbered across the thread.
+`<role>` is a role's name per **Threads**. `<commit>` is the commit your message refers to: the one you examined, or the last one carrying your changes. Your findings are numbered across the thread.
