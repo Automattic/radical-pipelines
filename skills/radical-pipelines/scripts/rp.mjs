@@ -182,33 +182,6 @@ function locate(argument) {
   return { root, rel };
 }
 
-// The main checkout of a repository: the parent of the common git directory in a linked worktree, else the worktree itself.
-function mainCheckout(root) {
-  const dir = (option) => realpathSync(resolve(root, gitText(root, ["rev-parse", option])));
-  const common = dir("--git-common-dir");
-  return common === dir("--git-dir") ? root : dirname(common);
-}
-
-// The pipelines folder root discovery reads from the main checkout: the first non-blank line under
-// a `Pipelines folder root` heading, at any level, in `.rp.local.md`, else in `.rp.md`, else `.pipelines`.
-export function pipelinesFolderRoot(root) {
-  const checkout = mainCheckout(root);
-  for (const name of [".rp.local.md", ".rp.md"]) {
-    const conventions = join(checkout, name);
-    if (!existsSync(conventions)) continue;
-    const lines = readFileSync(conventions, "utf8").split(/\r?\n/);
-    const heading = lines.findIndex((line) => /^#{1,6} Pipelines folder root[\t ]*$/.test(line));
-    if (heading === -1) continue;
-    const value = lines.slice(heading + 1).find((line) => line.trim())?.trim();
-    if (!value || /^#{1,6} /.test(value)) fail(`${name}: Pipelines folder root has no value`);
-    const path = value.replace(/^`(.*)`$/, "$1").replace(/\/+$/, "").replace(/^\.\//, "");
-    if (!path || path === "." || path.startsWith("/") || path.split("/").some((segment) => !segment || segment === "." || segment === ".."))
-      fail(`${name}: Pipelines folder root must be a relative folder inside the repository: ${value}`);
-    return path;
-  }
-  return ".pipelines";
-}
-
 // A pipeline folder is `<pipelines folder root>/<pipeline slug>`: its parent is the pipelines folder root.
 function pipelineFolder(folder, command) {
   const at = folder.lastIndexOf("/");
@@ -775,9 +748,12 @@ async function discoverFolders(root, folders, where) {
 
 // Every live pipeline folder at a branch tip, and every merged one in the base branch's tree, optionally filtered by issue.
 async function cmdPipelines(args) {
-  const { root } = locate(args._[0] ?? fail("pipelines: missing <repo path>"));
+  // The pipelines folder root: a folder inside a repository, which need not exist in its working tree.
+  const given = args._[0] ?? fail("pipelines: missing <pipelines folder root>");
+  const { root, rel: pipelinesRoot } = locate(given);
+  if (!pipelinesRoot) fail(`pipelines: the pipelines folder root is a folder inside the repository, not its root: ${given}`);
+  if (existsSync(join(root, pipelinesRoot)) && !statSync(join(root, pipelinesRoot)).isDirectory()) fail(`pipelines: not a folder: ${given}`);
   const baseCommit = requireCommit(root, args.base ?? fail("pipelines: --base <artifact base branch> is required"), "--base");
-  const pipelinesRoot = pipelinesFolderRoot(root);
   const refs = gitText(root, ["for-each-ref", "--format=%(objectname) %(objecttype) %(symref) %(refname)", "refs/heads", "refs/remotes"])
     .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref]) => type === "commit" && !symref)
     .map(([commit, , , refname]) => ({ commit, name: refname.replace(/^refs\/(?:heads|remotes)\//, "") }));
@@ -841,7 +817,7 @@ const USAGE = `rp — Radical Pipelines state tooling
 Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
   node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
-  node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
+  node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 
 See README.md beside this script.
 `;

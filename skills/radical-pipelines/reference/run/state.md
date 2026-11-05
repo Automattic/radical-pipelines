@@ -4,9 +4,9 @@ Everything about a pipeline is computed from its tree at any commit. `rp` — `n
 
 - `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
 - `rp stamp <file> --at <turn commit> [--pin <path>]...` writes the file's frontmatter (§ Frontmatter).
-- `rp pipelines <repo path> --base <artifact base branch> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery). The base branch comes from the **Artifact storage** convention.
+- `rp pipelines <pipelines folder root> --base <artifact base branch> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery). Pass the absolute path of the **Pipelines folder root** convention in the main checkout; the base branch comes from the **Artifact storage** convention.
 
-`check` and `stamp` derive the pipelines folder root from the path they are given; `pipelines` reads it from the project's conventions, `.rp.local.md` first.
+Every command derives the repository from the path it is given; `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder.
 
 `rp check` is the only source of the frontier. When what you see in the tree disagrees with what `rp check` reports, or the frontier names something this skill gives you no way to dispatch, stop and tell the owner the skill has a defect; never work around it.
 

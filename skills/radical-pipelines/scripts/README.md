@@ -5,14 +5,14 @@
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
-node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
+node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
 Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. Otherwise it exits 0, whatever the frontier.
 
 ## Pipeline files
 
-A pipeline folder is `<pipelines folder root>/<pipeline slug>`. `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder they are given; `pipelines` reads it from the conventions (§ `pipelines`).
+A pipeline folder is `<pipelines folder root>/<pipeline slug>`. `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder they are given; `pipelines` is given it.
 
 `rp` reads these files of a pipeline folder and ignores every other file:
 
@@ -175,10 +175,10 @@ A missing `--at` or one that does not resolve, any other kind of file, `--pin` o
 ## `pipelines`
 
 ```text
-node rp.mjs pipelines <repo path> --base <artifact base branch> [--issue <ref>] [--json]
+node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 ```
 
-Fetching is the caller's job. The pipelines folder root is the first non-blank line under the heading `Pipelines folder root`, at any level, in `.rp.local.md` at the root of the main checkout, else in `.rp.md` there, with surrounding backticks and a trailing `/` removed; without that heading in either, it is `.pipelines`. The main checkout is the parent of `git rev-parse --git-common-dir` in a linked worktree, and the worktree itself otherwise, so a linked worktree sees the git-ignored `.rp.local.md`. `pipelines` reads every local branch and remote-tracking branch tip:
+Fetching is the caller's job. The pipelines folder root, absolute or relative to the process directory, selects the repository and names the folder of every pipeline, as a path inside it; it need not exist in the working tree. A path that is a file, the repository's root, or outside any repository stops the command. `pipelines` reads every local branch and remote-tracking branch tip:
 
 1. Collect each `<pipelines folder root>/<slug>` folder at each tip, with its tree id.
 2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.

@@ -1,16 +1,19 @@
 import assert from "node:assert/strict";
-import { rmSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { commitAll, git, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
+import { RP, commitAll, git, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
 
 const CONFIG = '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n';
 function recordPipeline(folder, issue, extra = "") {
   writeFile(`${folder}/run-config.md`, CONFIG);
   writeFile(`${folder}/0-intent/intent.md`, `origin: issue ${issue}\norigin: starts-from main\n\n# Intent\n${extra}`);
 }
-const discover = (...args) => JSON.parse(rp("pipelines", root, "--base", "main", "--json", ...args)).map(({ state, ref, folder, origins }) => ({ state, ref, folder, origins }));
-const formats = (...args) => JSON.parse(rp("pipelines", root, "--base", "main", "--json", ...args)).map(({ state, format, ref, folder, origins }) => `${state} ${format} ${ref} ${folder} ${origins.join(",")}`);
+const discover = (...args) => JSON.parse(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--json", ...args)).map(({ state, ref, folder, origins }) => ({ state, ref, folder, origins }));
+const formats = (...args) => JSON.parse(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--json", ...args)).map(({ state, format, ref, folder, origins }) => `${state} ${format} ${ref} ${folder} ${origins.join(",")}`);
 
 describe("pipelines", () => {
   useRepo();
@@ -58,14 +61,14 @@ describe("pipelines", () => {
 
   it("prints one line per pipeline: <state> <format> <ref> <folder>", () => {
     scenario();
-    assert.equal(rp("pipelines", root, "--base", "main", "--issue", "2"), "live 6 live .pipelines/fresh-work\nlive 6 origin/live .pipelines/fresh-work\n");
-    assert.equal(rp("pipelines", root, "--base", "main", "--issue", "9"), "");
+    assert.equal(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--issue", "2"), "live 6 live .pipelines/fresh-work\nlive 6 origin/live .pipelines/fresh-work\n");
+    assert.equal(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--issue", "9"), "");
   });
 
   it("decides live and merged against the --base branch's history, not each run-config.md's base", () => {
     scenario();
     git(root, "branch", "release", "old");
-    assert.deepEqual(JSON.parse(rp("pipelines", root, "--base", "release", "--json")).map(({ state, ref, folder }) => `${state} ${ref} ${folder}`), [
+    assert.deepEqual(JSON.parse(rp("pipelines", `${root}/.pipelines`, "--base", "release", "--json")).map(({ state, ref, folder }) => `${state} ${ref} ${folder}`), [
       "live live .pipelines/fresh-work",
       "live origin/live .pipelines/fresh-work",
       "live followup .pipelines/merged",
@@ -103,49 +106,42 @@ describe("pipelines", () => {
     assert.deepEqual(formats(), ["merged earlier main .pipelines/v2 issue 8", "merged earlier main .pipelines/v3 "]);
   });
 
-  const roots = [
-    ["no conventions", {}, ".pipelines"],
-    [".rp.md", { ".rp.md": "work/" }, "work"],
-    [".rp.local.md over .rp.md", { ".rp.md": "work/", ".rp.local.md": "`local`" }, "local"],
-    [".rp.md when .rp.local.md has no heading", { ".rp.md": "work/", ".rp.local.md": null }, "work"],
-    [".rp.md under a level-2 heading", { ".rp.md": ["work/", "##"] }, "work"],
-    [".rp.local.md under a level-4 heading over .rp.md", { ".rp.md": "work/", ".rp.local.md": ["local", "####"] }, "local"],
+  // Discovery from a pipelines folder root given at `cwd`: the folders it lists.
+  const discoverAt = (cwd, given) => {
+    const out = spawnSync(process.execPath, [RP, "pipelines", given, "--base", "main", "--json"], { cwd, encoding: "utf8" });
+    assert.equal(out.status, 0, out.stderr);
+    return JSON.parse(out.stdout).map(({ ref, folder }) => `${ref} ${folder}`);
+  };
+  function twoRoots() {
+    git(root, "checkout", "--quiet", "-b", "a", "main");
+    for (const folder of ["work/one", ".pipelines/two"]) recordPipeline(folder, 4);
+    commitAll("pipelines");
+    git(root, "update-ref", "refs/remotes/origin/a", "a");
+    git(root, "checkout", "--quiet", "main");
+  }
+  const givenRoots = [
+    ["absolute", () => [tmpdir(), `${root}/work`]],
+    ["relative to the process directory", () => [root, "work"]],
+    ["relative from a subfolder, with a trailing slash", () => { writeFile("src/x", "x\n"); return [`${root}/src`, "../work/"]; }],
+    ["inside a linked worktree", () => { git(root, "worktree", "add", "--quiet", "-b", "linked", ".wt", "main"); return [tmpdir(), `${root}/.wt/work`]; }],
   ];
-  for (const [what, files, expectedRoot] of roots)
-    it(`reads the pipelines folder root from ${what} in the working tree`, () => {
-      for (const [name, entry] of Object.entries(files)) {
-        const [value, level = "###"] = Array.isArray(entry) ? entry : [entry];
-        writeFile(name, value === null ? "# Local\n\n### Other\n\nx\n" : `# Conventions\n\n${level} Pipelines folder root\n\n${value}\n\n${level} Other\n\ny\n`);
-      }
-      git(root, "checkout", "--quiet", "-b", "a", "main");
-      for (const folder of ["work/one", "local/two", ".pipelines/three"]) recordPipeline(folder, 4);
-      commitAll("pipelines");
-      assert.deepEqual(discover().map(({ folder }) => folder.split("/")[0]), [expectedRoot]);
+  for (const [what, given] of givenRoots)
+    it(`lists the pipelines under a root given ${what}, at local and remote-tracking tips, absent from the working tree`, () => {
+      twoRoots();
+      assert.deepEqual(discoverAt(...given()), ["a work/one", "origin/a work/one"]);
     });
 
-  it("reads the conventions from the main checkout when run in a linked worktree", () => {
-    git(root, "checkout", "--quiet", "main");
-    writeFile(".git/info/exclude", ".rp.local.md\n.wt/\n");
-    writeFile(".rp.md", "### Pipelines folder root\n\nwork/\n");
-    git(root, "add", ".rp.md");
-    git(root, "commit", "--quiet", "-m", "conventions");
-    writeFile(".rp.local.md", "### Pipelines folder root\n\nlocal/\n");
-    git(root, "checkout", "--quiet", "-b", "a", "main");
-    for (const folder of ["work/one", "local/two"]) recordPipeline(folder, 4);
-    commitAll("pipelines");
-    git(root, "worktree", "add", "--quiet", "-b", "linked", ".wt", "main");
-    const linked = JSON.parse(rp("pipelines", `${root}/.wt`, "--base", "main", "--json")).map(({ folder }) => folder);
-    assert.deepEqual(linked, ["local/two"]);
-    rmSync(`${root}/.rp.local.md`);
-    assert.deepEqual(JSON.parse(rp("pipelines", `${root}/.wt/src`, "--base", "main", "--json")).map(({ folder }) => folder), ["work/one"]);
-  });
-
-  it("stops on a Pipelines folder root heading without a usable value", () => {
-    writeFile(".rp.local.md", "### Pipelines folder root\n\n../outside\n");
-    const out = run("pipelines", root, "--base", "main");
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /\.rp\.local\.md: Pipelines folder root must be a relative folder/);
-  });
+  const badRoots = [
+    ["a file", () => { writeFile("work", "x\n"); return `${root}/work`; }, /pipelines: not a folder: .*\/work/],
+    ["the repository root", () => root, /the pipelines folder root is a folder inside the repository, not its root/],
+    ["a folder outside any repository", () => mkdtempSync(join(tmpdir(), "rp-norepo-")), /cannot locate a git repository/],
+  ];
+  for (const [what, given, message] of badRoots)
+    it(`stops on a pipelines folder root that is ${what}`, () => {
+      const out = run("pipelines", given(), "--base", "main");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, message);
+    });
 
   for (const [what, intent] of [["no intent", null], ["an intent that is a folder", "0-intent/intent.md/x"]])
     it(`stops on a format 6 pipeline with ${what}`, () => {
@@ -153,7 +149,7 @@ describe("pipelines", () => {
       writeFile(".pipelines/broken/run-config.md", CONFIG);
       if (intent) writeFile(`.pipelines/broken/${intent}`, "x\n");
       commitAll("broken");
-      const out = run("pipelines", root, "--base", "main");
+      const out = run("pipelines", `${root}/.pipelines`, "--base", "main");
       assert.equal(out.status, 1);
       assert.match(out.stderr, /cannot read broken:\.pipelines\/broken\/0-intent\/intent\.md: missing/);
     });
@@ -163,7 +159,7 @@ describe("pipelines", () => {
     ["a --base that does not resolve", ["--base", "gone"], /--base does not resolve to a commit: gone/],
   ])
     it(`stops on ${what}`, () => {
-      const out = run("pipelines", root, ...args);
+      const out = run("pipelines", `${root}/.pipelines`, ...args);
       assert.equal(out.status, 1);
       assert.match(out.stderr, message);
     });
