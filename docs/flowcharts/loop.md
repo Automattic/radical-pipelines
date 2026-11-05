@@ -13,7 +13,7 @@ flowchart TD
     C -->|consolidate artifact| CON["Terminate the lane instances; remove their worktrees and branches; wake a fresh producer: consolidate"]
     C -->|produce artifact| PRODUCE["Wake its owner: produce, or implement for the implementer"]
     C -->|respond artifact| RESPOND["Wake its owner: respond, with its changed inputs and the threads awaiting it"]
-    C -->|review lane| REVIEW["Save the net change; give each lane its branch and worktree at the pipeline tip; wake its reviewer"]
+    C -->|review lane| REVIEW["rp review builds each lane's branch from the pipeline tip; give it a worktree; wake its reviewer"]
     C -->|complete| CLOSE["Close-out"]
     OE --> CLOSE
     FM --> A
@@ -25,7 +25,7 @@ flowchart TD
     AUTHOR --> WAIT
     WAIT["End the turn; resume on role reports and health ticks"] --> ENDED{"Every woken role ended its turn?"}
     ENDED -->|No| WAIT
-    ENDED -->|Yes| LAND["For each role, in its worktree at the turn commit its assignment names: stamp its artifact and every review thread it closed approved; commit the stamps; then merge its lane branch into the pipeline branch"]
+    ENDED -->|Yes| LAND["For each role, in its worktree at the turn commit its assignment names: stamp its artifact and every review thread it closed approved; commit the stamps; then merge a production lane's branch, or cherry-pick a review lane's commits after its change, onto the pipeline branch"]
     LAND --> PC["Fire phase-completed for each phase that became complete; report one line per role to the owner"]
     PC --> A
 ```

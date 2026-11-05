@@ -1,11 +1,12 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, stamps frontmatter, and discovers pipelines. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, stamps frontmatter, discovers pipelines, and builds review lane branches. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
+node rp.mjs review <pipeline folder> --lane <lane> [--json]
 ```
 
 Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. Otherwise it exits 0, whatever the frontier.
@@ -193,6 +194,27 @@ Of each pipeline folder, discovery reads only two things, so pipelines of every 
 A pipeline of format 6 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
+
+## `review`
+
+```text
+node rp.mjs review <pipeline folder> --lane <lane> [--json]
+```
+
+The pipeline branch is the branch checked out in the worktree that holds the pipeline folder, and the **tip** is its `HEAD` commit; the pipeline is read from the tip, never from the working tree. `--lane` names a review lane of the tip's `run-config.md` (§ `run-config.md`), `default` included when no `reviewer` lane is declared. The **base** is the merge-base of the tip with `run-config.md`'s `base` (§ Net change and approval).
+
+The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/` and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md`. `review` builds two commits with a temporary index, touching no worktree:
+
+1. **Review base**: the base's tree without the pipelines folder root, plus the lane's view; its parent is the base; its message is `rp review base`.
+2. **Change**: the tip's tree without the pipelines folder root, plus the lane's view; its parent is the review base; its message is `rp review change`.
+
+`git diff <review base> <change>` is the net change, and the lane's tree and history hold nothing else of any pipeline. The lane branch is `<pipeline branch>-review-<lane>`. When a worktree has it checked out, `review` runs `git reset --hard <change>` there; otherwise it creates or moves the branch to the change.
+
+When the lane branch exists, its commits that `git cherry <tip> <lane branch>` marks `+`, other than a review base or a change, have not landed on the pipeline branch: `review` stops and names them, oldest first, and moves nothing.
+
+Without `--json`, it prints `branch <lane branch>`, `tip <tip>`, `base <review base>`, and `change <change>`, one per line. `--json` prints `{branch, tip, base, change, worktree}`, `worktree` being the path it reset or `null`.
+
+A detached `HEAD` where the pipeline folder is, a missing `--lane`, a lane `run-config.md` does not declare, an unreadable `run-config.md` or one of another format, a base that does not resolve or shares no merge-base with the tip, or a git failure stops the command.
 
 ## Decisions
 

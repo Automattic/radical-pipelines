@@ -15,7 +15,7 @@ Throughout the run:
 3. While roles work, end your turn with health monitoring active; their reports and health ticks resume the run.
 4. A role has ended its turn when its report ends with "Completion declared: no work remains." or reports a blocker (§ Waking a role); after any other report the role is still working: wait for it. When every role the step woke has ended its turn, land each:
    1. Land it in its worktree at its turn commit, read from its assignment file — a reviewer's from the message heading line it fills (`state.md` § Frontmatter).
-   2. Merge its lane branch, when it has one, into the pipeline branch (`before-`/`after-merging-lanes`).
+   2. Bring its lane branch's commits onto the pipeline branch (`before-`/`after-merging-lanes`): merge a production lane's branch; cherry-pick a review lane's commits after the `change` its `rp review` printed.
    3. Fire `phase-completed` when a phase becomes complete.
    4. Give the owner a one-line report naming the role, what changed, and anything worth surfacing.
 5. Go to 1.
@@ -56,17 +56,8 @@ A production lane is a `spec-producer` or `design-doc-producer` lane declared in
 
 A review lane is one `reviewer`, with its brief when it has one; every lane must approve.
 
-1. For each `review <lane>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Set its sparse checkout, `<pipeline folder>` being relative to the repository root:
-
-   ```sh
-   git -C <worktree> sparse-checkout set --no-cone '/*' \
-     '!/<pipeline folder>/1-spec/' '!/<pipeline folder>/2-design-doc/' '!/<pipeline folder>/3-implementation/' \
-     '!/<pipeline folder>/threads/*' \
-     '/<pipeline folder>/threads/*-reviewer-<lane>-implementer-*' \
-     '/<pipeline folder>/threads/*-reviewer-<lane>-owner-*'
-   ```
-
-2. Save the net change, `git -C <pipeline worktree> diff <base>...HEAD -- . ':(exclude)<pipelines folder root>'`, among the lane's **Prepared files** (`state.md` § Names). When the lane's open review thread awaits it, also save there the diff from the commit its last message names to the tip, outside the pipelines folder.
+1. For each `review <lane>`, run `rp review <pipeline worktree's absolute pipeline folder> --lane <lane>` (`state.md`). It builds the lane's branch from the pipeline tip and moves the branch, and the lane's worktree when it has one, to the change. Give the lane a worktree on its branch when it has none. When it stops on commits the pipeline branch lacks, land them (step 4) and run it again.
+2. When the lane's open review thread awaits it, save among the lane's **Prepared files** (`state.md` § Names) the diff from the commit its last message names to the tip, outside the pipelines folder.
 3. Wake the lane's reviewer there with its assignment in the first-turn form when the lane has no open review thread, else in the later-turn form (`templates/reviewer.md`). Lanes run in parallel.
 
 ## Owner escalation

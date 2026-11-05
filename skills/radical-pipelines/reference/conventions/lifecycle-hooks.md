@@ -23,8 +23,8 @@ Report a failed instruction to the owner and continue. When the failed instructi
 | `after-terminating-agent`      | An agent is terminated                                                                                  |
 | `phase-started`                | Work on a phase begins or resumes                                                                       |
 | `phase-completed`              | A phase becomes complete, phase 0 included, before the next dispatch                                    |
-| `before-merging-lanes`         | A lane branch is about to be merged into the pipeline branch                                            |
-| `after-merging-lanes`          | A lane branch is merged into the pipeline branch                                                        |
+| `before-merging-lanes`         | A lane branch's commits are about to land on the pipeline branch, merged or cherry-picked               |
+| `after-merging-lanes`          | A lane branch's commits landed on the pipeline branch                                                   |
 | `escalation-raised`            | A pending owner escalation is surfaced                                                                  |
 | `run-ended`                    | The run stops: target phase complete, owner escalation pending, owner cancellation, or failure           |
 | `before-opening-pr`            | The owner asks to open a pull request, before any work                                                  |

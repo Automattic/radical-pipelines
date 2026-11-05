@@ -2,7 +2,7 @@
 `rp check` rejects these files you wrote; fix them first: <one INVALID line per file>
 
 <!-- First turn: the lane has no open review thread. -->
-Review the code on this branch, `<branch>`, against `<base>`; its diff is <net change path>. It addresses this issue: <intent path>. Its later inputs: <later input paths>.   <!-- drop the last sentence without later inputs -->
+Review the code on this branch, `<branch>`, against `<base>`. It addresses this issue: <intent path>. Its later inputs: <later input paths>.   <!-- drop the last sentence without later inputs -->
 
 Review only this: <brief>   <!-- when the lane has a brief -->
 

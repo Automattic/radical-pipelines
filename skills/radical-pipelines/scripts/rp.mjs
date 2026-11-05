@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
-// Commands: check, stamp, pipelines. README.md beside this file is the contract.
+// Commands: check, stamp, pipelines, review. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -785,17 +785,79 @@ async function cmdPipelines(args) {
   if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.format} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
 }
 
+// --- review -------------------------------------------------------------------------
+
+// The messages of the two commits `review` builds; `review` recognizes them on a lane branch it rebuilds.
+const REVIEW_BASE = "rp review base", REVIEW_CHANGE = "rp review change";
+
+// Runs git with its own index file, so building a tree touches no worktree's index.
+function gitWithIndex(root, index, args, input) {
+  try { return execFileSync("git", args, { cwd: root, input, encoding: "utf8", env: { ...process.env, GIT_INDEX_FILE: index }, maxBuffer: Infinity, stdio: ["pipe", "pipe", "pipe"] }).trim(); }
+  catch (error) { fail(`git ${args.join(" ")}: ${error.stderr?.toString().trim() || error.message}`); }
+}
+
+// The tree of `commit` outside the pipelines folder root, plus the review lane's view of the pipeline at the tip: its
+// `0-intent/` folder and the lane's own threads.
+function reviewTree(root, index, commit, pipelinesRoot, subset) {
+  gitWithIndex(root, index, ["read-tree", commit]);
+  gitWithIndex(root, index, ["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--", `:(top,literal)${pipelinesRoot}`]);
+  if (subset.length) gitWithIndex(root, index, ["update-index", "--index-info"], subset.map((entry) => `${entry.mode} ${entry.oid}\t${entry.path}\n`).join(""));
+  return gitWithIndex(root, index, ["write-tree"]);
+}
+
+// Builds a review lane's branch from the pipeline tip: a review base B, the merge-base with the configured base without
+// the pipelines folder root plus the lane's view of the pipeline, and a change C on it, the tip's tree treated the same
+// way, so `git diff B C` is the net change. The lane branch `<pipeline branch>-review-<lane>` moves to C, and its
+// worktree with it, unless it holds review commits the pipeline branch lacks.
+async function cmdReview(args) {
+  const { root, rel } = locate(args._[0] ?? fail("review: missing <pipeline folder>"));
+  const { folder, pipelinesRoot } = pipelineFolder(rel, "review");
+  const laneId = args.lane ?? fail("review: --lane <lane> is required");
+  const branch = (() => { try { return execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return ""; } })()
+    || fail(`review: ${root} has no branch checked out: the pipeline folder is read from the pipeline branch's worktree`);
+  const tip = requireCommit(root, "HEAD", "HEAD");
+  const files = await readCommit(root, tip, folder, (path) => path === "run-config.md");
+  requireFormat(files.get("run-config.md"), `${folder}/run-config.md`);
+  const config = parseOrFail(`${folder}/run-config.md`, () => parseConfig(files.get("run-config.md") ?? fail(`review: cannot read ${tip}:${folder}/run-config.md: missing`)));
+  if (!reviewLanes(config).some((lane) => lane.id === laneId)) fail(`review: ${laneId} is not a review lane of ${folder}/run-config.md`);
+  const mergeBase = baseOf(root, config.base, tip);
+  const own = new RegExp(`^${folder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/threads/[1-9]\\d*-reviewer-${laneId}-(?:implementer-implementation|owner-intent)\\.md$`);
+  const subset = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob" && (entry.path.startsWith(`${folder}/0-intent/`) || own.test(entry.path)));
+  const laneBranch = `${branch}-review-${laneId}`;
+  const laneTip = commitOf(root, `refs/heads/${laneBranch}`);
+  if (laneTip) {
+    const unlanded = gitText(root, ["cherry", tip, laneTip]).split("\n").filter((line) => line.startsWith("+ ")).map((line) => line.slice(2))
+      .filter((commit) => ![REVIEW_BASE, REVIEW_CHANGE].includes(gitText(root, ["log", "-1", "--format=%s", commit])));
+    if (unlanded.length) fail(`review: ${laneBranch} has commits the pipeline branch lacks; land them first: ${unlanded.reverse().join(" ")}`);
+  }
+  const directory = mkdtempSync(join(tmpdir(), "rp-review-"));
+  let base, change;
+  try {
+    const index = join(directory, "index");
+    base = gitWithIndex(root, index, ["commit-tree", reviewTree(root, index, mergeBase, pipelinesRoot, subset), "-p", mergeBase, "-m", REVIEW_BASE]);
+    change = gitWithIndex(root, index, ["commit-tree", reviewTree(root, index, tip, pipelinesRoot, subset), "-p", base, "-m", REVIEW_CHANGE]);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+  const worktree = gitText(root, ["worktree", "list", "--porcelain"]).split("\n\n").map((record) => record.split("\n"))
+    .find((lines) => lines.includes(`branch refs/heads/${laneBranch}`))?.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
+  if (worktree) gitText(worktree, ["reset", "--hard", "-q", change]);
+  else gitText(root, ["update-ref", `refs/heads/${laneBranch}`, change]);
+  const result = { branch: laneBranch, tip, base, change, worktree: worktree ?? null };
+  if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.stdout.write(`branch ${laneBranch}\ntip ${tip}\nbase ${base}\nchange ${change}\n`);
+}
+
 // --- cli --------------------------------------------------------------------------
 
 const COMMANDS = {
   check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
   stamp: { run: cmdStamp, options: { "--at": "value", "--pin": "list" } },
   pipelines: { run: cmdPipelines, options: { "--base": "value", "--issue": "value", "--json": "flag" } },
+  review: { run: cmdReview, options: { "--lane": "value", "--json": "flag" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null, base: null };
+  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null, base: null, lane: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -818,6 +880,7 @@ Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
   node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
   node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
+  node rp.mjs review <pipeline folder> --lane <lane> [--json]
 
 See README.md beside this script.
 `;
