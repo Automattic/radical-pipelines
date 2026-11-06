@@ -13,7 +13,7 @@
 
 Today the orchestrator builds every role's assignment by hand. It reads `.rp.md` as prose, picks the guardrail and resource blocks whose `agents` include the role's profile, copies them and the commit format, fills in any value their text leaves to it, looks up the role's subagent model and resolves it for the active agentic tool, computes the role's paths, and fills the profile's template. `rp` reads no convention and writes no assignment.
 
-After the change, the conventions an assignment carries are validated data entries in `.rp.md`, which a person still reads, and `rp` writes each role's whole assignment from them and from the pipeline, at the path the role reads it from today. Model names travel as the project or the owner writes them, and the orchestrator and the roles resolve them with their own tools. Guardrail, resource, and commit-format texts may hold variables, which `rp` expands from a fixed vocabulary of pipeline facts and from templates the project declares over it. Prose the orchestrator acts on with judgment stays prose. The conventions version increases, and setup migrates a version-6 `.rp.md`, this repository's included.
+After the change, the conventions an assignment carries are validated data entries in `.rp.md`, which a person still reads, and `rp` writes each role's whole assignment from them and from the pipeline, at the path the role reads it from today. Model names travel as the project or the owner writes them, and the orchestrator and the roles resolve them with their own tools. The convention texts an assignment carries — guardrails, resources, the commit format, and a lane's brief — may hold variables, which `rp` expands from a fixed vocabulary of pipeline facts and from templates the project declares over it. Prose the orchestrator acts on with judgment stays prose. The conventions version increases, and setup migrates a version-6 `.rp.md`, this repository's included.
 
 ## Requirements
 
@@ -44,7 +44,7 @@ origin: from-intent intent-goal
 
 observed: `.rp.md` holds the Commit format, Agents, Guardrails, and Resources as prose under headings, and its JSON frontmatter holds only `"conventions": 6` (`.rp.md`).
 
-spec-requirement-4: A role's assignment carries, each under its name and with its text, every guardrail and every resource whose profiles include the role's profile, the same in every lane of that profile, or `none` when no entry does. Its commit format is the project's commit format text, or an imperative subject line when the project sets none. A lane's brief reaches its assignment verbatim.
+spec-requirement-4: A role's assignment carries, each under its name and with its text, every guardrail and every resource whose profiles include the role's profile, the same in every lane of that profile, or `none` when no entry does. Its commit format is the project's commit format text, or an imperative subject line when the project sets none. A lane's brief reaches its assignment as written, its placeholders expanded as spec-requirement-10 states.
 
 origin: from-intent intent-goal
 
@@ -78,7 +78,7 @@ spec-requirement-9: When a role's tool finds no model by the subagent model name
 
 origin: derived intent-constraint-2: this repository runs reviewer lane `astra` with subagents `luna` (`.rp.md` § Agents), and for Claude Code, which runs only the aliases `opus`, `sonnet`, `haiku`, and `fable` (`skills/radical-pipelines/tools/claude-code.md` § Models), `.rp.claude-code.md` directs: "`astra` and `luna` name OpenAI models, which Claude Code cannot run: use `sonnet` for both".
 
-spec-requirement-10: In every guardrail, resource, and commit-format text an assignment carries, a placeholder is a name in braces, as a project writes `{agent}`. `rp` replaces each placeholder that names a vocabulary fact with that fact's value for the role and its turn, and each placeholder that names a variable the project declares with the value of the variable's template over the vocabulary for that role. The vocabulary holds the pipeline slug; the role, `<profile>` or `<profile>-<lane>`; its profile; its lane; its worktree's absolute path; its branch; and the base, `run-config.md`'s `base`. A declared template gives a role with a lane and a role without one each its own value: `<pipeline slug>-<profile>[-<lane>]` gives `369-conventions-as-data-implementer` for this pipeline's implementer and `369-conventions-as-data-reviewer-astra` for its reviewer lane `astra`.
+spec-requirement-10: In every convention text an assignment carries — each guardrail's and resource's text, the commit format, and its lane's brief — a placeholder is a name in braces, as a project writes `{agent}`. `rp` replaces each placeholder that names a vocabulary fact with that fact's value for the role and its turn, and each placeholder that names a variable the project declares with the value of the variable's template over the vocabulary for that role. The vocabulary holds the pipeline slug; the role, `<profile>` or `<profile>-<lane>`; its profile; its lane; its worktree's absolute path; its branch; and the base: the merge-base of the role's turn commit with the branch `run-config.md`'s `base` names, as the skill's term **Base** defines it. A declared template gives a role with a lane and a role without one each its own value: `<pipeline slug>-<profile>[-<lane>]` gives `369-conventions-as-data-implementer` for this pipeline's implementer and `369-conventions-as-data-reviewer-astra` for its reviewer lane `astra`.
 
 origin: from-intent intent-constraint-3, intent-context-3
 
@@ -106,7 +106,7 @@ origin: from-intent intent-constraint-5
 
 observed: `load.md` § Schema stamp names 7 as current and sends an older stamp to setup's migration, and `skills/radical-pipelines/reference/conventions/changelog.md` § 7 migrates from 6 without changing any section. This repository's `.rp.md` records `"conventions": 6` and writes its Agents convention as free-form lists and sentences, with lanes `demands` and `omits` carrying briefs and reviewer lanes `default` and `astra` without (`.rp.md` § Agents).
 
-spec-requirement-15: When a version-6 `.rp.md` carries guardrail, resource, or commit-format text that uses a placeholder, migration offers the owner to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose when one does. Once the owner declares it, every role receives that text expanded as the orchestrator expanded it before.
+spec-requirement-15: When a version-6 `.rp.md` carries a guardrail, resource, commit-format, or brief text that uses a placeholder, migration offers the owner to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose when one does. Once the owner declares it, every role receives that text expanded as the orchestrator expanded it before.
 
 origin: derived intent-constraint-5 intent-context-3: a project's resources name a per-agent environment as `{agent}`, which one of its lifecycle hooks defines in prose as `<pipeline slug>-<profile>[-<lane>]`.
 
@@ -166,7 +166,7 @@ spec-acceptance-criterion-13: Given an assignment whose Subagent model is `sonne
 
 spec-acceptance-criterion-14: Given conventions that declare a variable `agent` as the pipeline slug and the role joined by `-`, and a resource for `implementer` and `reviewer` whose text uses `{agent}`, when the assignments of pipeline `369-conventions-as-data`'s `implementer` and reviewer lane `astra` are written, then their resource text reads `369-conventions-as-data-implementer` and `369-conventions-as-data-reviewer-astra` where it used `{agent}`, and neither assignment lists the vocabulary.
 
-spec-acceptance-criterion-15: Given a guardrail or resource text that uses the vocabulary's pipeline slug, role, profile, lane, worktree, branch, or base, when a role's assignment is written, then each reads that role's value for its turn.
+spec-acceptance-criterion-15: Given a guardrail, resource, or commit-format text, or a lane's brief, that uses the vocabulary's pipeline slug, role, profile, lane, worktree, branch, or base, when a role's assignment is written, then each reads that role's value for its turn.
 
 spec-acceptance-criterion-16: Given a carried text holding a placeholder that names neither a vocabulary fact nor a declared variable, such as `{ticket}`, when a role's assignment is written, then the text keeps `{ticket}` as written, and the assignment lists each vocabulary fact with the role's value.
 
@@ -205,8 +205,7 @@ spec-exclusion-4: `rp check`, `rp stamp`, `rp pipelines`, and `rp review` do not
 - The subagent model taken from the Agents convention alone, whatever the run says — reading not taken: the owner sets a run's models when confirming it (`triage.md` § 4).
 - A role stopping with a blocker when its tool finds no model by its subagent model name — not taken: `.rp.claude-code.md` keeps reviewer lane `astra` delegating on `sonnet` under Claude Code, which running on the role's own model delivers.
 - The vocabulary listed in every assignment — reading of intent-constraint-3 not taken: the intent ties the listing to a placeholder that reaches the role unexpanded.
-- The vocabulary's base as the merge-base commit — reading of intent-constraint-3 not taken: the implementer's assignment already names `run-config.md`'s `base` as its Base branch (`templates/implementer.md`).
-- A placeholder in a lane's brief or a model name — no intended use produces one: observed: no brief or model name in `.rp.md` or this pipeline's `run-config.md` holds braces.
+- The vocabulary's base as the branch `run-config.md`'s `base` names — reading of intent-constraint-3 not taken: the skill's canonical vocabulary defines the Base as the merge-base with that branch (`state.md` § Terms; `docs/glossary.md`), and the implementer's Base branch slot already names the branch.
 - A declared variable whose template uses another declared variable, a conditional, or an escape for a literal `{name}` — no intended use produces one: observed: `.rp.md` holds no braces outside its frontmatter, and intent-context-3's `{agent}` is a template over vocabulary facts alone.
 - A guardrail or resource for a lane rather than a profile — no intended use produces one: observed: `guardrails.md` and `resources.md` § Format list profile names only.
 - Two guardrails or two resources with one name — no intended use produces them: observed: `.rp.md`'s entries have distinct names, and `.rp.local.md` overrides by name.
