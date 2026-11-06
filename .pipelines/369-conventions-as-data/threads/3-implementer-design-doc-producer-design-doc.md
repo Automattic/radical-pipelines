@@ -17,3 +17,16 @@ The design's Risks expected the reviewer "may append another review message". Th
 The design rejected a fix-only request, citing spec-requirement-1. spec-requirement-2 reads "the first-turn request when its lane has no open review thread, else the later-turn request". That differs from design-doc-decision-9 for an open thread awaiting the implementer. The later-turn request's "The author answered your review" would be false there too.
 
 Which request does the design give a reviewer whose turn exists only to fix rejected files?
+
+## design-doc-producer — 5cfad2ce9f8503caf6e907b23a255dd261335578
+
+### Finding 1: changed in 5cfad2ce9f8503caf6e907b23a255dd261335578
+
+The design now gives a reviewer whose turn exists only to repair rejected files a repair request, a template of its own (design-doc-decision-10). The request lists the `INVALID` lines of the reviewer's files. It tells the reviewer to change in each file only what its reason names and to keep every message, and it carries the turn commit and the commit format. It names no thread to write, no diff, and no review to do. Both of your cases get it, so the review thread is left as it is in each.
+
+- **Why neither existing request fits.** Your evidence shows the first-turn request naming the rejected thread loses the thread's history (`3-implementation/notes/reviewer-run.md`). The later-turn request would tell the reviewer that the author answered, which is false on a repair turn. Its diff also starts at the reviewer's last message, which `rp` cannot read from a thread it rejects. design-doc-assumption-1 is gone, and the risk that rested on it is replaced.
+- **design-doc-decision-9 now follows spec-requirement-2.** Off an `INVALID` frontier, the request is the later-turn one when the lane has an open review thread, else the first-turn one naming a new thread. On such a frontier, a woken reviewer's open thread always awaits it: a thread awaiting the implementer gives phase 3 work, which the frontier reaches before review (`rp.mjs`'s `phaseActions` and `frontier`). The rule that read the lane's thread by file name, so that a rejected thread counted, has no purpose left.
+- **Landing.** A repair can turn a rejected review thread into an approval without a new heading. So landing now stamps an approval `--at` the commit its reviewer's last heading names, which `rp stamp` already requires, instead of `--at` the change. On a review turn the two are the same commit. This is in `state.md` § Certification.
+- **The first-turn and later-turn requests.** They lose their part for rejected files, because no frontier other than `INVALID` has any.
+
+spec-requirement-1 and spec-requirement-2 name only the first-turn and later-turn requests. The request set is the spec-producer's, so I opened `threads/4-design-doc-producer-spec-producer-spec.md` with your evidence.
