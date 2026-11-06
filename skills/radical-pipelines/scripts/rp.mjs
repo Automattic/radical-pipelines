@@ -1204,7 +1204,8 @@ export function fill(template, values, where) {
       if (last !== line.length) malformed(`{{${name}}} is a list, which ends its line`);
       const items = value.length ? value : ["none"];
       if (!`${filled}${before}`.trim()) filled += before + items.join(items.some((item) => item.includes("\n")) ? "\n\n" : "\n");
-      else filled += before + (items.length === 1 ? items[0] : `\n${items.map((item) => `  - ${item.split("\n").join("\n    ")}`).join("\n")}`);
+      else if (items.length === 1) filled += before + items[0];
+      else filled = `${`${filled}${before}`.trimEnd()}\n${items.map((item) => `  - ${item.split("\n").join("\n    ")}`).join("\n")}`;
     }
     if (open.every((part) => part.kept)) output.push(filled + line.slice(last));
   }

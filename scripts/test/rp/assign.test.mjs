@@ -523,6 +523,32 @@ describe("assign", () => {
     }
   });
 
+  it("renders lists, parts, and flags as the template syntax defines them", () => {
+    const copy = mkdtempSync(join(tmpdir(), "rp-skill-"));
+    try {
+      mkdirSync(join(copy, "scripts"));
+      copyFileSync(RP, join(copy, "scripts/rp.mjs"));
+      mkdirSync(join(copy, "templates"));
+      writeFileSync(join(copy, "templates/implementer.md"), [
+        "inline-one: {{later-inputs}}", "inline-none: {{threads}}", "inline-many: {{changed-inputs}}",
+        "{{#brief}}", "kept when something", "{{/brief}}", "{{^brief}}", "kept when nothing", "{{/brief}}",
+        "{{#respond}}", "kept on the flag", "{{/respond}}", "{{#implement}}", "dropped on the flag", "{{/implement}}", "",
+      ].join("\n"));
+      conventions();
+      pipeline(3);
+      write("0-intent/constraint-1.md", later(NOTES));
+      revise(DESIGN);
+      const at = realpathSync(root), notesChanged = git(root, "log", "-1", "--format=%H", "--", P(NOTES)).trim();
+      const out = spawnSync(process.execPath, [join(copy, "scripts/rp.mjs"), "assign", abs(PIPELINE), "--role", "implementer"], { cwd: tmpdir(), encoding: "utf8" });
+      assert.equal(out.status, 0, out.stderr);
+      assert.equal(readFileSync(out.stdout.split("\n")[0].slice("assignment ".length), "utf8"), [
+        `inline-one: ${in_(at, "0-intent/constraint-1.md")}`, "inline-none: none", "inline-many:",
+        `  - ${in_(at, DESIGN)} — changed since ${notesChanged}`, `  - ${in_(at, "0-intent/constraint-1.md")} — changed since ${notesChanged}`,
+        "kept when nothing", "kept on the flag", "",
+      ].join("\n"));
+    } finally { rmSync(copy, { recursive: true, force: true }); }
+  });
+
   it("stops on a template a slot of which has no value, naming it and writing nothing", () => {
     const copy = mkdtempSync(join(tmpdir(), "rp-skill-"));
     try {
