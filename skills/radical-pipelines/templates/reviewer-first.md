@@ -2,9 +2,7 @@
 
 Review the code on this branch, `<branch>`, against `<base>`. It addresses this issue: <intent path>. Its later inputs: <later input paths>.
 
-Review only this: <brief>
-
-Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
+<the lane's brief, verbatim; without one: Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.>
 
 Write your review, as you would post it on the pull request, to <thread path>, starting with these lines:
 

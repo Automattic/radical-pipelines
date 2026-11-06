@@ -9,7 +9,7 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Awaiting** — Whose turn an `open` thread is: it awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Base** — The merge-base of the inspected tip with the branch its run configuration's `base` names.
 - **Blocker** — A role's report that something it was given failed it — its materials, its worktree, or the worktree's environment. The orchestrator repairs it and wakes the role again.
-- **Brief** — A lane's direction: what a production lane explores, or what a review lane verifies.
+- **Brief** — A lane's direction: what a production lane explores, or the review request a review lane's assignment carries, in place of the default one.
 - **Candidate** — A production lane's version of the spec or the design doc, written in `<phase folder>/lanes/<lane>/`. Candidates are required inputs only while their root artifact is missing.
 - **Closure action** — A moment the owner invokes on a pipeline: opening its pull request, merging it, or closing without merging. Each is bracketed by lifecycle hooks.
 - **Considered and not required** — The spec section listing, one line each, the cases its producer examined and left out because no intended use produces them, and the readings of the intent it did not take.
