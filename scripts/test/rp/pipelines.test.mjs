@@ -78,13 +78,15 @@ describe("pipelines", () => {
 
   // [what, how the pipeline folder is written, its format, its origins]
   const kinds = [
-    ["a v3 run-config.md", { "run-config.md": '---\n{"workflow": "autonomous", "target-phase": 4}\n---\n', "0-intent/intent.md": "origin: issue 5\n" }, "earlier", ""],
-    ["no run-config.md", { "1-spec/spec.md": "# S\n", "0-intent/intent.md": "---\n{\"origin\": \"issue 5\"}\n---\norigin: issue 5\n# I\n" }, "earlier", ""],
+    ["a v3 run-config.md", { "run-config.md": '---\n{"workflow": "autonomous", "target-phase": 4}\n---\n', "0-intent/intent.md": "origin: issue 5\n" }, "earlier", "issue 5"],
+    ["no run-config.md", { "1-spec/spec.md": "# S\n", "0-intent/intent.md": "---\n{\"origin\": \"issue 5\"}\n---\norigin: issue 5\n# I\n" }, "earlier", "issue 5"],
     ["no run-config.md and no intent", { "1-spec/spec.md": "# S\n" }, "earlier", ""],
-    ["a run-config.md without frontmatter", { "run-config.md": "format: 7\n", "0-intent/intent.md": "origin: issue 5\n" }, "earlier", ""],
-    ["a run-config.md with malformed JSON", { "run-config.md": "---\n{format: 7\n---\n", "0-intent/intent.md": "origin: issue 5\n" }, "earlier", ""],
-    ["a run-config.md that is a folder", { "run-config.md/x": "x\n", "0-intent/intent.md": "origin: issue 5\n" }, "earlier", ""],
+    ["a run-config.md without frontmatter", { "run-config.md": "format: 7\n", "0-intent/intent.md": "origin: issue 5\n" }, "earlier", "issue 5"],
+    ["a run-config.md with malformed JSON", { "run-config.md": "---\n{format: 7\n---\n", "0-intent/intent.md": "origin: issue 5\n" }, "earlier", "issue 5"],
+    ["a run-config.md that is a folder", { "run-config.md/x": "x\n", "0-intent/intent.md": "origin: issue 5\n" }, "earlier", "issue 5"],
     ["an intent that is a folder in an earlier pipeline", { "0-intent/intent.md/x": "origin: issue 5\n" }, "earlier", ""],
+    ["an earlier intent with unclosed frontmatter", { "0-intent/intent.md": "---\n{\norigin: issue 5\n" }, "earlier", ""],
+    ["format 6, whose origins are body lines", { "run-config.md": '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n', "0-intent/intent.md": "---\nissue: 4\n---\norigin: issue 5\norigin: starts-from main\n\n# I\n" }, 6, "issue 5,starts-from main"],
     ["format 7 with keys check would reject", { "run-config.md": '---\n{"format": 7, "workflow": "x"}\n---\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, 7, "issue 5"],
     ["an intent whose frontmatter is outside the subset", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: #5\n---\n" }, 7, ""],
     ["an intent with unclosed frontmatter", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: 5\n" }, 7, ""],
@@ -105,7 +107,7 @@ describe("pipelines", () => {
     writeFile(".pipelines/v3/run-config.md", '---\n{"workflow": "autonomous"}\n---\n');
     writeFile(".pipelines/v2/0-intent/intent.md", "origin: issue 8\n");
     commitAll("history");
-    assert.deepEqual(formats(), ["merged earlier main .pipelines/v2 ", "merged earlier main .pipelines/v3 "]);
+    assert.deepEqual(formats(), ["merged earlier main .pipelines/v2 issue 8", "merged earlier main .pipelines/v3 "]);
   });
 
   // Discovery from a pipelines folder root given at `cwd`: the folders it lists.
@@ -155,6 +157,17 @@ describe("pipelines", () => {
       assert.equal(out.status, 1);
       assert.match(out.stderr, /cannot read broken:\.pipelines\/broken\/0-intent\/intent\.md: missing/);
     });
+
+  it("lists the pipelines of an issue in format 6 and format 7, each with its format and its origins", () => {
+    git(root, "checkout", "--quiet", "-b", "old-work", "main");
+    writeFile(".pipelines/old/run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n');
+    writeFile(".pipelines/old/0-intent/intent.md", "origin: issue 9\n\n# Intent\n");
+    commitAll("format 6");
+    git(root, "checkout", "--quiet", "-b", "new-work", "old-work");
+    recordPipeline(".pipelines/new", 9);
+    commitAll("format 7");
+    assert.deepEqual(formats("--issue", "9"), ["live 7 new-work .pipelines/new issue 9,starts-from main", "live 6 new-work .pipelines/old issue 9", "live 6 old-work .pipelines/old issue 9"]);
+  });
 
   it("reads a format-7 intent's origins from its frontmatter as the text written, in the order written", () => {
     git(root, "checkout", "--quiet", "-b", "p", "main");

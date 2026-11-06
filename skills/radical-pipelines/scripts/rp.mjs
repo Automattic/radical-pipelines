@@ -834,9 +834,21 @@ async function cmdStamp(args) {
 
 // --- pipelines --------------------------------------------------------------------
 
-// The origins an intent's frontmatter names, each as `<key> <value>` in the order written. Nothing is validated: an
-// intent whose frontmatter cannot be read has none.
-export function originsOf(bytes) {
+// The first format whose intent names its origins in its frontmatter.
+const ORIGINS_IN_FRONTMATTER = 7;
+// The origins an intent of a pipeline of `format` names. From ORIGINS_IN_FRONTMATTER, those of its frontmatter, each as
+// `<key> <value>` in the order written; before, the values of the `origin:` lines that open its body. Nothing is
+// validated: an intent whose frontmatter cannot be read has none.
+export function originsOf(bytes, format) {
+  if (format === "earlier" || format < ORIGINS_IN_FRONTMATTER) {
+    const origins = [];
+    for (const line of splitFrontmatter(bytes).body.toString("utf8").split("\n")) {
+      const match = line.replace(/\r$/, "").match(/^origin:[\t ]*(.*\S)[\t ]*$/);
+      if (!match) break;
+      origins.push(match[1]);
+    }
+    return origins;
+  }
   try { return [...frontmatterOf(bytes).values].filter(([key]) => ORIGIN_KEYS.includes(key)).map(([key, value]) => `${key} ${value}`); }
   catch (error) { if (error instanceof Invalid) return []; throw error; }
 }
@@ -871,7 +883,7 @@ async function discoverFolders(root, folders, where) {
     const format = formatOf(oids[i].config && blobs.get(oids[i].config));
     const intent = oids[i].intent && blobs.get(oids[i].intent);
     if (!intent && format === FORMAT) fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
-    return { ...folder, format, origins: intent ? originsOf(intent) : [] };
+    return { ...folder, format, origins: intent ? originsOf(intent, format) : [] };
   });
 }
 

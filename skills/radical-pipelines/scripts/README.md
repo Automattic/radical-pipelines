@@ -206,7 +206,7 @@ Fetching is the caller's job. The pipelines folder root, absolute or relative to
 Of each pipeline folder, discovery reads only two things, so pipelines of every format are listed and none is validated:
 
 - **`format`** (§ `run-config.md`): the integer `format` of `run-config.md` when it is a regular file with JSON frontmatter carrying one, else `earlier`.
-- **Origins**: of `0-intent/intent.md` when it is a regular file, its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written. An intent whose frontmatter cannot be read (§ Frontmatter) has no origins.
+- **Origins**: of `0-intent/intent.md` when it is a regular file. From format 7, its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written; an intent whose frontmatter cannot be read (§ Frontmatter) has no origins. In an earlier format, the values of the leading `origin:` lines of its body, below any frontmatter; an intent with unclosed frontmatter has no origins.
 
 A pipeline of format 7 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
