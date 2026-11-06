@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-default
 owner: implementer
 artifact: implementation
@@ -84,3 +84,25 @@ The only `.rp.local.md` observed overrides Artifact storage, a prose convention 
 `fill` ends the line before a nested list without trailing whitespace. A test on a fixture template pins the rendering.
 
 `npm test` passes: 560 tests.
+
+## reviewer-default — 8a12ad7fd3e727e754cd2223cabf7d61827641b0
+
+Approved. Each answer checks out against the change, and I re-ran my two reproductions on it.
+
+### Guardrails
+
+- **tests**: `npm test` passes: 561 tests, 0 failures.
+- **documentation**: followed. The glossary's **Vocabulary** entry now defines each fact, and `{base}` is the **Base**, matching `docs/glossary.md` and `state.md`. The tests no longer assert the templates' headings, fields, or wording, as AGENTS.md requires.
+
+### Answers
+
+1. **Briefs are expanded.** Your message says this went to the spec-producer, but the change expands briefs. A review-lane brief `Review {branch} for {agent} against {base}.` now renders with all three placeholders replaced. A brief that keeps a placeholder brings in the vocabulary list. The README, glossary, setup, load, and Placeholders wording all name briefs.
+2. **The repair turn is fixed.** With an open review thread and a malformed `owner-intent` thread, the reviewer now gets `reviewer-repair.md`. It names the rejected file and asks for only what its reason names, keeping every message. It names no review thread to write, so the overwrite I reported can't happen. `reviewer-first` and `reviewer-later` no longer carry malformed files, and `requestOf` reduces to "open: later turn; otherwise: a new thread". I checked that this is sound: while a lane's review thread awaits the implementer, phase 3 holds the frontier, so a `review` frontier always finds an open thread awaiting the reviewer. Landing an approval at the commit the reviewer's last heading names follows from repair turns, and `state.md`, the glossary, and the loop flowchart all say it.
+3. **`{base}` is the Base.** It is now the merge-base of the role's turn commit with run-config's `base`. For a reviewer, that is the real merge-base, not the synthetic review base. The implementer's Seat moved to `base-branch`. A `base` that doesn't resolve now stops `assign`, and that stop is documented and tested.
+4. **The duplicated logic is unified.** `laneBranchOf` and `laneThreadOf`/`reviewThreadOf` now each live in one place. `approvalOf` picks the same thread as before, because `parseThread` already requires the file name to match the frontmatter.
+5. **The tests are fixed.** The fixture templates echo values, the renderer has its own matrix, and the delivered templates are only checked to fill for each kind of turn. That's the shape I was after.
+6. **Accepted.** It's a one-time migration leftover. The migration warns about it, and AGENTS.md keeps such cases out of the skill.
+7. **Done.** `.rp.opencode.md` and `.rp.claude-code.md` now say which models the mapping covers.
+8. **Done.** No trailing space before a nested list.
+
+One note on the thread itself, not a blocker. Your answers to 1–3 say you carried them upstream and will report back, but the change already contains the fixes. A line saying how those threads settled would keep this thread accurate for whoever reads it later.
