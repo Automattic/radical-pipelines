@@ -22,3 +22,7 @@ Check the change against these rules and note each outcome in your review: <guar
 You can use: <resource blocks>
 
 Your subagents run on <subagent model>. Commit your review with this commit format: <convention>.
+
+When your worktree, your branch, or a file this assignment names is broken or missing, report what failed and stop.
+
+End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."
