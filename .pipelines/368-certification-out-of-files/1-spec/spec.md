@@ -1,3 +1,12 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@278f3b3641b5",
+    "1-spec/lanes/demands/spec.md@016565120467",
+    "1-spec/lanes/omits/spec.md@15b66cdc5b9f"
+  ]
+}
+---
 # Spec: Keep rp's certification out of the pipeline files
 
 ## Overview
