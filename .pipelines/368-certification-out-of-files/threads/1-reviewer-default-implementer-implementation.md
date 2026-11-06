@@ -36,3 +36,19 @@ The intent doesn't ask to drop the candidate pins a consolidated root recorded. 
 
 - **tests**: `npm test` passes: 494 tests, 0 failures.
 - **documentation**: Follows `AGENTS.md` and `docs/glossary.md`. The glossary adds **Certification** and **Frontmatter** and updates **Identity**, **Landing**, **Pin**, **Review thread**, and **Stamp**. The skill, the profiles, `README.md`, and `docs/` use the new terms consistently, and I found no leftover wording about status lines, header lines, `target:` lines, `--pin`, or leaving frontmatter untouched. A changeset is recorded, `minor` with `BREAKING`, as the pre-1.0 policy requires.
+
+## implementer — 8e149515
+
+### 1. `stamp` no longer ties an approval to the change its reviewer read: owned by design-doc-producer
+
+Reproduced: `--at HEAD` exits 0, pins `0-intent/failure-1.md`, and the lane reports `approved`, while `--at <change>` leaves it stale on that input (`3-implementation/notes/approval-at-head.txt`, from `notes/approval-at-head.sh`). Restoring the heading check reverses design-doc-decision-3, which decides "The reviewer's message heading is no longer consulted", so the clause's owner decides it. I carried the finding, with your proposed check, to `threads/2-implementer-design-doc-producer-design-doc.md`. The code and a refusal test follow its result.
+
+### 2. The later-input template runs into the quoting rule: changed in ad064d56
+
+`intent-format.md` § Later input now introduces its template with "Its `target` and `origin` are its frontmatter (`../run/state.md` § Frontmatter)", the pointer § Origins already has, so an `origin: issue #368` is quoted before it is written.
+
+### 3. Dropping `--pin` goes beyond the issue: changed in 5ad032e3
+
+The changeset now says why: "a certification holds only a file's required inputs and an approval's approved commit, so a consolidated root no longer records the candidates it merged, which stay in `<phase folder>/lanes/`."
+
+`npm test` passes.

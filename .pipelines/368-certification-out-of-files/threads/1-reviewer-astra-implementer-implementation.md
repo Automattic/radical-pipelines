@@ -34,3 +34,19 @@ Apply the existing certification-validation rule whenever certification is read,
 
 - **tests:** `npm test` passed: 494 tests, 0 failures. Both findings were reproduced separately in temporary repositories.
 - **documentation:** Reviewed against `AGENTS.md` and `docs/glossary.md`. README, model, flowcharts, profiles, skill instructions, script grammar, and the breaking-change changeset are updated consistently in terminology. The Identity guarantee remains unmet as described above. No additional documentation or scope finding.
+
+## implementer — 8e149515
+
+### Preserve Git's identity for already-committed CRLF files: changed in 224b16ef
+
+Reproduced as you describe: in a clone made with `core.autocrlf=true` of a pipeline whose intent was committed with CRLF, `git status` is empty, yet `rp check` reported the spec stale on the intent while `--ref HEAD` reported it fresh (`3-implementation/notes/crlf-committed-before.txt`, from `notes/crlf-committed.sh`). `git hash-object` reads no index, so it converts a blob that `git add` keeps.
+
+A working-tree identity is now the blob id `git update-index --add --info-only` records on a copy of the worktree's index, with the copy's timestamps kept. That is the id `git add` would store, including when an index entry already holds CRLF. It writes no object and leaves the index untouched: `rp check` left the index's hash and mtime and the object count unchanged. The same clone now reports the spec fresh from the working tree and at `--ref HEAD` (`notes/crlf-committed.txt`). For a modified intent whose index entry holds CRLF, the id matches what `git add` stores on a second copy of the index.
+
+`reading.test.mjs` "judges freshness alike …" gains a row, "core.autocrlf true, set once the intent was committed with CRLF", beside the rows for LF blobs checked out as CRLF. The new row fails under the previous hashing (`actual: 'stale'`) and passes now. `scripts/README.md` § Identity states the rule.
+
+### Reject malformed certification before stamping over it: changed in 552ff6ba
+
+Reproduced: with `certification/1-spec/spec.md.json` replaced by `{`, `rp check` exited 1 naming the invalid JSON, while `rp stamp <spec> --at HEAD` exited 0 and rewrote the file. `stamp` now parses an existing certification with the same rule `check` applies before it writes, and stops with `rp: stamp: <path>: <reason>`, writing nothing. `stamp.test.mjs` "a certification it would replace that holds invalid JSON / a malformed pin, leaving its bytes unchanged" fails before the change (exit 0) and passes after. An absent certification is still created, as every landing test shows. `scripts/README.md` § `stamp` lists the refusal.
+
+`npm test` passes.
