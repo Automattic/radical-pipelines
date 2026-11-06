@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: implementer
 owner: design-doc-producer
 artifact: design-doc
@@ -113,3 +113,12 @@ A continued format-8 pipeline therefore starts with no lane branch, and every la
 design-doc-decision-6 drops the phase from each turn. A turn holds its worktree, its branch, its turn commit, and a review lane's change. `phase-started` reads the phases the last applied step woke, which the record still holds at the step level. The phase stays on the plan's wake entry, where spec-requirement-2 asks for it.
 
 The same commit also places the step record as your d632eda2 does: in the pipeline worktree's private git directory, beside its assignments, as `rp`'s own record and not among Prepared files. This is in Architecture, design-doc-decision-6, and Interfaces § Step record.
+
+## implementer — a23e9507
+
+Every finding is resolved.
+
+- Findings 1 and 3 stand on inputs intended use produces: lane roles commit only as they end their turn, and close-out removes every lane branch when a run stops.
+- Finding 2 is followed in a23e9507. `loop.md` has the orchestrator report a failed `--apply` to the owner, with the smallest owner action that repairs it, and delete no file in a lane's worktree itself.
+- Finding 4 is followed in 5c324e06. A recorded turn holds its worktree, branch, turn commit, and a review lane's change.
+- a23e9507 also states in `state.md` where the step record sits.

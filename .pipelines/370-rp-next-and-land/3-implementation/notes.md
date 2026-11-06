@@ -19,6 +19,7 @@ status: done
 - Skill prose: `loop.md`, `state.md`, `SKILL.md`, `lifecycle-hooks.md`, `triage.md` § 5, `health-monitoring.md`, `load.md`, `close-out.md`, `report.md`, `templates/README.md`, `tools/*.md` § Models (9c00e7a9, 311df1e5, 36498bad).
 - README, `docs/glossary.md`, `docs/model.md`, `docs/flowcharts/loop.md`, changeset `rp-next-and-land` (1a147e8c).
 - `rp land` reads the pipeline after the landing before the pipeline branch moves (7d936ff2); an approval that lands uncertified has any certification its path held removed (9b66f80f); the step record's turn fields are validated, a reviewer's `change` required (caaffe51); the step record is placed by its location, not among Prepared files (d632eda2).
+- A recorded turn drops its phase (5c324e06). A failed `--apply` is reported to the owner, who repairs it, and `state.md` states where the step record sits (a23e9507).
 - Evidence: a whole run driven by `rp next`, `--apply`, and `rp land`, each turn simulated by a commit (`notes/loop-run.sh`, `notes/loop-run.txt`); one lane step run live on opencode from the plan alone and landed (`notes/e2e-opencode.md`); a cold read of the changed loop against those plans on both tools (`notes/cold-read.md`), whose findings this change owned are fixed in 36498bad and 037d1b17.
 
 ## Remaining
@@ -30,7 +31,7 @@ status: done
 - A production lane is always merged with a merge commit, `Merge <artifact> lane <id>`; the certifications are one commit, `Certify <what>`; picked review commits keep their messages and authors.
 - Lane branch moves use `git reset --keep` in the worktree that has the branch, `git update-ref` otherwise; both stop rather than discard.
 - A new worktree's private git directory is predicted as Git names it (`worktrees/<folder name>`, numbered from 1 while taken), so the plan names the assignment path before the worktree exists; applying checks the prediction.
-- The step record is `rp/step.json` in the pipeline worktree's git directory. A review lane's change is recorded and `rp land` uses it; planning and applying find a lane's change on its branch (`changeOf`).
+- The step record is `rp/step.json` in the pipeline worktree's git directory; a turn holds its worktree, branch, turn commit, and a review lane's change. `rp land` uses the recorded change; planning and applying find a lane's change on its branch (`changeOf`).
 - spec-requirement-9 and -13 (unlanded lanes) went into the core commit with `next` and `land`: a lane's branch move depends on them.
 - Tests: the `assign`, `review`, and `stamp` tests are ported to `assignments`, `review-lanes`, and `land` tests driving `next --apply` and `land`; the fixture builds certifications directly (`certifyAt`) and keeps `.rp.md` out of commits.
 
