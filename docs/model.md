@@ -145,7 +145,7 @@ Everything about a pipeline is computed from its tree at any commit, as in v3, w
 - **Missing.** An absent artifact; `notes.md` is also missing until its `status` is `done`.
 - **Awaiting.** An `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
 - **Frontier.** `rp check` prints the first that holds:
-  1. a malformed frontmatter or message heading: `INVALID <path>: <reason>`; nothing is computed from a malformed file, and the orchestrator wakes its author with the `INVALID` lines under **Malformed files** in its assignment, which the role fixes first;
+  1. a malformed pipeline file: `INVALID <path>: <reason>`; nothing is computed from a malformed file, and the orchestrator wakes its author with the `INVALID` lines under **Malformed files** in its assignment, which the role fixes first;
   2. a thread with status `disagreement`: `escalate <thread>`;
   3. the lowest phase whose role has work, where work is a thread awaiting the role, in any phase, or its artifact missing or stale, in a phase through the target:
      - a phase with production lanes and a missing root: `lane <artifact> <id>` for each candidate missing or stale, else `consolidate <artifact>`;

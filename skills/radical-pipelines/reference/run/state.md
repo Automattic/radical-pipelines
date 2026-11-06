@@ -123,7 +123,7 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 
 `rp check <pipeline folder>` reads `run-config.md` and prints the frontier: the first of these that holds, one line per action.
 
-1. A malformed frontmatter or message heading → `INVALID <path>: <reason>`. Nothing is computed from a malformed file.
+1. A malformed pipeline file → `INVALID <path>: <reason>`. Nothing is computed from a malformed file.
 2. A thread with `status: disagreement` → `escalate <thread>`.
 3. The lowest phase whose role has work — a thread awaiting the role, in any phase, or its artifact missing or stale, in a phase through the target:
    - production lanes declared and the root missing → `lane <artifact> <id>` for each candidate missing or stale, else `consolidate <artifact>`;
