@@ -1,0 +1,20 @@
+{
+  "how": "A role on opencode called its Code Mode tool `opencode.models` with `{ query: <name> }` for each name this repository's Agents convention writes. Output abridged to ids and variants.",
+  "results": {
+    "sonnet": [
+      { "id": "claude-agent/sonnet", "variants": ["low", "medium", "high", "xhigh", "max"] },
+      { "id": "github-copilot/claude-sonnet-5.5", "variants": ["low", "medium", "high", "xhigh", "max"] }
+    ],
+    "opus": [
+      { "id": "claude-agent/opus", "variants": ["low", "medium", "high", "xhigh", "max"] }
+    ],
+    "luna": [
+      { "id": "github-copilot/gpt-6-luna", "variants": ["none", "low", "medium", "high", "xhigh", "max"] },
+      { "id": "openai/gpt-6-luna", "variants": ["none", "low", "medium", "high", "xhigh", "max"] }
+    ],
+    "astra": [
+      { "id": "openai/gpt-6-astra", "variants": ["low", "medium", "high", "xhigh", "max"] }
+    ]
+  },
+  "tool description": "Search the models available to use. Use this to turn a model name the user mentions into an exact reference for a tool that takes a model. Check your own provider first."
+}
