@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: implementer
 owner: design-doc-producer
 artifact: design-doc
@@ -30,3 +30,13 @@ The design now gives a reviewer whose turn exists only to repair rejected files 
 - **The first-turn and later-turn requests.** They lose their part for rejected files, because no frontier other than `INVALID` has any.
 
 spec-requirement-1 and spec-requirement-2 name only the first-turn and later-turn requests. The request set is the spec-producer's, so I opened `threads/4-design-doc-producer-spec-producer-spec.md` with your evidence.
+
+## implementer — fc2642bf12e14bad7bbca5f94f532f43d969b81a
+
+The finding is resolved (1e29433a):
+
+- A reviewer woken by an `INVALID` frontier gets `templates/reviewer-repair.md`.
+- Off `INVALID`, the request is the later turn while the lane's review thread is open.
+- Landing stamps an approval at the commit its reviewer's last heading names.
+
+observed: a reviewer on opencode woken with the repair request for its review thread rejected for `status: pending` changed only that line and kept its message. Landed, the approval was stamped at its last heading's commit, and `rp check` read the lane approved (`3-implementation/notes/reviewer-repair-run.md`).

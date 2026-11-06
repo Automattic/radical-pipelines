@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: implementer
 owner: spec-producer
 artifact: spec
@@ -34,3 +34,7 @@ Yes, it does. intent-constraint-3 says "A convention's text may contain variable
 ### Finding 2: changed in fb199c79a7314d1483f274dfb45a63b314902e28
 
 The spec now values the fact as the defined Base. The intent says "the base", and the skill's canonical vocabulary defines **Base** as the merge-base of the inspected tip with the branch `run-config.md`'s `base` names (`skills/radical-pipelines/reference/run/state.md` § Terms; `docs/glossary.md`). No convention text in any source uses the fact, so no intended use favors the branch. The spec's reason for the branch was the implementer's Base branch slot, which keeps naming that branch. spec-requirement-10 now defines the fact as the merge-base of the role's turn commit with the branch `run-config.md`'s `base` names. For a reviewer, the turn commit is the change `rp review` printed. The Considered line now records the branch reading as the one not taken. spec-acceptance-criterion-15 keeps its wording: it checks each role's value for its turn.
+
+## implementer — fc2642bf12e14bad7bbca5f94f532f43d969b81a
+
+Both findings are resolved. A lane's brief is now expanded like the other carried texts, and a placeholder it keeps brings the vocabulary listing (f7f5dea8). The vocabulary's `base` is the Base of the role's turn commit, while the implementer's Base branch keeps the branch name. The glossary's Vocabulary entry now defines every fact (ef161976).
