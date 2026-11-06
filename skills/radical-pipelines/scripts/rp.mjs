@@ -1679,13 +1679,13 @@ async function cmdLand(args) {
   const certified = subjects.filter(([subject, bytes]) => !pipeline.certification(subject.path)?.equals(bytes));
   const landed = certified.length ? commitFiles(root, bring.landed, certified.map(([subject, bytes]) => [`${folder}/${certificationPath(subject.path)}`, bytes]),
     landingMessage(conventions, `Certify ${certified.map(([subject]) => nounOf(subject)).join(" and ")}`)) : bring.landed;
+  // The pipeline as `rp check` will read it after the landing, read before the branch moves: the phases complete then
+  // that were not when the step was applied and no earlier landing of it reported.
+  const after = await inspect(root, folder, pipelinesRoot, landed);
+  const reported = completePhases(after.state, after.frontier).filter((n) => !record.complete.includes(n) && !record.reported.includes(n));
   if (landed !== tip)
     try { gitText(root, ["merge", "--ff-only", "--quiet", landed]); }
     catch (error) { if (error instanceof RpError) fail(`land: ${root}: the pipeline branch cannot move to the landing: ${error.message}`); throw error; }
-
-  // The phases complete after the landing that were not when the step was applied and no earlier landing of it reported.
-  const after = await inspect(root, folder, pipelinesRoot, landed);
-  const reported = completePhases(after.state, after.frontier).filter((n) => !record.complete.includes(n) && !record.reported.includes(n));
   if (reported.length) writeRecord(root, { ...record, reported: [...record.reported, ...reported] });
   process.stdout.write(reported.map((n) => `hook phase-completed ${n}\n`).join(""));
 }

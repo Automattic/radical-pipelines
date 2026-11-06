@@ -249,6 +249,19 @@ describe("rp land", () => {
         assert.deepEqual(untouched(), before);
       });
 
+    it("on a landing after which rp check could not read the pipeline", () => {
+      conventions();
+      pipeline(0, { lanes: [lane("spec-producer", "a")] });
+      apply();
+      const config = read("run-config.md").replace('"base": "main"', '"base": "missing-base"');
+      commitIn(laneWorktree("demo-spec-a"), { [candidate("a")]: "# Candidate\n", "run-config.md": config }, "turn");
+      const before = untouched();
+      const out = run("land", abs(PIPELINE), "--role", "spec-producer-a");
+      assert.deepEqual([out.status, out.stdout], [1, ""]);
+      assert.match(out.stderr, /^rp: base does not resolve to a commit: missing-base$/m);
+      assert.deepEqual(untouched(), before);
+    });
+
     it("on a landing that conflicts", () => {
       conventions();
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
