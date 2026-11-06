@@ -590,8 +590,7 @@ function laneThreadOf(rel, laneId) {
   const match = rel.match(new RegExp(`^threads/([1-9]\\d*)-reviewer-${laneId}-(implementer-implementation|owner-intent)\\.md$`));
   return match && { number: Number(match[1]), review: match[2] === "implementer-implementation" };
 }
-// A review lane's review thread: the highest-numbered of its review threads among `paths`, read by file name, so a
-// malformed one counts; undefined when it has none.
+// A review lane's review thread: the highest-numbered of its review threads among `paths`; undefined when it has none.
 const reviewThreadOf = (paths, laneId) => paths.filter((rel) => laneThreadOf(rel, laneId)?.review)
   .sort((a, b) => laneThreadOf(b, laneId).number - laneThreadOf(a, laneId).number)[0];
 // A lane's branch: `<pipeline branch>-<artifact>-<lane>` for a production lane of `phase`, `<pipeline branch>-review-<lane>`
@@ -1266,14 +1265,14 @@ function turnOf(state, entries, role) {
   return null;
 }
 
-// A review lane's request: its review thread unless that parses as closed, else a new one numbered one past the highest in
-// `threads/`; and on a later turn, when that thread is open and awaits the reviewer, the commit its last message names.
+// A review lane's request off an INVALID frontier: a later turn on its review thread while that is open, which then awaits
+// the reviewer, with the commit the reviewer's last message names; else a first turn on a new review thread, numbered one
+// past the highest in `threads/`.
 function requestOf(pipeline, state, role) {
-  const latest = reviewThreadOf([...pipeline.files.keys()], role.lane);
-  const parsed = state.threads.find((thread) => thread.path === latest);
-  if (latest && !["approved", "withdrawn"].includes(parsed?.status))
-    return { thread: latest, last: parsed && awaitedRole(parsed) === role.name ? parsed.messages.findLast((message) => message.author === role.name).commit : null };
-  const highest = Math.max(0, ...[...pipeline.files.keys()].map((path) => Number(path.match(/^threads\/([1-9]\d*)-/)?.[1] ?? 0)));
+  const path = reviewThreadOf(state.threads.map((thread) => thread.path), role.lane);
+  const latest = state.threads.find((thread) => thread.path === path);
+  if (latest?.status === "open") return { thread: latest.path, last: latest.messages.findLast((message) => message.author === role.name).commit };
+  const highest = Math.max(0, ...[...pipeline.files.keys()].map((rel) => Number(rel.match(/^threads\/([1-9]\d*)-/)?.[1] ?? 0)));
   return { thread: `threads/${highest + 1}-${role.name}-implementer-implementation.md`, last: null };
 }
 
@@ -1303,24 +1302,27 @@ async function cmdAssign(args) {
   // The carried texts, expanded for the role. Its base is the Base: the merge-base of its turn commit with `base`.
   const vocabulary = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, base: baseOf(worktree, state.config.base, tip) };
   const variables = Object.fromEntries(Object.entries(conventions.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => vocabulary[fact])]));
-  const kept = new Set();
-  const expand = (text) => expandText(text, { ...vocabulary, ...variables }, kept);
+  const keeps = {};
+  const expand = (key) => (text) => expandText(text, { ...vocabulary, ...variables }, keeps[key] ??= new Set());
   const laneEntry = role.lane ? state.config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
   const carried = {
-    guardrails: carriedOf(conventions, "guardrails", role.profile, expand),
-    resources: carriedOf(conventions, "resources", role.profile, expand),
-    "commit-format": conventions.commitFormat === null ? "An imperative subject line." : expand(conventions.commitFormat),
-    brief: laneEntry?.brief ? expand(laneEntry.brief) : "",
+    guardrails: carriedOf(conventions, "guardrails", role.profile, expand("guardrails")),
+    resources: carriedOf(conventions, "resources", role.profile, expand("resources")),
+    "commit-format": conventions.commitFormat === null ? "An imperative subject line." : expand("commit-format")(conventions.commitFormat),
+    brief: laneEntry?.brief ? expand("brief")(laneEntry.brief) : "",
   };
+  // A reviewer's repair request carries the commit format alone; every other assignment, every carried text.
+  const repair = !artifact && entries[0].action === "INVALID";
+  const carries = repair ? ["commit-format"] : Object.keys(carried);
   const models = modelsOf(state.config, role.profile, role.lane);
   const laterInputs = [...state.docs.values()].filter((doc) => doc.kind === "later" && (!artifact || doc.targets.includes(artifact.phase.artifact))).map((doc) => at(doc.path));
   const values = {
     ...vocabulary, ...carried,
-    vocabulary: kept.size ? VOCABULARY.map((name) => `- \`{${name}}\`: ${vocabulary[name]}`.trimEnd()) : [],
+    vocabulary: carries.some((key) => keeps[key]?.size) ? VOCABULARY.map((name) => `- \`{${name}}\`: ${vocabulary[name]}`.trimEnd()) : [],
     "turn-commit": tip,
     "base-branch": state.config.base,
     "subagent-model": models.subagents ?? "",
-    intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),
+    "pipeline-folder": at(""), intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),
     "later-inputs": laterInputs,
     "malformed-files": turn.malformed.map((entry) => `INVALID ${entry.target}: ${entry.reason}`),
   };
@@ -1345,10 +1347,11 @@ async function cmdAssign(args) {
     const reviewBase = commitOf(worktree, `${tip}^`);
     if (subject(tip) !== REVIEW_CHANGE || !reviewBase || subject(reviewBase) !== REVIEW_BASE)
       fail(`assign: ${worktree} is at ${tip}, not at a change rp review built: run rp review --lane ${role.lane}`);
-    const request = requestOf(pipeline, state, role);
-    templateName = request.last ? "reviewer-later" : "reviewer-first";
-    Object.assign(values, { "review-base": reviewBase, thread: at(request.thread) });
-    if (request.last) {
+    values["review-base"] = reviewBase;
+    const request = repair ? null : requestOf(pipeline, state, role);
+    templateName = repair ? "reviewer-repair" : request.last ? "reviewer-later" : "reviewer-first";
+    if (request) values.thread = at(request.thread);
+    if (request?.last) {
       const diff = gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.diff"]);
       const from = requireCommit(worktree, request.last, `assign: the commit ${role.name}'s last message names`);
       prepared.push([diff, gitBytes(worktree, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);

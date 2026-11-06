@@ -24,7 +24,7 @@ flowchart TD
     ASSIGN["For each woken role, rp assign writes its assignment and prints its model; spawn or wake it on that model, resolved for the tool"] --> WAIT
     WAIT["End the turn; resume on role reports and health ticks"] --> ENDED{"Every woken role ended its turn?"}
     ENDED -->|No| WAIT
-    ENDED -->|Yes| LAND["For each role, at the turn commit its assignment names: a production lane or role stamps in its worktree; a review lane's commits after its change are cherry-picked onto the pipeline branch first and its approvals stamped at that change, the one the reviewer's last heading names, the pipeline worktree's HEAD becoming the approved commit, whose code must be the change's; commit the certifications; then merge a production lane's branch"]
+    ENDED -->|Yes| LAND["For each role, at the turn commit its assignment names: a production lane or role stamps in its worktree; a review lane's commits after its change are cherry-picked onto the pipeline branch first and its approvals stamped at the commit the reviewer's last heading names, the pipeline worktree's HEAD becoming the approved commit, whose code must be that commit's; commit the certifications; then merge a production lane's branch"]
     LAND --> PC["Fire phase-completed for each phase that became complete; report one line per role to the owner"]
     PC --> A
 ```

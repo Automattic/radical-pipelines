@@ -1,9 +1,3 @@
-{{#malformed-files}}
-`rp check` rejects these files you wrote; fix them first:
-
-{{malformed-files}}
-
-{{/malformed-files}}
 You are reviewing the code on this branch, `{{branch}}`, against `{{review-base}}`. It addresses this issue: {{intent}}.
 {{#later-inputs}}
 Its later inputs: {{later-inputs}}

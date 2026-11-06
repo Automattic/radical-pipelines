@@ -1,6 +1,6 @@
 # Assignment templates
 
-`rp assign` (`../scripts/README.md` § `assign`) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, or `reviewer-later.md` when its lane's review thread is open and awaits it. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
+`rp assign` (`../scripts/README.md` § `assign`) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open, or `reviewer-repair.md` on an `INVALID` frontier. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
 
 ## Syntax
 
@@ -17,7 +17,7 @@ Every template may use:
 - `base-branch`: `run-config.md`'s `base`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
 - `brief`: the lane's brief, its placeholders expanded, or empty.
-- `intent`, `spec`, `design-doc`: their paths in the role's worktree.
+- `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree.
 - `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
 - `malformed-files`: a list of the frontier's `INVALID` lines naming a file the role writes, as `rp check` prints them.
 - `guardrails`, `resources`: a list of the entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
@@ -32,4 +32,4 @@ A producer's and the implementer's templates also use:
 - `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree.
 - `threads`: a list of the threads awaiting the role.
 
-A reviewer's templates also use `review-base`, `thread`, the lane's review thread, and on a later turn `diff`, the diff it reads.
+A reviewer's templates also use `review-base`; its first-turn and later-turn requests, `thread`, the lane's review thread; and its later-turn request, `diff`, the diff it reads.

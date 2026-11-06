@@ -256,11 +256,11 @@ node rp.mjs assign <pipeline folder> --role <role>
    | `consolidate <artifact>` | Its owner, mode Consolidate |
    | `lane <artifact> <lane>` | The lane, mode Produce while its candidate is missing, else Respond |
    | `review <lane>` | The lane's reviewer |
-   | `INVALID <path>: <reason>` | Each role that writes a rejected file; a producer or the implementer in Respond |
+   | `INVALID <path>: <reason>` | Each role that writes a rejected file; a producer or the implementer in Respond, a reviewer with the repair request |
 
    A role writes its artifact or candidate, and every thread whose file name names it as opener or owner. The `INVALID` lines of those files, and only those, are its malformed files. When no action wakes the role, `assign` stops.
 3. **Seat.** A role without a lane sits in the pipeline worktree, on the pipeline branch. A production lane sits in the worktree that has `<pipeline branch>-<spec | design-doc>-<lane>` checked out, and a review lane in the one that has `<pipeline branch>-review-<lane>`. That worktree's `HEAD` is the turn commit; a review lane's must be the change `rp review` built, whose parent is the review base (§ `review`).
-4. **Request.** A review lane's review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`, unless that thread is `approved` or `withdrawn`; then it is a new one, numbered one past the highest in `threads/`. While that thread is `open` and awaits the reviewer, the turn is a later turn, and `assign` also writes `reviewer.diff` beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root.
+4. **Request.** On an `INVALID` frontier, a review lane gets the repair request. On any other, its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the request is the later-turn one, and `assign` also writes `reviewer.diff` beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root. Otherwise it is the first-turn one, naming a new review thread numbered one past the highest in `threads/`.
 5. **Write.** It fills the template (`../templates/README.md`) and writes it at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's.
 
 It prints `assignment <absolute path>`, then `model <name>` when the run gives the role a model (§ `run-config.md`). Every model name is printed and written as the run writes it.

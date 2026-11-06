@@ -26,7 +26,7 @@ function skillWith(templates) {
 // A template naming itself under `## template`, then each flag that holds as a `## <flag>` heading, and each value
 // alone under its own `## <name>` heading.
 const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base", "turn-commit", "base-branch", "subagent-model", "brief",
-  "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "vocabulary"];
+  "pipeline-folder", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "vocabulary"];
 const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "threads", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
 const echo = (name, values, flags = []) => `${["## template", name, ...flags.flatMap((flag) => [`{{#${flag}}}`, `## ${flag}`, `{{/${flag}}}`]),
@@ -37,6 +37,7 @@ before(() => {
     ...Object.fromEntries(["spec-producer", "design-doc-producer", "implementer"].map((name) => [name, echo(name, PRODUCER, FLAGS)])),
     "reviewer-first": echo("reviewer-first", [...COMMON, "review-base", "thread"]),
     "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "diff"]),
+    "reviewer-repair": echo("reviewer-repair", [...COMMON, "review-base"]),
   });
 });
 after(() => { for (const folder of skills) rmSync(folder, { recursive: true, force: true }); });
@@ -264,7 +265,7 @@ describe("assign", () => {
     });
   });
 
-  it("lists as malformed files the INVALID lines of the files each role writes, and wakes only those roles", () => {
+  it("lists as malformed files the INVALID lines of the files each role writes, wakes only those roles, and gives a reviewer the repair request", () => {
     conventions();
     pipeline(3);
     write(NOTES, withFrontmatter({ status: "done", owner: "me" }, "\n# Notes\n"));
@@ -276,9 +277,12 @@ describe("assign", () => {
     assert.deepEqual(implementer["malformed-files"], [`INVALID ${NOTES}: unexpected frontmatter key: owner`, `INVALID ${rejected}: ${STATUS}`]);
     assert.deepEqual([implementer.mode, implementer.threads, implementer["changed-inputs"]], [["Respond"], ["none"], ["none"]]);
     assert.deepEqual(assign("spec-producer").values["malformed-files"], [`INVALID ${toOwner}: ${STATUS}`]);
-    const wt = worktree("default", reviewLane("default").branch);
-    const request = assign("reviewer-default").values;
-    assert.deepEqual([request["malformed-files"], request.thread], [[`INVALID ${rejected}: ${STATUS}`], [in_(wt, rejected)]]);
+    const built = reviewLane("default");
+    const wt = worktree("default", built.branch);
+    const { path, values: request } = assign("reviewer-default");
+    assert.deepEqual([request.template, request["malformed-files"]], [["reviewer-repair"], [`INVALID ${rejected}: ${STATUS}`]]);
+    assert.deepEqual([request["turn-commit"], request["pipeline-folder"]], [[built.change], [in_(wt, "")]]);
+    assert.equal(existsSync(join(dirname(path), "reviewer.diff")), false);
     refuse("design-doc-producer", /assign: the frontier does not wake design-doc-producer: INVALID 3-implementation\/notes.md; INVALID threads\/2-[^;]+; INVALID threads\/3-/);
   });
 
@@ -562,9 +566,13 @@ describe("assign", () => {
       assert.equal(delivered(`reviewer-${id}`, [`\`${subagents}\``, carried("guardrails", "rule", "documentation"), carried("resources", "resource", "test suite and scripts")]), model);
     }
     const change = reviewLane("default").change;
-    thread({ n: 2, ...REVIEW("default"), messages: [["reviewer-default", change], ["implementer", head()]] });
+    const review = thread({ n: 2, ...REVIEW("default"), messages: [["reviewer-default", change], ["implementer", head()]] });
     commitAll("an answered review");
     reviewLane("default");
-    delivered("reviewer-default", ["reviewer.diff", in_(realpathSync(`${root}/.wt-default`), "threads/2-reviewer-default-implementer-implementation.md")]);
+    delivered("reviewer-default", ["reviewer.diff", in_(realpathSync(`${root}/.wt-default`), review)]);
+    thread({ n: 2, ...REVIEW("default"), status: "pending", messages: [["reviewer-default", change], ["implementer", head()]] });
+    commitAll("a rejected review thread");
+    const repaired = reviewLane("default").change;
+    delivered("reviewer-default", [`INVALID ${review}: status must be`, repaired, in_(realpathSync(`${root}/.wt-default`), "")]);
   });
 });
