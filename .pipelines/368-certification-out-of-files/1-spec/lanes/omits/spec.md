@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@278f3b3641b5"
+  ]
+}
+---
 # Spec: Keep rp's certification out of the pipeline files
 
 ## Overview
