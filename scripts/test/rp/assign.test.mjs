@@ -483,6 +483,46 @@ describe("assign", () => {
     });
   });
 
+  it("writes every role's assignment from this repository's .rp.md and a run confirmed with its Agents defaults", () => {
+    const committed = readFileSync(join(dirname(RP), "../../../.rp.md"));
+    const data = JSON.parse(committed.toString("utf8").split("---\n")[1]);
+    writeFile(".rp.md", committed);
+    const config = { agents: data.agents };
+    const carried = (key, field, name) => [`### ${name}`, "", `- ${field}: ${data[key][name][field]}`];
+    pipeline(0, config);
+    const tip = commitAll("lanes");
+    const lanes = Object.fromEntries(Object.keys(data.agents["spec-producer"].lanes).map((id) => [id, worktree(id, `demo-spec-${id}`, tip)]));
+    assert.deepEqual(Object.keys(lanes), ["demands", "omits"]);
+    const demands = assign("spec-producer-demands"), parsed = parse(demands.text);
+    assert.deepEqual(parsed.headings, ["Seat", "Mode", "Brief", ...PROFILE_HEADINGS.slice(2)]);
+    assert.deepEqual(Object.keys(parsed.seat), ["Worktree", "Branch", "Turn commit", "Supporting folder", "Subagent model"]);
+    assert.deepEqual([demands.model, parsed.seat["Subagent model"]], ["opus", "sonnet"]);
+    assert.deepEqual(parsed.Brief, [data.agents["spec-producer"].lanes.demands.brief]);
+    assert.deepEqual(parsed.materials, { Intent: in_(lanes.demands, INTENT) });
+    assert.deepEqual(parsed.Guardrails, ["none"]);
+    assert.deepEqual(parsed.Resources, carried("resources", "resource", "test suite and scripts"));
+    assert.deepEqual(parsed["Commit format"], data["commit-format"]);
+    assert.deepEqual([assign("spec-producer-omits").model, parse(assign("spec-producer-omits").text).seat["Subagent model"]], ["sonnet", "sonnet"]);
+    for (const id of Object.keys(lanes)) {
+      write(`1-spec/lanes/${id}/spec.md`, `# ${id}\n`);
+      land(`1-spec/lanes/${id}/spec.md`);
+    }
+    assert.equal(assign("spec-producer").model, "opus");
+    pipeline(1, config);
+    assert.equal(parse(assign("design-doc-producer").text).seat["Subagent model"], "sonnet");
+    pipeline(2, config);
+    const implementer = parse(assign("implementer").text);
+    assert.deepEqual(implementer.Guardrails, [...carried("guardrails", "rule", "tests"), "", ...carried("guardrails", "rule", "documentation")]);
+    assert.deepEqual(implementer.Resources, carried("resources", "resource", "test suite and scripts"));
+    pipeline(3, config);
+    for (const [id, model, subagents] of [["default", "opus", "sonnet"], ["astra", "astra", "luna"]]) {
+      worktree(id, reviewLane(id).branch);
+      const request = assign(`reviewer-${id}`);
+      assert.equal(request.model, model);
+      for (const line of [`\`${subagents}\``, ...carried("guardrails", "rule", "documentation"), ...carried("resources", "resource", "test suite and scripts")]) assert.ok(request.text.includes(line), line);
+    }
+  });
+
   it("stops on a template a slot of which has no value, naming it and writing nothing", () => {
     const copy = mkdtempSync(join(tmpdir(), "rp-skill-"));
     try {
