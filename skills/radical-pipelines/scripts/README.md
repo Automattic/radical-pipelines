@@ -19,7 +19,7 @@ A pipeline folder is `<pipelines folder root>/<pipeline slug>`, a folder of the 
 
 | Path | What it is | Frontmatter keys |
 | --- | --- | --- |
-| `run-config.md` | Run configuration | JSON: `format`, `target-phase`, `base`, `lanes` |
+| `run-config.md` | Run configuration | JSON: `format`, `target-phase`, `base`, `agents` |
 | `0-intent/intent.md` | Intent | `issue`, `starts-from`, `re-attempts`, each optional |
 | `0-intent/constraint-<n>.md`, `proposal-<n>.md`, `failure-<n>.md` | Later input | `target`, required; `origin`, optional and not interpreted |
 | `1-spec/spec.md` | Spec | no frontmatter |
@@ -50,21 +50,23 @@ A file's identity is the first 12 hexadecimal characters of the git blob id of t
 
 ```json
 {
-  "format": 7,
+  "format": 8,
   "target-phase": 4,
   "base": "main",
-  "lanes": [
-    { "profile": "spec-producer", "id": "a", "brief": "…" },
-    { "profile": "reviewer", "id": "security", "brief": "…" }
-  ]
+  "agents": {
+    "spec-producer": { "model": "opus", "subagents": "sonnet", "lanes": { "a": { "brief": "…" }, "b": { "model": "sonnet" } } },
+    "implementer": { "model": "opus" },
+    "reviewer": { "lanes": { "default": { "model": "opus" }, "security": { "brief": ["…", "…"], "model": "astra", "subagents": "luna" } } }
+  }
 }
 ```
 
-- `format`: the conventions format the pipeline was written under, an integer; the current one is `7`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check` and `stamp` read only format 7 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
+- `format`: the conventions format the pipeline was written under, an integer; the current one is `8`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check`, `stamp`, `review`, and `assign` read only format 8 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
 - `target-phase`: an integer from 1 to 4. Phase 4 is review.
 - `base`: a revision that resolves to a commit.
-- `lanes` (optional, non-empty when present): each lane has only `profile`, `id`, and an optional `brief`, all non-empty strings. `profile` is `spec-producer` or `design-doc-producer` for a production lane, or `reviewer` for a review lane. `id` matches `[a-z0-9][a-z0-9-]*` and is unique per profile.
-- Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
+- `agents` (optional): the run's agents, in the schema of `.rp.md`'s `agents` (§ Conventions data).
+- A profile's `lanes` are its lanes: production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
+- A role's model is its lane's `model`, else its profile's; its subagent model is its lane's `subagents`, else its profile's. Either may be none.
 
 The body is ignored. A missing `run-config.md` or one that breaks these rules stops `check`, as does a missing intent.
 
@@ -208,7 +210,7 @@ Of each pipeline folder, discovery reads only two things, so pipelines of every 
 - **`format`** (§ `run-config.md`): the integer `format` of `run-config.md` when it is a regular file with JSON frontmatter carrying one, else `earlier`.
 - **Origins**: of `0-intent/intent.md` when it is a regular file. From format 7, its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written; an intent whose frontmatter cannot be read (§ Frontmatter) has no origins. In an earlier format, the values of the leading `origin:` lines of its body, below any frontmatter; an intent with unclosed frontmatter has no origins.
 
-A pipeline of format 7 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+A pipeline of format 8 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
 

@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 
 import { RP, commitAll, git, root, rp, run, useRepo, writeFile } from "./fixture.mjs";
 
-const CONFIG = '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n';
+const CONFIG = '---\n{"format": 8, "target-phase": 4, "base": "main"}\n---\n';
 function recordPipeline(folder, issue, extra = "") {
   writeFile(`${folder}/run-config.md`, CONFIG);
   writeFile(`${folder}/0-intent/intent.md`, `---\nissue: ${issue}\nstarts-from: main\n---\n\n# Intent\n${extra}`);
@@ -61,7 +61,7 @@ describe("pipelines", () => {
 
   it("prints one line per pipeline: <state> <format> <ref> <folder>", () => {
     scenario();
-    assert.equal(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--issue", "2"), "live 7 live .pipelines/fresh-work\nlive 7 origin/live .pipelines/fresh-work\n");
+    assert.equal(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--issue", "2"), "live 8 live .pipelines/fresh-work\nlive 8 origin/live .pipelines/fresh-work\n");
     assert.equal(rp("pipelines", `${root}/.pipelines`, "--base", "main", "--issue", "9"), "");
   });
 
@@ -87,12 +87,13 @@ describe("pipelines", () => {
     ["an intent that is a folder in an earlier pipeline", { "0-intent/intent.md/x": "origin: issue 5\n" }, "earlier", ""],
     ["an earlier intent with unclosed frontmatter", { "0-intent/intent.md": "---\n{\norigin: issue 5\n" }, "earlier", ""],
     ["format 6, whose origins are body lines", { "run-config.md": '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n', "0-intent/intent.md": "---\nissue: 4\n---\norigin: issue 5\norigin: starts-from main\n\n# I\n" }, 6, "issue 5,starts-from main"],
-    ["format 7 with keys check would reject", { "run-config.md": '---\n{"format": 7, "workflow": "x"}\n---\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, 7, "issue 5"],
-    ["an intent whose frontmatter is outside the subset", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: #5\n---\n" }, 7, ""],
-    ["an intent with unclosed frontmatter", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: 5\n" }, 7, ""],
-    ["an intent whose origins are body lines only", { "run-config.md": CONFIG, "0-intent/intent.md": "origin: issue 5\n\n# I\n" }, 7, ""],
-    ["a newer format", { "run-config.md": '---\n{"format": 8}\n---\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, 8, "issue 5"],
-    ["malformed files discovery does not read", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: 5\nstatus: x\n---\n", "threads/1-x.md": "status: nope\n", "1-spec/spec.md/x": "x\n" }, 7, "issue 5"],
+    ["format 7, whose origins are its intent's frontmatter", { "run-config.md": '---\n{"format": 7, "target-phase": 4, "base": "main", "lanes": []}\n---\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, 7, "issue 5"],
+    ["format 8 with keys check would reject", { "run-config.md": '---\n{"format": 8, "workflow": "x"}\n---\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, 8, "issue 5"],
+    ["an intent whose frontmatter is outside the subset", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: #5\n---\n" }, 8, ""],
+    ["an intent with unclosed frontmatter", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: 5\n" }, 8, ""],
+    ["an intent whose origins are body lines only", { "run-config.md": CONFIG, "0-intent/intent.md": "origin: issue 5\n\n# I\n" }, 8, ""],
+    ["a newer format", { "run-config.md": '---\n{"format": 9}\n---\n', "0-intent/intent.md": "---\nissue: 5\n---\n" }, 9, "issue 5"],
+    ["malformed files discovery does not read", { "run-config.md": CONFIG, "0-intent/intent.md": "---\nissue: 5\nstatus: x\n---\n", "threads/1-x.md": "status: nope\n", "1-spec/spec.md/x": "x\n" }, 8, "issue 5"],
   ];
   for (const [what, files, format, origins] of kinds)
     it(`lists a pipeline with ${what} as format ${format}`, () => {
@@ -148,7 +149,7 @@ describe("pipelines", () => {
     });
 
   for (const [what, intent] of [["no intent", null], ["an intent that is a folder", "0-intent/intent.md/x"]])
-    it(`stops on a format 7 pipeline with ${what}`, () => {
+    it(`stops on a format 8 pipeline with ${what}`, () => {
       git(root, "checkout", "--quiet", "-b", "broken", "main");
       writeFile(".pipelines/broken/run-config.md", CONFIG);
       if (intent) writeFile(`.pipelines/broken/${intent}`, "x\n");
@@ -158,18 +159,18 @@ describe("pipelines", () => {
       assert.match(out.stderr, /cannot read broken:\.pipelines\/broken\/0-intent\/intent\.md: missing/);
     });
 
-  it("lists the pipelines of an issue in format 6 and format 7, each with its format and its origins", () => {
+  it("lists the pipelines of an issue in format 6 and format 8, each with its format and its origins", () => {
     git(root, "checkout", "--quiet", "-b", "old-work", "main");
     writeFile(".pipelines/old/run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n');
     writeFile(".pipelines/old/0-intent/intent.md", "origin: issue 9\n\n# Intent\n");
     commitAll("format 6");
     git(root, "checkout", "--quiet", "-b", "new-work", "old-work");
     recordPipeline(".pipelines/new", 9);
-    commitAll("format 7");
-    assert.deepEqual(formats("--issue", "9"), ["live 7 new-work .pipelines/new issue 9,starts-from main", "live 6 new-work .pipelines/old issue 9", "live 6 old-work .pipelines/old issue 9"]);
+    commitAll("format 8");
+    assert.deepEqual(formats("--issue", "9"), ["live 8 new-work .pipelines/new issue 9,starts-from main", "live 6 new-work .pipelines/old issue 9", "live 6 old-work .pipelines/old issue 9"]);
   });
 
-  it("reads a format-7 intent's origins from its frontmatter as the text written, in the order written", () => {
+  it("reads a format-8 intent's origins from its frontmatter as the text written, in the order written", () => {
     git(root, "checkout", "--quiet", "-b", "p", "main");
     writeFile(".pipelines/p/run-config.md", CONFIG);
     writeFile(".pipelines/p/0-intent/intent.md", "---\nre-attempts: old-slug\nissue: 0368\nstarts-from: 'feature/x'\n---\n\n# Intent\n");

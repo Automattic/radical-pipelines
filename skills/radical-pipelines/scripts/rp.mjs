@@ -427,8 +427,8 @@ async function readCommit(root, commit, folder, reads = null) {
 
 // --- parsing ----------------------------------------------------------------------
 
-// The conventions format this script reads and writes.
-export const FORMAT = 7;
+// The conventions format this script reads and writes: the version of `.rp.md` and the format of `run-config.md`.
+export const FORMAT = 8;
 // The format a pipeline was written under: the integer `format` in run-config.md's JSON frontmatter, else `earlier`
 // (no run-config.md, no frontmatter, unreadable frontmatter, or no integer `format`). Nothing else is read.
 export function formatOf(bytes) {
@@ -444,27 +444,71 @@ function requireFormat(bytes, path) {
   if (format > FORMAT) fail(`${path}: pipeline of a newer format ${format}; update the skill`);
 }
 
-// run-config.md: format, target phase, base, and lanes. Its body is ignored.
+// The data `.rp.md` and `run-config.md` share. Each check names what is malformed through `malformed(reason)`, which
+// throws; `at` names the entry, as `<key>.<name>…`.
+const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+const entryName = (at, name) => `${at}.${/^[a-z0-9][a-z0-9-]*$/.test(name) ? name : JSON.stringify(name)}`;
+// A JSON object, holding only `keys` when given.
+function objectAt(value, at, malformed, keys = null) {
+  if (!isObject(value)) malformed(`${at}: must be a JSON object`);
+  if (keys) for (const key of Object.keys(value)) if (!keys.includes(key)) malformed(`${at}: unexpected key: ${key}`);
+  return value;
+}
+// A text: a string, or a list of strings that are its lines, holding more than whitespace. The string it reads as.
+function textAt(value, at, malformed) {
+  const lines = typeof value === "string" ? [value] : Array.isArray(value) && value.every((line) => typeof line === "string") ? value : null;
+  if (!lines?.some((line) => /\S/.test(line))) malformed(`${at}: must be a text: a non-empty string, or a list of strings that are its lines`);
+  return lines.join("\n");
+}
+// A model name, as the project or the owner writes it.
+function modelAt(value, at, malformed) {
+  if (typeof value !== "string" || !value.trim()) malformed(`${at}: must be a model name, a non-empty string`);
+  return value;
+}
+
+// The profiles a role is an instance of.
+export const PROFILES = ["spec-producer", "design-doc-producer", "implementer", "reviewer"];
+const MODELS = ["model", "subagents"];
+// The agents of `.rp.md` and of `run-config.md`: by profile, its model, its subagent model, and its lanes, by lane id, each
+// with its brief, model, and subagent model; every member optional. Each brief is read as its string.
+export function parseAgents(value, malformed) {
+  const agents = {};
+  for (const [profile, entry] of Object.entries(objectAt(value, "agents", malformed, PROFILES))) {
+    const at = `agents.${profile}`;
+    objectAt(entry, at, malformed, [...MODELS, ...(LANE_PROFILES.includes(profile) ? ["lanes"] : [])]);
+    const parsed = agents[profile] = {};
+    for (const key of MODELS) if (key in entry) parsed[key] = modelAt(entry[key], `${at}.${key}`, malformed);
+    if (!("lanes" in entry)) continue;
+    if (!Object.keys(objectAt(entry.lanes, `${at}.lanes`, malformed)).length) malformed(`${at}.lanes: must name a lane`);
+    parsed.lanes = {};
+    for (const [id, lane] of Object.entries(entry.lanes)) {
+      const laneAt = entryName(`${at}.lanes`, id);
+      if (!LANE_ID.test(id)) malformed(`${laneAt}: a lane id must match ${LANE_ID.source}`);
+      objectAt(lane, laneAt, malformed, ["brief", ...MODELS]);
+      parsed.lanes[id] = {};
+      if ("brief" in lane) parsed.lanes[id].brief = textAt(lane.brief, `${laneAt}.brief`, malformed);
+      for (const key of MODELS) if (key in lane) parsed.lanes[id][key] = modelAt(lane[key], `${laneAt}.${key}`, malformed);
+    }
+  }
+  return agents;
+}
+
+// run-config.md: format, target phase, base, and the run's agents, in the schema of `.rp.md`'s. Its body is ignored.
 export function parseConfig(bytes) {
   const data = jsonFrontmatterOf(bytes);
-  onlyKeys(Object.keys(data), ["format", "target-phase", "base", "lanes"]);
+  onlyKeys(Object.keys(data), ["format", "target-phase", "base", "agents"]);
   const targetPhase = data["target-phase"];
   if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) invalid("target-phase must be an integer from 1 to 4");
   if (typeof data.base !== "string" || !data.base.trim()) invalid("base must be a branch name");
-  const lanes = data.lanes ?? [];
-  if (!Array.isArray(lanes) || ("lanes" in data && !lanes.length)) invalid("lanes must be a non-empty list");
-  const seen = new Set();
-  for (const lane of lanes) {
-    if (lane === null || typeof lane !== "object" || Array.isArray(lane)) invalid("a lane must be an object");
-    for (const key of Object.keys(lane)) if (!["profile", "id", "brief"].includes(key)) invalid(`unexpected lane key: ${key}`);
-    if (!LANE_PROFILES.includes(lane.profile)) invalid(`lane profile must be one of ${LANE_PROFILES.join(", ")}`);
-    if (typeof lane.id !== "string" || !LANE_ID.test(lane.id)) invalid(`lane id must match ${LANE_ID.source}`);
-    if ("brief" in lane && (typeof lane.brief !== "string" || !lane.brief.trim())) invalid(`lane ${lane.id}: a brief must be a non-empty string`);
-    const key = `${lane.profile}/${lane.id}`;
-    if (seen.has(key)) invalid(`duplicate lane: ${key}`);
-    seen.add(key);
-  }
-  return { targetPhase, base: data.base, lanes };
+  const agents = "agents" in data ? parseAgents(data.agents, invalid) : {};
+  const lanes = Object.entries(agents).flatMap(([profile, entry]) => Object.entries(entry.lanes ?? {}).map(([id, lane]) => ({ profile, id, ...lane })));
+  return { targetPhase, base: data.base, agents, lanes };
+}
+
+// A role's models in the run: its lane's model and subagent model, else its profile's; null where neither names one.
+export function modelsOf(config, profile, laneId) {
+  const entry = config.agents[profile] ?? {}, lane = laneId ? entry.lanes?.[laneId] ?? {} : {};
+  return Object.fromEntries(MODELS.map((key) => [key, lane[key] ?? entry[key] ?? null]));
 }
 
 // The production lanes configured for a phase.
