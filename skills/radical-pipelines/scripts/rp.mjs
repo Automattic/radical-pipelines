@@ -816,6 +816,21 @@ function reviewActions(state) {
   return actions.length ? actions : null;
 }
 
+// The phases from 1 through the target that are complete, ascending: each with every phase below it complete and its
+// work done. Phases 1 to 3: the artifact fresh (`notes.md` done) and no thread awaiting its owner. Phase 4: every review
+// lane approved and no thread awaiting a reviewer. None on an INVALID frontier.
+export function completePhases(state, entries) {
+  if (entries[0].action === "INVALID") return [];
+  const done = (n) => {
+    const phase = PHASES.find((each) => each.n === n);
+    if (phase) return statusOf(state, phase.artifact).state === "fresh" && !awaiting(state, phase.owner).length;
+    return reviewLanes(state.config).every((lane) => approvalOf(state, lane).approved) && !awaitedReviewLanes(state).length;
+  };
+  const complete = [];
+  for (let n = 1; n <= state.config.targetPhase && done(n); n++) complete.push(n);
+  return complete;
+}
+
 // The frontier: every action of the first rule that holds.
 export function frontier(state) {
   if (state.invalid.length) return state.invalid.map(({ path, reason }) => ({ action: "INVALID", target: path, reason }));
@@ -858,6 +873,7 @@ async function cmdCheck(args) {
       ...statusOf(state, phase.artifact),
       lanes: lanesOpen(state, phase).map((lane) => ({ id: lane.id, path: candidateOf(phase, lane.id), ...statusOf(state, candidateOf(phase, lane.id)) })),
     }));
+    report.complete = completePhases(state, entries);
     if (target === REVIEW_PHASE) {
       report.netChange = `${base}..${tip}`;
       report.reviews = reviewLanes(state.config).map((lane) => ({ lane: lane.id, ...approvalOf(state, lane) }));

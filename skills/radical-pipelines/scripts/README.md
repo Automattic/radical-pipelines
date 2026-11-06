@@ -158,6 +158,16 @@ The frontier is every action of the first rule that holds:
    - Phase 4: **`review <lane id>`** for each lane a thread awaits, and, at target phase 4, each configured lane not approved.
 4. **`complete`**.
 
+### Complete phases
+
+A phase from 1 through the target is **complete** when every phase below it is complete and its work is done:
+
+- Phase 1 or 2: its artifact is fresh, and no `open` thread awaits its producer.
+- Phase 3: `notes.md` is fresh, its `status` `done`, and no `open` thread awaits the implementer.
+- Phase 4: every review lane is approved, and no `open` thread awaits a reviewer.
+
+On an `INVALID` frontier no phase is complete.
+
 ### Output
 
 Without `--json`, the frontier comes first, one line per action, then one line per fact:
@@ -176,7 +186,7 @@ thread <thread> <status>[ awaits <role>]
 `--json` prints one object:
 
 - `pipeline`, `tip`, `targetPhase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role; not on `lane`), and `changed` (the changed inputs of a stale artifact, candidate, or approval).
-- `phases`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`, from an approval's certification, else `null`.
+- `phases`, `complete`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. `complete` lists the numbers of the complete phases (§ Complete phases), ascending. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`, from an approval's certification, else `null`.
 - `netChange` (`<base>..<tip>`), `reviews` (`lane`, `approved`, `stale` with the changed inputs, `codeChanged` when the code changed): at target phase 4, unless `INVALID`. A `review` frontier entry carries `changed` and `codeChanged` the same way.
 
 ## `stamp`
