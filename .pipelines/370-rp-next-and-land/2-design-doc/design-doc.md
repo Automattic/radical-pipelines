@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "1-spec/spec.md@70b04a644623"
+  ]
+}
+---
 # Design Doc: Run each loop step with `rp next` and `rp land`
 
 ## Overview
