@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@78e4eef7fa09"
+  ]
+}
+---
 # Spec: Project conventions as data, assignments written by rp
 
 ## Overview
