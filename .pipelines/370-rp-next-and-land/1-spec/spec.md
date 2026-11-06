@@ -147,11 +147,11 @@ origin: derived intent-goal: landing's commits move from the orchestrator to `rp
 
 observed: `.rp.md`'s `commit-format` asks for an imperative, sentence-case subject with no final period, ending with the profile name in parentheses.
 
-spec-requirement-17: `rp land` reports which phases its landing made complete: each phase from 1 through the target that is complete after the landing (spec-requirement-18) and was not complete when the landed turns began, in phase order. A landing that completes no phase reports none.
+spec-requirement-17: `rp land` reports which phases its landing made complete: each phase from 1 through the target that is complete after the landing (spec-requirement-18), was not complete when the step's turns began, and no earlier landing of the step reported, in phase order. A landing that completes no phase reports none.
 
 origin: from-intent intent-constraint-5
 
-observed: today `rp check` reports each artifact as `missing`, `fresh`, or `stale` and each review lane as approved or not, and names no phase complete; the orchestrator works out completion by comparing checks (`1-spec/spec/check-json-today.txt`; intent-context-1). A role in the pipeline worktree commits on the pipeline branch itself (`state.md` § Certification), so a thread it answered awaits its opener before its turn lands (`state.md` § Threads, **Awaits**).
+observed: today `rp check` reports each artifact as `missing`, `fresh`, or `stale` and each review lane as approved or not, and names no phase complete; the orchestrator works out completion by comparing checks (`1-spec/spec/check-json-today.txt`; intent-context-1). A role in the pipeline worktree commits on the pipeline branch itself (`state.md` § Certification), so a thread it answered awaits its opener before its turn lands (`state.md` § Threads, **Awaits**). One step can wake two roles whose landings each leave the same phase complete: an `INVALID` thread between `spec-producer` and `design-doc-producer` wakes both (`loop-edges.txt` E7).
 
 spec-requirement-18: A phase from 1 through the target is complete when every phase from 1 below it is complete and:
 
@@ -181,7 +181,7 @@ origin: derived intent-constraint-6: a turn often lands with its artifact unchan
 
 observed: today the commit is the last one that changed the artifact (`skills/radical-pipelines/scripts/rp.mjs`, `cmdAssign`). A design-doc-producer whose design doc stood when the spec went from v1 to v2 is woken for v3 with the commit before v2, and the diff from it shows v1 to v3, though the design doc's certification pins v2 (`loop-edges.txt` E4). In format 6, the stamp commit changed the artifact file itself, so that commit was the last landing (`1-spec/spec/format-6-stamps.txt`).
 
-spec-requirement-22: To run the loop, the orchestrator runs no Git command, computes no path, and reads no thread or assignment. For every frontier line, from planning a step to landing its turns, it runs `rp next`, `rp next --apply`, and `rp land`, follows its hooks' instructions, and drives the roles with its tool from what those commands print.
+spec-requirement-22: To run the loop, the orchestrator runs no Git command, computes no path, and reads no thread or assignment. In a loop step, for every frontier line, from planning the step to landing its turns, it runs `rp next`, `rp next --apply`, and `rp land`, follows its hooks' instructions, and drives the roles with its tool from what those commands print. The steps spec-exclusion-2 keeps outside a loop step keep their own commands.
 
 origin: from-intent intent-goal
 
@@ -272,6 +272,7 @@ spec-acceptance-criterion-28: Given a turn to land, when `rp land` lands it, the
 - For one review lane's approval while another lane is not approved, it reports no phase.
 - For the last review lane's approval, with phases 1 to 3 complete, it reports phase 4.
 - For the spec-producer's answer to a thread the implementer opened, the spec unchanged, the design doc fresh, and `notes.md` not done, it reports phases 1 and 2.
+- For the second of two landings of one step, each leaving phase 1 complete, after the first reported it, it reports no phase.
 
 spec-acceptance-criterion-29: Given a pipeline whose frontier is not `INVALID`, when `rp check --json` runs, then the phases it reports complete are those spec-requirement-18 defines.
 
@@ -279,19 +280,20 @@ spec-acceptance-criterion-30: Given `rp next` or `rp land` with any option beyon
 
 spec-acceptance-criterion-31: Given a design doc whose landed turn left it unchanged when the spec went from v1 to v2, and a spec now at v3, when the design-doc-producer is woken, then its changed input names a commit at which the spec is v2, and the diff from that commit to its turn commit shows only the change from v2 to v3.
 
-spec-acceptance-criterion-32: Given the skill after the change, when the orchestrator follows the loop for any frontier line through landing its turns, then the commands it runs are `rp next`, `rp next --apply`, `rp land`, those its hooks' instructions name, and its tool's spawn, wake, and terminate calls. It spawns or wakes each role in the worktree the plan names, on the role's model name resolved for its tool, with `Read your assignment: <the path the plan names>.`, passes only paths `rp` printed, and opens no thread or assignment file.
+spec-acceptance-criterion-32: Given the skill after the change, when the orchestrator follows a loop step for any frontier line through landing its turns, then the commands it runs in the step, outside the steps spec-exclusion-2 names, are `rp next`, `rp next --apply`, `rp land`, those its hooks' instructions name, and its tool's spawn, wake, and terminate calls. It spawns or wakes each role in the worktree the plan names, on the role's model name resolved for its tool, with `Read your assignment: <the path the plan names>.`, passes only paths `rp` printed, and opens no thread or assignment file.
 
 ## Exclusions
 
 spec-exclusion-1: `rp` does not spawn, seat, wake, message, terminate, or watch a role, does not decide that a role has ended its turn, and does not run a lifecycle hook's instructions.
 
-spec-exclusion-2: The steps outside a loop step stay as they are: triage creating the pipeline branch and worktree and recording phase 0, run-configuration changes, owner escalation with its dossier and recorded answer, health monitoring, close-out with its pushing, terminating the remaining agents, and removing the remaining worktrees and branches, and the closure actions.
+spec-exclusion-2: The steps outside a loop step stay as they are: triage creating the pipeline branch and worktree, recording phase 0, fixing a rejected intent or later input included, run-configuration changes, owner escalation with its dossier and recorded answer, health monitoring, close-out with its pushing, terminating the remaining agents, and removing the remaining worktrees and branches, and the closure actions.
 
 spec-exclusion-3: The frontier rules, the artifact formats, the meaning of a certification, which role each frontier action wakes, in which mode and seat, and every assignment's content stay as they are, except where spec-requirement-13 and spec-requirement-21 say otherwise.
 
 ## Considered and not required
 
 - Close-out's removal of lane worktrees and branches through `rp`, a reading of intent-goal not taken — close-out runs when the run stops for any cause, the owner cancelling and a failure included, where no step plans it (`close-out.md`), and the Goal's step is `loop.md` § One step, repeated until the frontier is `complete` or `escalate`.
+- Fixing a rejected intent or later input inside the step, through `rp`, a reading of intent-goal not taken — those are phase-0 files the orchestrator writes on the owner's approval (`state.md` § Files), and the plan names them for the orchestrator to fix (spec-requirement-4).
 - `rp` reading the escalated thread for the owner's dossier, a reading of intent-goal not taken — the dossier explains the choice in the owner's terms after the loop has stopped, which takes judgment over the thread's text (`loop.md` § Owner escalation).
 - `before-creating-branch` and `after-creating-branch` firing for lane branches — intent-constraint-3 lets them go, and no project in intended use writes them: observed: this repository's `.rp.md` writes neither, and intent-context-2 names neither.
 - Production lane branches left in place at consolidation until close-out, a reading of intent-constraint-2 not taken — today's loop removes them at consolidation (`loop.md` § Production lanes step 2), and intent-goal moves that step into the plan.
