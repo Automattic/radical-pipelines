@@ -1,7 +1,7 @@
 ---
 {
   "format": 6,
-  "target-phase": 1,
+  "target-phase": 4,
   "base": "369-conventions-as-data",
   "lanes": [
     {
@@ -28,7 +28,7 @@
 
 # Run configuration
 
-Target: stop after the spec.
+Target: run through review.
 
 ## Models
 
