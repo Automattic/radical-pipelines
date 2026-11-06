@@ -13,7 +13,7 @@ flowchart TD
     OWNS -->|Yes| ANSWER["It commits the artifact changes and replies to each finding: what changed and in which commit, or why it stands"]
     ANSWER --> AW2["The thread awaits its opener; the orchestrator wakes it"]
     AW2 --> READ{"The opener reads the reply"}
-    READ -->|Resolved| CLOSED["closed: approved, or closed: withdrawn"]
+    READ -->|Resolved| CLOSED["The opener sets status approved or withdrawn"]
     READ -->|New findings or evidence| AGAIN["It replies"]
     AGAIN --> AW1
     READ -->|A position repeated without new evidence| DIS{"What is disputed?"}

@@ -165,7 +165,7 @@ describe("review", () => {
     const { change } = review("a");
     writeFile(".git/info/exclude", ".wt/\n.clone/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
-    writeFile(`.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, `status: closed: approved\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — ${change}\n\nMerge it.\n`);
+    writeFile(`.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, `status: approved\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — ${change}\n\nMerge it.\n`);
     git(`${root}/.wt`, "add", "-A");
     git(`${root}/.wt`, "commit", "--quiet", "-m", "approve");
     return change;
@@ -231,7 +231,7 @@ describe("review", () => {
 
   it("stops stamping an approval whose reviewed commit cannot be read", () => {
     pipeline(3, { lanes: LANES });
-    const path = thread({ n: 4, status: "closed: approved", ...REVIEW("a"), messages: [["reviewer-a", "1".repeat(40)]] });
+    const path = thread({ n: 4, status: "approved", ...REVIEW("a"), messages: [["reviewer-a", "1".repeat(40)]] });
     commitAll("approval");
     const out = run("stamp", abs(P(path)), "--at", "HEAD");
     assert.equal(out.status, 1);

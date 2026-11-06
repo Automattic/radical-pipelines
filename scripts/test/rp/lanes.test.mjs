@@ -137,9 +137,9 @@ describe("production lanes", () => {
       ["an open thread opened by a production lane", DOC_LANE, awaitingLane("design-doc-producer-a", "spec-producer", "spec"), NO_THREADS],
       ["an open thread addressed to a production lane", DOC_LANE, awaitingLane("design-doc-producer", "design-doc-producer-a", "design-doc"), NO_THREADS],
       ["a disagreement opened by a production lane", [], { ...awaitingLane("spec-producer-a", "owner", "intent"), status: "disagreement" }, NO_THREADS],
-      ["a withdrawn thread of a production lane", [], { ...awaitingLane("design-doc-producer-gone", "spec-producer", "spec", true), status: "closed: withdrawn" }, null],
-      ["an approved thread to a production lane", [], { ...awaitingLane("design-doc-producer", "spec-producer-gone", "spec", true), status: "closed: approved" }, null],
-      ["an answered thread of a production lane", [], { ...awaitingLane("spec-producer-gone", "owner", "intent"), status: "closed: answered" }, null],
+      ["a withdrawn thread of a production lane", [], { ...awaitingLane("design-doc-producer-gone", "spec-producer", "spec", true), status: "withdrawn" }, null],
+      ["an approved thread to a production lane", [], { ...awaitingLane("design-doc-producer", "spec-producer-gone", "spec", true), status: "approved" }, null],
+      ["an answered thread of a production lane", [], { ...awaitingLane("spec-producer-gone", "owner", "intent"), status: "answered" }, null],
       ["an open thread awaiting a dropped review lane", [lane("reviewer", "x")], awaitingLane("reviewer-gone", "implementer", "implementation", true), NOT_CONFIGURED],
       ["an open thread awaiting reviewer-default once review lanes are configured", [lane("reviewer", "x")], awaitingLane("reviewer-default", "implementer", "implementation", true), NOT_CONFIGURED],
       ["an open thread awaiting reviewer-default with no review lane configured", [], awaitingLane("reviewer-default", "implementer", "implementation", true), null],
@@ -156,8 +156,8 @@ describe("production lanes", () => {
 
     it("a removed lane's closed threads stay valid history", () => {
       pipeline(3, { targetPhase: 3 });
-      thread({ status: "closed: withdrawn", opener: "design-doc-producer-gone", owner: "spec-producer", artifact: "spec" });
-      thread({ status: "closed: approved", opener: "reviewer-gone", owner: "spec-producer", artifact: "spec" });
+      thread({ status: "withdrawn", opener: "design-doc-producer-gone", owner: "spec-producer", artifact: "spec" });
+      thread({ status: "approved", opener: "reviewer-gone", owner: "spec-producer", artifact: "spec" });
       assert.deepEqual(frontier(), ["complete"]);
     });
   });

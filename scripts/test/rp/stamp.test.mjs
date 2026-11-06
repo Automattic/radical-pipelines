@@ -179,12 +179,12 @@ describe("stamp of an approval", () => {
     writeFile("src/app.js", "export const a = 2;\n");
     const turn = commitAll("change");
     const pins = [pin("0-intent/constraint-1.md"), pin(INTENT), pin("0-intent/proposal-1.md")];
-    const path = thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", turn.slice(0, 9)]] });
+    const path = thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", turn.slice(0, 9)]] });
     write("0-intent/proposal-1.md", `target: ${DESIGN}\nChanged after the turn.\n`);
     commitAll("later");
     stampAt(turn.slice(0, 9), path);
     assert.deepEqual(frontmatterOf(path), { inputs: pins, reviewed: turn });
-    assert.match(read(path), /^---\n[\s\S]*\n---\nstatus: closed: approved\n/);
+    assert.match(read(path), /^---\n[\s\S]*\n---\nstatus: approved\n/);
     const before = read(path);
     stampAt(turn, path);
     assert.equal(read(path), before);
@@ -249,8 +249,8 @@ describe("stamp refuses", () => {
     ["a later input", () => [P("0-intent/constraint-1.md")], /not an artifact or thread/],
     ["run-config.md", () => [P("run-config.md")], /not an artifact or thread/],
     ["a file outside a pipeline folder", () => ["src/app.js"], /not a pipeline file/],
-    ["a thread that is not a review thread", () => [P("threads/1-design-doc-producer-spec-producer-spec.md")], /only a review thread closed: approved is stamped/],
-    ["an open review thread", () => [P("threads/2-reviewer-default-implementer-implementation.md")], /only a review thread closed: approved is stamped/],
+    ["a thread that is not a review thread", () => [P("threads/1-design-doc-producer-spec-producer-spec.md")], /only an approved review thread is stamped/],
+    ["an open review thread", () => [P("threads/2-reviewer-default-implementer-implementation.md")], /only an approved review thread is stamped/],
     ["--pin on notes.md", () => [P(NOTES), "--pin", P("1-spec/lanes/a/spec.md")], /--pin applies to a spec or design doc/],
     ["--pin on a candidate", () => [P("1-spec/lanes/a/spec.md"), "--pin", P("1-spec/lanes/a/spec.md")], /--pin applies to a spec or design doc/],
     ["--pin naming something other than a candidate", () => [P(SPEC), "--pin", P(INTENT)], /--pin must name a candidate/],
@@ -264,7 +264,7 @@ describe("stamp refuses", () => {
       pipeline(3, { lanes: [lane("spec-producer", "a"), lane("spec-producer", "b")] });
       write("0-intent/constraint-1.md", "target: 1-spec/spec.md\n");
       write("1-spec/lanes/a/spec.md", "# a\n");
-      thread({ status: "closed: approved", ...TO_SPEC });
+      thread({ status: "approved", ...TO_SPEC });
       thread({ n: 2, ...REVIEW() });
       commitAll("setup");
       const before = read(SPEC);

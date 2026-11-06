@@ -30,7 +30,7 @@ describe("approval freshness", () => {
   it("is fresh when the approved commit is the tip", () => {
     pipeline(3);
     const tip = head();
-    thread({ status: "closed: approved", ...REVIEW(), messages: [["reviewer-default", tip]] });
+    thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", tip]] });
     stampAt(tip, "threads/1-reviewer-default-implementer-implementation.md");
     assert.equal(check().tip, tip);
     assert.deepEqual(review(), { lane: "default", approved: true });
@@ -135,7 +135,7 @@ describe("approval freshness", () => {
   it("stops the check when the approved commit does not resolve", () => {
     pipeline(3);
     write("threads/1-reviewer-default-implementer-implementation.md",
-      `---\n${JSON.stringify({ inputs: [], reviewed: "1".repeat(40) })}\n---\nstatus: closed: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — abc1234\n`);
+      `---\n${JSON.stringify({ inputs: [], reviewed: "1".repeat(40) })}\n---\nstatus: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — abc1234\n`);
     const out = run("check", abs(P("")));
     assert.equal(out.status, 1);
     assert.match(out.stderr, /reviewed does not resolve to a commit/);
@@ -147,7 +147,7 @@ describe("approval freshness", () => {
     for (const [rel, contents] of Object.entries(files)) writeFile(`work/pipes/demo/${rel}`, contents);
     const turn = commitAll("pipeline");
     const approval = "work/pipes/demo/threads/1-reviewer-default-implementer-implementation.md";
-    writeFile(approval, `status: closed: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — ${turn}\n`);
+    writeFile(approval, `status: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — ${turn}\n`);
     rp("stamp", abs(approval), "--at", turn);
     writeFile("work/pipes/other.md", "inside the root\n");
     commitAll("inside");

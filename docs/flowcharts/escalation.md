@@ -14,6 +14,6 @@ flowchart TD
     G -->|Open to investigation| I["Write a proposal"]
     H --> J["origin names the thread; target names the disputed artifact or clause; commit"]
     I --> J
-    J --> K["Append a message headed owner with that commit, naming the input; set status closed: answered; commit"]
+    J --> K["Append a message headed owner with that commit, naming the input; set status answered; commit"]
     K --> L["The target is stale; the loop continues"]
 ```

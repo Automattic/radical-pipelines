@@ -85,7 +85,7 @@ A thread file is named `<n>-<opener>-<owner>-<artifact>.md` after its header, wi
 Its body begins with exactly four header lines, five on a thread to `owner`, followed by a blank line:
 
 ```text
-status: open | closed: approved | closed: withdrawn | closed: answered | disagreement
+status: open | approved | withdrawn | answered | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
@@ -95,7 +95,7 @@ cites: <thread path | evidence path>
 - `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. Production lanes open no threads: an `open` or `disagreement` thread whose opener or owner is `spec-producer-<lane id>` or `design-doc-producer-<lane id>` is `INVALID <thread>: production lanes open no threads`; the grammar keeps those roles so closed threads stay readable. An `open` thread awaiting a review lane that `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; `default` is declared while no `reviewer` lane is, or when a lane declares it.
 - `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`.
 - The opener is any role but `owner`, and differs from the owner.
-- A thread to `owner` has status `disagreement` or `closed: answered`, and the `cites:` line with a non-empty value; no other thread has either status or the line. The value is not resolved.
+- A thread to `owner` has status `disagreement` or `answered`, and the `cites:` line with a non-empty value; no other thread has either status or the line. The value is not resolved.
 
 After the header, every line that starts with `## ` outside fenced code is a message heading: `## <author> — <commit>`, with `<author>` the opener, the thread's owner, or `owner`, an em dash, and 7 to 64 hexadecimal characters. Text before the first heading and between headings is free. A thread has at least one message, and the first is the opener's.
 
@@ -222,7 +222,7 @@ A detached `HEAD` where the pipeline folder is, a missing `--lane`, a lane `run-
 
 These fill details the specification leaves open; the prose aligns with them.
 
-- **A thread to `owner`** opens as `disagreement` and closes `closed: answered`; `open`, `closed: approved`, and `closed: withdrawn` are `INVALID` there.
+- **A thread to `owner`** opens as `disagreement` and closes `answered`; `open`, `approved`, and `withdrawn` are `INVALID` there.
 - **A message by `owner`** on any thread leaves it awaiting the thread's owner.
 - **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it. Beyond the target, a thread's owner gets `respond` even when its artifact is missing.
 - **The base an approval is merged with** is the merge-base of the tip with the base branch, not the base branch's tip, so a base that moved without being merged leaves approvals fresh.

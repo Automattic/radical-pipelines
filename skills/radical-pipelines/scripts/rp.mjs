@@ -398,9 +398,9 @@ export function parseTargets(body) {
   return [...new Set(targets)];
 }
 
-const STATUSES = ["open", "closed: approved", "closed: withdrawn", "closed: answered", "disagreement"];
-// The statuses of a thread addressed to the person: opened as `disagreement`, closed `closed: answered`.
-const OWNER_STATUSES = ["disagreement", "closed: answered"];
+const STATUSES = ["open", "approved", "withdrawn", "answered", "disagreement"];
+// The statuses of a thread addressed to the person: opened as `disagreement`, closed `answered`.
+const OWNER_STATUSES = ["disagreement", "answered"];
 const MESSAGE = /^## (\S+) — ([0-9a-f]{7,64})$/;
 
 // A thread role, `<profile>[-<lane>]`: its profile and lane, or null when the grammar does not hold.
@@ -414,8 +414,8 @@ export function parseRole(role) {
 const isProductionLane = (role) => { const parsed = parseRole(role); return parsed.lane !== null && parsed.profile !== "reviewer"; };
 // A review thread: one a review lane opens to the implementer.
 export const isReview = (thread) => parseRole(thread.opener).profile === "reviewer" && thread.owner === IMPLEMENTATION.owner;
-// An approval: a review thread closed approved.
-const isApproval = (thread) => isReview(thread) && thread.status === "closed: approved";
+// An approval: an approved review thread.
+const isApproval = (thread) => isReview(thread) && thread.status === "approved";
 
 // A thread: its header (the first lines of its body: four, and `cites` on a thread to owner) and its messages, or Invalid.
 export function parseThread(name, body) {
@@ -478,9 +478,9 @@ export function readState(files, where) {
         const thread = { path, kind: "thread", ...parseThread(path.slice("threads/".length), text) };
         if (isApproval(thread)) {
           onlyKeys(data, ["inputs", "reviewed"]);
-          if (!("inputs" in data) || !("reviewed" in data)) invalid("a review thread closed: approved needs inputs and reviewed: stamp it");
+          if (!("inputs" in data) || !("reviewed" in data)) invalid("an approved review thread needs inputs and reviewed: stamp it");
           if (typeof data.reviewed !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(data.reviewed)) invalid("reviewed must be a full commit hash");
-        } else if (stamped) invalid("carries no frontmatter: only a review thread closed: approved is stamped");
+        } else if (stamped) invalid("carries no frontmatter: only an approved review thread is stamped");
         const awaited = awaitedRole(thread) && parseRole(awaitedRole(thread));
         if (awaited?.lane && !reviewLanes(config).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
         state.threads.push({ ...thread, inputs: parseInputs(data.inputs), reviewed: data.reviewed ?? null });
@@ -541,11 +541,11 @@ const awaitedReviewLanes = (state) => [...new Set(state.threads.map(awaitedRole)
   .filter((role) => role.profile === "reviewer").map((role) => role.lane))].sort();
 const roleOf = (profile, laneId) => `${profile}-${laneId}`;
 
-// A review lane's approval: its highest-numbered review thread, approved when closed approved and fresh. An approval is
+// A review lane's approval: its highest-numbered review thread, approved when it is an approval and fresh. An approval is
 // stale on a changed required input, or when the tip's code is not the approved commit's plus clean merges of the base.
 function approvalOf(state, lane) {
   const latest = state.threads.filter((thread) => isReview(thread) && thread.opener === roleOf("reviewer", lane.id)).sort((a, b) => b.number - a.number)[0];
-  if (latest?.status !== "closed: approved") return { approved: false };
+  if (!latest || !isApproval(latest)) return { approved: false };
   const stale = staleInputs(state, latest);
   const codeChanged = state.codeChanged(latest.reviewed);
   return { approved: !stale.length && !codeChanged, ...(stale.length ? { stale } : {}), ...(codeChanged ? { codeChanged } : {}) };
@@ -679,7 +679,7 @@ async function cmdStamp(args) {
   const bytes = readFileSync(abs);
   const { data, body } = parseOrFail(`stamp: ${rel}`, () => frontmatterOf(bytes));
   const subject = kind.kind === "thread" ? parseOrFail(`stamp: ${rel}`, () => ({ kind: "thread", ...parseThread(basename(inner), body.toString("utf8")) })) : kind;
-  if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only a review thread closed: approved is stamped`);
+  if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only an approved review thread is stamped`);
   if (kind.kind === "thread") {
     // An approval's anchor holds the code its reviewer reviewed: the commit the reviewer's last heading names.
     const named = subject.messages.findLast((message) => message.author === subject.opener).commit;

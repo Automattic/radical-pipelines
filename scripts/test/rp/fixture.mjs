@@ -89,7 +89,7 @@ export const TO_OWNER = { opener: "spec-producer", owner: "owner", artifact: "in
 // A review thread closed approved by a turn that started at HEAD, landed, stamped at that commit, and committed.
 export function approve(laneId = "default", n = 1) {
   const head = git(root, "rev-parse", "HEAD").trim();
-  const path = thread({ n, status: "closed: approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
+  const path = thread({ n, status: "approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
   commitAll(`approve ${laneId}`);
   stampAt(head, path);
   commitAll(`stamp ${path}`);

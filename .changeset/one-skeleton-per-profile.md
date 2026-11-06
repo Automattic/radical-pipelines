@@ -1,0 +1,5 @@
+---
+"@automattic/radical-pipelines": patch
+---
+
+One skeleton for every profile — Role, Seat, Turn, Rules, Protocol, Formats — under one rule: what is constant across a role's turns lives in its profile, what changes lives in its assignment. The reviewer's profile now carries the review request, its `First` and `Later` modes, its seat, how it delegates, the blocker protocol, and its thread format; its template holds only per-turn data — a Seat with Base and Lane, the Mode, the Brief, the intent and every later input, and on a later turn the review thread and the diff since its last message. The reviewer names its own threads, and the orchestrator reads its turn commit from the assignment as for every other role. Thread statuses drop the `closed:` prefix — `open | approved | withdrawn | answered | disagreement` — so a pipeline in flight updates the status line of its threads. Every profile re-reads its assignment after its context is compacted. The producers and the implementer keep every rule in fewer words: Parties folds into Threads, Observation is one rule per sentence, and the turn is one list with the mode as its first step.

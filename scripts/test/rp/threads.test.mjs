@@ -30,7 +30,7 @@ describe("thread parsing", () => {
     });
 
   it("accepts CRLF line endings and every status of a thread to a role", () => {
-    for (const status of ["open", "closed: approved", "closed: withdrawn"])
+    for (const status of ["open", "approved", "withdrawn"])
       assert.equal(parse(NAME, valid.replace("open", status).replace(/\n/g, "\r\n")).status, status);
   });
 
@@ -61,9 +61,9 @@ describe("thread parsing", () => {
     ["owner as opener", "1-owner-spec-producer-spec.md", valid.replace(/implementer/g, "owner"), /owner opens no thread/],
     ["opener equal to owner", "1-spec-producer-spec-producer-spec.md", valid.replace(/implementer/g, "spec-producer"), /must differ/],
     ["disagreement on a thread to a role", NAME, valid.replace("open", "disagreement"), /statuses of a thread to owner/],
-    ["closed: answered on a thread to a role", NAME, valid.replace("open", "closed: answered"), /statuses of a thread to owner/],
+    ["answered on a thread to a role", NAME, valid.replace("open", "answered"), /statuses of a thread to owner/],
     ["open on a thread to owner", "1-implementer-owner-intent.md", toOwner("open"), /statuses of a thread to owner/],
-    ["closed: withdrawn on a thread to owner", "1-implementer-owner-intent.md", toOwner("closed: withdrawn"), /statuses of a thread to owner/],
+    ["withdrawn on a thread to owner", "1-implementer-owner-intent.md", toOwner("withdrawn"), /statuses of a thread to owner/],
     ["a thread to owner without cites", "1-implementer-owner-intent.md", toOwner("disagreement", ""), /line 5 must be cites: <value> on a thread to owner/],
     ["a thread to owner with an empty cites", "1-implementer-owner-intent.md", toOwner("disagreement", "cites: \n"), /line 5 must be cites/],
     ["a thread to owner with another fifth line", "1-implementer-owner-intent.md", toOwner("disagreement", "cited: threads/1-a.md\n"), /line 5 must be cites/],
@@ -77,8 +77,8 @@ describe("thread parsing", () => {
   ];
   for (const [what, name, body, reason] of malformed) it(`rejects ${what}`, () => rejects(name, body, reason));
 
-  it("accepts disagreement and closed: answered on a thread to owner, with what it cites", () => {
-    for (const status of ["disagreement", "closed: answered"]) {
+  it("accepts disagreement and answered on a thread to owner, with what it cites", () => {
+    for (const status of ["disagreement", "answered"]) {
       const parsed = parse("1-implementer-owner-intent.md", toOwner(status));
       assert.deepEqual([parsed.status, parsed.cites, parsed.messages.length], [status, "threads/1-implementer-spec-producer-spec.md", 1]);
     }
@@ -104,7 +104,7 @@ describe("thread roles", () => {
   for (const [role, parsed] of roles) it(`${role} is ${parsed ? `${parsed.profile}${parsed.lane ? ` lane ${parsed.lane}` : ""}` : "not a role"}`, () => assert.deepEqual(parseRole(role), parsed));
 
   it("production lane owners of closed threads pair with their profile's artifact", () => {
-    const body = "status: closed: withdrawn\nopener: design-doc-producer\nowner: design-doc-producer-a\nartifact: design-doc\n\n## design-doc-producer — abc1234\n";
+    const body = "status: withdrawn\nopener: design-doc-producer\nowner: design-doc-producer-a\nartifact: design-doc\n\n## design-doc-producer — abc1234\n";
     assert.equal(parse("1-design-doc-producer-design-doc-producer-a-design-doc.md", body).owner, "design-doc-producer-a");
   });
 });
@@ -116,9 +116,9 @@ describe("awaited role", () => {
     ["open", ["implementer", "spec-producer"], "implementer"],
     ["open", ["implementer", "spec-producer", "implementer"], "spec-producer"],
     ["open", ["implementer", "owner"], "spec-producer"],
-    ["closed: approved", ["implementer"], null],
-    ["closed: withdrawn", ["implementer", "spec-producer"], null],
-    ["closed: answered", ["implementer"], null],
+    ["approved", ["implementer"], null],
+    ["withdrawn", ["implementer", "spec-producer"], null],
+    ["answered", ["implementer"], null],
     ["disagreement", ["implementer"], null],
   ];
   for (const [status, authors, role] of cases)
@@ -147,24 +147,24 @@ describe("threads in a pipeline", () => {
   it("accepts a reviewer of a lane that is not configured", () => {
     pipeline(3, { lanes: [lane("reviewer", "security")] });
     thread({ opener: "reviewer-security", owner: "implementer", artifact: "implementation" });
-    thread({ n: 2, ...REVIEW("gone"), status: "closed: withdrawn" });
+    thread({ n: 2, ...REVIEW("gone"), status: "withdrawn" });
     assert.deepEqual(invalidPaths(), []);
   });
 
   const STAMP = { inputs: ["0-intent/intent.md@0123456789ab"], reviewed: "<HEAD>".padEnd(40, "0") };
   const reviewedCases = [
-    ["an approval without frontmatter", { status: "closed: approved", ...REVIEW() }, true],
-    ["an approval without inputs", { status: "closed: approved", ...REVIEW(), frontmatter: { reviewed: STAMP.reviewed } }, true],
-    ["an approval without reviewed", { status: "closed: approved", ...REVIEW(), frontmatter: { inputs: STAMP.inputs } }, true],
-    ["an approval with a malformed reviewed", { status: "closed: approved", ...REVIEW(), frontmatter: { ...STAMP, reviewed: "abc" } }, true],
-    ["an approval with a malformed pin", { status: "closed: approved", ...REVIEW(), frontmatter: { ...STAMP, inputs: ["0-intent/intent.md"] } }, true],
-    ["an approval with another key", { status: "closed: approved", ...REVIEW(), frontmatter: { ...STAMP, lane: "x" } }, true],
+    ["an approval without frontmatter", { status: "approved", ...REVIEW() }, true],
+    ["an approval without inputs", { status: "approved", ...REVIEW(), frontmatter: { reviewed: STAMP.reviewed } }, true],
+    ["an approval without reviewed", { status: "approved", ...REVIEW(), frontmatter: { inputs: STAMP.inputs } }, true],
+    ["an approval with a malformed reviewed", { status: "approved", ...REVIEW(), frontmatter: { ...STAMP, reviewed: "abc" } }, true],
+    ["an approval with a malformed pin", { status: "approved", ...REVIEW(), frontmatter: { ...STAMP, inputs: ["0-intent/intent.md"] } }, true],
+    ["an approval with another key", { status: "approved", ...REVIEW(), frontmatter: { ...STAMP, lane: "x" } }, true],
     ["frontmatter on an open review thread", { ...REVIEW(), frontmatter: STAMP }, true],
-    ["frontmatter on a reviewer's approved thread to another owner", { status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec", frontmatter: STAMP }, true],
-    ["frontmatter on another role's approved thread", { status: "closed: approved", ...TO_SPEC, frontmatter: STAMP }, true],
-    ["another role's approved thread without frontmatter", { status: "closed: approved", ...TO_SPEC }, false],
-    ["a reviewer's approved thread to another owner without frontmatter", { status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" }, false],
-    ["an approval with inputs and reviewed", { status: "closed: approved", ...REVIEW(), frontmatter: STAMP }, false],
+    ["frontmatter on a reviewer's approved thread to another owner", { status: "approved", ...REVIEW(), owner: "spec-producer", artifact: "spec", frontmatter: STAMP }, true],
+    ["frontmatter on another role's approved thread", { status: "approved", ...TO_SPEC, frontmatter: STAMP }, true],
+    ["another role's approved thread without frontmatter", { status: "approved", ...TO_SPEC }, false],
+    ["a reviewer's approved thread to another owner without frontmatter", { status: "approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" }, false],
+    ["an approval with inputs and reviewed", { status: "approved", ...REVIEW(), frontmatter: STAMP }, false],
   ];
   for (const [what, fields, isInvalid] of reviewedCases)
     it(`${isInvalid ? "rejects" : "accepts"} ${what}`, () => {

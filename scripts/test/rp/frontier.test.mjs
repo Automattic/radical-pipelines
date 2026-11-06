@@ -112,7 +112,7 @@ describe("frontier", () => {
 
     it("does not hold once the thread is closed answered", () => {
       pipeline(3, { targetPhase: 3 });
-      thread({ ...TO_OWNER, status: "closed: answered", messages: [["spec-producer", "aaaaaaa"], ["owner", "bbbbbbb"]] });
+      thread({ ...TO_OWNER, status: "answered", messages: [["spec-producer", "aaaaaaa"], ["owner", "bbbbbbb"]] });
       assert.deepEqual(frontier(), ["complete"]);
     });
   });
@@ -190,8 +190,8 @@ describe("frontier", () => {
 
     it("closed threads await nobody", () => {
       pipeline(3, { targetPhase: 3 });
-      thread({ status: "closed: withdrawn", ...TO_SPEC });
-      replied({ status: "closed: approved", ...TO_DESIGN }, 2);
+      thread({ status: "withdrawn", ...TO_SPEC });
+      replied({ status: "approved", ...TO_DESIGN }, 2);
       assert.deepEqual(frontier(), ["complete"]);
     });
 
@@ -259,7 +259,7 @@ describe("frontier", () => {
     it("only the lane's highest-numbered review thread counts", () => {
       pipeline(3);
       approve("default", 1);
-      thread({ n: 2, status: "closed: withdrawn", ...REVIEW() });
+      thread({ n: 2, status: "withdrawn", ...REVIEW() });
       assert.deepEqual(frontier(), ["review default"]);
       approve("default", 3);
       assert.deepEqual(frontier(), ["complete"]);
@@ -267,7 +267,7 @@ describe("frontier", () => {
 
     it("a reviewer's approved thread to another owner does not approve", () => {
       pipeline(3);
-      replied({ status: "closed: approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" });
+      replied({ status: "approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" });
       assert.deepEqual(frontier(), ["review default"]);
     });
 

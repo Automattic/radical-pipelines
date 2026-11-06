@@ -72,7 +72,7 @@ A thread is the conversation between two roles about one artifact, in one file: 
 The body starts with its header lines; only a thread to `owner` has the `cites:` line:
 
 ```text
-status: open | closed: approved | closed: withdrawn | closed: answered | disagreement
+status: open | approved | withdrawn | answered | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
@@ -82,8 +82,8 @@ cites: <thread path | evidence path>
 - **Roles** — a role's name is `<profile>[-<lane>]`: `spec-producer`, `design-doc-producer`, `implementer`, `owner`, the person, and `reviewer-<lane>` for a review lane. Production lanes open no threads: the grammar accepts `spec-producer-<lane>` and `design-doc-producer-<lane>` only so earlier closed threads stay readable, and an `open` or `disagreement` thread with such a party is malformed. Roles are validated by this grammar, never against the configuration, so a removed lane's threads stay readable. `owner` and `artifact` pair as `owner`–`intent`, `spec-producer`–`spec`, `design-doc-producer`–`design-doc`, `implementer`–`implementation`. The opener is any role but `owner`.
 - **Messages** — each headed `## <role> — <commit>`, written by the opener, the thread's owner, or, for an owner's answer, by you as `owner`.
 - **Awaits** — an `open` thread awaits its opener when its owner wrote the last message, and its owner otherwise.
-- **Status** — the opener closes `closed: approved` or `closed: withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which a role opens for a disagreement on what the intent means or demands, citing the thread it comes from, or for evidence that every kind of approach fails an intent goal or constraint, citing that evidence; you close it `closed: answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
-- **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `closed: approved` and fresh.
+- **Status** — the opener closes `approved` or `withdrawn`. `disagreement` is only the status of a thread addressed to `owner` about `intent`, which a role opens for a disagreement on what the intent means or demands, citing the thread it comes from, or for evidence that every kind of approach fails an intent goal or constraint, citing that evidence; you close it `answered` once the owner's answer lands (`loop.md` § Owner escalation). A disagreement about a derived requirement or a design decision has no status: it resolves inside its thread by observation.
+- **Review thread** — a thread a review lane opens to `implementer` about `implementation`. A review lane is **approved** when its highest-numbered review thread is `approved` and fresh.
 
 ## Run configuration
 
@@ -98,7 +98,7 @@ Lane ids start with a lowercase letter or digit and continue with those or hyphe
 
 Its body is free prose — the model of each profile and lane, the owner's directions for the run; `rp` ignores it.
 
-The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `closed: withdrawn`. Terminate agents working under a changed lane.
+The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `withdrawn`. Terminate agents working under a changed lane.
 
 ## Names
 
