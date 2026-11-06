@@ -333,8 +333,18 @@ describe("rp next", () => {
     apply();
     const record = join(gitDir(root), "rp/step.json");
     assert.deepEqual(Object.keys(JSON.parse(readFileSync(record, "utf8"))), ["turns", "woke", "complete", "reported"]);
-    writeFile(".git/rp/step.json", "{\"turns\": {}, \"woke\": [\"1\"], \"complete\": [], \"reported\": []}\n");
-    for (const args of [["next"], ["land", "--role", "design-doc-producer"]])
-      assert.match(run(args[0], abs(PIPELINE), ...args.slice(1)).stderr, new RegExp(`^rp: ${record.replaceAll(".", "\\.")}: woke: must be a list of phases$`, "m"));
+    const written = JSON.parse(readFileSync(record, "utf8"));
+    const turn = { worktree: at(), branch: "demo-review-default", commit: head(), phase: 4 };
+    // [what, the record, the reason]
+    const malformed = [
+      ["a phase that is no phase", { ...written, woke: ["1"] }, "woke: must be a list of phases"],
+      ["a turn commit that is no full commit hash", { ...written, turns: { "design-doc-producer": { ...turn, commit: "abc1234", phase: 2 } } }, "turns.design-doc-producer.commit: must be a full commit hash"],
+      ["a reviewer's turn without its change", { ...written, turns: { "reviewer-default": turn } }, "turns.reviewer-default.change: must be a full commit hash"],
+    ];
+    for (const [what, data, reason] of malformed) {
+      writeFile(".git/rp/step.json", `${JSON.stringify(data)}\n`);
+      for (const args of [["next"], ["land", "--role", "reviewer-default"]])
+        assert.match(run(args[0], abs(PIPELINE), ...args.slice(1)).stderr, new RegExp(`^rp: ${record.replaceAll(".", "\\.")}: ${reason}$`, "m"), what);
+    }
   });
 });

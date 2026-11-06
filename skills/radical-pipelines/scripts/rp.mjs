@@ -1400,10 +1400,15 @@ function readRecord(root) {
   objectAt(data, "step record", malformed, Object.keys(NO_RECORD));
   for (const key of ["woke", "complete", "reported"])
     if (!Array.isArray(data[key]) || !data[key].every((n) => Number.isInteger(n) && n >= 1 && n <= REVIEW_PHASE)) malformed(`${key}: must be a list of phases`);
+  const hash = (value) => typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(value);
   for (const [name, turn] of Object.entries(objectAt(data.turns, "turns", malformed))) {
-    const at = entryName("turns", name);
+    const at = entryName("turns", name), role = parseRole(name);
+    if (!role || role.profile === "owner") malformed(`${at}: names no role <profile>[-<lane>]`);
     objectAt(turn, at, malformed, ["worktree", "branch", "commit", "phase", "change"]);
-    for (const key of ["worktree", "branch", "commit"]) if (typeof turn[key] !== "string" || !turn[key]) malformed(`${at}.${key}: must be a non-empty string`);
+    for (const key of ["worktree", "branch"]) if (typeof turn[key] !== "string" || !turn[key]) malformed(`${at}.${key}: must be a non-empty string`);
+    if (!hash(turn.commit)) malformed(`${at}.commit: must be a full commit hash`);
+    if (!Number.isInteger(turn.phase) || turn.phase < 1 || turn.phase > REVIEW_PHASE) malformed(`${at}.phase: must be a phase`);
+    if (role.profile === "reviewer" ? !hash(turn.change) : "change" in turn) malformed(`${at}.change: ${role.profile === "reviewer" ? "must be a full commit hash" : "is only on a reviewer's turn"}`);
   }
   return data;
 }

@@ -301,7 +301,7 @@ The **lane's view** of the pipeline is, at the tip, every file under `<pipeline 
 
 ### Step record
 
-The step record is `rp/step.json` in the pipeline worktree's private git directory, beside its assignments: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, `phase`, and a review lane's `change`; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, and landing adds to `reported`.
+The step record is `rp/step.json` in the pipeline worktree's private git directory, beside its assignments: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, `phase`, and a review lane's `change`, each commit a full hash; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, and landing adds to `reported`.
 
 Everything `check` stops on, conventions data that is missing or malformed, a detached pipeline worktree, a step record that cannot be read or is malformed, a `base` that does not resolve, an unreadable or malformed template, and a git failure stop `next`.
 
@@ -321,7 +321,7 @@ node rp.mjs land <pipeline folder> --role <role>
 6. **Move.** It fast-forwards the pipeline worktree to its last commit with `git merge --ff-only`, which stops on local changes it would overwrite.
 7. **Report.** It prints `hook phase-completed <phase>` for each phase complete after the landing (§ Complete phases) that was not complete when the step was applied and that no earlier landing of the step reported, in phase order, and adds them to the step record.
 
-Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, conventions data that is missing or malformed, a detached pipeline worktree, and a git failure also stop `land`.
+Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, conventions data that is missing or malformed, a detached pipeline worktree, a step record that cannot be read or is malformed, and a git failure also stop `land`.
 
 ## Assignments
 
