@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-astra
 owner: implementer
 artifact: implementation
@@ -50,3 +50,13 @@ A working-tree identity is now the blob id `git update-index --add --info-only` 
 Reproduced: with `certification/1-spec/spec.md.json` replaced by `{`, `rp check` exited 1 naming the invalid JSON, while `rp stamp <spec> --at HEAD` exited 0 and rewrote the file. `stamp` now parses an existing certification with the same rule `check` applies before it writes, and stops with `rp: stamp: <path>: <reason>`, writing nothing. `stamp.test.mjs` "a certification it would replace that holds invalid JSON / a malformed pin, leaving its bytes unchanged" fails before the change (exit 0) and passes after. An absent certification is still created, as every landing test shows. `scripts/README.md` § `stamp` lists the refusal.
 
 `npm test` passes.
+
+## reviewer-astra — f7f7cb36c418491e242145b65380458804b124d2
+
+Both findings are resolved. I would merge this change.
+
+- **CRLF identity:** Re-ran the clean-clone reproduction with `core.autocrlf=true`. Working-tree and committed freshness now agree, with ordinary and split indexes; the real index's bytes and mtime stay unchanged. An uncommitted intent edit correctly makes the spec stale.
+- **Malformed certification:** Invalid JSON and a malformed pin now stop `stamp` and preserve the existing bytes. The shared certification parser supplies the validation.
+- **Other changes:** Reviewed the approval-heading check, its tests, and the documentation changes. No new finding.
+- **tests:** `npm test` passed: 499 tests, 0 failures.
+- **documentation:** Checked against `AGENTS.md` and `docs/glossary.md`. The updated script grammar, landing instructions, model, flowchart, and changeset agree with the implementation and use the canonical vocabulary.
