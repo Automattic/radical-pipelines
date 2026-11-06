@@ -19,22 +19,22 @@ printf -- '---\nissue: 7\n---\n\n# Intent\n' > "$P/0-intent/intent.md"
 git add -A; git commit -qm "Add intent"
 show() { echo; echo "\$ rp $*" | sed "s|$R|<repo>|g"; node "$RP" "$@" 2>&1 | sed "s|$R|<repo>|g"; }
 commit_in() { local wt=$1 rel=$2 text=$3 msg=$4; mkdir -p "$(dirname "$wt/.pipelines/demo/$rel")"; printf '%s' "$text" > "$wt/.pipelines/demo/$rel"; git -C "$wt" add -A; git -C "$wt" commit -qm "$msg"; }
-show next "$P"; node "$RP" next "$P" --apply > /dev/null
+show next "$P" --apply
 for l in a b; do commit_in "$R/.worktrees/demo-spec-$l" "1-spec/lanes/$l/spec.md" "# $l
 " "Add $l candidate (spec-producer)"; show land "$P" --role spec-producer-$l; done
-show next "$P"; node "$RP" next "$P" --apply > /dev/null
+show next "$P" --apply
 commit_in "$R" "1-spec/spec.md" "# Spec
 " "Consolidate spec (spec-producer)"; show land "$P" --role spec-producer
-node "$RP" next "$P" --apply > /dev/null
+show next "$P" --apply
 commit_in "$R" "2-design-doc/design-doc.md" "# Design doc
 " "Add design doc (design-doc-producer)"; show land "$P" --role design-doc-producer
-show next "$P"; node "$RP" next "$P" --apply > /dev/null
+show next "$P" --apply
 echo "a=2" > src/app.js; commit_in "$R" "3-implementation/notes.md" "---
 status: done
 ---
 # Notes
 " "Implement (implementer)"; show land "$P" --role implementer
-show next "$P"; node "$RP" next "$P" --apply > /dev/null
+show next "$P" --apply
 for l in default second; do W=$R/.worktrees/demo-review-$l; C=$(git -C "$W" rev-parse HEAD)
   S=$([ $l = default ] && echo pending || echo approved)
   commit_in "$W" "threads/1-reviewer-$l-implementer-implementation.md" "---
@@ -48,7 +48,7 @@ artifact: implementation
 
 Merge it.
 " "Open review thread (reviewer)"; show land "$P" --role reviewer-$l || true; done
-show next "$P"; node "$RP" next "$P" --apply > /dev/null
+show next "$P" --apply
 W=$R/.worktrees/demo-review-default; sed -i.bak 's/status: pending/status: approved/' "$W/.pipelines/demo/threads/1-reviewer-default-implementer-implementation.md"; rm "$W/.pipelines/demo/threads/"*.bak
 git -C "$W" commit -qam "Repair review thread (reviewer)"; show land "$P" --role reviewer-default
 show next "$P"
