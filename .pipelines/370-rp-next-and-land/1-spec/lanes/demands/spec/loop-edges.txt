@@ -1,0 +1,156 @@
+# Edge cases of today's loop step, each in a fresh scratch repository (scripts: loop-edges.sh)
+
+## E1a: a production lane writes a candidate that does not validate; landing it today
+ORCH $ node rp.mjs stamp <scratch>/e1a/repo/.worktrees/42-export-spec-a/.pipelines/42-export/1-spec/lanes/a/spec.md --at 1a48648412bc7d08e13286b90ec98cec2f76ce51
+rp: stamp: .pipelines/42-export/1-spec/lanes/a/spec.md: carries no frontmatter
+(exit 1)
+(orchestrator merges anyway, as loop.md step 4.2 has no stop)
+ORCH $ node rp.mjs check <scratch>/e1a/repo/.worktrees/42-export/.pipelines/42-export
+frontier INVALID 1-spec/lanes/a/spec.md: carries no frontmatter
+(exit 0)
+
+## E1b: a review lane writes a review thread that does not validate; landing it today
+ORCH $ node rp.mjs check <scratch>/e1b/repo/.worktrees/42-export-review-default/.pipelines/42-export
+rp: .pipelines/42-export/run-config.md: pipeline of an earlier format; it is not continued
+(exit 1)
+(landing today: not an approval, so nothing is stamped; the cherry-pick lands it)
+ORCH $ node rp.mjs check <scratch>/e1b/repo/.worktrees/42-export/.pipelines/42-export
+frontier INVALID threads/1-reviewer-default-implementer-implementation.md: status must be one of open | approved | withdrawn | answered | disagreement
+(exit 0)
+
+## E2: rp review on a lane branch holding commits the pipeline branch lacks (a turn not landed)
+ORCH $ node rp.mjs review <scratch>/e2/repo/.worktrees/42-export/.pipelines/42-export --lane default
+rp: review: 42-export-review-default has commits the pipeline branch lacks; land them first: 199a5f5aab494de3a3d272b735169974f0b51480
+(exit 1)
+(after the cherry-pick lands it)
+ORCH $ node rp.mjs check <scratch>/e2/repo/.worktrees/42-export/.pipelines/42-export
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change c46a64c405208097dfe3d171df1cae5695ea8f56..79bae3db74bec83df52bbe44e0b8cfcaf842cafa
+review default unapproved
+thread threads/1-reviewer-default-implementer-implementation.md open awaits implementer
+(exit 0)
+
+## E3: rp assign for a lane whose worktree is missing; for a review lane whose worktree is not at a change
+ORCH $ node rp.mjs assign <scratch>/e3/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer-a
+rp: assign: no worktree has 42-export-spec-a checked out
+(exit 1)
+ORCH $ node rp.mjs assign <scratch>/e3/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer
+rp: assign: the frontier does not wake spec-producer: lane 1-spec/spec.md a
+(exit 1)
+
+## E4: the commit a changed input is diffed from, after a respond turn that left the artifact unchanged
+On branch 42-export
+nothing to commit, working tree clean
+ORCH $ node rp.mjs check <scratch>/e4/repo/.worktrees/42-export/.pipelines/42-export
+frontier respond 2-design-doc/design-doc.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md stale 1-spec/spec.md
+(exit 0)
+ORCH $ node rp.mjs assign <scratch>/e4/repo/.worktrees/42-export/.pipelines/42-export --role design-doc-producer
+assignment <scratch>/e4/repo/.git/worktrees/42-export/rp/design-doc-producer.md
+(exit 0)
+- Changed inputs: <scratch>/e4/repo/.worktrees/42-export/.pipelines/42-export/1-spec/spec.md — changed since f529382af44c2918cd5121a727aa755e06897968
+(the design-doc-producer answers that the design doc stands; it lands at 8ff55f22a108b8b2e78b64badf9161a315022c86, the design doc unchanged since f529382)
+On branch 42-export
+nothing to commit, working tree clean
+ORCH $ node rp.mjs assign <scratch>/e4/repo/.worktrees/42-export/.pipelines/42-export --role design-doc-producer
+assignment <scratch>/e4/repo/.git/worktrees/42-export/rp/design-doc-producer.md
+(exit 0)
+- Changed inputs: <scratch>/e4/repo/.worktrees/42-export/.pipelines/42-export/1-spec/spec.md — changed since f529382af44c2918cd5121a727aa755e06897968
+git diff <changed since> HEAD -- spec.md, as the role reads it:
+@@ -1 +1 @@
+-# Spec v1
++# Spec v3
+the spec the design doc's certification pins:
+{
+  "inputs": [
+    "1-spec/spec.md@2d526c13afe2"
+  ]
+}
+2d526c13afe2
+
+## E5: repeating today's steps after they are done
+ORCH $ git -C <scratch>/e5/repo/.worktrees/42-export branch 42-export-spec-a 42-export
+(exit 0)
+ORCH $ git -C <scratch>/e5/repo/.worktrees/42-export worktree add <scratch>/e5/repo/.worktrees/42-export-spec-a 42-export-spec-a
+Preparing worktree (checking out '42-export-spec-a')
+HEAD is now at 976bb88 Add intent
+(exit 0)
+ORCH $ git -C <scratch>/e5/repo/.worktrees/42-export branch 42-export-spec-a 42-export
+fatal: a branch named '42-export-spec-a' already exists
+(exit 128)
+ORCH $ git -C <scratch>/e5/repo/.worktrees/42-export worktree add <scratch>/e5/repo/.worktrees/42-export-spec-a 42-export-spec-a
+Preparing worktree (checking out '42-export-spec-a')
+fatal: '<scratch>/e5/repo/.worktrees/42-export-spec-a' already exists
+(exit 128)
+ORCH $ node rp.mjs stamp <scratch>/e5/repo/.worktrees/42-export-spec-a/.pipelines/42-export/1-spec/lanes/a/spec.md --at 976bb887adb7adbafc32e07a6348cb34ce571e3a
+(exit 0)
+ORCH $ node rp.mjs stamp <scratch>/e5/repo/.worktrees/42-export-spec-a/.pipelines/42-export/1-spec/lanes/a/spec.md --at 976bb887adb7adbafc32e07a6348cb34ce571e3a
+(exit 0)
+ORCH $ g -C <scratch>/e5/repo/.worktrees/42-export-spec-a commit -qm Stamp
+On branch 42-export-spec-a
+nothing to commit, working tree clean
+(exit 1)
+ORCH $ g -C <scratch>/e5/repo/.worktrees/42-export merge --no-edit 42-export-spec-a
+Updating 976bb88..906f7bf
+Fast-forward
+ .pipelines/42-export/1-spec/lanes/a/spec.md                    | 1 +
+ .pipelines/42-export/certification/1-spec/lanes/a/spec.md.json | 5 +++++
+ 2 files changed, 6 insertions(+)
+ create mode 100644 .pipelines/42-export/1-spec/lanes/a/spec.md
+ create mode 100644 .pipelines/42-export/certification/1-spec/lanes/a/spec.md.json
+(exit 0)
+ORCH $ g -C <scratch>/e5/repo/.worktrees/42-export merge --no-edit 42-export-spec-a
+Already up to date.
+(exit 0)
+
+## E6: removing a lane worktree holding ignored files (installed dependencies), and one holding an untracked file
+ORCH $ git -C <scratch>/e5/repo/.worktrees/42-export worktree remove <scratch>/e5/repo/.worktrees/42-export-spec-a
+(exit 0)
+ORCH $ git -C <scratch>/e5/repo/.worktrees/42-export worktree remove <scratch>/e5/repo/.worktrees/42-export-spec-a
+fatal: '<scratch>/e5/repo/.worktrees/42-export-spec-a' contains modified or untracked files, use --force to delete it
+(exit 128)
+
+## E7: a malformed thread between two roles that sit in the pipeline worktree
+ORCH $ node rp.mjs check <scratch>/e7/repo/.worktrees/42-export/.pipelines/42-export
+frontier INVALID threads/1-design-doc-producer-spec-producer-spec.md: status must be one of open | approved | withdrawn | answered | disagreement
+(exit 0)
+ORCH $ node rp.mjs assign <scratch>/e7/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer
+assignment <scratch>/e7/repo/.git/worktrees/42-export/rp/spec-producer.md
+(exit 0)
+ORCH $ node rp.mjs assign <scratch>/e7/repo/.worktrees/42-export/.pipelines/42-export --role design-doc-producer
+assignment <scratch>/e7/repo/.git/worktrees/42-export/rp/design-doc-producer.md
+(exit 0)
+
+## E8: a lane whose worktree remains from an earlier step, its candidate stale after the intent changed
+ORCH $ node rp.mjs check <scratch>/e8/repo/.worktrees/42-export/.pipelines/42-export
+frontier lane 1-spec/spec.md a
+lane 1-spec/spec.md a stale 0-intent/intent.md
+artifact 1-spec/spec.md missing
+(exit 0)
+ORCH $ node rp.mjs assign <scratch>/e8/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer-a
+assignment <scratch>/e8/repo/.git/worktrees/42-export-spec-a/rp/spec-producer.md
+(exit 0)
+- Turn commit: df1fd91f0df5d7e72e08fdef9b3de1fea047e93c
+## Mode
+lane worktree HEAD: df1fd91f0df5d7e72e08fdef9b3de1fea047e93c; pipeline tip: e7f4138bbd1cae3b05135b90b1b6256f129c38e5
+ORCH $ g -C <scratch>/e8/repo/.worktrees/42-export-spec-a merge --no-edit 42-export
+Updating df1fd91..e7f4138
+Fast-forward
+ .pipelines/42-export/0-intent/intent.md | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+(exit 0)
+ORCH $ node rp.mjs assign <scratch>/e8/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer-a
+assignment <scratch>/e8/repo/.git/worktrees/42-export-spec-a/rp/spec-producer.md
+(exit 0)
+- Turn commit: e7f4138bbd1cae3b05135b90b1b6256f129c38e5
+- Supporting folder: <scratch>/e8/repo/.worktrees/42-export-spec-a/.pipelines/42-export/1-spec/lanes/a/spec/
+--
+## Mode
+
+--
+- Changed inputs: <scratch>/e8/repo/.worktrees/42-export-spec-a/.pipelines/42-export/0-intent/intent.md — changed since 0f28d8098ff4e9d54ac266a68e3a89e5482f1bde
+
