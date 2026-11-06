@@ -121,7 +121,7 @@ describe("production lanes", () => {
     assert.deepEqual(frontier(), [`lane ${SPEC} a`, `lane ${SPEC} b`]);
   });
 
-  it("land in their own worktrees from one tip and merge into the pipeline branch without conflict, each fresh", () => {
+  it("land in their own worktrees from one tip and merge into the pipeline branch, and it back into them, without conflict", () => {
     pipeline(0, { lanes: SPEC_LANES });
     const tip = commitAll("lanes woken");
     writeFile(".git/info/exclude", ".wt-*/\n");
@@ -138,6 +138,8 @@ describe("production lanes", () => {
     for (const id of ["a", "b"]) git(root, "merge", "--quiet", "--no-edit", `demo-spec-${id}`);
     assert.deepEqual(check().phases[0].lanes.map((entry) => [entry.id, entry.state]), [["a", "fresh"], ["b", "fresh"]]);
     assert.deepEqual(frontier(), [`consolidate ${SPEC}`]);
+    git(`${root}/.wt-a`, "merge", "--quiet", "--no-edit", "demo");
+    assert.equal(git(`${root}/.wt-a`, "rev-parse", "HEAD^{tree}"), git(root, "rev-parse", "HEAD^{tree}"));
   });
 
   it("print one line per open lane above its artifact", () => {
