@@ -5,12 +5,12 @@ This chart mirrors [`reference/conventions/load.md`](../../skills/radical-pipeli
 ```mermaid
 flowchart TD
     A["Find the repository's main root, even from a worktree"] --> B["Read the skill's tools/tool.md"]
-    B --> C["Read .rp.md: shared sections and the active tool's section"]
+    B --> C["Read .rp.md: its frontmatter's data, shared sections, and the active tool's section"]
     C --> H{"Schema stamp"}
     H -->|No .rp.md| I["Offer Fresh setup"]
     H -->|Absent or older| J["Offer Migration through the changelog"]
     H -->|Newer| L["Stop: the owner updates the skill"]
-    H -->|Current, 7| K{"Required conventions complete?"}
+    H -->|Current, 8| K{"Required conventions complete?"}
     I --> M{"Owner accepts setup?"}
     J --> M
     K -->|No| N["Offer setup for the missing conventions"]

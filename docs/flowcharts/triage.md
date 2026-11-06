@@ -38,7 +38,7 @@ flowchart TD
     P2 --> RUN
     P3 --> RUN
     P4 --> RUN
-    RUN["Record unconsumed work directions as later input; write and commit run-config.md"] --> START["Fire run-started; run the loop"]
+    RUN["Record unconsumed work directions as later input; write and commit run-config.md with the agents the owner confirmed"] --> START["Fire run-started; run the loop"]
     START --> NEXT{"Another run?"}
     NEXT -->|Yes| PREP
 ```
