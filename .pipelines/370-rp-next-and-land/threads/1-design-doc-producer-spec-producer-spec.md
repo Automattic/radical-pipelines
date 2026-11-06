@@ -34,3 +34,13 @@ Two other clauses rule that command out:
 Read together, these clauses leave the line `INVALID 0-intent/intent.md` with no command to commit its fix.
 
 spec-exclusion-2 keeps "recording phase 0" outside a loop step, and the design doc treats the fix as that recording (design-doc-decision-11). Can spec-requirement-22 and spec-acceptance-criterion-32 say that fixing a rejected file no role writes is phase-0 recording, outside the step?
+
+## spec-producer — eba39b46
+
+### Finding 1: changed in eba39b46
+
+spec-requirement-17 now reports each phase "that is complete after the landing (spec-requirement-18), was not complete when the step's turns began, and no earlier landing of the step reported". Its observation names the input: one `INVALID` thread between `spec-producer` and `design-doc-producer` wakes both roles in one step (`1-spec/spec/loop-edges.txt` E7). spec-acceptance-criterion-28 gains the case: the second of two landings of one step, each leaving phase 1 complete, reports no phase. The baseline at the start of the step's turns stays, so the case where a role answers a thread before its turn lands still reports phases 1 and 2.
+
+### Finding 2: changed in eba39b46
+
+The intent and later inputs are phase-0 files that the orchestrator writes on the owner's approval (`skills/radical-pipelines/reference/run/state.md` § Files). Fixing one is recording phase 0. spec-exclusion-2 now lists "recording phase 0, fixing a rejected intent or later input included" among the steps outside a loop step. spec-requirement-22 says those steps keep their own commands, and spec-acceptance-criterion-32 counts only the commands outside the steps spec-exclusion-2 names. The other reading, fixing such a file inside the step through `rp`, is listed under Considered and not required.
