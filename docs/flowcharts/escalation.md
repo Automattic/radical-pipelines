@@ -4,9 +4,9 @@ This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/refe
 
 ```mermaid
 flowchart TD
-    A["A thread to owner about intent has status disagreement and a cites: line"] --> B["rp check names escalate thread"]
+    A["A thread to owner about intent has status disagreement and names what it cites"] --> B["rp check names escalate thread"]
     B --> C["Fire escalation-raised"]
-    C --> D["Close-out: stop the run with the dossier — the thread and what its cites: line names, verbatim, and the intent items and artifact clauses they cite"]
+    C --> D["Close-out: stop the run with the dossier — the thread and what its cites names, verbatim, and the intent items and artifact clauses they cite"]
     D --> E["Explain the choice and its consequences to the owner"]
     E --> F["The owner answers; a later triage routes the answer to this pipeline"]
     F --> G{"The owner rules the answer"}

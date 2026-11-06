@@ -4,28 +4,30 @@ This describes an issue body or pipeline intent, the input to phase 1.
 
 Before writing an intent, constraint, or proposal, show the owner the exact text you will write and the artifacts it targets, and ask whether each item binds (a constraint) or is open to investigation (a proposal); write it only after they approve. A failure the owner reports is recorded as given, without a ruling (§ Later input).
 
-## Origin lines
+## Origins
 
-At the top of `0-intent/intent.md`, before the title, write these plain machine-readable lines:
+At the top of `0-intent/intent.md`, before the title, write its origins as frontmatter (`../run/state.md` § Frontmatter):
 
-```text
-origin: issue <canonical reference>
-origin: starts-from <branch>
-origin: re-attempts <pipeline slug>
+```yaml
+---
+issue: <canonical reference>
+starts-from: <branch>
+re-attempts: <pipeline slug>
+---
 ```
 
-The issue line is required. Add either later line when applicable. The canonical reference follows **Issues**.
+`issue` is required. Add either later key when applicable. The canonical reference follows **Issues**.
 
 ## Synthesis from an issue
 
-Read the body, every comment, cross-reference, external link, and attachment. When the body already follows this format and nothing else exists — no comments, references, links, or attachments — copy the body verbatim, adding the origin lines and the ids. Otherwise:
+Read the body, every comment, cross-reference, external link, and attachment. When the body already follows this format and nothing else exists — no comments, references, links, or attachments — copy the body verbatim, adding the origins and the ids. Otherwise:
 
 1. Follow references one level. Report unreadable links in the draft.
 2. Fold every comment and linked page's substance into the latest agreed state; keep unsettled directions under Proposals.
 3. Download referenced assets beside `intent.md` and use relative paths.
 4. Make phase 0 self-contained.
 
-A re-synthesis from a modified issue also reads the current intent: it preserves `origin`; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
+A re-synthesis from a modified issue also reads the current intent: it preserves the origins; kept issue-derived items retain their ids, withdrawn ones disappear, and additions take the next ids.
 
 ## Schema and rendering
 
@@ -53,17 +55,19 @@ In `intent.md`, every item other than the Goal is declared by its id (`../run/st
 Write one `0-intent/constraint-<n>.md` per binding ruling, `0-intent/proposal-<n>.md` per request to investigate, or `0-intent/failure-<n>.md` per reported failure; the filename identifies its kind. Each file holds only what the owner gave — their statement, at the scope they gave it, and the evidence they pointed to — in the fewest words that carry it, and a reader understands it without the conversation it came from. A cause, a reading of the evidence, an affected clause, or a remedy the owner did not state is left to the target's owner. Number each kind from 1, never reusing a number. One item may target several artifacts; independent items use separate files.
 
 ```markdown
-# <Constraint | Proposal | Failure> <n>: <title>
-
+---
 target: <path relative to the pipeline folder>[#<id>][, …]
 origin: issue <canonical reference> | <URL of the source> | <path of the thread it answers>
+---
+
+# <Constraint | Proposal | Failure> <n>: <title>
 
 <the owner's ruling, request, or failure>
 ```
 
 A failure states what was run, where, and the result as the owner put it, and points to its evidence: the output the owner gave, saved in `0-intent/failure-<n>/` with secrets and personal data removed, and the paths that output names. The detail stays in the evidence.
 
-Set `target:` by what the statement concerns:
+Set `target` by what the statement concerns:
 
 | Concerns                         | Target                        |
 | -------------------------------- | ----------------------------- |

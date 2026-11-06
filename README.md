@@ -55,9 +55,9 @@ A dispute about a derived requirement or a design decision is settled inside its
 
 ### Pins and state
 
-Each artifact pins, in its frontmatter, the exact version of every input it consumed. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the intent, the later inputs, and the spec, and records the commit whose code it approved; it stays valid while the code differs from that commit's only by clean merges of the base branch.
+When a role's turn lands, `rp` pins the exact version of every input the artifact consumed, by content, in a certification file only `rp` writes; the artifact itself is never touched. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the intent and the later inputs its reviewer read, and records the commit whose code it approved; it stays valid while the code differs from that commit's only by clean merges of the base branch.
 
-State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts/README.md#check) names the frontier, the next roles to wake. Any orchestrator, on any machine, continues a pipeline from its files.
+State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts/README.md#check) names the frontier, the next roles to wake. Any orchestrator, on any machine, continues a pipeline from its files, even in a clone that lacks the pipeline's history after a squash merge.
 
 ### Redundancy by configuration
 
@@ -97,7 +97,7 @@ Every metric is read from a pipeline's tree and its history. Human intervention 
 - **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task. The pipeline's elapsed time runs from the commit of its intent to its last commit (`git log` on the pipeline folder); each later input and each thread addressed to `owner` marks a moment that cost the human's attention.
 - **Pipeline completion rate.** Percentage of tasks that make it from intent through the target phase without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint. A pipeline counts when `rp check` reports `complete` and its tree holds no later input and no thread addressed to `owner`.
 - **Correction efficiency.** When a human supplies a correction, how many rounds does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections. Count the threads opened, and their messages, between the commit of a later input and the next commit at which `rp check` reports `complete`.
-- **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human. A phase required intervention when a later input's `target:` names its artifact or a thread addressed to `owner` cites a thread about it.
+- **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human. A phase required intervention when a later input's `target` names its artifact or a thread addressed to `owner` cites a thread about it.
 
 # Project Usage
 

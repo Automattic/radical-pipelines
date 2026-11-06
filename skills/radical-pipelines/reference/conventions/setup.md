@@ -16,7 +16,7 @@ Interview the required rows one at a time, then offer each optional row. Mark ea
 
 ### Issues (required)
 
-Where issues live; how to read the body and comments, create, modify, and comment; the canonical reference written as `origin: issue <reference>`.
+Where issues live; how to read the body and comments, create, modify, and comment; the canonical reference the intent's `issue` names.
 
 ### Pipeline slug (required)
 

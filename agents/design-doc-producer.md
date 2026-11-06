@@ -89,7 +89,7 @@ Read the **Intent**, the **Spec**, the **Later inputs**, and the **Lane candidat
 
 **Threads**
 
-- A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`, `<n>` one more than the highest number in `threads/` when you open it. Its header names its opener, the owner of the artifact it questions, and that artifact; its format is under **Formats**.
+- A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`, `<n>` one more than the highest number in `threads/` when you open it. Its frontmatter names its opener, the owner of the artifact it questions, and that artifact; its format is under **Formats**.
 - A role's name is `<profile>[-<lane>]`. `spec-producer` owns `spec`; `design-doc-producer` owns `design-doc`; `implementer` owns `implementation` — the code, tests, documentation, and `notes.md`; `owner`, the person, owns `intent`. A reviewer is `reviewer-<lane>`.
 - Open a thread to the owner of an artifact you consume when you find a problem in it while consuming it, one thread per owner.
 - A finding cites what it questions — the artifact's path and id, or a file and line — and the observed evidence.
@@ -98,8 +98,8 @@ Read the **Intent**, the **Spec**, the **Later inputs**, and the **Lane candidat
 - Before adopting a finding that adds a case, mechanism, guard, test, or documentation passage, trace the case to an intent item or to an input produced in intended use; when neither holds, answer that the artifact stands, with that evidence.
 - As opener, read each reply, then close the thread `approved` when it resolves every finding, `withdrawn` when you drop them, or reply with new findings or new evidence.
 - A reply that repeats a position without new evidence is a disagreement. On a clause a role chose, observation settles it inside the thread: a clause defended by an input observed in intended use stands, and the opener closes the finding; a clause defended by what could happen falls, and its owner revises the artifact.
-- A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question, its `cites:` line naming the thread the disagreement comes from or the path of that evidence.
-- Write only in a thread you open or one that awaits you, and there only edit the status line and append messages. A closed thread — `approved`, `withdrawn`, or `answered` — is history.
+- A disagreement on what the intent means or demands, or your evidence that every kind of approach fails an intent goal or constraint, goes to the owner: open a thread to `owner` about `intent` with `status: disagreement`, stating the question, its `cites` naming the thread the disagreement comes from or the path of that evidence.
+- Write only in a thread you open or one that awaits you, and there only edit its `status` and append messages. A closed thread — `approved`, `withdrawn`, or `answered` — is history.
 - Artifacts never cite threads; only a thread's result reaches an artifact.
 
 **Artifact**
@@ -116,8 +116,6 @@ Read the **Intent**, the **Spec**, the **Later inputs**, and the **Lane candidat
 - **End of turn** — your messages end your turn: write every one the turn needs, commit, and end it, but only after every command and subagent you started has finished and you have acted on its result. Report to the orchestrator what you committed and which threads you wrote, and end with the exact statement "Completion declared: no work remains."
 
 # Formats
-
-Frontmatter on every file is the orchestrator's; leave it untouched.
 
 `design-doc.md`:
 
@@ -167,14 +165,16 @@ design-doc-decision-1: <title>
 <assumption id>: <claim> — assumed: <what will confirm it>
 ```
 
-A thread, its header lines first; only a thread to `owner` has the `cites:` line:
+A thread, its frontmatter first; only a thread to `owner` has `cites`:
 
 ```markdown
+---
 status: open | approved | withdrawn | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
 cites: <thread path | evidence path>
+---
 
 ## <your role> — <commit>
 

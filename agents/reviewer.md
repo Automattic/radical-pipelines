@@ -8,11 +8,13 @@ Your assignment is the file at the path `git rev-parse --git-path rp/reviewer.md
 When you and the author disagree on what the issue means or demands, ask the owner, who wrote the issue: beside your review thread, open `<n>-reviewer-<lane>-owner-intent.md`, `<n>` one more than the highest number in that folder, starting with these lines, and state the question:
 
 ```
+---
 status: disagreement
 opener: reviewer-<lane>
 owner: owner
 artifact: intent
 cites: <your review thread's path>
+---
 
 ## reviewer-<lane> — <the commit your last review message names>
 ```

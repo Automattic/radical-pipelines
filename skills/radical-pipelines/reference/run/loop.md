@@ -14,7 +14,7 @@ Throughout the run:
 2. Dispatch every line of its frontier (table below). `phase-started` fires the first time a step wakes a role of a phase, and again when work on it resumes.
 3. While roles work, end your turn with health monitoring active; their reports and health ticks resume the run.
 4. A role has ended its turn when its report ends with "Completion declared: no work remains." or reports a blocker (§ Waking a role); after any other report the role is still working: wait for it. When every role the step woke has ended its turn, land each:
-   1. Land it (`state.md` § Frontmatter); its turn commit is in its assignment file. A review lane's cherry-pick fires `before-`/`after-merging-lanes`.
+   1. Land it (`state.md` § Certification); its turn commit is in its assignment file. A review lane's cherry-pick fires `before-`/`after-merging-lanes`.
    2. Merge a production lane's branch into the pipeline branch (`before-`/`after-merging-lanes`).
    3. Fire `phase-completed` when a phase becomes complete.
    4. Give the owner a one-line report naming the role, what changed, and anything worth surfacing.
@@ -22,7 +22,7 @@ Throughout the run:
 
 | `frontier` | Dispatch |
 | --- | --- |
-| `INVALID <path>: <reason>` | Malformed frontmatter: repair it and re-stamp. Anything else: wake the file's author with **Malformed files** filled, or fix it yourself when you wrote it |
+| `INVALID <path>: <reason>` | Wake the file's author with **Malformed files** filled, or fix it yourself when you wrote it |
 | `escalate <thread>` | § Owner escalation |
 | `lane <artifact> <id>` | § Production lanes |
 | `consolidate <artifact>` | § Production lanes |
@@ -50,7 +50,7 @@ Throughout the run:
 A production lane is a `spec-producer` or `design-doc-producer` lane declared in `run-config.md`; it writes a candidate.
 
 1. For each `lane <artifact> <id>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Wake the lane's producer there — mode produce when its candidate is missing, else respond — with its **Brief**, when it has one, and **Write to** `<phase folder>/lanes/<id>/<artifact>.md`. Lanes run in parallel.
-2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**. Land it with `rp stamp <root> --at <turn commit> --pin <each candidate>`.
+2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**.
 
 ## Review lanes
 
@@ -62,6 +62,6 @@ A review lane is one `reviewer`, with its brief when it has one; every lane must
 
 ## Owner escalation
 
-A thread with `status: disagreement` asks the owner what the intent means or demands. Fire `escalation-raised`; the run stops through close-out with the dossier: the thread and what its `cites:` line names, verbatim, and the intent items and artifact clauses they cite. Explain the choice and its consequences in the owner's terms.
+A thread with `status: disagreement` asks the owner what the intent means or demands. Fire `escalation-raised`; the run stops through close-out with the dossier: the thread and what its `cites` names, verbatim, and the intent items and artifact clauses they cite. Explain the choice and its consequences in the owner's terms.
 
-Record the answer through `../entries/intent-format.md` § Later input, as `state.md` § Owner territory defines it, and commit it. Then append to the thread a message headed `## owner — <that commit>` naming the input's path, set its status to `answered`, and commit.
+Record the answer through `../entries/intent-format.md` § Later input, as `state.md` § Owner territory defines it, and commit it. Then append to the thread a message headed `## owner — <that commit>` naming the input's path, set its `status` to `answered`, and commit.

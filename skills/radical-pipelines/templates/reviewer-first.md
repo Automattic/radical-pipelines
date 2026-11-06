@@ -7,10 +7,12 @@ Review the code on this branch, `<branch>`, against `<base>`. It addresses this 
 Write your review, as you would post it on the pull request, to <thread path>, starting with these lines:
 
 ```
+---
 status: open
 opener: reviewer-<lane>
 owner: implementer
 artifact: implementation
+---
 
 ## reviewer-<lane> — <turn commit>
 ```
