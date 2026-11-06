@@ -99,7 +99,7 @@ describe("assignments", () => {
       assert.equal(model, null);
     });
 
-    it("implement, then respond: each turn replaces the last, with the threads awaiting the role and each changed input since the artifact last changed", () => {
+    it("implement, then respond: each turn replaces the last, with the threads awaiting the role and its changed inputs", () => {
       conventions();
       pipeline(2);
       write("0-intent/constraint-1.md", later(NOTES));
@@ -120,6 +120,30 @@ describe("assignments", () => {
       assert.deepEqual(values["later-inputs"], [in_(at, "0-intent/constraint-1.md")]);
       assert.deepEqual(values["changed-inputs"], [`${in_(at, DESIGN)} — changed since ${notesChanged}`]);
       assert.deepEqual(values.threads, [in_(at, awaiting)]);
+    });
+
+    it("respond: each changed input since the commit at which it is as its artifact's certification pins it, after a landing that left the artifact unchanged too", () => {
+      conventions();
+      pipeline(2);
+      const version = (n) => `# Spec\n\nRequirement.\n\nVersion ${n}.\n`;
+      write(SPEC, version(2));
+      land(SPEC);
+      commitAll("spec v2");
+      assign("design-doc-producer");
+      landRole("design-doc-producer");
+      write(SPEC, version(3));
+      write("0-intent/proposal-1.md", later(DESIGN));
+      land(SPEC);
+      const tip = commitAll("spec v3, a proposal");
+      const changed = assign("design-doc-producer").values["changed-inputs"].map((line) => line.match(/^(.+) — changed since ([0-9a-f]{40})$/).slice(1));
+      const at = realpathSync(root);
+      assert.deepEqual(changed.map(([path]) => path), [in_(at, SPEC), in_(at, "0-intent/proposal-1.md")]);
+      const [[, spec], [, proposal]] = changed;
+      assert.equal(git(root, "show", `${spec}:${P(SPEC)}`), version(2));
+      assert.match(git(root, "diff", spec, tip, "--", P(SPEC)), /^-Version 2\.\n\+Version 3\.$/m);
+      assert.equal(git(root, "diff", "--numstat", spec, tip, "--", P(SPEC)).trim(), `1\t1\t${P(SPEC)}`);
+      assert.throws(() => git(root, "cat-file", "-e", `${proposal}:${P("0-intent/proposal-1.md")}`));
+      assert.equal(git(root, "cat-file", "-e", `${proposal}~0`), "");
     });
 
     it("respond without changed inputs: the thread alone", () => {
@@ -143,12 +167,13 @@ describe("assignments", () => {
       assert.deepEqual(values["supporting-folder"], [`${in_(wt, "1-spec/lanes/a/spec")}/`]);
       assert.deepEqual(values.brief, ["Read for what it demands.", "", "Every outcome."]);
       assert.deepEqual([values.mode, values.intent, values["write-to"]], [["Produce"], [in_(wt, INTENT)], [in_(wt, "1-spec/lanes/a/spec.md")]]);
-      const candidateChanged = commitIn(wt, { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
+      commitIn(wt, { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
       landRole("spec-producer-a");
+      const landed = head();
       write(INTENT, `${read(INTENT)}More.\n`);
       commitAll("intent changes");
       const respond = assign("spec-producer-a").values;
-      assert.deepEqual([respond.mode, respond["changed-inputs"]], [["Respond"], [`${in_(wt, INTENT)} — changed since ${candidateChanged}`]]);
+      assert.deepEqual([respond.mode, respond["changed-inputs"]], [["Respond"], [`${in_(wt, INTENT)} — changed since ${landed}`]]);
       assert.deepEqual(assign("spec-producer-b").values.brief, []);
     });
 
@@ -458,13 +483,13 @@ describe("assignments", () => {
         ].join("\n"),
       });
       conventions();
-      pipeline(3);
+      const landed = pipeline(3);
       write("0-intent/constraint-1.md", later(NOTES));
       revise(DESIGN);
-      const at = realpathSync(root), notesChanged = git(root, "log", "-1", "--format=%H", "--", P(NOTES)).trim();
+      const at = realpathSync(root);
       assert.equal(assign("implementer", abs(PIPELINE), script).text, [
         `inline-one: ${in_(at, "0-intent/constraint-1.md")}`, "inline-none: none", "inline-many:",
-        `  - ${in_(at, DESIGN)} — changed since ${notesChanged}`, `  - ${in_(at, "0-intent/constraint-1.md")} — changed since ${notesChanged}`,
+        `  - ${in_(at, DESIGN)} — changed since ${landed}`, `  - ${in_(at, "0-intent/constraint-1.md")} — changed since ${landed}`,
         "kept when nothing", "kept on the flag", "",
       ].join("\n"));
     });

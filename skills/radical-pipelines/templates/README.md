@@ -28,7 +28,7 @@ A producer's and the implementer's templates also use:
 
 - `mode`: `Produce`, `Respond`, `Consolidate`, or `Implement`; and the flags `produce`, `respond`, `consolidate`, and `implement`, true for the turn's mode.
 - `supporting-folder`, `write-to`: the role's supporting folder and artifact, in its worktree.
-- `changed-inputs`: a list of each changed input as `<path> — changed since <commit>`, `<commit>` the last one in the role's worktree that changed its artifact.
+- `changed-inputs`: a list of each changed input as `<path> — changed since <commit>`, `<commit>` the latest one on the role's branch at which the input is as its artifact's certification pins it, or absent when it pins none.
 - `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree.
 - `threads`: a list of the threads awaiting the role.
 

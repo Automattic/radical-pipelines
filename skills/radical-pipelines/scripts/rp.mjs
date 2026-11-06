@@ -1300,6 +1300,16 @@ function requestOf(pipeline, state, role) {
   return { thread: `threads/${highest + 1}-${role.name}-implementer-implementation.md`, last: null };
 }
 
+// The commit a changed input names: the latest commit of the role's branch at its turn commit `tip` at which the input
+// has the identity `pinned`, its artifact's certification's pin, or at which it is absent when there is no pin. The diff
+// from it to the turn commit shows what changed since the artifact last landed, whether or not that landing changed it.
+function changedSince(root, folder, tip, input, pinned) {
+  const commits = gitText(root, ["rev-list", tip]).split("\n");
+  const objects = gitText(root, ["cat-file", "--batch-check=%(objectname)"], commits.map((commit) => `${commit}:${folder}/${input}\n`).join("")).split("\n");
+  const at = objects.findIndex((object) => pinned === undefined ? object.endsWith(" missing") : /^[0-9a-f]{40,64}$/.test(object) && identityOf(object) === pinned);
+  return at === -1 ? fail(`no commit of ${tip} holds ${folder}/${input} as its artifact's certification pins it`) : commits[at];
+}
+
 // The files of a woken role's assignment (templates/README.md), each as [path, contents]: the assignment, at
 // `rp/<profile>.md` in the role's private git directory, and on a review lane's later turn the diff it reads beside it.
 // `tip` is the turn commit, and `change` a reviewer's change. Everything is read and checked before anything is returned.
@@ -1340,13 +1350,12 @@ function assignmentOf(ctx, wake, tip, change) {
   let templateName;
   if (artifact) {
     templateName = role.profile;
-    const changedSince = turn.changed.length && (gitText(root, ["log", "-1", "--format=%H", tip, "--", `:(top,literal)${folder}/${artifact.path}`])
-      || fail(`no commit of ${branch} changed ${folder}/${artifact.path}`));
+    const pins = state.docs.get(artifact.path)?.inputs ?? new Map();
     Object.assign(values, {
       mode: turn.mode,
       ...Object.fromEntries(["produce", "respond", "consolidate", "implement"].map((mode) => [mode, turn.mode.toLowerCase() === mode])),
       "supporting-folder": `${at(artifact.path.replace(/\.md$/, ""))}/`,
-      "changed-inputs": turn.changed.map((input) => `${at(input)} — changed since ${changedSince}`),
+      "changed-inputs": turn.changed.map((input) => `${at(input)} — changed since ${changedSince(root, folder, tip, input, pins.get(input))}`),
       "lane-candidates": productionLanes(state.config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}`),
       threads: turn.threads.map(at),
       "write-to": at(artifact.path),
