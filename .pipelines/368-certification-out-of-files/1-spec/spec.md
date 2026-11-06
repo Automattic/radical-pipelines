@@ -40,7 +40,7 @@ origin: from-intent intent-constraint-4
 
 observed: today these values are body lines: a thread's header lines, `notes.md`'s first line, a later input's `target:` line, and the intent's leading `origin:` lines (`skills/radical-pipelines/scripts/README.md` § Threads, § Later input, § `pipelines`; `skills/radical-pipelines/reference/entries/intent-format.md` § Origin lines). A thread carrying a frontmatter is `INVALID … carries no frontmatter` (`1-spec/spec/lanes.txt`).
 
-spec-requirement-4: `rp` reads exactly the YAML subset that is a flat map of single-line scalar values, each value read as a YAML parser reads it, a quoted value without its quotes. Anything outside that subset makes `rp check` report `INVALID <path>` with a reason that names the key or construct: a nested map, a list, a multi-line value, a key given twice, or a frontmatter with no closing line. Where YAML reads a value differently from its text, as it reads ` #` and what follows as a comment, `rp` reads what YAML reads or reports that value `INVALID`; it never reads the text as written.
+spec-requirement-4: `rp` reads exactly the YAML subset that is a flat map of single-line string values: a plain value as written, without surrounding whitespace, or a single- or double-quoted value without its quotes. Anything outside that subset makes `rp check` report `INVALID <path>` with a reason that names the key or construct: a nested map, a list, a multi-line value, a key given twice, a frontmatter with no closing line, or a value a YAML parser would read differently from that text — a comment, a flow collection, an anchor, an alias, or a tag.
 
 origin: from-intent intent-constraint-4
 
@@ -157,7 +157,7 @@ spec-acceptance-criterion-3: Given a thread, a `notes.md`, a later input, and an
 
 spec-acceptance-criterion-4: Given a file `rp` reads whose frontmatter holds a nested map, a list, a multi-line value, or a key given twice, or has no closing line, when `rp check` runs, then its frontier is `INVALID <path>: <reason>`, and the reason names the key or the construct.
 
-spec-acceptance-criterion-5: Given a frontmatter value written in single or double quotes, when `rp check` runs, then it reads the value without its quotes. Given a value followed by ` #` and text, when `rp check` runs, then it reads the value a YAML parser reads or reports `INVALID` naming that value.
+spec-acceptance-criterion-5: Given a frontmatter value written in single or double quotes, when `rp check` runs, then it reads the value without its quotes. Given a value followed by ` #` and text, or a value that is a flow collection, an anchor, an alias, or a tag, when `rp check` runs, then it reports `INVALID <path>` naming that value.
 
 spec-acceptance-criterion-6: Given a checkout of the skill with no package installed, when `rp check` runs on a pipeline of the new format, then it completes using Node and Git only.
 
