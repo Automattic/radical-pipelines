@@ -1,3 +1,12 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@78e4eef7fa09",
+    "1-spec/lanes/demands/spec.md@d0f628bfff65",
+    "1-spec/lanes/omits/spec.md@3e41db8cf35c"
+  ]
+}
+---
 # Spec: Project conventions as data, and `rp` writes each role's assignment
 
 ## Overview
