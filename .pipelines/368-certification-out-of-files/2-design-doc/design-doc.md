@@ -100,19 +100,23 @@ design-doc-decision-3: Landing records the certification at the turn commit; an 
 - From the working tree, it reads `run-config.md` (the format, and the configured lanes for a candidate) and the landed file. At `--at`, it reads only the intent, every later input, and the file's upstream artifacts.
 - For an approval, `--at` is the review lane's turn commit: the change `rp review` built, which holds the intent and the later inputs the reviewer read.
   - The approval's approved commit, recorded as `reviewed`, is the `HEAD` of the worktree holding the approval when it lands. That is the pipeline-branch commit carrying the cherry-picked approval.
-  - `rp stamp` stops, writing nothing, unless that commit's code outside the pipelines folder root equals the change's.
-  - The reviewer's message heading is no longer consulted.
+  - `rp stamp` stops, writing nothing, unless `--at` resolves to the commit the reviewer's last message heading names, the change it reviewed. Both reviewer templates head that message with the lane's turn commit.
+  - `rp stamp` also stops, writing nothing, unless the approved commit's code outside the pipelines folder root equals the change's.
 - `--pin` and the consolidated root's record of its candidates are removed. The certification is exactly what intent-goal names: required inputs and approved code.
 
 **Alternatives:**
 - Recording the change itself as the approved commit. No pipeline branch holds it, so every other clone, and this one once the lane branch moves, lacks it, and spec-requirement-15 would make approvals routinely not approved.
 - Keeping `--at HEAD` for approvals. That certifies later inputs the reviewer never read.
+- Checking only the approved commit's code against `--at`'s. `--at HEAD`, the landing the skill prescribed before this change, has the same code, so it passes and certifies later inputs the reviewer never read (intent-context-5).
+- Reading an approval's turn commit from the heading and dropping `--at` for approvals. That ends the single `--at` contract every landing shares, for a commit the heading already lets `rp stamp` check.
 - Taking the approved commit as the last commit that changed the thread. Re-stamping would give the same answer, but `rp` would walk history for a commit `HEAD` already names.
 - Keeping the candidate record. No step reads it, and the tree already holds the candidates beside the root.
 
 **Trade-offs:** Re-stamping an approval after its certification is committed records a later commit with the same code. Removing `--pin` changes the `stamp` command line and the consolidation landing in `loop.md`.
 **Claims:**
 - observed: an approval stamped `--at HEAD` pins a later input committed while the reviewer worked (`1-spec/spec/review-landing.txt`).
+- observed: with only the code check, `rp stamp --at HEAD` on such an approval exits 0, pins that later input, and leaves the lane `approved`. `--at <change>` leaves it stale on the input (`2-design-doc/design-doc/approval-at-head.txt`, from `3-implementation/notes/approval-at-head.sh`).
+- observed: both reviewer templates head the reviewer's message `## reviewer-<lane> — <turn commit>`, the turn commit being the change (`templates/reviewer-first.md`, `templates/reviewer-later.md`, `templates/README.md`).
 - observed: the change holds `0-intent/` and the lane's threads, and no `run-config.md` (`rp.mjs` `cmdReview`, its lane-view selection; review test "builds a change whose tree holds the code, the intent, later inputs, and the lane's own threads only").
 - observed: no step reads a root's candidate pins (`grep -- --pin` over `skills/`, `agents/`, `docs/`: only `rp stamp`, its README, `state.md`, and `loop.md`'s consolidation landing name them; `rp.mjs` `staleInputs` checks them for grammar only).
 - assumed: an approval landed after a later input is stale on that input — confirmed by the review-landing test in § Verification.
@@ -265,7 +269,7 @@ The first 12 hexadecimal characters of the Git blob id of the whole file:
 
 - `rp stamp <file> --at <commit>`:
   - Writes the certification of `<file>` and never `<file>`. `--pin` is removed, so it is an unknown option.
-  - For an approval, `--at` is the change. The approved commit is the `HEAD` where the approval lies, and the command stops unless that commit's code outside the pipelines folder root equals the change's.
+  - For an approval, `--at` is the change. The approved commit is the `HEAD` where the approval lies. The command stops, writing nothing, unless `--at` resolves to the commit the reviewer's last message heading names, and unless the approved commit's code outside the pipelines folder root equals the change's.
   - It stops as today on a missing or unresolving `--at`, a file of another kind, a required input missing at `--at`, or a file it reads that is malformed.
 - `rp check <pipeline folder> [--ref <commit>] [--json]`:
   - Signature and output shape are unchanged.
@@ -280,7 +284,7 @@ The first 12 hexadecimal characters of the Git blob id of the whole file:
 - **Narrowed**:
   - Thread header lines, `notes.md`'s first body line, a later input's `target:` body line, and a format-7 intent's `origin:` body lines are no longer read.
   - The spec, the design doc, and candidates admit no frontmatter.
-  - `rp stamp` loses `--pin` and the reviewer-heading check.
+  - `rp stamp` loses `--pin`. For an approval, it requires `--at` to be the commit the reviewer's last heading names, where it compared their code before.
   - The `INVALID` reasons tied to stamped frontmatter disappear.
 - **Widened**:
   - `rp check` completes where an approved commit is absent.
@@ -295,7 +299,7 @@ The first 12 hexadecimal characters of the Git blob id of the whole file:
 
 ## Failure modes and observability
 
-- **A landing interrupted before `rp stamp`, or a stamped approval whose `HEAD` code differs from the change**: the file has no certification. `rp check` reports it stale on every required input, and its owner, or the review lane, is woken again. `rp stamp` prints `rp: <reason>` when it refuses.
+- **A landing interrupted before `rp stamp`, or an approval `rp stamp` refuses** (`--at` is not the commit the reviewer's last heading names, or `HEAD`'s code differs from the change): the file has no certification. `rp check` reports it stale on every required input, and its owner, or the review lane, is woken again. `rp stamp` prints `rp: <reason>` when it refuses.
 - **A landing interrupted after `rp stamp`, before the commit**: the working tree is fresh while `--ref HEAD` is stale. `git status` shows the uncommitted certification, and committing it resolves the difference.
 - **An approved commit absent from the clone** (squash merge, deleted branch, garbage collection): `review <lane> unapproved`, and the lane reviews again.
 - **A certification that cannot be read or is malformed**: `rp check` exits 1 with `rp: <path>: <reason>` and no frontier. The run stops on a failure and reports it to the owner (`close-out.md`).
@@ -325,6 +329,7 @@ The first 12 hexadecimal characters of the Git blob id of the whole file:
 - new test at the `rp stamp`, Git merge, and `rp check` boundary — design-doc-decision-1, spec-acceptance-criterion-12, spec-acceptance-criterion-13 — two lanes landed from one tip merge into the pipeline branch without conflict and are both fresh, and the pipeline branch merges back into a lane without conflict.
 - new test at the `rp review`, `rp stamp`, and `rp check` boundary — design-doc-decision-3, spec-acceptance-criterion-14 — an approval landed after a later input reached the pipeline branch is stale on that input. Once the earlier phase lands, the frontier is `review <lane>`.
 - existing tests "reads an approval on a clone of the pipeline branch that never had the change" and "stops stamping an approval whose anchor's code differs from the change it reviewed, writing nothing", landing `--at` the change — design-doc-decision-3 — the approved commit is on the pipeline branch and carries the change's code.
+- new test at the `rp stamp` boundary — design-doc-decision-3, spec-requirement-13 — stamping an approval `--at` any commit other than the one its reviewer's last heading names, or `--at` a heading commit that does not resolve, stops and writes no certification.
 - existing stamp tests "pins the identities at the --at commit, not an input changed …" and "makes a response that leaves the artifact unchanged fresh" — design-doc-decision-3, spec-acceptance-criterion-17 — landing certifies at the turn commit.
 - existing command-line tests in `reading.test.mjs` — design-doc-decision-3 — `stamp` rejects `--pin` as an unknown option.
 - existing tests in `frontier.test.mjs` "a configuration that cannot be read stops the command" and in `pipelines.test.mjs` for formats, with format 7 current — design-doc-decision-7, spec-acceptance-criterion-18 — `check` stops on format 6, and `pipelines` lists format 6.
