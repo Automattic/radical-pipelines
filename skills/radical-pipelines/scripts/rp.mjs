@@ -802,7 +802,7 @@ async function cmdCheck(args) {
 
 // Certifies a landed file: writes `certification/<file>.json` with the file's required inputs, derived from its kind, at
 // their identities in the tree of the turn's commit `--at`, and on an approval its approved commit, the `HEAD` where it
-// lies. The landed file is never written.
+// lies; an approval's `--at` must be the change its reviewer's last heading names. The landed file is never written.
 async function cmdStamp(args) {
   const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
   const { folder, inner, pipelinesRoot } = pipelineFileOf(rel, "stamp");
@@ -820,9 +820,13 @@ async function cmdStamp(args) {
   const bytes = readRegular(rel) ?? fail(`stamp: cannot read ${rel}: not a regular file`);
   const subject = parseOrFail(`stamp: ${rel}`, () => parseFile(inner, kind, bytes, config));
   if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only an approved review thread is stamped`);
-  // An approval's approved commit is the HEAD that holds it, whose code must be that of the change `--at` it reviewed.
+  // An approval is certified `--at` the change its reviewer read, the commit its last heading names; its approved commit
+  // is the HEAD that holds it, whose code must be that change's.
   const reviewed = kind.kind === "thread" ? requireCommit(root, "HEAD", "HEAD") : null;
   if (reviewed) {
+    const named = subject.messages.findLast((message) => message.author === subject.opener).commit;
+    if (requireCommit(root, named, `stamp: ${rel}: the commit the reviewer's last heading names`) !== commit)
+      fail(`stamp: ${rel}: --at ${args.at} is not ${named}, the change the reviewer's last heading names`);
     try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", commit, reviewed, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
     catch (error) {
       if (error.status !== 1) fail(`git diff ${commit} ${reviewed}: ${error.stderr?.toString().trim() || error.message}`);

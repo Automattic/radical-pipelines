@@ -8,6 +8,6 @@ Landing a turn writes `certification/<path>.json` in the pipeline folder: each r
 
 The values `rp` reads — a thread's header, `notes.md`'s status, a later input's `target` and `origin`, the intent's origins `issue`, `starts-from`, and `re-attempts` — move to a flat YAML frontmatter on the files that carry them, which `rp` reads with Node alone. Anything outside that subset is `INVALID`, naming the key or the construct; quote a value such as `"#368"`. Every `INVALID` line goes to the file's author, and a certification `rp` cannot read stops `rp check`.
 
-An approval is certified at the change its reviewer read, so a later input that lands while the lane reviews leaves it stale. An approval whose approved commit the clone lacks counts as not approved instead of stopping `rp check`, and a merge conflict confined to the pipelines folder root no longer makes it stale on code.
+An approval is certified at the change its reviewer read, so a later input that lands while the lane reviews leaves it stale; `rp stamp` stops on an approval stamped `--at` any commit other than the change its reviewer's last heading names. An approval whose approved commit the clone lacks counts as not approved instead of stopping `rp check`, and a merge conflict confined to the pipelines folder root no longer makes it stale on code.
 
 The pipeline format and the conventions version become 7. A version-6 `.rp.md` migrates by its stamp alone. Pipelines of format 6 are history: `rp pipelines` lists them with their origins, and work on their issue starts a new pipeline.

@@ -184,11 +184,11 @@ node rp.mjs stamp <file> --at <commit>
 
 `stamp` certifies an artifact, a candidate, or an approval: it writes `certification/<file>.json` (§ Certification) in the pipeline folder of the working tree, and never `<file>`. `--at` names the turn's commit: the tip of the role's worktree when it was woken. `inputs` becomes the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit, or not committed, is not certified. `stamp` writes nothing when the certification would not change, so stamping twice changes nothing.
 
-For an approval, `--at` is the change `rp review` built, the review lane's turn commit, and `reviewed` becomes the full hash of `HEAD` where the approval lies: the pipeline-branch commit holding it. `HEAD`'s tree outside the pipelines folder root must equal the change's; otherwise `stamp` stops and writes nothing.
+For an approval, `--at` is the change `rp review` built, the review lane's turn commit, and `reviewed` becomes the full hash of `HEAD` where the approval lies: the pipeline-branch commit holding it. `--at` must resolve to the commit the reviewer's last message heading names, and `HEAD`'s tree outside the pipelines folder root must equal the change's; otherwise `stamp` stops and writes nothing.
 
 `stamp` validates only what it reads. From the working tree it reads `run-config.md` and the stamped file. At `--at` it reads the intent, every later input (its `target` says whether it applies), and the stamped file's upstream artifacts. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
 
-A missing `--at` or one that does not resolve, any other kind of file, a review thread that is no approval, a required input missing at `--at`, a file it reads that is malformed or of the wrong kind, or a certification it would replace that cannot be read or is malformed (§ Certification) stops the command and writes nothing.
+A missing `--at` or one that does not resolve, any other kind of file, a review thread that is no approval, an approval's heading commit that does not resolve, a required input missing at `--at`, a file it reads that is malformed or of the wrong kind, or a certification it would replace that cannot be read or is malformed (§ Certification) stops the command and writes nothing.
 
 ## `pipelines`
 

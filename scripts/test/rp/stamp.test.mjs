@@ -30,13 +30,13 @@ describe("landing", () => {
   const turns = [
     ["an artifact", () => write(SPEC, "# Spec\r\nBody without final newline"), SPEC],
     ["a candidate", () => write("1-spec/lanes/a/spec.md", "# Candidate\n"), "1-spec/lanes/a/spec.md"],
-    ["an approval", () => thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", "abc1234"]] }), "threads/1-reviewer-default-implementer-implementation.md"],
+    ["an approval", (turn) => thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", turn]] }), "threads/1-reviewer-default-implementer-implementation.md"],
   ];
   for (const [what, writeTurn, rel] of turns)
     it(`of ${what} changes no byte of the files its turn committed, and writes only its certification`, () => {
       pipeline(0, { lanes: [lane("spec-producer", "a")] });
       const turn = git(root, "rev-parse", "HEAD").trim();
-      writeTurn();
+      writeTurn(turn);
       const landed = commitAll("turn");
       stampAt(turn, rel);
       assert.equal(git(root, "diff", "--name-only", landed), "");
@@ -147,13 +147,31 @@ describe("stamp of an approval", () => {
     writeFile("src/app.js", "export const a = 2;\n");
     const change = commitAll("change");
     const pins = [pin("0-intent/constraint-1.md"), pin(INTENT), pin("0-intent/proposal-1.md")];
-    const path = thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", "abc1234"]] });
+    const path = thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", change.slice(0, 9)]] });
     write("0-intent/proposal-1.md", later(DESIGN, "Changed after the change was built.\n"));
     const anchor = commitAll("approval lands after a later input");
     stampAt(change.slice(0, 9), path);
     assert.deepEqual(certification(path), { inputs: pins, reviewed: anchor });
     assert.deepEqual(check().reviews, [{ lane: "default", approved: false, stale: ["0-intent/proposal-1.md"] }]);
   });
+
+  // An approval stamped `--at` a commit that is not the change its reviewer's last heading names: [what, the heading's
+  // commit, the reason].
+  for (const [what, heading, reason] of [
+    ["--at HEAD, the pipeline-branch commit holding it", (change) => change, /--at HEAD is not [0-9a-f]+, the change the reviewer's last heading names/],
+    ["a heading commit that does not resolve", () => "1".repeat(40), /the commit the reviewer's last heading names does not resolve to a commit/],
+  ])
+    it(`refuses ${what}, certifying nothing`, () => {
+      pipeline(3);
+      const change = commitAll("change");
+      const path = thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", "abc1234"], ["implementer", "bbbbbbb"], ["reviewer-default", heading(change)]] });
+      write("0-intent/failure-1.md", later(NOTES));
+      commitAll("approval lands after a later input");
+      const out = run("stamp", abs(P(path)), "--at", "HEAD");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, reason);
+      assert.equal(certification(path), null);
+    });
 });
 
 describe("stamp validates only what it reads at the turn's commit", () => {
