@@ -35,3 +35,52 @@ The scope matches the intent. Commit format, guardrails, resources, agents, and 
 7. **Observation, accepted by intent-constraint-2 but worth stating in the project's files.** Subagent models no longer pass through the project's tool mapping. In this repository, `.rp.opencode.md` maps `sonnet` to `claude-agent/sonnet#xhigh`. A role now delegates on whatever the model search returns for `sonnet`, so the `#xhigh` variant is lost. `.rp.opencode.md`'s "Model names in `Agents` map to these opencode models" now holds only for the models roles are spawned on. Worth saying so there.
 
 8. **Nit:** `Its later inputs: {{later-inputs}}` and `- Later inputs: {{later-inputs}}` leave a trailing space before the nested list when there are several items. `fill` could trim `before` when it starts a nested list.
+
+## implementer — 54487fd763a80f9ec20da10494d7a219f786eb86
+
+### 1. A lane's brief is never expanded: owned by spec-producer
+
+spec-requirement-10 limits expansion to "guardrail, resource, and commit-format text". The spec's Considered and not required rules out a placeholder in a brief because no intended use produces one. Your finding questions that reading of intent-constraint-3. I carried it to its owner in `threads/2-implementer-spec-producer-spec.md`, and I will answer here with the result.
+
+### 2. On an `INVALID` turn, a reviewer is told to write a fresh review into its existing review thread: owned by design-doc-producer
+
+`requestOf` implements design-doc-decision-9 and design-doc-decision-10 as written. Your finding questions those decisions. I carried it to their owner in `threads/3-implementer-design-doc-producer-design-doc.md`, with evidence for your second case. A reviewer given that request for its own rejected review thread replaced the whole file with a new first review, and its earlier message was lost (`3-implementation/notes/reviewer-run.md`). I will answer here with the result.
+
+### 3. `{base}` contradicts the canonical vocabulary: owned by spec-producer
+
+spec-requirement-10 values the fact as "`run-config.md`'s `base`" and does not take the merge-base reading. I carried the conflict with **Base** to the spec in `threads/2-implementer-spec-producer-spec.md`. The glossary's Vocabulary entry will define the fact once its name and value are settled.
+
+### 4. Criteria live in more than one place: changed in 250e3652
+
+`laneBranchOf` builds a lane's branch for both `review` and `assign`. `laneThreadOf` reads a review lane's threads from their file names. From it:
+
+- `reviewThreadOf` picks the lane's review thread for both `check`'s approval and `assign`'s request;
+- `review`'s lane view keeps the threads it names.
+
+### 5. The `assign` tests assert the templates' structure: changed in 0009b0f5
+
+- **Fixture templates.** The tests run `rp` from a copied skill folder beside templates they own. Those templates echo every value `assign` computes, and the tests assert those values. The heading, Seat-field, and Materials-key assertions are gone.
+- **The renderer.** Its syntax and its stops are tested on their own fixture templates.
+- **The delivered templates.** One test fills each of them for every kind of turn, and asserts only the values each turn carries.
+- **The profiles' names.** Whether the templates keep the names the profiles refer to is now an inspection: `3-implementation/notes/profile-names.txt`.
+
+### 6. A `.rp.local.md` that wasn't migrated is silently ignored: stands
+
+The case exists only until a developer moves their local overrides, once, after the migration to version 8. That makes it a migration leftover. AGENTS.md admits a case into the skill "only when it is a durable part of the design — not a one-off (like a migration leftover)".
+
+The migration already covers it in two places:
+
+- `setup.md` § Migration step 4 warns that `.rp.local.md` is not rewritten.
+- `changelog.md` § 8 states the move: "In `.rp.local.md`, the same conventions move into its frontmatter, without `conventions`."
+
+The only `.rp.local.md` observed overrides Artifact storage, a prose convention that keeps working (`1-spec/spec/rp-local-md.txt`).
+
+### 7. Subagent models no longer pass through the project's tool mapping; say so in the project's files: changed in 27476405
+
+`.rp.opencode.md` now says the orchestrator spawns roles on the models its table maps. It also says a role finds its subagent model by name through opencode's model search, without those variants. `.rp.claude-code.md` said "use `sonnet` for both" `astra` and `luna`. It now keeps that mapping for `astra`, which a role is spawned on. It says a role whose subagent model is `luna` runs its subagents on its own model.
+
+### 8. A trailing space before a nested list: changed in 77193c04
+
+`fill` ends the line before a nested list without trailing whitespace. A test on a fixture template pins the rendering.
+
+`npm test` passes: 560 tests.

@@ -17,3 +17,22 @@ artifact: implementation
 - **documentation — needs changes:** Reviewed `AGENTS.md`, `docs/glossary.md`, and the changed documentation. The structural-test finding above violates `AGENTS.md`. The vocabulary, migration instructions, and documentation otherwise reflect the new assignment-generation behavior.
 
 No other blocking finding from this review.
+
+## implementer — 54487fd763a80f9ec20da10494d7a219f786eb86
+
+### [P2] Remove assertions that freeze the assignment templates' prose structure: changed in 0009b0f5
+
+`scripts/test/rp/assign.test.mjs` now runs `rp` from a copied skill folder beside templates the test owns. Each of them echoes every value `rp assign` fills under its own name: the mode and its flags, the seat, the materials, the threads, the malformed files, the carried conventions, and the vocabulary. The tests assert those values, so a template can be reworded or reordered without a test edit.
+
+The heading, Seat-field, and Materials-key assertions are gone, along with `PROFILE_HEADINGS` and `partOf`, which read the delivered templates' wording.
+
+The renderer's syntax is tested on its own fixture templates:
+
+- how lists, parts, and flags render;
+- each way a template can break the syntax.
+
+One test remains on the delivered templates. It writes every role's assignment for every kind of turn from this repository's `.rp.md`. It checks only that each fills, and that each holds the values the turn gives it.
+
+Whether the delivered templates keep the headings and field names the profiles refer to is now an inspection, not a test: `3-implementation/notes/profile-names.txt`.
+
+`npm test` passes: 560 tests.
