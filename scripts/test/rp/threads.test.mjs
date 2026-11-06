@@ -2,22 +2,28 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { Invalid, awaitedRole, isReview, parseRole, parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
-import { REVIEW, TO_SPEC, check, frontier, git, lane, pipeline, root, thread, useRepo, write } from "./fixture.mjs";
+import { REVIEW, TO_SPEC, check, frontier, lane, pipeline, thread as writeThread, useRepo, write } from "./fixture.mjs";
 
 const NAME = "1-implementer-spec-producer-spec.md";
 const HEADER = "status: open\nopener: implementer\nowner: spec-producer\nartifact: spec\n";
 const MESSAGE = "## implementer — abc1234\n\nspec-requirement-2 has no observed input.\n";
-const valid = `${HEADER}\n${MESSAGE}`;
-const parse = (name, body) => parseThread(name, body);
-const rejects = (name, body, reason) => assert.throws(() => parse(name, body), (error) => error instanceof Invalid && reason.test(error.message));
+const thread = (header, body = MESSAGE) => `---\n${header}---\n\n${body}`;
+const valid = thread(HEADER);
+const parse = (name, contents) => parseThread(name, contents);
+const rejects = (name, contents, reason) => assert.throws(() => parse(name, contents), (error) => error instanceof Invalid && reason.test(error.message));
 
 describe("thread parsing", () => {
-  it("reads the header and the messages", () => {
-    const body = `${HEADER}\n# Title\n\n${MESSAGE}\n## spec-producer — 0123456789abcdef0123456789abcdef01234567\n\nStands: observed.\n\n## owner — abcdef0\n`;
-    assert.deepEqual(parse(NAME, body), {
+  it("reads the frontmatter and the messages", () => {
+    const contents = thread(HEADER, `# Title\n\n${MESSAGE}\n## spec-producer — 0123456789abcdef0123456789abcdef01234567\n\nStands: observed.\n\n## owner — abcdef0\n`);
+    assert.deepEqual(parse(NAME, contents), {
       number: 1, status: "open", opener: "implementer", owner: "spec-producer", artifact: "spec",
       messages: [{ author: "implementer", commit: "abc1234" }, { author: "spec-producer", commit: "0123456789abcdef0123456789abcdef01234567" }, { author: "owner", commit: "abcdef0" }],
     });
+  });
+
+  it("reads the values from the frontmatter alone, whatever the body says", () => {
+    const contents = thread("status: approved\nopener: implementer\nowner: spec-producer\nartifact: spec\n", `status: open\nopener: reviewer-a\n\n${MESSAGE}`);
+    assert.deepEqual([parse(NAME, contents).status, parse(NAME, contents).opener], ["approved", "implementer"]);
   });
 
   for (const [owner, artifact] of [["owner", "intent"], ["spec-producer", "spec"], ["design-doc-producer", "design-doc"], ["implementer", "implementation"]])
@@ -25,8 +31,8 @@ describe("thread parsing", () => {
       const status = owner === "owner" ? "disagreement" : "open";
       const name = `1-reviewer-default-${owner}-${artifact}.md`;
       const cites = owner === "owner" ? "cites: threads/1-reviewer-default-implementer-implementation.md\n" : "";
-      const body = `status: ${status}\nopener: reviewer-default\nowner: ${owner}\nartifact: ${artifact}\n${cites}\n## reviewer-default — abc1234\n`;
-      assert.equal(parse(name, body).artifact, artifact);
+      const contents = thread(`status: ${status}\nopener: reviewer-default\nowner: ${owner}\nartifact: ${artifact}\n${cites}`, "## reviewer-default — abc1234\n");
+      assert.equal(parse(name, contents).artifact, artifact);
     });
 
   it("accepts CRLF line endings and every status of a thread to a role", () => {
@@ -35,20 +41,19 @@ describe("thread parsing", () => {
   });
 
   it("ignores ## lines inside fenced code", () => {
-    const body = `${valid}\n\`\`\`md\n## not a message\n\`\`\`\n\n~~~~\n## spec-producer - nope\n~~~~\n`;
-    assert.equal(parse(NAME, body).messages.length, 1);
+    const contents = `${valid}\n\`\`\`md\n## not a message\n\`\`\`\n\n~~~~\n## spec-producer - nope\n~~~~\n`;
+    assert.equal(parse(NAME, contents).messages.length, 1);
   });
 
   const CITES = "cites: threads/1-implementer-spec-producer-spec.md\n";
-  const toOwner = (status, cites = CITES) => `status: ${status}\nopener: implementer\nowner: owner\nartifact: intent\n${cites}\n${MESSAGE}`;
+  const toOwner = (status, cites = CITES) => thread(`status: ${status}\nopener: implementer\nowner: owner\nartifact: intent\n${cites}`);
   const malformed = [
     ["a file name without number", "implementer-spec-producer-spec.md", valid, /file name/],
-    ["a file name not matching the header", "1-implementer-spec-producer-design-doc.md", valid, /file name must be 1-implementer-spec-producer-spec\.md/],
-    ["a missing status line", NAME, valid.replace("status: open\n", ""), /line 1 must be status/],
-    ["header lines out of order", NAME, valid.replace("opener: implementer\nowner: spec-producer\n", "owner: spec-producer\nopener: implementer\n"), /line 2 must be opener/],
-    ["a missing artifact line", NAME, valid.replace("artifact: spec\n", ""), /line 4 must be artifact/],
-    ["a fifth header line", NAME, valid.replace("artifact: spec\n", "artifact: spec\nlane: x\n"), /header must end with a blank line/],
-    ["a header not followed by a blank line", NAME, `${HEADER}${MESSAGE}`, /header must end with a blank line/],
+    ["a file name not matching the frontmatter", "1-implementer-spec-producer-design-doc.md", valid, /file name must be 1-implementer-spec-producer-spec\.md/],
+    ["the values as body lines, without frontmatter", NAME, `${HEADER}\n${MESSAGE}`, /^frontmatter has no status$/],
+    ["a missing status", NAME, valid.replace("status: open\n", ""), /^frontmatter has no status$/],
+    ["a missing artifact", NAME, valid.replace("artifact: spec\n", ""), /^frontmatter has no artifact$/],
+    ["another key", NAME, valid.replace("artifact: spec\n", "artifact: spec\nlane: x\n"), /^unexpected frontmatter key: lane$/],
     ["an unknown status", NAME, valid.replace("status: open", "status: closed"), /status must be one of/],
     ["an artifact path instead of a token", NAME, valid.replace("artifact: spec", "artifact: 1-spec/spec.md"), /artifact must be one of/],
     ["an owner that does not own the artifact", NAME, valid.replace("artifact: spec", "artifact: implementation"), /owner of implementation is implementer\[-<lane>\]/],
@@ -64,11 +69,10 @@ describe("thread parsing", () => {
     ["answered on a thread to a role", NAME, valid.replace("open", "answered"), /statuses of a thread to owner/],
     ["open on a thread to owner", "1-implementer-owner-intent.md", toOwner("open"), /statuses of a thread to owner/],
     ["withdrawn on a thread to owner", "1-implementer-owner-intent.md", toOwner("withdrawn"), /statuses of a thread to owner/],
-    ["a thread to owner without cites", "1-implementer-owner-intent.md", toOwner("disagreement", ""), /line 5 must be cites: <value> on a thread to owner/],
-    ["a thread to owner with an empty cites", "1-implementer-owner-intent.md", toOwner("disagreement", "cites: \n"), /line 5 must be cites/],
-    ["a thread to owner with another fifth line", "1-implementer-owner-intent.md", toOwner("disagreement", "cited: threads/1-a.md\n"), /line 5 must be cites/],
-    ["cites on a thread to a role", NAME, valid.replace("artifact: spec\n", `artifact: spec\n${CITES}`), /header must end with a blank line/],
-    ["no message", NAME, `${HEADER}\nFindings without heading.\n`, /no message/],
+    ["a thread to owner without cites", "1-implementer-owner-intent.md", toOwner("disagreement", ""), /a thread to owner names in cites/],
+    ["a thread to owner with an empty cites", "1-implementer-owner-intent.md", toOwner("disagreement", "cites: \n"), /a thread to owner names in cites/],
+    ["cites on a thread to a role", NAME, valid.replace("artifact: spec\n", `artifact: spec\n${CITES}`), /cites is only on a thread to owner/],
+    ["no message", NAME, thread(HEADER, "Findings without heading.\n"), /no message/],
     ["a first message by the owner", NAME, valid.replace("## implementer", "## spec-producer"), /first message must be the opener's/],
     ["a message by a third role", NAME, `${valid}\n## reviewer-default — abc1234\n`, /author must be the opener, the owner, or owner/],
     ["a heading without commit", NAME, `${valid}\n## spec-producer\n`, /message heading must be/],
@@ -104,8 +108,8 @@ describe("thread roles", () => {
   for (const [role, parsed] of roles) it(`${role} is ${parsed ? `${parsed.profile}${parsed.lane ? ` lane ${parsed.lane}` : ""}` : "not a role"}`, () => assert.deepEqual(parseRole(role), parsed));
 
   it("production lane owners of closed threads pair with their profile's artifact", () => {
-    const body = "status: withdrawn\nopener: design-doc-producer\nowner: design-doc-producer-a\nartifact: design-doc\n\n## design-doc-producer — abc1234\n";
-    assert.equal(parse("1-design-doc-producer-design-doc-producer-a-design-doc.md", body).owner, "design-doc-producer-a");
+    const contents = thread("status: withdrawn\nopener: design-doc-producer\nowner: design-doc-producer-a\nartifact: design-doc\n", "## design-doc-producer — abc1234\n");
+    assert.equal(parse("1-design-doc-producer-design-doc-producer-a-design-doc.md", contents).owner, "design-doc-producer-a");
   });
 });
 
@@ -139,44 +143,21 @@ describe("threads in a pipeline", () => {
 
   it("accepts threads that share a number with different openers", () => {
     pipeline(3);
-    thread(TO_SPEC);
-    thread({ ...REVIEW(), owner: "spec-producer", artifact: "spec" });
+    writeThread(TO_SPEC);
+    writeThread({ ...REVIEW(), owner: "spec-producer", artifact: "spec" });
     assert.deepEqual(invalidPaths(), []);
   });
 
   it("accepts a reviewer of a lane that is not configured", () => {
     pipeline(3, { lanes: [lane("reviewer", "security")] });
-    thread({ opener: "reviewer-security", owner: "implementer", artifact: "implementation" });
-    thread({ n: 2, ...REVIEW("gone"), status: "withdrawn" });
+    writeThread({ opener: "reviewer-security", owner: "implementer", artifact: "implementation" });
+    writeThread({ n: 2, ...REVIEW("gone"), status: "withdrawn" });
     assert.deepEqual(invalidPaths(), []);
   });
 
-  const STAMP = { inputs: ["0-intent/intent.md@0123456789ab"], reviewed: "<HEAD>".padEnd(40, "0") };
-  const reviewedCases = [
-    ["an approval without frontmatter", { status: "approved", ...REVIEW() }, true],
-    ["an approval without inputs", { status: "approved", ...REVIEW(), frontmatter: { reviewed: STAMP.reviewed } }, true],
-    ["an approval without reviewed", { status: "approved", ...REVIEW(), frontmatter: { inputs: STAMP.inputs } }, true],
-    ["an approval with a malformed reviewed", { status: "approved", ...REVIEW(), frontmatter: { ...STAMP, reviewed: "abc" } }, true],
-    ["an approval with a malformed pin", { status: "approved", ...REVIEW(), frontmatter: { ...STAMP, inputs: ["0-intent/intent.md"] } }, true],
-    ["an approval with another key", { status: "approved", ...REVIEW(), frontmatter: { ...STAMP, lane: "x" } }, true],
-    ["frontmatter on an open review thread", { ...REVIEW(), frontmatter: STAMP }, true],
-    ["frontmatter on a reviewer's approved thread to another owner", { status: "approved", ...REVIEW(), owner: "spec-producer", artifact: "spec", frontmatter: STAMP }, true],
-    ["frontmatter on another role's approved thread", { status: "approved", ...TO_SPEC, frontmatter: STAMP }, true],
-    ["another role's approved thread without frontmatter", { status: "approved", ...TO_SPEC }, false],
-    ["a reviewer's approved thread to another owner without frontmatter", { status: "approved", ...REVIEW(), owner: "spec-producer", artifact: "spec" }, false],
-    ["an approval with inputs and reviewed", { status: "approved", ...REVIEW(), frontmatter: STAMP }, false],
-  ];
-  for (const [what, fields, isInvalid] of reviewedCases)
-    it(`${isInvalid ? "rejects" : "accepts"} ${what}`, () => {
-      pipeline(3);
-      const head = git(root, "rev-parse", "HEAD").trim();
-      const path = thread(fields.frontmatter?.reviewed === STAMP.reviewed ? { ...fields, frontmatter: { ...fields.frontmatter, reviewed: head } } : fields);
-      assert.deepEqual(invalidPaths(), isInvalid ? [`INVALID ${path}`] : []);
-    });
-
   it("reports each thread with the role it awaits", () => {
     pipeline(3);
-    thread({ ...TO_SPEC, messages: [["design-doc-producer", "aaaaaaa"], ["spec-producer", "bbbbbbb"]] });
+    writeThread({ ...TO_SPEC, messages: [["design-doc-producer", "aaaaaaa"], ["spec-producer", "bbbbbbb"]] });
     write("threads/notes.txt", "not a thread\n");
     assert.deepEqual(check().threads, [{
       path: "threads/1-design-doc-producer-spec-producer-spec.md", status: "open", opener: "design-doc-producer", owner: "spec-producer", artifact: "spec",

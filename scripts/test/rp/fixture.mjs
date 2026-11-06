@@ -44,20 +44,27 @@ export const read = (rel) => readFileSync(abs(P(rel)), "utf8");
 export const remove = (rel) => rmSync(abs(P(rel)), { force: true, recursive: true });
 
 export function configure({ targetPhase = 4, base = "main", lanes } = {}) {
-  write("run-config.md", `---\n${JSON.stringify({ format: 6, "target-phase": targetPhase, base, ...(lanes ? { lanes } : {}) }, null, 2)}\n---\n`);
+  write("run-config.md", `---\n${JSON.stringify({ format: 7, "target-phase": targetPhase, base, ...(lanes ? { lanes } : {}) }, null, 2)}\n---\n`);
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 
-// Stamps a file with its derived required inputs at a turn's commit, HEAD by default; `candidates` are the extra pins
-// of a consolidated root.
-export function stampAt(at, rel, ...candidates) {
-  return rp("stamp", abs(P(rel)), "--at", at, ...candidates.flatMap((pin) => ["--pin", abs(P(pin))]));
+// A file with a YAML frontmatter holding `values`, one `<key>: <value>` line each, above `body`.
+export const withFrontmatter = (values, body = "") => `---\n${Object.entries(values).map(([key, value]) => `${key}: ${value}`).join("\n")}\n---\n${body}`;
+// A later input targeting `target`.
+export const later = (target, body = "") => withFrontmatter({ target }, body);
+// The certification `rp stamp` wrote for a file, parsed, or null when it has none.
+export function certification(rel) {
+  try { return JSON.parse(readFileSync(abs(P(`certification/${rel}.json`)), "utf8")); }
+  catch (error) { if (error.code === "ENOENT") return null; throw error; }
 }
-export const stamp = (rel, ...candidates) => stampAt("HEAD", rel, ...candidates);
-// Lands a role's turn: commits the working tree, then stamps the file at that commit.
-export function land(rel, ...candidates) {
+
+// Certifies a file with its derived required inputs at a turn's commit.
+export const stampAt = (at, rel) => rp("stamp", abs(P(rel)), "--at", at);
+export const stamp = (rel) => stampAt("HEAD", rel);
+// Lands a role's turn: commits the working tree, then certifies the file at that commit.
+export function land(rel) {
   commitAll(`land ${rel}`);
-  return stamp(rel, ...candidates);
+  return stamp(rel);
 }
 // A role revises a file's body and its turn lands.
 export function revise(rel, text = "Revised.") {
@@ -72,13 +79,12 @@ export function commitAll(subject = "work") {
   return git(root, "rev-parse", "HEAD").trim();
 }
 
-// A thread file, named from its header; messages are [author, commit] pairs. A thread to owner cites `cites`.
+// A thread file, named from its frontmatter; messages are [author, commit] pairs. A thread to owner cites `cites`.
 // Returns its pipeline-relative path.
-export function thread({ n = 1, status = "open", opener, owner, artifact, messages, frontmatter, name, cites = "threads/0-cited.md" } = {}) {
+export function thread({ n = 1, status = "open", opener, owner, artifact, messages, name, cites = "threads/0-cited.md" } = {}) {
   const path = `threads/${name ?? `${n}-${opener}-${owner}-${artifact}.md`}`;
-  const header = [`status: ${status}`, `opener: ${opener}`, `owner: ${owner}`, `artifact: ${artifact}`, ...(owner === "owner" ? [`cites: ${cites}`] : [])];
   const body = (messages ?? [[opener, "abc1234"]]).map(([author, commit]) => `## ${author} — ${commit}\n\nFindings.\n`).join("\n");
-  write(path, `${frontmatter ? `---\n${JSON.stringify(frontmatter)}\n---\n` : ""}${header.join("\n")}\n\n${body}`);
+  write(path, withFrontmatter({ status, opener, owner, artifact, ...(owner === "owner" ? { cites } : {}) }, `\n${body}`));
   return path;
 }
 // The parties of each thread kind used across tests.
@@ -86,7 +92,7 @@ export const TO_SPEC = { opener: "design-doc-producer", owner: "spec-producer", 
 export const TO_DESIGN = { opener: "implementer", owner: "design-doc-producer", artifact: "design-doc" };
 export const REVIEW = (lane = "default") => ({ opener: `reviewer-${lane}`, owner: "implementer", artifact: "implementation" });
 export const TO_OWNER = { opener: "spec-producer", owner: "owner", artifact: "intent", status: "disagreement" };
-// A review thread closed approved by a turn that started at HEAD, landed, stamped at that commit, and committed.
+// A review thread closed approved by a turn that started at HEAD, landed, certified at that commit, and committed.
 export function approve(laneId = "default", n = 1) {
   const head = git(root, "rev-parse", "HEAD").trim();
   const path = thread({ n, status: "approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
@@ -100,8 +106,8 @@ export function approve(laneId = "default", n = 1) {
 // 0 the intent, 1 the spec, 2 the design doc, 3 notes done.
 export function pipeline(upTo = 3, config = {}) {
   configure(config);
-  write(INTENT, "origin: issue 7\n\n# Intent\n\n## Goal\n\nUsers can export.\n");
-  const artifacts = [[SPEC, "# Spec\n\nRequirement.\n"], [DESIGN, "# Design doc\n\nDecision.\n"], [NOTES, "status: done\n\n# Notes\n"]].slice(0, upTo);
+  write(INTENT, withFrontmatter({ issue: 7 }, "\n# Intent\n\n## Goal\n\nUsers can export.\n"));
+  const artifacts = [[SPEC, "# Spec\n\nRequirement.\n"], [DESIGN, "# Design doc\n\nDecision.\n"], [NOTES, withFrontmatter({ status: "done" }, "\n# Notes\n")]].slice(0, upTo);
   for (const [rel, body] of artifacts) write(rel, body);
   commitAll("pipeline");
   for (const [rel] of artifacts) stamp(rel);

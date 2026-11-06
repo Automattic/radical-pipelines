@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, check, frontier, lane, pipeline, read, land, remove, revise, rp, thread, useRepo, write } from "./fixture.mjs";
+import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, certification, check, commitAll, frontier, git, lane, later, pipeline, read, land, remove, revise, root, rp, thread, useRepo, write, writeFile } from "./fixture.mjs";
 
 const SPEC_LANES = [lane("spec-producer", "a"), lane("spec-producer", "b"), lane("reviewer", "security")];
 const candidate = (id, folder = "1-spec", name = "spec.md") => `${folder}/lanes/${id}/${name}`;
@@ -11,7 +11,7 @@ function produce(id) {
 }
 function consolidate() {
   write(SPEC, "# Spec\n");
-  land(SPEC, candidate("a"), candidate("b"));
+  land(SPEC);
 }
 
 describe("production lanes", () => {
@@ -52,13 +52,13 @@ describe("production lanes", () => {
         write(candidateOf(id), `# Candidate ${id}\n`);
         land(candidateOf(id));
       }
-      write("0-intent/constraint-1.md", `target: ${root}\n`);
+      write("0-intent/constraint-1.md", later(root));
       assert.deepEqual(frontier(), [`consolidate ${root}`]);
       assert.deepEqual(check().phases[upTo].lanes.map((entry) => entry.state), ["fresh", "fresh"]);
       write(root, "# Root\n");
-      land(root, candidateOf("a"), candidateOf("b"));
+      land(root);
       assert.equal(check().phases[upTo].state, "fresh");
-      assert.match(read(root), /0-intent\/constraint-1\.md@/);
+      assert.ok(certification(root).inputs.some((pin) => pin.startsWith("0-intent/constraint-1.md@")));
     });
 
   it("consolidate once every candidate exists and is fresh", () => {
@@ -119,6 +119,25 @@ describe("production lanes", () => {
     write("1-spec/lanes/a/spec/spec.md", "# evidence\n");
     write("1-spec/lanes/a/evidence.txt", "x\n");
     assert.deepEqual(frontier(), [`lane ${SPEC} a`, `lane ${SPEC} b`]);
+  });
+
+  it("land in their own worktrees from one tip and merge into the pipeline branch without conflict, each fresh", () => {
+    pipeline(0, { lanes: SPEC_LANES });
+    const tip = commitAll("lanes woken");
+    writeFile(".git/info/exclude", ".wt-*/\n");
+    for (const id of ["a", "b"]) {
+      const worktree = `${root}/.wt-${id}`;
+      git(root, "worktree", "add", "--quiet", "-b", `demo-spec-${id}`, worktree, tip);
+      writeFile(`.wt-${id}/${P(candidate(id))}`, `# Spec candidate ${id}\n`);
+      git(worktree, "add", "-A");
+      git(worktree, "commit", "--quiet", "-m", `candidate ${id}`);
+      rp("stamp", `${worktree}/${P(candidate(id))}`, "--at", tip);
+      git(worktree, "add", "-A");
+      git(worktree, "commit", "--quiet", "-m", `land ${id}`);
+    }
+    for (const id of ["a", "b"]) git(root, "merge", "--quiet", "--no-edit", `demo-spec-${id}`);
+    assert.deepEqual(check().phases[0].lanes.map((entry) => [entry.id, entry.state]), [["a", "fresh"], ["b", "fresh"]]);
+    assert.deepEqual(frontier(), [`consolidate ${SPEC}`]);
   });
 
   it("print one line per open lane above its artifact", () => {
