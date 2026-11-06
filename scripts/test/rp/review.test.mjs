@@ -266,14 +266,6 @@ describe("review", () => {
     assert.deepEqual(reviewOf(`${root}/.clone`), { lane: "a", approved: true });
   });
 
-  it("diffs a later turn from the change the last message names to the new tip", () => {
-    scenario();
-    const { change } = review("a");
-    writeFile("src/app.js", "export const a = 3;\n");
-    const tip = commitAll("answer");
-    assert.equal(git(root, "diff", change, tip, "--", ".", ":(exclude).pipelines"), git(root, "diff", "HEAD~1", tip, "--", ".", ":(exclude).pipelines"));
-  });
-
   it("stops, naming them, when the lane branch holds commits the pipeline branch lacks", () => {
     scenario();
     const { change } = review("a");

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
-// Commands: check, stamp, pipelines, review. README.md beside this file is the contract.
+// Commands: check, stamp, pipelines, review, assign. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import process from "node:process";
 
 // What cannot be read, or a command used wrongly: stops the command.
@@ -179,6 +179,22 @@ function locate(argument) {
   const rel = posix(relative(root, real));
   if (rel.startsWith("..") || resolve(root, rel) !== real) fail(`outside the repository ${root}: ${argument}`);
   return { root, rel };
+}
+
+// The repository's worktrees, its main checkout first: each one's path and the branch it has checked out, or null.
+function worktreesOf(root) {
+  return gitText(root, ["worktree", "list", "--porcelain"]).split("\n\n").map((record) => record.split("\n")).map((lines) => ({
+    path: lines.find((line) => line.startsWith("worktree "))?.slice("worktree ".length) ?? null,
+    branch: lines.find((line) => line.startsWith("branch refs/heads/"))?.slice("branch refs/heads/".length) ?? null,
+  }));
+}
+// The pipeline branch: the branch checked out in the worktree `root` that holds the pipeline folder. A detached HEAD
+// there stops `command`.
+function pipelineBranchOf(root, command) {
+  let branch = "";
+  try { branch = execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+  catch { /* detached */ }
+  return branch || fail(`${command}: ${root} has no branch checked out: the pipeline folder is read from the pipeline branch's worktree`);
 }
 
 // A pipeline folder is `<pipelines folder root>/<pipeline slug>`: its parent is the pipelines folder root.
@@ -801,19 +817,27 @@ export function frontier(state) {
 
 // --- check ------------------------------------------------------------------------
 
-async function cmdCheck(args) {
-  const { root, rel } = locate(args._[0] ?? fail("check: missing <pipeline folder>"));
-  const { folder, pipelinesRoot } = pipelineFolder(rel, "check");
-  const tip = args.ref ? requireCommit(root, args.ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
-  const state = readState(args.ref ? await readCommit(root, tip, folder) : readWorktree(root, folder), args.ref ? `${args.ref}:${folder}` : folder);
-  const target = state.config.targetPhase;
-  const base = target === REVIEW_PHASE ? baseOf(root, state.config.base, tip) : null;
+// A pipeline as `check` reads it, from the working tree or the commit `ref`: its files, its state, the tip, the base at
+// target phase 4, and the frontier.
+async function inspect(root, folder, pipelinesRoot, ref) {
+  const tip = ref ? requireCommit(root, ref, "--ref") : requireCommit(root, "HEAD", "HEAD");
+  const pipeline = ref ? await readCommit(root, tip, folder) : readWorktree(root, folder);
+  const state = readState(pipeline, ref ? `${ref}:${folder}` : folder);
+  const base = state.config.targetPhase === REVIEW_PHASE ? baseOf(root, state.config.base, tip) : null;
   const judged = new Map();
   state.codeChanged = (approved) => {
     if (!judged.has(approved)) judged.set(approved, codeChanged(root, approved, base, tip, pipelinesRoot));
     return judged.get(approved);
   };
-  const report = { pipeline: folder, tip, targetPhase: target, frontier: frontier(state) };
+  return { pipeline, state, tip, base, frontier: frontier(state) };
+}
+
+async function cmdCheck(args) {
+  const { root, rel } = locate(args._[0] ?? fail("check: missing <pipeline folder>"));
+  const { folder, pipelinesRoot } = pipelineFolder(rel, "check");
+  const { state, tip, base, frontier: entries } = await inspect(root, folder, pipelinesRoot, args.ref);
+  const target = state.config.targetPhase;
+  const report = { pipeline: folder, tip, targetPhase: target, frontier: entries };
   if (!state.invalid.length) {
     report.phases = PHASES.filter((phase) => phase.n <= target).map((phase) => ({
       phase: phase.folder,
@@ -1020,8 +1044,7 @@ async function cmdReview(args) {
   const { root, rel } = locate(args._[0] ?? fail("review: missing <pipeline folder>"));
   const { folder, pipelinesRoot } = pipelineFolder(rel, "review");
   const laneId = args.lane ?? fail("review: --lane <lane> is required");
-  const branch = (() => { try { return execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return ""; } })()
-    || fail(`review: ${root} has no branch checked out: the pipeline folder is read from the pipeline branch's worktree`);
+  const branch = pipelineBranchOf(root, "review");
   const tip = requireCommit(root, "HEAD", "HEAD");
   const { files } = await readCommit(root, tip, folder, (path) => path === "run-config.md");
   requireFormat(files.get("run-config.md"), `${folder}/run-config.md`);
@@ -1048,13 +1071,286 @@ async function cmdReview(args) {
     base = gitWithIndex(root, index, ["commit-tree", treeWithRoot(root, index, mergeBase, pipelinesRoot, kept), "-p", mergeBase, "-m", REVIEW_BASE]);
     change = gitWithIndex(root, index, ["commit-tree", treeWithRoot(root, index, tip, pipelinesRoot, kept), "-p", base, "-m", REVIEW_CHANGE]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
-  const worktree = gitText(root, ["worktree", "list", "--porcelain"]).split("\n\n").map((record) => record.split("\n"))
-    .find((lines) => lines.includes(`branch refs/heads/${laneBranch}`))?.find((line) => line.startsWith("worktree "))?.slice("worktree ".length);
+  const worktree = worktreesOf(root).find((record) => record.branch === laneBranch)?.path;
   if (worktree) gitText(worktree, ["reset", "--hard", "-q", change]);
   else gitText(root, ["update-ref", `refs/heads/${laneBranch}`, change]);
   const result = { branch: laneBranch, base, change, worktree: worktree ?? null };
   if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   process.stdout.write(`branch ${laneBranch}\nbase ${base}\nchange ${change}\n`);
+}
+
+// --- conventions --------------------------------------------------------------------
+
+// The facts a placeholder may name, each valued for a role and its turn.
+export const VOCABULARY = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base"];
+// A placeholder: a name in single braces, in a guardrail's, a resource's, or the commit format's text.
+const PLACEHOLDER = /(?<!\{)\{([a-z][a-z0-9-]*)\}(?!\})/g;
+const VARIABLE = /^[a-z][a-z0-9-]*$/;
+// What a guardrail and a resource hold as their text.
+const CARRIED = [["guardrails", "rule"], ["resources", "resource"]];
+
+// The conventions data of `.rp.md`'s JSON frontmatter or, with `local`, of `.rp.local.md`'s, which may have none and
+// holds no `conventions`: the commit format, the guardrails and resources by name, each with its text and profiles, the
+// agents, and the variables by name, each with its template. Whatever is malformed goes to `malformed(reason)`.
+export function parseConventions(bytes, local, malformed) {
+  const { text, error } = splitFrontmatter(bytes);
+  if (error) malformed(error);
+  if (text === null) return local ? {} : malformed("no frontmatter: the conventions data is a JSON object between --- lines");
+  let data;
+  try { data = JSON.parse(text); } catch (parseError) { malformed(`frontmatter is not valid JSON: ${parseError.message}`); }
+  objectAt(data, "frontmatter", malformed, [...(local ? [] : ["conventions"]), "commit-format", ...CARRIED.map(([key]) => key), "agents", "variables"]);
+  if (!local && data.conventions !== FORMAT) malformed(`conventions: ${JSON.stringify(data.conventions ?? null)} is not the current version, ${FORMAT}`);
+  const conventions = {};
+  if ("commit-format" in data) conventions.commitFormat = textAt(data["commit-format"], "commit-format", malformed);
+  for (const [key, field] of CARRIED) {
+    if (!(key in data)) continue;
+    conventions[key] = {};
+    for (const [name, entry] of Object.entries(objectAt(data[key], key, malformed))) {
+      const at = entryName(key, name);
+      objectAt(entry, at, malformed, [field, "profiles"]);
+      const text = textAt(entry[field], `${at}.${field}`, malformed);
+      if (!Array.isArray(entry.profiles) || !entry.profiles.length) malformed(`${at}.profiles: must be a non-empty list of profiles`);
+      const other = entry.profiles.find((profile) => !PROFILES.includes(profile));
+      if (other !== undefined) malformed(`${at}.profiles: ${JSON.stringify(other)} is no profile: ${PROFILES.join(", ")}`);
+      conventions[key][name] = { text, profiles: entry.profiles };
+    }
+  }
+  if ("agents" in data) conventions.agents = parseAgents(data.agents, malformed);
+  if ("variables" in data) {
+    conventions.variables = {};
+    for (const [name, template] of Object.entries(objectAt(data.variables, "variables", malformed))) {
+      const at = entryName("variables", name);
+      if (!VARIABLE.test(name)) malformed(`${at}: a variable name must match ${VARIABLE.source}`);
+      if (VOCABULARY.includes(name)) malformed(`${at}: a vocabulary fact is not declared: ${VOCABULARY.join(", ")}`);
+      if (typeof template !== "string" || !template.trim()) malformed(`${at}: must be a template, a non-empty string`);
+      for (const [placeholder, fact] of template.matchAll(PLACEHOLDER))
+        if (!VOCABULARY.includes(fact)) malformed(`${at}: ${placeholder} names no vocabulary fact: ${VOCABULARY.join(", ")}`);
+      conventions.variables[name] = template;
+    }
+  }
+  return conventions;
+}
+
+// The conventions an assignment carries: the main checkout's `.rp.md`, with each entry its `.rp.local.md` names replacing
+// or adding the committed one by name. Both files are validated whole; either malformed, or `.rp.md` missing, stops.
+function readConventions(main) {
+  const read = (name) => {
+    const path = join(main, name);
+    let stat;
+    try { stat = statSync(path); } catch (error) { if (error.code === "ENOENT") return null; throw error; }
+    if (!stat.isFile()) fail(`cannot read ${path}: not a regular file`);
+    return parseConventions(readFileSync(path), name === ".rp.local.md", (reason) => fail(`${path}: ${reason}`));
+  };
+  const committed = read(".rp.md") ?? fail(`cannot read ${join(main, ".rp.md")}: missing`);
+  const local = read(".rp.local.md") ?? {};
+  return {
+    commitFormat: local.commitFormat ?? committed.commitFormat ?? null,
+    ...Object.fromEntries([...CARRIED.map(([key]) => key), "variables"].map((key) => [key, { ...committed[key], ...local[key] }])),
+  };
+}
+
+// The guardrails or resources a profile's assignment carries, each as `### <name>` over `- <field>: <text>`, with the
+// text's later lines indented under its first and its placeholders expanded by `expand`.
+function carriedOf(conventions, key, profile, expand) {
+  const field = CARRIED.find(([name]) => name === key)[1];
+  return Object.entries(conventions[key]).filter(([, entry]) => entry.profiles.includes(profile))
+    .map(([name, entry]) => `### ${name}\n\n- ${field}: ${expand(entry.text).split("\n").map((line, i) => i && line ? `  ${line}` : line).join("\n")}`);
+}
+
+// A text with each placeholder that names a vocabulary fact or a declared variable replaced by its value in `values`, in
+// one pass; each placeholder it keeps is added to `kept`.
+const expandText = (text, values, kept) => text.replace(PLACEHOLDER, (placeholder, name) => {
+  if (Object.hasOwn(values, name)) return values[name];
+  kept.add(placeholder);
+  return placeholder;
+});
+
+// --- templates ----------------------------------------------------------------------
+
+// The assignment templates, in the skill folder beside this script.
+const TEMPLATES = fileURLToPath(new URL("../templates/", import.meta.url));
+const SLOT = /\{\{([#^/]?)([^{}]*)\}\}/g;
+const MARKER = /^\{\{([#^/])([a-z][a-z0-9-]*)\}\}$/;
+
+// A value has something: a true flag, a non-empty text, or a list with an item.
+const hasSomething = (value) => Array.isArray(value) ? value.length > 0 : Boolean(value);
+
+// A template filled with `values`, each a text, a list of texts, or a flag (templates/README.md). Values are inserted
+// as written and never read as template syntax. A template line that breaks the syntax, or a name without a value,
+// stops the command, naming `where` and the line.
+export function fill(template, values, where) {
+  const lines = template.endsWith("\n") ? template.slice(0, -1).split("\n") : template.split("\n");
+  const output = [], open = [];
+  for (const [index, line] of lines.entries()) {
+    const malformed = (reason) => fail(`${where}:${index + 1}: ${reason}`);
+    const valueOf = (name) => Object.hasOwn(values, name) ? values[name] : malformed(`{{${name}}} has no value`);
+    const marker = line.match(MARKER);
+    if (marker) {
+      const [, kind, name] = marker;
+      if (kind !== "/") open.push({ name, kept: hasSomething(valueOf(name)) === (kind === "#") });
+      else if (open.at(-1)?.name === name) open.pop();
+      else malformed(`{{/${name}}} closes no open part`);
+      continue;
+    }
+    let filled = "", last = 0;
+    for (const slot of line.matchAll(SLOT)) {
+      const [token, kind, name] = slot;
+      if (kind) malformed(`${token} opens or closes a part on a line of its own`);
+      if (!/^[a-z][a-z0-9-]*$/.test(name)) malformed(`${token} is no slot`);
+      const value = valueOf(name), before = line.slice(last, slot.index);
+      last = slot.index + token.length;
+      if (typeof value === "string") { filled += before + value; continue; }
+      if (!Array.isArray(value)) malformed(`{{${name}}} is a flag, which only a part tests`);
+      if (last !== line.length) malformed(`{{${name}}} is a list, which ends its line`);
+      const items = value.length ? value : ["none"];
+      if (!`${filled}${before}`.trim()) filled += before + items.join(items.some((item) => item.includes("\n")) ? "\n\n" : "\n");
+      else filled += before + (items.length === 1 ? items[0] : `\n${items.map((item) => `  - ${item.split("\n").join("\n    ")}`).join("\n")}`);
+    }
+    if (open.every((part) => part.kept)) output.push(filled + line.slice(last));
+  }
+  if (open.length) fail(`${where}: {{${open.at(-1).name}}} opens a part that is never closed`);
+  return `${output.join("\n")}\n`;
+}
+
+// --- assign -------------------------------------------------------------------------
+
+// The roles a thread file name names: both parties of each reading of `<n>-<opener>-<owner>-<artifact>.md`.
+function partiesOf(path) {
+  const middle = basename(path).match(new RegExp(`^[1-9]\\d*-(.+)-(?:${Object.keys(OWNERS).join("|")})\\.md$`))?.[1] ?? "";
+  const parties = new Set();
+  for (let at = middle.indexOf("-"); at !== -1; at = middle.indexOf("-", at + 1))
+    if (parseRole(middle.slice(0, at)) && parseRole(middle.slice(at + 1))) [middle.slice(0, at), middle.slice(at + 1)].forEach((party) => parties.add(party));
+  return parties;
+}
+// A role's artifact: its phase and the path it writes, the phase's artifact or its lane's candidate; null for a reviewer.
+function artifactOf(role) {
+  const phase = PHASES.find((each) => each.owner === role.profile);
+  return phase ? { phase, path: role.lane ? candidateOf(phase, role.lane) : phase.artifact } : null;
+}
+// The pipeline files a role writes: its artifact or candidate, and every thread whose file name names it.
+const writes = (role, path) => path === artifactOf(role)?.path || (kindOf(path)?.kind === "thread" && partiesOf(path).has(role.name));
+
+// The turn the frontier gives a role: a producer's or the implementer's mode, the threads awaiting it, the changed
+// inputs of its artifact, and the INVALID entries of the files it writes; null when no entry wakes it. An INVALID
+// frontier wakes only the roles that write a rejected file, a producer or the implementer in Respond.
+function turnOf(state, entries, role) {
+  const turn = (mode, entry = {}) => ({ mode, threads: entry.threads ?? [], changed: entry.changed ?? [], malformed: [] });
+  if (entries[0].action === "INVALID") {
+    const malformed = entries.filter((entry) => writes(role, entry.target));
+    return malformed.length ? { ...turn("Respond"), malformed } : null;
+  }
+  const artifact = artifactOf(role);
+  for (const entry of entries) {
+    if (!artifact) { if (entry.action === "review" && entry.target === role.lane) return turn(null, entry); continue; }
+    if (entry.target !== artifact.phase.artifact) continue;
+    if (role.lane && entry.action === "lane" && entry.lane === role.lane) return turn(statusOf(state, artifact.path).state === "missing" ? "Produce" : "Respond", entry);
+    if (!role.lane && entry.action === "produce") return turn(artifact.phase === IMPLEMENTATION ? "Implement" : "Produce", entry);
+    if (!role.lane && entry.action === "respond") return turn("Respond", entry);
+    if (!role.lane && entry.action === "consolidate") return turn("Consolidate", entry);
+  }
+  return null;
+}
+
+// A review lane's request: its review thread, the highest-numbered `<n>-reviewer-<lane>-implementer-implementation.md`
+// unless it parses as closed, else a new one numbered one past the highest in `threads/`; and on a later turn, when that
+// thread is open and awaits the reviewer, the commit its reviewer's last message names.
+function requestOf(pipeline, state, role) {
+  const own = new RegExp(`^threads/([1-9]\\d*)-${role.name}-implementer-implementation\\.md$`);
+  const [latest] = [...pipeline.files.keys()].filter((path) => own.test(path)).sort((a, b) => Number(b.match(own)[1]) - Number(a.match(own)[1]));
+  const parsed = state.threads.find((thread) => thread.path === latest);
+  if (latest && !["approved", "withdrawn"].includes(parsed?.status))
+    return { thread: latest, last: parsed && awaitedRole(parsed) === role.name ? parsed.messages.findLast((message) => message.author === role.name).commit : null };
+  const highest = Math.max(0, ...[...pipeline.files.keys()].map((path) => Number(path.match(/^threads\/([1-9]\d*)-/)?.[1] ?? 0)));
+  return { thread: `threads/${highest + 1}-${role.name}-implementer-implementation.md`, last: null };
+}
+
+// Writes a role's assignment for the turn the frontier gives it (README.md § `assign`), and on a review lane's later turn
+// the diff it reads beside it; prints the assignment's path and the role's model. Everything is read and checked before
+// anything is written.
+async function cmdAssign(args) {
+  const { root, rel } = locate(args._[0] ?? fail("assign: missing <pipeline folder>"));
+  const { folder, pipelinesRoot } = pipelineFolder(rel, "assign");
+  const parsedRole = parseRole(args.role ?? fail("assign: --role <role> is required"));
+  if (!parsedRole || parsedRole.profile === "owner") fail(`assign: --role names no role <profile>[-<lane>]: ${args.role}`);
+  const role = { name: args.role, ...parsedRole };
+  const conventions = readConventions(worktreesOf(root)[0].path ?? fail("assign: the repository has no main checkout"));
+  const pipelineBranch = pipelineBranchOf(root, "assign");
+  const { pipeline, state, frontier: entries } = await inspect(root, folder, pipelinesRoot, null);
+  const turn = turnOf(state, entries, role)
+    ?? fail(`assign: the frontier does not wake ${role.name}: ${entries.map((entry) => [entry.action, entry.target, entry.lane].filter(Boolean).join(" ")).join("; ")}`);
+
+  // The seat: a role without a lane in the pipeline worktree, a lane in the worktree that has its lane branch checked out.
+  const artifact = artifactOf(role);
+  const branch = role.lane ? `${pipelineBranch}-${artifact ? artifact.phase.token : "review"}-${role.lane}` : pipelineBranch;
+  const seated = role.lane ? worktreesOf(root).find((record) => record.branch === branch)?.path : root;
+  const worktree = seated ? realpathSync(seated) : fail(`assign: no worktree has ${branch} checked out`);
+  const tip = requireCommit(worktree, "HEAD", "HEAD");
+  const at = (path) => join(worktree, folder, path);
+
+  // The carried texts, expanded for the role.
+  const vocabulary = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, base: state.config.base };
+  const variables = Object.fromEntries(Object.entries(conventions.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => vocabulary[fact])]));
+  const kept = new Set();
+  const expand = (text) => expandText(text, { ...vocabulary, ...variables }, kept);
+  const carried = {
+    guardrails: carriedOf(conventions, "guardrails", role.profile, expand),
+    resources: carriedOf(conventions, "resources", role.profile, expand),
+    "commit-format": conventions.commitFormat === null ? "An imperative subject line." : expand(conventions.commitFormat),
+  };
+  const models = modelsOf(state.config, role.profile, role.lane);
+  const laneEntry = role.lane ? state.config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
+  const laterInputs = [...state.docs.values()].filter((doc) => doc.kind === "later" && (!artifact || doc.targets.includes(artifact.phase.artifact))).map((doc) => at(doc.path));
+  const values = {
+    ...vocabulary, ...carried,
+    vocabulary: kept.size ? VOCABULARY.map((name) => `- \`{${name}}\`: ${vocabulary[name]}`.trimEnd()) : [],
+    "turn-commit": tip,
+    "subagent-model": models.subagents ?? "",
+    brief: laneEntry?.brief ?? "",
+    intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),
+    "later-inputs": laterInputs,
+    "malformed-files": turn.malformed.map((entry) => `INVALID ${entry.target}: ${entry.reason}`),
+  };
+  const prepared = [];
+  let templateName;
+  if (artifact) {
+    templateName = role.profile;
+    const changedSince = turn.changed.length && (gitText(worktree, ["log", "-1", "--format=%H", "HEAD", "--", `:(top,literal)${folder}/${artifact.path}`])
+      || fail(`assign: no commit in ${worktree} changed ${folder}/${artifact.path}`));
+    Object.assign(values, {
+      mode: turn.mode,
+      ...Object.fromEntries(["produce", "respond", "consolidate", "implement"].map((mode) => [mode, turn.mode.toLowerCase() === mode])),
+      "supporting-folder": `${at(artifact.path.replace(/\.md$/, ""))}/`,
+      "changed-inputs": turn.changed.map((input) => `${at(input)} — changed since ${changedSince}`),
+      "lane-candidates": productionLanes(state.config, artifact.phase).map((lane) => `${lane.id} — ${join(root, folder, candidateOf(artifact.phase, lane.id))}`),
+      threads: turn.threads.map(at),
+      "write-to": at(artifact.path),
+    });
+  } else {
+    // A review lane's worktree is at the change `rp review` built, on the review base.
+    const subject = (commit) => gitText(worktree, ["log", "-1", "--format=%s", commit]);
+    const reviewBase = commitOf(worktree, `${tip}^`);
+    if (subject(tip) !== REVIEW_CHANGE || !reviewBase || subject(reviewBase) !== REVIEW_BASE)
+      fail(`assign: ${worktree} is at ${tip}, not at a change rp review built: run rp review --lane ${role.lane}`);
+    const request = requestOf(pipeline, state, role);
+    templateName = request.last ? "reviewer-later" : "reviewer-first";
+    Object.assign(values, { "review-base": reviewBase, thread: at(request.thread) });
+    if (request.last) {
+      const diff = gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.diff"]);
+      const from = requireCommit(worktree, request.last, `assign: the commit ${role.name}'s last message names`);
+      prepared.push([diff, gitBytes(worktree, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
+      values.diff = diff;
+    }
+  }
+  const templatePath = join(TEMPLATES, `${templateName}.md`);
+  let template;
+  try { template = readFileSync(templatePath, "utf8"); } catch (error) { fail(`cannot read ${templatePath}: ${error.message}`); }
+  const assignment = gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-path", `rp/${role.profile}.md`]);
+  prepared.unshift([assignment, fill(template, values, templatePath)]);
+  for (const [path, contents] of prepared) {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, contents);
+  }
+  process.stdout.write(`assignment ${assignment}\n${models.model ? `model ${models.model}\n` : ""}`);
 }
 
 // --- cli --------------------------------------------------------------------------
@@ -1064,11 +1360,12 @@ const COMMANDS = {
   stamp: { run: cmdStamp, options: { "--at": "value" } },
   pipelines: { run: cmdPipelines, options: { "--base": "value", "--issue": "value", "--json": "flag" } },
   review: { run: cmdReview, options: { "--lane": "value", "--json": "flag" } },
+  assign: { run: cmdAssign, options: { "--role": "value" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], json: false, ref: null, issue: null, at: null, base: null, lane: null };
+  const args = { _: [], json: false, ref: null, issue: null, at: null, base: null, lane: null, role: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -1091,6 +1388,7 @@ Usage:
   node rp.mjs stamp <file> --at <commit>
   node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
   node rp.mjs review <pipeline folder> --lane <lane> [--json]
+  node rp.mjs assign <pipeline folder> --role <role>
 
 See README.md beside this script.
 `;
