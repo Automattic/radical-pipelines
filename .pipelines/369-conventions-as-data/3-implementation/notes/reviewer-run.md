@@ -56,9 +56,26 @@ A name in braces left in these rules, in what you can use, or in the commit form
 - `{base}`: main
 ````
 
+## The rejected thread it was woken to fix
+
+As written before its turn, its first message headed at the pipeline tip of that time:
+
+````markdown
+---
+status: pending
+opener: reviewer-default
+owner: implementer
+artifact: implementation
+---
+
+## reviewer-default — <the pipeline tip before the review lane was built>
+
+The total now multiplies by quantity. Looks right so far; I have not checked empty carts.
+````
+
 ## The reviewer's turn
 
-It committed one commit, `Approve the cart total quantity change (reviewer-default)`, which rewrites thread 1 in place; it opened no other thread. The thread it left:
+It committed one commit, `Approve the cart total quantity change (reviewer-default)`. It opened no other thread, but it did not repair thread 1's header: it replaced the whole file with a new first review, so its earlier message is gone. Its report said: "The thread file already existed with the invalid `status: pending` and an older commit hash. I overwrote it with `status: approved` and the current commit hash." The thread it left:
 
 ````markdown
 ---
