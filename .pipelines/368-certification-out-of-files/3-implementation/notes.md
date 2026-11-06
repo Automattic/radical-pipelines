@@ -21,11 +21,10 @@ status: done
 - Working-tree identity computed as `git add` would, on a copy of the worktree's index, so a file committed with CRLF keeps its blob id under `core.autocrlf` (224b16ef): before and after in `3-implementation/notes/crlf-committed-before.txt` and `crlf-committed.txt`, from `notes/crlf-committed.sh`.
 - `stamp` stops on a malformed certification it would replace, writing nothing (552ff6ba).
 - The later-input format points to the frontmatter quoting rule (ad064d56); the changeset says why `--pin` goes (5ad032e3).
-- `npm test`: all pass.
+- `stamp` stops on an approval `--at` any commit but the change its reviewer's last heading names, or whose heading commit does not resolve, per the revised design-doc-decision-3 (fe60c510): before and after in `notes/approval-at-head.txt` and `notes/approval-at-head-after.txt`, from `notes/approval-at-head.sh`.
+- `npm test`: 499 of 499 pass.
 
 ## Remaining
-
-- Whether `stamp` ties an approval's `--at` to the change its reviewer read: design-doc-decision-3 removed that check, and the question is with the design doc's owner. Revise `cmdStamp` and its refusal test per its result. Reproduction: `notes/approval-at-head.txt`, from `notes/approval-at-head.sh`.
 
 ## Decisions
 
@@ -46,6 +45,7 @@ status: done
 
 - design-doc-decision-1 (`rp stamp` changes no byte of a landed file): observed: `stamp.test.mjs` "landing … changes no byte of the files its turn committed, and writes only its certification", for an artifact, a candidate, and an approval; the approval's blob is unchanged by landing in `notes/e2e.txt` § 2.
 - design-doc-decision-2 (check, check after commit, and check --ref HEAD agree under eol=crlf and autocrlf): observed: `reading.test.mjs` "judges freshness alike …", its three rows including a file committed with CRLF, and `notes/e2e.txt` § 1; the CRLF-committed row fails under `git hash-object` hashing (`actual: 'stale'`). `rp check` leaves the index's hash and mtime and the object count unchanged (observed: `shasum`, `stat`, `git count-objects` before and after, in the clone of `notes/crlf-committed.sh`).
+- design-doc-decision-3 (`stamp` refuses an approval `--at` a commit other than its reviewer's last heading, or a heading commit that does not resolve): observed: `stamp.test.mjs` "refuses --at HEAD …" and "refuses a heading commit that does not resolve …", both failing under the code-only check (exit 0).
 - design-doc-decision-3 (an approval landed after a later input is stale on it): observed: `review.test.mjs` "leaves an approval stale on a later input that reached the pipeline branch after its change was built"; `notes/e2e.txt` § 2.
 - design-doc-decision-4 (both clones behave as spec-acceptance-criterion-15 and -16 state): observed: `continuation.test.mjs`, `notes/e2e.txt` § 3; the conflict rule: `approval.test.mjs` "stays fresh when merging the approved commit with the base conflicts only inside the pipelines folder root" fails under "any conflict changes the code".
 - design-doc-decision-5 (the subset is read and rejected as stated): observed: `frontier.test.mjs` subset rows; the reader agrees with yaml 2.9.1 on 75 values (`notes/yaml-agreement.txt`, from `notes/yaml-agreement.mjs`).

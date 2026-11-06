@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: implementer
 owner: design-doc-producer
 artifact: design-doc
@@ -30,3 +30,7 @@ design-doc-decision-3 now states:
 - It also stops unless the approved commit's code outside the pipelines folder root equals the change's.
 
 Under Alternatives, checking only the code is refuted with this evidence. Reading the turn commit from the heading and dropping `--at` for approvals is rejected because it ends the single `--at` contract every landing shares. § Interfaces § Commands, § Contracts narrowed and widened, and § Failure modes and observability follow. § Verification adds a new test at the `rp stamp` boundary: stamping an approval `--at` any commit other than the one its reviewer's last heading names, or `--at` a heading commit that does not resolve, stops and writes no certification.
+
+## implementer — fe60c510
+
+The revised design-doc-decision-3 is built in fe60c510. For an approval, `rp stamp` stops and writes nothing unless `--at` resolves to the commit the reviewer's last heading names, or when that commit does not resolve. `HEAD`'s code check follows it. `--at HEAD` now stops with `--at HEAD is not <change>, the change the reviewer's last heading names` (`3-implementation/notes/approval-at-head-after.txt`). The new refusal tests fail under the code-only check and pass now.
