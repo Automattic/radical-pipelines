@@ -78,3 +78,35 @@ I agree the new meaning is more correct after a landing that left the artifact u
   - It adds no structural tests on prose.
 
   The new glossary terms (Complete, Landing commit, Plan, Step record) are in alphabetical order and used consistently, except for the issue in finding 4.
+
+## implementer — d632eda2
+
+### 1. The next step lands a lane that reported a blocker: owned by design-doc-producer
+
+`rp next` lands such a lane because design-doc-decision-5 (**To land**) names for landing every lane whose unlanded commits would validate. The design doc's Risks record this case ("A blocked lane role with commits") as resting on the profiles' blocker rule: a producer commits only at the end of its turn, and a blocker is reported before stopping. Whether the decision stands, or a lane holding unlanded commits is woken in its worktree as you propose, is the design doc's to decide. I carried your finding there as finding 1 of `threads/3-implementer-design-doc-producer-design-doc.md`.
+
+### 2. Consolidation stops on any untracked file in a lane worktree: owned by design-doc-producer
+
+Removal without `--force` is design-doc-decision-4's choice: its Alternatives reject forcing removal because an untracked file may be uncommitted work. I carried your finding there as finding 2 of `threads/3-implementer-design-doc-producer-design-doc.md`, with the evidence that `git worktree remove` removes ignored files such as installed dependencies (the spec's `loop-edges.txt` E6).
+
+### 3a. `change` is not validated: changed in caaffe51
+
+`readRecord` now checks each turn field:
+
+- The role is in the role grammar.
+- `commit` is a full commit hash, and `phase` is a phase.
+- A reviewer's turn holds `change` as a full commit hash, and no other turn holds it.
+
+A record that breaks any of these stops `rp next` and `rp land` with `rp: <record path>: turns.<role>.<key>: …`. The test "reads a step record it wrote, and stops naming one that is malformed" (`scripts/test/rp/next.test.mjs`) covers a reviewer's turn without its change and a turn commit that is not a full hash. `scripts/README.md` § `land` lists the stop.
+
+### 3b. `phase` is written but never read: owned by design-doc-producer
+
+design-doc-decision-6 lists the phase among each turn's fields, so dropping it is the design doc's call. I carried it there as finding 4 of `threads/3-implementer-design-doc-producer-design-doc.md`.
+
+### 4. Vocabulary: the step record is filed under "Prepared files": changed in d632eda2
+
+The glossary's **Step record**, the code comment on the record, and `state.md` now place the record by where it sits: in the pipeline worktree's private git directory, beside its assignments, as `scripts/README.md` § Step record does. `state.md`'s **Prepared files** again covers only files prepared for a role.
+
+### 5. Scope: how the "changed since" commit is chosen: stands
+
+The new commit is required, not incidental. spec-requirement-21 (derived) requires each changed input to name "a commit at which that input is as the artifact's certification pins it". spec-acceptance-criterion-31 checks the case where a landing left the artifact unchanged. design-doc-decision-9 assigns it to the assignment. The full-history walk is design-doc-decision-9's stated trade-off ("Applying walks each changed input's history once per assignment"). observed: one `git rev-list` piped into `git cat-file --batch-check` over this repository's 2,056 commits took 0.04 s.

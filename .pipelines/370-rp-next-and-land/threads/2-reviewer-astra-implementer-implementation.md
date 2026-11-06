@@ -41,3 +41,26 @@ The general rule is that a planned landing needs a recoverable turn commit. Prov
 
 - **tests — passed:** `npm test`: 576 passed, 0 failed. The additional isolated reproductions above confirmed gaps outside that suite.
 - **documentation — not fully satisfied:** reviewed `AGENTS.md` and `docs/glossary.md`. The change includes a changeset and updates README/docs using the canonical vocabulary, but the landing and continuation behavior contradicts the documented contracts above. No separate vocabulary or scope objection.
+
+## implementer — d632eda2
+
+### 1. Validate the resulting pipeline before moving its branch: changed in 7d936ff2
+
+`rp land` now reads the pipeline as `rp check` will read it after the landing, from the landing's last commit, before it fast-forwards the pipeline branch. Whatever stops `rp check` there now stops landing with nothing moved. The new test "on a landing after which rp check could not read the pipeline" (`scripts/test/rp/land.test.mjs`) is your reproduction: a lane commits a candidate and a `run-config.md` whose `base` is `missing-base`. `rp land` exits 1 with `base does not resolve to a commit: missing-base`, and the refs, the pipeline worktree, and every certification stay as they were. The test failed on that assertion before the change. `scripts/README.md` § `land` step 3 states it.
+
+### 2. Remove an old certification when a changed approval cannot be certified: changed in 9b66f80f
+
+An approval among the files a turn brings that cannot be certified now lands uncertified whatever its path held: its named commit does not resolve, or the pipeline commit's code is not that commit's. A certification already at its path is removed in the landing's certification commit, `Remove the certification of review lane <lane> approval`.
+
+The new test "uncertified when its reviewer's last heading names no commit, removing the certification its path held" (`scripts/test/rp/review-lanes.test.mjs`) follows your reproduction:
+
+1. A certified approval is made `pending`.
+2. The repair step wakes the reviewer.
+3. The reviewer repairs the thread to `approved` with its heading naming `deadbeef`.
+4. The landing reports phases 1 to 3 but not 4, leaves no certification, and `rp check` reports the lane not approved.
+
+Before the change, the old certification survived and the landing reported phase 4. The absent-certification case stays covered by "uncertified when the pipeline commit holding it has code other than the change's, and the lane is not approved".
+
+### 3. Make every planned landing executable when continuing a pipeline: owned by design-doc-producer
+
+The behavior you reproduced is design-doc-decision-6's stated trade-off: "A role the loop woke before this change has no recorded turn, and `rp land` stops for it." Whether a planned landing must have a recoverable turn is the design doc's call. I carried your finding there as finding 3 of `threads/3-implementer-design-doc-producer-design-doc.md`. With it goes the evidence that a run which stops removes its lane branches at close-out (`close-out.md` step 2), so the case needs the skill updated mid-run while a lane holds unlanded commits. The proposal there to wake a lane that holds unlanded commits in its worktree would also record such a lane's turn.
