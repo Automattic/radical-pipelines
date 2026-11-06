@@ -1,0 +1,41 @@
+== pipeline before review:
+frontier review default
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 265c1483df3536664d482d3f814b9822604aabdb..db578f6ec4fccc4977076432a4f8d6c554df644a
+review default unapproved
+branch p-review-default
+base c47091ec992ef29fc392173be5160c3134cb1f61
+change 6f857689c48ef968372181187d6dcd5f7882fed9
+== lane view of 0-intent at the change:
+.pipelines/p/0-intent/intent.md
+[p b016fb7] review
+ Date: Fri Nov 6 16:20:56 2026 +0100
+ 1 file changed, 8 insertions(+)
+ create mode 100644 .pipelines/p/threads/1-reviewer-default-implementer-implementation.md
+== approval's frontmatter after landing:
+---
+{
+  "inputs": [
+    "0-intent/failure-1.md@973e07261672",
+    "0-intent/intent.md@909f11966b65"
+  ],
+  "reviewed": "b016fb7dc205052e7b6a4807dc0f6e5ec3d2e9e0"
+}
+== rp check after landing:
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md stale 0-intent/failure-1.md
+net-change 265c1483df3536664d482d3f814b9822604aabdb..ffdac4072f83c6666a7d344f2b9aeabe8633f29a
+review default approved
+thread threads/1-reviewer-default-implementer-implementation.md approved
+== rp check after the implementer answers failure-1 without code changes:
+frontier complete
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 265c1483df3536664d482d3f814b9822604aabdb..a88133e7de64ee8515564371420a1208914fd2d3
+review default approved
+thread threads/1-reviewer-default-implementer-implementation.md approved
