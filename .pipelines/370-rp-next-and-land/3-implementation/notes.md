@@ -1,3 +1,11 @@
+---
+{
+  "inputs": [
+    "1-spec/spec.md@2b8cf4596df3",
+    "2-design-doc/design-doc.md@309e75bfb963"
+  ]
+}
+---
 status: done
 
 # Implementation notes
