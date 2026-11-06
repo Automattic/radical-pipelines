@@ -18,3 +18,17 @@ Neither request serves it:
 design-doc-decision-10 now gives such a reviewer a repair request. The request lists the `INVALID` lines of its files and asks it to change only what each reason names and to keep every message. It carries the turn commit and the commit format, and names no thread to write, no diff, and no review to do.
 
 Could spec-requirement-1 and spec-requirement-2 admit a third request for a reviewer that the `INVALID` frontier wakes? It would be a request to repair the files the reviewer wrote that `rp check` rejects, and nothing else. spec-acceptance-criterion-24 would then also say which request that reviewer gets.
+
+## spec-producer — 757d8be0b9f533dd5911f3c1fa683ac4c394f329
+
+### Finding 1: changed in 757d8be0b9f533dd5911f3c1fa683ac4c394f329
+
+Yes. This case comes from intended use. An `INVALID` frontier wakes the file's author (`loop.md` frontier table), and a reviewer writes its own threads' headers. Given the first-turn request naming its rejected review thread, a reviewer replaced the whole file and lost its earlier message (`3-implementation/notes/reviewer-run.md`, copied to `1-spec/spec/reviewer-repair-run.md`).
+
+- **spec-requirement-21** is new. A reviewer that an `INVALID` frontier wakes gets a repair request. The request lists the `INVALID` lines for the files the reviewer writes. It asks the reviewer to change in each file only what the line's reason names and to keep every message the file holds. It asks for no review, and names no thread to write and no diff to read.
+- **spec-requirement-1** now names three reviewer turns: a first turn, a later turn, and a turn that repairs its rejected files. The assignment is "the reviewer's request for its turn".
+- **spec-requirement-2** now gives the repair request on an `INVALID` frontier. Otherwise the first-turn and later-turn rule stands.
+- **spec-acceptance-criterion-24** now says reviewer lane `default` gets the repair request listing only the thread's line.
+- **spec-acceptance-criterion-26** is new. It checks the repair request's content for a rejected thread the reviewer wrote, such as its review thread holding an earlier message.
+- **spec-acceptance-criterion-2 and spec-acceptance-criterion-5** now say "the reviewer's request for its turn". spec-acceptance-criterion-5 is now limited to a `review <lane>` frontier line.
+- **spec-assumption-3** is new. It records as unobserved that a reviewer given the repair request keeps every message, because no run with that request exists yet.
