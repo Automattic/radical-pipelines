@@ -23,7 +23,7 @@ To plan, apply, wake, and land, you run no Git command, open no thread or assign
    - When `rp land` stops, nothing landed and `after-merging-lanes` does not fire. A stop on files it rejects is repaired by the next step, which wakes their author; on any other stop, tell the owner its message; the run stops through close-out.
 7. **Repeat.** Once every role the step woke has ended its turn, and you ran `rp land` for each that reported no blocker, go to 1.
 
-A blocking `before-` hook that fails keeps its action from happening — the plan is not applied, or the turn not landed — and the run stops through close-out. When `rp next --apply` stops, repair what it names and run it again without firing its `before-` hooks again; once it completes, fire the `after-` hooks of the plan it first printed.
+A blocking `before-` hook that fails keeps its action from happening — the plan is not applied, or the turn not landed — and the run stops through close-out. When `rp next --apply` stops, tell the owner its message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove; you delete no file in a lane's worktree yourself. Once the owner has repaired it, run it again without firing its `before-` hooks again; once it completes, fire the `after-` hooks of the plan it first printed.
 
 ## Waking a role
 
