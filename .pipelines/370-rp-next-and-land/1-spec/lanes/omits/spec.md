@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@bbb4e5c14599"
+  ]
+}
+---
 # Spec: Run each loop step with rp next and rp land
 
 ## Overview
