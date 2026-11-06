@@ -3,7 +3,7 @@
 // Commands: check, stamp, pipelines, review. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
-import { closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -277,14 +277,26 @@ function onlyKeys(keys, allowed) {
 // Identity: the first 12 hexadecimal characters of the git blob id of the whole file.
 const identityOf = (oid) => oid.slice(0, 12);
 
-// The blob ids git would store for working-tree files at their repository-relative paths, after the clean filters and
-// line-ending conversion their attributes and configuration select; no object is written.
-function hashWorktree(root, paths) {
+// The blob ids `git add` would store for working-tree files at their repository-relative paths in `folder`: after the
+// clean filters and line-ending conversion their attributes, configuration, and index entries select, as when an entry
+// already holding CRLF keeps it. Git computes them on a copy of the worktree's index, keeping its timestamps so stat
+// data is trusted as Git trusts it; no object is written and the index itself is untouched.
+function hashWorktree(root, folder, paths) {
   if (!paths.length) return [];
-  for (const path of paths) if (/[\n\r]/.test(path)) fail(`cannot hash a path with a newline: ${JSON.stringify(path)}`);
-  const oids = gitText(root, ["hash-object", "--stdin-paths"], paths.map((path) => `${path}\n`).join("")).split("\n");
-  if (oids.length !== paths.length || !oids.every((oid) => /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(oid))) fail(`git hash-object --stdin-paths: unexpected output for ${paths.length} paths`);
-  return oids;
+  const real = gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "index"]);
+  const directory = mkdtempSync(join(tmpdir(), "rp-index-"));
+  try {
+    const index = join(directory, "index");
+    if (existsSync(real)) {
+      copyFileSync(real, index);
+      const { atime, mtime } = statSync(real);
+      utimesSync(index, atime, mtime);
+    }
+    gitWithIndex(root, index, ["-c", "core.splitIndex=false", "update-index", "--add", "--info-only", "-z", "--stdin"], paths.map((path) => `${path}\0`).join(""));
+    const staged = new Map(gitWithIndex(root, index, ["ls-files", "--stage", "-z", "--", `:(top,literal)${folder}/`]).split("\0").filter(Boolean)
+      .map((entry) => entry.match(/^\d{6} ([0-9a-f]{40}|[0-9a-f]{64}) 0\t(.+)$/s)).filter(Boolean).map((match) => [match[2], match[1]]));
+    return paths.map((path) => staged.get(path) ?? fail(`git update-index: no blob id for ${path}`));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
 // --- pipeline files -------------------------------------------------------------
@@ -373,7 +385,7 @@ function readWorktree(root, folder) {
   };
   visit("");
   const hashed = [...files.keys()].filter(pinnable);
-  const oids = hashWorktree(root, hashed.map((rel) => `${folder}/${rel}`));
+  const oids = hashWorktree(root, folder, hashed.map((rel) => `${folder}/${rel}`));
   return { files, identities: new Map(hashed.map((rel, i) => [rel, identityOf(oids[i])])), certification: (rel) => worktreeCertification(base, folder, rel) };
 }
 

@@ -44,7 +44,7 @@ Quote a value that starts with one of those characters, such as `issue: "#368"`.
 
 ### Identity
 
-A file's identity is the first 12 hexadecimal characters of the git blob id of the whole file, frontmatter included: at a commit, the id its tree records; in the working tree, the id Git would store for the file at its path, after the clean filters and line-ending conversion its attributes and configuration select (`git hash-object`, which writes nothing). An unmodified working tree has the identities of `HEAD`'s tree.
+A file's identity is the first 12 hexadecimal characters of the git blob id of the whole file, frontmatter included: at a commit, the id its tree records; in the working tree, the id `git add` would store for the file at its path, after the clean filters and line-ending conversion its attributes, configuration, and index entry select, so a file committed with CRLF keeps it under `core.autocrlf`. Git computes it on a copy of the worktree's index, writing no object and leaving the index untouched. An unmodified working tree has the identities of `HEAD`'s tree.
 
 ### `run-config.md`
 

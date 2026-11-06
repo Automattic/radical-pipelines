@@ -85,15 +85,22 @@ describe("reading a pipeline", () => {
     assert.deepEqual(frontier(), [`respond ${SPEC}`]);
   });
 
-  // The line-ending conversions git applies between the working tree and a commit: [what, how the repository sets it].
+  // The line-ending conversions git applies between the working tree and a commit: [what, how the repository sets it
+  // before the pipeline is committed, and after].
   const conversions = [
-    [".gitattributes setting *.md text eol=crlf", () => { writeFile(".gitattributes", "*.md text eol=crlf\n"); commitAll("attributes"); }],
-    ["core.autocrlf true", () => git(root, "config", "core.autocrlf", "true")],
+    [".gitattributes setting *.md text eol=crlf", () => { writeFile(".gitattributes", "*.md text eol=crlf\n"); commitAll("attributes"); }, () => {}],
+    ["core.autocrlf true", () => git(root, "config", "core.autocrlf", "true"), () => {}],
+    ["core.autocrlf true, set once the intent was committed with CRLF", () => {}, () => {
+      write(INTENT, read(INTENT).replace(/\n/g, "\r\n"));
+      commitAll("intent with CRLF");
+      git(root, "config", "core.autocrlf", "true");
+    }],
   ];
-  for (const [what, convert] of conversions)
+  for (const [what, setBefore, setAfter] of conversions)
     it(`judges freshness alike from the working tree and from the commit under ${what}`, () => {
-      convert();
+      setBefore();
       pipeline(0);
+      setAfter();
       rmSync(abs(PIPELINE), { recursive: true });
       git(root, "checkout", "--", PIPELINE);
       assert.match(read(INTENT), /\r\n/);
