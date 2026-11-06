@@ -18,15 +18,21 @@ status: done
 - Conventions and pipeline format 7, changelog entry 7 (1fcf1d52, spec-requirement-18).
 - The skill's references, profiles, templates, `README.md`, `docs/`, and the changeset (abde1991, a3e11af3, spec-requirement-20).
 - End-to-end walkthrough of the CLI as the orchestrator drives it: line-ending agreement, landing at the change with a later input mid-review, squash continuation in a fresh clone and in the original one (`3-implementation/notes/e2e.txt`, from `notes/e2e.sh`).
-- `npm test`: 494 of 494 pass.
+- Working-tree identity computed as `git add` would, on a copy of the worktree's index, so a file committed with CRLF keeps its blob id under `core.autocrlf` (224b16ef): before and after in `3-implementation/notes/crlf-committed-before.txt` and `crlf-committed.txt`, from `notes/crlf-committed.sh`.
+- `stamp` stops on a malformed certification it would replace, writing nothing (552ff6ba).
+- The later-input format points to the frontmatter quoting rule (ad064d56); the changeset says why `--pin` goes (5ad032e3).
+- `npm test`: all pass.
 
 ## Remaining
+
+- Whether `stamp` ties an approval's `--at` to the change its reviewer read: design-doc-decision-3 removed that check, and the question is with the design doc's owner. Revise `cmdStamp` and its refusal test per its result. Reproduction: `notes/approval-at-head.txt`, from `notes/approval-at-head.sh`.
 
 ## Decisions
 
 - `stamp` reads `run-config.md` from the working tree, so an approval stamped `--at` the change (which holds no `run-config.md`) works; the format check moves with it.
 - Frontmatter reasons have the form `frontmatter <key>: <construct>` or `frontmatter line <n> …`; a missing required key is `frontmatter has no <key>`.
 - `notes.md` without `status` is missing, not `INVALID`, as a first line other than `status: done` was before.
+- Working-tree identities come from `git update-index --add --info-only` on a copy of the index with its timestamps kept, and `core.splitIndex=false` so no shared index is written; `ls-files --stage` reads them back. `git hash-object` reads no index, so it converts a CRLF blob `git add` would keep.
 - `ORIGINS_IN_FRONTMATTER = 7` fixes the format from which discovery reads origins from frontmatter, independent of `FORMAT`.
 - Content malformations of a certification are tested from the working tree, with one row at `--ref`: both read through the same parser. Structural ones run both ways, as the readers differ.
 - This repository's `.rp.md` stays at conventions 6: per the design doc, it reaches 7 through the skill's migration.
@@ -34,10 +40,12 @@ status: done
 
 ## Failed approaches
 
+- `git hash-object --stdin-paths` for working-tree identity: it applies line-ending conversion without consulting the index, so an already-committed CRLF file under `core.autocrlf=true` hashes to a blob Git would not store (`notes/crlf-committed-before.txt`).
+
 ## Assumptions
 
 - design-doc-decision-1 (`rp stamp` changes no byte of a landed file): observed: `stamp.test.mjs` "landing … changes no byte of the files its turn committed, and writes only its certification", for an artifact, a candidate, and an approval; the approval's blob is unchanged by landing in `notes/e2e.txt` § 2.
-- design-doc-decision-2 (check, check after commit, and check --ref HEAD agree under eol=crlf and autocrlf): observed: `reading.test.mjs` "judges freshness alike …" and `notes/e2e.txt` § 1; with `--no-filters` hashing both test cases fail (`actual: 'stale'`).
+- design-doc-decision-2 (check, check after commit, and check --ref HEAD agree under eol=crlf and autocrlf): observed: `reading.test.mjs` "judges freshness alike …", its three rows including a file committed with CRLF, and `notes/e2e.txt` § 1; the CRLF-committed row fails under `git hash-object` hashing (`actual: 'stale'`). `rp check` leaves the index's hash and mtime and the object count unchanged (observed: `shasum`, `stat`, `git count-objects` before and after, in the clone of `notes/crlf-committed.sh`).
 - design-doc-decision-3 (an approval landed after a later input is stale on it): observed: `review.test.mjs` "leaves an approval stale on a later input that reached the pipeline branch after its change was built"; `notes/e2e.txt` § 2.
 - design-doc-decision-4 (both clones behave as spec-acceptance-criterion-15 and -16 state): observed: `continuation.test.mjs`, `notes/e2e.txt` § 3; the conflict rule: `approval.test.mjs` "stays fresh when merging the approved commit with the base conflicts only inside the pipelines folder root" fails under "any conflict changes the code".
 - design-doc-decision-5 (the subset is read and rejected as stated): observed: `frontier.test.mjs` subset rows; the reader agrees with yaml 2.9.1 on 75 values (`notes/yaml-agreement.txt`, from `notes/yaml-agreement.mjs`).
