@@ -64,3 +64,52 @@ design-doc-decision-6 lists "its phase" among each turn's fields. `rp next --app
 - `phase-started` reads `woke`, the phases of the last applied step.
 
 reviewer-default (finding 3) asks to drop the field or use it. Can design-doc-decision-6 drop it from the turn?
+
+## design-doc-producer — 64379b2d
+
+### 1. design-doc-decision-5 lands a lane whose turn ended with a blocker: stands
+
+In intended use, a lane whose role reported a blocker holds no unlanded commit, so the plan names no landing for it. A lane holds unlanded commits only when its turn ended normally without landing, or when its landing stopped.
+
+- observed: reading `agents/spec-producer.md` lines 28, 101, and 102 and `agents/design-doc-producer.md` lines 28, 115, and 116. A producer commits at Turn step 5, as it ends its turn. A **Blocker** is "report it to the orchestrator … and stop".
+- observed: reading `agents/reviewer.md` and `templates/reviewer-first.md`. A reviewer whose seat or materials fail it "report[s] what failed and stop[s]", and its request commits the review at its end.
+
+The reproduction commits a half-written candidate before blocking, which no profile does. The decision is defended by an input intended use produces: a lane turn that ended without landing, as after a compaction (spec-requirement-9). For that input, the commits tell `rp` what the orchestrator may no longer know. Commits mean the turn ended and is landed; no commits mean the next step wakes the role again, as spec-requirement-15 asks.
+
+The proposal, waking every lane that holds unlanded commits in its worktree, loses for a review lane in intended use. When another lane's findings land, the frontier moves to phase 3. The lane would then wait, and its reviewer would be woken later on a change whose code the implementer has since changed. Landing at once brings the review of the code the reviewer read. For a production lane, the proposal has its producer redo a turn that ended.
+
+64379b2d records this alternative under design-doc-decision-5's Alternatives. It also restates the Risk ("A blocked lane role with commits") with the profiles' rule it rests on.
+
+### 2. design-doc-decision-4 keeps worktree removal from discarding untracked files: changed in 64379b2d
+
+Removal stays unforced. What changed is what the orchestrator does when removal stops.
+
+Evidence that intended use leaves no untracked file in a lane worktree:
+
+- observed: this pipeline's two review lane worktrees, after their reviewers' turns on opencode (`2-design-doc/design-doc/lane-worktrees.txt`). Each holds no untracked file, only the ignored `node_modules/` that `after-creating-worktree` installs.
+- observed: the spec's `1-spec/spec/loop-edges.txt` E6. `git worktree remove` deletes ignored files.
+
+So the stop needs a file no source shows a role or hook leaving. Forcing would delete that file unseen, and it may be work.
+
+What changed, in design-doc-decision-11 (**Apply failure**) and § Failure modes:
+
+- A failed `--apply` names its action and reason. The orchestrator tells the owner the message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove.
+- Once the owner has repaired it, the orchestrator runs `--apply` again, without firing its `before-` hooks again, and fires the `after-` hooks once it completes.
+
+The orchestrator deletes no file in a lane worktree itself. Verification's inspection of the loop now checks this.
+
+### 3. design-doc-decision-6 leaves a lane woken before the change unlandable: stands
+
+No lane branch outlives a run:
+
+- observed: reading `reference/run/close-out.md` step 2. When a run stops, close-out removes the lane worktrees and branches, once every commit is on the pipeline branch.
+
+A continued format-8 pipeline therefore starts with no lane branch, and every lane it later holds was woken by an apply that recorded its turn. Changelog § 9's promise is kept. Only a skill updated in the middle of a run, while a lane holds unlanded commits, meets the case, which is a migration leftover. Nor does it loop unnoticed: `rp land` stops for it, and design-doc-decision-11 sends any stop other than rejected files to the owner.
+
+64379b2d states both points in design-doc-decision-6's Trade-offs and adds the close-out observation to its Claims. Waking the lane in place instead loses as point 1 states.
+
+### 4. The step record's per-turn phase has no reader: changed in 64379b2d
+
+design-doc-decision-6 drops the phase from each turn. A turn holds its worktree, its branch, its turn commit, and a review lane's change. `phase-started` reads the phases the last applied step woke, which the record still holds at the step level. The phase stays on the plan's wake entry, where spec-requirement-2 asks for it.
+
+The same commit also places the step record as your d632eda2 does: in the pipeline worktree's private git directory, beside its assignments, as `rp`'s own record and not among Prepared files. This is in Architecture, design-doc-decision-6, and Interfaces § Step record.
