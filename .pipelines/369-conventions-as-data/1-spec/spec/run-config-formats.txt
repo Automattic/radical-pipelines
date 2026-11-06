@@ -1,0 +1,10 @@
+# "format" of every run-config.md under .pipelines/ at every local branch tip
+
+   2 .pipelines/368-certification-out-of-files/run-config.md	"format": 6
+   1 .pipelines/369-conventions-as-data/run-config.md	"format": 6
+
+$ grep -n "conventions version\|pipeline format" .changeset/certification-out-of-files.md
+13:The pipeline format and the conventions version become 7. A version-6 `.rp.md` migrates by its stamp alone. Pipelines of format 6 are history: `rp pipelines` lists them with their origins, and work on their issue starts a new pipeline.
+
+$ grep -c "conventions version become 7\|format 7" CHANGELOG.md
+0
