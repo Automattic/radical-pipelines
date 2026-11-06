@@ -12,7 +12,7 @@ A role is a child session of yours; its session ID is its address.
 
 1. Create it: `opencode api POST /api/session -d '{"parentID":"'"$OPENCODE_SESSION_ID"'","title":"<pipeline slug> <profile>[ <lane>]","agent":"radical-pipelines/<profile>"}'`. The response's `data.id` is its session ID.
 2. Seat it: `opencode api POST /api/session/<session ID>/move -d '{"directory":"<worktree absolute path>"}'`. It stays seated across wakes.
-3. Start it: call `subagent` with `agent` `radical-pipelines/<profile>`, `sessionID`, `model`, a short `description`, the filled prompt as `prompt`, and `background: true`.
+3. Start it: call `subagent` with `agent` `radical-pipelines/<profile>`, `sessionID`, `model`, a short `description`, the message that starts the turn as `prompt`, and `background: true`.
 
 ## Wake
 
@@ -34,4 +34,4 @@ A finished role needs none. Stop a running role with `opencode api POST /api/ses
 
 ## Models
 
-The `model` of each profile or lane comes from the project's `Agents` convention as a `provider/model[#variant]` string, or as a name `.rp.md`'s `## opencode` section defines; pass the string verbatim as `model`. Fill the **Subagent model** with a `provider/model[#variant]` string too: a role passes it as `model` when it calls `subagent`.
+Pass as `model` the `provider/model[#variant]` string the model name `rp assign` printed resolves to: the string the project's `## opencode` section maps the name to; else the name itself when it is such a string; else the model the Code Mode tool `opencode.models` finds by the name, your own provider's first.

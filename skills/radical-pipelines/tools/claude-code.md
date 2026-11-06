@@ -4,7 +4,7 @@ The plugin ships each profile as an agent type. After compaction, Claude Code re
 
 ## Spawn
 
-Call `Agent` with `subagent_type` set to the plugin's `<profile>` agent, `name` `<pipeline slug> <profile>[ <lane>]`, `model`, the filled prompt, and `run_in_background: true`. The returned agent ID is the role's address.
+Call `Agent` with `subagent_type` set to the plugin's `<profile>` agent, `name` `<pipeline slug> <profile>[ <lane>]`, `model`, the message that starts the turn, and `run_in_background: true`. The returned agent ID is the role's address.
 
 ## Seating
 
@@ -29,7 +29,7 @@ A finished role needs none. Stop a running role with `TaskStop` and its agent ID
 
 ## Models
 
-The `model` of each profile or lane comes from the project's `Agents` convention. Pass an alias (`opus`, `sonnet`, `haiku`, `fable`) as `model`; a name that is not an alias is mapped to one in `.rp.md`'s `## Claude Code` section. Fill the **Subagent model** with an alias too: a role passes it as `model` when it calls `Agent`.
+Pass as `model` the alias (`opus`, `sonnet`, `haiku`, `fable`) the model name `rp assign` printed resolves to: the alias the project's `## Claude Code` section maps the name to, else the name itself.
 
 ## Unverified
 

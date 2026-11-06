@@ -40,7 +40,7 @@ Group the routed statements by pipeline; each group is one run.
 
 A run needs the owner's confirmation when it writes an intent, constraint, or proposal, its pipeline has no `run-config.md` or the request changes it, or steps 1 to 3 left a question open. Every other run starts under its `run-config.md` without one.
 
-For the runs that need it, propose each run's configuration: its current `run-config.md`, else the **Agents** defaults. In one message, give:
+For the runs that need it, propose each run's configuration: its current `run-config.md`, else the **Agents** defaults with `.rp.local.md`'s entries over them. In one message, give:
 
 - each route and why — or, when no predicate decides, the one deciding question;
 - the text of each intent, constraint, or proposal you will write;
@@ -80,4 +80,4 @@ Every branch and worktree you create — the pipeline's here, a lane's later —
 
 ### 6. Run
 
-Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) with the current `format` and the configuration the run starts under; commit. Then fire `run-started` and follow `../run/loop.md`.
+Start one run at a time, in the order of the Route table; each run handles the statements routed to its pipeline. Record any direction about the work that no route consumed through Later input. Write `run-config.md` (`../run/state.md` § Run configuration) with the current `format` and the configuration the run starts under, its `agents` the models, lanes, and briefs as the owner confirmed them; commit. Then fire `run-started` and follow `../run/loop.md`.

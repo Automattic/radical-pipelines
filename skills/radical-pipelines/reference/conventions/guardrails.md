@@ -4,13 +4,12 @@ Guardrails are the rules a project's agents must satisfy — prose a profile fol
 
 ## Format
 
-Each rule is a block under `.rp.md`'s `Guardrails` section:
+Each rule is an entry of `.rp.md`'s frontmatter `guardrails`, by name (`../../scripts/README.md` § Conventions data):
 
-```markdown
-### <name>
-
-- rule: <rule>
-- agents: <one or more profile names>
+```json
+"guardrails": {
+  "<name>": { "rule": "<rule>", "profiles": ["<profile>", …] }
+}
 ```
 
 ## Obligation
