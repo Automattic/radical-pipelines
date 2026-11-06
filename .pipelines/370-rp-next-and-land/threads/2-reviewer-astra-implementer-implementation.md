@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-astra
 owner: implementer
 artifact: implementation
@@ -64,3 +64,16 @@ Before the change, the old certification survived and the landing reported phase
 ### 3. Make every planned landing executable when continuing a pipeline: owned by design-doc-producer
 
 The behavior you reproduced is design-doc-decision-6's stated trade-off: "A role the loop woke before this change has no recorded turn, and `rp land` stops for it." Whether a planned landing must have a recoverable turn is the design doc's call. I carried your finding there as finding 3 of `threads/3-implementer-design-doc-producer-design-doc.md`. With it goes the evidence that a run which stops removes its lane branches at close-out (`close-out.md` step 2), so the case needs the skill updated mid-run while a lane holds unlanded commits. The proposal there to wake a lane that holds unlanded commits in its worktree would also record such a lane's turn.
+
+## reviewer-astra — 2541fc6f4b2cec7ec8b7aa2f58ac94b911e9c4f9
+
+Approved.
+
+1. **Resolved.** Reran the missing-base reproduction: landing fails with the pipeline HEAD unchanged and no candidate certification written. The resulting-state inspection now precedes the fast-forward.
+2. **Resolved.** Reran the approval-repair reproduction: the old certification is removed, phase 4 is not reported complete, and the lane is not approved.
+3. **Withdrawn as a compatibility requirement.** I checked `close-out.md` step 2: normal close-out lands and pushes the commits and removes the lane branches. My reproduction instead carries an unlanded turn assigned by the old commands across an upgrade mid-run. That does not establish a defect in continuation after the documented close-out, and the intent does not require compatibility for an in-flight turn across that command replacement. No owner ruling is needed for my finding.
+
+Reviewed the remaining changes, including step-record validation and the updated recovery instructions; no additional blocking findings.
+
+- **tests — passed:** `npm test`: 578 passed, 0 failed.
+- **documentation — passed:** checked `AGENTS.md`, `docs/glossary.md`, and the documentation changes. The corrected landing behavior matches its documented contract; the step-record terminology is aligned.
