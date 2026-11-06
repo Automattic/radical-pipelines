@@ -339,7 +339,7 @@ design-doc-decision-9: A reviewer's request: first or later turn, review base, c
 
 design-doc-decision-10: Malformed files, and the repair turn an `INVALID` frontier gives
 
-**Serves:** spec-requirement-2, spec-acceptance-criterion-3, spec-acceptance-criterion-24
+**Serves:** spec-requirement-2, spec-requirement-21, spec-acceptance-criterion-3, spec-acceptance-criterion-24, spec-acceptance-criterion-26
 
 **Decision:**
 
@@ -367,7 +367,7 @@ design-doc-decision-10: Malformed files, and the repair turn an `INVALID` fronti
 - observed: a reviewer spawned on opencode with the first-turn request naming its rejected review thread (`status: pending`) replaced the file with a new first review, and its earlier message is gone (`3-implementation/notes/reviewer-run.md`).
 - observed: reading `scripts/README.md` § Output and the frontier table in `loop.md`. On `INVALID`, `rp check` prints only the frontier lines, and the orchestrator wakes the file's author.
 - observed: reading `state.md` § Certification and `rp.mjs`'s `cmdStamp`. `rp stamp` stops on an approval unless `--at` is the commit its reviewer's last heading names, and unless `HEAD`'s code equals that commit's.
-- assumed: a reviewer given the repair request changes only what the reasons name and keeps its messages (design-doc-assumption-3).
+- assumed: a reviewer given the repair request changes only what the reasons name and keeps its messages (spec-assumption-3).
 
 design-doc-decision-11: The orchestrator runs `rp assign` and copies nothing
 
@@ -509,7 +509,7 @@ node rp.mjs assign <pipeline folder> --role <role>
 
 - new test at the `rp assign` CLI — design-doc-decision-3, design-doc-decision-4, spec-acceptance-criterion-2, spec-acceptance-criterion-3, spec-acceptance-criterion-4 — For every frontier action that wakes a producer or the implementer, the file at the role's assignment path holds that turn only: the profile's headings, the mode design-doc-decision-3 maps, only that mode's material lines as absolute paths in the role's worktree, every slot filled with its spec-requirement-2 value, the worktree's tip as Turn commit, and optional parts with nothing dropped. It replaces the previous turn's file, and `rp assign` stops for a role the frontier does not wake or whose worktree is missing.
 - new test at the `rp assign` CLI — design-doc-decision-9, spec-acceptance-criterion-5 — A review lane gets the later-turn request naming its open review thread when it has one, else the first-turn request naming a new thread, each naming the branch, review base, and change `rp review` built, the intent, the later inputs, and the brief or the default request; on a later turn the diff it names holds what changed since the reviewer's last message; `rp assign` stops when the lane worktree is not at a review change.
-- new test at the `rp assign` CLI — design-doc-decision-10, spec-acceptance-criterion-3, spec-acceptance-criterion-24 — Malformed files lists exactly the `INVALID` lines of the files each role writes. An `INVALID` frontier wakes a producer or the implementer in Respond with nothing else listed, and a reviewer with the repair request, which names no thread to write and no diff.
+- new test at the `rp assign` CLI — design-doc-decision-10, spec-acceptance-criterion-3, spec-acceptance-criterion-24, spec-acceptance-criterion-26 — Malformed files lists exactly the `INVALID` lines of the files each role writes. An `INVALID` frontier wakes a producer or the implementer in Respond with nothing else listed, and a reviewer with the repair request, which lists only its files' lines, asks it to change only what each reason names and keep every message, and names no review, no thread to write, and no diff.
 - new test at the `rp assign` CLI — design-doc-decision-5, spec-acceptance-criterion-6, spec-acceptance-criterion-7, spec-acceptance-criterion-23 — Guardrails and resources follow `profiles`, the same in every lane, or read `none`; the commit format is the project's text or the imperative default; the main checkout's `.rp.local.md` overrides and adds entries by name for a role seated in a linked worktree.
 - new test at the `rp assign` CLI — design-doc-decision-2, design-doc-decision-8, spec-acceptance-criterion-8, spec-acceptance-criterion-9, spec-acceptance-criterion-10, spec-acceptance-criterion-11 — The Subagent model and the printed model are the run's lane-else-profile names as written, or none, with the own-model wording and no model line; the assignment is byte-identical whatever the conventions' tool sections map.
 - new test at the `rp assign` CLI — design-doc-decision-4, design-doc-decision-7, spec-acceptance-criterion-14, spec-acceptance-criterion-15, spec-acceptance-criterion-16 — Vocabulary facts, `base` as the merge-base of the role's turn commit, and declared variables expand to the role's values in every carried text, a lane's brief included; a placeholder that names neither stays as written and brings the vocabulary listing, which appears in no other case; text outside the placeholder grammar, the templates' syntax included, reaches the assignment as written.
@@ -519,7 +519,7 @@ node rp.mjs assign <pipeline folder> --role <role>
 - new test at the `rp assign` CLI — design-doc-decision-1, design-doc-decision-12, spec-acceptance-criterion-1, spec-acceptance-criterion-8, spec-acceptance-criterion-18 — This repository's committed `.rp.md` and a run confirmed with its Agents defaults yield every role's assignment, and spec-producer lane `demands`' holds what spec-acceptance-criterion-1 states.
 - inspection of the migrated `.rp.md` against its version-6 text — design-doc-decision-1, design-doc-decision-12, spec-acceptance-criterion-18 — Version 8; every value and text spec-acceptance-criterion-18 lists is unchanged as data, each under its name; the sections it lists as prose are unchanged.
 - end-to-end flow of setup — design-doc-decision-7, design-doc-decision-12, spec-acceptance-criterion-19, spec-acceptance-criterion-20 — A migration following `setup.md` and `changelog.md`, and a Fresh setup, write `.rp.md` files from which `rp assign` writes the assignments those criteria state.
-- end-to-end flow on opencode — design-doc-decision-10, spec-acceptance-criterion-24 — A reviewer woken through `rp assign` on an `INVALID` frontier to repair its rejected review thread repairs it and keeps its messages, and after landing, `rp check` reads the lane as the repaired thread states, an approval included.
+- end-to-end flow on opencode — design-doc-decision-10, spec-acceptance-criterion-26 — A reviewer woken through `rp assign` on an `INVALID` frontier to repair its rejected review thread repairs it and keeps its messages, and after landing, `rp check` reads the lane as the repaired thread states, an approval included.
 - inspection of `loop.md`, `triage.md`, `state.md`, and `templates/README.md` — design-doc-decision-11, spec-acceptance-criterion-11, spec-acceptance-criterion-21 — The orchestrator's procedure runs `rp assign`, sends the printed path, spawns on the printed model or its own, and gives it no convention, model name, brief, or path to copy into an assignment.
 - inspection of `agents/*.md` — design-doc-decision-8, design-doc-decision-11, spec-acceptance-criterion-22 — No profile references a skill file or `.rp.md`, and the producers and the implementer carry the subagent-model rule.
 - end-to-end flow on opencode — design-doc-decision-8, spec-acceptance-criterion-12, spec-acceptance-criterion-13 — A lane spawned on the name `rp assign` printed, and a role delegating on its Subagent model name, run on models opencode finds by those names.
@@ -528,7 +528,7 @@ node rp.mjs assign <pipeline folder> --role <role>
 ## Risks
 
 - **Duplicate names.** In `.rp.md`, `.rp.local.md`, and `run-config.md`, two entries with one name under the same key are kept silently as the last. This applies to guardrails, resources, variables, profiles, and lanes. The consequence is an entry or lane missing from the run with no error. No intended use produces duplicate names: the spec observes distinct names, and `.rp.local.md` overrides by name.
-- **A repair that goes beyond its reasons.** A reviewer given the repair request may still rewrite more of a thread than its reason names, and lose a message. Depends on design-doc-assumption-3.
+- **A repair that goes beyond its reasons.** A reviewer given the repair request may still rewrite more of a thread than its reason names, and lose a message. Depends on spec-assumption-3.
 - **A rejected thread whose file name names no role.** Such a thread is written by no role (design-doc-decision-10), so `rp assign` wakes no one to fix it. The orchestrator reports it to the owner.
 - **Subagent variants.** On opencode, a bare subagent name resolves to the variant the tool's lookup gives. That may not be the `#xhigh` that `.rp.opencode.md` maps today, unless the project writes the variant into the name: observed, the lookup finds `claude-agent/sonnet` by `sonnet`, with no variant (`3-implementation/notes/opencode-models-lookup.json`).
 - **Claude Code.** If Claude Code does not run Sonnet for a subagent passed `sonnet`, spec-acceptance-criterion-13 fails there. Depends on spec-assumption-1.
@@ -537,4 +537,4 @@ node rp.mjs assign <pipeline folder> --role <role>
 
 spec-assumption-1: On Claude Code, a role that passes `sonnet` as a subagent's model runs that subagent on Sonnet — assumed: a role delegating on Claude Code with Subagent model `sonnet`. `tools/claude-code.md` § Models documents the aliases, and this seat cannot run Claude Code.
 
-design-doc-assumption-3: A reviewer given the repair request changes in each rejected file only what its reason names, and keeps every message — assumed: a reviewer woken through `rp assign` on an `INVALID` frontier for its rejected review thread.
+spec-assumption-3: A reviewer woken with the repair request for a review thread whose only fault is `status: pending` changes that line and keeps every message the thread holds — assumed: a reviewer on opencode woken that way. One given the first-turn request instead replaced the whole file (`1-spec/spec/reviewer-repair-run.md`).
