@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "1-spec/spec.md@e47d28947768"
+  ]
+}
+---
 # Design Doc: Project conventions as data, and `rp` writes each role's assignment
 
 ## Overview
