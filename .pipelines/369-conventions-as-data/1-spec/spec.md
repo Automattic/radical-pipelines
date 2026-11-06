@@ -17,7 +17,7 @@ After the change, the conventions an assignment carries are validated data entri
 
 ## Requirements
 
-spec-requirement-1: When the orchestrator wakes or spawns a role for a turn, `rp` has written that role's whole assignment to the file the role's profile tells it to read, the one `git rev-parse --git-path rp/<profile>.md` resolves to in the role's worktree, replacing the one from the role's previous turn. This holds for `spec-producer` and `design-doc-producer` in produce, respond, and consolidate mode, at the root and in a production lane; for `implementer` in implement and respond mode; and for each review lane's `reviewer` on a first and a later turn. The assignment is the profile's template, or the reviewer's first-turn or later-turn request, with every slot filled, every optional part that has nothing dropped, and the headings and field names the role's profile refers to.
+spec-requirement-1: When the orchestrator wakes or spawns a role for a turn, `rp` has written that role's whole assignment to the file the role's profile tells it to read, the one `git rev-parse --git-path rp/<profile>.md` resolves to in the role's worktree, replacing the one from the role's previous turn. This holds for `spec-producer` and `design-doc-producer` in produce, respond, and consolidate mode, at the root and in a production lane; for `implementer` in implement and respond mode; and for each review lane's `reviewer` on a first turn, a later turn, and a turn that repairs its rejected files. The assignment is the profile's template, or the reviewer's request for its turn, with every slot filled, every optional part that has nothing dropped, and the headings and field names the role's profile refers to.
 
 origin: from-intent intent-goal, intent-proposal-2
 
@@ -32,7 +32,7 @@ spec-requirement-2: Each slot an assignment fills from the pipeline holds the va
 - Malformed files: the `INVALID` lines `rp check` reports for the files the role writes — its artifact or candidate, and each thread it is a party to — and only those.
 - Worktree, Branch, Supporting folder, and Write to: the role's, as the skill names them.
 - The implementer's Base branch: `run-config.md`'s `base`.
-- A reviewer's request: the first-turn request when its lane has no open review thread, else the later-turn request, naming the lane's branch and review base as `rp review` printed them, the intent, the later inputs, the lane's review thread, and on a later turn the diff of what changed since the reviewer's last message.
+- A reviewer's request: on a frontier of `INVALID` lines, the repair request of spec-requirement-21; otherwise the first-turn request when its lane has no open review thread, else the later-turn request, naming the lane's branch and review base as `rp review` printed them, the intent, the later inputs, the lane's review thread, and on a later turn the diff of what changed since the reviewer's last message.
 
 origin: from-intent intent-goal
 
@@ -136,17 +136,25 @@ origin: derived intent-goal: the skill runs `rp` as `node <this skill's folder>/
 
 observed: `skills/radical-pipelines/scripts/README.md`: "It needs Node and Git 2.38 or later …, nothing else"; `rp.mjs` imports only `node:` modules (`1-spec/spec/rp-today.txt`); `package.json` declares only `devDependencies`.
 
+spec-requirement-21: A reviewer that a frontier of `INVALID` lines wakes gets a repair request. It lists the `INVALID` lines for the files the reviewer writes, and asks the reviewer to change in each file only what the line's reason names and to keep every message the file holds. It asks for no review, and names no thread to write and no diff to read.
+
+origin: derived intent-goal: `rp check` reports a thread the reviewer wrote as `INVALID`, such as its review thread with `status: pending`, and the frontier then wakes the file's author (`loop.md` frontier table). Given the first-turn request naming that thread, a reviewer replaced the whole file with a new review and its earlier message was lost (`1-spec/spec/reviewer-repair-run.md`).
+
+observed: on the base branch, the reviewer's requests are the first-turn and the later-turn one, and both ask for review work (`templates/reviewer-first.md`, `templates/reviewer-later.md` at `368-certification-out-of-files`). The later-turn one says "The author answered your review", which is false on a repair turn.
+
+assumed: a reviewer woken with the repair request keeps every message in the files it repairs (spec-assumption-3).
+
 ## Acceptance criteria
 
 spec-acceptance-criterion-1: Given this repository's conventions after migration, and a frontier that wakes spec-producer lane `demands` in produce mode, when the lane is woken, then its assignment file holds every section and field of the assignment the orchestrator filled by hand for that lane (`1-spec/spec/assignment-today.md`), with the same brief, Guardrails `none`, the `test suite and scripts` resource with its text, the same commit format, and Subagent model `sonnet`.
 
-spec-acceptance-criterion-2: Given any frontier action that wakes a role, when the role is woken, then its assignment file holds that turn's assignment only: its profile's template, or the reviewer's first-turn or later-turn request, with no slot left unfilled, every optional part that has nothing dropped, and as turn commit its worktree's tip, or for a reviewer the change `rp review` printed.
+spec-acceptance-criterion-2: Given any frontier action that wakes a role, when the role is woken, then its assignment file holds that turn's assignment only: its profile's template, or the reviewer's request for its turn, with no slot left unfilled, every optional part that has nothing dropped, and as turn commit its worktree's tip, or for a reviewer the change `rp review` printed.
 
 spec-acceptance-criterion-3: Given a frontier that calls `respond spec` with a thread awaiting the spec-producer and a changed input, when the spec-producer is woken, then its assignment's Mode is Respond, its Threads addressed to you lists that thread, and its Changed inputs lists that input with the last commit that changed the spec. Given a frontier `INVALID 1-spec/spec.md: <reason>`, when the spec-producer is woken, then its Malformed files lists that line.
 
 spec-acceptance-criterion-4: Given a frontier that calls `consolidate spec`, when the root spec-producer is woken, then its assignment's Mode is Consolidate, its Lane candidates lists each lane's id with its candidate's path, and its Write to is the root spec's path.
 
-spec-acceptance-criterion-5: Given a review lane with no open review thread, when its reviewer is woken, then its assignment is the first-turn request naming the branch, review base, and change `rp review` printed for the lane, the intent, the later inputs, and the lane's brief or, without one, the default request. Given the lane's open review thread awaiting it, then its assignment is the later-turn request naming that thread and the diff of what changed since the reviewer's last message.
+spec-acceptance-criterion-5: Given a frontier line `review <lane>` for a lane with no open review thread, when its reviewer is woken, then its assignment is the first-turn request naming the branch, review base, and change `rp review` printed for the lane, the intent, the later inputs, and the lane's brief or, without one, the default request. Given the lane's open review thread awaiting it, then its assignment is the later-turn request naming that thread and the diff of what changed since the reviewer's last message.
 
 spec-acceptance-criterion-6: Given this repository's conventions after migration, when the assignments of `implementer` and of reviewer lanes `default` and `astra` are written, then each carries the guardrails `tests` and `documentation` and the resource `test suite and scripts`, by name and with their texts, and the assignments of `spec-producer` and `design-doc-producer` carry Guardrails `none` and that resource.
 
@@ -184,9 +192,11 @@ spec-acceptance-criterion-22: Given the agent profiles after the change, when th
 
 spec-acceptance-criterion-23: Given a `.rp.local.md` in the main checkout that gives guardrail `tests` other text and adds a resource for `implementer`, when the implementer's assignment is written in its worktree under `.worktrees/`, then its Guardrails carry the local `tests` text and the committed `documentation` guardrail, and its Resources carry the committed resource and the added one.
 
-spec-acceptance-criterion-24: Given `rp check` reports `INVALID` lines for `3-implementation/notes.md` and for a review thread `reviewer-default` opened to `implementer`, when the implementer's assignment is written, then its Malformed files lists both lines; when reviewer lane `default`'s is written, it lists only the thread's line.
+spec-acceptance-criterion-24: Given `rp check` reports `INVALID` lines for `3-implementation/notes.md` and for a review thread `reviewer-default` opened to `implementer`, when the implementer's assignment is written, then its Malformed files lists both lines; when reviewer lane `default`'s is written, it is the repair request and lists only the thread's line.
 
 spec-acceptance-criterion-25: Given a machine with Node and Git and no package installed for the skill, when `rp` writes an assignment, then it runs to completion.
+
+spec-acceptance-criterion-26: Given a frontier of `INVALID` lines that names a thread reviewer lane `default` wrote, such as its review thread holding its earlier message, when the lane's reviewer is woken, then its request lists that line, asks it to change only what the line's reason names and to keep every message, and names no review to write, no thread to start, and no diff.
 
 ## Exclusions
 
@@ -223,3 +233,5 @@ spec-exclusion-4: `rp check`, `rp stamp`, `rp pipelines`, and `rp review` do not
 spec-assumption-1: On Claude Code, a role that passes `sonnet` as a subagent's model runs that subagent on Sonnet — assumed: a role delegating on Claude Code with Subagent model `sonnet`; `tools/claude-code.md` § Models documents the aliases, and this seat cannot run Claude Code.
 
 spec-assumption-2: Where its tool finds several models by one name, such as `sonnet` or `luna` on opencode, a role runs its subagents on the one its tool directs it to, its own provider's — assumed: a role on a `claude-agent` model delegating with `sonnet` on opencode runs `claude-agent/sonnet`, as the model search's "Check your own provider first" directs (`1-spec/spec/opencode-models-lookup.json`).
+
+spec-assumption-3: A reviewer woken with the repair request for a review thread whose only fault is `status: pending` changes that line and keeps every message the thread holds — assumed: a reviewer on opencode woken that way; one given the first-turn request instead replaced the whole file (`1-spec/spec/reviewer-repair-run.md`).
