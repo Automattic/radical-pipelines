@@ -8,7 +8,7 @@ import { after, before, describe, it } from "node:test";
 import { DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, RP, SPEC, TO_OWNER, TO_SPEC, abs, commitAll, git, land, later, pipeline, read, remove, revise, root, rp, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 // `.rp.md` in the main checkout: a JSON frontmatter holding `data` at the current version, above a prose body.
-const conventions = (data = {}, body = "\n# Conventions\n") => writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 8, ...data }, null, 2)}\n---\n${body}`);
+const conventions = (data = {}, body = "\n# Conventions\n") => writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 9, "worktree-folder-root": ".worktrees", ...data }, null, 2)}\n---\n${body}`);
 const local = (data, body = "\n# Local\n") => writeFile(".rp.local.md", `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`);
 
 // A copy of `rp` in a skill folder of its own, beside `templates` by name. The tests own these templates, so they
@@ -315,7 +315,7 @@ describe("assign", () => {
       conventions({ guardrails: GUARDRAILS, resources: RESOURCES, "commit-format": "Committed." });
       local({ guardrails: { tests: { rule: "Run the local tests.", profiles: ["implementer"] } }, resources: { browser: { resource: "A local browser.", profiles: ["implementer"] } } });
       const wt = worktree("pipeline", "demo");
-      writeFile(".wt-pipeline/.rp.md", "---\n{\"conventions\": 8, \"commit-format\": \"The worktree's own.\"}\n---\n");
+      writeFile(".wt-pipeline/.rp.md", "---\n{\"conventions\": 9, \"worktree-folder-root\": \".elsewhere\", \"commit-format\": \"The worktree's own.\"}\n---\n");
       const values = assign("implementer", in_(wt, "")).values;
       assert.deepEqual(values.worktree, [wt]);
       assert.deepEqual(values.guardrails, ["### tests", "", "- rule: Run the local tests.", ...BOTH_GUARDRAILS.slice(3)]);
@@ -437,8 +437,13 @@ describe("assign", () => {
       [".rp.md missing", () => rmSync(abs(".rp.md")), /cannot read .*\/\.rp\.md: missing/],
       [".rp.md without frontmatter", () => writeFile(".rp.md", "# Conventions\n"), /\.rp\.md: no frontmatter/],
       ["frontmatter that does not parse", () => writeFile(".rp.md", "---\n{\n  \"conventions\": 8,\n}\n---\n"), /\.rp\.md: frontmatter is not valid JSON: .+/],
-      ["an earlier version", () => conventions({ conventions: 7 }), /\.rp\.md: conventions: 7 is not the current version, 8/],
-      ["no version", () => writeFile(".rp.md", "---\n{}\n---\n"), /\.rp\.md: conventions: null is not the current version, 8/],
+      ["an earlier version", () => conventions({ conventions: 8 }), /\.rp\.md: conventions: 8 is not the current version, 9/],
+      ["no version", () => writeFile(".rp.md", "---\n{}\n---\n"), /\.rp\.md: conventions: null is not the current version, 9/],
+      ["no worktree folder root", () => conventions({ "worktree-folder-root": undefined }), /\.rp\.md: worktree-folder-root: missing/],
+      ["an empty worktree folder root", () => conventions({ "worktree-folder-root": " " }), /\.rp\.md: worktree-folder-root: must be a folder/],
+      ["a landing commit template without {subject}", () => conventions({ "landing-commit": "(orchestrator)" }), /\.rp\.md: landing-commit: must hold \{subject\}/],
+      ["a landing commit template naming another placeholder", () => conventions({ "landing-commit": "{subject} ({role})" }), /\.rp\.md: landing-commit: \{role\} names no part of a landing commit/],
+      [".rp.local.md with an empty landing commit template", () => local({ "landing-commit": "" }), /\.rp\.local\.md: landing-commit: must be a template/],
       ["an unknown key", () => conventions({ guardrail: {} }), /\.rp\.md: frontmatter: unexpected key: guardrail/],
       ["a guardrail without its text", () => conventions({ guardrails: { tests: { profiles: ["implementer"] } } }), /\.rp\.md: guardrails\.tests\.rule: must be a text/],
       ["a resource whose text holds no line", () => conventions({ resources: { suite: { resource: ["", " "], profiles: ["implementer"] } } }), /\.rp\.md: resources\.suite\.resource: must be a text/],
@@ -453,7 +458,7 @@ describe("assign", () => {
       ["a variable whose template names no vocabulary fact", () => conventions({ variables: { agent: "{pipeline-slug}-{agent}" } }), /\.rp\.md: variables\.agent: \{agent\} names no vocabulary fact/],
       ["a variable name outside the grammar", () => conventions({ variables: { Agent: "{role}" } }), /\.rp\.md: variables\."Agent": a variable name must match/],
       ["a variable with an empty template", () => conventions({ variables: { agent: "" } }), /\.rp\.md: variables\.agent: must be a template/],
-      [".rp.local.md naming the version", () => local({ conventions: 8 }), /\.rp\.local\.md: frontmatter: unexpected key: conventions/],
+      [".rp.local.md naming the version", () => local({ conventions: 9 }), /\.rp\.local\.md: frontmatter: unexpected key: conventions/],
       [".rp.local.md with a malformed entry", () => local({ resources: { browser: { resource: "A browser.", profiles: ["builder"] } } }), /\.rp\.local\.md: resources\.browser\.profiles: "builder" is no profile/],
       [".rp.local.md whose frontmatter does not parse", () => writeFile(".rp.local.md", "---\nartifact-storage: fork\n---\n"), /\.rp\.local\.md: frontmatter is not valid JSON/],
     ];

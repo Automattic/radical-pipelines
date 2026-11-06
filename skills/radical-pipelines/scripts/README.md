@@ -283,7 +283,9 @@ It prints `assignment <absolute path>`, then `model <name>` when the run gives t
 
 ```json
 {
-  "conventions": 8,
+  "conventions": 9,
+  "worktree-folder-root": ".worktrees",
+  "landing-commit": "{subject} (orchestrator)",
   "commit-format": ["Use imperative mood.", "", "- `Add spec (spec-producer)`"],
   "guardrails": { "tests": { "rule": "Run `npm test` and confirm it passes.", "profiles": ["implementer", "reviewer"] } },
   "resources": { "staging": { "resource": "The staging site `{agent}.example.com`.", "profiles": ["implementer", "reviewer"] } },
@@ -292,13 +294,15 @@ It prints `assignment <absolute path>`, then `model <name>` when the run gives t
 }
 ```
 
-- `conventions`, required: the version, `8`.
+- `conventions`, required: the version, `9`.
+- `worktree-folder-root`, required: the folder holding one worktree per branch, at `<folder>/<branch>`, a non-empty string; a relative one resolves against the main checkout's root.
+- `landing-commit`: the template of each commit `rp land` makes, a non-empty string holding `{subject}` and no other placeholder (§ Placeholders); `{subject}` is replaced by the commit's subject. Without it, the commit's message is its subject alone.
 - A **text** is a string, or a list of strings that are its lines, holding more than whitespace: `commit-format`, a guardrail's `rule`, a resource's `resource`, and a lane's `brief`.
 - `guardrails` and `resources`, by name: each entry holds its text and `profiles`, a non-empty list of `spec-producer`, `design-doc-producer`, `implementer`, and `reviewer`.
 - `agents`, by profile: optional `model` and `subagents`, each a non-empty model name, and for `spec-producer`, `design-doc-producer`, and `reviewer` optional `lanes`, a non-empty object of lanes by id, each with an optional `brief`, `model`, and `subagents`. A lane id matches `[a-z0-9][a-z0-9-]*`. `run-config.md`'s `agents` has this schema.
 - `variables`, by name: each a template, a non-empty string whose placeholders name vocabulary facts only. A name matches `[a-z][a-z0-9-]*` and is no vocabulary fact.
 
-Every key but `conventions` is optional, and no other key exists at any level. `.rp.local.md`'s frontmatter, when it has one, holds the same keys but `conventions`: each guardrail, resource, and variable it names replaces or adds the committed one by name, its `agents` entry each profile's, and its `commit-format` the committed one. A `.rp.local.md` without frontmatter overrides no data. Data that does not parse stops `assign`, naming the file and where parsing failed; a malformed entry stops it naming the file and the entry, as `<key>.<name>…`.
+Every key but `conventions` and `worktree-folder-root` is optional, and no other key exists at any level. `.rp.local.md`'s frontmatter, when it has one, holds the same keys but `conventions`, each optional: each guardrail, resource, and variable it names replaces or adds the committed one by name, its `agents` entry each profile's, and its `worktree-folder-root`, `landing-commit`, and `commit-format` the committed ones. A `.rp.local.md` without frontmatter overrides no data. Data that does not parse stops `assign`, naming the file and where parsing failed; a malformed entry stops it naming the file and the entry, as `<key>.<name>…`.
 
 ### Placeholders
 

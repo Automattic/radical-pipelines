@@ -443,7 +443,7 @@ async function readCommit(root, commit, folder, reads = null) {
 
 // --- parsing ----------------------------------------------------------------------
 
-// The conventions format this script reads and writes: the version of `.rp.md` and the format of `run-config.md`.
+// The pipeline format this script reads and writes: the `format` of `run-config.md`.
 export const FORMAT = 8;
 // The format a pipeline was written under: the integer `format` in run-config.md's JSON frontmatter, else `earlier`
 // (no run-config.md, no frontmatter, unreadable frontmatter, or no integer `format`). Nothing else is read.
@@ -1118,18 +1118,37 @@ const VARIABLE = /^[a-z][a-z0-9-]*$/;
 // What a guardrail and a resource hold as their text.
 const CARRIED = [["guardrails", "rule"], ["resources", "resource"]];
 
+// The conventions version this script reads: the `conventions` of `.rp.md`.
+export const CONVENTIONS = 9;
+
 // The conventions data of `.rp.md`'s JSON frontmatter or, with `local`, of `.rp.local.md`'s, which may have none and
-// holds no `conventions`: the commit format, the guardrails and resources by name, each with its text and profiles, the
-// agents, and the variables by name, each with its template. Whatever is malformed goes to `malformed(reason)`.
+// holds no `conventions`: the worktree folder root, required in `.rp.md`, the landing commit template, the commit format,
+// the guardrails and resources by name, each with its text and profiles, the agents, and the variables by name, each
+// with its template. Whatever is malformed goes to `malformed(reason)`.
 export function parseConventions(bytes, local, malformed) {
   const { text, error } = splitFrontmatter(bytes);
   if (error) malformed(error);
   if (text === null) return local ? {} : malformed("no frontmatter: the conventions data is a JSON object between --- lines");
   let data;
   try { data = JSON.parse(text); } catch (parseError) { malformed(`frontmatter is not valid JSON: ${parseError.message}`); }
-  objectAt(data, "frontmatter", malformed, [...(local ? [] : ["conventions"]), "commit-format", ...CARRIED.map(([key]) => key), "agents", "variables"]);
-  if (!local && data.conventions !== FORMAT) malformed(`conventions: ${JSON.stringify(data.conventions ?? null)} is not the current version, ${FORMAT}`);
+  objectAt(data, "frontmatter", malformed, [...(local ? [] : ["conventions"]), "worktree-folder-root", "landing-commit", "commit-format", ...CARRIED.map(([key]) => key), "agents", "variables"]);
+  if (!local && data.conventions !== CONVENTIONS) malformed(`conventions: ${JSON.stringify(data.conventions ?? null)} is not the current version, ${CONVENTIONS}`);
   const conventions = {};
+  if (!local && !("worktree-folder-root" in data)) malformed("worktree-folder-root: missing: the folder holding one worktree per branch");
+  if ("worktree-folder-root" in data) {
+    const folder = data["worktree-folder-root"];
+    if (typeof folder !== "string" || !folder.trim()) malformed("worktree-folder-root: must be a folder, a non-empty string");
+    conventions.worktreeFolderRoot = folder;
+  }
+  if ("landing-commit" in data) {
+    const template = data["landing-commit"];
+    if (typeof template !== "string" || !template.trim()) malformed("landing-commit: must be a template, a non-empty string");
+    const names = [...template.matchAll(PLACEHOLDER)].map(([, name]) => name);
+    const other = names.find((name) => name !== "subject");
+    if (other) malformed(`landing-commit: {${other}} names no part of a landing commit: {subject}`);
+    if (!names.length) malformed("landing-commit: must hold {subject}");
+    conventions.landingCommit = template;
+  }
   if ("commit-format" in data) conventions.commitFormat = textAt(data["commit-format"], "commit-format", malformed);
   for (const [key, field] of CARRIED) {
     if (!(key in data)) continue;
@@ -1160,8 +1179,8 @@ export function parseConventions(bytes, local, malformed) {
   return conventions;
 }
 
-// The conventions an assignment carries: the main checkout's `.rp.md`, with each entry its `.rp.local.md` names replacing
-// or adding the committed one by name. Both files are validated whole; either malformed, or `.rp.md` missing, stops.
+// The conventions of the main checkout's `.rp.md`, with each entry its `.rp.local.md` names replacing or adding the
+// committed one by name. Both files are validated whole; either malformed, or `.rp.md` missing, stops.
 function readConventions(main) {
   const read = (name) => {
     const path = join(main, name);
@@ -1173,6 +1192,8 @@ function readConventions(main) {
   const committed = read(".rp.md") ?? fail(`cannot read ${join(main, ".rp.md")}: missing`);
   const local = read(".rp.local.md") ?? {};
   return {
+    worktreeFolderRoot: local.worktreeFolderRoot ?? committed.worktreeFolderRoot,
+    landingCommit: local.landingCommit ?? committed.landingCommit ?? null,
     commitFormat: local.commitFormat ?? committed.commitFormat ?? null,
     ...Object.fromEntries([...CARRIED.map(([key]) => key), "variables"].map((key) => [key, { ...committed[key], ...local[key] }])),
   };
