@@ -354,12 +354,12 @@ design-doc-decision-8: One definition of a complete phase, reported by `rp check
 
 - **Complete.** `rp` computes which phases from 1 through the target are complete, as spec-requirement-18 defines it, from the state `rp check` computes. On an `INVALID` frontier no phase is complete.
 - **Check.** `rp check --json` adds the complete phases' numbers, in order, wherever it reports `phases` (Interfaces).
-- **Land.** `rp land` reports each phase that is complete after the landing. It skips a phase that was complete when the step was applied or that an earlier landing of the step reported. The step record holds both (design-doc-decision-6).
+- **Land.** `rp land` reports each phase that is complete after the landing. It skips a phase that was complete when the step's turns began, which is when the step was applied, or that an earlier landing of the step reported. The step record holds both (design-doc-decision-6).
 
 **Alternatives:**
 
 - Comparing with the pipeline just before the landing loses spec-acceptance-criterion-28's last case. A role in the pipeline worktree commits its answer before its turn lands, so its phase is already complete before the landing.
-- Comparing only with the step's start loses: two landings of one step that each leave a phase complete would both report it. The implementer's answer and a review lane's repair landing in one step do this.
+- Comparing only with the step's start loses spec-requirement-17: two landings of one step that each leave a phase complete would both report it. One `INVALID` thread between two producers wakes both in one step (`loop-edges.txt` E7), and so does the implementer's answer landing beside a review lane's repair.
 - Reporting completeness in `rp check`'s text output loses: spec-requirement-19 asks for it in `--json`, and no consumer reads the text for it.
 
 **Trade-offs:** `rp land` writes to the step record. A phase that becomes incomplete and complete again within one step is reported once.
@@ -460,7 +460,7 @@ Further rules:
 
 - `rp` refusing to apply while a role runs loses: only the tool knows whether a role still runs.
 - Landing a blocked turn loses spec-requirement-15: it would certify work that did not happen.
-- `rp` committing the orchestrator's fix of a rejected phase-0 file loses. Recording phase 0 stays outside a step (spec-exclusion-2), and such a command would give phase-0 files a second writer. The other reading of spec-acceptance-criterion-32, under which this fix falls inside the step, is not taken.
+- `rp` committing the orchestrator's fix of a rejected phase-0 file loses: spec-exclusion-2 keeps fixing a rejected intent or later input outside the step.
 
 **Trade-offs:** spec-requirement-8 rests on the loop's procedure alone (Risks).
 
@@ -609,7 +609,7 @@ Widened:
 - new test at the `rp land` CLI — design-doc-decision-7, spec-acceptance-criterion-22, spec-acceptance-criterion-23 — Landing a role whose branch lacks its turn commit, or whose unlanded files include a rejected one, exits 1. It names the worktree and the reason, or each file with `rp check`'s reason. The pipeline branch and every certification stay as they were.
 - new test at the `rp land` CLI — design-doc-decision-7 — An approval whose pipeline commit's code differs from its change's lands uncertified, and `rp check` reports its lane not approved.
 - new test at the `rp land` CLI — design-doc-decision-3, design-doc-decision-7, spec-acceptance-criterion-25, spec-acceptance-criterion-27 — A landing that changes no certification and brings no commit makes no commit. Every commit a landing makes has the template's shape, or the subject alone without a template.
-- new test at the `rp land` CLI — design-doc-decision-8, spec-acceptance-criterion-28 — Each landing prints the phases spec-acceptance-criterion-28 lists. A phase that two landings of one step leave complete is printed once.
+- new test at the `rp land` CLI — design-doc-decision-8, spec-acceptance-criterion-28 — Each landing prints the phases spec-acceptance-criterion-28 lists.
 - new test at the `rp check` CLI — design-doc-decision-8, spec-acceptance-criterion-29 — `--json` reports as complete exactly the phases spec-requirement-18 defines, through the target, and none on `INVALID`.
 - new test at the `rp next --apply` CLI — design-doc-decision-9, spec-acceptance-criterion-31 — Each changed input names a commit at which it is as its artifact's certification pins it, or at which it is absent when unpinned. This holds after a landing that left the artifact unchanged too.
 - new test at the `rp next` CLI — design-doc-decision-6, design-doc-decision-10, spec-acceptance-criterion-17 — The plan names `phase-started` for a phase on the first step that wakes it and on a step that resumes it, and never on a step applied again. It names the merging-lanes pair for each lane role.

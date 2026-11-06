@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: design-doc-producer
 owner: spec-producer
 artifact: spec
