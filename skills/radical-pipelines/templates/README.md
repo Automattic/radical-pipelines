@@ -1,19 +1,19 @@
 # Assignment templates
 
-`rp assign` (`../scripts/README.md` § `assign`) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open, or `reviewer-repair.md` on an `INVALID` frontier. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
+`rp next --apply` (`../scripts/README.md` § Assignments) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open, or `reviewer-repair.md` when files it wrote are rejected. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
 
 ## Syntax
 
 - `{{<name>}}` is a slot, replaced by the value of `<name>`. A text reads as written. A list with no item reads `none`. A list alone on its line puts each item on its own line, with a blank line between items when one spans several lines. A list after other text ends its line: it holds its one item there, or starts a nested list of its items.
 - A line `{{#<name>}}` opens a part and a line `{{/<name>}}` closes it. The lines between are kept when `<name>` has something: a true flag, a non-empty text, or a list with an item. A part opened with `{{^<name>}}` is kept when `<name>` has nothing.
-- A value is inserted as written and never read as syntax. A template that breaks this syntax, or names something without a value, stops `rp assign` before it writes anything.
+- A value is inserted as written and never read as syntax. A template that breaks this syntax, or names something without a value, stops `rp next --apply` before it writes the assignment.
 
 ## Values
 
 Every template may use:
 
 - The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
-- `turn-commit`: the `HEAD` of the role's worktree; a reviewer's is the change.
+- `turn-commit`: the tip of the role's worktree; a reviewer's is the change, or above it when it repairs files it wrote.
 - `base-branch`: `run-config.md`'s `base`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
 - `brief`: the lane's brief, its placeholders expanded, or empty.

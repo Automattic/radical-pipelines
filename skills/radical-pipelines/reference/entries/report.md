@@ -8,7 +8,7 @@ Read-only. The owner wants to know where things stand: one pipeline, or everythi
    - pipeline slug, branch, live or merged;
    - origins: issue; starts-from or re-attempts;
    - configuration: target phase, lanes;
-   - per phase: missing · stale · current, with each production lane's candidate;
+   - per phase: missing · stale · current, and whether it is complete, with each production lane's candidate;
    - open threads and the role each awaits; pending escalations;
    - each review lane: approved and fresh, or not;
    - the frontier.

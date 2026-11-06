@@ -1,6 +1,6 @@
 # Load project conventions
 
-Tool mechanics live in the skill. Project facts live in the project files and reach agents only through the assignments `rp assign` writes.
+Tool mechanics live in the skill. Project facts live in the project files and reach agents only through the assignments `rp next --apply` writes.
 
 ## Sources
 

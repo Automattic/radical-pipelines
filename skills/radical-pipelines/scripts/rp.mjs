@@ -350,7 +350,7 @@ const pinnable = (rel) => ["intent", "later", "artifact", "candidate"].includes(
 // What is certified beside an approval: an artifact or a lane candidate.
 const pins = (kind) => ["artifact", "candidate"].includes(kind?.kind);
 
-// The certification of a landed file: `certification/<its pipeline-relative path>.json`, written by `rp stamp` alone.
+// The certification of a landed file: `certification/<its pipeline-relative path>.json`, written by `rp land` alone.
 const CERTIFICATION = "certification";
 const certificationPath = (rel) => `${CERTIFICATION}/${rel}.json`;
 
