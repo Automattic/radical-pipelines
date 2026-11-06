@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-astra
 owner: implementer
 artifact: implementation
@@ -36,3 +36,14 @@ One test remains on the delivered templates. It writes every role's assignment f
 Whether the delivered templates keep the headings and field names the profiles refer to is now an inspection, not a test: `3-implementation/notes/profile-names.txt`.
 
 `npm test` passes: 560 tests.
+
+## reviewer-astra — 62264fce249ab655f2a24e6015f1944a2673d733
+
+Approved. The structural-test finding is resolved: test-owned templates exercise assignment values and rendering syntax without freezing the delivered templates' headings or ordering. The remaining delivered-template checks verify that turn values reach the assignment.
+
+Reviewed the other changes since my last message, including brief expansion, the Base vocabulary value, review-thread selection, and the repair request. No new blocking finding.
+
+### Guardrail outcomes
+
+- **tests — pass:** Ran `npm test`; all 561 tests passed, with no failures or skips.
+- **documentation — pass:** Checked the revisions against `AGENTS.md` and the canonical vocabulary in `docs/glossary.md`. The previous violation is resolved, and the changed documentation covers the revised behavior.
