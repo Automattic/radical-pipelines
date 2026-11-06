@@ -1097,7 +1097,7 @@ async function cmdReview(args) {
 
 // The facts a placeholder may name, each valued for a role and its turn.
 export const VOCABULARY = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base"];
-// A placeholder: a name in single braces, in a guardrail's, a resource's, or the commit format's text.
+// A placeholder: a name in single braces, in a guardrail's, a resource's, or the commit format's text, or a lane's brief.
 const PLACEHOLDER = /(?<!\{)\{([a-z][a-z0-9-]*)\}(?!\})/g;
 const VARIABLE = /^[a-z][a-z0-9-]*$/;
 // What a guardrail and a resource hold as their text.
@@ -1305,20 +1305,20 @@ async function cmdAssign(args) {
   const variables = Object.fromEntries(Object.entries(conventions.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => vocabulary[fact])]));
   const kept = new Set();
   const expand = (text) => expandText(text, { ...vocabulary, ...variables }, kept);
+  const laneEntry = role.lane ? state.config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
   const carried = {
     guardrails: carriedOf(conventions, "guardrails", role.profile, expand),
     resources: carriedOf(conventions, "resources", role.profile, expand),
     "commit-format": conventions.commitFormat === null ? "An imperative subject line." : expand(conventions.commitFormat),
+    brief: laneEntry?.brief ? expand(laneEntry.brief) : "",
   };
   const models = modelsOf(state.config, role.profile, role.lane);
-  const laneEntry = role.lane ? state.config.lanes.find((lane) => lane.profile === role.profile && lane.id === role.lane) : null;
   const laterInputs = [...state.docs.values()].filter((doc) => doc.kind === "later" && (!artifact || doc.targets.includes(artifact.phase.artifact))).map((doc) => at(doc.path));
   const values = {
     ...vocabulary, ...carried,
     vocabulary: kept.size ? VOCABULARY.map((name) => `- \`{${name}}\`: ${vocabulary[name]}`.trimEnd()) : [],
     "turn-commit": tip,
     "subagent-model": models.subagents ?? "",
-    brief: laneEntry?.brief ?? "",
     intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),
     "later-inputs": laterInputs,
     "malformed-files": turn.malformed.map((entry) => `INVALID ${entry.target}: ${entry.reason}`),

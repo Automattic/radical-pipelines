@@ -211,7 +211,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Resources              | What every role may run and use — environments, services, accounts, data — and how         | No       |
 | Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
 | Agents                 | The model of each profile — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` — and of its subagents, production lanes for the two producers, and review lanes for `reviewer` | No |
-| Variables              | Placeholders the guardrail, resource, and commit-format texts use, such as `{agent}`, each a template over pipeline facts such as `{pipeline-slug}` and `{role}` | No |
+| Variables              | Placeholders the guardrail, resource, commit-format, and brief texts use, such as `{agent}`, each a template over pipeline facts such as `{pipeline-slug}` and `{role}` | No |
 | Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.

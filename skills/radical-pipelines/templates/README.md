@@ -15,7 +15,7 @@ Every template may use:
 - The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
 - `turn-commit`: the `HEAD` of the role's worktree; a reviewer's is the change.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
-- `brief`: the lane's brief, or empty.
+- `brief`: the lane's brief, its placeholders expanded, or empty.
 - `intent`, `spec`, `design-doc`: their paths in the role's worktree.
 - `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
 - `malformed-files`: a list of the frontier's `INVALID` lines naming a file the role writes, as `rp check` prints them.

@@ -292,7 +292,7 @@ Every key but `conventions` is optional, and no other key exists at any level. `
 
 ### Placeholders
 
-A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. `assign` replaces each placeholder that names a vocabulary fact or a variable with its value for the role, in one pass; a variable's value is its template with each fact replaced.
+A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. `assign` replaces each placeholder that names a vocabulary fact or a variable with its value for the role, in one pass; a variable's value is its template with each fact replaced.
 
 | Vocabulary fact | Value |
 | --- | --- |

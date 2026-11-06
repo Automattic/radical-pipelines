@@ -41,7 +41,7 @@ Commit your review with this commit format:
 {{commit-format}}
 {{#vocabulary}}
 
-A name in braces left in these rules, in what you can use, or in the commit format is a placeholder: replace it with the value it stands for, from these values of your turn:
+A name in braces left in this request is a placeholder: replace it with the value it stands for, from these values of your turn:
 
 {{vocabulary}}
 {{/vocabulary}}

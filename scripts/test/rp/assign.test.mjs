@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, RP, SPEC, TO_OWNER, TO_SPEC, abs, commitAll, git, land, later, pipeline, read, revise, root, rp, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, RP, SPEC, TO_OWNER, TO_SPEC, abs, commitAll, git, land, later, pipeline, read, remove, revise, root, rp, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 // `.rp.md` in the main checkout: a JSON frontmatter holding `data` at the current version, above a prose body.
 const conventions = (data = {}, body = "\n# Conventions\n") => writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 8, ...data }, null, 2)}\n---\n${body}`);
@@ -365,16 +365,17 @@ describe("assign", () => {
   describe("expands placeholders in the texts it carries", () => {
     const FACTS = "{pipeline-slug} {role} {profile} [{lane}] {worktree} {branch} {base}";
 
-    it("each vocabulary fact and declared variable to the role's value, and lists no vocabulary", () => {
+    it("each vocabulary fact and declared variable to the role's value, a lane's brief included, and lists no vocabulary", () => {
       conventions({
         variables: { agent: "{pipeline-slug}-{role}" },
         guardrails: { facts: { rule: FACTS, profiles: ["implementer", "reviewer", "spec-producer"] } },
         resources: { env: { resource: "The environment `{agent}`.", profiles: ["implementer", "reviewer", "spec-producer"] } },
         "commit-format": "End with ({role}).",
       });
-      pipeline(0, { lanes: [{ profile: "spec-producer", id: "a" }] });
+      pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", brief: "Read {branch} for {agent}." }] });
       const lane = worktree("a", "demo-spec-a", commitAll("lanes"));
       const spec = assign("spec-producer-a").values;
+      assert.deepEqual(spec.brief, ["Read demo-spec-a for demo-spec-producer-a."]);
       assert.deepEqual(spec.guardrails.at(-1), `- rule: demo spec-producer-a spec-producer [a] ${lane} demo-spec-a main`);
       assert.deepEqual(spec.resources.at(-1), "- resource: The environment `demo-spec-producer-a`.");
       assert.deepEqual([spec["commit-format"], spec.vocabulary], [["End with (spec-producer-a)."], ["none"]]);
@@ -398,6 +399,11 @@ describe("assign", () => {
       pipeline(3);
       worktree("default", reviewLane("default").branch);
       assert.ok(assign("reviewer-default").values.vocabulary.includes("- `{lane}`: default"));
+      pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", brief: "Explore {ticket}." }] });
+      remove(SPEC);
+      worktree("a", "demo-spec-a", commitAll("a lane whose brief alone keeps a placeholder"));
+      const lane = assign("spec-producer-a").values;
+      assert.deepEqual([lane.brief, lane.resources, lane.vocabulary[1]], [["Explore {ticket}."], ["none"], "- `{role}`: spec-producer-a"]);
     });
 
     it("leaves text outside the placeholder grammar as written, template syntax included, and lists no vocabulary", () => {
