@@ -36,7 +36,7 @@ The full model, and why it differs from the previous architecture, is in [docs/m
 
 Each artifact has one owner, which answers for it:
 
-- **The orchestrator** is the session that runs the skill. It talks with the owner, records phase 0, creates branches and worktrees, wakes the role the pipeline's state names, and opens the pull request. It judges no content and relays no message.
+- **The orchestrator** is the session that runs the skill. It talks with the owner, records phase 0, runs each step `rp` plans — firing the plan's hooks and waking the roles it names — lands each turn with `rp`, and opens the pull request. It judges no content and relays no message.
 - **`spec-producer`** owns the spec, **`design-doc-producer`** the design doc, and **`implementer`** the code, its tests, its documentation, and `notes.md`, the file it resumes from. **`reviewer`** owns the review thread of its lane and talks only with the implementer, who carries a finding that questions a requirement or a design decision to that clause's owner.
 
 Each role works from its assignment: the filled prompt `rp` writes into the role's worktree git directory before every turn, from the pipeline and the project's conventions, which the role rereads at each turn and after a compaction. Every role delegates bounded work to its tool's own subagents, on the model its tool finds by the subagent model name its assignment gives, and stays responsible for what they return.
@@ -57,7 +57,7 @@ A dispute about a derived requirement or a design decision is settled inside its
 
 When a role's turn lands, `rp` pins the exact version of every input the artifact consumed, by content, in a certification file only `rp` writes; the artifact itself is never touched. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the intent and the later inputs its reviewer read, and records the commit whose code it approved; it stays valid while the code differs from that commit's only by clean merges of the base branch.
 
-State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts/README.md#check) names the frontier, the next roles to wake. Any orchestrator, on any machine, continues a pipeline from its files, even in a clone that lacks the pipeline's history after a squash merge.
+State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts/README.md#check) names the frontier, the next roles to wake. Each step of the loop is [`rp next`](./skills/radical-pipelines/scripts/README.md#next), which plans the step and with `--apply` creates the lane branches and worktrees and writes each assignment, and [`rp land`](./skills/radical-pipelines/scripts/README.md#land), which lands each turn; the orchestrator adds only its tool's spawning and waking and the project's hooks. Any orchestrator, on any machine, continues a pipeline from its files, even in a clone that lacks the pipeline's history after a squash merge.
 
 ### Redundancy by configuration
 
@@ -138,7 +138,7 @@ The plugin currently bundles:
 
 Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
-A long run outlives its context: when Claude Code compacts a session, it re-attaches the first 5,000 tokens of the skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage: recompute the state with `rp check`, find the roles still running, and wake every other role as a fresh instance. No hook is needed.
+A long run outlives its context: when Claude Code compacts a session, it re-attaches the first 5,000 tokens of the skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage: recompute the state with `rp check`, find the roles still running, land each when it ends its turn, and only then plan the next step, waking each role as a fresh instance. No hook is needed.
 
 The orchestrator seats each role in its worktree by spawning it from that directory, so the **Worktree folder root** must be inside the repository; `.worktrees/` qualifies. Models in the **Agents** convention are Claude Code aliases (`opus`, `sonnet`, `haiku`, `fable`); map any other name to an alias in a `## Claude Code` section of `.rp.md`, which the orchestrator spawns roles on. A role whose subagent model is no alias runs its subagents on its own model. A role's permission prompt reaches you in the orchestrator's session.
 
@@ -195,7 +195,7 @@ opencode reports plugin ids, not versions, so RP carries its version in its id: 
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": <version>`, the version of the conventions format — currently 8 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. It also holds, as named entries, the conventions every role's assignment carries — commit format, guardrails, resources, agents, and variables — which `rp` validates and writes each assignment from; the other conventions are prose sections below it. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": <version>`, the version of the conventions format — currently 9 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. It also holds, as named entries, the conventions `rp` reads — the worktree folder root, the landing commit template, and what every role's assignment carries: commit format, guardrails, resources, agents, and variables — which `rp` validates and acts on — it places lane worktrees, shapes the commits it makes, and writes each assignment from them; the other conventions are prose sections below it. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
 | Convention             | What it covers                                                                             | Required |
 | ---------------------- | ------------------------------------------------------------------------------------------ | -------- |
@@ -205,6 +205,7 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Pipelines folder root  | Where pipeline folders live                                                                | No       |
 | Artifact storage       | Whether artifacts live in the project's repository or a fork, and the artifact base branch | Yes      |
 | Worktree folder root   | Where worktrees live                                                                       | Yes      |
+| Landing commit         | The template of the commits `rp` makes when it lands a turn                                | No       |
 | Commit format          | How agents write commits                                                                   | No       |
 | PR format              | How pull request titles and descriptions are written                                       | No       |
 | Guardrails             | Rules the project's agents must satisfy                                                    | No       |

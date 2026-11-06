@@ -1,30 +1,30 @@
 # Autonomous loop
 
-This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md): each step runs `rp check`, wakes the roles its frontier names, waits for their turns to end, lands them, and repeats until the frontier is `complete` or `escalate`.
+This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/reference/run/loop.md): each step runs `rp next` for its plan, fires the plan's hooks around `rp next --apply`, wakes the roles the plan names, lands each turn with `rp land`, and repeats until the frontier is `complete` or `escalate`.
 
 ```mermaid
 flowchart TD
-    START["Enter from triage; start health monitoring"] --> A["Run rp check"]
-    A --> C{"Frontier"}
-    C -->|INVALID| AUTHOR["Wake the file's author to fix it — a reviewer through rp review — or fix it when you wrote it"]
+    START["Enter from triage; start health monitoring"] --> PLAN["Run rp next: the frontier and the step's plan"]
+    PLAN --> TOLAND{"Turns to land?"}
+    TOLAND -->|Yes| LANDFIRST["Land each named turn (below)"]
+    LANDFIRST --> PLAN
+    TOLAND -->|No| TERM["Terminate each role the plan names, between its terminating hooks"]
+    TERM --> APPLY["Fire the before- worktree hooks; rp next --apply creates, moves, and removes lane branches and worktrees and writes each assignment; fire the after- worktree hooks and phase-started"]
+    APPLY --> C{"Frontier"}
     C -->|escalate thread| OE["Owner escalation"]
-    C -->|lane artifact id| LANE["Give each lane its branch and worktree at the pipeline tip; wake its producer"]
-    C -->|consolidate artifact| CON["Terminate the lane instances; remove their worktrees and branches; wake a fresh producer"]
-    C -->|produce artifact| PRODUCE["Wake its owner"]
-    C -->|respond artifact| RESPOND["Wake its owner"]
-    C -->|review lane| REVIEW["rp review builds each lane's branch from the pipeline tip; give it a worktree; wake its reviewer"]
     C -->|complete| CLOSE["Close-out"]
     OE --> CLOSE
-    LANE --> ASSIGN
-    CON --> ASSIGN
-    PRODUCE --> ASSIGN
-    RESPOND --> ASSIGN
-    REVIEW --> ASSIGN
-    AUTHOR --> ASSIGN
-    ASSIGN["For each woken role, rp assign writes its assignment and prints its model; spawn or wake it on that model, resolved for the tool"] --> WAIT
-    WAIT["End the turn; resume on role reports and health ticks"] --> ENDED{"Every woken role ended its turn?"}
+    C -->|"fix: a phase-0 file rp check rejects"| FIX["Fix it as phase 0 records it, outside the step"]
+    FIX --> PLAN
+    C -->|every other line| WAKE["Spawn or wake each role the plan names, in its worktree, on its model resolved for the tool: Read your assignment: path"]
+    WAKE --> WAIT["End the turn; resume on role reports and health ticks"]
+    WAIT --> ENDED{"A role ended its turn?"}
     ENDED -->|No| WAIT
-    ENDED -->|Yes| LAND["For each role, at the turn commit its assignment names: a production lane or role stamps in its worktree; a review lane's commits after its change are cherry-picked onto the pipeline branch first and its approvals stamped at the commit the reviewer's last heading names, the pipeline worktree's HEAD becoming the approved commit, whose code must be that commit's; commit the certifications; then merge a production lane's branch"]
-    LAND --> PC["Fire phase-completed for each phase that became complete; report one line per role to the owner"]
-    PC --> A
+    ENDED -->|"Blocker"| REPAIR["Repair what it names; it is not landed"]
+    ENDED -->|Done| LAND["rp land --role: a lane's role between the merging hooks; it validates, merges or cherry-picks, certifies, and commits"]
+    LAND --> PC["Fire phase-completed for each phase it prints; report one line to the owner"]
+    PC --> ALL{"Every woken role landed or blocked?"}
+    REPAIR --> ALL
+    ALL -->|No| WAIT
+    ALL -->|Yes| PLAN
 ```
