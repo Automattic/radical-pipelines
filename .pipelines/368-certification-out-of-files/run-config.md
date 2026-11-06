@@ -44,4 +44,4 @@ Target: stop after the spec.
 
 ## Owner directions
 
-At close-out, push the pipeline branch to `origin`. Open no pull request.
+At close-out, keep the pipeline branch local: push nothing. Open no pull request.
