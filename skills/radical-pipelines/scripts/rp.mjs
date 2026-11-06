@@ -1440,13 +1440,15 @@ function pick(root, onto, commit) {
   return { commit: gitText(root, ["commit-tree", tree, "-p", onto], raw.subarray(raw.indexOf("\n\n") + 2), env) };
 }
 
-// A commit on `parent` whose tree is the parent's with each [path, bytes] of `files` written, with `message`.
+// A commit on `parent` whose tree is the parent's with each [path, bytes] of `files` written, or removed when its bytes
+// are null, with `message`.
 function commitFiles(root, parent, files, message) {
   const directory = mkdtempSync(join(tmpdir(), "rp-land-"));
   try {
     const index = join(directory, "index");
     gitWithIndex(root, index, ["read-tree", parent]);
-    gitWithIndex(root, index, ["update-index", "--index-info"], files.map(([path, bytes]) => `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\n`).join(""));
+    gitWithIndex(root, index, ["update-index", "--index-info"], files.map(([path, bytes]) => bytes === null ? `0 ${"0".repeat(parent.length)}\t${path}\n`
+      : `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\n`).join(""));
     return gitText(root, ["commit-tree", gitWithIndex(root, index, ["write-tree"]), "-p", parent, "-m", message]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }
@@ -1668,17 +1670,21 @@ async function cmdLand(args) {
   if (rejected.length) fail(`land: ${turn.worktree}: rp check rejects files the turn brings:\n${rejected.map(frontierText).join("\n")}`);
 
   // The role's artifact or candidate is certified at its turn commit; each approval it brings at the change its reviewer
-  // read, with the pipeline commit that holds it as its approved commit, unless that commit's code is not the change's.
-  const subjects = [];
+  // read, with the pipeline commit that holds it as its approved commit, unless that change does not resolve or the
+  // commit's code is not its: that approval lands uncertified, any certification its path held removed.
+  const subjects = [], uncertified = [];
   const artifact = artifactOf(role), doc = artifact && state.docs.get(artifact.path);
   if (doc) subjects.push([doc, await certificationOf(root, folder, state.config, doc, turn.commit)]);
   for (const thread of state.threads.filter((each) => isApproval(each) && bring.changed.has(each.path))) {
     const read = commitOf(root, thread.messages.findLast((message) => message.author === thread.opener).commit);
     if (read && !codeDiffers(root, read, bring.landed, pipelinesRoot)) subjects.push([thread, await certificationOf(root, folder, state.config, thread, read, bring.landed)]);
+    else if (pipeline.certification(thread.path)) uncertified.push(thread);
   }
   const certified = subjects.filter(([subject, bytes]) => !pipeline.certification(subject.path)?.equals(bytes));
-  const landed = certified.length ? commitFiles(root, bring.landed, certified.map(([subject, bytes]) => [`${folder}/${certificationPath(subject.path)}`, bytes]),
-    landingMessage(conventions, `Certify ${certified.map(([subject]) => nounOf(subject)).join(" and ")}`)) : bring.landed;
+  const files = [...certified, ...uncertified.map((subject) => [subject, null])].map(([subject, bytes]) => [`${folder}/${certificationPath(subject.path)}`, bytes]);
+  const subject = [certified.length && `certify ${certified.map(([each]) => nounOf(each)).join(" and ")}`,
+    uncertified.length && `remove the certification of ${uncertified.map(nounOf).join(" and ")}`].filter(Boolean).join(", and ");
+  const landed = files.length ? commitFiles(root, bring.landed, files, landingMessage(conventions, `${subject[0].toUpperCase()}${subject.slice(1)}`)) : bring.landed;
   // The pipeline as `rp check` will read it after the landing, read before the branch moves: the phases complete then
   // that were not when the step was applied and no earlier landing of it reported.
   const after = await inspect(root, folder, pipelinesRoot, landed);

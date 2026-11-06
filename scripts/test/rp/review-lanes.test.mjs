@@ -229,6 +229,25 @@ describe("review lanes", () => {
       assert.deepEqual(reviewOf(), { lane: "a", approved: false, stale: ["0-intent/intent.md", "0-intent/constraint-1.md"] });
     });
 
+    it("uncertified when its reviewer's last heading names no commit, removing the certification its path held", () => {
+      conventions();
+      pipeline(3, { lanes: [lane("reviewer", "a")] });
+      approveInLane();
+      landRole("reviewer-a");
+      assert.ok(certification(APPROVAL));
+      write(APPROVAL, read(APPROVAL).replace("status: approved", "status: pending"));
+      commitAll("the approval is rejected");
+      apply();
+      const wt = laneWorktree("demo-review-a");
+      const repaired = readFileSync(join(wt, PIPELINE, APPROVAL), "utf8").replace("status: pending", "status: approved").replace(/## reviewer-a — [0-9a-f]+/, "## reviewer-a — deadbeef");
+      commitIn(wt, { [APPROVAL]: repaired }, "repair");
+      const before = head();
+      assert.equal(landRole("reviewer-a"), "hook phase-completed 1\nhook phase-completed 2\nhook phase-completed 3\n");
+      assert.deepEqual(git(root, "log", "--first-parent", "--format=%s", `${before}..HEAD`).trim().split("\n"), ["Remove the certification of review lane a approval", "repair"]);
+      assert.equal(certification(APPROVAL), null);
+      assert.deepEqual(reviewOf(), { lane: "a", approved: false, stale: ["0-intent/intent.md"] });
+    });
+
     it("stale on a later input that reached the pipeline branch after its change was built", () => {
       conventions();
       pipeline(3, { lanes: [lane("reviewer", "a")] });
