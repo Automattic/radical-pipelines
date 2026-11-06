@@ -4,13 +4,6 @@ Defaults for the run configuration: each profile's model, subagent model, and la
 
 They are the `agents` entry of `.rp.md`'s frontmatter, one entry per profile: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` (`../../scripts/README.md` § Conventions data). Propose them, with `.rp.local.md`'s entries over them, when confirming a run. A profile without defaults uses your model and no lanes.
 
-```json
-"agents": {
-  "spec-producer": { "model": "opus", "subagents": "sonnet", "lanes": { "a": { "brief": "…" }, "b": { "model": "sonnet" } } },
-  "reviewer": { "lanes": { "default": { "model": "opus" }, "second": { "model": "astra", "subagents": "luna" } } }
-}
-```
-
 ## Fields
 
 - `model` — the model name to spawn the profile on, as the project writes it. A lane inherits the profile's model unless it has its own.

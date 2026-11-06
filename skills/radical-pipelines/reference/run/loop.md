@@ -33,7 +33,7 @@ Throughout the run:
 
 ## Waking a role
 
-- Before every spawn and every wake, run `rp assign <pipeline worktree's absolute pipeline folder> --role <role>` (`state.md`). It writes the role's assignment for the turn the frontier gives it, and prints the assignment's path and the role's model. Never write or edit an assignment.
+- Before every spawn and every wake, run `rp assign <pipeline worktree's absolute pipeline folder> --role <role>` (`state.md`). It writes the role's assignment for the turn the frontier gives it, and prints the assignment's path and the role's model.
 - When `rp assign` stops naming a step of yours that is missing — the role's worktree, or a review lane's change — do that step and run it again. On any other stop, tell the owner its message; the run stops through close-out.
 - Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message; spawn a fresh instance when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation. The message that starts a turn, spawn and wake alike, is exactly `Read your assignment: <printed path>.`.
 - Terminate the production lanes' instances at consolidation and every other instance at close-out.

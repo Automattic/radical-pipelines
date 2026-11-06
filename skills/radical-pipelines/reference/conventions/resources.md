@@ -4,10 +4,4 @@ Resources are what a project makes available to its agents — environments, ser
 
 ## Format
 
-Each resource is an entry of `.rp.md`'s frontmatter `resources`, by name (`../../scripts/README.md` § Conventions data):
-
-```json
-"resources": {
-  "<name>": { "resource": "<what it is, how to reach it, what agents may do with it>", "profiles": ["<profile>", …] }
-}
-```
+Each resource is an entry of `.rp.md`'s frontmatter `resources`, under its name, holding its `resource` — what it is, how to reach it, what agents may do with it — and the `profiles` it serves (`../../scripts/README.md` § Conventions data).

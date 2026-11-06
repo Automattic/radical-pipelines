@@ -55,9 +55,9 @@ A file's identity is the first 12 hexadecimal characters of the git blob id of t
   "target-phase": 4,
   "base": "main",
   "agents": {
-    "spec-producer": { "model": "opus", "subagents": "sonnet", "lanes": { "a": { "brief": "…" }, "b": { "model": "sonnet" } } },
-    "implementer": { "model": "opus" },
-    "reviewer": { "lanes": { "default": { "model": "opus" }, "security": { "brief": ["…", "…"], "model": "astra", "subagents": "luna" } } }
+    "spec-producer": { "model": "large", "subagents": "small", "lanes": { "a": { "brief": "…" }, "b": { "model": "small" } } },
+    "implementer": { "model": "large" },
+    "reviewer": { "lanes": { "default": { "model": "large" }, "security": { "brief": ["…", "…"], "model": "other-large", "subagents": "other-small" } } }
   }
 }
 ```
@@ -277,7 +277,7 @@ It prints `assignment <absolute path>`, then `model <name>` when the run gives t
   "commit-format": ["Use imperative mood.", "", "- `Add spec (spec-producer)`"],
   "guardrails": { "tests": { "rule": "Run `npm test` and confirm it passes.", "profiles": ["implementer", "reviewer"] } },
   "resources": { "staging": { "resource": "The staging site `{agent}.example.com`.", "profiles": ["implementer", "reviewer"] } },
-  "agents": { "spec-producer": { "model": "opus", "subagents": "sonnet", "lanes": { "a": { "brief": "…" } } } },
+  "agents": { "spec-producer": { "model": "large", "subagents": "small", "lanes": { "a": { "brief": "…" } } } },
   "variables": { "agent": "{pipeline-slug}-{role}" }
 }
 ```
