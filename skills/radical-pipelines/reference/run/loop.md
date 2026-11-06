@@ -58,7 +58,7 @@ A review lane is one `reviewer`, with its brief when it has one; every lane must
 
 1. For each `review <lane>`, run `rp review <pipeline worktree's absolute pipeline folder> --lane <lane>` (`state.md`). It builds the lane's branch from the pipeline tip and moves the branch, and the lane's worktree when it has one, to the change, which becomes the reviewer's turn commit. Give the lane a worktree on its branch when it has none. When it stops on commits the pipeline branch lacks, land them (step 4) and run it again.
 2. When the lane's open review thread awaits it, save among the lane's **Prepared files** (`state.md` § Names) the diff from the commit its last message names to the tip, outside the pipelines folder.
-3. Wake the lane's reviewer there, mode `First` when the lane has no open review thread, else `Later` with that thread and the diff under its materials (`templates/reviewer.md`). Lanes run in parallel.
+3. Wake the lane's reviewer there with `templates/reviewer-first.md` when the lane has no open review thread, else with `templates/reviewer-later.md`. Lanes run in parallel.
 
 ## Owner escalation
 
