@@ -47,7 +47,7 @@ New:
   - Planning: it computes the frontier as `rp check` does and each lane's unlanded work. From these it computes the seats, the woken roles' turns, and the hook moments (design-doc-decision-2, design-doc-decision-5, design-doc-decision-10).
   - Applying: it carries out the plan's actions, converging, and records the step (design-doc-decision-4, design-doc-decision-6).
 - `rp land`, a command of `rp.mjs`. It verifies, validates, brings, certifies, commits, and reports one turn (design-doc-decision-7, design-doc-decision-8).
-- The step record, among the pipeline worktree's Prepared files (design-doc-decision-6).
+- The step record, in the pipeline worktree's private git directory, beside its assignments (design-doc-decision-6).
 
 Modified:
 
@@ -58,7 +58,7 @@ Modified:
   - A changed input names its own commit (design-doc-decision-9).
 - Skill prose:
   - `reference/run/loop.md`: One step, Waking a role, Production lanes, Review lanes, and the frontier table (design-doc-decision-11).
-  - `reference/run/state.md`: the command list; § Certification's landing; and § Names' Lane branches, Assignment, Turn commit, and Prepared files.
+  - `reference/run/state.md`: the command list; § Certification's landing; and § Names' Lane branches, Assignment, and Turn commit, and where the step record sits.
   - `SKILL.md`: the compaction note.
   - `reference/conventions/lifecycle-hooks.md`: the creating-branch moments, and what a worktree's hooks know (design-doc-decision-10).
   - `reference/entries/triage.md` § 5: the sentence on a lane's branch and worktree hooks.
@@ -240,6 +240,7 @@ design-doc-decision-4: Applying does exactly what the plan states, and applying 
   - `review-twice.txt`: `rp review` run twice on one tip builds two changes.
   - `loop-edges.txt` E5: `git branch` and `git worktree add` stop on a branch or path that exists.
   - `loop-edges.txt` E6: `git worktree remove` stops on an untracked file, and removes ignored files.
+- observed: the two review lane worktrees of this pipeline, after their reviewers' turns on opencode (`2-design-doc/design-doc/lane-worktrees.txt`). Each holds no untracked file, only the ignored `node_modules/` this repository's `after-creating-worktree` installs, which removal deletes.
 - observed: reading `rp.mjs` `cmdReview`. The review base holds the base's tree and the change holds the tip's, each with the pipelines folder root replaced by the lane's root. The review base's parent is the base.
 - assumed: the apply tests in Verification.
 
@@ -261,6 +262,10 @@ design-doc-decision-5: A lane's unlanded commits are never discarded: the plan l
 
 - The spec's "keep" option is to merge the pipeline tip into a production lane with unlanded commits and wake it for its frontier work. It loses: the woken producer redoes a turn that already ended, and a review lane would need its commits replayed onto a rebuilt change.
 - Stopping `rp next` with an error, as `rp review` does today, loses: the orchestrator would read the error's text for the role to land, which the plan can name.
+- Waking every lane that holds unlanded commits in its worktree as it stands, as a lane under repair is woken, loses:
+  - The frontier can have moved below phase 4, as when another review lane's findings land. A review lane would then wait, and its reviewer would be woken later on a change whose code the implementer has since changed. Landing it at once brings the review of the code its reviewer read.
+  - A production lane's producer would redo a turn that ended.
+  - Its one gain is that a blocked lane's commits are not landed. No profile produces that input, since a lane's role commits only as it ends its turn (Risks).
 - Rebuilding a review lane under repair from the tip and replaying its commits loses. The repaired thread's heading names the change its reviewer read, and after a replay that change is no longer the lane's, so the approval could not be certified (design-doc-decision-7).
 
 **Trade-offs:** A plan can hold only landings, so the orchestrator plans twice in that step. A lane under repair waits a step for its frontier work.
@@ -280,8 +285,8 @@ design-doc-decision-6: Applying records each woken role's turn, and the step, in
 
 **Decision:**
 
-- **Step record.** Applying writes a step record among the pipeline worktree's Prepared files. Its name and encoding are the implementer's. It holds:
-  - for each role a step woke, its latest turn: its worktree, its branch, its turn commit, its phase, and for a review lane its change. A later step that wakes the role replaces its turn.
+- **Step record.** Applying writes a step record in the pipeline worktree's private git directory, beside its assignments. It is `rp`'s own record, not a file prepared for a role. Its name and encoding are the implementer's. It holds:
+  - for each role a step woke, its latest turn: its worktree, its branch, its turn commit, and for a review lane its change. A later step that wakes the role replaces its turn.
   - the phases the last applied step woke;
   - the phases complete when that step was applied;
   - the phases that step's landings have reported.
@@ -295,13 +300,14 @@ design-doc-decision-6: Applying records each woken role's turn, and the step, in
 - Deriving the turn from Git loses: two roles woken into the pipeline worktree in one step share its branch, so their commits cannot be told apart.
 - A record per role beside each assignment loses: a lane's record goes with its worktree at consolidation, and with it what that step woke.
 
-**Trade-offs:** Landing depends on a file outside the tree. A role the loop woke before this change has no recorded turn, and `rp land` stops for it.
+**Trade-offs:** Landing depends on a file outside the tree. A lane the loop woke before this change has no recorded turn, so `rp land` stops for it, and the orchestrator reports that stop to the owner (design-doc-decision-11). Only a skill updated in the middle of a run meets this. When a run stops, close-out removes every lane branch, so a continued pipeline starts with none.
 
 **Claims:**
 
 - observed: the spec's `1-spec/spec/loop-walk.txt`, Step 1 and Step 5 landings. The orchestrator reads each turn commit from the assignment, and takes a reviewer's from `rp review`'s output.
 - observed: the spec's `1-spec/spec/loop-edges.txt` E7: one step writes `spec-producer`'s and `design-doc-producer`'s assignments in the same pipeline worktree.
-- observed: reading `state.md` § Names. Prepared files sit beside a worktree's assignments, in the folder `git rev-parse --git-path rp/` resolves to there.
+- observed: reading `state.md` § Names. A worktree's assignments sit in the folder `git rev-parse --git-path rp/` resolves to there, its private git directory.
+- observed: reading `close-out.md` step 2. When a run stops, close-out removes the lane worktrees and branches once every commit is on the pipeline branch.
 - assumed: the `rp land` and `rp next` tests in Verification.
 
 design-doc-decision-7: `rp land` verifies, validates, brings, certifies, and commits a turn, or lands nothing
@@ -451,7 +457,7 @@ design-doc-decision-11: The orchestrator's step is `rp next`, the hooks, `rp nex
 Further rules:
 
 - **Blocking failure.** A blocking `before-` hook that fails keeps its action from happening and stops the run through close-out.
-- **Apply failure.** A failed `--apply` is repaired and run again, without firing its `before-` hooks again. The `after-` hooks fire once it completes.
+- **Apply failure.** A failed `--apply` names its failed action and the reason. The orchestrator tells the owner the message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove. Once the owner has repaired it, the orchestrator runs `--apply` again, without firing its `before-` hooks again. The `after-` hooks fire once it completes.
 - **Commands.** In the step, the orchestrator runs no Git command, passes only paths `rp` printed, and opens no thread or assignment.
 - **Compaction.** `SKILL.md`'s note for a compacted session: find the roles still running, land each when it ends, and only then run `rp next`.
 - **References.** `health-monitoring.md`'s step for a step that never lands lands through `rp land`, and `tools/*.md` § Models resolve the model name the plan names.
@@ -536,7 +542,7 @@ The plan is printed in a line grammar that `scripts/README.md` states. A value t
 
 ### Step record
 
-- **Location.** Among the pipeline worktree's Prepared files.
+- **Location.** In the pipeline worktree's private git directory, beside its assignments.
 - **Contents.** It holds what design-doc-decision-6 lists.
 - **Writers.** Applying writes it, and landing adds its reported phases.
 
@@ -581,7 +587,7 @@ Widened:
 ## Failure modes and observability
 
 - **Unreadable inputs.** `next` and `land` stop on everything `rp check` stops on, on missing or malformed conventions data (naming the file and the entry), and on a detached pipeline worktree. The orchestrator reports the message to the owner, and the run stops through close-out.
-- **An action of `--apply` fails.** Examples are a path where a worktree belongs, an untracked file in a worktree to remove, uncommitted changes blocking a lane's move, or a Git failure. `--apply` exits 1 naming the action and the reason, and the completed actions stay. Once the orchestrator repairs the cause, `--apply` completes the rest.
+- **An action of `--apply` fails.** Examples are a path where a worktree belongs, an untracked file in a worktree to remove, uncommitted changes blocking a lane's move, or a Git failure. `--apply` exits 1 naming the action and the reason, and the completed actions stay. The orchestrator tells the owner the message, and once the owner has repaired the cause, `--apply` completes the rest (design-doc-decision-11).
 - **`rp land` stops.** It stops when:
   - there is no recorded turn for the role;
   - the branch is missing, or does not descend from the turn commit;
@@ -619,7 +625,7 @@ Widened:
 - inspection of the migrated `.rp.md` and `changelog.md` § 9 — design-doc-decision-3, design-doc-decision-10, spec-acceptance-criterion-18 — The file is at version 9. The worktree folder root is data with its value unchanged, the landing commit template is present, and every hook block is unchanged under its name.
 - inspection of `loop.md`, `SKILL.md`, `state.md`, `lifecycle-hooks.md`, `health-monitoring.md`, and `tools/*.md` — design-doc-decision-10, design-doc-decision-11, spec-acceptance-criterion-10, spec-acceptance-criterion-11, spec-acceptance-criterion-13, spec-acceptance-criterion-14, spec-acceptance-criterion-16, spec-acceptance-criterion-17, spec-acceptance-criterion-26, spec-acceptance-criterion-32 — The step:
   - runs `rp next`, the hooks in spec-requirement-10's order, `rp next --apply`, the tool, and `rp land`;
-  - fires each hook once per action, even across a failed apply;
+  - fires each hook once per action, even across a failed apply, which it reports to the owner and runs again once repaired;
   - stops an action and the run on a failed blocking `before-` hook;
   - lands no blocked turn;
   - in a resumed run, lands the running roles before planning;
@@ -632,7 +638,7 @@ Widened:
 - **`phase-started` across runs.** A run that stopped mid-step, by cancellation or failure, leaves its step record. The next run's first step fires no `phase-started` for a phase that step woke.
 - **Close-out and a lane under repair.** Close-out removes lane branches, including one whose landing stopped. Its commits are lost, and the next run redoes that lane's turn.
 - **Applying while a role runs.** Only the loop's procedure keeps the orchestrator from applying a plan before every role the last step woke has ended. Applying earlier replaces that role's turn and assignment, and may move its branch.
-- **A blocked lane role with commits.** The plan names its turn to land, and its partial work is certified. This depends on the profiles' blocker rule, under which a blocked role reports and stops.
+- **A blocked lane role with commits.** The plan names its turn to land, and its partial work is certified. This depends on the profiles' rules: a lane's producer or reviewer commits only as it ends its turn, and a role that meets a blocker reports it and stops.
 - **A lane changing a file it does not write.** Landing validates that file and lands it when it is valid.
 - **An approval landed uncertified.** It costs its lane one more review turn.
 - **A phase completing twice in one step.** A phase that becomes incomplete and complete again within one step is reported once.
