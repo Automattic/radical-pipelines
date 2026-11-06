@@ -6,7 +6,7 @@
 
 - `{{<name>}}` is a slot, replaced by the value of `<name>`. A text reads as written. A list with no item reads `none`. A list alone on its line puts each item on its own line, with a blank line between items when one spans several lines. A list after other text ends its line: it holds its one item there, or starts a nested list of its items.
 - A line `{{#<name>}}` opens a part and a line `{{/<name>}}` closes it. The lines between are kept when `<name>` has something: a true flag, a non-empty text, or a list with an item. A part opened with `{{^<name>}}` is kept when `<name>` has nothing.
-- A value is inserted as written and never read as syntax. A name without a value, a flag in a slot, a list with text after it, or a marker that is not alone on its line stops `rp assign` before it writes anything.
+- A value is inserted as written and never read as syntax. A template that breaks this syntax, or names something without a value, stops `rp assign` before it writes anything.
 
 ## Values
 
