@@ -1,20 +1,19 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, certifies landed files, discovers pipelines, builds review lane branches, and writes each role's assignment. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, discovers pipelines, plans and applies each step of the loop — its lane branches and worktrees and each woken role's assignment — and lands each turn, certifying what it landed. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-node rp.mjs stamp <file> --at <commit>
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
-node rp.mjs review <pipeline folder> --lane <lane> [--json]
-node rp.mjs assign <pipeline folder> --role <role>
+node rp.mjs next <pipeline folder> [--apply]
+node rp.mjs land <pipeline folder> --role <role>
 ```
 
 Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. Otherwise it exits 0, whatever the frontier.
 
 ## Pipeline files
 
-A pipeline folder is `<pipelines folder root>/<pipeline slug>`, a folder of the root that holds, at its top level, a phase folder `<digits>-<name>/` or `run-config.md` or `prompt.md`, or a phase folder under its `base/` folder, as each format kept its files; any other content of the root, such as tooling, is not a pipeline. `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder they are given; `pipelines` is given it.
+A pipeline folder is `<pipelines folder root>/<pipeline slug>`, a folder of the root that holds, at its top level, a phase folder `<digits>-<name>/` or `run-config.md` or `prompt.md`, or a phase folder under its `base/` folder, as each format kept its files; any other content of the root, such as tooling, is not a pipeline. `check`, `next`, and `land` take the pipelines folder root to be the parent of the pipeline folder they are given; `pipelines` is given it.
 
 `rp` reads these files of a pipeline folder and ignores every other file:
 
@@ -62,7 +61,7 @@ A file's identity is the first 12 hexadecimal characters of the git blob id of t
 }
 ```
 
-- `format`: the conventions format the pipeline was written under, an integer; the current one is `8`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check`, `stamp`, `review`, and `assign` read only format 8 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
+- `format`: the conventions format the pipeline was written under, an integer; the current one is `8`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check`, `next`, and `land` read only format 8 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
 - `target-phase`: an integer from 1 to 4. Phase 4 is review.
 - `base`: a revision that resolves to a commit.
 - `agents` (optional): the run's agents, in the schema of `.rp.md`'s `agents` (§ Conventions data).
@@ -73,7 +72,7 @@ The body is ignored. A missing `run-config.md` or one that breaks these rules st
 
 ### Certification
 
-`stamp` alone writes `certification/<path>.json`, the certification of the artifact, candidate, or approval at `<path>`, relative to the pipeline folder. It is a JSON object holding only:
+`land` alone writes `certification/<path>.json`, the certification of the artifact, candidate, or approval at `<path>`, relative to the pipeline folder. It is a JSON object holding only:
 
 - `inputs`: a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, or a candidate.
 - `reviewed`, on an approval only (§ Threads): the full hash of its approved commit (§ Net change and approval).
@@ -128,7 +127,7 @@ A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An *
 
 The **base** is the merge-base of the tip with `run-config.md`'s `base`: the latest base the tip holds. A `base` that does not resolve, or has no merge-base with the tip, stops `check`. The **net change** is the diff `<base>..<tip>` outside the pipelines folder root: what the reviewer reads.
 
-An approval's `reviewed` is its approved commit: the pipeline-branch commit that held the approval when it was certified, whose code is the change its reviewer read (§ `stamp`). The approval is **fresh** when no required input changed (§ Certification) and the tip's code is the approved commit's plus clean merges of the base:
+An approval's `reviewed` is its approved commit: the pipeline-branch commit that held the approval when it was certified, whose code is the change its reviewer read (§ `land`). The approval is **fresh** when no required input changed (§ Certification) and the tip's code is the approved commit's plus clean merges of the base:
 
 1. When `reviewed` is the tip, the code is the approved code.
 2. Otherwise, `git merge-tree --write-tree --name-only <reviewed> <base>`. A conflict on a path outside the pipelines folder root changes the code; conflicts inside it are ignored.
@@ -189,20 +188,6 @@ thread <thread> <status>[ awaits <role>]
 - `phases`, `complete`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. `complete` lists the numbers of the complete phases (§ Complete phases), ascending. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`, from an approval's certification, else `null`.
 - `netChange` (`<base>..<tip>`), `reviews` (`lane`, `approved`, `stale` with the changed inputs, `codeChanged` when the code changed): at target phase 4, unless `INVALID`. A `review` frontier entry carries `changed` and `codeChanged` the same way.
 
-## `stamp`
-
-```text
-node rp.mjs stamp <file> --at <commit>
-```
-
-`stamp` certifies an artifact, a candidate, or an approval: it writes `certification/<file>.json` (§ Certification) in the pipeline folder of the working tree, and never `<file>`. `--at` names the turn's commit: the tip of the role's worktree when it was woken. `inputs` becomes the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit, or not committed, is not certified. `stamp` writes nothing when the certification would not change, so stamping twice changes nothing.
-
-For an approval, `--at` is the change `rp review` built, the review lane's turn commit, and `reviewed` becomes the full hash of `HEAD` where the approval lies: the pipeline-branch commit holding it. `--at` must resolve to the commit the reviewer's last message heading names, and `HEAD`'s tree outside the pipelines folder root must equal the change's; otherwise `stamp` stops and writes nothing.
-
-`stamp` validates only what it reads. From the working tree it reads `run-config.md` and the stamped file. At `--at` it reads the intent, every later input (its `target` says whether it applies), and the stamped file's upstream artifacts. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
-
-A missing `--at` or one that does not resolve, any other kind of file, a review thread that is no approval, an approval's heading commit that does not resolve, a required input missing at `--at`, a file it reads that is malformed or of the wrong kind, or a certification it would replace that cannot be read or is malformed (§ Certification) stops the command and writes nothing.
-
 ## `pipelines`
 
 ```text
@@ -225,41 +210,126 @@ A pipeline of format 8 without a regular `0-intent/intent.md` is malformed and s
 
 Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
 
-## `review`
+## `next`
 
 ```text
-node rp.mjs review <pipeline folder> --lane <lane> [--json]
+node rp.mjs next <pipeline folder> [--apply]
 ```
 
-The pipeline branch is the branch checked out in the worktree that holds the pipeline folder, and the **tip** is its `HEAD` commit; the pipeline is read from the tip, never from the working tree. `--lane` names a review lane of the tip's `run-config.md` (§ `run-config.md`), `default` included when no `reviewer` lane is declared. The **base** is the merge-base of the tip with `run-config.md`'s `base` (§ Net change and approval).
+`<pipeline folder>` is in the **pipeline worktree**, the worktree that has the pipeline branch checked out; its `HEAD` is the **tip**. `next` reads the pipeline as `check` reads it from the working tree, the conventions data of the repository's main checkout (§ Conventions data), every configured lane's branch and the worktree that has it checked out, and the step record (§ Step record), and prints the step's plan. It writes no ref, worktree, file in a worktree, assignment, or step record; like `check`, it may add objects no ref names to the object store.
 
-The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/` and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md`. `review` builds two commits with a temporary index, touching no worktree:
+### Plan
 
-1. **Review base**: the base's tree with the pipelines folder root replaced by the **lane's root**: the tip's root without its pipeline folders (§ Pipeline files), plus the lane's view; its parent is the base; its message is `rp review base`.
+The plan names everything applying it does and everything the orchestrator acts on, one line each. `<role>` is a role's name (§ Threads), every path is absolute, and a value that may hold spaces ends its line.
+
+```text
+frontier <action>[ <target>][ <lane>][: <reason>]
+land <role>
+fix INVALID <path>: <reason>
+repair <role> INVALID <path>: <reason>
+terminate <role> profile <profile>
+terminate <role> lane <lane>
+remove-worktree <role> <path>
+delete-branch <branch>
+create-branch <branch> <commit | change>
+move-branch <branch> <commit | change>
+create-worktree <role> <branch> <path>
+wake <role> profile <profile>
+wake <role> lane <lane>
+wake <role> model <model name>
+wake <role> phase <phase>
+wake <role> worktree <path>
+wake <role> assignment <path>
+wake <role> resource <name>
+wake <role> fresh
+hook <hook> <role>[ <path>]
+hook phase-started <phase>
+```
+
+| Line | What it names |
+| --- | --- |
+| `frontier` | Each frontier line, as `check` prints it |
+| `land` | A lane's turn that ended without landing, to land before anything else |
+| `fix` | A rejected file no role writes |
+| `repair` | A file a lane's landing would reject, which the lane's role repairs |
+| `terminate` | A role to terminate before applying, by its profile and its lane |
+| `remove-worktree`, `create-worktree` | A worktree applying removes or creates, with the role it is for |
+| `delete-branch`, `create-branch`, `move-branch` | A branch applying deletes, creates, or moves, and where it leaves it: a commit, or `change`, the change built from the tip (§ Review lanes) |
+| `wake` | A role to wake, one line per fact: its profile; its lane, for a lane's role; its model name, when the run gives it one; its phase; its worktree; the assignment applying writes for it; each resource its assignment carries; and `fresh` when its turn needs a fresh instance |
+| `hook` | A lifecycle hook the step fires: a worktree's with the role the worktree is for and its path, an agent's or a merging one's with its role, `phase-started` with its phase. No hook names a branch |
+
+The lines come in the order the orchestrator acts on them. A plan that names a turn to land holds only the frontier and each turn to land between `before-merging-lanes` and `after-merging-lanes`. Any other plan lists the frontier; the files to fix and to repair; each termination between `before-terminating-agent` and `after-terminating-agent`; the `before-removing-worktree` and `before-creating-worktree` hooks; the actions; the matching `after-` hooks and each `phase-started`; and each role to wake between `before-spawning-agent` and `after-spawning-agent`, a lane's role followed by `before-merging-lanes` and `after-merging-lanes`.
+
+1. **Unlanded commits.** A lane's **unlanded commits** are the commits of its branch that `git cherry <tip> <lane branch>` marks `+`, other than a review base or a change. For every configured lane whose branch holds some, whatever the frontier, `next` computes its landing (§ `land`) from commits alone:
+   - When the landing would reject no file it brings, the lane holds a turn that ended without landing: the plan names it to land.
+   - Otherwise the lane is **under repair**: on any frontier but `escalate`, its role is woken in its worktree as it stands, its branch not moved, with each rejected file's line among its malformed files, and the plan names each line with `repair`. A lane under repair is dispatched for nothing else.
+
+   A lane holding unlanded commits is never moved back, rebuilt, or removed.
+2. **Dispatch.** Each frontier line:
+
+   | Frontier line | Plan |
+   | --- | --- |
+   | `lane <artifact> <lane>` | The lane's branch at the tip, with a worktree; its producer woken there |
+   | `consolidate <artifact>` | Each production lane of the phase whose worktree or branch exists terminated, its worktree removed and its branch deleted; the root producer woken in the pipeline worktree on a fresh instance |
+   | `produce <artifact>`, `respond <artifact>` | Its owner woken in the pipeline worktree |
+   | `review <lane>` | The lane's branch at the change built from the tip, with a worktree; its reviewer woken there |
+   | `INVALID <path>: <reason>` | Each role that writes a rejected file (§ Assignments), seated as for its lane's line or in the pipeline worktree; each rejected file no role writes, to fix |
+   | `escalate <thread>`, `complete` | Nothing |
+3. **Seats.** A role without a lane sits in the pipeline worktree, on the pipeline branch. A lane's role sits in the worktree that has its lane branch checked out, `<pipeline branch>-<spec | design-doc>-<lane>` or `<pipeline branch>-review-<lane>`; when none has, the plan creates one at `<worktree folder root>/<lane branch>`. A production lane's branch is created at the tip or moved forward to it. A review lane's branch is created at the change built from the tip (§ Review lanes), or moved to it unless it is at a change that already holds what building it would give: each of the change and its review base holding the tree building gives, the review base on the current base. A worktree that exists is not created and a branch at its target is not moved, so while the tip stays, a plan printed after the plan was applied names nothing to create, remove, or move.
+4. **Woken roles.** Each is named with its profile, its lane, its model name as the run gives it (§ `run-config.md`), its phase, its worktree, its assignment, `rp/<profile>.md` in the worktree's private git directory, and the names of the resources its assignment carries: those whose `profiles` hold its profile, none on a reviewer's repair request. Only a consolidation needs a fresh instance.
+5. **`phase-started`** is named for each phase of the woken roles that the last applied step woke no role of.
+
+### Applying
+
+With `--apply`, `next` prints the plan and, unless it names a turn to land, carries it out in this order:
+
+1. It removes each worktree with `git worktree remove`, which stops on an untracked file.
+2. It deletes, creates, and moves each branch, building a review lane's change first. A branch a worktree has checked out moves with `git reset --keep` there, which stops on local changes it would overwrite.
+3. It creates each worktree.
+4. It writes each woken role's assignment (§ Assignments), its turn commit the tip of its worktree, and then the step record.
+
+It changes no other ref or worktree, leaves the pipeline branch where it is, changes no file in the pipeline worktree's tree, and starts, messages, or stops no agent. A failed action stops it with `rp: next --apply: <action>: <reason>`; the actions before it stay done, and applying again, once the cause is repaired, plans and applies only what remains. An assignment written again for an unchanged turn is byte-identical.
+
+### Review lanes
+
+The **lane's view** of the pipeline is, at the tip, every file under `<pipeline folder>/0-intent/` and every thread `threads/<n>-reviewer-<lane>-implementer-implementation.md` or `threads/<n>-reviewer-<lane>-owner-intent.md`. The change built from the tip is two commits, built through a temporary index from commits alone, so no worktree's index, `HEAD`, or files affect them:
+
+1. **Review base**: the base's tree (§ Net change and approval) with the pipelines folder root replaced by the **lane's root**: the tip's root without its pipeline folders (§ Pipeline files), plus the lane's view; its parent is the base; its message is `rp review base`.
 2. **Change**: the tip's tree with the root replaced by the same lane's root; its parent is the review base; its message is `rp review change`.
 
-It reads only commits and trees, through a temporary index, so no worktree's index, `HEAD`, or files affect them.
+`git diff <review base> <change>` is the net change; the root's tooling stays, at the tip's version, and the lane's tree and history hold no other pipeline.
 
-`git diff <review base> <change>` is the net change; the root's tooling stays, at the tip's version, and the lane's tree and history hold no other pipeline. The lane branch is `<pipeline branch>-review-<lane>`. When a worktree has it checked out, `review` runs `git reset --hard <change>` there; otherwise it creates or moves the branch to the change.
+### Step record
 
-When the lane branch exists, its commits that `git cherry <tip> <lane branch>` marks `+`, other than a review base or a change, have not landed on the pipeline branch: `review` stops and names them, oldest first, and moves nothing.
+The step record is `rp/step.json` in the pipeline worktree's private git directory, beside its assignments: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, `phase`, and a review lane's `change`; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, and landing adds to `reported`.
 
-Without `--json`, it prints `branch <lane branch>`, `base <review base>`, and `change <change>`, one per line. `--json` prints `{branch, base, change, worktree}`, `worktree` being the path it reset or `null`.
+Everything `check` stops on, conventions data that is missing or malformed, a detached pipeline worktree, a step record that cannot be read or is malformed, a `base` that does not resolve, an unreadable or malformed template, and a git failure stop `next`.
 
-A detached `HEAD` where the pipeline folder is, a missing `--lane`, a lane `run-config.md` does not declare, an unreadable `run-config.md` or one of another format, a base that does not resolve or shares no merge-base with the tip, or a git failure stops the command.
-
-## `assign`
+## `land`
 
 ```text
-node rp.mjs assign <pipeline folder> --role <role>
+node rp.mjs land <pipeline folder> --role <role>
 ```
 
-`assign` writes the assignment of a role the frontier wakes. `<pipeline folder>` is in the worktree that has the pipeline branch checked out, as for `review`. `<role>` is `spec-producer`, `design-doc-producer`, `implementer`, `spec-producer-<lane>`, `design-doc-producer-<lane>`, or `reviewer-<lane>`.
+`<pipeline folder>` is in the pipeline worktree, as for `next`. `land` lands the turn the step record holds for `<role>`:
 
-1. **Conventions.** It reads `.rp.md`, and `.rp.local.md` when present, from the repository's main checkout, the first worktree `git worktree list` records, whichever worktree the role sits in, and validates their data whole (§ Conventions data).
-2. **Turn.** It computes the frontier as `check` does from the working tree and takes the action that wakes the role:
+1. **Verify.** The role's branch exists and holds its turn commit; otherwise `land` stops, naming the role's worktree.
+2. **Bring.** From commits alone. A production lane's branch, when it holds unlanded commits (§ `next`), is merged into the tip. A review lane's unlanded commits after its change are picked onto the tip one by one, keeping their authors and messages, and none of the commits that built the change. A role in the pipeline worktree has its commits on the tip already. A conflict stops `land`.
+3. **Validate.** The pipeline files the turn's unlanded commits change, or for a role in the pipeline worktree its commits after its turn commit, are validated as `check` validates them, as the pipeline branch would hold them after the landing. A rejected one stops `land` with `rp: land: <worktree>: rp check rejects files the turn brings:`, then each `INVALID <path>: <reason>` line as `check` prints it.
+4. **Certify.** It writes `certification/<path>.json` (§ Certification) for the role's artifact or candidate when it exists, at the turn commit, and for each approval among the files the turn brings, at the commit its reviewer's last message names, with `reviewed` the last commit brought, the pipeline commit holding it. An approval whose named commit does not resolve, or whose code outside the pipelines folder root differs from that pipeline commit's, lands uncertified, so its lane is not approved. `inputs` are the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit is not certified. Only what certifying reads at that commit is validated there: the intent, every later input (its `target` says whether it applies), and the file's upstream artifacts; one of them malformed, or a required input missing, stops `land`.
+5. **Commit.** It commits the merge and then the certifications that change, each subject naming what it landed, such as `Merge spec lane a` or `Certify spec`, in the conventions' `landing-commit` template when they declare one. A landing that changes no certification and brings no commit makes no commit.
+6. **Move.** It fast-forwards the pipeline worktree to its last commit with `git merge --ff-only`, which stops on local changes it would overwrite.
+7. **Report.** It prints `hook phase-completed <phase>` for each phase complete after the landing (§ Complete phases) that was not complete when the step was applied and that no earlier landing of the step reported, in phase order, and adds them to the step record.
 
-   | Frontier action | Role and turn |
+Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, conventions data that is missing or malformed, a detached pipeline worktree, and a git failure also stop `land`.
+
+## Assignments
+
+`next --apply` writes the assignment of each role it wakes, from the main checkout's `.rp.md` and `.rp.local.md`, the first worktree `git worktree list` records, whichever worktree the role sits in.
+
+1. **Turn.** The frontier line that wakes the role gives its turn:
+
+   | Frontier line | Role and turn |
    | --- | --- |
    | `produce <artifact>` | Its owner, mode Produce; Implement for the implementer |
    | `respond <artifact>` | Its owner, mode Respond |
@@ -268,18 +338,13 @@ node rp.mjs assign <pipeline folder> --role <role>
    | `review <lane>` | The lane's reviewer |
    | `INVALID <path>: <reason>` | Each role that writes a rejected file; a producer or the implementer in Respond, a reviewer with the repair request |
 
-   A role writes its artifact or candidate, and every thread whose file name names it as opener or owner. The `INVALID` lines of those files, and only those, are its malformed files. When no action wakes the role, `assign` stops.
-3. **Seat.** A role without a lane sits in the pipeline worktree, on the pipeline branch. A production lane sits in the worktree that has `<pipeline branch>-<spec | design-doc>-<lane>` checked out, and a review lane in the one that has `<pipeline branch>-review-<lane>`. That worktree's `HEAD` is the turn commit; a review lane's must be the change `rp review` built, whose parent is the review base (§ `review`).
-4. **Request.** On an `INVALID` frontier, a review lane gets the repair request. On any other, its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the request is the later-turn one, and `assign` also writes `reviewer.diff` beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root. Otherwise it is the first-turn one, naming a new review thread numbered one past the highest in `threads/`.
-5. **Write.** It fills the template (`../templates/README.md`) and writes it at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's.
-
-It prints `assignment <absolute path>`, then `model <name>` when the run gives the role a model (§ `run-config.md`). Every model name is printed and written as the run writes it.
-
-`assign` reads and checks everything before it writes anything. Conventions data that is missing or malformed, a role outside the grammar, a frontier that does not wake the role, a missing lane worktree, a review lane worktree that is not at a change, a detached pipeline worktree, a `base` that does not resolve or shares no merge-base with the turn commit, an unreadable or malformed template, and every reason `check` stops, stop it.
+   A role writes its artifact or candidate, and every thread whose file name names it as opener or owner. The `INVALID` lines of those files, and only those, are its malformed files. A lane under repair (§ `next`) gets the turn of an `INVALID` line for each file its landing would reject.
+2. **Request.** A reviewer with malformed files gets the repair request. Otherwise its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the request is the later-turn one, and `reviewer.diff` is written beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root. Otherwise it is the first-turn one, naming a new review thread numbered one past the highest in `threads/`.
+3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as the run writes it.
 
 ### Conventions data
 
-`.rp.md`'s frontmatter is a JSON object holding the conventions an assignment carries; its body is prose `rp` never reads.
+`.rp.md`'s frontmatter is a JSON object holding the conventions `rp` reads: where worktrees go, how landing commits read, and what an assignment carries. Its body is prose `rp` never reads.
 
 ```json
 {
@@ -302,11 +367,11 @@ It prints `assignment <absolute path>`, then `model <name>` when the run gives t
 - `agents`, by profile: optional `model` and `subagents`, each a non-empty model name, and for `spec-producer`, `design-doc-producer`, and `reviewer` optional `lanes`, a non-empty object of lanes by id, each with an optional `brief`, `model`, and `subagents`. A lane id matches `[a-z0-9][a-z0-9-]*`. `run-config.md`'s `agents` has this schema.
 - `variables`, by name: each a template, a non-empty string whose placeholders name vocabulary facts only. A name matches `[a-z][a-z0-9-]*` and is no vocabulary fact.
 
-Every key but `conventions` and `worktree-folder-root` is optional, and no other key exists at any level. `.rp.local.md`'s frontmatter, when it has one, holds the same keys but `conventions`, each optional: each guardrail, resource, and variable it names replaces or adds the committed one by name, its `agents` entry each profile's, and its `worktree-folder-root`, `landing-commit`, and `commit-format` the committed ones. A `.rp.local.md` without frontmatter overrides no data. Data that does not parse stops `assign`, naming the file and where parsing failed; a malformed entry stops it naming the file and the entry, as `<key>.<name>…`.
+Every key but `conventions` and `worktree-folder-root` is optional, and no other key exists at any level. `.rp.local.md`'s frontmatter, when it has one, holds the same keys but `conventions`, each optional: each guardrail, resource, and variable it names replaces or adds the committed one by name, its `agents` entry each profile's, and its `worktree-folder-root`, `landing-commit`, and `commit-format` the committed ones. A `.rp.local.md` without frontmatter overrides no data. Data that does not parse stops `next` and `land`, naming the file and where parsing failed; a malformed entry stops it naming the file and the entry, as `<key>.<name>…`.
 
 ### Placeholders
 
-A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. `assign` replaces each placeholder that names a vocabulary fact or a variable with its value for the role, in one pass; a variable's value is its template with each fact replaced.
+A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. In an assignment, each placeholder that names a vocabulary fact or a variable is replaced by its value for the role, in one pass; a variable's value is its template with each fact replaced.
 
 | Vocabulary fact | Value |
 | --- | --- |

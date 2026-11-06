@@ -5,10 +5,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, RP, SPEC, TO_OWNER, TO_SPEC, abs, commitAll, git, land, later, pipeline, read, remove, revise, root, rp, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
+import {
+  DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, RP, SPEC, TO_OWNER, TO_SPEC,
+  abs, commitAll, commitIn, conventions, git, land, landRole, laneWorktree, later, pipeline, read, remove, revise, root, thread, useRepo, wakeOf, withFrontmatter, write, writeFile,
+} from "./fixture.mjs";
 
-// `.rp.md` in the main checkout: a JSON frontmatter holding `data` at the current version, above a prose body.
-const conventions = (data = {}, body = "\n# Conventions\n") => writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 9, "worktree-folder-root": ".worktrees", ...data }, null, 2)}\n---\n${body}`);
 const local = (data, body = "\n# Local\n") => writeFile(".rp.local.md", `---\n${JSON.stringify(data, null, 2)}\n---\n${body}`);
 
 // A copy of `rp` in a skill folder of its own, beside `templates` by name. The tests own these templates, so they
@@ -58,39 +59,26 @@ function sections(text) {
   }
   return result;
 }
-// Runs `rp assign` for a role: the assignment's path, its contents, its echoed values, and the model it printed, or null.
+// Applies the step's plan and reads a role it wakes: its assignment's path, contents, and echoed values, and its model
+// in the plan, or null.
 function assign(role, at = abs(PIPELINE), script = ECHO) {
-  const out = runWith(script, ["assign", at, "--role", role]);
+  const out = runWith(script, ["next", at, "--apply"]);
   assert.equal(out.status, 0, out.stderr);
-  const lines = out.stdout.trimEnd().split("\n");
-  const path = lines[0].match(/^assignment (.+)$/)[1];
-  assert.ok(lines.length === 1 || /^model .+$/.test(lines[1]), out.stdout);
-  const text = readFileSync(path, "utf8");
-  return { path, text, values: sections(text), model: lines[1]?.slice("model ".length) ?? null };
+  const fields = wakeOf(out.stdout.trimEnd().split("\n"), role);
+  assert.ok(fields.assignment, `the plan wakes no ${role}:\n${out.stdout}`);
+  const text = readFileSync(fields.assignment, "utf8");
+  return { path: fields.assignment, text, values: sections(text), model: fields.model ?? null };
 }
-const refuse = (role, message, at = abs(PIPELINE)) => {
-  const out = runWith(ECHO, ["assign", at, "--role", role]);
-  assert.equal(out.status, 1, out.stdout);
-  assert.equal(out.stdout, "");
-  assert.match(out.stderr, message);
-};
 // The flags that hold in an echoed text.
 const flagsOf = (values) => FLAGS.filter((flag) => flag in values);
 
 const head = (at = root) => git(at, "rev-parse", "HEAD").trim();
-// A worktree at `${root}/.wt-<name>` with `branch` checked out, created from `from` when the branch is new.
-function worktree(name, branch, from = null) {
-  writeFile(".git/info/exclude", ".wt-*/\n");
-  git(root, "worktree", "add", "--quiet", ...(from ? ["-b", branch] : []), `${root}/.wt-${name}`, ...(from ? [from] : [branch]));
-  return realpathSync(`${root}/.wt-${name}`);
-}
-const reviewLane = (id) => JSON.parse(rp("review", abs(PIPELINE), "--lane", id, "--json"));
 const in_ = (at, rel) => join(at, PIPELINE, rel);
 
-describe("assign", () => {
+describe("assignments", () => {
   useRepo();
 
-  describe("writes a producer's or the implementer's assignment for the turn the frontier gives it", () => {
+  describe("of a producer or the implementer, for the turn the frontier gives it", () => {
     it("produce: its template, the mode, the root's later inputs, and the pipeline worktree's seat and tip", () => {
       conventions();
       pipeline(1);
@@ -148,30 +136,19 @@ describe("assign", () => {
       pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", brief: ["Read for what it demands.", "", "Every outcome."] }, { profile: "spec-producer", id: "b" }] });
       write("0-intent/constraint-1.md", later(SPEC));
       const tip = commitAll("constraint");
-      const wt = worktree("a", "demo-spec-a", tip);
-      writeFile(`.wt-a/${PIPELINE}/scratch.txt`, "x\n");
-      git(wt, "add", "-A");
-      git(wt, "commit", "--quiet", "-m", "lane work");
       const { path, values } = assign("spec-producer-a");
+      const wt = laneWorktree("demo-spec-a");
       assert.equal(path, git(wt, "rev-parse", "--path-format=absolute", "--git-path", "rp/spec-producer.md").trim());
-      assert.deepEqual([values.worktree, values.branch, values["turn-commit"], values.lane, values.role], [[wt], ["demo-spec-a"], [head(wt)], ["a"], ["spec-producer-a"]]);
+      assert.deepEqual([values.worktree, values.branch, values["turn-commit"], values.lane, values.role], [[wt], ["demo-spec-a"], [tip], ["a"], ["spec-producer-a"]]);
       assert.deepEqual(values["supporting-folder"], [`${in_(wt, "1-spec/lanes/a/spec")}/`]);
       assert.deepEqual(values.brief, ["Read for what it demands.", "", "Every outcome."]);
       assert.deepEqual([values.mode, values.intent, values["write-to"]], [["Produce"], [in_(wt, INTENT)], [in_(wt, "1-spec/lanes/a/spec.md")]]);
-      writeFile(`.wt-a/${PIPELINE}/1-spec/lanes/a/spec.md`, "# Candidate\n");
-      git(wt, "add", "-A");
-      git(wt, "commit", "--quiet", "-m", "candidate");
-      rp("stamp", in_(wt, "1-spec/lanes/a/spec.md"), "--at", "HEAD");
-      git(wt, "add", "-A");
-      git(wt, "commit", "--quiet", "-m", "land");
-      const candidateChanged = git(wt, "log", "-1", "--format=%H", "--", P("1-spec/lanes/a/spec.md")).trim();
-      git(root, "merge", "--quiet", "--no-edit", "demo-spec-a");
+      const candidateChanged = commitIn(wt, { "1-spec/lanes/a/spec.md": "# Candidate\n" }, "candidate");
+      landRole("spec-producer-a");
       write(INTENT, `${read(INTENT)}More.\n`);
       commitAll("intent changes");
-      git(wt, "merge", "--quiet", "--no-edit", "demo");
       const respond = assign("spec-producer-a").values;
       assert.deepEqual([respond.mode, respond["changed-inputs"]], [["Respond"], [`${in_(wt, INTENT)} — changed since ${candidateChanged}`]]);
-      worktree("b", "demo-spec-b", head());
       assert.deepEqual(assign("spec-producer-b").values.brief, []);
     });
 
@@ -189,23 +166,21 @@ describe("assign", () => {
     });
 
     const refusals = [
-      ["a role the frontier does not wake", () => pipeline(1), "implementer", /assign: the frontier does not wake implementer: produce 2-design-doc\/design-doc.md/],
-      ["a lane whose worktree is missing", () => pipeline(0, { lanes: [{ profile: "spec-producer", id: "a" }] }), "spec-producer-a", /assign: no worktree has demo-spec-a checked out/],
-      ["a role outside the grammar", () => pipeline(1), "implementer-a", /assign: --role names no role <profile>\[-<lane>\]: implementer-a/],
-      ["owner", () => pipeline(1), "owner", /assign: --role names no role/],
-      ["a detached pipeline worktree", () => { pipeline(1); git(root, "checkout", "--quiet", "--detach"); }, "design-doc-producer", /has no branch checked out/],
-      ["a base that does not resolve", () => pipeline(1, { targetPhase: 3, base: "gone" }), "design-doc-producer", /base does not resolve to a commit: gone/],
+      ["a detached pipeline worktree", () => { pipeline(1); git(root, "checkout", "--quiet", "--detach"); }, /has no branch checked out/],
+      ["a base that does not resolve", () => pipeline(1, { targetPhase: 3, base: "gone" }), /base does not resolve to a commit: gone/],
     ];
-    for (const [what, setup, role, message] of refusals)
-      it(`stops on ${what}, writing nothing`, () => {
+    for (const [what, setup, message] of refusals)
+      it(`stops on ${what}, writing no assignment`, () => {
         conventions();
         setup();
-        refuse(role, message);
+        const out = runWith(ECHO, ["next", abs(PIPELINE), "--apply"]);
+        assert.equal(out.status, 1, out.stdout);
+        assert.match(out.stderr, message);
         assert.equal(existsSync(join(root, ".git/rp")), false);
       });
   });
 
-  describe("writes a review lane's request", () => {
+  describe("of a review lane", () => {
     // A pipeline whose implementation is done, with a code change, a later input, and two review lanes, one with a brief.
     function reviewable() {
       conventions();
@@ -217,51 +192,45 @@ describe("assign", () => {
       land(NOTES);
       commitAll("code and later inputs, landed");
     }
+    const changeOf = (id) => git(root, "rev-parse", `demo-review-${id}`).trim();
 
-    it("first turn: the branch, review base, and change rp review built, every later input, the brief or none, and a new thread", () => {
+    it("first turn: the branch, the review base and change built from the tip, every later input, the brief or none, and a new thread", () => {
       reviewable();
       thread({ n: 4, status: "withdrawn", ...REVIEW("a"), messages: [["reviewer-a", "abc1234"]] });
       commitAll("an earlier review, withdrawn");
-      const built = reviewLane("a");
-      const wt = worktree("a", built.branch);
       const { path, values, model } = assign("reviewer-a");
+      const wt = laneWorktree("demo-review-a"), change = changeOf("a");
       assert.equal(path, git(wt, "rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.md").trim());
-      assert.deepEqual([values.template, values.branch, values["review-base"], values["turn-commit"]], [["reviewer-first"], [built.branch], [built.base], [built.change]]);
+      assert.deepEqual([values.template, values.branch, values["review-base"], values["turn-commit"]], [["reviewer-first"], ["demo-review-a"], [git(root, "rev-parse", `${change}^`).trim()], [change]]);
       assert.deepEqual([values.intent, values["later-inputs"]], [[in_(wt, INTENT)], [in_(wt, "0-intent/constraint-2.md"), in_(wt, "0-intent/proposal-1.md")]]);
       assert.deepEqual([values.brief, values.thread], [["Look for security holes."], [in_(wt, "threads/5-reviewer-a-implementer-implementation.md")]]);
       assert.equal(model, null);
       assert.equal(existsSync(join(dirname(path), "reviewer.diff")), false);
-      const wtB = worktree("b", reviewLane("b").branch);
       const other = assign("reviewer-b").values;
-      assert.deepEqual([other.brief, other.thread], [[], [in_(wtB, "threads/5-reviewer-b-implementer-implementation.md")]]);
+      assert.deepEqual([other.brief, other.thread], [[], [in_(laneWorktree("demo-review-b"), "threads/5-reviewer-b-implementer-implementation.md")]]);
     });
 
     it("later turn: the lane's open review thread awaiting it, and the diff from the change its last message names to this turn's change", () => {
       reviewable();
-      const first = reviewLane("a");
-      const wt = worktree("a", first.branch);
-      const reviewThread = thread({ n: 2, ...REVIEW("a"), messages: [["reviewer-a", first.change], ["implementer", head()]] });
+      assign("reviewer-a");
+      const wt = laneWorktree("demo-review-a"), first = changeOf("a");
+      const reviewThread = "threads/2-reviewer-a-implementer-implementation.md";
+      commitIn(wt, { [reviewThread]: withFrontmatter({ status: "open", ...REVIEW("a") }, `\n## reviewer-a — ${first}\n\nFindings.\n`) }, "review");
+      landRole("reviewer-a");
+      write(reviewThread, `${read(reviewThread)}\n## implementer — ${head()}\n\nAnswered.\n`);
       writeFile("src/app.js", "export const a = 3;\n");
       write("1-spec/spec/evidence.txt", "pipeline-only\n");
       commitAll("answer");
-      const second = reviewLane("a");
       const { path, values } = assign("reviewer-a");
-      const diff = join(dirname(path), "reviewer.diff");
-      assert.deepEqual([values.template, values.thread, values.diff, values["turn-commit"]], [["reviewer-later"], [in_(wt, reviewThread)], [diff], [second.change]]);
-      assert.equal(readFileSync(diff, "utf8"), git(root, "diff", first.change, second.change, "--", ".", ":(exclude).pipelines"));
+      const second = changeOf("a"), diff = join(dirname(path), "reviewer.diff");
+      assert.notEqual(second, first);
+      assert.deepEqual([values.template, values.thread, values.diff, values["turn-commit"]], [["reviewer-later"], [in_(wt, reviewThread)], [diff], [second]]);
+      assert.equal(readFileSync(diff, "utf8"), git(root, "diff", first, second, "--", ".", ":(exclude).pipelines"));
       assert.match(readFileSync(diff, "utf8"), /export const a = 3/);
-      thread({ n: 2, status: "approved", ...REVIEW("a"), messages: [["reviewer-a", first.change], ["implementer", head()], ["reviewer-a", second.change]] });
-      thread({ n: 3, ...REVIEW("a"), messages: [["reviewer-a", second.change], ["implementer", head()]] });
+      thread({ n: 2, status: "approved", ...REVIEW("a"), messages: [["reviewer-a", first], ["implementer", head()], ["reviewer-a", second]] });
+      thread({ n: 3, ...REVIEW("a"), messages: [["reviewer-a", second], ["implementer", head()]] });
       commitAll("approved, then a new review thread answered");
-      reviewLane("a");
       assert.deepEqual(assign("reviewer-a").values.thread, [in_(wt, "threads/3-reviewer-a-implementer-implementation.md")]);
-    });
-
-    it("stops when the lane worktree is not at a change rp review built", () => {
-      reviewable();
-      const wt = worktree("a", reviewLane("a").branch);
-      git(wt, "commit", "--quiet", "--allow-empty", "-m", "not a change");
-      refuse("reviewer-a", new RegExp(`assign: ${wt} is at ${head(wt)}, not at a change rp review built: run rp review --lane a`));
     });
   });
 
@@ -271,19 +240,20 @@ describe("assign", () => {
     write(NOTES, withFrontmatter({ status: "done", owner: "me" }, "\n# Notes\n"));
     const rejected = thread({ n: 2, ...REVIEW("default"), status: "pending" });
     const toOwner = thread({ n: 3, ...TO_OWNER, status: "pending" });
-    commitAll("malformed files");
+    const tip = commitAll("malformed files");
     const STATUS = "status must be one of open | approved | withdrawn | answered | disagreement";
     const implementer = assign("implementer").values;
     assert.deepEqual(implementer["malformed-files"], [`INVALID ${NOTES}: unexpected frontmatter key: owner`, `INVALID ${rejected}: ${STATUS}`]);
     assert.deepEqual([implementer.mode, implementer.threads, implementer["changed-inputs"]], [["Respond"], ["none"], ["none"]]);
     assert.deepEqual(assign("spec-producer").values["malformed-files"], [`INVALID ${toOwner}: ${STATUS}`]);
-    const built = reviewLane("default");
-    const wt = worktree("default", built.branch);
+    const wt = laneWorktree("demo-review-default"), change = git(root, "rev-parse", "demo-review-default").trim();
     const { path, values: request } = assign("reviewer-default");
     assert.deepEqual([request.template, request["malformed-files"]], [["reviewer-repair"], [`INVALID ${rejected}: ${STATUS}`]]);
-    assert.deepEqual([request["turn-commit"], request["pipeline-folder"]], [[built.change], [in_(wt, "")]]);
+    assert.deepEqual([request["turn-commit"], request["pipeline-folder"]], [[change], [in_(wt, "")]]);
+    assert.notEqual(change, tip);
     assert.equal(existsSync(join(dirname(path), "reviewer.diff")), false);
-    refuse("design-doc-producer", /assign: the frontier does not wake design-doc-producer: INVALID 3-implementation\/notes.md; INVALID threads\/2-[^;]+; INVALID threads\/3-/);
+    const out = runWith(ECHO, ["next", abs(PIPELINE)]);
+    assert.equal(wakeOf(out.stdout.split("\n"), "design-doc-producer").assignment, undefined);
   });
 
   describe("carries the project's conventions", () => {
@@ -294,7 +264,6 @@ describe("assign", () => {
     it("each guardrail and resource whose profiles include the role's, under its name with its text, the same in every lane, or none", () => {
       conventions({ guardrails: GUARDRAILS, resources: RESOURCES, "commit-format": ["Imperative.", "", "- `Add spec (spec-producer)`"] });
       pipeline(0, { lanes: [{ profile: "spec-producer", id: "a" }] });
-      worktree("a", "demo-spec-a", commitAll("lanes"));
       const lane = assign("spec-producer-a").values;
       assert.deepEqual([lane.guardrails, lane.resources], [["none"], ["### suite", "", "- resource: The suite."]]);
       assert.deepEqual(lane["commit-format"], ["Imperative.", "", "- `Add spec (spec-producer)`"]);
@@ -314,7 +283,9 @@ describe("assign", () => {
       git(root, "checkout", "--quiet", "main");
       conventions({ guardrails: GUARDRAILS, resources: RESOURCES, "commit-format": "Committed." });
       local({ guardrails: { tests: { rule: "Run the local tests.", profiles: ["implementer"] } }, resources: { browser: { resource: "A local browser.", profiles: ["implementer"] } } });
-      const wt = worktree("pipeline", "demo");
+      writeFileSync(abs(".git/info/exclude"), `${readFileSync(abs(".git/info/exclude"), "utf8")}.wt-pipeline/\n`);
+      git(root, "worktree", "add", "--quiet", `${root}/.wt-pipeline`, "demo");
+      const wt = realpathSync(`${root}/.wt-pipeline`);
       writeFile(".wt-pipeline/.rp.md", "---\n{\"conventions\": 9, \"worktree-folder-root\": \".elsewhere\", \"commit-format\": \"The worktree's own.\"}\n---\n");
       const values = assign("implementer", in_(wt, "")).values;
       assert.deepEqual(values.worktree, [wt]);
@@ -333,9 +304,6 @@ describe("assign", () => {
     it("a lane's model and subagent model, else its profile's, or none and no model line", () => {
       conventions();
       pipeline(0, { agents: AGENTS });
-      const tip = commitAll("lanes");
-      worktree("a", "demo-spec-a", tip);
-      worktree("b", "demo-spec-b", tip);
       const a = assign("spec-producer-a"), b = assign("spec-producer-b");
       assert.deepEqual([a.model, a.values["subagent-model"]], ["sonnet", ["sonnet"]]);
       assert.deepEqual([b.model, b.values["subagent-model"]], ["opus", ["openai/gpt-6-astra#high"]]);
@@ -344,31 +312,31 @@ describe("assign", () => {
       assert.deepEqual([implementer.model, implementer.values["subagent-model"]], [null, []]);
       pipeline(3, { agents: AGENTS });
       for (const [id, model, subagents] of [["astra", "astra", ["luna"]], ["default", "opus", []]]) {
-        worktree(id, reviewLane(id).branch);
         const request = assign(`reviewer-${id}`);
         assert.deepEqual([request.model, request.values["subagent-model"]], [model, subagents]);
       }
     });
 
-    it("a run's model over the Agents convention's, and the same assignment whatever the conventions say for particular tools", () => {
+    it("a run's model over the Agents convention's, and the same plan and assignment whatever the conventions say for particular tools", () => {
       conventions({ agents: { implementer: { model: "opus", subagents: "sonnet" } } }, "\n## opencode\n\n`sonnet` is `claude-agent/sonnet#xhigh`.\n");
       writeFile(".rp.opencode.md", "| `haiku` | `claude-agent/haiku#xhigh` |\n");
       writeFile(".rp.claude-code.md", "Use `sonnet` for `haiku`.\n");
       pipeline(2, { agents: { implementer: { model: "opus", subagents: "haiku" } } });
       const under = (extra) => {
-        const out = runWith(ECHO, ["assign", abs(PIPELINE), "--role", "implementer"], { ...process.env, OPENCODE: "1", CLAUDECODE: "", ...extra });
+        const out = runWith(ECHO, ["next", abs(PIPELINE), "--apply"], { ...process.env, OPENCODE: "1", CLAUDECODE: "", ...extra });
         assert.equal(out.status, 0, out.stderr);
-        return [out.stdout, readFileSync(out.stdout.split("\n")[0].slice("assignment ".length))];
+        return [out.stdout, readFileSync(wakeOf(out.stdout.split("\n"), "implementer").assignment)];
       };
+      under({});
       const [opencode, claudeCode] = [under({}), under({ OPENCODE: "", CLAUDECODE: "1" })];
       assert.equal(opencode[0], claudeCode[0]);
       assert.ok(opencode[1].equals(claudeCode[1]));
       assert.deepEqual(sections(opencode[1].toString())["subagent-model"], ["haiku"]);
-      assert.match(opencode[0], /^model opus$/m);
+      assert.match(opencode[0], /^wake implementer model opus$/m);
     });
   });
 
-  describe("expands placeholders in the texts it carries", () => {
+  describe("expands placeholders in the texts they carry", () => {
     const FACTS = "{pipeline-slug} {role} {profile} [{lane}] {worktree} {branch} {base}";
 
     it("each vocabulary fact, the base as the Base of the role's turn commit, and each declared variable to the role's value, a lane's brief included, and lists no vocabulary", () => {
@@ -379,8 +347,7 @@ describe("assign", () => {
         "commit-format": "End with ({role}).",
       });
       pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", brief: "Read {branch} for {agent}." }] });
-      const lane = worktree("a", "demo-spec-a", commitAll("lanes"));
-      const spec = assign("spec-producer-a").values;
+      const spec = assign("spec-producer-a").values, lane = laneWorktree("demo-spec-a");
       assert.deepEqual(spec.brief, ["Read demo-spec-a for demo-spec-producer-a."]);
       const baseOf = (commit) => git(root, "merge-base", "main", commit).trim();
       git(root, "checkout", "--quiet", "main");
@@ -396,10 +363,8 @@ describe("assign", () => {
       assert.deepEqual(implementer.guardrails.at(-1), `- rule: demo implementer implementer [] ${at} demo ${baseOf(head())}`);
       assert.deepEqual([implementer.resources.at(-1), implementer.vocabulary], ["- resource: The environment `demo-implementer`.", ["none"]]);
       pipeline(3, { lanes: [{ profile: "reviewer", id: "astra" }] });
-      const { branch, change } = reviewLane("astra");
-      const wt = worktree("astra", branch);
-      const request = assign("reviewer-astra").values;
-      assert.deepEqual(request.guardrails.at(-1), `- rule: demo reviewer-astra reviewer [astra] ${wt} demo-review-astra ${baseOf(change)}`);
+      const request = assign("reviewer-astra").values, wt = laneWorktree("demo-review-astra");
+      assert.deepEqual(request.guardrails.at(-1), `- rule: demo reviewer-astra reviewer [astra] ${wt} demo-review-astra ${baseOf(head(wt))}`);
       assert.deepEqual([request.resources.at(-1), request.vocabulary], ["- resource: The environment `demo-reviewer-astra`.", ["none"]]);
     });
 
@@ -411,11 +376,10 @@ describe("assign", () => {
       assert.deepEqual(values.vocabulary, ["- `{pipeline-slug}`: demo", "- `{role}`: implementer", "- `{profile}`: implementer", "- `{lane}`:", `- \`{worktree}\`: ${at}`, "- `{branch}`: demo",
         `- \`{base}\`: ${git(root, "merge-base", "main", "HEAD").trim()}`]);
       pipeline(3);
-      worktree("default", reviewLane("default").branch);
       assert.ok(assign("reviewer-default").values.vocabulary.includes("- `{lane}`: default"));
       pipeline(0, { lanes: [{ profile: "spec-producer", id: "a", brief: "Explore {ticket}." }] });
       remove(SPEC);
-      worktree("a", "demo-spec-a", commitAll("a lane whose brief alone keeps a placeholder"));
+      commitAll("a lane whose brief alone keeps a placeholder");
       const lane = assign("spec-producer-a").values;
       assert.deepEqual([lane.brief, lane.resources, lane.vocabulary[1]], [["Explore {ticket}."], ["none"], "- `{role}`: spec-producer-a"]);
     });
@@ -430,21 +394,20 @@ describe("assign", () => {
     });
   });
 
-  describe("stops on malformed conventions data, writing nothing", () => {
+  describe("stop rp next and rp land on malformed conventions data, writing nothing", () => {
     const VALID = { guardrails: { tests: { rule: "Run.", profiles: ["implementer"] } } };
     // [what, how the main checkout's files are broken, what the message names]
     const malformations = [
       [".rp.md missing", () => rmSync(abs(".rp.md")), /cannot read .*\/\.rp\.md: missing/],
       [".rp.md without frontmatter", () => writeFile(".rp.md", "# Conventions\n"), /\.rp\.md: no frontmatter/],
-      ["frontmatter that does not parse", () => writeFile(".rp.md", "---\n{\n  \"conventions\": 8,\n}\n---\n"), /\.rp\.md: frontmatter is not valid JSON: .+/],
+      ["frontmatter that does not parse", () => writeFile(".rp.md", "---\n{\n  \"conventions\": 9,\n}\n---\n"), /\.rp\.md: frontmatter is not valid JSON: .+/],
       ["an earlier version", () => conventions({ conventions: 8 }), /\.rp\.md: conventions: 8 is not the current version, 9/],
       ["no version", () => writeFile(".rp.md", "---\n{}\n---\n"), /\.rp\.md: conventions: null is not the current version, 9/],
+      ["an unknown key", () => conventions({ guardrail: {} }), /\.rp\.md: frontmatter: unexpected key: guardrail/],
       ["no worktree folder root", () => conventions({ "worktree-folder-root": undefined }), /\.rp\.md: worktree-folder-root: missing/],
       ["an empty worktree folder root", () => conventions({ "worktree-folder-root": " " }), /\.rp\.md: worktree-folder-root: must be a folder/],
       ["a landing commit template without {subject}", () => conventions({ "landing-commit": "(orchestrator)" }), /\.rp\.md: landing-commit: must hold \{subject\}/],
       ["a landing commit template naming another placeholder", () => conventions({ "landing-commit": "{subject} ({role})" }), /\.rp\.md: landing-commit: \{role\} names no part of a landing commit/],
-      [".rp.local.md with an empty landing commit template", () => local({ "landing-commit": "" }), /\.rp\.local\.md: landing-commit: must be a template/],
-      ["an unknown key", () => conventions({ guardrail: {} }), /\.rp\.md: frontmatter: unexpected key: guardrail/],
       ["a guardrail without its text", () => conventions({ guardrails: { tests: { profiles: ["implementer"] } } }), /\.rp\.md: guardrails\.tests\.rule: must be a text/],
       ["a resource whose text holds no line", () => conventions({ resources: { suite: { resource: ["", " "], profiles: ["implementer"] } } }), /\.rp\.md: resources\.suite\.resource: must be a text/],
       ["a resource whose text is a list holding other than strings", () => conventions({ resources: { "test suite": { resource: ["a", 2], profiles: ["implementer"] } } }), /\.rp\.md: resources\."test suite"\.resource: must be a text/],
@@ -460,6 +423,7 @@ describe("assign", () => {
       ["a variable with an empty template", () => conventions({ variables: { agent: "" } }), /\.rp\.md: variables\.agent: must be a template/],
       [".rp.local.md naming the version", () => local({ conventions: 9 }), /\.rp\.local\.md: frontmatter: unexpected key: conventions/],
       [".rp.local.md with a malformed entry", () => local({ resources: { browser: { resource: "A browser.", profiles: ["builder"] } } }), /\.rp\.local\.md: resources\.browser\.profiles: "builder" is no profile/],
+      [".rp.local.md with an empty landing commit template", () => local({ "landing-commit": "" }), /\.rp\.local\.md: landing-commit: must be a template/],
       [".rp.local.md whose frontmatter does not parse", () => writeFile(".rp.local.md", "---\nartifact-storage: fork\n---\n"), /\.rp\.local\.md: frontmatter is not valid JSON/],
     ];
     for (const [what, breakIt, message] of malformations)
@@ -468,7 +432,11 @@ describe("assign", () => {
         pipeline(2);
         const { path, text } = assign("implementer");
         breakIt();
-        refuse("implementer", message);
+        for (const args of [["next", abs(PIPELINE), "--apply"], ["land", abs(PIPELINE), "--role", "implementer"]]) {
+          const out = runWith(ECHO, args);
+          assert.deepEqual([out.status, out.stdout], [1, ""]);
+          assert.match(out.stderr, message);
+        }
         assert.equal(readFileSync(path, "utf8"), text);
       });
 
@@ -480,7 +448,7 @@ describe("assign", () => {
     });
   });
 
-  describe("fills its templates by their syntax", () => {
+  describe("fill their templates by their syntax", () => {
     it("renders lists, parts, and flags as the syntax defines them", () => {
       const script = skillWith({
         implementer: [
@@ -512,21 +480,22 @@ describe("assign", () => {
       ["a part closed out of order", "{{#brief}}\n{{#lane}}\n{{/brief}}\n", /templates\/implementer\.md:3: \{\{\/brief\}\} closes no open part/],
     ];
     for (const [what, template, message] of broken)
-      it(`stops on ${what}, naming the template and writing nothing`, () => {
+      it(`stop on ${what}, naming the template and writing nothing`, () => {
         const script = skillWith({ implementer: template });
         conventions();
         pipeline(2);
-        const out = runWith(script, ["assign", abs(PIPELINE), "--role", "implementer"]);
+        const out = runWith(script, ["next", abs(PIPELINE), "--apply"]);
         assert.equal(out.status, 1);
         assert.match(out.stderr, message);
         assert.equal(existsSync(git(root, "rev-parse", "--path-format=absolute", "--git-path", "rp/implementer.md").trim()), false);
       });
   });
 
-  it("writes every role's assignment from this repository's .rp.md, a run confirmed with its Agents defaults, and the delivered templates, for every kind of turn", () => {
+  it("are written for every role from this repository's .rp.md, a run confirmed with its Agents defaults, and the delivered templates, for every kind of turn", () => {
     const committed = readFileSync(join(dirname(RP), "../../../.rp.md"));
     const data = JSON.parse(committed.toString("utf8").split("---\n")[1]);
     writeFile(".rp.md", committed);
+    writeFile(".git/info/exclude", `${data["worktree-folder-root"]}/\n`);
     const config = { agents: data.agents };
     const carried = (key, field, name) => `- ${field}: ${data[key][name][field]}`;
     // The delivered template's assignment for a role: written, holding each of `values`.
@@ -536,17 +505,15 @@ describe("assign", () => {
       return model;
     };
     pipeline(0, config);
-    const tip = commitAll("lanes");
-    const lanes = Object.fromEntries(Object.keys(data.agents["spec-producer"].lanes).map((id) => [id, worktree(id, `demo-spec-${id}`, tip)]));
-    assert.deepEqual(Object.keys(lanes), ["demands", "omits"]);
+    assert.deepEqual(Object.keys(data.agents["spec-producer"].lanes), ["demands", "omits"]);
     const demands = assign("spec-producer-demands").values;
     assert.deepEqual([demands.brief, demands.guardrails, demands["subagent-model"]], [[data.agents["spec-producer"].lanes.demands.brief], ["none"], ["sonnet"]]);
     assert.deepEqual([demands.resources.at(-1), demands["commit-format"]], [carried("resources", "resource", "test suite and scripts"), data["commit-format"]]);
     assert.equal(delivered("spec-producer-demands", [data.agents["spec-producer"].lanes.demands.brief, ...data["commit-format"].filter(Boolean)]), "opus");
     assert.equal(delivered("spec-producer-omits", ["sonnet"]), "sonnet");
-    for (const id of Object.keys(lanes)) {
-      write(`1-spec/lanes/${id}/spec.md`, `# ${id}\n`);
-      land(`1-spec/lanes/${id}/spec.md`);
+    for (const id of ["demands", "omits"]) {
+      commitIn(laneWorktree(`demo-spec-${id}`), { [`1-spec/lanes/${id}/spec.md`]: `# ${id}\n` }, `Add ${id} candidate (spec-producer)`);
+      landRole(`spec-producer-${id}`);
     }
     delivered("spec-producer", [`demands — ${in_(realpathSync(root), "1-spec/lanes/demands/spec.md")}`]);
     pipeline(1, config);
@@ -566,18 +533,18 @@ describe("assign", () => {
     rmSync(abs(".rp.local.md"));
     thread({ n: 1, ...TO_SPEC, opener: "implementer", status: "approved", messages: [["implementer", head()], ["spec-producer", head()]] });
     pipeline(3, config);
-    for (const [id, model, subagents] of [["default", "opus", "sonnet"], ["astra", "astra", "luna"]]) {
-      worktree(id, reviewLane(id).branch);
+    for (const [id, model, subagents] of [["default", "opus", "sonnet"], ["astra", "astra", "luna"]])
       assert.equal(delivered(`reviewer-${id}`, [`\`${subagents}\``, carried("guardrails", "rule", "documentation"), carried("resources", "resource", "test suite and scripts")]), model);
-    }
-    const change = reviewLane("default").change;
-    const review = thread({ n: 2, ...REVIEW("default"), messages: [["reviewer-default", change], ["implementer", head()]] });
+    const wt = laneWorktree("demo-review-default"), change = head(wt);
+    const review = "threads/2-reviewer-default-implementer-implementation.md";
+    commitIn(wt, { [review]: withFrontmatter({ status: "open", ...REVIEW("default") }, `\n## reviewer-default — ${change}\n\nFindings.\n`) }, "Open review thread (reviewer)");
+    landRole("reviewer-default");
+    write(review, `${read(review)}\n## implementer — ${head()}\n\nAnswered.\n`);
     commitAll("an answered review");
-    reviewLane("default");
-    delivered("reviewer-default", ["reviewer.diff", in_(realpathSync(`${root}/.wt-default`), review)]);
-    thread({ n: 2, ...REVIEW("default"), status: "pending", messages: [["reviewer-default", change], ["implementer", head()]] });
+    delivered("reviewer-default", ["reviewer.diff", in_(wt, review)]);
+    write(review, read(review).replace("status: open", "status: pending"));
     commitAll("a rejected review thread");
-    const repaired = reviewLane("default").change;
-    delivered("reviewer-default", [`INVALID ${review}: status must be`, repaired, in_(realpathSync(`${root}/.wt-default`), "")]);
+    delivered("reviewer-default", [`INVALID ${review}: status must be`, in_(wt, "")]);
+    assert.match(readFileSync(git(wt, "rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.md").trim(), "utf8"), new RegExp(`, at \`${head(wt)}\``));
   });
 });

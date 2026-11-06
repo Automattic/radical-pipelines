@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,27 +62,43 @@ export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 export const withFrontmatter = (values, body = "") => `---\n${Object.entries(values).map(([key, value]) => `${key}: ${value}`).join("\n")}\n---\n${body}`;
 // A later input targeting `target`.
 export const later = (target, body = "") => withFrontmatter({ target }, body);
-// The certification `rp stamp` wrote for a file, parsed, or null when it has none.
+// The certification of a file in the working tree, parsed, or null when it has none.
 export function certification(rel) {
   try { return JSON.parse(readFileSync(abs(P(`certification/${rel}.json`)), "utf8")); }
   catch (error) { if (error.code === "ENOENT") return null; throw error; }
 }
 
-// Certifies a file with its derived required inputs at a turn's commit.
-export const stampAt = (at, rel) => rp("stamp", abs(P(rel)), "--at", at);
-export const stamp = (rel) => stampAt("HEAD", rel);
+export const UPSTREAM = { [SPEC]: [INTENT], [DESIGN]: [SPEC], [NOTES]: [SPEC, DESIGN] };
+const LATER = /^0-intent\/(?:constraint|proposal|failure)-[1-9]\d*\.md$/;
+// Certifies the file at `rel`, built directly as landing certifies it, in the working tree of `worktree`: each required
+// input of its kind pinned at its identity in the tree of the commit `at`, and on an approval, a thread, the commit
+// holding it, `worktree`'s HEAD, as its approved commit. Returns the certification.
+export function certifyAt(at, rel, { folder = PIPELINE, worktree = root } = {}) {
+  const id = (path) => git(worktree, "rev-parse", `${at}:${folder}/${path}`).trim().slice(0, 12);
+  const laterInputs = git(worktree, "ls-tree", "-r", "--name-only", at, "--", `${folder}/0-intent/`).split("\n").filter(Boolean)
+    .map((path) => path.slice(folder.length + 1)).filter((path) => LATER.test(path));
+  const targets = (path) => (git(worktree, "show", `${at}:${folder}/${path}`).match(/^target:(.*)$/m)?.[1] ?? "").split(",")
+    .map((target) => target.trim().replace(/^["']|["']$/g, "").replace(/#.*$/, ""));
+  const approval = rel.startsWith("threads/");
+  const root_ = Object.keys(UPSTREAM).find((artifact) => rel === artifact || rel.startsWith(`${artifact.split("/")[0]}/lanes/`));
+  const required = approval ? [INTENT, ...laterInputs] : [...UPSTREAM[root_], ...(rel === root_ ? laterInputs.filter((path) => targets(path).includes(rel)) : [])];
+  const certified = { inputs: required.map((path) => `${path}@${id(path)}`).sort(), ...(approval ? { reviewed: git(worktree, "rev-parse", "HEAD").trim() } : {}) };
+  const path = join(worktree, folder, `certification/${rel}.json`);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(certified, null, 2)}\n`);
+  return certified;
+}
+export const certify = (rel) => certifyAt("HEAD", rel);
 // Lands a role's turn: commits the working tree, then certifies the file at that commit.
 export function land(rel) {
   commitAll(`land ${rel}`);
-  return stamp(rel);
+  return certify(rel);
 }
 // A role revises a file's body and its turn lands.
 export function revise(rel, text = "Revised.") {
   write(rel, `${read(rel)}${text}\n`);
   return land(rel);
 }
-export const UPSTREAM = { [SPEC]: [INTENT], [DESIGN]: [SPEC], [NOTES]: [SPEC, DESIGN] };
-
 export function commitAll(subject = "work") {
   git(root, "add", "-A");
   git(root, "commit", "--quiet", "--allow-empty", "-m", subject);
@@ -107,8 +123,8 @@ export function approve(laneId = "default", n = 1) {
   const head = git(root, "rev-parse", "HEAD").trim();
   const path = thread({ n, status: "approved", ...REVIEW(laneId), messages: [[`reviewer-${laneId}`, head]] });
   commitAll(`approve ${laneId}`);
-  stampAt(head, path);
-  commitAll(`stamp ${path}`);
+  certifyAt(head, path);
+  commitAll(`certify ${path}`);
   return path;
 }
 
@@ -120,8 +136,8 @@ export function pipeline(upTo = 3, config = {}) {
   const artifacts = [[SPEC, "# Spec\n\nRequirement.\n"], [DESIGN, "# Design doc\n\nDecision.\n"], [NOTES, withFrontmatter({ status: "done" }, "\n# Notes\n")]].slice(0, upTo);
   for (const [rel, body] of artifacts) write(rel, body);
   commitAll("pipeline");
-  for (const [rel] of artifacts) stamp(rel);
-  return commitAll("stamps");
+  for (const [rel] of artifacts) certify(rel);
+  return commitAll("certifications");
 }
 
 export function newRepo() {
@@ -141,4 +157,42 @@ export function useRepo() {
     git(root, "checkout", "--quiet", "-b", "demo");
   });
   afterEach(() => rmSync(root, { recursive: true, force: true }));
+}
+
+// `.rp.md` in the main checkout: a JSON frontmatter holding `data` at the current version, with worktrees under
+// `.worktrees`, above a prose body. Git ignores both, and `.rp.local.md`, so no commit holds them.
+export function conventions(data = {}, body = "\n# Conventions\n") {
+  writeFile(".git/info/exclude", ".worktrees/\n.rp.md\n.rp.local.md\n");
+  writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 9, "worktree-folder-root": ".worktrees", ...data }, null, 2)}\n---\n${body}`);
+}
+// The plan `rp next` prints, with `args`, as its lines.
+export function plan(...args) {
+  const out = run("next", abs(PIPELINE), ...args);
+  if (out.status !== 0) throw new Error(`rp next ${args.join(" ")} failed: ${out.stderr}`);
+  return out.stdout.trimEnd().split("\n");
+}
+export const apply = () => plan("--apply");
+// A woken role's fields in a plan's lines: each `wake <role> <key> [<value>]` as `key: value`, a flag as true, and its
+// resources as a list.
+export function wakeOf(lines, role) {
+  const fields = { resources: [] };
+  for (const line of lines.filter((each) => each.startsWith(`wake ${role} `))) {
+    const [key, ...value] = line.slice(`wake ${role} `.length).split(" ");
+    if (key === "resource") fields.resources.push(value.join(" "));
+    else fields[key] = value.length ? value.join(" ") : true;
+  }
+  return fields;
+}
+// Runs `rp land` for a role, failing on a stop; prints the phases it completed.
+export const landRole = (role) => rp("land", abs(PIPELINE), "--role", role);
+// The worktree of a lane branch under `.worktrees`, and a commit there of each [path, contents], pipeline-relative.
+export const laneWorktree = (branch) => join(realpathSync(root), ".worktrees", branch);
+export function commitIn(worktree, files, subject = "work") {
+  for (const [rel, contents] of Object.entries(files)) {
+    mkdirSync(dirname(join(worktree, PIPELINE, rel)), { recursive: true });
+    writeFileSync(join(worktree, PIPELINE, rel), contents);
+  }
+  git(worktree, "add", "-A");
+  git(worktree, "commit", "--quiet", "--allow-empty", "-m", subject);
+  return git(worktree, "rev-parse", "HEAD").trim();
 }

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, P, PIPELINE, RP, SPEC, abs, check, commitAll, frontier, git, lane, pipeline, read, remove, root, rp, run, stampAt, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, P, PIPELINE, RP, SPEC, abs, check, commitAll, frontier, git, lane, pipeline, read, remove, root, rp, run, certifyAt, useRepo, write, writeFile } from "./fixture.mjs";
 
 describe("reading a pipeline", () => {
   useRepo();
@@ -107,7 +107,7 @@ describe("reading a pipeline", () => {
       const turn = git(root, "rev-parse", "HEAD").trim();
       write(SPEC, "# Spec\n\nRequirement.\n");
       commitAll("spec");
-      stampAt(turn, SPEC);
+      certifyAt(turn, SPEC);
       const before = check();
       commitAll("certification");
       assert.equal(git(root, "status", "--porcelain"), "");

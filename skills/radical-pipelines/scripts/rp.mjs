@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
-// Commands: check, stamp, pipelines, review, assign. README.md beside this file is the contract.
+// Commands: check, pipelines, next, land. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
@@ -18,9 +18,10 @@ const invalid = (reason) => { throw new Invalid(reason); };
 
 // --- git ----------------------------------------------------------------------
 
-// Git reads its input from a file: a synchronous child can stall reading piped input to its end.
-function gitBytes(root, args, input) {
-  const run = (stdin) => execFileSync("git", args, { cwd: root, maxBuffer: Infinity, stdio: [stdin, "pipe", "pipe"] });
+// Git reads its input from a file: a synchronous child can stall reading piped input to its end. `env` replaces the
+// process environment.
+function gitBytes(root, args, input, env = process.env) {
+  const run = (stdin) => execFileSync("git", args, { cwd: root, env, maxBuffer: Infinity, stdio: [stdin, "pipe", "pipe"] });
   try {
     if (input === undefined) return run("ignore");
     const directory = mkdtempSync(join(tmpdir(), "rp-input-"));
@@ -34,7 +35,7 @@ function gitBytes(root, args, input) {
     fail(`git ${args.join(" ")}: ${error.stderr?.toString("utf8").trim() || error.message}`);
   }
 }
-const gitText = (root, args, input) => gitBytes(root, args, input).toString("utf8").trim();
+const gitText = (root, args, input, env) => gitBytes(root, args, input, env).toString("utf8").trim();
 
 // The commit a revision names, or null when it names none.
 function commitOf(root, revision) {
@@ -203,15 +204,6 @@ function pipelineFolder(folder, command) {
   if (at <= 0) fail(`${command}: a pipeline folder is <pipelines folder root>/<pipeline slug>: ${folder || "."}`);
   return { folder, pipelinesRoot: folder.slice(0, at) };
 }
-// A pipeline file: the pipeline folder holding it and its path inside, the longest suffix that names a pipeline file.
-function pipelineFileOf(rel, command) {
-  const parts = rel.split("/");
-  for (let length = parts.length - 1; length >= 1; length--) {
-    const inner = parts.slice(-length).join("/");
-    if (kindOf(inner)) return { ...pipelineFolder(parts.slice(0, -length).join("/"), command), inner };
-  }
-  fail(`${command}: not a pipeline file: ${rel}`);
-}
 
 // --- frontmatter and identity ---------------------------------------------------
 
@@ -318,11 +310,12 @@ function hashWorktree(root, folder, paths) {
 // --- pipeline files -------------------------------------------------------------
 
 const INTENT = "0-intent/intent.md";
-// The phases with an artifact, in order: its path, the token a thread names it by, its owner, and its upstream artifacts.
+// The phases with an artifact, in order: its path, the token a thread names it by, the noun a commit names it by, its
+// owner, and its upstream artifacts.
 export const PHASES = [
-  { n: 1, folder: "1-spec", artifact: "1-spec/spec.md", token: "spec", owner: "spec-producer", upstream: [INTENT], lanes: true },
-  { n: 2, folder: "2-design-doc", artifact: "2-design-doc/design-doc.md", token: "design-doc", owner: "design-doc-producer", upstream: ["1-spec/spec.md"], lanes: true },
-  { n: 3, folder: "3-implementation", artifact: "3-implementation/notes.md", token: "implementation", owner: "implementer", upstream: ["1-spec/spec.md", "2-design-doc/design-doc.md"] },
+  { n: 1, folder: "1-spec", artifact: "1-spec/spec.md", token: "spec", noun: "spec", owner: "spec-producer", upstream: [INTENT], lanes: true },
+  { n: 2, folder: "2-design-doc", artifact: "2-design-doc/design-doc.md", token: "design-doc", noun: "design doc", owner: "design-doc-producer", upstream: ["1-spec/spec.md"], lanes: true },
+  { n: 3, folder: "3-implementation", artifact: "3-implementation/notes.md", token: "implementation", noun: "implementation notes", owner: "implementer", upstream: ["1-spec/spec.md", "2-design-doc/design-doc.md"] },
 ];
 const IMPLEMENTATION = PHASES[2];
 const REVIEW_PHASE = 4;
@@ -763,26 +756,36 @@ export function baseOf(root, base, tip) {
   return gitText(root, ["merge-base", baseCommit, tip]) || fail(`no merge-base between ${base} and ${tip}`);
 }
 
+// The tree of merging the commit `theirs` into `ours`, as Git merges them, and the paths that conflict; the tree holds
+// conflict markers where they do. Only objects are written.
+function mergeTree(root, ours, theirs) {
+  let merged;
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", "--name-only", "-z", ours, theirs], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  catch (error) {
+    if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${ours} ${theirs}: ${error.stderr?.toString().trim() || error.message}`);
+    merged = error.stdout;
+  }
+  const [tree, ...conflicts] = merged.split("\0").filter(Boolean);
+  return { tree, conflicts };
+}
+// Whether two tree-ishes differ outside the pipelines folder root.
+function codeDiffers(root, a, b, pipelinesRoot) {
+  try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", a, b, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
+  catch (error) {
+    if (error.status === 1) return true;
+    fail(`git diff ${a} ${b}: ${error.stderr?.toString().trim() || error.message}`);
+  }
+  return false;
+}
+
 // Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the base: a
 // conflict outside the root, or any difference from the merged tree outside it. Null when the clone lacks the commit.
 export function codeChanged(root, approved, base, tip, pipelinesRoot) {
   const commit = commitOf(root, approved);
   if (!commit) return null;
   if (commit === tip) return false;
-  let merged;
-  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", "--name-only", "-z", commit, base], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
-  catch (error) {
-    if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${commit} ${base}: ${error.stderr?.toString().trim() || error.message}`);
-    merged = error.stdout;
-  }
-  const [tree, ...conflicts] = merged.split("\0").filter(Boolean);
-  if (conflicts.some((path) => !path.startsWith(`${pipelinesRoot}/`))) return true;
-  try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
-  catch (error) {
-    if (error.status === 1) return true;
-    fail(`git diff ${tree} ${tip}: ${error.stderr?.toString().trim() || error.message}`);
-  }
-  return false;
+  const { tree, conflicts } = mergeTree(root, commit, base);
+  return conflicts.some((path) => !path.startsWith(`${pipelinesRoot}/`)) || codeDiffers(root, tree, tip, pipelinesRoot);
 }
 
 const candidateOf = (phase, laneId) => `${phase.folder}/lanes/${laneId}/${basename(phase.artifact)}`;
@@ -845,6 +848,9 @@ export function frontier(state) {
 
 // --- check ------------------------------------------------------------------------
 
+// A frontier entry as `rp check` prints it after `frontier `: `<action>[ <target>][ <lane>][: <reason>]`.
+const frontierText = (entry) => `${[entry.action, entry.target, entry.lane].filter(Boolean).join(" ")}${entry.reason ? `: ${entry.reason}` : ""}`;
+
 // A pipeline as `check` reads it, from the working tree or the commit `ref`: its files, its state, the tip, the base at
 // target phase 4, and the frontier.
 async function inspect(root, folder, pipelinesRoot, ref) {
@@ -882,7 +888,7 @@ async function cmdCheck(args) {
       artifact: thread.artifact, awaits: awaitedRole(thread), reviewed: thread.reviewed }));
   }
   if (args.json) return process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  const lines = report.frontier.map((entry) => `frontier ${[entry.action, entry.target, entry.lane].filter(Boolean).join(" ")}${entry.reason ? `: ${entry.reason}` : ""}`);
+  const lines = report.frontier.map((entry) => `frontier ${frontierText(entry)}`);
   const status = (entry) => entry.state === "stale" ? `stale ${entry.stale.join(" ")}` : entry.state;
   for (const phase of report.phases ?? []) {
     for (const lane of phase.lanes) lines.push(`lane ${phase.artifact} ${lane.id} ${status(lane)}`);
@@ -895,56 +901,19 @@ async function cmdCheck(args) {
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
-// --- stamp ------------------------------------------------------------------------
+// --- certification ----------------------------------------------------------------
 
-// Certifies a landed file: writes `certification/<file>.json` with the file's required inputs, derived from its kind, at
-// their identities in the tree of the turn's commit `--at`, and on an approval its approved commit, the `HEAD` where it
-// lies; an approval's `--at` must be the change its reviewer's last heading names. The landed file is never written.
-async function cmdStamp(args) {
-  const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
-  const { folder, inner, pipelinesRoot } = pipelineFileOf(rel, "stamp");
-  const kind = kindOf(inner);
-  if (!pins(kind) && kind.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
-  const commit = requireCommit(root, args.at ?? fail("stamp: --at <commit> names the turn's commit and is required"), "--at");
-  // From the working tree: run-config.md and the landed file.
-  const readRegular = (path) => {
-    const stat = lstatOf(join(root, path));
-    return stat?.isFile() ? readFileSync(join(root, path)) : stat ? fail(`stamp: cannot read ${path}: not a regular file`) : null;
-  };
-  const configBytes = readRegular(`${folder}/run-config.md`);
-  requireFormat(configBytes, `${folder}/run-config.md`);
-  const config = parseOrFail(`${folder}/run-config.md`, () => parseConfig(configBytes));
-  const bytes = readRegular(rel) ?? fail(`stamp: cannot read ${rel}: not a regular file`);
-  const subject = parseOrFail(`stamp: ${rel}`, () => parseFile(inner, kind, bytes, config));
-  if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only an approved review thread is stamped`);
-  // An approval is certified `--at` the change its reviewer read, the commit its last heading names; its approved commit
-  // is the HEAD that holds it, whose code must be that change's.
-  const reviewed = kind.kind === "thread" ? requireCommit(root, "HEAD", "HEAD") : null;
-  if (reviewed) {
-    const named = subject.messages.findLast((message) => message.author === subject.opener).commit;
-    if (requireCommit(root, named, `stamp: ${rel}: the commit the reviewer's last heading names`) !== commit)
-      fail(`stamp: ${rel}: --at ${args.at} is not ${named}, the change the reviewer's last heading names`);
-    try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", commit, reviewed, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
-    catch (error) {
-      if (error.status !== 1) fail(`git diff ${commit} ${reviewed}: ${error.stderr?.toString().trim() || error.message}`);
-      fail(`stamp: ${rel}: HEAD differs from ${args.at}, the change it reviewed, outside ${pipelinesRoot}`);
-    }
-  }
-  // What stamp reads at the turn's commit: the intent, every later input (its `target` says whether it applies), and the
-  // subject's upstream artifacts.
+// The certification of `subject`, a landed artifact, candidate, or approval parsed under `config`: its required inputs
+// at their identities in the tree of the turn's commit `at`, and on an approval its approved commit `reviewed`. Only
+// what it reads at `at` is validated: the intent, every later input (its `target` says whether it applies), and the
+// subject's upstream artifacts. One of those malformed, or a required input missing, stops it.
+async function certificationOf(root, folder, config, subject, at, reviewed = null) {
   const upstream = upstreamOf(subject);
   const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path);
-  const state = parseFiles(await readCommit(root, commit, folder, reads), `${args.at}:${folder}`, config, false);
-  if (state.invalid.length) fail(`stamp: ${commit}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
-  const inputs = requiredInputs(state, subject).map((path) => `${path}@${(state.docs.get(path) ?? fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`)).identity}`).sort();
-  const certification = Buffer.from(`${JSON.stringify({ inputs, ...(reviewed ? { reviewed } : {}) }, null, 2)}\n`);
-  const base = join(root, folder), path = join(base, certificationPath(inner));
-  const existing = worktreeCertification(base, folder, inner);
-  if (existing) parseCertification(existing, `stamp: ${folder}/${certificationPath(inner)}`, kind.kind === "thread");
-  if (!existing?.equals(certification)) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, certification);
-  }
+  const state = parseFiles(await readCommit(root, at, folder, reads), `${at}:${folder}`, config, false);
+  if (state.invalid.length) fail(`${at}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
+  const inputs = requiredInputs(state, subject).map((path) => `${path}@${(state.docs.get(path) ?? fail(`cannot pin ${at}:${folder}/${path}: missing`)).identity}`).sort();
+  return Buffer.from(`${JSON.stringify({ inputs, ...(reviewed ? { reviewed } : {}) }, null, 2)}\n`);
 }
 
 // --- pipelines --------------------------------------------------------------------
@@ -1042,10 +1011,12 @@ async function cmdPipelines(args) {
   if (result.length) process.stdout.write(`${result.map((pipeline) => `${pipeline.state} ${pipeline.format} ${pipeline.ref} ${pipeline.folder}`).join("\n")}\n`);
 }
 
-// --- review -------------------------------------------------------------------------
+// --- review lanes -------------------------------------------------------------------
 
-// The messages of the two commits `review` builds; `review` recognizes them on a lane branch it rebuilds.
+// The messages of the two commits that make a review lane's change; a lane branch's change is recognized by them.
 const REVIEW_BASE = "rp review base", REVIEW_CHANGE = "rp review change";
+const subjectOf = (root, commit) => gitText(root, ["log", "-1", "--format=%s", commit]);
+const treeOf = (root, commit) => gitText(root, ["rev-parse", "--verify", "--quiet", `${commit}^{tree}`]);
 
 // Runs git plumbing with its own index file, which never consults a working tree: building a tree depends on no
 // worktree's index, HEAD, or files.
@@ -1065,47 +1036,45 @@ function treeWithRoot(root, index, commit, pipelinesRoot, rootEntries) {
   return gitWithIndex(root, index, ["write-tree"]);
 }
 
-// Builds a review lane's branch from the pipeline tip: a review base B, the merge-base with the configured base, and a
-// change C on it, the tip; in both, the pipelines folder root is the tip's without its pipeline folders, plus the
-// lane's view of the pipeline, so `git diff B C` is the net change and the root's tooling stays. The lane branch `<pipeline branch>-review-<lane>` moves to C, and its
-// worktree with it, unless it holds review commits the pipeline branch lacks.
-async function cmdReview(args) {
-  const { root, rel } = locate(args._[0] ?? fail("review: missing <pipeline folder>"));
-  const { folder, pipelinesRoot } = pipelineFolder(rel, "review");
-  const laneId = args.lane ?? fail("review: --lane <lane> is required");
-  const branch = pipelineBranchOf(root, "review");
-  const tip = requireCommit(root, "HEAD", "HEAD");
-  const { files } = await readCommit(root, tip, folder, (path) => path === "run-config.md");
-  requireFormat(files.get("run-config.md"), `${folder}/run-config.md`);
-  const config = parseOrFail(`${folder}/run-config.md`, () => parseConfig(files.get("run-config.md") ?? fail(`review: cannot read ${tip}:${folder}/run-config.md: missing`)));
-  if (!reviewLanes(config).some((lane) => lane.id === laneId)) fail(`review: ${laneId} is not a review lane of ${folder}/run-config.md`);
-  const mergeBase = baseOf(root, config.base, tip);
-  const subset = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
+// The review lane's change built from the pipeline tip: the trees of a review base and of a change on it, and `base`,
+// the merge-base the review base sits on. The review base holds the base's tree and the change the tip's, each with the
+// pipelines folder root replaced by the lane's root: the tip's root without its pipeline folders, plus the lane's view,
+// the pipeline's `0-intent/` and the lane's own threads. `git diff` between them is the net change, the root's tooling
+// stays, and the lane sees no pipeline but its own view. Built from commits alone; only tree objects are written.
+async function reviewBuildOf(root, folder, pipelinesRoot, tip, base, laneId) {
+  const view = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
     && (entry.path.startsWith(`${folder}/0-intent/`) || laneThreadOf(entry.path.slice(folder.length + 1), laneId)));
-  const laneBranch = laneBranchOf(branch, null, laneId);
-  const laneTip = commitOf(root, `refs/heads/${laneBranch}`);
-  if (laneTip) {
-    const unlanded = gitText(root, ["cherry", tip, laneTip]).split("\n").filter((line) => line.startsWith("+ ")).map((line) => line.slice(2))
-      .filter((commit) => ![REVIEW_BASE, REVIEW_CHANGE].includes(gitText(root, ["log", "-1", "--format=%s", commit])));
-    if (unlanded.length) fail(`review: ${laneBranch} has commits the pipeline branch lacks; land them first: ${unlanded.reverse().join(" ")}`);
-  }
-  // The pipelines folder root both commits hold: the tip's, without its pipeline folders, plus the lane's view.
   const rootEntries = lsTree(root, tip, `${pipelinesRoot}/`, false).map((entry) => ({ ...entry, name: entry.path.slice(pipelinesRoot.length + 1) }));
   const pipelines = new Set((await pipelineFoldersIn(root, rootEntries)).map((entry) => `${entry.path}/`));
-  const kept = [...lsTree(root, tip, `${pipelinesRoot}/`, true).filter((entry) => ![...pipelines].some((prefix) => entry.path.startsWith(prefix))), ...subset];
+  const kept = [...lsTree(root, tip, `${pipelinesRoot}/`, true).filter((entry) => ![...pipelines].some((prefix) => entry.path.startsWith(prefix))), ...view];
   const directory = mkdtempSync(join(tmpdir(), "rp-review-"));
-  let base, change;
   try {
     const index = join(directory, "index");
-    base = gitWithIndex(root, index, ["commit-tree", treeWithRoot(root, index, mergeBase, pipelinesRoot, kept), "-p", mergeBase, "-m", REVIEW_BASE]);
-    change = gitWithIndex(root, index, ["commit-tree", treeWithRoot(root, index, tip, pipelinesRoot, kept), "-p", base, "-m", REVIEW_CHANGE]);
+    return { base, reviewBase: treeWithRoot(root, index, base, pipelinesRoot, kept), change: treeWithRoot(root, index, tip, pipelinesRoot, kept) };
   } finally { rmSync(directory, { recursive: true, force: true }); }
-  const worktree = worktreesOf(root).find((record) => record.branch === laneBranch)?.path;
-  if (worktree) gitText(worktree, ["reset", "--hard", "-q", change]);
-  else gitText(root, ["update-ref", `refs/heads/${laneBranch}`, change]);
-  const result = { branch: laneBranch, base, change, worktree: worktree ?? null };
-  if (args.json) return process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  process.stdout.write(`branch ${laneBranch}\nbase ${base}\nchange ${change}\n`);
+}
+// Whether `laneTip` is the change `build` describes: a change on a review base, each holding its tree, on its base.
+function isBuilt(root, laneTip, build) {
+  const reviewBase = commitOf(root, `${laneTip}^`);
+  return subjectOf(root, laneTip) === REVIEW_CHANGE && Boolean(reviewBase) && subjectOf(root, reviewBase) === REVIEW_BASE
+    && treeOf(root, laneTip) === build.change && treeOf(root, reviewBase) === build.reviewBase && commitOf(root, `${reviewBase}^`) === build.base;
+}
+// The change `build` describes, committed: its review base on the base, and the change on it.
+function commitBuild(root, build) {
+  const reviewBase = gitText(root, ["commit-tree", build.reviewBase, "-p", build.base, "-m", REVIEW_BASE]);
+  return gitText(root, ["commit-tree", build.change, "-p", reviewBase, "-m", REVIEW_CHANGE]);
+}
+// The change a review lane's branch holds at `laneTip` or below it, on its first-parent line, or null when it holds none.
+function changeOf(root, laneTip) {
+  const change = gitText(root, ["rev-list", "--first-parent", "-n", "1", `--grep=^${REVIEW_CHANGE}$`, laneTip]);
+  const reviewBase = change && commitOf(root, `${change}^`);
+  return reviewBase && subjectOf(root, reviewBase) === REVIEW_BASE ? change : null;
+}
+// A lane branch's commits that have not landed on the pipeline branch: those `git cherry <tip> <lane tip>` marks `+`,
+// other than a review base or a change.
+function unlandedOf(root, tip, laneTip) {
+  return gitText(root, ["cherry", tip, laneTip]).split("\n").filter((line) => line.startsWith("+ ")).map((line) => line.slice(2))
+    .filter((commit) => ![REVIEW_BASE, REVIEW_CHANGE].includes(subjectOf(root, commit)));
 }
 
 // --- conventions --------------------------------------------------------------------
@@ -1263,7 +1232,7 @@ export function fill(template, values, where) {
   return `${output.join("\n")}\n`;
 }
 
-// --- assign -------------------------------------------------------------------------
+// --- roles and assignments ----------------------------------------------------------
 
 // The roles a thread file name names: both parties of each reading of `<n>-<opener>-<owner>-<artifact>.md`.
 function partiesOf(path) {
@@ -1280,6 +1249,24 @@ function artifactOf(role) {
 }
 // The pipeline files a role writes: its artifact or candidate, and every thread whose file name names it.
 const writes = (role, path) => path === artifactOf(role)?.path || (kindOf(path)?.kind === "thread" && partiesOf(path).has(role.name));
+
+// A role: its name, `<profile>[-<lane>]`, its profile, its lane or null, and its phase, its artifact's or review's.
+function roleFor(profile, lane = null) {
+  const role = { name: lane ? `${profile}-${lane}` : profile, profile, lane };
+  return { ...role, phase: artifactOf(role)?.phase.n ?? REVIEW_PHASE };
+}
+// The roles of a run: each artifact's owner, each production lane, and each review lane.
+const rolesOf = (config) => [...PHASES.map((phase) => roleFor(phase.owner)),
+  ...config.lanes.filter((lane) => lane.profile !== "reviewer").map((lane) => roleFor(lane.profile, lane.id)), ...reviewLanes(config).map((lane) => roleFor("reviewer", lane.id))];
+// A role's branch: the pipeline branch for a role without a lane, its lane's branch otherwise.
+const branchOfRole = (pipelineBranch, role) => role.lane ? laneBranchOf(pipelineBranch, artifactOf(role)?.phase, role.lane) : pipelineBranch;
+// The roles a frontier entry other than INVALID wakes.
+function rolesWoken(entry) {
+  const owner = PHASES.find((phase) => phase.artifact === entry.target)?.owner;
+  if (entry.action === "lane") return [roleFor(owner, entry.lane)];
+  if (["consolidate", "produce", "respond"].includes(entry.action)) return [roleFor(owner)];
+  return entry.action === "review" ? [roleFor("reviewer", entry.target)] : [];
+}
 
 // The turn the frontier gives a role: a producer's or the implementer's mode, the threads awaiting it, the changed
 // inputs of its artifact, and the INVALID entries of the files it writes; null when no entry wakes it. An INVALID
@@ -1302,8 +1289,8 @@ function turnOf(state, entries, role) {
   return null;
 }
 
-// A review lane's request off an INVALID frontier: a later turn on its review thread while that is open, which then awaits
-// the reviewer, with the commit the reviewer's last message names; else a first turn on a new review thread, numbered one
+// A review lane's request on a review turn: a later turn on its review thread while that is open, which then awaits the
+// reviewer, with the commit the reviewer's last message names; else a first turn on a new review thread, numbered one
 // past the highest in `threads/`.
 function requestOf(pipeline, state, role) {
   const path = reviewThreadOf(state.threads.map((thread) => thread.path), role.lane);
@@ -1313,31 +1300,16 @@ function requestOf(pipeline, state, role) {
   return { thread: `threads/${highest + 1}-${role.name}-implementer-implementation.md`, last: null };
 }
 
-// Writes a role's assignment for the turn the frontier gives it (README.md § `assign`), and on a review lane's later turn
-// the diff it reads beside it; prints the assignment's path and the role's model. Everything is read and checked before
-// anything is written.
-async function cmdAssign(args) {
-  const { root, rel } = locate(args._[0] ?? fail("assign: missing <pipeline folder>"));
-  const { folder, pipelinesRoot } = pipelineFolder(rel, "assign");
-  const parsedRole = parseRole(args.role ?? fail("assign: --role <role> is required"));
-  if (!parsedRole || parsedRole.profile === "owner") fail(`assign: --role names no role <profile>[-<lane>]: ${args.role}`);
-  const role = { name: args.role, ...parsedRole };
-  const conventions = readConventions(worktreesOf(root)[0].path ?? fail("assign: the repository has no main checkout"));
-  const pipelineBranch = pipelineBranchOf(root, "assign");
-  const { pipeline, state, frontier: entries } = await inspect(root, folder, pipelinesRoot, null);
-  const turn = turnOf(state, entries, role)
-    ?? fail(`assign: the frontier does not wake ${role.name}: ${entries.map((entry) => [entry.action, entry.target, entry.lane].filter(Boolean).join(" ")).join("; ")}`);
-
-  // The seat: a role without a lane in the pipeline worktree, a lane in the worktree that has its lane branch checked out.
-  const artifact = artifactOf(role);
-  const branch = role.lane ? laneBranchOf(pipelineBranch, artifact?.phase, role.lane) : pipelineBranch;
-  const seated = role.lane ? worktreesOf(root).find((record) => record.branch === branch)?.path : root;
-  const worktree = seated ? realpathSync(seated) : fail(`assign: no worktree has ${branch} checked out`);
-  const tip = requireCommit(worktree, "HEAD", "HEAD");
+// The files of a woken role's assignment (templates/README.md), each as [path, contents]: the assignment, at
+// `rp/<profile>.md` in the role's private git directory, and on a review lane's later turn the diff it reads beside it.
+// `tip` is the turn commit, and `change` a reviewer's change. Everything is read and checked before anything is returned.
+function assignmentOf(ctx, wake, tip, change) {
+  const { root, folder, pipelinesRoot, pipeline, state, conventions } = ctx;
+  const { role, turn, worktree, branch, gitDir } = wake;
   const at = (path) => join(worktree, folder, path);
 
   // The carried texts, expanded for the role. Its base is the Base: the merge-base of its turn commit with `base`.
-  const vocabulary = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, base: baseOf(worktree, state.config.base, tip) };
+  const vocabulary = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, base: baseOf(root, state.config.base, tip) };
   const variables = Object.fromEntries(Object.entries(conventions.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => vocabulary[fact])]));
   const keeps = {};
   const expand = (key) => (text) => expandText(text, { ...vocabulary, ...variables }, keeps[key] ??= new Set());
@@ -1349,7 +1321,8 @@ async function cmdAssign(args) {
     brief: laneEntry?.brief ? expand("brief")(laneEntry.brief) : "",
   };
   // A reviewer's repair request carries the commit format alone; every other assignment, every carried text.
-  const repair = !artifact && entries[0].action === "INVALID";
+  const artifact = artifactOf(role);
+  const repair = !artifact && turn.malformed.length > 0;
   const carries = repair ? ["commit-format"] : Object.keys(carried);
   const models = modelsOf(state.config, role.profile, role.lane);
   const laterInputs = [...state.docs.values()].filter((doc) => doc.kind === "later" && (!artifact || doc.targets.includes(artifact.phase.artifact))).map((doc) => at(doc.path));
@@ -1363,12 +1336,12 @@ async function cmdAssign(args) {
     "later-inputs": laterInputs,
     "malformed-files": turn.malformed.map((entry) => `INVALID ${entry.target}: ${entry.reason}`),
   };
-  const prepared = [];
+  const files = [];
   let templateName;
   if (artifact) {
     templateName = role.profile;
-    const changedSince = turn.changed.length && (gitText(worktree, ["log", "-1", "--format=%H", "HEAD", "--", `:(top,literal)${folder}/${artifact.path}`])
-      || fail(`assign: no commit in ${worktree} changed ${folder}/${artifact.path}`));
+    const changedSince = turn.changed.length && (gitText(root, ["log", "-1", "--format=%H", tip, "--", `:(top,literal)${folder}/${artifact.path}`])
+      || fail(`no commit of ${branch} changed ${folder}/${artifact.path}`));
     Object.assign(values, {
       mode: turn.mode,
       ...Object.fromEntries(["produce", "respond", "consolidate", "implement"].map((mode) => [mode, turn.mode.toLowerCase() === mode])),
@@ -1379,47 +1352,352 @@ async function cmdAssign(args) {
       "write-to": at(artifact.path),
     });
   } else {
-    // A review lane's worktree is at the change `rp review` built, on the review base.
-    const subject = (commit) => gitText(worktree, ["log", "-1", "--format=%s", commit]);
-    const reviewBase = commitOf(worktree, `${tip}^`);
-    if (subject(tip) !== REVIEW_CHANGE || !reviewBase || subject(reviewBase) !== REVIEW_BASE)
-      fail(`assign: ${worktree} is at ${tip}, not at a change rp review built: run rp review --lane ${role.lane}`);
-    values["review-base"] = reviewBase;
+    // A review lane's change sits on its review base; its turn commit is the change, or above it on a repair in place.
+    values["review-base"] = requireCommit(root, `${change}^`, `the review base of ${change}`);
     const request = repair ? null : requestOf(pipeline, state, role);
     templateName = repair ? "reviewer-repair" : request.last ? "reviewer-later" : "reviewer-first";
     if (request) values.thread = at(request.thread);
     if (request?.last) {
-      const diff = gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.diff"]);
-      const from = requireCommit(worktree, request.last, `assign: the commit ${role.name}'s last message names`);
-      prepared.push([diff, gitBytes(worktree, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
+      const diff = join(gitDir, "rp", "reviewer.diff");
+      const from = requireCommit(root, request.last, `the commit ${role.name}'s last message names`);
+      files.push([diff, gitBytes(root, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
       values.diff = diff;
     }
   }
   const templatePath = join(TEMPLATES, `${templateName}.md`);
   let template;
   try { template = readFileSync(templatePath, "utf8"); } catch (error) { fail(`cannot read ${templatePath}: ${error.message}`); }
-  const assignment = gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-path", `rp/${role.profile}.md`]);
-  prepared.unshift([assignment, fill(template, values, templatePath)]);
-  for (const [path, contents] of prepared) {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, contents);
+  files.unshift([join(gitDir, "rp", `${role.profile}.md`), fill(template, values, templatePath)]);
+  return files;
+}
+
+// --- step record ------------------------------------------------------------------
+
+// The step record, among the pipeline worktree's Prepared files: `turns`, each woken role's latest turn by its name —
+// its worktree, branch, turn commit, phase, and a reviewer's change; `woke`, the phases of the roles the last applied
+// step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported.
+const recordPath = (root) => gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "rp/step.json"]);
+const NO_RECORD = { turns: {}, woke: [], complete: [], reported: [] };
+// The step record of the pipeline worktree `root`, or an empty one before any step was applied there. One that cannot be
+// read or is malformed stops the command, naming it.
+function readRecord(root) {
+  const path = recordPath(root);
+  let bytes;
+  try { bytes = readFileSync(path); }
+  catch (error) { if (error.code === "ENOENT") return structuredClone(NO_RECORD); fail(`cannot read ${path}: ${error.message}`); }
+  const malformed = (reason) => fail(`${path}: ${reason}`);
+  let data;
+  try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }
+  objectAt(data, "step record", malformed, Object.keys(NO_RECORD));
+  for (const key of ["woke", "complete", "reported"])
+    if (!Array.isArray(data[key]) || !data[key].every((n) => Number.isInteger(n) && n >= 1 && n <= REVIEW_PHASE)) malformed(`${key}: must be a list of phases`);
+  for (const [name, turn] of Object.entries(objectAt(data.turns, "turns", malformed))) {
+    const at = entryName("turns", name);
+    objectAt(turn, at, malformed, ["worktree", "branch", "commit", "phase", "change"]);
+    for (const key of ["worktree", "branch", "commit"]) if (typeof turn[key] !== "string" || !turn[key]) malformed(`${at}.${key}: must be a non-empty string`);
   }
-  process.stdout.write(`assignment ${assignment}\n${models.model ? `model ${models.model}\n` : ""}`);
+  return data;
+}
+function writeRecord(root, record) {
+  const path = recordPath(root);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
+}
+
+// --- landing ------------------------------------------------------------------------
+
+// The message of a commit `rp land` makes: its subject in the conventions' landing commit template, or the subject alone.
+const landingMessage = (conventions, subject) => conventions.landingCommit === null ? subject
+  : conventions.landingCommit.replace(PLACEHOLDER, (placeholder, name) => name === "subject" ? subject : placeholder);
+// What a commit names a certified file by.
+const nounOf = (subject) => subject.kind === "thread" ? `review lane ${parseRole(subject.opener).lane} approval`
+  : subject.kind === "candidate" ? `${subject.phase.noun} lane ${subject.lane} candidate` : subject.phase.noun;
+
+// The pipeline files that differ between two commits, by pipeline-relative path.
+const changedFiles = (root, folder, from, to) => new Set(gitBytes(root, ["diff", "--name-only", "--no-renames", "-z", from, to, "--", `:(top,literal)${folder}/`])
+  .toString("utf8").split("\0").filter(Boolean).map((path) => path.slice(folder.length + 1)).filter((rel) => kindOf(rel)));
+
+// `commit` picked onto `onto` as `git cherry-pick` picks it, from commits alone: its change from its first parent merged
+// into `onto`'s tree, with its author and message. The paths that conflict, when they do.
+function pick(root, onto, commit) {
+  const parent = requireCommit(root, `${commit}^`, `the parent of ${commit}`);
+  // A commit of `onto`'s tree on that parent: merging `commit` into it merges the change alone.
+  const ours = gitText(root, ["commit-tree", treeOf(root, onto), "-p", parent, "-m", "rp pick"]);
+  const { tree, conflicts } = mergeTree(root, ours, commit);
+  if (conflicts.length) return { conflicts };
+  const [name, email, date] = gitText(root, ["log", "-1", "--format=%an%x00%ae%x00%ad", "--date=raw", commit]).split("\0");
+  const raw = gitBytes(root, ["cat-file", "commit", commit]);
+  const env = { ...process.env, GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_AUTHOR_DATE: date };
+  return { commit: gitText(root, ["commit-tree", tree, "-p", onto], raw.subarray(raw.indexOf("\n\n") + 2), env) };
+}
+
+// A commit on `parent` whose tree is the parent's with each [path, bytes] of `files` written, with `message`.
+function commitFiles(root, parent, files, message) {
+  const directory = mkdtempSync(join(tmpdir(), "rp-land-"));
+  try {
+    const index = join(directory, "index");
+    gitWithIndex(root, index, ["read-tree", parent]);
+    gitWithIndex(root, index, ["update-index", "--index-info"], files.map(([path, bytes]) => `100644 ${gitText(root, ["hash-object", "-w", "--no-filters", "--stdin"], bytes)}\t${path}\n`).join(""));
+    return gitText(root, ["commit-tree", gitWithIndex(root, index, ["write-tree"]), "-p", parent, "-m", message]);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+}
+
+// What landing a role's turn brings onto the pipeline tip, built from commits alone: `landed`, the commit the pipeline
+// branch would reach, and `changed`, the pipeline files the turn's unlanded commits change; or the paths that conflict.
+// A production lane's branch is merged when it holds unlanded commits. A review lane's unlanded commits after its
+// change `since` are picked one by one, and none of the commits that built the change. A role in the pipeline worktree
+// brings nothing: its commits after its turn commit `since` are on the tip already.
+function bringOf(ctx, role, branchTip, since) {
+  const { root, folder, tip, conventions } = ctx;
+  if (!role.lane) return { landed: tip, changed: changedFiles(root, folder, since, tip) };
+  const unlanded = new Set(unlandedOf(root, tip, branchTip));
+  if (!unlanded.size) return { landed: tip, changed: new Set() };
+  if (role.profile === "reviewer") {
+    let landed = tip;
+    for (const commit of gitText(root, ["rev-list", "--reverse", `${since}..${branchTip}`]).split("\n").filter((each) => unlanded.has(each))) {
+      const picked = pick(root, landed, commit);
+      if (picked.conflicts) return picked;
+      landed = picked.commit;
+    }
+    return { landed, changed: changedFiles(root, folder, since, branchTip) };
+  }
+  const { tree, conflicts } = mergeTree(root, tip, branchTip);
+  if (conflicts.length) return { conflicts };
+  const message = landingMessage(conventions, `Merge ${artifactOf(role).phase.noun} lane ${role.lane}`);
+  return { landed: gitText(root, ["commit-tree", tree, "-p", tip, "-p", branchTip, "-m", message]), changed: changedFiles(root, folder, gitText(root, ["merge-base", tip, branchTip]), branchTip) };
+}
+// The pipeline as the pipeline branch would hold it after `bring`, and the files it brings that `rp check` would reject
+// there, as INVALID entries.
+async function landingOf(ctx, bring) {
+  const pipeline = await readCommit(ctx.root, bring.landed, ctx.folder);
+  const state = readState(pipeline, `${bring.landed}:${ctx.folder}`);
+  return { pipeline, state, rejected: state.invalid.filter((entry) => bring.changed.has(entry.path)).map(({ path, reason }) => ({ action: "INVALID", target: path, reason })) };
+}
+
+// --- next and land ------------------------------------------------------------------
+
+// What `next` and `land` read: the pipeline worktree `root`, its pipeline branch, the pipeline as `check` reads it from
+// the working tree, the main checkout's conventions, and the step record.
+async function contextOf(args, command) {
+  const { root, rel } = locate(args._[0] ?? fail(`${command}: missing <pipeline folder>`));
+  const { folder, pipelinesRoot } = pipelineFolder(rel, command);
+  const main = worktreesOf(root)[0].path ?? fail(`${command}: the repository has no main checkout`);
+  const conventions = readConventions(main);
+  const pipelineBranch = pipelineBranchOf(root, command);
+  const record = readRecord(root);
+  return { root, folder, pipelinesRoot, main: realpathSync(main), conventions, pipelineBranch, record, ...await inspect(root, folder, pipelinesRoot, null) };
+}
+// A worktree's private git directory, where its assignments and Prepared files sit.
+const gitDirOf = (worktree) => realpathSync(gitText(worktree, ["rev-parse", "--path-format=absolute", "--git-dir"]));
+// The private git directory `git worktree add` gives a new worktree at `path`: `worktrees/<its folder name>` in the
+// common git directory, the name numbered from 1 while it is taken, or `reserved` for another worktree of the plan.
+function newGitDirOf(root, path, reserved) {
+  const common = realpathSync(gitText(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+  let gitDir = join(common, "worktrees", basename(path));
+  for (let n = 1; existsSync(gitDir) || reserved.has(gitDir); n++) gitDir = join(common, "worktrees", `${basename(path)}${n}`);
+  reserved.add(gitDir);
+  return gitDir;
+}
+
+// The step's plan (README.md § `next`): a lane's turn that ended without landing, to land first; or the worktrees,
+// branches, terminations, assignments, and woken roles the frontier dispatches, a lane under repair's beside them.
+async function planOf(ctx) {
+  const { root, folder, pipelinesRoot, tip, state, frontier: entries, pipelineBranch, record, conventions, main } = ctx;
+  const plan = { land: [], fix: [], terminate: [], removals: [], branches: [], creations: [], wakes: [], started: [] };
+  const worktrees = worktreesOf(root);
+  const worktreeOf = (branch) => { const path = worktrees.find((each) => each.branch === branch)?.path; return path ? realpathSync(path) : null; };
+  const roles = rolesOf(state.config);
+
+  // A lane holding unlanded commits is never moved back, rebuilt, or removed: its turn lands, or its author repairs
+  // what its landing would reject.
+  const repairs = new Map();
+  for (const role of roles.filter((each) => each.lane)) {
+    const branch = branchOfRole(pipelineBranch, role), laneTip = commitOf(root, `refs/heads/${branch}`);
+    if (!laneTip || !unlandedOf(root, tip, laneTip).length) continue;
+    const since = role.profile === "reviewer" ? changeOf(root, laneTip) ?? fail(`next: ${branch} holds commits the pipeline branch lacks, and no review change`) : null;
+    const bring = bringOf(ctx, role, laneTip, since);
+    const rejected = bring.conflicts ? [] : (await landingOf(ctx, bring)).rejected;
+    if (rejected.length) repairs.set(role.name, { role, rejected });
+    else plan.land.push(role);
+  }
+  if (plan.land.length) return plan;
+
+  // A role's seat: the pipeline worktree for a role without a lane; a lane's worktree on its branch, which holds the
+  // pipeline tip for a production lane and the change built from it for a review lane, unless the lane is repaired in place.
+  const reserved = new Set();
+  const seat = async (role, inPlace) => {
+    if (!role.lane) return { worktree: root, branch: pipelineBranch, gitDir: gitDirOf(root) };
+    const branch = branchOfRole(pipelineBranch, role), laneTip = commitOf(root, `refs/heads/${branch}`), worktree = worktreeOf(branch);
+    if (!inPlace && role.profile === "reviewer") {
+      const build = await reviewBuildOf(root, folder, pipelinesRoot, tip, ctx.base ?? baseOf(root, state.config.base, tip), role.lane);
+      if (!laneTip) plan.branches.push({ branch, action: "create", build });
+      else if (!isBuilt(root, laneTip, build)) plan.branches.push({ branch, action: "move", build, worktree, from: laneTip });
+    } else if (!inPlace) {
+      if (!laneTip) plan.branches.push({ branch, action: "create", target: tip });
+      else if (laneTip !== tip) plan.branches.push({ branch, action: "move", target: tip, worktree, from: laneTip });
+    }
+    if (worktree) return { worktree, branch, gitDir: gitDirOf(worktree) };
+    const path = join(resolve(main, conventions.worktreeFolderRoot), branch), gitDir = newGitDirOf(root, path, reserved);
+    plan.creations.push({ role, branch, path, gitDir });
+    return { worktree: path, branch, gitDir };
+  };
+  const wake = async (role, turn, rejected = null) => {
+    const place = await seat(role, Boolean(rejected));
+    const repair = !artifactOf(role) && turn.malformed.length > 0;
+    plan.wakes.push({ role, turn, rejected, ...place, assignment: join(place.gitDir, "rp", `${role.profile}.md`), model: modelsOf(state.config, role.profile, role.lane).model,
+      resources: repair ? [] : Object.entries(conventions.resources).filter(([, entry]) => entry.profiles.includes(role.profile)).map(([name]) => name), fresh: turn.mode === "Consolidate" });
+  };
+
+  if (entries[0].action !== "escalate")
+    for (const { role, rejected } of repairs.values()) await wake(role, { mode: "Respond", threads: [], changed: [], malformed: rejected }, rejected);
+  for (const role of (entries[0].action === "INVALID" ? roles : entries.flatMap(rolesWoken)).filter((each) => !repairs.has(each.name))) {
+    const turn = turnOf(state, entries, role);
+    if (!turn) continue;
+    // A consolidation terminates the phase's production lanes and removes their worktrees and branches first.
+    if (turn.mode === "Consolidate")
+      for (const lane of productionLanes(state.config, artifactOf(role).phase).map((each) => roleFor(role.profile, each.id)).filter((each) => !repairs.has(each.name))) {
+        const branch = branchOfRole(pipelineBranch, lane), worktree = worktreeOf(branch), exists = Boolean(commitOf(root, `refs/heads/${branch}`));
+        if (!worktree && !exists) continue;
+        plan.terminate.push(lane);
+        if (worktree) plan.removals.push({ role: lane, path: worktree });
+        if (exists) plan.branches.push({ branch, action: "delete" });
+      }
+    await wake(role, turn);
+  }
+  if (entries[0].action === "INVALID") plan.fix = entries.filter((entry) => !roles.some((role) => writes(role, entry.target)));
+  plan.started = phasesOf(plan.wakes).filter((n) => !record.woke.includes(n));
+  return plan;
+}
+// The phases of the woken roles, ascending.
+const phasesOf = (wakes) => [...new Set(wakes.map((wake) => wake.role.phase))].sort((a, b) => a - b);
+
+// A plan's lines, in the order the orchestrator acts on them (README.md § `next`).
+function planLines(plan, entries) {
+  const lines = entries.map((entry) => `frontier ${frontierText(entry)}`);
+  const merging = (role) => role.lane ? [`hook before-merging-lanes ${role.name}`, `hook after-merging-lanes ${role.name}`] : [];
+  if (plan.land.length) return [...lines, ...plan.land.flatMap((role) => { const [before, after] = merging(role); return [before, `land ${role.name}`, after]; })];
+  lines.push(...plan.fix.map((entry) => `fix ${frontierText(entry)}`));
+  for (const wake of plan.wakes) lines.push(...(wake.rejected ?? []).map((entry) => `repair ${wake.role.name} ${frontierText(entry)}`));
+  for (const role of plan.terminate)
+    lines.push(`hook before-terminating-agent ${role.name}`, `terminate ${role.name} profile ${role.profile}`, `terminate ${role.name} lane ${role.lane}`, `hook after-terminating-agent ${role.name}`);
+  const worktreeHooks = (moment) => [...plan.removals.map(({ role, path }) => `hook ${moment}-removing-worktree ${role.name} ${path}`),
+    ...plan.creations.map(({ role, path }) => `hook ${moment}-creating-worktree ${role.name} ${path}`)];
+  lines.push(...worktreeHooks("before"), ...plan.removals.map(({ role, path }) => `remove-worktree ${role.name} ${path}`),
+    ...plan.branches.map((branch) => branch.action === "delete" ? `delete-branch ${branch.branch}` : `${branch.action}-branch ${branch.branch} ${branch.build ? "change" : branch.target}`),
+    ...plan.creations.map(({ role, branch, path }) => `create-worktree ${role.name} ${branch} ${path}`),
+    ...worktreeHooks("after"), ...plan.started.map((n) => `hook phase-started ${n}`));
+  for (const { role, model, phase, worktree, assignment, resources, fresh } of plan.wakes) {
+    const field = (key, value) => `wake ${role.name} ${key}${value === undefined ? "" : ` ${value}`}`;
+    lines.push(`hook before-spawning-agent ${role.name}`, field("profile", role.profile), ...(role.lane ? [field("lane", role.lane)] : []), ...(model ? [field("model", model)] : []),
+      field("phase", role.phase), field("worktree", worktree), field("assignment", assignment), ...resources.map((name) => field("resource", name)), ...(fresh ? [field("fresh")] : []),
+      `hook after-spawning-agent ${role.name}`, ...merging(role));
+  }
+  return lines;
+}
+
+// Carries out a plan's actions in order: worktree removals, branch deletions, creations, and moves, worktree creations,
+// each woken role's assignment, and the step record. A failed action stops it, naming the action and its reason; the
+// actions before it stay done, and a plan computed again holds only what remains.
+async function applyPlan(ctx, plan) {
+  const { root, state, frontier: entries, record } = ctx;
+  const act = async (what, action) => {
+    try { return await action(); }
+    catch (error) { if (error instanceof RpError) fail(`next --apply: ${what}: ${error.message}`); throw error; }
+  };
+  for (const { path } of plan.removals) await act(`remove-worktree ${path}`, () => gitText(root, ["worktree", "remove", path]));
+  for (const { branch } of plan.branches.filter((each) => each.action === "delete")) await act(`delete-branch ${branch}`, () => gitText(root, ["branch", "--quiet", "-D", branch]));
+  for (const branch of plan.branches.filter((each) => each.action !== "delete"))
+    await act(`${branch.action}-branch ${branch.branch}`, () => {
+      const target = branch.build ? commitBuild(root, branch.build) : branch.target;
+      if (branch.action === "create") gitText(root, ["branch", "--quiet", branch.branch, target]);
+      else if (branch.worktree) gitText(branch.worktree, ["reset", "--quiet", "--keep", target]);
+      else gitText(root, ["update-ref", `refs/heads/${branch.branch}`, target, branch.from]);
+    });
+  for (const { path, branch, gitDir } of plan.creations)
+    await act(`create-worktree ${path}`, () => {
+      gitText(root, ["worktree", "add", "--quiet", path, branch]);
+      if (gitDirOf(path) !== gitDir) fail(`its private git directory is ${gitDirOf(path)}, not ${gitDir}`);
+    });
+  const turns = { ...record.turns };
+  for (const wake of plan.wakes)
+    await act(`write ${wake.assignment}`, () => {
+      const tip = requireCommit(wake.worktree, "HEAD", "HEAD");
+      const change = wake.role.profile === "reviewer" ? changeOf(root, tip) ?? fail(`${wake.worktree} is at ${tip}, which holds no review change`) : null;
+      for (const [path, contents] of assignmentOf(ctx, wake, tip, change)) {
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, contents);
+      }
+      turns[wake.role.name] = { worktree: wake.worktree, branch: wake.branch, commit: tip, phase: wake.role.phase, ...(change ? { change } : {}) };
+    });
+  writeRecord(root, { turns, woke: phasesOf(plan.wakes), complete: completePhases(state, entries), reported: [] });
+}
+
+// Prints the step's plan, changing nothing (README.md § `next`); with `--apply`, also carries it out, unless it names
+// turns to land first.
+async function cmdNext(args) {
+  const ctx = await contextOf(args, "next");
+  const plan = await planOf(ctx);
+  process.stdout.write(`${planLines(plan, ctx.frontier).join("\n")}\n`);
+  if (args.apply && !plan.land.length) await applyPlan(ctx, plan);
+}
+
+// Lands a role's recorded turn (README.md § `land`): verifies it, brings its commits onto the pipeline branch, certifies
+// what it landed, and commits, then prints the phases its landing made complete. Every check comes before the pipeline
+// branch moves, so a stop lands nothing.
+async function cmdLand(args) {
+  const ctx = await contextOf(args, "land");
+  const { root, folder, pipelinesRoot, tip, record, conventions } = ctx;
+  const name = args.role ?? fail("land: --role <role> is required");
+  const turn = record.turns[name] ?? fail(`land: no turn of ${name} is recorded: rp next --apply records each role it wakes`);
+  const { profile, lane } = parseRole(name);
+  const role = roleFor(profile, lane);
+  const branchTip = commitOf(root, `refs/heads/${turn.branch}`) ?? fail(`land: ${turn.worktree}: its branch ${turn.branch} does not exist`);
+  if (!commitOf(root, turn.commit) || !isAncestor(root, turn.commit, branchTip)) fail(`land: ${turn.worktree}: ${turn.branch} does not hold the turn commit ${turn.commit}`);
+  const bring = bringOf(ctx, role, branchTip, profile === "reviewer" ? turn.change : turn.commit);
+  if (bring.conflicts) fail(`land: ${turn.worktree}: landing ${turn.branch} conflicts on ${bring.conflicts.join(", ")}`);
+  const { pipeline, state, rejected } = await landingOf(ctx, bring);
+  if (rejected.length) fail(`land: ${turn.worktree}: rp check rejects files the turn brings:\n${rejected.map(frontierText).join("\n")}`);
+
+  // The role's artifact or candidate is certified at its turn commit; each approval it brings at the change its reviewer
+  // read, with the pipeline commit that holds it as its approved commit, unless that commit's code is not the change's.
+  const subjects = [];
+  const artifact = artifactOf(role), doc = artifact && state.docs.get(artifact.path);
+  if (doc) subjects.push([doc, await certificationOf(root, folder, state.config, doc, turn.commit)]);
+  for (const thread of state.threads.filter((each) => isApproval(each) && bring.changed.has(each.path))) {
+    const read = commitOf(root, thread.messages.findLast((message) => message.author === thread.opener).commit);
+    if (read && !codeDiffers(root, read, bring.landed, pipelinesRoot)) subjects.push([thread, await certificationOf(root, folder, state.config, thread, read, bring.landed)]);
+  }
+  const certified = subjects.filter(([subject, bytes]) => !pipeline.certification(subject.path)?.equals(bytes));
+  const landed = certified.length ? commitFiles(root, bring.landed, certified.map(([subject, bytes]) => [`${folder}/${certificationPath(subject.path)}`, bytes]),
+    landingMessage(conventions, `Certify ${certified.map(([subject]) => nounOf(subject)).join(" and ")}`)) : bring.landed;
+  if (landed !== tip)
+    try { gitText(root, ["merge", "--ff-only", "--quiet", landed]); }
+    catch (error) { if (error instanceof RpError) fail(`land: ${root}: the pipeline branch cannot move to the landing: ${error.message}`); throw error; }
+
+  // The phases complete after the landing that were not when the step was applied and no earlier landing of it reported.
+  const after = await inspect(root, folder, pipelinesRoot, landed);
+  const reported = completePhases(after.state, after.frontier).filter((n) => !record.complete.includes(n) && !record.reported.includes(n));
+  if (reported.length) writeRecord(root, { ...record, reported: [...record.reported, ...reported] });
+  process.stdout.write(reported.map((n) => `hook phase-completed ${n}\n`).join(""));
+}
+// Whether `ancestor` is an ancestor of `commit`, or the commit itself.
+function isAncestor(root, ancestor, commit) {
+  try { execFileSync("git", ["merge-base", "--is-ancestor", ancestor, commit], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); return true; }
+  catch (error) { if (error.status === 1) return false; fail(`git merge-base --is-ancestor ${ancestor} ${commit}: ${error.stderr?.toString().trim() || error.message}`); }
 }
 
 // --- cli --------------------------------------------------------------------------
 
 const COMMANDS = {
   check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
-  stamp: { run: cmdStamp, options: { "--at": "value" } },
   pipelines: { run: cmdPipelines, options: { "--base": "value", "--issue": "value", "--json": "flag" } },
-  review: { run: cmdReview, options: { "--lane": "value", "--json": "flag" } },
-  assign: { run: cmdAssign, options: { "--role": "value" } },
+  next: { run: cmdNext, options: { "--apply": "flag" } },
+  land: { run: cmdLand, options: { "--role": "value" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], json: false, ref: null, issue: null, at: null, base: null, lane: null, role: null };
+  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -1439,10 +1717,9 @@ const USAGE = `rp — Radical Pipelines state tooling
 
 Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-  node rp.mjs stamp <file> --at <commit>
   node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
-  node rp.mjs review <pipeline folder> --lane <lane> [--json]
-  node rp.mjs assign <pipeline folder> --role <role>
+  node rp.mjs next <pipeline folder> [--apply]
+  node rp.mjs land <pipeline folder> --role <role>
 
 See README.md beside this script.
 `;
