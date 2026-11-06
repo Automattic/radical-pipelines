@@ -301,7 +301,7 @@ The **lane's view** of the pipeline is, at the tip, every file under `<pipeline 
 
 ### Step record
 
-The step record is `rp/step.json` in the pipeline worktree's private git directory, beside its assignments: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, `phase`, and a review lane's `change`, each commit a full hash; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, and landing adds to `reported`.
+The step record is `rp/step.json` in the pipeline worktree's private git directory, beside its assignments: a JSON object holding `turns`, each woken role's latest turn by its name, with its `worktree`, `branch`, turn `commit`, and a review lane's `change`, each commit a full hash; `woke`, the phases of the roles the last applied step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported. Applying writes it, and landing adds to `reported`.
 
 Everything `check` stops on, conventions data that is missing or malformed, a detached pipeline worktree, a step record that cannot be read or is malformed, a `base` that does not resolve, an unreadable or malformed template, and a git failure stop `next`.
 

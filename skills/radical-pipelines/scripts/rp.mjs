@@ -1383,7 +1383,7 @@ function assignmentOf(ctx, wake, tip, change) {
 // --- step record ------------------------------------------------------------------
 
 // The step record, in the pipeline worktree's private git directory beside its assignments: `turns`, each woken role's latest turn by its name —
-// its worktree, branch, turn commit, phase, and a reviewer's change; `woke`, the phases of the roles the last applied
+// its worktree, branch, turn commit, and a reviewer's change; `woke`, the phases of the roles the last applied
 // step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported.
 const recordPath = (root) => gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "rp/step.json"]);
 const NO_RECORD = { turns: {}, woke: [], complete: [], reported: [] };
@@ -1404,10 +1404,9 @@ function readRecord(root) {
   for (const [name, turn] of Object.entries(objectAt(data.turns, "turns", malformed))) {
     const at = entryName("turns", name), role = parseRole(name);
     if (!role || role.profile === "owner") malformed(`${at}: names no role <profile>[-<lane>]`);
-    objectAt(turn, at, malformed, ["worktree", "branch", "commit", "phase", "change"]);
+    objectAt(turn, at, malformed, ["worktree", "branch", "commit", "change"]);
     for (const key of ["worktree", "branch"]) if (typeof turn[key] !== "string" || !turn[key]) malformed(`${at}.${key}: must be a non-empty string`);
     if (!hash(turn.commit)) malformed(`${at}.commit: must be a full commit hash`);
-    if (!Number.isInteger(turn.phase) || turn.phase < 1 || turn.phase > REVIEW_PHASE) malformed(`${at}.phase: must be a phase`);
     if (role.profile === "reviewer" ? !hash(turn.change) : "change" in turn) malformed(`${at}.change: ${role.profile === "reviewer" ? "must be a full commit hash" : "is only on a reviewer's turn"}`);
   }
   return data;
@@ -1643,7 +1642,7 @@ async function applyPlan(ctx, plan) {
         mkdirSync(dirname(path), { recursive: true });
         writeFileSync(path, contents);
       }
-      turns[wake.role.name] = { worktree: wake.worktree, branch: wake.branch, commit: tip, phase: wake.role.phase, ...(change ? { change } : {}) };
+      turns[wake.role.name] = { worktree: wake.worktree, branch: wake.branch, commit: tip, ...(change ? { change } : {}) };
     });
   writeRecord(root, { turns, woke: phasesOf(plan.wakes), complete: completePhases(state, entries), reported: [] });
 }

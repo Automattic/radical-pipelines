@@ -334,11 +334,12 @@ describe("rp next", () => {
     const record = join(gitDir(root), "rp/step.json");
     assert.deepEqual(Object.keys(JSON.parse(readFileSync(record, "utf8"))), ["turns", "woke", "complete", "reported"]);
     const written = JSON.parse(readFileSync(record, "utf8"));
-    const turn = { worktree: at(), branch: "demo-review-default", commit: head(), phase: 4 };
+    assert.deepEqual(written.turns["design-doc-producer"], { worktree: at(), branch: "demo", commit: head() });
+    const turn = { worktree: at(), branch: "demo-review-default", commit: head() };
     // [what, the record, the reason]
     const malformed = [
       ["a phase that is no phase", { ...written, woke: ["1"] }, "woke: must be a list of phases"],
-      ["a turn commit that is no full commit hash", { ...written, turns: { "design-doc-producer": { ...turn, commit: "abc1234", phase: 2 } } }, "turns.design-doc-producer.commit: must be a full commit hash"],
+      ["a turn commit that is no full commit hash", { ...written, turns: { "design-doc-producer": { ...turn, commit: "abc1234" } } }, "turns.design-doc-producer.commit: must be a full commit hash"],
       ["a reviewer's turn without its change", { ...written, turns: { "reviewer-default": turn } }, "turns.reviewer-default.change: must be a full commit hash"],
     ];
     for (const [what, data, reason] of malformed) {
