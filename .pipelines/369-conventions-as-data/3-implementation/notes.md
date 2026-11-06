@@ -1,8 +1,8 @@
 ---
 {
   "inputs": [
-    "1-spec/spec.md@e47d28947768",
-    "2-design-doc/design-doc.md@cb79fb49b8df"
+    "1-spec/spec.md@ace79dac9b11",
+    "2-design-doc/design-doc.md@8d28487d46e9"
   ]
 }
 ---
