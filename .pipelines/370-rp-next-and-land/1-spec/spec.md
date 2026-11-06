@@ -13,7 +13,7 @@
 
 Today a step of the loop is mostly the orchestrator's own Git and path work. It runs `rp check`, creates, updates, and removes lane branches and worktrees, and runs `rp review` and `rp assign` per role. To land the step's turns, it reads each turn commit from an assignment, runs `rp stamp` on each file, commits, merges or cherry-picks each lane, and compares checks to learn which phases completed. Landing also has gaps: a role's file that `rp` rejects still lands, a turn that ended with a blocker is certified as if its work were done, repeating a step fails or builds a new review change, and a changed input can be diffed from a commit older than the artifact's last landing.
 
-After the change, a step is `rp` plus the agentic tool. `rp next <pipeline folder>` prints the step's plan and changes nothing. The orchestrator fires the plan's `before-` hooks, runs `rp next <pipeline folder> --apply`, which does exactly what the plan states, fires the `after-` hooks, and drives the roles with its tool. When a turn ends, `rp land <pipeline folder> [--lane <lane>]` lands it in one command and reports which phases became complete. Applying again repeats nothing already done. Throughout the loop, the orchestrator runs no Git command, computes no path, and reads no thread or assignment.
+After the change, a step is `rp` plus the agentic tool. `rp next <pipeline folder>` prints the step's plan and changes nothing. The orchestrator fires the plan's `before-` hooks, runs `rp next <pipeline folder> --apply`, which does exactly what the plan states, fires the `after-` hooks, and drives the roles with its tool. When a role's turn ends, `rp land <pipeline folder> --role <role>` lands it in one command and reports which phases became complete. Applying again repeats nothing already done. Throughout the loop, the orchestrator runs no Git command, computes no path, and reads no thread or assignment.
 
 ## Requirements
 
@@ -39,7 +39,7 @@ origin: from-intent intent-goal, intent-constraint-2
 
 observed: today the orchestrator works each of these out itself. It composes each lane worktree's path from the **Worktree folder root** and the lane's branch (`skills/radical-pipelines/reference/run/state.md` § Names). It creates, merges into, and removes lane branches and worktrees with Git, and takes each assignment's path and the role's model from `rp assign`'s output, which prints no model when the run gives none (`skills/radical-pipelines/reference/run/loop.md` § Waking a role, § Production lanes, § Review lanes; `skills/radical-pipelines/scripts/README.md` § `assign`; `1-spec/spec/loop-walk.txt`). Resources reach a role only through its assignment, selected by its profile (`scripts/README.md` § Conventions data). A consolidation needs a fresh instance (`loop.md` § Waking a role), and `phase-started` fires the first time a step wakes a role of a phase (`loop.md` § One step).
 
-spec-requirement-3: Each worktree a plan creates is where the project's **Worktree folder root** convention places it: in this repository, `.worktrees/<branch>`.
+spec-requirement-3: Each worktree a plan creates is where the project's **Worktree folder root** convention places it: in this repository, `.worktrees/<branch>`. `rp` reads that convention as conventions data, never from prose.
 
 origin: derived intent-goal: the orchestrator computes no path, and the lane worktrees it creates today sit under the Worktree folder root, one per branch (`.rp.md` § Worktree folder root; `state.md` § Names), which Claude Code needs inside the repository to seat a role (`skills/radical-pipelines/tools/claude-code.md` § Seating).
 
@@ -94,7 +94,7 @@ spec-requirement-10: Every lifecycle hook a project writes today still fires at 
 - `before-terminating-agent` and `after-terminating-agent` fire around each termination the plan names, before the plan is applied and before the `before-removing-worktree` of the terminated role's worktree. Each knows the terminated role.
 - `before-spawning-agent` and `after-spawning-agent` fire around each spawn of a role the plan wakes, after the `after-creating-worktree` of its worktree. Each knows the role and the names of the resources its assignment carries.
 - `phase-started` fires the first time a step wakes a role of a phase, and again when work on it resumes, knowing the phase.
-- `before-merging-lanes` fires before `rp land --lane` lands a lane, and `after-merging-lanes` after it. A landing without `--lane` fires neither.
+- `before-merging-lanes` fires before `rp land` lands a lane's role, and `after-merging-lanes` after it. Landing a role in the pipeline worktree fires neither.
 - `phase-completed` fires after a landing, once for each phase that landing reports complete, in phase order.
 - No hook fires for a lane branch.
 
@@ -104,7 +104,7 @@ origin: from-intent intent-constraint-3, intent-constraint-4, intent-context-2
 
 observed: `skills/radical-pipelines/reference/conventions/lifecycle-hooks.md` defines each moment and the blocking rule. `loop.md` § One step fires `phase-started`, `phase-completed`, and the merging-lanes pair at these moments, and every branch and worktree the orchestrator creates, a lane's included, fires its creating hooks (`skills/radical-pipelines/reference/entries/triage.md` § 5). This repository writes `after-creating-worktree`, blocking, `run-started`, `phase-completed`, `run-ended`, and `after-merging-pr` (`.rp.md` § Lifecycle hooks). Migration applies heading renames with the owner's confirmation (`skills/radical-pipelines/reference/conventions/setup.md` § Migration).
 
-spec-requirement-11: `rp land <pipeline folder>` lands the turns of the roles that sit in the pipeline worktree, and `rp land <pipeline folder> --lane <lane>` lands that lane's turn, each in one command. Landing:
+spec-requirement-11: `rp land <pipeline folder> --role <role>` lands that role's turn in one command, the role named as the plan names it, whether it sits in the pipeline worktree or in a lane's. Landing:
 
 - verifies that the turn's commits are on the role's branch, descending from its turn commit, and otherwise stops, naming the worktree and the reason, and lands nothing;
 - certifies the role's artifact or candidate at the turn's commit, when it exists, and each review thread the turn closed `approved`, recording as its approved commit the pipeline commit that holds it;
@@ -135,13 +135,13 @@ origin: derived intent-constraint-4: a role answers a finding with "why it stand
 
 observed: stamping an unchanged file twice writes nothing, and the commit that follows stops with nothing to commit (`loop-edges.txt` E5).
 
-spec-requirement-15: A turn that ended with a blocker is not landed: its artifact or candidate stays as missing or stale as it was. Once the orchestrator repairs what the blocker names, the next step wakes that role again for the same work.
+spec-requirement-15: A turn that ended with a blocker is not landed: the orchestrator runs no `rp land` for its role, and its artifact or candidate stays as missing or stale as it was. Once the orchestrator repairs what the blocker names, the next step wakes that role again for the same work.
 
 origin: derived intent-constraint-4: a role reports a blocker when its materials, its seat, or its environment fail it (each profile's § Protocol, **Blocker**), and the orchestrator then repairs it and wakes the role again (`loop.md` § Waking a role).
 
 observed: landing certifies an artifact at its turn commit whether or not the turn changed it, so a landed turn that changed nothing leaves a stale artifact fresh (`scripts/README.md` § `stamp`; `loop-edges.txt` E4). Today the loop lands every role that ended its turn, a blocker included (`loop.md` § One step step 4).
 
-spec-requirement-16: Each commit `rp land` makes follows the project's commit-format convention: in this repository, an imperative, sentence-case subject with no final period, ending with `(orchestrator)`.
+spec-requirement-16: Each commit `rp land` makes has an imperative, sentence-case subject with no final period, naming what it landed, shaped by a template the project's conventions data declare for the commits `rp` makes, such as one that appends `(orchestrator)`. Without such a template, the commit has the subject alone. `rp` never interprets the prose commit format that roles follow.
 
 origin: derived intent-goal: landing's commits move from the orchestrator to `rp`, and the orchestrator commits per the **Commit format** convention (`triage.md` § 5). This repository's landing commits read `Stamp spec (orchestrator)` and `Stamp review approvals (orchestrator)` (`git log 369-conventions-as-data`).
 
@@ -169,7 +169,7 @@ origin: from-intent intent-proposal-2
 
 observed: today `rp check --json` reports each phase's state and each frontier entry's changed inputs, and no completeness (`1-spec/spec/check-json-today.txt`). Close-out reports the phases completed (`skills/radical-pipelines/reference/run/close-out.md` step 6), and a run resumed after compaction recomputes its state with `rp check` (`SKILL.md`).
 
-spec-requirement-20: `rp next` takes only the pipeline folder and `--apply`, and `rp land` takes only the pipeline folder and `--lane`. Neither takes anything `rp` can derive from the tree and the assignments it wrote: no turn commit, no list of the lanes the frontier names, no candidate a consolidated root merged, and no commit a changed input is diffed from.
+spec-requirement-20: `rp next` takes only the pipeline folder and `--apply`, and `rp land` takes only the pipeline folder and `--role`: the role whose turn ended, which only the orchestrator's tool reports. Neither takes anything `rp` can derive from the tree and the assignments it wrote: no turn commit, no list of the lanes the frontier names, no candidate a consolidated root merged, and no commit a changed input is diffed from.
 
 origin: from-intent intent-constraint-6, intent-proposal-1
 
@@ -238,24 +238,24 @@ spec-acceptance-criterion-16: Given a blocking `before-` hook that fails, when t
 
 spec-acceptance-criterion-17: Given a run's steps, when the orchestrator follows them, then:
 
-- `before-merging-lanes` runs before each `rp land --lane` and `after-merging-lanes` after it, and neither runs around `rp land` without `--lane`.
+- `before-merging-lanes` runs before each landing of a lane's role and `after-merging-lanes` after it, and neither runs around landing a role in the pipeline worktree.
 - `phase-completed` runs once for each phase a landing reports, in phase order.
 - `phase-started` runs once on the first step that wakes a role of a phase, and again on a step that resumes work on it.
 
 spec-acceptance-criterion-18: Given this repository's `.rp.md`, when setup migrates it to the change's conventions and the owner confirms each action, then each of its hook blocks runs its instructions at the moment it runs today.
 
-spec-acceptance-criterion-19: Given `spec-producer-a` ended its turn having committed its candidate, when `rp land <pipeline folder> --lane a` runs, then the pipeline branch holds the candidate and its certification, which pins the intent as it was at the lane's turn commit, and `rp check` reports the candidate fresh.
+spec-acceptance-criterion-19: Given `spec-producer-a` ended its turn having committed its candidate, when `rp land <pipeline folder> --role spec-producer-a` runs, then the pipeline branch holds the candidate and its certification, which pins the intent as it was at the lane's turn commit, and `rp check` reports the candidate fresh.
 
-spec-acceptance-criterion-20: Given `reviewer-default` closed its review thread `approved`, when `rp land <pipeline folder> --lane default` runs, then the lane's commits after its change are on the pipeline branch and none of the commits that built the change is. The approval's certification records as approved the pipeline commit holding it, and `rp check` reports `review default approved`.
+spec-acceptance-criterion-20: Given `reviewer-default` closed its review thread `approved`, when `rp land <pipeline folder> --role reviewer-default` runs, then the lane's commits after its change are on the pipeline branch and none of the commits that built the change is. The approval's certification records as approved the pipeline commit holding it, and `rp check` reports `review default approved`.
 
-spec-acceptance-criterion-21: Given turns that ended in the pipeline worktree, when `rp land <pipeline folder>` runs, then:
+spec-acceptance-criterion-21: Given turns that ended in the pipeline worktree, when `rp land <pipeline folder> --role <role>` runs for each of their roles, then:
 
 - For a spec-producer's consolidation that committed `1-spec/spec.md`, the spec's certification pins the intent and the later inputs targeting it as they were at its turn commit and is committed on the pipeline branch, the worktree holds nothing uncommitted from the landing, and `rp check` reports the spec fresh.
 - For the turns of the spec-producer and the design-doc-producer that one rejected thread woke, each one's artifact is certified at its turn commit.
 
 spec-acceptance-criterion-22: Given a role whose branch lacks its turn commit, when `rp land` runs for it, then it exits with a non-zero status naming the worktree and the reason, and the pipeline branch and every certification are as they were.
 
-spec-acceptance-criterion-23: Given a lane's turn that committed a candidate with frontmatter, or a review thread with `status: pending`, when `rp land --lane` runs, then it exits with a non-zero status and names the file and the reason as `rp check` names them. The pipeline branch and every certification are as they were.
+spec-acceptance-criterion-23: Given a lane's turn that committed a candidate with frontmatter, or a review thread with `status: pending`, when `rp land --role` runs for it, then it exits with a non-zero status and names the file and the reason as `rp check` names them. The pipeline branch and every certification are as they were.
 
 spec-acceptance-criterion-24: Given a landing that stopped on a lane's file, when the next step runs, then the file's author is woken in its lane's worktree with that file's line among its Malformed files, or, for a reviewer, with its repair request. Once its repaired turn lands, the commits of both turns are on the pipeline branch.
 
@@ -263,7 +263,7 @@ spec-acceptance-criterion-25: Given a turn that only answered a thread, its arti
 
 spec-acceptance-criterion-26: Given a role whose respond turn ended with a blocker, its artifact stale, when the step's turns are landed, then that artifact is still stale. After the repair, the next step wakes that role in Respond for the same changed inputs.
 
-spec-acceptance-criterion-27: Given this repository's conventions, when `rp land` makes a commit, then its subject is imperative and sentence case, has no final period, and ends with `(orchestrator)`.
+spec-acceptance-criterion-27: Given this repository's conventions, which declare a template for `rp`'s commits that appends `(orchestrator)`, when `rp land` makes a commit, then its subject is imperative and sentence case, has no final period, and ends with `(orchestrator)`. Given conventions that declare no such template, its subject has no suffix.
 
 spec-acceptance-criterion-28: Given a turn to land, when `rp land` lands it, then:
 
@@ -275,7 +275,7 @@ spec-acceptance-criterion-28: Given a turn to land, when `rp land` lands it, the
 
 spec-acceptance-criterion-29: Given a pipeline whose frontier is not `INVALID`, when `rp check --json` runs, then the phases it reports complete are those spec-requirement-18 defines.
 
-spec-acceptance-criterion-30: Given `rp next` or `rp land` with any option beyond the pipeline folder, `--apply`, and `--lane`, such as a commit, a path, or a lane list, when it runs, then it stops naming the option.
+spec-acceptance-criterion-30: Given `rp next` or `rp land` with any option beyond the pipeline folder, `--apply`, and `--role`, such as a commit, a path, or a lane list, when it runs, then it stops naming the option.
 
 spec-acceptance-criterion-31: Given a design doc whose landed turn left it unchanged when the spec went from v1 to v2, and a spec now at v3, when the design-doc-producer is woken, then its changed input names a commit at which the spec is v2, and the diff from that commit to its turn commit shows only the change from v2 to v3.
 
@@ -309,7 +309,6 @@ spec-exclusion-3: The frontier rules, the artifact formats, the meaning of a cer
 - Landing a turn that has already landed, or repeating a landing that stopped — no intended use produces it: observed: the loop lands each ended turn once (`loop.md` § One step step 4), and a resumed run lands only the roles still running (`SKILL.md`); a landing that stops lands nothing (spec-requirement-11, spec-requirement-12).
 - Landing stopping on a rejected file the turn did not change, such as the intent, a reading of intent-constraint-4 not taken — the plan names that file for the orchestrator to fix, and a role woken for its own file cannot repair another's.
 - An approval whose last message heading names a commit other than its change — no intended use produces it: observed: the reviewer's request gives the heading with the change (`skills/radical-pipelines/templates/reviewer-first.md`, `reviewer-later.md`).
-- A production lane and a review lane sharing an id, so that `--lane` names two lanes — no intended use produces them: observed: this repository's lanes are `demands`, `omits`, `default`, and `astra` (`.rp.md` frontmatter `agents`).
 - A role ending its turn with uncommitted changes in its worktree — no source shows a role doing so: observed: each producer's profile commits before ending its turn (`agents/spec-producer.md` § Turn step 5), and each reviewer's request ends with "Commit your review" (`reviewer-first.md`).
 - A lane that a run-configuration change drops mid-run — triage handles it when the configuration changes: observed: the commit that drops a lane removes its candidate folder and closes its open threads, and agents working under it are terminated (`state.md` § Run configuration).
 - Creating the pipeline's own worktree in a step — it exists before the loop starts (`loop.md`, opening).
