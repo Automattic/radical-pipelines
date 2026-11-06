@@ -2,7 +2,7 @@
 {
   "inputs": [
     "1-spec/spec.md@2b8cf4596df3",
-    "2-design-doc/design-doc.md@309e75bfb963"
+    "2-design-doc/design-doc.md@d96d81265b53"
   ]
 }
 ---
