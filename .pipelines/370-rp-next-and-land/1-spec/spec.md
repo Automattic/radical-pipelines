@@ -1,3 +1,12 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@bbb4e5c14599",
+    "1-spec/lanes/demands/spec.md@6b88fbd4c571",
+    "1-spec/lanes/omits/spec.md@f872d98b61be"
+  ]
+}
+---
 # Spec: Run each loop step with `rp next` and `rp land`
 
 ## Overview
