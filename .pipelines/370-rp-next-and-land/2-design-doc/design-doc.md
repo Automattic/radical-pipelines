@@ -1,7 +1,7 @@
 ---
 {
   "inputs": [
-    "1-spec/spec.md@70b04a644623"
+    "1-spec/spec.md@2b8cf4596df3"
   ]
 }
 ---
