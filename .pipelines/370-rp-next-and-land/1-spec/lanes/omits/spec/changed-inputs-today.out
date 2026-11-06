@@ -1,0 +1,44 @@
+### check json (frontier entry + phases)
+{
+ "frontier": [
+  {
+   "action": "respond",
+   "target": "1-spec/spec.md",
+   "threads": [],
+   "changed": [
+    "0-intent/intent.md"
+   ]
+  }
+ ],
+ "phases": [
+  {
+   "phase": "1-spec",
+   "artifact": "1-spec/spec.md",
+   "state": "stale",
+   "stale": [
+    "0-intent/intent.md"
+   ],
+   "lanes": []
+  },
+  {
+   "phase": "2-design-doc",
+   "artifact": "2-design-doc/design-doc.md",
+   "state": "missing",
+   "lanes": []
+  }
+ ]
+}
+### assign
+assignment /private/tmp/rp-omits-changed.zKf8yE/main/.git/rp/spec-producer.md
+7:- Subagent model: your own model
+8-
+9:## Mode
+10-
+11-Respond
+12-
+--
+17:- Changed inputs: /private/tmp/rp-omits-changed.zKf8yE/main/.pipelines/7-demo/0-intent/intent.md — changed since ec7de0967205ba3f0cc9afb6a99108fd308b766f
+18-
+19-## Threads addressed to you
+20-
+/tmp/rp-omits-changed.zKf8yE

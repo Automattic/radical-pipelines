@@ -1,0 +1,78 @@
+### 1 check
+frontier lane 1-spec/spec.md a
+frontier lane 1-spec/spec.md b
+lane 1-spec/spec.md a missing
+lane 1-spec/spec.md b missing
+artifact 1-spec/spec.md missing
+artifact 2-design-doc/design-doc.md missing
+artifact 3-implementation/notes.md missing
+net-change b1188ce79adebee40251ae042bd5c508cf66a861..f046402ac99e584706db082f1e2589687428fee0
+review default unapproved
+review sec unapproved
+### 2 assign lane a before its worktree exists
+rp: assign: no worktree has 7-demo-spec-a checked out
+exit 1
+### 3 orchestrator today: lane branches+worktrees by hand
+/private/tmp/rp-omits-loop.Y2heW4/main      f046402 [7-demo]
+/private/tmp/rp-omits-loop.Y2heW4/wt-spec-a f046402 [7-demo-spec-a]
+/private/tmp/rp-omits-loop.Y2heW4/wt-spec-b f046402 [7-demo-spec-b]
+### 4 assign both lanes
+assignment /private/tmp/rp-omits-loop.Y2heW4/main/.git/worktrees/wt-spec-a/rp/spec-producer.md
+model large
+assignment /private/tmp/rp-omits-loop.Y2heW4/main/.git/worktrees/wt-spec-b/rp/spec-producer.md
+model large
+### assignment of lane a (head)
+gitdir: /private/tmp/rp-omits-loop.Y2heW4/main/.git/worktrees/wt-spec-a
+## Seat
+
+- Worktree: /private/tmp/rp-omits-loop.Y2heW4/wt-spec-a
+- Branch: 7-demo-spec-a
+- Turn commit: f046402ac99e584706db082f1e2589687428fee0
+- Supporting folder: /private/tmp/rp-omits-loop.Y2heW4/wt-spec-a/.pipelines/7-demo/1-spec/lanes/a/spec/
+- Subagent model: your own model
+
+## Mode
+
+Produce
+
+## Brief
+
+A
+
+## Materials
+
+- Intent: /private/tmp/rp-omits-loop.Y2heW4/wt-spec-a/.pipelines/7-demo/0-intent/intent.md
+
+## Threads addressed to you
+
+none
+
+## Write to
+
+/private/tmp/rp-omits-loop.Y2heW4/wt-spec-a/.pipelines/7-demo/1-spec/lanes/a/spec.md
+
+## Guardrails
+
+### 5 lanes produce candidates
+### 6 landing today: stamp in the lane worktree at the turn commit, commit, then merge into pipeline branch
+2e1dd5f Merge branch '7-demo-spec-b' into 7-demo
+a91ce71 Stamp candidate b
+416da10 Stamp candidate a
+f625da1 Add candidate
+0d16bb7 Add candidate
+f046402 intent
+b1188ce base
+### 7 check after merging
+frontier consolidate 1-spec/spec.md
+lane 1-spec/spec.md a fresh
+lane 1-spec/spec.md b fresh
+artifact 1-spec/spec.md missing
+artifact 2-design-doc/design-doc.md missing
+artifact 3-implementation/notes.md missing
+net-change b1188ce79adebee40251ae042bd5c508cf66a861..2e1dd5fe3b679d413905b078e586942cf206d211
+review default unapproved
+review sec unapproved
+### 8 stamp of an invalid file stops
+frontier INVALID threads/1-bad.md: frontmatter has no opener
+exit 0
+/tmp/rp-omits-loop.Y2heW4
