@@ -1382,7 +1382,7 @@ function assignmentOf(ctx, wake, tip, change) {
 
 // --- step record ------------------------------------------------------------------
 
-// The step record, among the pipeline worktree's Prepared files: `turns`, each woken role's latest turn by its name —
+// The step record, in the pipeline worktree's private git directory beside its assignments: `turns`, each woken role's latest turn by its name —
 // its worktree, branch, turn commit, phase, and a reviewer's change; `woke`, the phases of the roles the last applied
 // step woke; `complete`, the phases complete when it was applied; and `reported`, the phases its landings reported.
 const recordPath = (root) => gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "rp/step.json"]);
