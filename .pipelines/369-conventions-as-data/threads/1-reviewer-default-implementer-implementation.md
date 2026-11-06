@@ -1,9 +1,7 @@
----
 status: open
 opener: reviewer-default
 owner: implementer
 artifact: implementation
----
 
 ## reviewer-default — 3e7cf7b4c04444444b20925d89d890366cf8ea05
 
