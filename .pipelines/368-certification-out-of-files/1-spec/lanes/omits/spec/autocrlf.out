@@ -1,0 +1,6 @@
+--- check (worktree) after stamp, core.autocrlf=true:
+frontier respond 1-spec/spec.md
+artifact 1-spec/spec.md stale 0-intent/intent.md
+--- check --ref HEAD:
+frontier complete
+artifact 1-spec/spec.md fresh

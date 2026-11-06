@@ -1,0 +1,32 @@
+--- before merge: check
+frontier complete
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 5e4e8f4aff8e37479fb4c29d21adcd296656698d..b52de710d475a2c02bdfb7f442b457e3a06c3ffd
+review default approved
+thread threads/1-reviewer-default-implementer-implementation.md approved
+Squash commit -- not updating HEAD
+--- continuation clone: commits present:
+7418e35 squash demo
+5e4e8f4 init
+--- continuation check (target 4):
+rp: reviewed does not resolve to a commit: 49e4b4ad98e66b97f6e837921812a7c8f319c37b
+/tmp/probe368/squash-BnyO
+
+--- continuation clone, run-config target-phase 3 (same clone; only the commits d3ad0f5, bf6d4f9, 7418e35, 5e4e8f4 exist):
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md stale 0-intent/failure-1.md
+thread threads/1-reviewer-default-implementer-implementation.md approved
+
+--- continuation in a clone that still holds the approved commit (49e4b4a), target-phase 4:
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md stale 0-intent/failure-1.md
+net-change 7418e35083285c58f76b8612e0b379e09594c9bd..cf4f59e17d576e67e5a8368f7c5a17e53a4a554f
+review default stale 0-intent/failure-1.md code
+thread threads/1-reviewer-default-implementer-implementation.md approved
+git merge-tree --write-tree --no-messages 49e4b4a main -> exit 1; conflicted path: .pipelines/demo/threads/1-reviewer-default-implementer-implementation.md (stages 2 and 3)
