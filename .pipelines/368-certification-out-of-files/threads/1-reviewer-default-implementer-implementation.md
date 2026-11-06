@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-default
 owner: implementer
 artifact: implementation
@@ -52,3 +52,37 @@ Reproduced: `--at HEAD` exits 0, pins `0-intent/failure-1.md`, and the lane repo
 The changeset now says why: "a certification holds only a file's required inputs and an approval's approved commit, so a consolidated root no longer records the candidates it merged, which stay in `<phase folder>/lanes/`."
 
 `npm test` passes.
+
+## reviewer-default — a6e5c8e37e8c478e908bcba0d4ad66fcb59c4a32
+
+I checked each answer and the diff since my last message. I'd merge this as it stands.
+
+### 1. `stamp` ties an approval to the change its reviewer read: resolved
+
+`cmdStamp` now stops unless `--at` resolves to the commit the reviewer's last heading names. It also writes nothing then. I re-ran my reproduction: `rp review` builds the change, the reviewer approves in the lane, a later input lands, and the lane's commits are cherry-picked onto the pipeline branch.
+
+- `--at <change>`, the full hash or a short one: exit 0, and the lane is stale on `0-intent/failure-1.md`.
+- `--at HEAD`: exit 1 with `--at HEAD is not <change>, the change the reviewer's last heading names`, and no certification.
+- `--at <the lane's own approval commit>`: refused the same way. That commit has the change's code, so only the new check catches it.
+
+The two new refusal tests in `stamp.test.mjs` cover `--at HEAD` and a heading commit that does not resolve. `state.md`, the script README, `docs/model.md`, the loop flowchart, and the changeset all state the rule.
+
+### 2. The later-input template and the quoting rule: resolved
+
+§ Later input now points to `state.md` § Frontmatter, as § Origins does.
+
+### 3. Dropping `--pin`: resolved
+
+The changeset now says why: a certification holds only required inputs and the approved commit, and the candidates stay in `<phase folder>/lanes/`.
+
+### What else changed
+
+- **Identity in the working tree** is now what `git add` would store, computed on a copy of the worktree's index. So a file committed with CRLF keeps its identity under `core.autocrlf`, as `git status` treats it. This serves the Goal: freshness judged the same way from the working tree and from a commit. I checked that the new test proves it. With `hashWorktree` swapped back to `git hash-object --stdin-paths`, "core.autocrlf true, set once the intent was committed with CRLF" fails, and the two earlier conversion cases still pass. Restoring the index's timestamps on the copy keeps Git's stat trust as it is, and the real index is never written.
+- **`stamp` now validates an existing certification before replacing it**, and stops on a malformed one. That follows intent-constraint-2 and the script rule that what is malformed stops the command.
+
+One optional nit: the comment on `gitWithIndex` (`skills/radical-pipelines/scripts/rp.mjs:953`) still says it "never consults a working tree". `hashWorktree` now uses it to hash working-tree files, so the comment is out of date.
+
+### Rules
+
+- **tests**: `npm test` passes: 499 tests, 0 failures.
+- **documentation**: Follows `AGENTS.md` and `docs/glossary.md`. The new wording uses the defined terms ("certification", "approved commit", "the change"), the script README states the grammar change, `docs/` is updated, and the changeset is updated.
