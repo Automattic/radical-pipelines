@@ -1,0 +1,2 @@
+frontier INVALID 1-spec/lanes/zz/spec.md: production lane is not configured: spec-producer zz
+frontier INVALID threads/1-reviewer-zz-implementer-implementation.md: lane not configured; close the thread withdrawn
