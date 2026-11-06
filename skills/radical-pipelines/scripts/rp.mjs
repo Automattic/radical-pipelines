@@ -584,6 +584,19 @@ const isProductionLane = (role) => { const parsed = parseRole(role); return pars
 export const isReview = (thread) => parseRole(thread.opener).profile === "reviewer" && thread.owner === IMPLEMENTATION.owner;
 // An approval: an approved review thread.
 const isApproval = (thread) => isReview(thread) && thread.status === "approved";
+// A review lane's thread, by its pipeline-relative path: `threads/<n>-reviewer-<lane>-implementer-implementation.md`, a
+// review thread, or `threads/<n>-reviewer-<lane>-owner-intent.md`. Its number and whether it is a review thread, or null.
+function laneThreadOf(rel, laneId) {
+  const match = rel.match(new RegExp(`^threads/([1-9]\\d*)-reviewer-${laneId}-(implementer-implementation|owner-intent)\\.md$`));
+  return match && { number: Number(match[1]), review: match[2] === "implementer-implementation" };
+}
+// A review lane's review thread: the highest-numbered of its review threads among `paths`, read by file name, so a
+// malformed one counts; undefined when it has none.
+const reviewThreadOf = (paths, laneId) => paths.filter((rel) => laneThreadOf(rel, laneId)?.review)
+  .sort((a, b) => laneThreadOf(b, laneId).number - laneThreadOf(a, laneId).number)[0];
+// A lane's branch: `<pipeline branch>-<artifact>-<lane>` for a production lane of `phase`, `<pipeline branch>-review-<lane>`
+// for a review lane.
+const laneBranchOf = (pipelineBranch, phase, laneId) => `${pipelineBranch}-${phase ? phase.token : "review"}-${laneId}`;
 
 // The frontmatter keys of a thread: each required, and `cites` on a thread to owner only.
 const THREAD_KEYS = ["status", "opener", "owner", "artifact"];
@@ -736,7 +749,8 @@ const roleOf = (profile, laneId) => `${profile}-${laneId}`;
 // stale on a changed required input, or when the tip's code is not the approved commit's plus clean merges of the base.
 // One without certification has no code judged; one whose approved commit the clone lacks is no approval.
 function approvalOf(state, lane) {
-  const latest = state.threads.filter((thread) => isReview(thread) && thread.opener === roleOf("reviewer", lane.id)).sort((a, b) => b.number - a.number)[0];
+  const path = reviewThreadOf(state.threads.map((thread) => thread.path), lane.id);
+  const latest = state.threads.find((thread) => thread.path === path);
   if (!latest || !isApproval(latest)) return { approved: false };
   const codeChanged = latest.reviewed !== null && state.codeChanged(latest.reviewed);
   if (codeChanged === null) return { approved: false };
@@ -1051,9 +1065,9 @@ async function cmdReview(args) {
   const config = parseOrFail(`${folder}/run-config.md`, () => parseConfig(files.get("run-config.md") ?? fail(`review: cannot read ${tip}:${folder}/run-config.md: missing`)));
   if (!reviewLanes(config).some((lane) => lane.id === laneId)) fail(`review: ${laneId} is not a review lane of ${folder}/run-config.md`);
   const mergeBase = baseOf(root, config.base, tip);
-  const own = new RegExp(`^${folder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/threads/[1-9]\\d*-reviewer-${laneId}-(?:implementer-implementation|owner-intent)\\.md$`);
-  const subset = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob" && (entry.path.startsWith(`${folder}/0-intent/`) || own.test(entry.path)));
-  const laneBranch = `${branch}-review-${laneId}`;
+  const subset = lsTree(root, tip, `${folder}/`, true).filter((entry) => entry.type === "blob"
+    && (entry.path.startsWith(`${folder}/0-intent/`) || laneThreadOf(entry.path.slice(folder.length + 1), laneId)));
+  const laneBranch = laneBranchOf(branch, null, laneId);
   const laneTip = commitOf(root, `refs/heads/${laneBranch}`);
   if (laneTip) {
     const unlanded = gitText(root, ["cherry", tip, laneTip]).split("\n").filter((line) => line.startsWith("+ ")).map((line) => line.slice(2))
@@ -1252,12 +1266,10 @@ function turnOf(state, entries, role) {
   return null;
 }
 
-// A review lane's request: its review thread, the highest-numbered `<n>-reviewer-<lane>-implementer-implementation.md`
-// unless it parses as closed, else a new one numbered one past the highest in `threads/`; and on a later turn, when that
-// thread is open and awaits the reviewer, the commit its reviewer's last message names.
+// A review lane's request: its review thread unless that parses as closed, else a new one numbered one past the highest in
+// `threads/`; and on a later turn, when that thread is open and awaits the reviewer, the commit its last message names.
 function requestOf(pipeline, state, role) {
-  const own = new RegExp(`^threads/([1-9]\\d*)-${role.name}-implementer-implementation\\.md$`);
-  const [latest] = [...pipeline.files.keys()].filter((path) => own.test(path)).sort((a, b) => Number(b.match(own)[1]) - Number(a.match(own)[1]));
+  const latest = reviewThreadOf([...pipeline.files.keys()], role.lane);
   const parsed = state.threads.find((thread) => thread.path === latest);
   if (latest && !["approved", "withdrawn"].includes(parsed?.status))
     return { thread: latest, last: parsed && awaitedRole(parsed) === role.name ? parsed.messages.findLast((message) => message.author === role.name).commit : null };
@@ -1282,7 +1294,7 @@ async function cmdAssign(args) {
 
   // The seat: a role without a lane in the pipeline worktree, a lane in the worktree that has its lane branch checked out.
   const artifact = artifactOf(role);
-  const branch = role.lane ? `${pipelineBranch}-${artifact ? artifact.phase.token : "review"}-${role.lane}` : pipelineBranch;
+  const branch = role.lane ? laneBranchOf(pipelineBranch, artifact?.phase, role.lane) : pipelineBranch;
   const seated = role.lane ? worktreesOf(root).find((record) => record.branch === branch)?.path : root;
   const worktree = seated ? realpathSync(seated) : fail(`assign: no worktree has ${branch} checked out`);
   const tip = requireCommit(worktree, "HEAD", "HEAD");
