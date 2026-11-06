@@ -1,3 +1,11 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@78e4eef7fa09"
+  ],
+  "reviewed": "340500a707ac1b760f6a4ef6690b1e5bd71cb5a1"
+}
+---
 status: approved
 opener: reviewer-default
 owner: implementer
