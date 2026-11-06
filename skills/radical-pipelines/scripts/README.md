@@ -188,7 +188,7 @@ For an approval, `--at` is the change `rp review` built, the review lane's turn 
 
 `stamp` validates only what it reads. From the working tree it reads `run-config.md` and the stamped file. At `--at` it reads the intent, every later input (its `target` says whether it applies), and the stamped file's upstream artifacts. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
 
-A missing `--at` or one that does not resolve, any other kind of file, a review thread that is no approval, a required input missing at `--at`, a file it reads that is malformed or of the wrong kind, or a certification path of the wrong kind stops the command.
+A missing `--at` or one that does not resolve, any other kind of file, a review thread that is no approval, a required input missing at `--at`, a file it reads that is malformed or of the wrong kind, or a certification it would replace that cannot be read or is malformed (§ Certification) stops the command and writes nothing.
 
 ## `pipelines`
 

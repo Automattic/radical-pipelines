@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import {
-  DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_SPEC, UPSTREAM,
+  DESIGN, INTENT, NOTES, P, PIPELINE, REVIEW, SPEC, TO_SPEC, UPSTREAM,
   abs, certification, check, commitAll, configure, git, land, lane, later, pipeline, read, remove, revise, root, run, stamp, stampAt, thread, useRepo, write, writeFile,
 } from "./fixture.mjs";
 
@@ -273,6 +273,20 @@ describe("stamp refuses", () => {
     assert.match(out.stderr, /a pipeline folder is <pipelines folder root>\/<pipeline slug>: demo/);
     configure();
   });
+
+  // A malformed certification stamp would replace: [what, its contents, the reason].
+  for (const [what, contents, reason] of [
+    ["invalid JSON", "{", /not valid JSON/],
+    ["a malformed pin", JSON.stringify({ inputs: [INTENT] }), /inputs entry must be <path>@<identity>/],
+  ])
+    it(`a certification it would replace that holds ${what}, leaving its bytes unchanged`, () => {
+      pipeline(1);
+      write(`certification/${SPEC}.json`, contents);
+      const out = run("stamp", abs(P(SPEC)), "--at", "HEAD");
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, new RegExp(`^rp: stamp: ${PIPELINE.replace(".", "\\.")}/certification/1-spec/spec\\.md\\.json: ${reason.source}`));
+      assert.equal(read(`certification/${SPEC}.json`), contents);
+    });
 
   it("a certification path of the wrong kind, writing nothing", () => {
     pipeline(0);

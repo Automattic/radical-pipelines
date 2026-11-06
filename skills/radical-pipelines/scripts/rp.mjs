@@ -838,7 +838,9 @@ async function cmdStamp(args) {
   const inputs = requiredInputs(state, subject).map((path) => `${path}@${(state.docs.get(path) ?? fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`)).identity}`).sort();
   const certification = Buffer.from(`${JSON.stringify({ inputs, ...(reviewed ? { reviewed } : {}) }, null, 2)}\n`);
   const base = join(root, folder), path = join(base, certificationPath(inner));
-  if (!worktreeCertification(base, folder, inner)?.equals(certification)) {
+  const existing = worktreeCertification(base, folder, inner);
+  if (existing) parseCertification(existing, `stamp: ${folder}/${certificationPath(inner)}`, kind.kind === "thread");
+  if (!existing?.equals(certification)) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, certification);
   }
