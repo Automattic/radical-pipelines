@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-default
 owner: implementer
 artifact: implementation
@@ -110,3 +110,61 @@ The glossary's **Step record**, the code comment on the record, and `state.md` n
 ### 5. Scope: how the "changed since" commit is chosen: stands
 
 The new commit is required, not incidental. spec-requirement-21 (derived) requires each changed input to name "a commit at which that input is as the artifact's certification pins it". spec-acceptance-criterion-31 checks the case where a landing left the artifact unchanged. design-doc-decision-9 assigns it to the assignment. The full-history walk is design-doc-decision-9's stated trade-off ("Applying walks each changed input's history once per assignment"). observed: one `git rev-list` piped into `git cat-file --batch-check` over this repository's 2,056 commits took 0.04 s.
+
+## reviewer-default — 297c659390b1693325d53e09595a1762b95915ea
+
+Approved. I checked each answer and reviewed everything that changed since my last message.
+
+### 1. The next step lands a lane that reported a blocker: accepted
+
+I accept this as a risk the design records. It needs a role that commits before it blocks, and the profiles commit only at the end of a turn. Under that rule, a blocked lane holds no unlanded commits, so the loop's "the next step wakes it again for the same work" holds. Whether design-doc-decision-5 stands is now a question for the design doc's thread. If that decision changes, the code changes with it and this approval goes stale.
+
+### 2. Consolidation stops on an untracked file: resolved
+
+When `rp next --apply` stops, `loop.md` now says what the orchestrator does: it tells the owner the message and the smallest repair, and it deletes no file in a lane's worktree itself. `git worktree remove` still removes ignored files, such as installed dependencies. So leaving out `--force` costs a stop only when a file may be someone's work, which is the right trade.
+
+### 3a. `change` is not validated: resolved
+
+`readRecord` now checks four things:
+
+- the role's name;
+- that `commit` is a full hash;
+- that a reviewer's turn has its `change` as a full hash;
+- that no other turn has a `change`.
+
+A failure stops the command with a message naming the record and the key. The new matrix in the step-record test covers both stops for `rp next` and `rp land`.
+
+### 3b. `phase` is written but never read: resolved
+
+Your answer says the design doc owns this, but the change already drops the field:
+
+- `applyPlan` no longer writes `phase`.
+- `readRecord` rejects it as a key.
+- `scripts/README.md` § Step record no longer lists it.
+- The test asserts that a turn holds only `worktree`, `branch`, and `commit`.
+
+That resolves my finding. The answer above is out of date relative to the code.
+
+### 4. Vocabulary: resolved
+
+The glossary, `state.md`, and the code comment now say where the step record lives, and **Prepared files** again covers only files prepared for a role.
+
+### 5. The "changed since" commit: accepted
+
+The spec requires it (spec-requirement-21, spec-acceptance-criterion-31), so it is within the issue's scope.
+
+### What else changed
+
+Two other fixes came with this round, and both are right:
+
+- `rp land` now reads the landed pipeline as `rp check` will, before it moves the branch. Before this fix, a turn that left `rp check` unable to read the pipeline, such as a `base` that no longer resolves, moved the branch and only then failed. Now it stops with nothing landed. The new test covers it.
+- An approval that lands uncertified now removes the certification its path already had. Before, a repaired approval whose heading names no commit kept the earlier certification and still counted as approved. `commitFiles` removes the file with a mode-0 index entry, which is correct.
+
+### Not blocking: `phase-completed` fires again after an `INVALID` frontier
+
+No phase is complete on an `INVALID` frontier. So a step applied on one records no complete phases, and the landing that repairs the rejected file reports every complete phase again. The new review-lanes test expects `phase-completed` 1, 2, and 3. Each project's `phase-completed` hook then reruns for phases whose work never changed. This repository's hook sets the issue status to each phase in turn and ends on the highest complete phase. That is harmless while hooks are idempotent, but worth knowing.
+
+### Rules
+
+- **tests:** `npm test` passes: 578 tests, 0 failures.
+- **documentation:** the changes follow `AGENTS.md` and `docs/glossary.md`. The step record is defined once in the glossary by where it lives, and `state.md` names it beside the assignment. The negative sentence that `loop.md` adds ("you delete no file in a lane's worktree yourself") is needed, because deleting the file is the obvious repair. Each new test builds the recorded state directly and asserts the script's output over the rule's cases.
