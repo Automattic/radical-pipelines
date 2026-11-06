@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "1-spec/spec.md@d17416b916fd"
+  ]
+}
+---
 # Design Doc: Keep rp's certification out of the pipeline files
 
 ## Overview
