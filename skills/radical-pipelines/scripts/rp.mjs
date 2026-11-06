@@ -1195,7 +1195,7 @@ export function fill(template, values, where) {
     let filled = "", last = 0;
     for (const slot of line.matchAll(SLOT)) {
       const [token, kind, name] = slot;
-      if (kind) malformed(`${token} opens or closes a part on a line of its own`);
+      if (kind) malformed(`${token} marks a part, which stands alone on its line`);
       if (!/^[a-z][a-z0-9-]*$/.test(name)) malformed(`${token} is no slot`);
       const value = valueOf(name), before = line.slice(last, slot.index);
       last = slot.index + token.length;
