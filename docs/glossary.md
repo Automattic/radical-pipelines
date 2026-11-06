@@ -67,6 +67,6 @@ The canonical vocabulary of Radical Pipelines. Terms are used exactly as defined
 - **Turn commit** — The tip of a role's worktree when `rp assign` writes its assignment, named there. The role reads its materials at it, and landing stamps at it, reading it from the assignment.
 - **Triage** — The orchestrator's entry for incoming work: it normalizes the request into an issue, scans the issue's pipelines, routes each statement, and confirms the runs that need it.
 - **Variable** — A placeholder a project declares in its conventions data, with a template over the vocabulary, such as `agent` as `{pipeline-slug}-{role}`.
-- **Vocabulary** — The pipeline facts a placeholder may name, each valued for a role and its turn: `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base`.
+- **Vocabulary** — The pipeline facts a placeholder may name, each valued for a role and its turn: `pipeline-slug`, the pipeline slug; `role`, the role's name; `profile`, its profile; `lane`, its lane, empty for a role without one; `worktree`, its worktree's absolute path; `branch`, its branch; and `base`, the Base of its turn commit.
 - **Worktree** — A checkout of one branch. The orchestrator creates it and seats roles in it.
 - **Worktree folder root** — The project convention naming the folder under which one worktree is created per branch.

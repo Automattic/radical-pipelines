@@ -14,6 +14,7 @@ Every template may use:
 
 - The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
 - `turn-commit`: the `HEAD` of the role's worktree; a reviewer's is the change.
+- `base-branch`: `run-config.md`'s `base`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
 - `brief`: the lane's brief, its placeholders expanded, or empty.
 - `intent`, `spec`, `design-doc`: their paths in the role's worktree.

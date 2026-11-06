@@ -25,7 +25,7 @@ function skillWith(templates) {
 }
 // A template naming itself under `## template`, then each flag that holds as a `## <flag>` heading, and each value
 // alone under its own `## <name>` heading.
-const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base", "turn-commit", "subagent-model", "brief",
+const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base", "turn-commit", "base-branch", "subagent-model", "brief",
   "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "vocabulary"];
 const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "threads", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
@@ -126,7 +126,8 @@ describe("assign", () => {
       const { path, text, values } = assign("implementer");
       const at = realpathSync(root);
       assert.equal(readFileSync(path, "utf8"), text);
-      assert.deepEqual([values.mode, flagsOf(values), values["turn-commit"], values.base], [["Respond"], ["respond"], [tip], ["main"]]);
+      assert.deepEqual([values.mode, flagsOf(values), values["turn-commit"], values["base-branch"]], [["Respond"], ["respond"], [tip], ["main"]]);
+      assert.deepEqual(values.base, [git(root, "merge-base", "main", tip).trim()]);
       assert.deepEqual(values["later-inputs"], [in_(at, "0-intent/constraint-1.md")]);
       assert.deepEqual(values["changed-inputs"], [`${in_(at, DESIGN)} — changed since ${notesChanged}`]);
       assert.deepEqual(values.threads, [in_(at, awaiting)]);
@@ -192,6 +193,7 @@ describe("assign", () => {
       ["a role outside the grammar", () => pipeline(1), "implementer-a", /assign: --role names no role <profile>\[-<lane>\]: implementer-a/],
       ["owner", () => pipeline(1), "owner", /assign: --role names no role/],
       ["a detached pipeline worktree", () => { pipeline(1); git(root, "checkout", "--quiet", "--detach"); }, "design-doc-producer", /has no branch checked out/],
+      ["a base that does not resolve", () => pipeline(1, { targetPhase: 3, base: "gone" }), "design-doc-producer", /base does not resolve to a commit: gone/],
     ];
     for (const [what, setup, role, message] of refusals)
       it(`stops on ${what}, writing nothing`, () => {
@@ -365,7 +367,7 @@ describe("assign", () => {
   describe("expands placeholders in the texts it carries", () => {
     const FACTS = "{pipeline-slug} {role} {profile} [{lane}] {worktree} {branch} {base}";
 
-    it("each vocabulary fact and declared variable to the role's value, a lane's brief included, and lists no vocabulary", () => {
+    it("each vocabulary fact, the base as the Base of the role's turn commit, and each declared variable to the role's value, a lane's brief included, and lists no vocabulary", () => {
       conventions({
         variables: { agent: "{pipeline-slug}-{role}" },
         guardrails: { facts: { rule: FACTS, profiles: ["implementer", "reviewer", "spec-producer"] } },
@@ -376,17 +378,24 @@ describe("assign", () => {
       const lane = worktree("a", "demo-spec-a", commitAll("lanes"));
       const spec = assign("spec-producer-a").values;
       assert.deepEqual(spec.brief, ["Read demo-spec-a for demo-spec-producer-a."]);
-      assert.deepEqual(spec.guardrails.at(-1), `- rule: demo spec-producer-a spec-producer [a] ${lane} demo-spec-a main`);
+      const baseOf = (commit) => git(root, "merge-base", "main", commit).trim();
+      git(root, "checkout", "--quiet", "main");
+      writeFile("src/later.js", "export const later = 1;\n");
+      commitAll("main moves past the pipeline's base");
+      git(root, "checkout", "--quiet", "demo");
+      assert.notEqual(baseOf(head(lane)), git(root, "rev-parse", "main").trim());
+      assert.deepEqual(assign("spec-producer-a").values.guardrails.at(-1), `- rule: demo spec-producer-a spec-producer [a] ${lane} demo-spec-a ${baseOf(head(lane))}`);
       assert.deepEqual(spec.resources.at(-1), "- resource: The environment `demo-spec-producer-a`.");
       assert.deepEqual([spec["commit-format"], spec.vocabulary], [["End with (spec-producer-a)."], ["none"]]);
       pipeline(2, { lanes: [{ profile: "reviewer", id: "astra" }] });
       const implementer = assign("implementer").values, at = realpathSync(root);
-      assert.deepEqual(implementer.guardrails.at(-1), `- rule: demo implementer implementer [] ${at} demo main`);
+      assert.deepEqual(implementer.guardrails.at(-1), `- rule: demo implementer implementer [] ${at} demo ${baseOf(head())}`);
       assert.deepEqual([implementer.resources.at(-1), implementer.vocabulary], ["- resource: The environment `demo-implementer`.", ["none"]]);
       pipeline(3, { lanes: [{ profile: "reviewer", id: "astra" }] });
-      const wt = worktree("astra", reviewLane("astra").branch);
+      const { branch, change } = reviewLane("astra");
+      const wt = worktree("astra", branch);
       const request = assign("reviewer-astra").values;
-      assert.deepEqual(request.guardrails.at(-1), `- rule: demo reviewer-astra reviewer [astra] ${wt} demo-review-astra main`);
+      assert.deepEqual(request.guardrails.at(-1), `- rule: demo reviewer-astra reviewer [astra] ${wt} demo-review-astra ${baseOf(change)}`);
       assert.deepEqual([request.resources.at(-1), request.vocabulary], ["- resource: The environment `demo-reviewer-astra`.", ["none"]]);
     });
 
@@ -395,7 +404,8 @@ describe("assign", () => {
       pipeline(2);
       const values = assign("implementer").values, at = realpathSync(root);
       assert.deepEqual(values.resources.at(-1), "- resource: Open {ticket} for implementer.");
-      assert.deepEqual(values.vocabulary, ["- `{pipeline-slug}`: demo", "- `{role}`: implementer", "- `{profile}`: implementer", "- `{lane}`:", `- \`{worktree}\`: ${at}`, "- `{branch}`: demo", "- `{base}`: main"]);
+      assert.deepEqual(values.vocabulary, ["- `{pipeline-slug}`: demo", "- `{role}`: implementer", "- `{profile}`: implementer", "- `{lane}`:", `- \`{worktree}\`: ${at}`, "- `{branch}`: demo",
+        `- \`{base}\`: ${git(root, "merge-base", "main", "HEAD").trim()}`]);
       pipeline(3);
       worktree("default", reviewLane("default").branch);
       assert.ok(assign("reviewer-default").values.vocabulary.includes("- `{lane}`: default"));

@@ -1300,8 +1300,8 @@ async function cmdAssign(args) {
   const tip = requireCommit(worktree, "HEAD", "HEAD");
   const at = (path) => join(worktree, folder, path);
 
-  // The carried texts, expanded for the role.
-  const vocabulary = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, base: state.config.base };
+  // The carried texts, expanded for the role. Its base is the Base: the merge-base of its turn commit with `base`.
+  const vocabulary = { "pipeline-slug": basename(folder), role: role.name, profile: role.profile, lane: role.lane ?? "", worktree, branch, base: baseOf(worktree, state.config.base, tip) };
   const variables = Object.fromEntries(Object.entries(conventions.variables).map(([name, template]) => [name, template.replace(PLACEHOLDER, (_, fact) => vocabulary[fact])]));
   const kept = new Set();
   const expand = (text) => expandText(text, { ...vocabulary, ...variables }, kept);
@@ -1318,6 +1318,7 @@ async function cmdAssign(args) {
     ...vocabulary, ...carried,
     vocabulary: kept.size ? VOCABULARY.map((name) => `- \`{${name}}\`: ${vocabulary[name]}`.trimEnd()) : [],
     "turn-commit": tip,
+    "base-branch": state.config.base,
     "subagent-model": models.subagents ?? "",
     intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),
     "later-inputs": laterInputs,

@@ -265,7 +265,7 @@ node rp.mjs assign <pipeline folder> --role <role>
 
 It prints `assignment <absolute path>`, then `model <name>` when the run gives the role a model (§ `run-config.md`). Every model name is printed and written as the run writes it.
 
-`assign` reads and checks everything before it writes anything. Conventions data that is missing or malformed, a role outside the grammar, a frontier that does not wake the role, a missing lane worktree, a review lane worktree that is not at a change, a detached pipeline worktree, an unreadable or malformed template, and every reason `check` stops, stop it.
+`assign` reads and checks everything before it writes anything. Conventions data that is missing or malformed, a role outside the grammar, a frontier that does not wake the role, a missing lane worktree, a review lane worktree that is not at a change, a detached pipeline worktree, a `base` that does not resolve or shares no merge-base with the turn commit, an unreadable or malformed template, and every reason `check` stops, stop it.
 
 ### Conventions data
 
@@ -302,7 +302,7 @@ A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format
 | `lane` | The lane id; empty for a role without a lane |
 | `worktree` | The absolute path of the role's worktree |
 | `branch` | The role's branch |
-| `base` | `run-config.md`'s `base` |
+| `base` | The Base: the merge-base of the role's turn commit with `run-config.md`'s `base` |
 
 A placeholder that names neither stays as written, and the assignment then lists every vocabulary fact with its value.
 

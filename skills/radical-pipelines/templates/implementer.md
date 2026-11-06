@@ -3,7 +3,7 @@
 - Worktree: {{worktree}}
 - Branch: {{branch}}
 - Turn commit: {{turn-commit}}
-- Base branch: {{base}}
+- Base branch: {{base-branch}}
 - Supporting folder: {{supporting-folder}}
 {{#subagent-model}}
 - Subagent model: {{subagent-model}}
