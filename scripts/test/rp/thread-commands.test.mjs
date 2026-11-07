@@ -248,10 +248,10 @@ describe("rp thread", () => {
   });
 
   describe("through a review, as the delivered assignments state", () => {
-    // Every command line an assignment states for rp, as written.
-    const statedIn = (text) => [...text.matchAll(/^(node \S+ (?:thread|validate) .+)$/gm)].map((match) => match[1]);
-    // Runs a command line as written, from `worktree`, `input` on its standard input.
-    const sh = (line, worktree, input) => spawnSync("sh", ["-c", line], { cwd: worktree, encoding: "utf8", input });
+    // Every command an assignment states for rp: each code block that runs it, as written.
+    const statedIn = (text) => [...text.matchAll(/^```\n(node [^`]*?)\n```$/gm)].map((match) => match[1]);
+    // Runs a stated command from `worktree` with `body` in place of its `<…>` line, or on its standard input.
+    const sh = (command, worktree, body = "") => spawnSync("sh", ["-c", command.replace(/^<[^>\n]+>$/m, body.trimEnd())], { cwd: worktree, encoding: "utf8", input: body });
     // Applies the step and reads the assignment of `role`, which it wakes: its worktree and its text.
     function woken(role) {
       const fields = wakeOf(apply(), role);
@@ -278,6 +278,7 @@ describe("rp thread", () => {
       assert.equal(approved.status, 0, approved.stderr);
       commitIn(worktree, {}, "Approve the change (reviewer)");
       landRole("reviewer-default");
+      assert.ok(read(REVIEW_THREAD).endsWith(`\n\n${FINDINGS}`));
       assert.deepEqual([check().reviews, threads(), rejects()], [[{ lane: "default", approved: true }], [[REVIEW_THREAD, "approved", null]], []]);
     });
 
@@ -297,7 +298,7 @@ describe("rp thread", () => {
       assert.deepEqual(threads(), [[REVIEW_THREAD, "open", "reviewer-default"]]);
       const later = woken("reviewer-default");
       const [approving] = statedIn(later.text);
-      const refused = sh(approving.replace(" --body -", ""), later.worktree);
+      const refused = sh(approving.replace(" --body -", ""), later.worktree, "The answer resolves it.\n");
       assert.equal(refused.status, 1);
       assert.match(refused.stderr, /^run the same command with --body <file \| ->/m);
       const approved = sh(approving, later.worktree, "The answer resolves it.\n");

@@ -10,16 +10,20 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. If you would merge the change as it stands, approve it with this command, your closing message on its standard input:
+The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
 
 ```
-{{rp}} thread close {{pipeline-folder}} --role {{role}} --thread {{thread}} --status approved --body -
+{{rp}} thread close {{pipeline-folder}} --role {{role}} --thread {{thread}} --status approved --body - <<'EOF'
+<your closing message>
+EOF
 ```
 
-Otherwise, say what still needs to change with this one:
+Otherwise, say what still needs to change with this one, your answer in place of `<your answer>`:
 
 ```
-{{rp}} thread reply {{pipeline-folder}} --role {{role}} --thread {{thread}} --body -
+{{rp}} thread reply {{pipeline-folder}} --role {{role}} --thread {{thread}} --body - <<'EOF'
+<your answer>
+EOF
 ```
 
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.

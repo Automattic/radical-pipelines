@@ -10,10 +10,12 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-Write your review as you would post it on the pull request, and open it with this command, the review on its standard input:
+Write your review as you would post it on the pull request, and open it with this command, your review in place of `<your review>`:
 
 ```
-{{rp}} thread open {{pipeline-folder}} --role {{role}} --artifact implementation --body -
+{{rp}} thread open {{pipeline-folder}} --role {{role}} --artifact implementation --body - <<'EOF'
+<your review>
+EOF
 ```
 
 It prints the path of your review thread. If you would merge the change as it stands, approve it then:

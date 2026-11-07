@@ -1957,7 +1957,8 @@ const USAGE = `rp — Radical Pipelines state tooling
 Usage:
 ${Object.values(COMMANDS).map((command) => `  node rp.mjs ${command.usage}`).join("\n")}
 
---body <file> reads a message body from a file, and --body - from standard input.
+--body <file> reads a message body from a file, and --body - from standard input; a quoted heredoc, <<'EOF',
+passes the body as written, its backticks and $ included.
 See README.md beside this script.
 `;
 
