@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "1-spec/spec.md@4d1cb7f5309f"
+  ]
+}
+---
 # Design Doc: Roles write threads and check their own files through `rp`
 
 ## Overview
