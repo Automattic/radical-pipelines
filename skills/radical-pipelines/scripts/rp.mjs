@@ -1300,15 +1300,12 @@ function turnOf(state, entries, role) {
   return null;
 }
 
-// A review lane's request on a review turn: a later turn on its review thread while that is open, which then awaits the
-// reviewer, with the commit the reviewer's last message names; else a first turn on a new review thread, numbered one
-// past the highest in `threads/`.
-function requestOf(pipeline, state, role) {
+// A review lane's later turn on its review thread while that is open, which then awaits the reviewer: the thread, and
+// the commit the reviewer's last message names; null on a first turn.
+function laterTurnOf(state, role) {
   const path = reviewThreadOf(state.threads.map((thread) => thread.path), role.lane);
   const latest = state.threads.find((thread) => thread.path === path);
-  if (latest?.status === "open") return { thread: latest.path, last: latest.messages.findLast((message) => message.author === role.name).commit };
-  const highest = Math.max(0, ...[...pipeline.files.keys()].map((rel) => Number(rel.match(/^threads\/([1-9]\d*)-/)?.[1] ?? 0)));
-  return { thread: `threads/${highest + 1}-${role.name}-implementer-implementation.md`, last: null };
+  return latest?.status === "open" ? { thread: latest.path, last: latest.messages.findLast((message) => message.author === role.name).commit } : null;
 }
 
 // The commit a changed input names: the latest commit of the role's branch at its turn commit `tip` at which the input
@@ -1325,7 +1322,7 @@ function changedSince(root, folder, tip, input, pinned) {
 // `rp/<profile>.md` in the role's private git directory, and on a review lane's later turn the diff it reads beside it.
 // `tip` is the turn commit, and `change` a reviewer's change. Everything is read and checked before anything is returned.
 function assignmentOf(ctx, wake, tip, change) {
-  const { root, folder, pipelinesRoot, pipeline, state, conventions } = ctx;
+  const { root, folder, pipelinesRoot, state, conventions } = ctx;
   const { role, turn, worktree, branch, gitDir } = wake;
   const at = (path) => join(worktree, folder, path);
 
@@ -1375,14 +1372,13 @@ function assignmentOf(ctx, wake, tip, change) {
   } else {
     // A review lane's change sits on its review base; its turn commit is the change, or above it on a repair in place.
     values["review-base"] = requireCommit(root, `${change}^`, `the review base of ${change}`);
-    const request = repair ? null : requestOf(pipeline, state, role);
-    templateName = repair ? "reviewer-repair" : request.last ? "reviewer-later" : "reviewer-first";
-    if (request) values.thread = at(request.thread);
-    if (request?.last) {
+    const later = repair ? null : laterTurnOf(state, role);
+    templateName = repair ? "reviewer-repair" : later ? "reviewer-later" : "reviewer-first";
+    if (later) {
       const diff = join(gitDir, "rp", "reviewer.diff");
-      const from = requireCommit(root, request.last, `the commit ${role.name}'s last message names`);
+      const from = requireCommit(root, later.last, `the commit ${role.name}'s last message names`);
       files.push([diff, gitBytes(root, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
-      values.diff = diff;
+      Object.assign(values, { thread: at(later.thread), diff });
     }
   }
   const templatePath = join(TEMPLATES, `${templateName}.md`);

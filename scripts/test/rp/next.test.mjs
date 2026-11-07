@@ -125,7 +125,7 @@ describe("rp next", () => {
         assert.equal(git(root, "diff", tip, change, "--", ".", ":(exclude).pipelines"), "");
         assert.equal(head(path), change);
         assert.deepEqual([wakeOf(lines, `reviewer-${id}`).worktree, wakeOf(lines, `reviewer-${id}`).phase], [path, "4"]);
-        assert.match(readFileSync(wakeOf(lines, `reviewer-${id}`).assignment, "utf8"), new RegExp(`## reviewer-${id} — ${change}`));
+        assert.ok(readFileSync(wakeOf(lines, `reviewer-${id}`).assignment, "utf8").includes(` thread open ${join(path, PIPELINE)} --role reviewer-${id} `));
       }
     });
 

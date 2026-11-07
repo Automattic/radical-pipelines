@@ -36,7 +36,7 @@ let ECHO;
 before(() => {
   ECHO = skillWith({
     ...Object.fromEntries(["spec-producer", "design-doc-producer", "implementer"].map((name) => [name, echo(name, PRODUCER, FLAGS)])),
-    "reviewer-first": echo("reviewer-first", [...COMMON, "review-base", "thread"]),
+    "reviewer-first": echo("reviewer-first", [...COMMON, "review-base"]),
     "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "diff"]),
     "reviewer-repair": echo("reviewer-repair", [...COMMON, "review-base"]),
   });
@@ -219,7 +219,7 @@ describe("assignments", () => {
     }
     const changeOf = (id) => git(root, "rev-parse", `demo-review-${id}`).trim();
 
-    it("first turn: the branch, the review base and change built from the tip, every later input, the brief or none, and a new thread", () => {
+    it("first turn: the branch, the review base and change built from the tip, every later input, the brief or none, and no thread", () => {
       reviewable();
       thread({ n: 4, status: "withdrawn", ...REVIEW("a"), messages: [["reviewer-a", "abc1234"]] });
       commitAll("an earlier review, withdrawn");
@@ -228,11 +228,12 @@ describe("assignments", () => {
       assert.equal(path, git(wt, "rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.md").trim());
       assert.deepEqual([values.template, values.branch, values["review-base"], values["turn-commit"]], [["reviewer-first"], ["demo-review-a"], [git(root, "rev-parse", `${change}^`).trim()], [change]]);
       assert.deepEqual([values.intent, values["later-inputs"]], [[in_(wt, INTENT)], [in_(wt, "0-intent/constraint-2.md"), in_(wt, "0-intent/proposal-1.md")]]);
-      assert.deepEqual([values.brief, values.thread], [["Look for security holes."], [in_(wt, "threads/5-reviewer-a-implementer-implementation.md")]]);
-      assert.equal(model, null);
+      assert.deepEqual([values.brief, model], [["Look for security holes."], null]);
       assert.equal(existsSync(join(dirname(path), "reviewer.diff")), false);
-      const other = assign("reviewer-b").values;
-      assert.deepEqual([other.brief, other.thread], [[], [in_(laneWorktree("demo-review-b"), "threads/5-reviewer-b-implementer-implementation.md")]]);
+      assert.deepEqual(assign("reviewer-b").values.brief, []);
+      const out = runWith(skillWith({ "reviewer-first": "{{thread}}\n" }), ["next", abs(PIPELINE), "--apply"]);
+      assert.equal(out.status, 1);
+      assert.match(out.stderr, /templates\/reviewer-first\.md:1: \{\{thread\}\} has no value/);
     });
 
     it("later turn: the lane's open review thread awaiting it, and the diff from the change its last message names to this turn's change", () => {

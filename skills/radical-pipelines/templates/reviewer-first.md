@@ -10,22 +10,19 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-Write your review, as you would post it on the pull request, to {{thread}}, starting with these lines:
+Write your review as you would post it on the pull request, and open it with this command, the review on its standard input:
 
 ```
----
-status: open
-opener: {{role}}
-owner: implementer
-artifact: implementation
----
-
-## {{role}} — {{turn-commit}}
+{{rp}} thread open {{pipeline-folder}} --role {{role}} --artifact implementation --body -
 ```
 
-If you would merge the change as it stands, write `status: approved` instead.
+It prints the path of your review thread. If you would merge the change as it stands, approve it then:
 
-Run every `rp` command as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.
+```
+{{rp}} thread close {{pipeline-folder}} --role {{role}} --thread <that path> --status approved
+```
+
+Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}
 Check the change against these rules and note each outcome in your review:

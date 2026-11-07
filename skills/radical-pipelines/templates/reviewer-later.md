@@ -10,9 +10,19 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer, review what changed, and append a message headed `## {{role}} — {{turn-commit}}`. If you would merge the change as it stands, set its `status` to `approved`; otherwise say what still needs to change.
+The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. If you would merge the change as it stands, approve it with this command, your closing message on its standard input:
 
-Run every `rp` command as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.
+```
+{{rp}} thread close {{pipeline-folder}} --role {{role}} --thread {{thread}} --status approved --body -
+```
+
+Otherwise, say what still needs to change with this one:
+
+```
+{{rp}} thread reply {{pipeline-folder}} --role {{role}} --thread {{thread}} --body -
+```
+
+Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}
 Check the change against these rules and note each outcome in your review:
