@@ -1,0 +1,4 @@
+frontier INVALID 1-spec/lanes/zz/spec.md: production lane is not configured: spec-producer zz
+frontier INVALID 1-spec/spec.md: carries no frontmatter
+frontier INVALID 3-implementation/notes.md: unexpected frontmatter key: foo
+frontier INVALID threads/2-spec-producer-a-design-doc-producer-design-doc.md: production lanes open no threads
