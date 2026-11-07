@@ -1,0 +1,123 @@
+# 1. First review turn: lanes a and b each open a review thread with a finding
+
+$ node rp.mjs next <repo>/.pipelines/demo --apply
+frontier review a
+frontier review b
+hook before-creating-worktree reviewer-a <repo>/.worktrees/demo-review-a
+hook before-creating-worktree reviewer-b <repo>/.worktrees/demo-review-b
+create-branch demo-review-a change
+create-branch demo-review-b change
+create-worktree reviewer-a demo-review-a <repo>/.worktrees/demo-review-a
+create-worktree reviewer-b demo-review-b <repo>/.worktrees/demo-review-b
+hook after-creating-worktree reviewer-a <repo>/.worktrees/demo-review-a
+hook after-creating-worktree reviewer-b <repo>/.worktrees/demo-review-b
+hook phase-started 4
+hook before-spawning-agent reviewer-a
+wake reviewer-a profile reviewer
+wake reviewer-a lane a
+wake reviewer-a phase 4
+wake reviewer-a worktree <repo>/.worktrees/demo-review-a
+wake reviewer-a assignment <repo>/.git/worktrees/demo-review-a/rp/reviewer.md
+hook after-spawning-agent reviewer-a
+hook before-merging-lanes reviewer-a
+hook after-merging-lanes reviewer-a
+hook before-spawning-agent reviewer-b
+wake reviewer-b profile reviewer
+wake reviewer-b lane b
+wake reviewer-b phase 4
+wake reviewer-b worktree <repo>/.worktrees/demo-review-b
+wake reviewer-b assignment <repo>/.git/worktrees/demo-review-b/rp/reviewer.md
+hook after-spawning-agent reviewer-b
+hook before-merging-lanes reviewer-b
+hook after-merging-lanes reviewer-b
+[exit 0]
+
+$ node rp.mjs land <repo>/.pipelines/demo --role reviewer-a
+
+[exit 0]
+
+$ node rp.mjs land <repo>/.pipelines/demo --role reviewer-b
+
+[exit 0]
+
+# 2. The implementer fixes the code and answers both threads
+
+$ node rp.mjs next <repo>/.pipelines/demo --apply
+frontier respond 3-implementation/notes.md
+hook phase-started 3
+hook before-spawning-agent implementer
+wake implementer profile implementer
+wake implementer phase 3
+wake implementer worktree <repo>
+wake implementer assignment <repo>/.git/rp/implementer.md
+hook after-spawning-agent implementer
+[exit 0]
+
+$ node rp.mjs land <repo>/.pipelines/demo --role implementer
+hook phase-completed 3
+[exit 0]
+
+# 3. Later review turn: a sets its status to approved and appends nothing; b appends a message naming this turn's change, then sets approved
+
+$ node rp.mjs next <repo>/.pipelines/demo --apply
+frontier review a
+frontier review b
+move-branch demo-review-a change
+move-branch demo-review-b change
+hook phase-started 4
+hook before-spawning-agent reviewer-a
+wake reviewer-a profile reviewer
+wake reviewer-a lane a
+wake reviewer-a phase 4
+wake reviewer-a worktree <repo>/.worktrees/demo-review-a
+wake reviewer-a assignment <repo>/.git/worktrees/demo-review-a/rp/reviewer.md
+hook after-spawning-agent reviewer-a
+hook before-merging-lanes reviewer-a
+hook after-merging-lanes reviewer-a
+hook before-spawning-agent reviewer-b
+wake reviewer-b profile reviewer
+wake reviewer-b lane b
+wake reviewer-b phase 4
+wake reviewer-b worktree <repo>/.worktrees/demo-review-b
+wake reviewer-b assignment <repo>/.git/worktrees/demo-review-b/rp/reviewer.md
+hook after-spawning-agent reviewer-b
+hook before-merging-lanes reviewer-b
+hook after-merging-lanes reviewer-b
+[exit 0]
+
+$ git -C <lane a worktree> rev-parse HEAD
+eb639fca4ed51f580b5521abf8f00ad1827ff8f3
+
+$ grep '^status\|^## ' <lane a review thread>
+status: approved
+## reviewer-a — f118a2820aab94c9eb3bcb93c61488118c7276d9
+## implementer — c02ae54db7ad8361ac99e2cb042458869cab5b30
+
+$ node rp.mjs land <repo>/.pipelines/demo --role reviewer-a
+
+[exit 0]
+
+$ git -C <lane b worktree> rev-parse HEAD
+980520fbc8923a5574f7b3df98acff626f80d1ab
+
+$ grep '^status\|^## ' <lane b review thread>
+status: approved
+## reviewer-b — f118a2820aab94c9eb3bcb93c61488118c7276d9
+## implementer — c02ae54db7ad8361ac99e2cb042458869cab5b30
+## reviewer-b — 980520fbc8923a5574f7b3df98acff626f80d1ab
+
+$ node rp.mjs land <repo>/.pipelines/demo --role reviewer-b
+
+[exit 0]
+
+$ node rp.mjs check <repo>/.pipelines/demo
+frontier review a
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 2a13fce448e266036f397cdfddcf016f39db6ba1..ef6b4cb44f39e4ecfbe79d35478eabda7f4d96f4
+review a stale 0-intent/intent.md
+review b approved
+thread threads/1-reviewer-a-implementer-implementation.md approved
+thread threads/1-reviewer-b-implementer-implementation.md approved
+[exit 0]
