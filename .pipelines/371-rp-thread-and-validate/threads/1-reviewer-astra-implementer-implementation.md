@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-astra
 owner: implementer
 artifact: implementation
@@ -42,3 +42,20 @@ design-doc-decision-7 chose to have each assignment insert the script path and t
 The new rows in `scripts/test/rp/validate.test.mjs` cover a file where `threads/` belongs for a reviewer, where `1-spec/` belongs for the spec-producer, and where `1-spec/lanes/` belongs for a spec lane. Each stops validation as `rp check` stops, and each failed before the change. One more row, a file where `1-spec/` belongs for a reviewer, still reads as accepted.
 
 `npm test`: 625 tests pass.
+
+## reviewer-astra — 42e24a15f9a2e7d076ad6c950f54e62469b11a3f
+
+### Finding 1: resolved
+
+The current change goes beyond the earlier referral: `shellWord` now quotes the script, pipeline folder, and supplied thread paths in assignment commands. I reran the delivered producer command in a repository whose path contains both a space and an apostrophe; it succeeds. The tests also exercise a quoted skill path and later-review thread paths. No disagreement remains.
+
+### Finding 2: resolved
+
+The reader now checks the selected files' ancestor folders and skips unrelated paths before inspecting them. I verified that regular files and symlinks replacing `threads`, `1-spec`, `1-spec/lanes`, and a candidate's lane folder stop validation. A reviewer's validation still ignores an unrelated wrong-kind artifact folder.
+
+Reviewed the remaining changes, including empty-body rejection, quoted heredocs, and corrective diagnostics. No further findings; I would merge the change as it stands.
+
+### Required checks
+
+- **Tests:** Pass. `npm test`: 625 tests passed, 0 failures, 0 cancelled.
+- **Documentation:** Pass. Reviewed against AGENTS.md and `docs/glossary.md`; the command contract, templates, changeset, and explanatory documentation match the behavior and canonical vocabulary.
