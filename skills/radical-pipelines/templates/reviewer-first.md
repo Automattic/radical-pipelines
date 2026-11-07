@@ -1,29 +1,57 @@
-`rp check` rejects these files you wrote; fix them first: <INVALID lines>
+Review the code on this branch, `{{branch}}`, against `{{review-base}}`. It addresses this issue: {{intent}}.
+{{#later-inputs}}
+Its later inputs: {{later-inputs}}
+{{/later-inputs}}
 
-Review the code on this branch, `<branch>`, against `<base>`. It addresses this issue: <intent path>. Its later inputs: <later input paths>.
+{{#brief}}
+{{brief}}
+{{/brief}}
+{{^brief}}
+Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
+{{/brief}}
 
-<the lane's brief, verbatim; without one: Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.>
-
-Write your review, as you would post it on the pull request, to <thread path>, starting with these lines:
+Write your review, as you would post it on the pull request, to {{thread}}, starting with these lines:
 
 ```
 ---
 status: open
-opener: reviewer-<lane>
+opener: {{role}}
 owner: implementer
 artifact: implementation
 ---
 
-## reviewer-<lane> — <turn commit>
+## {{role}} — {{turn-commit}}
 ```
 
 If you would merge the change as it stands, write `status: approved` instead.
 
-Check the change against these rules and note each outcome in your review: <guardrail blocks>
+{{#guardrails}}
+Check the change against these rules and note each outcome in your review:
 
-You can use: <resource blocks>
+{{guardrails}}
 
-Your subagents run on <subagent model>. Commit your review with this commit format: <convention>.
+{{/guardrails}}
+{{#resources}}
+You can use:
+
+{{resources}}
+
+{{/resources}}
+{{#subagent-model}}
+Your subagents run on the model your tool finds by the name `{{subagent-model}}`, or on your own model when it finds none.
+{{/subagent-model}}
+{{^subagent-model}}
+Your subagents run on your own model.
+{{/subagent-model}}
+Commit your review with this commit format:
+
+{{commit-format}}
+{{#vocabulary}}
+
+A name in braces left in this request is a placeholder: replace it with the value it stands for, from these values of your turn:
+
+{{vocabulary}}
+{{/vocabulary}}
 
 When your worktree, your branch, or a file this assignment names is broken or missing, report what failed and stop.
 

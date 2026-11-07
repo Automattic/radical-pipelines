@@ -43,8 +43,18 @@ export const write = (rel, contents) => writeFile(P(rel), contents);
 export const read = (rel) => readFileSync(abs(P(rel)), "utf8");
 export const remove = (rel) => rmSync(abs(P(rel)), { force: true, recursive: true });
 
-export function configure({ targetPhase = 4, base = "main", lanes } = {}) {
-  write("run-config.md", `---\n${JSON.stringify({ format: 7, "target-phase": targetPhase, base, ...(lanes ? { lanes } : {}) }, null, 2)}\n---\n`);
+// The run's `agents`: `agents` with each of `lanes`, `{ profile, id, ...members }`, under its profile's `lanes`.
+export function agentsOf(lanes = [], agents = {}) {
+  const result = structuredClone(agents);
+  for (const { profile, id, ...members } of lanes) {
+    result[profile] ??= {};
+    (result[profile].lanes ??= {})[id] = members;
+  }
+  return result;
+}
+export function configure({ targetPhase = 4, base = "main", lanes, agents } = {}) {
+  const runAgents = lanes || agents ? { agents: agentsOf(lanes, agents) } : {};
+  write("run-config.md", `---\n${JSON.stringify({ format: 8, "target-phase": targetPhase, base, ...runAgents }, null, 2)}\n---\n`);
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 

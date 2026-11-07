@@ -22,26 +22,22 @@ Throughout the run:
 
 | `frontier` | Dispatch |
 | --- | --- |
-| `INVALID <path>: <reason>` | Wake the file's author with **Malformed files** filled, or fix it yourself when you wrote it |
+| `INVALID <path>: <reason>` | Wake the file's author — a reviewer through § Review lanes — or fix it yourself when you wrote it |
 | `escalate <thread>` | § Owner escalation |
 | `lane <artifact> <id>` | § Production lanes |
 | `consolidate <artifact>` | § Production lanes |
-| `produce <artifact>` | Wake its owner, mode produce — implement for the implementer |
-| `respond <artifact>` | Wake its owner, mode respond |
+| `produce <artifact>` | Wake its owner |
+| `respond <artifact>` | Wake its owner |
 | `review <lane>` | § Review lanes |
 | `complete` | Close-out (`close-out.md`) |
 
 ## Waking a role
 
-- Build every assignment from the profile's template in `templates/`: fill every slot and list materials as explicit paths. The assignment is the filled template, nothing added.
-- The **Turn commit** is the tip of the role's worktree when you wake it.
-- Before every spawn and every wake, write the assignment to the role's **Assignment** path (`state.md` § Names), replacing the previous one.
-- **Threads addressed to you** lists the threads `rp check` reports awaiting the role. **Changed inputs** lists the changed inputs it reports for the role's artifact, each with the last commit that changed the artifact, from which the role diffs it.
-- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message; spawn a fresh instance when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation. The message that starts a turn, spawn and wake alike, is exactly `Read your assignment: <absolute path>.`, the path being what `git rev-parse --path-format=absolute --git-path rp/<profile>.md` prints in the role's worktree.
+- Before every spawn and every wake, run `rp assign <pipeline worktree's absolute pipeline folder> --role <role>` (`state.md`). It writes the role's assignment for the turn the frontier gives it, and prints the assignment's path and the role's model.
+- When `rp assign` stops naming a step of yours that is missing — the role's worktree, or a review lane's change — do that step and run it again. On any other stop, tell the owner its message; the run stops through close-out.
+- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message; spawn a fresh instance when the tool cannot, when the instance is gone, when your context was compacted, and for a consolidation. The message that starts a turn, spawn and wake alike, is exactly `Read your assignment: <printed path>.`.
 - Terminate the production lanes' instances at consolidation and every other instance at close-out.
-- Spawn, seat, wake, and terminate per `tools/<tool>.md`; use the model `run-config.md`'s body records for the profile or lane, and fill the **Subagent model** with the subagent model it records, in the form `tools/<tool>.md` § Models states.
-- **Guardrails** and **Resources** carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, filling in any value the block's text leaves to you.
-- Compute **Write to** and the **Supporting folder** yourself (`state.md` § Names).
+- Spawn, seat, wake, and terminate per `tools/<tool>.md`. Spawn and wake a role on the model `rp assign` printed, resolved per `tools/<tool>.md` § Models, or on your own model when it printed none.
 - When you message a running role, say only what is yours to say — the seat and materials you prepared, the permissions you granted, the results of checks you ran — and what it does next. Your view of the work never goes in a message: roles reach each other only through threads.
 - A **blocker** names something the role was given that failed it — its materials, its seat, or the seat's environment: repair it, then wake the role again. If the environment is genuinely down, stop and tell the owner.
 
@@ -49,16 +45,15 @@ Throughout the run:
 
 A production lane is a `spec-producer` or `design-doc-producer` lane declared in `run-config.md`; it writes a candidate.
 
-1. For each `lane <artifact> <id>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Wake the lane's producer there — mode produce when its candidate is missing, else respond — with its **Brief**, when it has one, and **Write to** `<phase folder>/lanes/<id>/<artifact>.md`. Lanes run in parallel.
-2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree, mode consolidate, with every candidate under **Lane candidates**.
+1. For each `lane <artifact> <id>`: give the lane its branch and worktree at the pipeline tip, creating them or merging the pipeline branch into them. Wake the lane's producer there. Lanes run in parallel.
+2. For `consolidate <artifact>`: terminate the lane instances, remove their worktrees and branches, and wake a fresh producer in the pipeline worktree.
 
 ## Review lanes
 
 A review lane is one `reviewer`, with its brief when it has one; every lane must approve.
 
 1. For each `review <lane>`, run `rp review <pipeline worktree's absolute pipeline folder> --lane <lane>` (`state.md`). It builds the lane's branch from the pipeline tip and moves the branch, and the lane's worktree when it has one, to the change, which becomes the reviewer's turn commit. Give the lane a worktree on its branch when it has none. When it stops on commits the pipeline branch lacks, land them (step 4) and run it again.
-2. When the lane's open review thread awaits it, save among the lane's **Prepared files** (`state.md` § Names) the diff from the commit its last message names to the tip, outside the pipelines folder.
-3. Wake the lane's reviewer there with `templates/reviewer-first.md` when the lane has no open review thread, else with `templates/reviewer-later.md`. Lanes run in parallel.
+2. Wake the lane's reviewer there. Lanes run in parallel.
 
 ## Owner escalation
 

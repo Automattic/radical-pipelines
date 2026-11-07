@@ -39,7 +39,7 @@ Each artifact has one owner, which answers for it:
 - **The orchestrator** is the session that runs the skill. It talks with the owner, records phase 0, creates branches and worktrees, wakes the role the pipeline's state names, and opens the pull request. It judges no content and relays no message.
 - **`spec-producer`** owns the spec, **`design-doc-producer`** the design doc, and **`implementer`** the code, its tests, its documentation, and `notes.md`, the file it resumes from. **`reviewer`** owns the review thread of its lane and talks only with the implementer, who carries a finding that questions a requirement or a design decision to that clause's owner.
 
-Each role works from its assignment: the filled prompt the orchestrator writes into the role's worktree git directory before every turn, which the role rereads at each turn and after a compaction. Every role delegates bounded work to its tool's own subagents, on the subagent model its assignment names, and stays responsible for what they return.
+Each role works from its assignment: the filled prompt `rp` writes into the role's worktree git directory before every turn, from the pipeline and the project's conventions, which the role rereads at each turn and after a compaction. Every role delegates bounded work to its tool's own subagents, on the model its tool finds by the subagent model name its assignment gives, and stays responsible for what they return.
 
 ### Observe the present, assume the future
 
@@ -140,7 +140,7 @@ Plugin skills are namespaced by the plugin name in Claude Code (not by the marke
 
 A long run outlives its context: when Claude Code compacts a session, it re-attaches the first 5,000 tokens of the skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage: recompute the state with `rp check`, find the roles still running, and wake every other role as a fresh instance. No hook is needed.
 
-The orchestrator seats each role in its worktree by spawning it from that directory, so the **Worktree folder root** must be inside the repository; `.worktrees/` qualifies. Models in the **Agents** convention are Claude Code aliases (`opus`, `sonnet`, `haiku`, `fable`); map any other name to an alias in a `## Claude Code` section of `.rp.md`. A role's permission prompt reaches you in the orchestrator's session.
+The orchestrator seats each role in its worktree by spawning it from that directory, so the **Worktree folder root** must be inside the repository; `.worktrees/` qualifies. Models in the **Agents** convention are Claude Code aliases (`opus`, `sonnet`, `haiku`, `fable`); map any other name to an alias in a `## Claude Code` section of `.rp.md`, which the orchestrator spawns roles on. A role whose subagent model is no alias runs its subagents on its own model. A role's permission prompt reaches you in the orchestrator's session.
 
 The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
@@ -174,7 +174,7 @@ The orchestrator drives roles with opencode's own primitives: it creates each ro
 - **Skill registration and re-supply.** The `radical-pipelines` skill is invokable, and a session that activated it gets it back after opencode's context compaction.
 - **Profile registration.** RP's four agent profiles register as the subagents `radical-pipelines/<profile>`.
 
-A role's permission request reaches you in opencode's interface; answer it there. Models in the **Agents** convention are `provider/model[#variant]` strings, or names an `## opencode` section of `.rp.md` maps to one.
+A role's permission request reaches you in opencode's interface; answer it there. Models in the **Agents** convention are `provider/model[#variant]` strings, names an `## opencode` section of `.rp.md` maps to one, or names opencode's model search finds, such as `sonnet`. A role finds its subagent model by its name through that search, its own provider's first.
 
 The full behavior, and what opencode covers natively, is documented in [docs/opencode-plugin.md](./docs/opencode-plugin.md).
 
@@ -195,7 +195,7 @@ opencode reports plugin ids, not versions, so RP carries its version in its id: 
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": <version>`, the version of the conventions format — currently 7 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": <version>`, the version of the conventions format — currently 8 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. It also holds, as named entries, the conventions every role's assignment carries — commit format, guardrails, resources, agents, and variables — which `rp` validates and writes each assignment from; the other conventions are prose sections below it. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
 | Convention             | What it covers                                                                             | Required |
 | ---------------------- | ------------------------------------------------------------------------------------------ | -------- |
@@ -211,11 +211,12 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Resources              | What every role may run and use — environments, services, accounts, data — and how         | No       |
 | Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
 | Agents                 | The model of each profile — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` — and of its subagents, production lanes for the two producers, and review lanes for `reviewer` | No |
+| Variables              | Placeholders the guardrail, resource, commit-format, and brief texts use, such as `{agent}`, each a template over pipeline facts such as `{pipeline-slug}` and `{role}` | No |
 | Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
-A guardrail binds the profiles its block names, and the reviewer evaluates it against the change. A role reports a blocker when something it was given fails it — its materials, its worktree, or the worktree's environment; the orchestrator repairs it and wakes the role again.
+A guardrail binds the profiles its entry names, and the reviewer evaluates it against the change. A role reports a blocker when something it was given fails it — its materials, its worktree, or the worktree's environment; the orchestrator repairs it and wakes the role again.
 
 ## Changelog and versioning
 

@@ -98,7 +98,7 @@ Capture:
 
 ### Commit format (optional)
 
-The format placed in assignments. Capture one example. Suggested: `<commit-description> (<profile>)`.
+The format every assignment carries. Capture one example. Suggested: `<commit-description> (<profile>)`.
 
 ### PR format (optional)
 
@@ -106,11 +106,11 @@ The pull request title and description template, required sections, style, and a
 
 ### Guardrails (optional)
 
-Checks and judgment rules the project's work must satisfy. Offer to inspect the project and test each rule. Capture the blocks defined in `guardrails.md`.
+Checks and judgment rules the project's work must satisfy. Offer to inspect the project and test each rule. Capture the entries defined in `guardrails.md`.
 
 ### Resources (optional)
 
-Offer to inspect the project. Capture the blocks defined in `resources.md`.
+Offer to inspect the project. Capture the entries defined in `resources.md`.
 
 ### Lifecycle hooks (optional)
 
@@ -118,7 +118,7 @@ Show `lifecycle-hooks.md` § Hook points. Capture instructions for each hook the
 
 ### Agents (optional)
 
-Defaults for profile models and lanes, in any human-readable format (`agents.md`). Propose two `reviewer` lanes without a brief, `default` and a second one, on models from different providers.
+Defaults for profile models and lanes (`agents.md`). Propose two `reviewer` lanes without a brief, `default` and a second one, on models from different providers.
 
 ### Health monitoring (optional)
 
@@ -128,9 +128,11 @@ The recurring health loop's interval and stall threshold. Offer the defaults in 
 
 Keep `.rp.md` to the conventions above. Include other discovered facts or instructions only at the owner's explicit request; under-specification is safe.
 
+Write Commit format, Guardrails, Resources, Agents, and Variables as data in the frontmatter (`../../scripts/README.md` § Conventions data), each value and text as the owner gave it, and every other convention as a prose section. When a guardrail, resource, commit-format, or brief text uses a placeholder that names no vocabulary fact, offer to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose, when one does.
+
 1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
 2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
-3. On the artifact base branch, write human-readable `.rp.md` with frontmatter `{ "conventions": 7 }`, shared fact sections, and a section headed by the active tool's name for its project facts.
+3. On the artifact base branch, write human-readable `.rp.md`: the frontmatter, `"conventions": 8` first, then shared fact sections and a section headed by the active tool's name for its project facts.
 4. With permission, append the worktree folder root entry to `.gitignore`.
 5. Commit the approved `.rp.md` on that branch, co-committing `.gitignore` when changed. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
 6. Report whether `.rp.md` was created or updated and whether setup is complete.

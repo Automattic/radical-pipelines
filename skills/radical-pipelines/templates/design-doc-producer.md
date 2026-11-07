@@ -1,47 +1,70 @@
 ## Seat
 
-- Worktree: <absolute path>
-- Branch: <branch>
-- Turn commit: <the worktree's tip when woken>
-- Supporting folder: <path>
-- Subagent model: <model, in the form `tools/<tool>.md` § Models states>
+- Worktree: {{worktree}}
+- Branch: {{branch}}
+- Turn commit: {{turn-commit}}
+- Supporting folder: {{supporting-folder}}
+{{#subagent-model}}
+- Subagent model: {{subagent-model}}
+{{/subagent-model}}
+{{^subagent-model}}
+- Subagent model: your own model
+{{/subagent-model}}
 
 ## Mode
 
-<Produce | Respond | Consolidate>
+{{mode}}
 
+{{#brief}}
 ## Brief
 
-<the lane's brief; optional>
+{{brief}}
 
+{{/brief}}
 ## Materials
 
-- Intent: <0-intent/intent.md path>
-- Spec: <1-spec/spec.md path>
-- Later inputs: <one line per constraint, proposal, or failure file targeting 2-design-doc/design-doc.md: path>   <!-- Write to 2-design-doc/design-doc.md -->
-- Changed inputs: <one line per changed input: path — changed since <commit>>   <!-- Respond -->
-- Lane candidates: <one line per lane: id — candidate path>   <!-- Consolidate -->
+- Intent: {{intent}}
+- Spec: {{spec}}
+{{^lane}}
+- Later inputs: {{later-inputs}}
+{{/lane}}
+{{#respond}}
+- Changed inputs: {{changed-inputs}}
+{{/respond}}
+{{#consolidate}}
+- Lane candidates: {{lane-candidates}}
+{{/consolidate}}
 
 ## Threads addressed to you
 
-<one line per thread: path | none>
+{{threads}}
 
+{{#malformed-files}}
 ## Malformed files
 
-<one line per `rp check` INVALID line naming a file the role wrote; optional>
+{{malformed-files}}
 
+{{/malformed-files}}
 ## Write to
 
-<2-design-doc/design-doc.md | 2-design-doc/lanes/<lane>/design-doc.md>
+{{write-to}}
 
 ## Guardrails
 
-<blocks | none>
+{{guardrails}}
 
 ## Resources
 
-<blocks | none>
+{{resources}}
 
 ## Commit format
 
-<convention>
+{{commit-format}}
+{{#vocabulary}}
+
+## Placeholders
+
+A name in braces left in your Brief, Guardrails, Resources, or Commit format is a placeholder: replace it with the value it stands for, from these values of your turn:
+
+{{vocabulary}}
+{{/vocabulary}}

@@ -276,7 +276,7 @@ A tool must provide:
 Optional:
 
 9. **Waking a finished role** — a message continues a role with its context. Without it, the orchestrator spawns a fresh instance with the whole prompt for every turn.
-10. **Per-spawn model selection** — spawning accepts a tool-native model value (the `model` of the **Agents** convention).
+10. **Per-spawn model selection** — spawning accepts a tool-native model value, which the mechanics file resolves from a model name of the **Agents** convention.
 11. **Delegation by roles** — a role can spawn its own subagents for bounded work.
 
 The mechanics file prefers the tool's native primitives and surfaces any prerequisite the owner must meet, as **Setup actions** the orchestrator checks before the first run.

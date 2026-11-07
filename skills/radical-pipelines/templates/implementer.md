@@ -1,44 +1,61 @@
 ## Seat
 
-- Worktree: <absolute path>
-- Branch: <branch>
-- Turn commit: <the worktree's tip when woken>
-- Base branch: <run-config.md's base>
-- Supporting folder: <path>
-- Subagent model: <model, in the form `tools/<tool>.md` § Models states>
+- Worktree: {{worktree}}
+- Branch: {{branch}}
+- Turn commit: {{turn-commit}}
+- Base branch: {{base-branch}}
+- Supporting folder: {{supporting-folder}}
+{{#subagent-model}}
+- Subagent model: {{subagent-model}}
+{{/subagent-model}}
+{{^subagent-model}}
+- Subagent model: your own model
+{{/subagent-model}}
 
 ## Mode
 
-<Implement | Respond>
+{{mode}}
 
 ## Materials
 
-- Intent: <0-intent/intent.md path>
-- Spec: <1-spec/spec.md path>
-- Design doc: <2-design-doc/design-doc.md path>
-- Later inputs: <one line per constraint, proposal, or failure file targeting 3-implementation/notes.md: path>
-- Changed inputs: <one line per changed input: path — changed since <commit>>   <!-- Respond -->
+- Intent: {{intent}}
+- Spec: {{spec}}
+- Design doc: {{design-doc}}
+- Later inputs: {{later-inputs}}
+{{#respond}}
+- Changed inputs: {{changed-inputs}}
+{{/respond}}
 
 ## Threads addressed to you
 
-<one line per thread: path | none>
+{{threads}}
 
+{{#malformed-files}}
 ## Malformed files
 
-<one line per `rp check` INVALID line naming a file the role wrote; optional>
+{{malformed-files}}
 
+{{/malformed-files}}
 ## Write to
 
-<3-implementation/notes.md path>
+{{write-to}}
 
 ## Guardrails
 
-<blocks | none>
+{{guardrails}}
 
 ## Resources
 
-<blocks | none>
+{{resources}}
 
 ## Commit format
 
-<convention>
+{{commit-format}}
+{{#vocabulary}}
+
+## Placeholders
+
+A name in braces left in your Guardrails, Resources, or Commit format is a placeholder: replace it with the value it stands for, from these values of your turn:
+
+{{vocabulary}}
+{{/vocabulary}}

@@ -1,13 +1,14 @@
 # State
 
-Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with four commands:
+Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with five commands:
 
 - `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
 - `rp stamp <file> --at <turn commit>` certifies a landed file (§ Certification).
 - `rp pipelines <pipelines folder root> --base <artifact base branch> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery). Pass the absolute path of the **Pipelines folder root** convention in the main checkout; the base branch comes from the **Artifact storage** convention.
 - `rp review <pipeline folder> --lane <lane> [--json]` builds a review lane's branch, `<pipeline branch>-review-<lane>`, from the tip of the pipeline branch checked out where the pipeline folder is: a **review base**, the base's tree, on the base, and a **change** on it, the tip's tree; in both, the pipelines folder root is the tip's without its pipeline folders, plus the pipeline's `0-intent/` and the lane's own threads, so the diff between them is the net change, the root's tooling stays, and the lane sees no pipeline but its own view. It builds them from commits alone, never from a worktree. It moves the branch, and its worktree when one has it checked out, to the change, and prints the `branch`, the review `base`, and the `change`. It stops while the lane branch holds commits the pipeline branch lacks.
+- `rp assign <pipeline folder> --role <role>` writes the **Assignment** of a role the frontier wakes, from the pipeline and the conventions data of the main checkout's `.rp.md` and `.rp.local.md`, and prints its path and the role's model as the run configuration names it. A review lane's worktree must be at the change `rp review` built; on its later turn, `rp assign` also writes among its **Prepared files** the diff it reads. It stops when the frontier does not wake the role, when the role's worktree is missing, and on malformed conventions data.
 
-Every command derives the repository from the path it is given; `check` and `stamp` take the pipelines folder root to be the parent of the pipeline folder.
+Every command derives the repository from the path it is given; `check`, `stamp`, and `assign` take the pipelines folder root to be the parent of the pipeline folder.
 
 `rp check` is the only source of the frontier. When what you see in the tree disagrees with what `rp check` reports, or the frontier names something this skill gives you no way to dispatch, stop and tell the owner the skill has a defect; never work around it.
 
@@ -48,7 +49,7 @@ The **artifacts** are `spec.md`, `design-doc.md`, `notes.md`, and the candidates
 
   Candidates are required only while their root is missing.
 
-- **Turn commit** — the tip of a role's worktree when you wake it. The assignment names it, and the role reads its materials at it.
+- **Turn commit** — the tip of a role's worktree when `rp assign` writes its assignment, before you wake it. The assignment names it, and the role reads its materials at it.
 - **Stale** — an artifact or an approved review thread with a required input that its certification leaves unpinned, or pins at an identity that differs from the current one. An approved review thread is also stale when the tip's code differs from its approved commit's by anything other than clean merges of the base: `rp check` merges the current base into the approved commit with `git merge-tree` and compares the resulting tree with the tip's tree outside the pipelines folder; a conflict outside the pipelines folder or a difference makes it stale. An approval whose approved commit the clone lacks, as after a squash merge, is no approval.
 - **Missing** — an artifact whose file is absent; `notes.md` is also missing until its `status` is `done`.
 - **Base branch** — the artifact base branch of the **Artifact storage** convention: where pipelines start. **Base** — the merge-base of the inspected tip with `run-config.md`'s `base`.
@@ -68,7 +69,7 @@ The values `rp` reads from a file you or a role writes are its frontmatter: YAML
 
 ## Certification
 
-`rp stamp` alone writes `certification/<path>.json`, `rp`'s certification of the artifact or approved review thread at `<path>`: each required input pinned at its identity in the turn commit's tree, and on an approval its approved commit. `rp stamp <file> --at <turn commit>` derives the required inputs from the file's kind and pins them, whether or not the turn changed the file; it never writes the file. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp --at <turn commit>` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the certifications on top. A review lane's turn commit is the change `rp review` built, which no pipeline branch holds: land it in the pipeline worktree by cherry-picking the lane's commits after it onto the pipeline branch, then stamping every review thread the turn closed `approved` `--at` the change. The approved commit is the pipeline worktree's `HEAD`; `rp stamp` stops unless `--at` is the commit the reviewer's last heading names and `HEAD`'s code outside the pipelines folder equals the change's.
+`rp stamp` alone writes `certification/<path>.json`, `rp`'s certification of the artifact or approved review thread at `<path>`: each required input pinned at its identity in the turn commit's tree, and on an approval its approved commit. `rp stamp <file> --at <turn commit>` derives the required inputs from the file's kind and pins them, whether or not the turn changed the file; it never writes the file. **Landing** a role's turn happens in the role's worktree, before anything is merged into it: verify its commits are on its branch, run `rp stamp --at <turn commit>` on its artifact when it exists and on every review thread the turn closed `approved`, and commit the certifications on top. A review lane's turn commit is the change `rp review` built, which no pipeline branch holds: land it in the pipeline worktree by cherry-picking the lane's commits after it onto the pipeline branch, then stamping every review thread the turn closed `approved` `--at` the commit its reviewer's last heading names, the change on a review turn. The approved commit is the pipeline worktree's `HEAD`; `rp stamp` stops unless `--at` is that commit and `HEAD`'s code outside the pipelines folder equals its.
 
 ## Threads
 
@@ -96,14 +97,14 @@ cites: <thread path | evidence path>
 
 `run-config.md` at the pipeline folder root states the configuration the tree is produced under. Its frontmatter is a JSON object containing only:
 
-- `format`: the conventions format it was written under, `7`. `rp check` and `rp stamp` stop on a pipeline of another format.
+- `format`: the conventions format it was written under, `8`. `rp` stops on a pipeline of another format.
 - `target-phase`: an integer from 1 through 4.
 - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
-- `lanes`, optional, non-empty when present: lane objects, each containing only non-empty strings `profile`, `id`, and, optionally, `brief`. A lane without a brief covers its profile's whole scope. `profile` is `spec-producer` or `design-doc-producer` for a production lane, `reviewer` for a review lane.
+- `agents`, optional: the models, subagent models, lanes, and briefs the owner confirmed for the run, in the schema of the **Agents** convention (`../conventions/agents.md`).
 
-Lane ids start with a lowercase letter or digit and continue with those or hyphens; they are unique per profile. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
+A profile's lanes are production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. A lane without a brief covers its profile's whole scope. Lane ids start with a lowercase letter or digit and continue with those or hyphens. Without a `reviewer` lane, the review runs one lane, `default`, with no brief. A configuration may also declare `default` itself, with or without a brief, alongside other review lanes.
 
-Its body is free prose — the model of each profile and lane, the owner's directions for the run; `rp` ignores it.
+Its body is free prose — the target in words, the owner's directions for the run; `rp` ignores it.
 
 The file remains with a merged pipeline. It does not say whether a run is in progress; to know that, check which agents are running through your tool's mechanics. Write and commit every configuration change before acting on it. The commit that drops a lane also removes its candidate folder and closes a review lane's open threads `withdrawn`. Terminate agents working under a changed lane.
 
@@ -113,8 +114,8 @@ The file remains with a merged pipeline. It does not say whether a run is in pro
 - **Pipeline folder** — `<pipelines folder root>/<pipeline slug>/`. A folder of the pipelines folder root is a pipeline folder when it holds a pipeline file of some format: a phase folder `<n>-<name>/`, directly or under `base/`, `run-config.md`, or `prompt.md`; anything else in the root, such as a project's pipeline tooling, is not a pipeline.
 - **Pipeline branch** — where the pipeline's commits land: the **Pipeline branch format** convention applied to the slug; work on a merged pipeline appends `_<n>`.
 - **Lane branches** — `<pipeline branch>-<artifact>-<lane>` for a production lane, `<artifact>` being `spec` or `design-doc`; `<pipeline branch>-review-<lane>` for a review lane, built anew by `rp review` each turn. Each branch has its worktree in the **Worktree folder root**.
-- **Assignment** — the file `git rev-parse --git-path rp/<profile>.md` resolves to in the role's worktree: the worktree's private git directory, outside the tree. It holds the role's filled template. No two instances of one profile share a worktree.
-- **Prepared files** — every other file you write for a role, such as a diff it reads or your scratch about it: in the folder `git rev-parse --git-path rp/` resolves to in the role's worktree, beside its assignment.
+- **Assignment** — the file `git rev-parse --git-path rp/<profile>.md` resolves to in the role's worktree: the worktree's private git directory, outside the tree. It holds the role's template, filled by `rp assign`. No two instances of one profile share a worktree.
+- **Prepared files** — every other file prepared for a role, such as the diff `rp assign` writes for a reviewer's later turn or your scratch about it: in the folder `git rev-parse --git-path rp/` resolves to in the role's worktree, beside its assignment.
 - **Instance names** — `<pipeline slug> <profile>[ <lane>]`.
 - **Supporting folders** — a role's evidence folder: `1-spec/spec/`, `2-design-doc/design-doc/`, and `3-implementation/notes/` beside their artifacts; `<phase folder>/lanes/<lane>/<artifact>/` for a candidate's producer.
 - **Ids** — `<prefix>-<word>-<n>`: the prefix names the artifact — `intent`, `spec`, `design-doc` — and the word the concept. An item is declared by the line `<id>: <text>`; its content follows until the next declaration or heading. The intent originates `constraint`, `context`, and `proposal`, plus `intent-goal` for its Goal section; the spec `requirement`, `acceptance-criterion`, `exclusion`, and `assumption`; the design doc `decision` and `assumption`. An id is never renumbered or reused.

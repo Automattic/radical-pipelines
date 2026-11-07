@@ -1,17 +1,35 @@
 # Assignment templates
 
-Build every assignment from its template: fill every slot and list materials as explicit paths. A role's materials are exactly what its assignment lists.
+`rp assign` (`../scripts/README.md` § `assign`) fills one of these templates for each turn and writes it as the role's assignment: `<profile>.md` for a producer or the implementer, and for a reviewer `reviewer-first.md`, `reviewer-later.md` while its lane's review thread is open, or `reviewer-repair.md` on an `INVALID` frontier. They are the only source of an assignment's wording; the producers' and the implementer's headings and field names are those their profiles refer to by name.
 
-The producers' and the implementer's templates are data under headings their profiles refer to by name: keep the headings verbatim, keep only the material lines of the selected mode and **Write to**, as their comments mark, and omit a section marked optional when it has nothing. Their slots:
+## Syntax
 
-- `Seat` — Worktree, Branch, Turn commit, Supporting folder (`../reference/run/state.md` § Names, § Terms), and Subagent model (`../reference/conventions/agents.md`); the implementer adds its Base branch.
-- `Mode` — one of the profile's modes.
-- `Brief` — a lane's brief, verbatim, when it has one.
-- `Materials` — per mode.
-- `Threads addressed to you` — every thread awaiting the role, or `none`.
-- `Malformed files` — the `rp check` `INVALID` lines naming files the role wrote.
-- `Write to` — the artifact path.
-- `Guardrails`, `Resources` — the `.rp.md` blocks whose `agents` include the profile, or `none`.
-- `Commit format` — the **Commit format** convention.
+- `{{<name>}}` is a slot, replaced by the value of `<name>`. A text reads as written. A list with no item reads `none`. A list alone on its line puts each item on its own line, with a blank line between items when one spans several lines. A list after other text ends its line: it holds its one item there, or starts a nested list of its items.
+- A line `{{#<name>}}` opens a part and a line `{{/<name>}}` closes it. The lines between are kept when `<name>` has something: a true flag, a non-empty text, or a list with an item. A part opened with `{{^<name>}}` is kept when `<name>` has nothing.
+- A value is inserted as written and never read as syntax. A template that breaks this syntax, or names something without a value, stops `rp assign` before it writes anything.
 
-The reviewer's templates are the request itself, one per turn: `reviewer-first.md` when its lane has no open review thread, `reviewer-later.md` when that thread awaits it. Drop each sentence or paragraph whose slot has nothing — the `INVALID` lines, later inputs, guardrails, resources — and fill the rest as above. Its `<branch>`, `<base>`, and `<turn commit>` are the `branch`, `base`, and `change` its `rp review` printed; its `<thread path>` is the lane's review thread, a new one named per `../reference/run/state.md` § Threads on a first turn; its `<diff path>` is the lane's prepared file (`../reference/run/loop.md` § Review lanes); its later inputs are every later input.
+## Values
+
+Every template may use:
+
+- The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
+- `turn-commit`: the `HEAD` of the role's worktree; a reviewer's is the change.
+- `base-branch`: `run-config.md`'s `base`.
+- `subagent-model`: the subagent model name the run gives the role, or empty.
+- `brief`: the lane's brief, its placeholders expanded, or empty.
+- `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree.
+- `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
+- `malformed-files`: a list of the frontier's `INVALID` lines naming a file the role writes, as `rp check` prints them.
+- `guardrails`, `resources`: a list of the entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
+- `commit-format`: the commit format, its placeholders expanded, or `An imperative subject line.` when the project sets none.
+- `vocabulary`: when a carried text keeps a placeholder, a list of each vocabulary fact as `` - `{<name>}`: <value> ``; otherwise no item.
+
+A producer's and the implementer's templates also use:
+
+- `mode`: `Produce`, `Respond`, `Consolidate`, or `Implement`; and the flags `produce`, `respond`, `consolidate`, and `implement`, true for the turn's mode.
+- `supporting-folder`, `write-to`: the role's supporting folder and artifact, in its worktree.
+- `changed-inputs`: a list of each changed input as `<path> — changed since <commit>`, `<commit>` the last one in the role's worktree that changed its artifact.
+- `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree.
+- `threads`: a list of the threads awaiting the role.
+
+A reviewer's templates also use `review-base`; its first-turn and later-turn requests, `thread`, the lane's review thread; and its later-turn request, `diff`, the diff it reads.

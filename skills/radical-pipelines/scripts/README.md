@@ -1,12 +1,13 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, certifies landed files, discovers pipelines, and builds review lane branches. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, certifies landed files, discovers pipelines, builds review lane branches, and writes each role's assignment. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 node rp.mjs stamp <file> --at <commit>
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 node rp.mjs review <pipeline folder> --lane <lane> [--json]
+node rp.mjs assign <pipeline folder> --role <role>
 ```
 
 Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. Otherwise it exits 0, whatever the frontier.
@@ -19,7 +20,7 @@ A pipeline folder is `<pipelines folder root>/<pipeline slug>`, a folder of the 
 
 | Path | What it is | Frontmatter keys |
 | --- | --- | --- |
-| `run-config.md` | Run configuration | JSON: `format`, `target-phase`, `base`, `lanes` |
+| `run-config.md` | Run configuration | JSON: `format`, `target-phase`, `base`, `agents` |
 | `0-intent/intent.md` | Intent | `issue`, `starts-from`, `re-attempts`, each optional |
 | `0-intent/constraint-<n>.md`, `proposal-<n>.md`, `failure-<n>.md` | Later input | `target`, required; `origin`, optional and not interpreted |
 | `1-spec/spec.md` | Spec | no frontmatter |
@@ -50,21 +51,23 @@ A file's identity is the first 12 hexadecimal characters of the git blob id of t
 
 ```json
 {
-  "format": 7,
+  "format": 8,
   "target-phase": 4,
   "base": "main",
-  "lanes": [
-    { "profile": "spec-producer", "id": "a", "brief": "…" },
-    { "profile": "reviewer", "id": "security", "brief": "…" }
-  ]
+  "agents": {
+    "spec-producer": { "model": "large", "subagents": "small", "lanes": { "a": { "brief": "…" }, "b": { "model": "small" } } },
+    "implementer": { "model": "large" },
+    "reviewer": { "lanes": { "default": { "model": "large" }, "security": { "brief": ["…", "…"], "model": "other-large", "subagents": "other-small" } } }
+  }
 }
 ```
 
-- `format`: the conventions format the pipeline was written under, an integer; the current one is `7`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check` and `stamp` read only format 7 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
+- `format`: the conventions format the pipeline was written under, an integer; the current one is `8`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check`, `stamp`, `review`, and `assign` read only format 8 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
 - `target-phase`: an integer from 1 to 4. Phase 4 is review.
 - `base`: a revision that resolves to a commit.
-- `lanes` (optional, non-empty when present): each lane has only `profile`, `id`, and an optional `brief`, all non-empty strings. `profile` is `spec-producer` or `design-doc-producer` for a production lane, or `reviewer` for a review lane. `id` matches `[a-z0-9][a-z0-9-]*` and is unique per profile.
-- Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
+- `agents` (optional): the run's agents, in the schema of `.rp.md`'s `agents` (§ Conventions data).
+- A profile's `lanes` are its lanes: production lanes for `spec-producer` and `design-doc-producer`, review lanes for `reviewer`. Without a `reviewer` lane there is one review lane, `default`. A configuration may declare `default` itself alongside other review lanes.
+- A role's model is its lane's `model`, else its profile's; its subagent model is its lane's `subagents`, else its profile's. Either may be none.
 
 The body is ignored. A missing `run-config.md` or one that breaks these rules stops `check`, as does a missing intent.
 
@@ -208,7 +211,7 @@ Of each pipeline folder, discovery reads only two things, so pipelines of every 
 - **`format`** (§ `run-config.md`): the integer `format` of `run-config.md` when it is a regular file with JSON frontmatter carrying one, else `earlier`.
 - **Origins**: of `0-intent/intent.md` when it is a regular file. From format 7, its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written; an intent whose frontmatter cannot be read (§ Frontmatter) has no origins. In an earlier format, the values of the leading `origin:` lines of its body, below any frontmatter; an intent with unclosed frontmatter has no origins.
 
-A pipeline of format 7 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+A pipeline of format 8 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
 
@@ -235,6 +238,74 @@ Without `--json`, it prints `branch <lane branch>`, `base <review base>`, and `c
 
 A detached `HEAD` where the pipeline folder is, a missing `--lane`, a lane `run-config.md` does not declare, an unreadable `run-config.md` or one of another format, a base that does not resolve or shares no merge-base with the tip, or a git failure stops the command.
 
+## `assign`
+
+```text
+node rp.mjs assign <pipeline folder> --role <role>
+```
+
+`assign` writes the assignment of a role the frontier wakes. `<pipeline folder>` is in the worktree that has the pipeline branch checked out, as for `review`. `<role>` is `spec-producer`, `design-doc-producer`, `implementer`, `spec-producer-<lane>`, `design-doc-producer-<lane>`, or `reviewer-<lane>`.
+
+1. **Conventions.** It reads `.rp.md`, and `.rp.local.md` when present, from the repository's main checkout, the first worktree `git worktree list` records, whichever worktree the role sits in, and validates their data whole (§ Conventions data).
+2. **Turn.** It computes the frontier as `check` does from the working tree and takes the action that wakes the role:
+
+   | Frontier action | Role and turn |
+   | --- | --- |
+   | `produce <artifact>` | Its owner, mode Produce; Implement for the implementer |
+   | `respond <artifact>` | Its owner, mode Respond |
+   | `consolidate <artifact>` | Its owner, mode Consolidate |
+   | `lane <artifact> <lane>` | The lane, mode Produce while its candidate is missing, else Respond |
+   | `review <lane>` | The lane's reviewer |
+   | `INVALID <path>: <reason>` | Each role that writes a rejected file; a producer or the implementer in Respond, a reviewer with the repair request |
+
+   A role writes its artifact or candidate, and every thread whose file name names it as opener or owner. The `INVALID` lines of those files, and only those, are its malformed files. When no action wakes the role, `assign` stops.
+3. **Seat.** A role without a lane sits in the pipeline worktree, on the pipeline branch. A production lane sits in the worktree that has `<pipeline branch>-<spec | design-doc>-<lane>` checked out, and a review lane in the one that has `<pipeline branch>-review-<lane>`. That worktree's `HEAD` is the turn commit; a review lane's must be the change `rp review` built, whose parent is the review base (§ `review`).
+4. **Request.** On an `INVALID` frontier, a review lane gets the repair request. On any other, its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the request is the later-turn one, and `assign` also writes `reviewer.diff` beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root. Otherwise it is the first-turn one, naming a new review thread numbered one past the highest in `threads/`.
+5. **Write.** It fills the template (`../templates/README.md`) and writes it at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's.
+
+It prints `assignment <absolute path>`, then `model <name>` when the run gives the role a model (§ `run-config.md`). Every model name is printed and written as the run writes it.
+
+`assign` reads and checks everything before it writes anything. Conventions data that is missing or malformed, a role outside the grammar, a frontier that does not wake the role, a missing lane worktree, a review lane worktree that is not at a change, a detached pipeline worktree, a `base` that does not resolve or shares no merge-base with the turn commit, an unreadable or malformed template, and every reason `check` stops, stop it.
+
+### Conventions data
+
+`.rp.md`'s frontmatter is a JSON object holding the conventions an assignment carries; its body is prose `rp` never reads.
+
+```json
+{
+  "conventions": 8,
+  "commit-format": ["Use imperative mood.", "", "- `Add spec (spec-producer)`"],
+  "guardrails": { "tests": { "rule": "Run `npm test` and confirm it passes.", "profiles": ["implementer", "reviewer"] } },
+  "resources": { "staging": { "resource": "The staging site `{agent}.example.com`.", "profiles": ["implementer", "reviewer"] } },
+  "agents": { "spec-producer": { "model": "large", "subagents": "small", "lanes": { "a": { "brief": "…" } } } },
+  "variables": { "agent": "{pipeline-slug}-{role}" }
+}
+```
+
+- `conventions`, required: the version, `8`.
+- A **text** is a string, or a list of strings that are its lines, holding more than whitespace: `commit-format`, a guardrail's `rule`, a resource's `resource`, and a lane's `brief`.
+- `guardrails` and `resources`, by name: each entry holds its text and `profiles`, a non-empty list of `spec-producer`, `design-doc-producer`, `implementer`, and `reviewer`.
+- `agents`, by profile: optional `model` and `subagents`, each a non-empty model name, and for `spec-producer`, `design-doc-producer`, and `reviewer` optional `lanes`, a non-empty object of lanes by id, each with an optional `brief`, `model`, and `subagents`. A lane id matches `[a-z0-9][a-z0-9-]*`. `run-config.md`'s `agents` has this schema.
+- `variables`, by name: each a template, a non-empty string whose placeholders name vocabulary facts only. A name matches `[a-z][a-z0-9-]*` and is no vocabulary fact.
+
+Every key but `conventions` is optional, and no other key exists at any level. `.rp.local.md`'s frontmatter, when it has one, holds the same keys but `conventions`: each guardrail, resource, and variable it names replaces or adds the committed one by name, its `agents` entry each profile's, and its `commit-format` the committed one. A `.rp.local.md` without frontmatter overrides no data. Data that does not parse stops `assign`, naming the file and where parsing failed; a malformed entry stops it naming the file and the entry, as `<key>.<name>…`.
+
+### Placeholders
+
+A placeholder is `{<name>}` in a guardrail's, a resource's, or the commit format's text, or in a lane's brief, `<name>` matching `[a-z][a-z0-9-]*`, with no brace beside either of its braces; every other brace is text. `assign` replaces each placeholder that names a vocabulary fact or a variable with its value for the role, in one pass; a variable's value is its template with each fact replaced.
+
+| Vocabulary fact | Value |
+| --- | --- |
+| `pipeline-slug` | The pipeline folder's name |
+| `role` | `<profile>` or `<profile>-<lane>` |
+| `profile` | The role's profile |
+| `lane` | The lane id; empty for a role without a lane |
+| `worktree` | The absolute path of the role's worktree |
+| `branch` | The role's branch |
+| `base` | The Base: the merge-base of the role's turn commit with `run-config.md`'s `base` |
+
+A placeholder that names neither stays as written, and the assignment then lists every vocabulary fact with its value.
+
 ## Decisions
 
 These fill details the specification leaves open; the prose aligns with them.
@@ -243,4 +314,4 @@ These fill details the specification leaves open; the prose aligns with them.
 - **A message by `owner`** on any thread leaves it awaiting the thread's owner.
 - **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it. Beyond the target, a thread's owner gets `respond` even when its artifact is missing.
 - **The base an approval is merged with** is the merge-base of the tip with the base branch, not the base branch's tip, so a base that moved without being merged leaves approvals fresh.
-- **Strict keys**: unknown frontmatter, `run-config.md`, lane, and certification keys are `INVALID` or stop the command.
+- **Strict keys**: unknown frontmatter, `run-config.md`, agents, conventions data, and certification keys are `INVALID` or stop the command.

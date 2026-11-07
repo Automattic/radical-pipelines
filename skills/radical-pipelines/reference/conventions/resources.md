@@ -4,11 +4,4 @@ Resources are what a project makes available to its agents — environments, ser
 
 ## Format
 
-Each resource is a block under `.rp.md`'s `Resources` section:
-
-```markdown
-### <name>
-
-- resource: <what it is, how to reach it, what agents may do with it>
-- agents: <one or more profile names>
-```
+Each resource is an entry of `.rp.md`'s frontmatter `resources`, under its name, holding its `resource` — what it is, how to reach it, what agents may do with it — and the `profiles` it serves (`../../scripts/README.md` § Conventions data).
