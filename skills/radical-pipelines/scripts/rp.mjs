@@ -1789,6 +1789,11 @@ function threadOf(args, seat, command) {
     return wrong(command, `INVALID ${rel}: ${error.message}`, "repair the file, check it with rp validate, and run the command again");
   }
 }
+// The refusal of writing in a thread that is not open.
+function notOpen(command, rel, thread) {
+  if (thread.status === "disagreement") wrong(command, `${rel} awaits the owner's answer`, "write nothing in it: it is closed answered with the owner's answer");
+  wrong(command, `${rel} is ${thread.status}, and a closed thread is history`, "open a new thread with rp thread open");
+}
 
 // Writes the thread file `contents` at the pipeline-relative path `rel`, with `flag`, and prints its path, once the file
 // grammar accepts it and reads in it `messages`, the messages the command means. `message`, the role's message when the
@@ -1833,39 +1838,51 @@ function openThread(seat, command, values, body) {
   const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
   writeThread(seat, command, rel, withMessage(header, message.author, message.commit, body), [message], message, "wx");
 }
+// The refusal of a thread a production lane would open.
+const laneOpensNone = (command, role) => wrong(command, `${role.name} is a production lane, which opens no thread`, "state it in your candidate: the consolidator resolves where lanes differ");
 
 // `thread open`: the role's thread to the owner of the artifact it questions, with its first message.
 function cmdThreadOpen(args) {
   const command = "thread open", seat = seatOf(args, command), { role } = seat;
   const artifact = args.artifact ?? misused(command, "missing --artifact <spec | design-doc | implementation>");
   const artifacts = PHASES.map((phase) => phase.token);
+  if (isProductionLane(role.name)) laneOpensNone(command, role);
+  if (artifact === "intent") wrong(command, "the intent is the owner's", "raise a disagreement on what it means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->");
   if (!artifacts.includes(artifact)) misused(command, `--artifact names spec, design-doc, or implementation: ${artifact}`);
+  if (OWNERS[artifact] === role.profile) wrong(command, `${role.name} owns ${artifact}`, `open a thread about an artifact you consume: --artifact ${artifacts.filter((each) => each !== artifact).join(" or ")}`);
   openThread(seat, command, { status: "open", opener: role.name, owner: OWNERS[artifact], artifact }, bodyOf(args, command, true));
 }
 
 // `thread escalate`: the role's thread to owner about the intent, citing what the disagreement comes from.
 function cmdThreadEscalate(args) {
   const command = "thread escalate", seat = seatOf(args, command), { role } = seat;
-  const cites = args.cites ?? misused(command, "missing --cites <thread path | evidence path>");
-  openThread(seat, command, { status: "disagreement", opener: role.name, owner: OWNERS.intent, artifact: "intent", cites }, bodyOf(args, command, true));
+  if (!args.cites?.trim()) misused(command, "--cites names the thread the disagreement comes from or the path of its evidence");
+  if (isProductionLane(role.name)) laneOpensNone(command, role);
+  openThread(seat, command, { status: "disagreement", opener: role.name, owner: OWNERS.intent, artifact: "intent", cites: args.cites }, bodyOf(args, command, true));
 }
 
-// `thread reply`: the role's message at the end of a thread.
+// `thread reply`: the role's message at the end of an open thread that awaits it.
 function cmdThreadReply(args) {
   const command = "thread reply", seat = seatOf(args, command), { role } = seat;
   const { rel, contents, thread } = threadOf(args, seat, command);
   const body = bodyOf(args, command, true);
+  if (thread.status !== "open") notOpen(command, rel, thread);
+  if (awaitedRole(thread) !== role.name) wrong(command, `${rel} awaits ${awaitedRole(thread)}`, `only ${awaitedRole(thread)} writes in it now: check --role and --thread`);
   const message = { author: role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
   writeThread(seat, command, rel, withMessage(contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
 }
 
-// `thread close`: a thread the role opened, closed `approved` or `withdrawn`, with the role's closing message when
+// `thread close`: an open thread the role opened, closed `approved` or `withdrawn`, with the role's closing message when
 // given one.
 function cmdThreadClose(args) {
   const command = "thread close", seat = seatOf(args, command), { role } = seat;
   const status = args.status ?? misused(command, "missing --status <approved | withdrawn>");
+  if (!["approved", "withdrawn"].includes(status))
+    wrong(command, `--status is approved or withdrawn: ${status}`, "close it --status approved when its findings are resolved, or --status withdrawn when you drop them");
   const { rel, contents, thread } = threadOf(args, seat, command);
   const body = bodyOf(args, command, false);
+  if (thread.status !== "open") notOpen(command, rel, thread);
+  if (thread.opener !== role.name) wrong(command, `only its opener, ${thread.opener}, closes ${rel}`, "answer it with rp thread reply");
   const commit = requireCommit(seat.root, "HEAD", "HEAD");
   const closed = withStatus(contents, status), message = body && { author: role.name, commit };
   writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, body) : closed, message ? [...thread.messages, message] : thread.messages, message, "w");

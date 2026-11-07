@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 
 import { parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import {
-  P, PIPELINE, RP, TO_SPEC,
+  P, PIPELINE, REVIEW, RP, TO_OWNER, TO_SPEC,
   abs, apply, check, commitAll, commitIn, conventions, frontier, git, laneWorktree, pipeline, read, remove, root, thread, useRepo, write, writeFile,
 } from "./fixture.mjs";
 
@@ -150,6 +150,65 @@ describe("rp thread", () => {
       const out = spawnSync(process.execPath, [RP, "thread", "open", PIPELINE, "--role", "implementer", "--artifact", "spec", "--body", "body.md"], { cwd: root, encoding: "utf8" });
       assert.equal(read(written(out)), `---\nstatus: open\nopener: implementer\nowner: spec-producer\nartifact: spec\n---\n\n## implementer — ${head()}\n\n${FINDINGS}`);
     });
+  });
+
+  describe("refuses each wrong use, saying what was wrong and what to run instead, and changes no file", () => {
+    const F = () => abs(PIPELINE), T = (n) => abs(P(`threads/${n}`));
+    const AWAITS_SPEC = "1-design-doc-producer-spec-producer-spec.md", AWAITS_REVIEWER = "2-reviewer-default-implementer-implementation.md";
+    const CLOSED = "3-implementer-design-doc-producer-design-doc.md", TO_THE_OWNER = "4-spec-producer-owner-intent.md", REJECTED = "5-reviewer-default-implementer-implementation.md";
+    // [what, the arguments, what was wrong, what to run instead]
+    const uses = [
+      ["an unknown subcommand", () => ["thread", "shut", F(), "--role", "implementer"], /^rp: thread: unknown subcommand: shut$/m, /^ {2}node rp\.mjs thread close <pipeline folder>/m],
+      ["no subcommand", () => ["thread"], /^rp: thread: missing subcommand$/m, /^ {2}node rp\.mjs thread open <pipeline folder>/m],
+      ["an unknown option", () => ["thread", "open", F(), "--role", "implementer", "--artifact", "spec", "--owner", "spec-producer", "--body", "-"], /^rp: thread open: unknown option: --owner$/m,
+        /^usage: node rp\.mjs thread open <pipeline folder> --role <role> --artifact <spec \| design-doc \| implementation> --body <file \| ->$/m],
+      ["a missing argument", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC)], /^rp: thread reply: missing --body <file \| ->$/m, /^usage: node rp\.mjs thread reply /m],
+      ["a missing pipeline folder", () => ["validate", "--role", "implementer"], /^rp: validate: missing <pipeline folder>$/m, /^usage: node rp\.mjs validate <pipeline folder> --role <role> \[--file <path>\]$/m],
+      ["a --role that names no role", () => ["thread", "open", F(), "--role", "reviewer", "--artifact", "implementation", "--body", "-"], /^rp: thread open: --role names a role, <profile>\[-<lane>\]: reviewer$/m, /^usage: /m],
+      ["a --thread outside the pipeline's threads", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", abs("src/app.js"), "--body", "-"],
+        /^rp: thread reply: no thread file of \.pipelines\/demo: .*src\/app\.js$/m, /^give --thread a thread file in \.pipelines\/demo\/threads, as rp thread open prints it$/m],
+      ["a --thread naming no file", () => ["thread", "close", F(), "--role", "implementer", "--thread", T("9-implementer-spec-producer-spec.md"), "--status", "withdrawn"],
+        /^rp: thread close: no thread file of \.pipelines\/demo: .*9-implementer-spec-producer-spec\.md$/m, /^give --thread a thread file in /m],
+      ["a --file none of the role's files", () => ["validate", F(), "--role", "implementer", "--file", abs(P("1-spec/spec.md"))],
+        /^rp: validate: .*1-spec\/spec\.md is no file of implementer, whose files are its artifact or candidate and the threads naming it$/m, /^run rp validate without --file to check them all$/m],
+      ["an open by a production lane", () => ["thread", "open", F(), "--role", "spec-producer-a", "--artifact", "implementation", "--body", "-"],
+        /^rp: thread open: spec-producer-a is a production lane, which opens no thread$/m, /^state it in your candidate: the consolidator resolves where lanes differ$/m],
+      ["an escalation by a production lane", () => ["thread", "escalate", F(), "--role", "design-doc-producer-b", "--cites", T(AWAITS_SPEC), "--body", "-"],
+        /^rp: thread escalate: design-doc-producer-b is a production lane, which opens no thread$/m, /^state it in your candidate/m],
+      ["an open about the artifact the role owns", () => ["thread", "open", F(), "--role", "implementer", "--artifact", "implementation", "--body", "-"],
+        /^rp: thread open: implementer owns implementation$/m, /^open a thread about an artifact you consume: --artifact spec or design-doc$/m],
+      ["an open about the intent", () => ["thread", "open", F(), "--role", "implementer", "--artifact", "intent", "--body", "-"],
+        /^rp: thread open: the intent is the owner's$/m, /^raise a disagreement on what it means or demands with rp thread escalate --cites <thread path \| evidence path> --body <file \| ->$/m],
+      ["a close with another status", () => ["thread", "close", F(), "--role", "design-doc-producer", "--thread", T(AWAITS_SPEC), "--status", "answered"],
+        /^rp: thread close: --status is approved or withdrawn: answered$/m, /^close it --status approved when its findings are resolved, or --status withdrawn when you drop them$/m],
+      ["a close of a thread to owner", () => ["thread", "close", F(), "--role", "spec-producer", "--thread", T(TO_THE_OWNER), "--status", "withdrawn"],
+        new RegExp(`^rp: thread close: threads/${TO_THE_OWNER} awaits the owner's answer$`, "m"), /^write nothing in it: it is closed answered with the owner's answer$/m],
+      ["a reply to a thread that awaits the other party", () => ["thread", "reply", F(), "--role", "design-doc-producer", "--thread", T(AWAITS_SPEC), "--body", "-"],
+        new RegExp(`^rp: thread reply: threads/${AWAITS_SPEC} awaits spec-producer$`, "m"), /^only spec-producer writes in it now: check --role and --thread$/m],
+      ["a reply to a closed thread", () => ["thread", "reply", F(), "--role", "design-doc-producer", "--thread", T(CLOSED), "--body", "-"],
+        new RegExp(`^rp: thread reply: threads/${CLOSED} is approved, and a closed thread is history$`, "m"), /^open a new thread with rp thread open$/m],
+      ["a close by a role other than the opener", () => ["thread", "close", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--status", "withdrawn"],
+        new RegExp(`^rp: thread close: only its opener, design-doc-producer, closes threads/${AWAITS_SPEC}$`, "m"), /^answer it with rp thread reply$/m],
+      ["an escalation citing nothing", () => ["thread", "escalate", F(), "--role", "implementer", "--cites", " ", "--body", "-"],
+        /^rp: thread escalate: --cites names the thread the disagreement comes from or the path of its evidence$/m, /^usage: node rp\.mjs thread escalate /m],
+      ["a reply to a thread file rp validate rejects", () => ["thread", "reply", F(), "--role", "implementer", "--thread", T(REJECTED), "--body", "-"],
+        new RegExp(`^rp: thread reply: INVALID threads/${REJECTED}: status must be one of open \\| approved`, "m"), /^repair the file, check it with rp validate, and run the command again$/m],
+    ];
+    for (const [what, args, wrong, instead] of uses)
+      it(what, () => {
+        pipeline(3);
+        thread({ n: 1, ...TO_SPEC });
+        thread({ n: 2, ...REVIEW(), messages: [["reviewer-default", head()], ["implementer", head()]] });
+        thread({ n: 3, opener: "implementer", owner: "design-doc-producer", artifact: "design-doc", status: "approved" });
+        thread({ n: 4, ...TO_OWNER });
+        thread({ n: 5, ...REVIEW(), status: "pending" });
+        commitAll("threads");
+        const before = snapshot(), out = rpWith(args(), "A body.\n");
+        assert.deepEqual([out.status, out.stdout], [1, ""]);
+        assert.match(out.stderr, wrong);
+        assert.match(out.stderr, instead);
+        assert.deepEqual(snapshot(), before);
+      });
   });
 
   describe("changes", () => {
