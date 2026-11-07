@@ -1834,6 +1834,8 @@ function openThread(seat, command, values, body) {
   const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
   writeThread(seat, command, rel, withMessage(header, message.author, message.commit, body), [message], message, "wx");
 }
+// What to run instead of a thread about the intent.
+const ESCALATION = "raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->";
 // The refusal of a thread a production lane would open.
 const laneOpensNone = (command, role) => wrong(command, `${role.name} is a production lane, which opens no thread`, "state it in your candidate: the consolidator resolves where lanes differ");
 
@@ -1843,9 +1845,14 @@ function cmdThreadOpen(args) {
   const artifact = args.artifact ?? misused(command, "missing --artifact <spec | design-doc | implementation>");
   const artifacts = PHASES.map((phase) => phase.token);
   if (isProductionLane(role.name)) laneOpensNone(command, role);
-  if (artifact === "intent") wrong(command, "the intent is the owner's", "raise a disagreement on what it means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->");
+  if (artifact === "intent") wrong(command, "the intent is the owner's", ESCALATION);
   if (!artifacts.includes(artifact)) misused(command, `--artifact names spec, design-doc, or implementation: ${artifact}`);
-  if (OWNERS[artifact] === role.profile) wrong(command, `${role.name} owns ${artifact}`, `open a thread about an artifact you consume: --artifact ${artifacts.filter((each) => each !== artifact).join(" or ")}`);
+  if (OWNERS[artifact] === role.profile) {
+    // The artifacts the role consumes besides the intent: its phase's upstream ones.
+    const consumed = artifactOf(role).phase.upstream.filter((path) => path !== INTENT).map((path) => PHASES.find((phase) => phase.artifact === path).token);
+    if (!consumed.length) wrong(command, `${role.name} owns ${artifact}, and consumes the intent alone`, ESCALATION);
+    wrong(command, `${role.name} owns ${artifact}`, `open a thread about an artifact you consume: --artifact ${consumed.join(" or ")}`);
+  }
   openThread(seat, command, { status: "open", opener: role.name, owner: OWNERS[artifact], artifact }, bodyOf(args, command, true));
 }
 
