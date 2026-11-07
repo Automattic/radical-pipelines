@@ -53,3 +53,7 @@ A name in braces left in this request is a placeholder: replace it with the valu
 
 {{vocabulary}}
 {{/vocabulary}}
+
+When your worktree, your branch, or a file this assignment names is broken or missing, report what failed and stop.
+
+Before you end any turn, run `rp validate` and fix each file it reports. End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."

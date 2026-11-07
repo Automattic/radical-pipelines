@@ -26,6 +26,8 @@ Otherwise, say what still needs to change with this one, your answer in place of
 EOF
 ```
 
+When you and the author disagree on what the issue means or demands, say so: the author takes the question to the person who wrote the issue.
+
 Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}
@@ -55,3 +57,7 @@ A name in braces left in this request is a placeholder: replace it with the valu
 
 {{vocabulary}}
 {{/vocabulary}}
+
+When your worktree, your branch, or a file this assignment names is broken or missing, report what failed and stop.
+
+Before you end any turn, run `rp validate` and fix each file it reports. End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."
