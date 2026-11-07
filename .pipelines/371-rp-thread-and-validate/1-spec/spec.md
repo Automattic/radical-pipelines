@@ -1,3 +1,12 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@fac028da676c",
+    "1-spec/lanes/demands/spec.md@141b48ca30b3",
+    "1-spec/lanes/omits/spec.md@74405cae2a91"
+  ]
+}
+---
 # Spec: Roles write threads and check their own files through `rp`
 
 ## Overview
