@@ -156,7 +156,7 @@ describe("rp thread", () => {
     const F = () => abs(PIPELINE), T = (n) => abs(P(`threads/${n}`));
     const AWAITS_SPEC = "1-design-doc-producer-spec-producer-spec.md", AWAITS_REVIEWER = "2-reviewer-default-implementer-implementation.md";
     const CLOSED = "3-implementer-design-doc-producer-design-doc.md", TO_THE_OWNER = "4-spec-producer-owner-intent.md", REJECTED = "5-reviewer-default-implementer-implementation.md";
-    // [what, the arguments, what was wrong, what to run instead]
+    // [what, the arguments, what was wrong, what to run instead, and the standard input when not a body]
     const uses = [
       ["an unknown subcommand", () => ["thread", "shut", F(), "--role", "implementer"], /^rp: thread: unknown subcommand: shut$/m, /^ {2}node rp\.mjs thread close <pipeline folder>/m],
       ["no subcommand", () => ["thread"], /^rp: thread: missing subcommand$/m, /^ {2}node rp\.mjs thread open <pipeline folder>/m],
@@ -193,6 +193,8 @@ describe("rp thread", () => {
         new RegExp(`^rp: thread reply: threads/${CLOSED} is approved, and a closed thread is history$`, "m"), /^open a new thread with rp thread open$/m],
       ["a close by a role other than the opener", () => ["thread", "close", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--status", "withdrawn"],
         new RegExp(`^rp: thread close: only its opener, design-doc-producer, closes threads/${AWAITS_SPEC}$`, "m"), /^answer it with rp thread reply$/m],
+      ["an empty body", () => ["thread", "reply", F(), "--role", "spec-producer", "--thread", T(AWAITS_SPEC), "--body", "-"],
+        /^rp: thread reply: the body on standard input is empty$/m, /^write the message on standard input, or in the file --body names, and run the command again$/m, " \n\n"],
       ["an escalation citing nothing", () => ["thread", "escalate", F(), "--role", "implementer", "--cites", " ", "--body", "-"],
         /^rp: thread escalate: --cites names the thread the disagreement comes from or the path of its evidence$/m, /^usage: node rp\.mjs thread escalate /m],
       ["a reply to a thread file rp validate rejects", () => ["thread", "reply", F(), "--role", "implementer", "--thread", T(REJECTED), "--body", "-"],
@@ -201,7 +203,7 @@ describe("rp thread", () => {
         new RegExp(`^rp: thread close: an approval names the commit it approves in its reviewer's last message, and the last message of threads/${AWAITS_REVIEWER} is implementer's at [0-9a-f]{40}$`, "m"),
         /^run the same command with --body <file \| ->: your closing message names the commit you approve$/m],
     ];
-    for (const [what, args, wrong, instead] of uses)
+    for (const [what, args, wrong, instead, input = "A body.\n"] of uses)
       it(what, () => {
         pipeline(3);
         thread({ n: 1, ...TO_SPEC });
@@ -210,7 +212,7 @@ describe("rp thread", () => {
         thread({ n: 4, ...TO_OWNER });
         thread({ n: 5, ...REVIEW(), status: "pending" });
         commitAll("threads");
-        const before = snapshot(), out = rpWith(args(), "A body.\n");
+        const before = snapshot(), out = rpWith(args(), input);
         assert.deepEqual([out.status, out.stdout], [1, ""]);
         assert.match(out.stderr, wrong);
         assert.match(out.stderr, instead);

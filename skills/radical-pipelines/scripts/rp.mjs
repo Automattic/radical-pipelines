@@ -1765,11 +1765,14 @@ function withStatus(contents, status) {
 }
 
 // A message body: the bytes of the file `--body` names, against the process directory, or of standard input for `-`;
-// null when the command is given none.
+// null when the command is given none. A body of whitespace alone is a wrong use.
 function bodyOf(args, command, required) {
   if (args.body === null) return required ? misused(command, "missing --body <file | ->") : null;
-  try { return readFileSync(args.body === "-" ? 0 : resolve(process.cwd(), args.body)); }
+  let body;
+  try { body = readFileSync(args.body === "-" ? 0 : resolve(process.cwd(), args.body)); }
   catch (error) { fail(`cannot read ${args.body === "-" ? "standard input" : args.body}: ${error.message}`); }
+  return /\S/.test(body.toString("utf8")) ? body : wrong(command, `the body ${args.body === "-" ? "on standard input" : `in ${args.body}`} is empty`,
+    "write the message on standard input, or in the file --body names, and run the command again");
 }
 // The thread file `--thread` names, by its pipeline-relative path, its contents in the working tree, and the thread the
 // file grammar reads in it. A path that names no thread file of the pipeline folder, or a file the grammar rejects, is
