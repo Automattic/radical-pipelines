@@ -1,0 +1,19 @@
+# rp's commands at the base (369-conventions-as-data), run from this worktree
+
+$ node skills/radical-pipelines/scripts/rp.mjs --help
+rp — Radical Pipelines state tooling
+
+Usage:
+  node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
+  node rp.mjs stamp <file> --at <commit>
+  node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
+  node rp.mjs review <pipeline folder> --lane <lane> [--json]
+  node rp.mjs assign <pipeline folder> --role <role>
+
+See README.md beside this script.
+$ node skills/radical-pipelines/scripts/rp.mjs next .pipelines/370-rp-next-and-land
+rp: unknown command: next
+(exit 1)
+$ node skills/radical-pipelines/scripts/rp.mjs land .pipelines/370-rp-next-and-land
+rp: unknown command: land
+(exit 1)

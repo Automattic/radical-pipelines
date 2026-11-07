@@ -34,4 +34,4 @@ A finished role needs none. Stop a running role with `opencode api POST /api/ses
 
 ## Models
 
-Pass as `model` the `provider/model[#variant]` string the model name `rp assign` printed resolves to: the string the project's `## opencode` section maps the name to; else the name itself when it is such a string; else the model the Code Mode tool `opencode.models` finds by the name, your own provider's first.
+Pass as `model` the `provider/model[#variant]` string the model name the plan names resolves to: the string the project's `## opencode` section maps the name to; else the name itself when it is such a string; else the model the Code Mode tool `opencode.models` finds by the name, your own provider's first.

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, NOTES, P, SPEC, abs, approve, check, commitAll, configure, frontier, git, later, pipeline, read, root, rp, run, stampAt, thread, REVIEW, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, NOTES, P, SPEC, abs, approve, check, commitAll, configure, certifyAt, frontier, git, later, pipeline, read, root, rp, run, thread, REVIEW, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 const head = () => git(root, "rev-parse", "HEAD").trim();
 const review = () => check().reviews[0];
@@ -32,7 +32,7 @@ describe("approval freshness", () => {
     pipeline(3);
     const tip = head();
     thread({ status: "approved", ...REVIEW(), messages: [["reviewer-default", tip]] });
-    stampAt(tip, "threads/1-reviewer-default-implementer-implementation.md");
+    certifyAt(tip, "threads/1-reviewer-default-implementer-implementation.md");
     assert.equal(check().tip, tip);
     assert.deepEqual(review(), { lane: "default", approved: true });
   });
@@ -171,7 +171,7 @@ describe("approval freshness", () => {
     const turn = commitAll("pipeline");
     const approval = "work/pipes/demo/threads/1-reviewer-default-implementer-implementation.md";
     writeFile(approval, withFrontmatter({ status: "approved", opener: "reviewer-default", owner: "implementer", artifact: "implementation" }, `\n## reviewer-default — ${turn}\n`));
-    rp("stamp", abs(approval), "--at", turn);
+    certifyAt(turn, "threads/1-reviewer-default-implementer-implementation.md", { folder: "work/pipes/demo" });
     writeFile("work/pipes/other.md", "inside the root\n");
     commitAll("inside");
     const reviews = () => JSON.parse(rp("check", abs("work/pipes/demo"), "--json")).reviews;

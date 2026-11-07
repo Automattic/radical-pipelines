@@ -28,7 +28,7 @@ The pipeline branch as a template over `<pipeline slug>`.
 
 ### Worktree folder root (required)
 
-The root under which the orchestrator creates one worktree per branch with raw `git worktree` and removes lane worktrees when their lanes finish. Suggested: `.worktrees/`. Check the location rule in `tools/<tool>.md` (for example, that the root must be inside the repository).
+The root holding one worktree per branch, at `<root>/<branch>`: the pipeline's, which triage creates, and each lane's, which `rp next --apply` creates and removes. Suggested: `.worktrees/`. Check the location rule in `tools/<tool>.md` (for example, that the root must be inside the repository).
 
 ### Pipelines folder root (optional)
 
@@ -100,6 +100,10 @@ Capture:
 
 The format every assignment carries. Capture one example. Suggested: `<commit-description> (<profile>)`.
 
+### Landing commit (optional)
+
+The template of the commits `rp land` makes, holding `{subject}`, the imperative subject `rp` writes for each. Absent, a commit has the subject alone. Suggested: one the Commit format's examples follow, such as `{subject} (orchestrator)`.
+
 ### PR format (optional)
 
 The pull request title and description template, required sections, style, and an example.
@@ -128,11 +132,11 @@ The recurring health loop's interval and stall threshold. Offer the defaults in 
 
 Keep `.rp.md` to the conventions above. Include other discovered facts or instructions only at the owner's explicit request; under-specification is safe.
 
-Write Commit format, Guardrails, Resources, Agents, and Variables as data in the frontmatter (`../../scripts/README.md` § Conventions data), each value and text as the owner gave it, and every other convention as a prose section. When a guardrail, resource, commit-format, or brief text uses a placeholder that names no vocabulary fact, offer to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose, when one does.
+Write Worktree folder root, Landing commit, Commit format, Guardrails, Resources, Agents, and Variables as data in the frontmatter (`../../scripts/README.md` § Conventions data), each value and text as the owner gave it, and every other convention as a prose section. When a guardrail, resource, commit-format, or brief text uses a placeholder that names no vocabulary fact, offer to declare it as a variable, proposing as its template the definition another section of `.rp.md` gives it in prose, when one does.
 
 1. Show the proposed changes and get the owner's confirmation. When `.rp.md` exists, offer to overwrite or merge/append it and follow the owner's choice.
 2. Resolve every required answer before writing a complete file. With unresolved answers, stop or, only when the owner requests a draft, mark each unresolved fact in an incomplete file.
-3. On the artifact base branch, write human-readable `.rp.md`: the frontmatter, `"conventions": 8` first, then shared fact sections and a section headed by the active tool's name for its project facts.
+3. On the artifact base branch, write human-readable `.rp.md`: the frontmatter, `"conventions": 9` first, then shared fact sections and a section headed by the active tool's name for its project facts.
 4. With permission, append the worktree folder root entry to `.gitignore`.
 5. Commit the approved `.rp.md` on that branch, co-committing `.gitignore` when changed. In `artifacts-in-fork`, remind the owner that both changes stay in the fork.
 6. Report whether `.rp.md` was created or updated and whether setup is complete.

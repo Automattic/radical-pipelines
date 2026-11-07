@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, certification, check, commitAll, frontier, git, lane, later, pipeline, read, land, remove, revise, root, rp, thread, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, P, SPEC, TO_SPEC, abs, certification, certifyAt, check, commitAll, frontier, git, lane, later, pipeline, read, land, remove, revise, root, rp, thread, useRepo, write, writeFile } from "./fixture.mjs";
 
 const SPEC_LANES = [lane("spec-producer", "a"), lane("spec-producer", "b"), lane("reviewer", "security")];
 const candidate = (id, folder = "1-spec", name = "spec.md") => `${folder}/lanes/${id}/${name}`;
@@ -131,7 +131,7 @@ describe("production lanes", () => {
       writeFile(`.wt-${id}/${P(candidate(id))}`, `# Spec candidate ${id}\n`);
       git(worktree, "add", "-A");
       git(worktree, "commit", "--quiet", "-m", `candidate ${id}`);
-      rp("stamp", `${worktree}/${P(candidate(id))}`, "--at", tip);
+      certifyAt(tip, candidate(id), { worktree });
       git(worktree, "add", "-A");
       git(worktree, "commit", "--quiet", "-m", `land ${id}`);
     }

@@ -1,6 +1,6 @@
 # Load project conventions
 
-Tool mechanics live in the skill. Project facts live in the project files and reach agents only through the assignments `rp assign` writes.
+Tool mechanics live in the skill. Project facts live in the project files and reach agents only through the assignments `rp next --apply` writes.
 
 ## Sources
 
@@ -20,6 +20,7 @@ Find the repository's main root, even when running inside a worktree. Read in th
 | Pipelines folder root  | The root containing pipeline folders; default `.pipelines/`                                                                                                                                                                                                                                           | No       |
 | Artifact storage       | Whether `.rp.md` and the pipelines folder live in the project's repository (`artifacts-in-repo`) or a fork (`artifacts-in-fork`), and the artifact base branch — where pipelines start: the repository's main branch in `artifacts-in-repo`, or an explicitly declared branch of the fork in `artifacts-in-fork` | Yes      |
 | Worktree folder root   | The root containing worktrees                                                                                                                                                                                                                                                                         | Yes      |
+| Landing commit         | The template of the commits `rp land` makes; absent, their subject alone                                                                                                                                                                                                                              | No       |
 | Commit format          | Commit message rules; absent, an imperative subject line                                                                                                                                                                                                                                              | No       |
 | PR format              | Pull request title and description rules                                                                                                                                                                                                                                                              | No       |
 | Guardrails             | Rules agents must satisfy                                                                                                                                                                                                                                                                             | No       |
@@ -29,11 +30,11 @@ Find the repository's main root, even when running inside a worktree. Read in th
 | Variables              | Placeholders the guardrail, resource, commit-format, and brief texts use, each a template over the vocabulary (`../../scripts/README.md` § Placeholders)                                                                                                                                                 | No       |
 | Health monitoring      | Interval and stall threshold overriding the health loop's defaults (`health-monitoring.md`)                                                                                                                                                                                                           | No       |
 
-Commit format, Guardrails, Resources, Agents, and Variables are data in `.rp.md`'s frontmatter (`../../scripts/README.md` § Conventions data); every other convention is a prose section.
+Worktree folder root, Landing commit, Commit format, Guardrails, Resources, Agents, and Variables are data in `.rp.md`'s frontmatter (`../../scripts/README.md` § Conventions data); every other convention is a prose section.
 
 ## Schema stamp
 
-`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 8.
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 9.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

@@ -1,6 +1,6 @@
 # Lifecycle hooks
 
-At each configured moment of a run, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`.
+At each configured moment of a run, follow the instructions the project wrote for that hook, knowing which pipeline, run, and phase you are in. Include the route at `run-started` and the cause at `run-ended`. A worktree's hooks also know the role the worktree is for, the pipeline worktree being for every role without a lane; an agent's hooks know the role, and a spawned role's resources are those its plan names (`../run/loop.md`).
 
 Report a failed instruction to the owner and continue. When the failed instruction is marked **blocking**, stop the run through close-out; if you are already closing out, continue with the remaining close-out actions. `run-ended` still fires.
 
@@ -11,8 +11,8 @@ Report a failed instruction to the owner and continue. When the failed instructi
 | `before-creating-pipeline`     | A pipeline is about to be created, before any step                                                      |
 | `after-creating-pipeline`      | The pipeline exists: branch, worktree, pipeline folder, and committed intent                             |
 | `run-started`                  | Work on a pipeline begins — created, continued, or corrected — before dispatch                          |
-| `before-creating-branch`       | A branch is about to be created                                                                         |
-| `after-creating-branch`        | A branch is created                                                                                     |
+| `before-creating-branch`       | Triage is about to create a branch                                                                      |
+| `after-creating-branch`        | Triage created a branch                                                                                 |
 | `before-creating-worktree`     | A worktree is about to be created or recreated                                                          |
 | `after-creating-worktree`      | A worktree is created or recreated                                                                      |
 | `before-removing-worktree`     | A worktree is about to be removed                                                                       |

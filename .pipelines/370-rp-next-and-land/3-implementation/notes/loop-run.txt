@@ -1,0 +1,171 @@
+
+$ rp next <repo>/.pipelines/demo --apply
+frontier lane 1-spec/spec.md a
+frontier lane 1-spec/spec.md b
+hook before-creating-worktree spec-producer-a <repo>/.worktrees/demo-spec-a
+hook before-creating-worktree spec-producer-b <repo>/.worktrees/demo-spec-b
+create-branch demo-spec-a c7d8d4fbfc61184a4700a4b1de12cf2acb97bab6
+create-branch demo-spec-b c7d8d4fbfc61184a4700a4b1de12cf2acb97bab6
+create-worktree spec-producer-a demo-spec-a <repo>/.worktrees/demo-spec-a
+create-worktree spec-producer-b demo-spec-b <repo>/.worktrees/demo-spec-b
+hook after-creating-worktree spec-producer-a <repo>/.worktrees/demo-spec-a
+hook after-creating-worktree spec-producer-b <repo>/.worktrees/demo-spec-b
+hook phase-started 1
+hook before-spawning-agent spec-producer-a
+wake spec-producer-a profile spec-producer
+wake spec-producer-a lane a
+wake spec-producer-a model opus
+wake spec-producer-a phase 1
+wake spec-producer-a worktree <repo>/.worktrees/demo-spec-a
+wake spec-producer-a assignment <repo>/.git/worktrees/demo-spec-a/rp/spec-producer.md
+hook after-spawning-agent spec-producer-a
+hook before-merging-lanes spec-producer-a
+hook after-merging-lanes spec-producer-a
+hook before-spawning-agent spec-producer-b
+wake spec-producer-b profile spec-producer
+wake spec-producer-b lane b
+wake spec-producer-b model sonnet
+wake spec-producer-b phase 1
+wake spec-producer-b worktree <repo>/.worktrees/demo-spec-b
+wake spec-producer-b assignment <repo>/.git/worktrees/demo-spec-b/rp/spec-producer.md
+hook after-spawning-agent spec-producer-b
+hook before-merging-lanes spec-producer-b
+hook after-merging-lanes spec-producer-b
+
+$ rp land <repo>/.pipelines/demo --role spec-producer-a
+
+$ rp land <repo>/.pipelines/demo --role spec-producer-b
+
+$ rp next <repo>/.pipelines/demo --apply
+frontier consolidate 1-spec/spec.md
+hook before-terminating-agent spec-producer-a
+terminate spec-producer-a profile spec-producer
+terminate spec-producer-a lane a
+hook after-terminating-agent spec-producer-a
+hook before-terminating-agent spec-producer-b
+terminate spec-producer-b profile spec-producer
+terminate spec-producer-b lane b
+hook after-terminating-agent spec-producer-b
+hook before-removing-worktree spec-producer-a <repo>/.worktrees/demo-spec-a
+hook before-removing-worktree spec-producer-b <repo>/.worktrees/demo-spec-b
+remove-worktree spec-producer-a <repo>/.worktrees/demo-spec-a
+remove-worktree spec-producer-b <repo>/.worktrees/demo-spec-b
+delete-branch demo-spec-a
+delete-branch demo-spec-b
+hook after-removing-worktree spec-producer-a <repo>/.worktrees/demo-spec-a
+hook after-removing-worktree spec-producer-b <repo>/.worktrees/demo-spec-b
+hook before-spawning-agent spec-producer
+wake spec-producer profile spec-producer
+wake spec-producer model opus
+wake spec-producer phase 1
+wake spec-producer worktree <repo>
+wake spec-producer assignment <repo>/.git/rp/spec-producer.md
+wake spec-producer fresh
+hook after-spawning-agent spec-producer
+
+$ rp land <repo>/.pipelines/demo --role spec-producer
+hook phase-completed 1
+
+$ rp next <repo>/.pipelines/demo --apply
+frontier produce 2-design-doc/design-doc.md
+hook phase-started 2
+hook before-spawning-agent design-doc-producer
+wake design-doc-producer profile design-doc-producer
+wake design-doc-producer phase 2
+wake design-doc-producer worktree <repo>
+wake design-doc-producer assignment <repo>/.git/rp/design-doc-producer.md
+hook after-spawning-agent design-doc-producer
+
+$ rp land <repo>/.pipelines/demo --role design-doc-producer
+hook phase-completed 2
+
+$ rp next <repo>/.pipelines/demo --apply
+frontier produce 3-implementation/notes.md
+hook phase-started 3
+hook before-spawning-agent implementer
+wake implementer profile implementer
+wake implementer phase 3
+wake implementer worktree <repo>
+wake implementer assignment <repo>/.git/rp/implementer.md
+wake implementer resource staging
+hook after-spawning-agent implementer
+
+$ rp land <repo>/.pipelines/demo --role implementer
+hook phase-completed 3
+
+$ rp next <repo>/.pipelines/demo --apply
+frontier review default
+frontier review second
+hook before-creating-worktree reviewer-default <repo>/.worktrees/demo-review-default
+hook before-creating-worktree reviewer-second <repo>/.worktrees/demo-review-second
+create-branch demo-review-default change
+create-branch demo-review-second change
+create-worktree reviewer-default demo-review-default <repo>/.worktrees/demo-review-default
+create-worktree reviewer-second demo-review-second <repo>/.worktrees/demo-review-second
+hook after-creating-worktree reviewer-default <repo>/.worktrees/demo-review-default
+hook after-creating-worktree reviewer-second <repo>/.worktrees/demo-review-second
+hook phase-started 4
+hook before-spawning-agent reviewer-default
+wake reviewer-default profile reviewer
+wake reviewer-default lane default
+wake reviewer-default phase 4
+wake reviewer-default worktree <repo>/.worktrees/demo-review-default
+wake reviewer-default assignment <repo>/.git/worktrees/demo-review-default/rp/reviewer.md
+wake reviewer-default resource staging
+hook after-spawning-agent reviewer-default
+hook before-merging-lanes reviewer-default
+hook after-merging-lanes reviewer-default
+hook before-spawning-agent reviewer-second
+wake reviewer-second profile reviewer
+wake reviewer-second lane second
+wake reviewer-second phase 4
+wake reviewer-second worktree <repo>/.worktrees/demo-review-second
+wake reviewer-second assignment <repo>/.git/worktrees/demo-review-second/rp/reviewer.md
+wake reviewer-second resource staging
+hook after-spawning-agent reviewer-second
+hook before-merging-lanes reviewer-second
+hook after-merging-lanes reviewer-second
+
+$ rp land <repo>/.pipelines/demo --role reviewer-default
+rp: land: <repo>/.worktrees/demo-review-default: rp check rejects files the turn brings:
+INVALID threads/1-reviewer-default-implementer-implementation.md: status must be one of open | approved | withdrawn | answered | disagreement
+
+$ rp land <repo>/.pipelines/demo --role reviewer-second
+
+$ rp next <repo>/.pipelines/demo --apply
+frontier review default
+repair reviewer-default INVALID threads/1-reviewer-default-implementer-implementation.md: status must be one of open | approved | withdrawn | answered | disagreement
+hook before-spawning-agent reviewer-default
+wake reviewer-default profile reviewer
+wake reviewer-default lane default
+wake reviewer-default phase 4
+wake reviewer-default worktree <repo>/.worktrees/demo-review-default
+wake reviewer-default assignment <repo>/.git/worktrees/demo-review-default/rp/reviewer.md
+hook after-spawning-agent reviewer-default
+hook before-merging-lanes reviewer-default
+hook after-merging-lanes reviewer-default
+
+$ rp land <repo>/.pipelines/demo --role reviewer-default
+hook phase-completed 4
+
+$ rp next <repo>/.pipelines/demo
+frontier complete
+
+$ git log --first-parent --format=%s demo
+Certify review lane default approval (orchestrator)
+Repair review thread (reviewer)
+Open review thread (reviewer)
+Certify review lane second approval (orchestrator)
+Open review thread (reviewer)
+Certify implementation notes (orchestrator)
+Implement (implementer)
+Certify design doc (orchestrator)
+Add design doc (design-doc-producer)
+Certify spec (orchestrator)
+Consolidate spec (spec-producer)
+Certify spec lane b candidate (orchestrator)
+Merge spec lane b (orchestrator)
+Certify spec lane a candidate (orchestrator)
+Merge spec lane a (orchestrator)
+Add intent
+base

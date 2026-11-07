@@ -1,0 +1,12 @@
+## P1: git cherry on a production lane before and after its merge, and after the pipeline is merged into it
+before merge: git cherry p p-spec-a
++ 86e4dccc24d7d06dcf96f0524c2faf9a0d5e3d01
+after merge: git cherry p p-spec-a
+(empty)
+after fast-forwarding the lane to the pipeline: git cherry p p-spec-a
+(empty)
+## P2: a key outside the version-8 conventions schema
+rejected: frontmatter: unexpected key: worktree-folder-root
+## P3: git merge-tree --write-tree, which rp check runs to judge an approval's code, adds objects to the object store
+loose objects before: 9
+loose objects after: 10

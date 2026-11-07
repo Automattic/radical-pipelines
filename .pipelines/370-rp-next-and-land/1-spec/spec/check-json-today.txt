@@ -1,0 +1,101 @@
+# rp check --json today, on the scratch pipeline of loop-walk.txt after its walk (frontier complete)
+
+$ rp.mjs check <pipeline folder> --json
+{
+  "pipeline": ".pipelines/42-export",
+  "tip": "c66986cd27ecff9164399a3c74a6bd199471dd73",
+  "targetPhase": 4,
+  "frontier": [
+    {
+      "action": "complete"
+    }
+  ],
+  "phases": [
+    {
+      "phase": "1-spec",
+      "artifact": "1-spec/spec.md",
+      "state": "fresh",
+      "lanes": []
+    },
+    {
+      "phase": "2-design-doc",
+      "artifact": "2-design-doc/design-doc.md",
+      "state": "fresh",
+      "lanes": []
+    },
+    {
+      "phase": "3-implementation",
+      "artifact": "3-implementation/notes.md",
+      "state": "fresh",
+      "lanes": []
+    }
+  ],
+  "netChange": "2ce52cd9e63f75ce977a43e1a401af54bdb3081a..c66986cd27ecff9164399a3c74a6bd199471dd73",
+  "reviews": [
+    {
+      "lane": "default",
+      "approved": true
+    },
+    {
+      "lane": "second",
+      "approved": true
+    }
+  ],
+  "threads": [
+    {
+      "path": "threads/1-reviewer-default-implementer-implementation.md",
+      "status": "approved",
+      "opener": "reviewer-default",
+      "owner": "implementer",
+      "artifact": "implementation",
+      "awaits": null,
+      "reviewed": "4e530217a5d2ed111f16e5aadd2ef058d10215fe"
+    },
+    {
+      "path": "threads/1-reviewer-second-implementer-implementation.md",
+      "status": "approved",
+      "opener": "reviewer-second",
+      "owner": "implementer",
+      "artifact": "implementation",
+      "awaits": null,
+      "reviewed": "49ea8c4e24aae8ecd4549ae51188c2def43d5fb7"
+    }
+  ]
+}
+
+# The same command on loop-edges.sh's E4 pipeline after its walk: frontier respond 2-design-doc/design-doc.md, the spec changed
+
+$ rp.mjs check <pipeline folder> --json
+{
+  "pipeline": ".pipelines/42-export",
+  "tip": "2a06a93cb701ff2a19092e243c2a63c3b33911df",
+  "targetPhase": 2,
+  "frontier": [
+    {
+      "action": "respond",
+      "target": "2-design-doc/design-doc.md",
+      "threads": [],
+      "changed": [
+        "1-spec/spec.md"
+      ]
+    }
+  ],
+  "phases": [
+    {
+      "phase": "1-spec",
+      "artifact": "1-spec/spec.md",
+      "state": "fresh",
+      "lanes": []
+    },
+    {
+      "phase": "2-design-doc",
+      "artifact": "2-design-doc/design-doc.md",
+      "state": "stale",
+      "stale": [
+        "1-spec/spec.md"
+      ],
+      "lanes": []
+    }
+  ],
+  "threads": []
+}

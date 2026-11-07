@@ -2,6 +2,18 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 9
+
+Migrate from version 8.
+
+### Data
+
+Move `Worktree folder root` into the frontmatter's data as `worktree-folder-root` (`../../scripts/README.md` § Conventions data), its folder unchanged, and remove the section from the body. Offer `landing-commit`, the template of the commits `rp land` makes, proposing one that the **Commit format** convention's examples follow, such as `{subject} (orchestrator)`. In `.rp.local.md`, the same conventions move into its frontmatter.
+
+### Pipelines
+
+Pipelines keep format 8 and are continued.
+
 ## 8
 
 Migrate from version 7.
