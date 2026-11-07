@@ -254,7 +254,7 @@ describe("rp thread", () => {
     // Every command an assignment states for rp: each code block that runs it, as written.
     const statedIn = (text) => [...text.matchAll(/^```\n(node [^`]*?)\n```$/gm)].map((match) => match[1]);
     // Runs a stated command from `worktree` with `body` in place of its `<…>` line, or on its standard input.
-    const sh = (command, worktree, body = "") => spawnSync("sh", ["-c", command.replace(/^<[^>\n]+>$/m, body.trimEnd())], { cwd: worktree, encoding: "utf8", input: body });
+    const sh = (command, worktree, body = "") => spawnSync("sh", ["-c", command.replace(/^<[^>\n]+>$/m, () => body.trimEnd())], { cwd: worktree, encoding: "utf8", input: body });
     // Applies the step and reads the assignment of `role`, which it wakes: its worktree and its text.
     function woken(role) {
       const fields = wakeOf(apply(), role);
