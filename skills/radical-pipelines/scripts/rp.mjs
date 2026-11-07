@@ -1905,7 +1905,9 @@ function cmdThreadClose(args) {
 function cmdValidate(args) {
   const command = "validate", seat = seatOf(args, command), { role } = seat;
   const only = args.file === null ? null : inFolder(args.file, seat.base);
-  if (args.file !== null && !(only && writes(role, only)))
+  if (args.file !== null && !only)
+    wrong(command, `${args.file} lies outside ${seat.folder}, as --file resolves against the process directory`, `give --file ${seat.base}/<its path in the pipeline folder>`);
+  if (args.file !== null && !writes(role, only))
     wrong(command, `${args.file} is no file of ${role.name}, whose files are its artifact or candidate and the threads naming it`, "run rp validate without --file to check them all");
   const pipeline = readWorktree(seat.root, seat.folder, (path) => only ? path === only : writes(role, path));
   if (only && !pipeline.files.has(only)) fail(`cannot read ${seat.folder}/${only}: missing`);
