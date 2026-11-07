@@ -379,8 +379,8 @@ function worktreeCertification(base, folder, rel) {
 
 // A pipeline, as read from the working tree or a commit: its files by pipeline-relative path, the identity of each
 // pinnable one, and `certification(rel)`, the certification of the landed file at `rel` (§ worktreeCertification).
-// This one is the working tree's. `reads`, when given, narrows it to the files an operation reads: only those files are
-// validated.
+// This one is the working tree's. `reads`, when given, narrows it to the paths an operation reads, the pipeline files it
+// selects and the folders that hold them: only those are validated.
 function readWorktree(root, folder, reads = null) {
   const base = join(root, folder);
   if (!existsSync(base) || !lstatSync(base).isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
@@ -388,12 +388,13 @@ function readWorktree(root, folder, reads = null) {
   const visit = (rel) => {
     for (const name of readdirSync(join(base, rel)).sort()) {
       const child = rel ? `${rel}/${name}` : name;
+      if (reads && !reads(child)) continue;
       const stat = lstatSync(join(base, child));
-      const read = Boolean(kindOf(child)) && (!reads || reads(child));
-      if (!reads && holdsFiles(child) && !stat.isDirectory()) fail(`cannot read ${folder}/${child}: a file where a folder belongs`);
-      if (read && stat.isDirectory()) fail(`cannot read ${folder}/${child}: a folder where a pipeline file belongs`);
-      if (stat.isDirectory()) { if (holdsFiles(child)) visit(child); }
-      else if (read) {
+      if (holdsFiles(child)) {
+        if (!stat.isDirectory()) fail(`cannot read ${folder}/${child}: a file where a folder belongs`);
+        visit(child);
+      } else if (kindOf(child)) {
+        if (stat.isDirectory()) fail(`cannot read ${folder}/${child}: a folder where a pipeline file belongs`);
         if (!stat.isFile()) fail(`cannot read ${folder}/${child}: not a regular file`);
         files.set(child, readFileSync(join(base, child)));
       }
@@ -1260,6 +1261,10 @@ function artifactOf(role) {
 }
 // The pipeline files a role writes: its artifact or candidate, and every thread whose file name names it.
 const writes = (role, path) => path === artifactOf(role)?.path || (kindOf(path)?.kind === "thread" && partiesOf(path).has(role.name));
+// The paths that lead to `rel`: the path itself and each folder that holds it.
+const toward = (rel) => (path) => rel === path || rel.startsWith(`${path}/`);
+// The paths that lead to the files a role writes: each such file and each folder that holds one.
+const towardWrites = (role) => (path) => writes(role, path) || [artifactOf(role)?.path ?? "", "threads/"].some((rel) => rel.startsWith(`${path}/`));
 
 // A role: its name, `<profile>[-<lane>]`, its profile, its lane or null, and its phase, its artifact's or review's.
 function roleFor(profile, lane = null) {
@@ -1780,7 +1785,7 @@ function bodyOf(args, command, required) {
 function threadOf(args, seat, command) {
   const given = args.thread ?? misused(command, "missing --thread <thread file>");
   const rel = inFolder(given, seat.base);
-  const contents = kindOf(rel ?? "")?.kind === "thread" ? readWorktree(seat.root, seat.folder, (path) => path === rel).files.get(rel) : undefined;
+  const contents = kindOf(rel ?? "")?.kind === "thread" ? readWorktree(seat.root, seat.folder, toward(rel)).files.get(rel) : undefined;
   if (!contents) wrong(command, `no thread file of ${seat.folder}: ${given}`, `give --thread a thread file in ${seat.folder}/threads, as rp thread open prints it`);
   try { return { rel, contents, thread: parseFile(rel, kindOf(rel), contents) }; }
   catch (error) {
@@ -1909,7 +1914,7 @@ function cmdValidate(args) {
     wrong(command, `${args.file} lies outside ${seat.folder}, as --file resolves against the process directory`, `give --file ${seat.base}/<its path in the pipeline folder>`);
   if (args.file !== null && !writes(role, only))
     wrong(command, `${args.file} is no file of ${role.name}, whose files are its artifact or candidate and the threads naming it`, "run rp validate without --file to check them all");
-  const pipeline = readWorktree(seat.root, seat.folder, (path) => only ? path === only : writes(role, path));
+  const pipeline = readWorktree(seat.root, seat.folder, only ? toward(only) : towardWrites(role));
   if (only && !pipeline.files.has(only)) fail(`cannot read ${seat.folder}/${only}: missing`);
   const rejected = parseFiles(pipeline, seat.folder, null, false).invalid;
   const lines = rejected.map(({ path, reason }) => frontierText({ action: "INVALID", target: path, reason }));

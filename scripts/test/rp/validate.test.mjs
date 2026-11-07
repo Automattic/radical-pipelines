@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { NOTES, P, PIPELINE, REVIEW, TO_SPEC, abs, apply, commitAll, commitIn, conventions, lane, laneWorktree, pipeline, rp, run, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
+import { NOTES, P, PIPELINE, REVIEW, TO_SPEC, abs, apply, commitAll, commitIn, conventions, lane, laneWorktree, pipeline, remove, rp, run, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 // What `rp validate` prints for `role` on the pipeline folder in `worktree`, with `options`, as its lines.
 const validate = (role, options = [], worktree = abs("")) => rp("validate", `${worktree}/${PIPELINE}`, "--role", role, ...options).trimEnd().split("\n");
@@ -50,6 +50,19 @@ describe("rp validate", () => {
     assert.deepEqual(validate("spec-producer-zz"), ["accepted: every file of spec-producer-zz"]);
     assert.deepEqual(validate("reviewer-gone"), ["accepted: every file of reviewer-gone"]);
   });
+
+  // [the role, the folder a file stands in place of, whether that folder holds the role's files]
+  const misplaced = [["reviewer-default", "threads", true], ["spec-producer", "1-spec", true], ["spec-producer-a", "1-spec/lanes", true], ["reviewer-default", "1-spec", false]];
+  for (const [role, folder, holds] of misplaced)
+    it(`${holds ? "stops, as rp check stops, on" : "reads past"} a file where ${folder}/ belongs, for ${role}`, () => {
+      pipeline(0);
+      remove(folder);
+      write(folder, "a file where a folder belongs\n");
+      const stop = `rp: cannot read ${PIPELINE}/${folder}: a file where a folder belongs\n`;
+      assert.equal(run("check", abs(PIPELINE)).stderr, stop);
+      const out = run("validate", abs(PIPELINE), "--role", role);
+      assert.deepEqual([out.status, out.stderr, out.stdout], holds ? [1, stop, ""] : [0, "", `accepted: every file of ${role}\n`]);
+    });
 
   it("reports a production lane's candidate in the lane's worktree", () => {
     conventions();
