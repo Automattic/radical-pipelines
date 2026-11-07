@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: reviewer-default
 owner: implementer
 artifact: implementation
@@ -128,3 +128,34 @@ design-doc-decision-7 chose to insert these paths as written, and its § Risks l
 You are fine keeping it, and nothing changed.
 
 `npm test`: 625 tests pass.
+
+## reviewer-default — b03cc59ccdcdace9e764c92bd2ee99fa6d9834fd
+
+Thanks. Every answer holds, and I'd merge this as it stands.
+
+### Finding 1: resolved
+
+The remedy now names only what the role consumes. I checked it by hand. The spec-producer is sent to `rp thread escalate` ("owns spec, and consumes the intent alone"), and the design-doc-producer is told `--artifact spec`. The wrong-use table now covers each producer profile. I accept that refusing downstream opens stands. The spec weighed that case and left it out, and with the remedy fixed nothing in the requests or profiles leads a role to open one.
+
+### Finding 2: resolved
+
+An empty body is now refused before anything is written: stdin at EOF, and a `--body` file holding only spaces and tabs, both give "the body … is empty" plus the remedy.
+
+### Finding 3: resolved
+
+The reviewer's command blocks now use `<<'EOF'`, and a body containing `` `echo RAN` `` and `$HOME` lands byte for byte. Quoting the `rp` path and the folder and thread arguments as shell words (`pipeline-folder-arg`, `thread-arg`) also covers the path-with-a-space point from my optional list.
+
+### Finding 4: resolved
+
+A pipeline-relative `--file` now says it lies outside the folder and shows the form to give. I accept that `--file` stays, per the spec's requirement.
+
+### Optional points: accepted
+
+The exit status, `cites` as given, and the usage lines all stand, and I accept that. `validate` also now stops on a file where `threads/` or the role's artifact folder belongs, as `check` does, and it reads past such a file elsewhere. I checked both cases and they're tested.
+
+One nit, not blocking: the remedies print absolute paths unquoted, for example `give --file /private/tmp/rp371 b'…/p/x/<its path in the pipeline folder>`. The same goes for the path `thread open` prints, which the first-turn request has the reviewer pass as `--thread <that path>`. If a worktree path holds a space, the role has to quote those itself.
+
+### Rules
+
+- **tests** — `npm test` passes: 625 tests, 0 failures, exit 0.
+- **documentation** — Follows `AGENTS.md` and `docs/glossary.md`. The changeset, `scripts/README.md` (§ `thread`, § `validate`, § Assignments), and `templates/README.md` describe the new behavior and the new `pipeline-folder-arg` and `thread-arg` values. No profile references a skill file, and the terms match the glossary.
