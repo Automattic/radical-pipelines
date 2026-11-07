@@ -378,7 +378,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 
    A role writes its artifact or candidate, and every thread whose file name names it as opener or owner: its **files**. The `INVALID` lines of those files, and only those, are its malformed files. A lane under repair (§ `next`) gets the turn of an `INVALID` line for each file its landing would reject.
 2. **Request.** A reviewer with malformed files gets the repair request. Otherwise its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the request is the later-turn one, and `reviewer.diff` is written beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root. Otherwise it is the first-turn one.
-3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as the run writes it, and each assignment states the command that runs `rp` as its role from its worktree (`../templates/README.md` § Values).
+3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as the run writes it, and each assignment states the command that runs `rp` as its role from its worktree (`../templates/README.md` § Values). Each path on that command line is one POSIX shell word, quoted when a character in it is one a shell does not take literally; each path an assignment shows for reading is as written.
 
 ### Conventions data
 

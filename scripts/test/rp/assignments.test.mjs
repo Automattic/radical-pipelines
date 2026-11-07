@@ -15,9 +15,10 @@ const local = (data, body = "\n# Local\n") => writeFile(".rp.local.md", `---\n${
 // A copy of `rp` in a skill folder of its own, beside `templates` by name. The tests own these templates, so they
 // assert the values `rp` fills, never the delivered templates' wording.
 const skills = [];
-function skillWith(templates) {
-  const folder = mkdtempSync(join(tmpdir(), "rp-skill-"));
-  skills.push(folder);
+function skillWith(templates, name = null) {
+  const temporary = mkdtempSync(join(tmpdir(), "rp-skill-")), folder = name ? join(temporary, name) : temporary;
+  skills.push(temporary);
+  if (name) mkdirSync(folder);
   mkdirSync(join(folder, "scripts"));
   copyFileSync(RP, join(folder, "scripts/rp.mjs"));
   mkdirSync(join(folder, "templates"));
@@ -27,7 +28,7 @@ function skillWith(templates) {
 // A template naming itself under `## template`, then each flag that holds as a `## <flag>` heading, and each value
 // alone under its own `## <name>` heading.
 const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
-  "pipeline-folder", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "vocabulary"];
+  "pipeline-folder", "pipeline-folder-arg", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "vocabulary"];
 const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "threads", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
 const echo = (name, values, flags = []) => `${["## template", name, ...flags.flatMap((flag) => [`{{#${flag}}}`, `## ${flag}`, `{{/${flag}}}`]),
@@ -37,7 +38,7 @@ before(() => {
   ECHO = skillWith({
     ...Object.fromEntries(["spec-producer", "design-doc-producer", "implementer"].map((name) => [name, echo(name, PRODUCER, FLAGS)])),
     "reviewer-first": echo("reviewer-first", [...COMMON, "review-base"]),
-    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "diff"]),
+    "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff"]),
     "reviewer-repair": echo("reviewer-repair", [...COMMON, "review-base"]),
   });
 });
@@ -258,43 +259,6 @@ describe("assignments", () => {
       commitAll("approved, then a new review thread answered");
       assert.deepEqual(assign("reviewer-a").values.thread, [in_(wt, "threads/3-reviewer-a-implementer-implementation.md")]);
     });
-  });
-
-  it("state the command that runs rp, which runs from the role's worktree as written and acts as the role, in each seat and each reviewer request", () => {
-    // `rp <command>` run from the role's worktree as its assignment's values state it, `input` on its standard input.
-    const asStated = (values, command, input) => {
-      const out = spawnSync("sh", ["-c", `${values.rp[0]} ${command} ${values["pipeline-folder"][0]} --role ${values.role[0]}`], { cwd: values.worktree[0], encoding: "utf8", input });
-      assert.equal(out.status, 0, out.stderr);
-      return out.stdout;
-    };
-    conventions();
-    pipeline(0, { lanes: [{ profile: "spec-producer", id: "a" }] });
-    const lane = assign("spec-producer-a").values;
-    assert.deepEqual([lane.rp, lane.worktree], [[`node ${realpathSync(ECHO)}`], [laneWorktree("demo-spec-a")]]);
-    assert.equal(asStated(lane, "validate"), "accepted: every file of spec-producer-a\n");
-    pipeline(2);
-    const implementer = assign("implementer").values;
-    const opened = asStated(implementer, "thread open --artifact spec --body -", "Findings.\n").trimEnd();
-    assert.deepEqual([dirname(opened), readFileSync(opened, "utf8").match(/^opener: (.*)$/m)[1]], [in_(realpathSync(root), "threads"), "implementer"]);
-    assert.equal(asStated(implementer, "validate"), "accepted: every file of implementer\n");
-    rmSync(opened);
-    pipeline(3);
-    const first = assign("reviewer-default").values, wt = laneWorktree("demo-review-default");
-    assert.deepEqual(first.template, ["reviewer-first"]);
-    const review = asStated(first, "thread open --artifact implementation --body -", "Findings.\n").trimEnd();
-    assert.equal(review, in_(wt, "threads/1-reviewer-default-implementer-implementation.md"));
-    commitIn(wt, {}, "review");
-    landRole("reviewer-default");
-    write("threads/1-reviewer-default-implementer-implementation.md", `${read("threads/1-reviewer-default-implementer-implementation.md")}\n## implementer — ${head()}\n\nAnswered.\n`);
-    commitAll("answer");
-    const later = assign("reviewer-default").values;
-    assert.deepEqual([later.template, later.thread], [["reviewer-later"], [review]]);
-    assert.equal(asStated(later, "validate"), "accepted: every file of reviewer-default\n");
-    write("threads/1-reviewer-default-implementer-implementation.md", read("threads/1-reviewer-default-implementer-implementation.md").replace("status: open", "status: pending"));
-    commitAll("a rejected review thread");
-    const repair = assign("reviewer-default").values;
-    assert.deepEqual(repair.template, ["reviewer-repair"]);
-    assert.match(asStated(repair, "validate"), /^INVALID threads\/1-reviewer-default-implementer-implementation\.md: status must be one of /);
   });
 
   it("lists as malformed files the INVALID lines of the files each role writes, wakes only those roles, and gives a reviewer the repair request", () => {
@@ -609,5 +573,57 @@ describe("assignments", () => {
     commitAll("a rejected review thread");
     delivered("reviewer-default", [`INVALID ${review}: status must be`, in_(wt, "")]);
     assert.match(readFileSync(git(wt, "rev-parse", "--path-format=absolute", "--git-path", "rp/reviewer.md").trim(), "utf8"), new RegExp(`, at \`${head(wt)}\``));
+  });
+});
+
+describe("assignments in a repository and a skill whose paths hold a space and a quote", () => {
+  useRepo("the repo's folder");
+  let script;
+  before(() => {
+    script = skillWith({
+      ...Object.fromEntries(["spec-producer", "design-doc-producer", "implementer"].map((name) => [name, echo(name, PRODUCER, FLAGS)])),
+      "reviewer-first": echo("reviewer-first", [...COMMON, "review-base"]),
+      "reviewer-later": echo("reviewer-later", [...COMMON, "review-base", "thread", "thread-arg", "diff"]),
+      "reviewer-repair": echo("reviewer-repair", [...COMMON, "review-base"]),
+    }, "the skill's folder");
+  });
+
+  it("state the command that runs rp, which runs from the role's worktree as written and acts as the role, in each seat and each reviewer request, and show each path to read as written", () => {
+    // `rp <command>` run from the role's worktree as its assignment's values state it, `input` on its standard input.
+    const asStated = (values, command, input) => {
+      const out = spawnSync("sh", ["-c", `${values.rp[0]} ${command} ${values["pipeline-folder-arg"][0]} --role ${values.role[0]}`], { cwd: values.worktree[0], encoding: "utf8", input });
+      assert.equal(out.status, 0, out.stderr);
+      return out.stdout;
+    };
+    // A path as one shell word: in single quotes, each quote in it closed, escaped, and reopened.
+    const word = (path) => `'${path.replaceAll("'", "'\\''")}'`;
+    conventions();
+    pipeline(0, { lanes: [{ profile: "spec-producer", id: "a" }] });
+    const lane = assign("spec-producer-a", abs(PIPELINE), script).values, wt0 = laneWorktree("demo-spec-a");
+    assert.deepEqual([lane.rp, lane.worktree, lane["pipeline-folder"], lane["pipeline-folder-arg"]], [[`node ${word(realpathSync(script))}`], [wt0], [in_(wt0, "")], [word(in_(wt0, ""))]]);
+    assert.equal(asStated(lane, "validate"), "accepted: every file of spec-producer-a\n");
+    pipeline(2);
+    const implementer = assign("implementer", abs(PIPELINE), script).values;
+    const opened = asStated(implementer, "thread open --artifact spec --body -", "Findings.\n").trimEnd();
+    assert.deepEqual([dirname(opened), readFileSync(opened, "utf8").match(/^opener: (.*)$/m)[1]], [in_(realpathSync(root), "threads"), "implementer"]);
+    assert.equal(asStated(implementer, "validate"), "accepted: every file of implementer\n");
+    rmSync(opened);
+    pipeline(3);
+    const first = assign("reviewer-default", abs(PIPELINE), script).values, wt = laneWorktree("demo-review-default");
+    assert.deepEqual(first.template, ["reviewer-first"]);
+    const review = asStated(first, "thread open --artifact implementation --body -", "Findings.\n").trimEnd();
+    assert.equal(review, in_(wt, "threads/1-reviewer-default-implementer-implementation.md"));
+    commitIn(wt, {}, "review");
+    landRole("reviewer-default");
+    write("threads/1-reviewer-default-implementer-implementation.md", `${read("threads/1-reviewer-default-implementer-implementation.md")}\n## implementer — ${head()}\n\nAnswered.\n`);
+    commitAll("answer");
+    const later = assign("reviewer-default", abs(PIPELINE), script).values;
+    assert.deepEqual([later.template, later.thread, later["thread-arg"]], [["reviewer-later"], [review], [word(review)]]);
+    assert.equal(asStated(later, `validate --file ${later["thread-arg"][0]}`), "accepted: threads/1-reviewer-default-implementer-implementation.md\n");
+    write("threads/1-reviewer-default-implementer-implementation.md", read("threads/1-reviewer-default-implementer-implementation.md").replace("status: open", "status: pending"));
+    commitAll("a rejected review thread");
+    const repair = assign("reviewer-default", abs(PIPELINE), script).values;
+    assert.deepEqual(repair.template, ["reviewer-repair"]);
+    assert.match(asStated(repair, "validate"), /^INVALID threads\/1-reviewer-default-implementer-implementation\.md: status must be one of /);
   });
 });

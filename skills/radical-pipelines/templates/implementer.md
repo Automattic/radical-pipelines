@@ -11,7 +11,7 @@
 {{^subagent-model}}
 - Subagent model: your own model
 {{/subagent-model}}
-- rp: `{{rp}} <command> {{pipeline-folder}} --role {{role}}`, `{{rp}} --help` listing each command and its options
+- rp: `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`, `{{rp}} --help` listing each command and its options
 
 ## Mode
 

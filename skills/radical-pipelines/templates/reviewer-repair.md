@@ -5,7 +5,7 @@ Your worktree is on branch `{{branch}}`, at `{{turn-commit}}`. `rp check` reject
 Fix each file, changing only what its reason names and keeping every message it holds. This turn asks for nothing else. This command checks your files:
 
 ```
-{{rp}} validate {{pipeline-folder}} --role {{role}}
+{{rp}} validate {{pipeline-folder-arg}} --role {{role}}
 ```
 
 Commit your fix with this commit format:

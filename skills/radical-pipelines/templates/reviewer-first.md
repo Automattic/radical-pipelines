@@ -13,7 +13,7 @@ Report anything wrong, missing, risky, or more than the issue needs. Feel free t
 Write your review as you would post it on the pull request, and open it with this command, your review in place of `<your review>`:
 
 ```
-{{rp}} thread open {{pipeline-folder}} --role {{role}} --artifact implementation --body - <<'EOF'
+{{rp}} thread open {{pipeline-folder-arg}} --role {{role}} --artifact implementation --body - <<'EOF'
 <your review>
 EOF
 ```
@@ -21,10 +21,10 @@ EOF
 It prints the path of your review thread. If you would merge the change as it stands, approve it then:
 
 ```
-{{rp}} thread close {{pipeline-folder}} --role {{role}} --thread <that path> --status approved
+{{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread <that path> --status approved
 ```
 
-Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.
+Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}
 Check the change against these rules and note each outcome in your review:

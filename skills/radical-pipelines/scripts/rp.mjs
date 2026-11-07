@@ -1198,8 +1198,11 @@ const expandText = (text, values, kept) => text.replace(PLACEHOLDER, (placeholde
 
 // The assignment templates, in the skill folder beside this script.
 const TEMPLATES = fileURLToPath(new URL("../templates/", import.meta.url));
+// A path as one POSIX shell word: as written when every character in it is one a shell takes literally, else in single
+// quotes, each quote in it closed, escaped, and reopened.
+const shellWord = (path) => /^[A-Za-z0-9_.\/,:@%+-]+$/.test(path) ? path : `'${path.replaceAll("'", "'\\''")}'`;
 // The command that runs this script, which a role's assignment states.
-const RP = `node ${fileURLToPath(import.meta.url)}`;
+const RP = `node ${shellWord(fileURLToPath(import.meta.url))}`;
 const SLOT = /\{\{([#^/]?)([^{}]*)\}\}/g;
 const MARKER = /^\{\{([#^/])([a-z][a-z0-9-]*)\}\}$/;
 
@@ -1356,7 +1359,7 @@ function assignmentOf(ctx, wake, tip, change) {
     rp: RP,
     "base-branch": state.config.base,
     "subagent-model": models.subagents ?? "",
-    "pipeline-folder": at(""), intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),
+    "pipeline-folder": at(""), "pipeline-folder-arg": shellWord(at("")), intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),
     "later-inputs": laterInputs,
     "malformed-files": turn.malformed.map((entry) => `INVALID ${entry.target}: ${entry.reason}`),
   };
@@ -1383,7 +1386,7 @@ function assignmentOf(ctx, wake, tip, change) {
       const diff = join(gitDir, "rp", "reviewer.diff");
       const from = requireCommit(root, later.last, `the commit ${role.name}'s last message names`);
       files.push([diff, gitBytes(root, ["diff", "--no-ext-diff", from, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`])]);
-      Object.assign(values, { thread: at(later.thread), diff });
+      Object.assign(values, { thread: at(later.thread), "thread-arg": shellWord(at(later.thread)), diff });
     }
   }
   const templatePath = join(TEMPLATES, `${templateName}.md`);

@@ -14,11 +14,11 @@ Every template may use:
 
 - The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
 - `turn-commit`: the tip of the role's worktree; a reviewer's is the change, or above it when its lane is repaired in place (`../scripts/README.md` § `next`).
-- `rp`: `node` and the absolute path of the `rp` script writing the assignment. Each template states the role's `rp` commands in the form `{{rp}} <command> {{pipeline-folder}} --role {{role}}`.
+- `rp`: `node` and the absolute path of the `rp` script writing the assignment, the path one POSIX shell word: as written when every character in it is one a shell takes literally, quoted otherwise. Each template states the role's `rp` commands in the form `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`.
 - `base-branch`: `run-config.md`'s `base`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
 - `brief`: the lane's brief, its placeholders expanded, or empty.
-- `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree.
+- `pipeline-folder`, `intent`, `spec`, `design-doc`: their paths in the role's worktree, as written; and `pipeline-folder-arg`, the pipeline folder's as one shell word, for a command line.
 - `later-inputs`: a list of the later inputs that target the role's artifact; a reviewer's lists every later input.
 - `malformed-files`: a list of the frontier's `INVALID` lines naming a file the role writes, as `rp check` prints them.
 - `guardrails`, `resources`: a list of the entries whose `profiles` include the role's profile, each `### <name>` over `- rule: <text>` or `- resource: <text>`, its placeholders expanded.
@@ -33,4 +33,4 @@ A producer's and the implementer's templates also use:
 - `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree.
 - `threads`: a list of the threads awaiting the role.
 
-A reviewer's templates also use `review-base`, and its later-turn request `thread`, the lane's open review thread, and `diff`, the diff it reads.
+A reviewer's templates also use `review-base`, and its later-turn request `thread`, the lane's open review thread, `thread-arg`, that path as one shell word, and `diff`, the diff it reads.

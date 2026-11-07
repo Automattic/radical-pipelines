@@ -140,8 +140,10 @@ export function pipeline(upTo = 3, config = {}) {
   return commitAll("certifications");
 }
 
-export function newRepo() {
-  const at = mkdtempSync(join(tmpdir(), "rp-test-"));
+// A repository in a new temporary folder, or in its subfolder `folder` when given.
+export function newRepo(folder = null) {
+  const temporary = mkdtempSync(join(tmpdir(), "rp-test-")), at = folder ? join(temporary, folder) : temporary;
+  if (folder) mkdirSync(at);
   git(at, "init", "--quiet", "--initial-branch=main");
   git(at, "config", "user.email", "rp-test@example.com");
   git(at, "config", "user.name", "RP Test");
@@ -149,14 +151,15 @@ export function newRepo() {
   return at;
 }
 
-export function useRepo() {
+// Each test in a new repository on `demo`, in the subfolder `folder` of its temporary folder when given.
+export function useRepo(folder = null) {
   beforeEach(() => {
-    root = newRepo();
+    root = newRepo(folder);
     writeFile("src/app.js", "export const a = 1;\n");
     commitAll("base");
     git(root, "checkout", "--quiet", "-b", "demo");
   });
-  afterEach(() => rmSync(root, { recursive: true, force: true }));
+  afterEach(() => rmSync(folder ? dirname(root) : root, { recursive: true, force: true }));
 }
 
 // `.rp.md` in the main checkout: a JSON frontmatter holding `data` at the current version, with worktrees under
