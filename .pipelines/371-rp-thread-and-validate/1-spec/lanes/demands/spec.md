@@ -1,3 +1,10 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@fac028da676c"
+  ]
+}
+---
 # Spec: Roles write threads through rp and validate their own files
 
 ## Overview
