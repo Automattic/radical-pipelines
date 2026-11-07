@@ -1,11 +1,12 @@
 # State
 
-Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with four commands:
+Everything about a pipeline is computed from its tree at any commit. `rp` — `node <this skill's folder>/scripts/rp.mjs` — computes what this file defines, with these commands:
 
 - `rp check <pipeline folder> [--ref <ref>] [--json]` reports each phase through the target, and with `--json` which are complete, and prints the frontier (§ The frontier). `--ref` reads the pipeline at that commit instead of the working tree.
 - `rp pipelines <pipelines folder root> --base <artifact base branch> [--issue <canonical issue reference>]` lists the repository's pipelines, or only the issue's (§ Discovery). Pass the absolute path of the **Pipelines folder root** convention in the main checkout; the base branch comes from the **Artifact storage** convention.
 - `rp next <pipeline folder>` prints the plan of the loop's next step and changes nothing: the frontier, the turns to land first, the worktrees and lane branches to create, move, or remove, the roles to terminate, each role to wake with its seat, model, phase, resources, and **Assignment**, and the lifecycle hooks the step fires. With `--apply`, it carries the plan out and records each woken role's turn; applying again repeats nothing done. Each review lane's branch holds a **review base**, the base's tree, on the base, and a **change** on it, the tip's tree; in both, the pipelines folder root is the tip's without its pipeline folders, plus the pipeline's `0-intent/` and the lane's own threads, so the diff between them is the net change and the lane sees no pipeline but its own view.
 - `rp land <pipeline folder> --role <role>` lands a role's turn (§ Certification) and prints the phases its landing made complete.
+- `rp thread open`, `reply`, `close`, and `escalate`, and `rp validate`, are the roles': a role writes its threads with the first four (§ Threads) and checks its own files with `rp validate` before it ends a turn, each run as its **Assignment** states.
 
 Every command derives the repository from the path it is given; `check`, `next`, and `land` take the pipelines folder root to be the parent of the pipeline folder, which `next` and `land` take in the pipeline worktree.
 
@@ -72,7 +73,7 @@ The values `rp` reads from a file you or a role writes are its frontmatter: YAML
 
 ## Threads
 
-A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`. `<n>` is one more than the highest number in `threads/` when the thread is opened; threads opened in parallel lanes may share a number. The file name matches the header.
+A thread is the conversation between two roles about one artifact, in one file: `threads/<n>-<opener>-<owner>-<artifact>.md`. Roles write threads with `rp thread`, which numbers a new one past the highest number in the role's `threads/`; threads opened in parallel lanes may share a number. The file name matches the header.
 
 Its header is its frontmatter; only a thread to `owner` has `cites`:
 

@@ -1,0 +1,9 @@
+---
+"@automattic/radical-pipelines": minor
+---
+
+Roles write their threads and check their own files through `rp`, so a role fixes a malformed file in the turn that wrote it instead of being woken again to repair it.
+
+`rp thread open`, `rp thread reply`, `rp thread close`, and `rp thread escalate` write a thread's file name and number, its header, and each message heading, naming the commit the role's worktree stands on, around the body the role gives with `--body <file | ->`, written as given. Each writes only a file `rp check` accepts and reads as meant. A wrong use writes nothing and says what was wrong and what to run instead: a production lane opening a thread, a thread about the intent instead of an escalation, a reply to a thread that does not await the role, a close by a role other than the opener, a review approved without a closing message after the author's answer, or a body line the grammar would read as a heading or fenced code left open. `rp validate` prints, for each of the role's own files, the `INVALID` line `rp check` prints for it, or that they are accepted. All five apply the file grammar alone, never `run-config.md`, so they work in a review lane's tree too.
+
+Every assignment states the command that runs `rp` as its role. The reviewer's requests open, answer, and approve through `rp thread`, and the first-turn request names no thread path. The agent profiles name the commands instead of the thread grammar, and each role runs `rp validate` and fixes each file it reports before it ends a turn. A command line any `rp` command does not take, such as an unknown option or a missing argument, is now followed by the command's form.

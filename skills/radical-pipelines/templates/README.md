@@ -14,6 +14,7 @@ Every template may use:
 
 - The vocabulary facts, `pipeline-slug`, `role`, `profile`, `lane`, `worktree`, `branch`, and `base` (`../scripts/README.md` § Placeholders).
 - `turn-commit`: the tip of the role's worktree; a reviewer's is the change, or above it when its lane is repaired in place (`../scripts/README.md` § `next`).
+- `rp`: `node` and the absolute path of the `rp` script writing the assignment. Each template states the role's `rp` commands in the form `{{rp}} <command> {{pipeline-folder}} --role {{role}}`.
 - `base-branch`: `run-config.md`'s `base`.
 - `subagent-model`: the subagent model name the run gives the role, or empty.
 - `brief`: the lane's brief, its placeholders expanded, or empty.
@@ -32,4 +33,4 @@ A producer's and the implementer's templates also use:
 - `lane-candidates`: a list of each production lane of the phase as `<lane> — <candidate path>`, in the pipeline worktree.
 - `threads`: a list of the threads awaiting the role.
 
-A reviewer's templates also use `review-base`; its first-turn and later-turn requests, `thread`, the lane's review thread; and its later-turn request, `diff`, the diff it reads.
+A reviewer's templates also use `review-base`, and its later-turn request `thread`, the lane's open review thread, and `diff`, the diff it reads.
