@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   DESIGN, INTENT, NOTES, P, REVIEW, SPEC, TO_DESIGN, TO_OWNER, TO_SPEC,
-  abs, approve, check, commitAll, configure, frontier, lane, pipeline, read, remove, revise, rp, run, thread, useRepo, write, writeFile,
+  abs, approve, check, commitAll, configure, frontier, lane, later, pipeline, read, remove, revise, rp, run, thread, useRepo, withFrontmatter, write, writeFile,
 } from "./fixture.mjs";
 
 const replied = (parties, n = 1) => thread({ n, ...parties, messages: [[parties.opener, "aaaaaaa"], [parties.owner, "bbbbbbb"]] });
@@ -25,43 +25,82 @@ describe("frontier", () => {
 
     it("prints INVALID <path>: <reason> as the frontier line", () => {
       pipeline(0);
-      write(SPEC, "---\n{\"pins\": []}\n---\n");
-      assert.equal(rp("check", abs(P(""))).trim(), `frontier INVALID ${SPEC}: unexpected frontmatter key: pins`);
+      write(INTENT, withFrontmatter({ issue: 7, pins: "x" }, "\n# Intent\n"));
+      assert.equal(rp("check", abs(P(""))).trim(), `frontier INVALID ${INTENT}: unexpected frontmatter key: pins`);
     });
 
+    // [what, how the file is broken, its path, the reason]
     const files = [
-      ["unclosed frontmatter", () => write(SPEC, "---\n{}\n"), SPEC],
-      ["frontmatter that is not an object", () => write(SPEC, "---\n[]\n---\n"), SPEC],
-      ["frontmatter on the intent", () => write(INTENT, "---\n{}\n---\n# I\n"), INTENT],
-      ["frontmatter on a later input", () => write("0-intent/proposal-1.md", `---\n{}\n---\ntarget: ${SPEC}\n`), "0-intent/proposal-1.md"],
-      ["an inputs entry without identity", () => write(SPEC, `---\n{"inputs": ["${INTENT}"]}\n---\n`), SPEC],
-      ["an inputs entry naming a non-artifact", () => write(SPEC, '---\n{"inputs": ["notes.txt@0123456789ab"]}\n---\n'), SPEC],
-      ["an input pinned twice", () => write(SPEC, `---\n{"inputs": ["${INTENT}@0123456789ab", "${INTENT}@0123456789ac"]}\n---\n`), SPEC],
-      ["a later input without target", () => write("0-intent/constraint-1.md", "# Constraint 1\n"), "0-intent/constraint-1.md"],
-      ["a later input targeting a non-artifact", () => write("0-intent/proposal-1.md", "target: 0-intent/intent.md\n"), "0-intent/proposal-1.md"],
-      ["a candidate of an unconfigured lane", () => write("1-spec/lanes/x/spec.md", "# C\n"), "1-spec/lanes/x/spec.md"],
-      ["a malformed thread header", () => write("threads/1-x.md", "status: open\n"), "threads/1-x.md"],
+      ["unclosed frontmatter", () => write(INTENT, "---\nissue: 7\n"), INTENT, "frontmatter has no closing --- line"],
+      ["frontmatter on the spec", () => write(SPEC, "---\n---\n# Spec\n"), SPEC, "carries no frontmatter"],
+      ["frontmatter on a design doc", () => write(DESIGN, withFrontmatter({ status: "done" })), DESIGN, "carries no frontmatter"],
+      ["frontmatter on a candidate", () => { configure({ lanes: [lane("spec-producer", "a")] }); write("1-spec/lanes/a/spec.md", withFrontmatter({ issue: 7 })); }, "1-spec/lanes/a/spec.md", "carries no frontmatter"],
+      ["an unknown key on notes.md", () => write(NOTES, withFrontmatter({ status: "done", inputs: "x" })), NOTES, "unexpected frontmatter key: inputs"],
+      ["a later input whose target is a body line only", () => write("0-intent/constraint-1.md", `# Constraint 1\n\ntarget: ${SPEC}\n`), "0-intent/constraint-1.md", "frontmatter has no target"],
+      ["a later input targeting a non-artifact", () => write("0-intent/proposal-1.md", later(INTENT)), "0-intent/proposal-1.md", `target must name ${SPEC}, ${DESIGN}, ${NOTES}: ${INTENT}`],
+      ["a candidate of an unconfigured lane", () => write("1-spec/lanes/x/spec.md", "# C\n"), "1-spec/lanes/x/spec.md", "production lane is not configured: spec-producer x"],
+      ["a thread whose values are body lines only", () => write("threads/1-x.md", "status: open\n"), "threads/1-x.md", "frontmatter has no status"],
     ];
-    for (const [name, mutate, path] of files)
+    for (const [name, mutate, path, reason] of files)
       it(`holds for ${name}`, () => {
         pipeline(1);
         mutate();
-        assert.deepEqual(frontier().map((line) => line.split(" ").slice(0, 2).join(" ")), [`INVALID ${path}`]);
+        assert.deepEqual(check().frontier, [{ action: "INVALID", target: path, reason }]);
       });
+
+    // A file's frontmatter outside the YAML subset: [what, the frontmatter, the reason naming the key or the construct].
+    const subset = [
+      ["a nested map", "issue: 7\nstarts-from:\n  branch: main", "frontmatter starts-from: a nested map or a multi-line value"],
+      ["a multi-line value", "issue: 7\nstarts-from: a\n  b", "frontmatter starts-from: a nested map or a multi-line value"],
+      ["a list", "issue:\n- 7\n- 8", "frontmatter issue: a list"],
+      ["a key given twice", "issue: 7\nissue: 8", "frontmatter issue: given twice"],
+      ["a comment line", "# origins\nissue: 7", "frontmatter line 2: a comment"],
+      ["a line that is no key and value", "issue 7", "frontmatter line 2 is not <key>: <value>"],
+      ["an unquoted value that opens with #", "issue: #368", "frontmatter issue: a comment"],
+      ["a value followed by a comment", "issue: 368 # the export issue", "frontmatter issue: a comment"],
+      ["a flow sequence", "issue: [368]", "frontmatter issue: a flow collection"],
+      ["a flow map", "issue: {id: 368}", "frontmatter issue: a flow collection"],
+      ["an anchor", "issue: &a 368", "frontmatter issue: an anchor"],
+      ["an alias", "issue: *a", "frontmatter issue: an alias"],
+      ["a tag", "issue: !!str 368", "frontmatter issue: a tag"],
+      ["a block scalar", "issue: |", "frontmatter issue: a block scalar"],
+      ["a double-quoted escape", 'issue: "a\\tb"', "frontmatter issue: a quoted value with an escape"],
+      ["a single-quoted escape", "issue: 'it''s'", "frontmatter issue: a quoted value with an escape"],
+      ["text after a quoted value", "issue: '368' # a comment", "frontmatter issue: text after the closing quote"],
+      ["an unclosed quote", 'issue: "368', "frontmatter issue: an unclosed quote"],
+      ["a value holding a mapping", "issue: see: 368", "frontmatter issue: a plain value YAML rejects"],
+      ["a value opening with a reserved indicator", "issue: @368", "frontmatter issue: a plain value YAML rejects"],
+      ["a value that is a sequence entry", "issue: - 368", "frontmatter issue: a plain value YAML rejects"],
+    ];
+    for (const [what, frontmatter, reason] of subset)
+      it(`holds for ${what} in a frontmatter, naming it`, () => {
+        pipeline(1);
+        write(INTENT, `---\n${frontmatter}\n---\n\n# Intent\n`);
+        assert.deepEqual(check().frontier, [{ action: "INVALID", target: INTENT, reason }]);
+      });
+
+    it("reads a quoted value without its quotes and every plain value as the text written", () => {
+      pipeline(1);
+      write("0-intent/constraint-1.md", withFrontmatter({ target: `"${SPEC}"`, origin: "'#368'" }));
+      write("0-intent/proposal-1.md", withFrontmatter({ target: ` ${DESIGN}#design-doc-decision-1 \t`, origin: "https://example.com/issues/368#comment-2" }));
+      write(INTENT, withFrontmatter({ issue: "0368", "starts-from": "true", "re-attempts": "" }, "\n# Intent\n"));
+      assert.deepEqual(frontier(), [`respond ${SPEC}`]);
+      assert.deepEqual(check().phases[0].stale, [INTENT, "0-intent/constraint-1.md"]);
+    });
   });
 
   describe("a configuration that cannot be read stops the command", () => {
     const configurations = [
       ["run-config.md missing", () => remove("run-config.md"), /\.pipelines\/demo\/run-config.md: pipeline of an earlier format; it is not continued/],
       ["run-config.md without format", () => write("run-config.md", '---\n{"target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
-      ["an earlier format", () => write("run-config.md", '---\n{"format": 5, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
-      ["a format that is not an integer", () => write("run-config.md", '---\n{"format": "6", "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format/],
-      ["a newer format", () => write("run-config.md", '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of a newer format 7; update the skill/],
+      ["an earlier format", () => write("run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format; it is not continued/],
+      ["a format that is not an integer", () => write("run-config.md", '---\n{"format": "7", "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of an earlier format/],
+      ["a newer format", () => write("run-config.md", '---\n{"format": 8, "target-phase": 4, "base": "main"}\n---\n'), /run-config.md: pipeline of a newer format 8; update the skill/],
       ["run-config.md without frontmatter", () => write("run-config.md", "target-phase: 4\n"), /run-config.md: pipeline of an earlier format/],
       ["target-phase out of range", () => configure({ targetPhase: 5 }), /target-phase/],
       ["target-phase not an integer", () => configure({ targetPhase: "4" }), /target-phase/],
       ["an empty base", () => configure({ base: " " }), /base must be/],
-      ["an unknown key", () => write("run-config.md", '---\n{"format": 6, "target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /unexpected frontmatter key: workflow/],
+      ["an unknown key", () => write("run-config.md", '---\n{"format": 7, "target-phase": 4, "base": "main", "workflow": "autonomous"}\n---\n'), /unexpected frontmatter key: workflow/],
       ["an empty lanes list", () => configure({ lanes: [] }), /lanes must be a non-empty list/],
       ["a lane with an unknown profile", () => configure({ lanes: [lane("spec-reviewer", "a")] }), /lane profile/],
       ["a lane with an empty brief", () => configure({ lanes: [{ profile: "reviewer", id: "a", brief: " " }] }), /lane a: a brief must be a non-empty string/],
@@ -124,13 +163,15 @@ describe("frontier", () => {
         assert.deepEqual(frontier(), [`produce ${artifact}`]);
       });
 
-    it("produces the implementation while notes.md's first body line is not status: done", () => {
+    it("produces the implementation while notes.md's frontmatter status is not done, whatever its body says", () => {
       pipeline(3);
       write(NOTES, read(NOTES).replace("status: done\n", "status: in progress\n"));
       assert.deepEqual(frontier(), [`produce ${NOTES}`]);
-      write(NOTES, read(NOTES).replace("status: in progress\n", "\nstatus: done\n"));
+      write(NOTES, "status: done\n\n# Notes\n");
       assert.deepEqual(frontier(), [`produce ${NOTES}`]);
       assert.equal(check().phases[2].state, "missing");
+      write(NOTES, withFrontmatter({ status: "done" }, "status: in progress\n"));
+      assert.equal(check().phases[2].state, "fresh");
     });
 
     it("responds on the lowest stale artifact, with its changed inputs", () => {
@@ -239,7 +280,7 @@ describe("frontier", () => {
       pipeline(3);
       approve();
       assert.deepEqual(frontier(), ["complete"]);
-      write("0-intent/proposal-1.md", `target: ${NOTES}\n`);
+      write("0-intent/proposal-1.md", later(NOTES));
       assert.deepEqual(frontier(), [`respond ${NOTES}`]);
       revise(NOTES);
       assert.deepEqual(check().frontier, [{ action: "review", target: "default", threads: [], changed: ["0-intent/proposal-1.md"] }]);

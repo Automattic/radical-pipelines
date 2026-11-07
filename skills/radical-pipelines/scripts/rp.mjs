@@ -3,10 +3,9 @@
 // Commands: check, stamp, pipelines, review. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { closeSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 
@@ -200,41 +199,104 @@ function pipelineFileOf(rel, command) {
 
 // --- frontmatter and identity ---------------------------------------------------
 
-// The frontmatter is the JSON between a first line `---` and the next line `---`; the body is every byte after it,
-// exactly as git hashes it. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
+// The frontmatter is the text between a first line `---` and the next line `---`; the body is every byte after it.
+// The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
 export function splitFrontmatter(bytes) {
   const raw = bytes.toString("latin1");
   const open = raw.match(/^---\r?\n/);
-  if (!open) return { json: null, body: bytes };
+  if (!open) return { text: null, body: bytes };
   const close = raw.slice(open[0].length).match(/(?:^|\n)---\r?(?:\n|$)/);
-  if (!close) return { json: null, body: bytes, error: "frontmatter has no closing --- line" };
+  if (!close) return { text: null, body: bytes, error: "frontmatter has no closing --- line" };
   const start = open[0].length;
-  return { json: bytes.subarray(start, start + close.index).toString("utf8"), body: bytes.subarray(start + close.index + close[0].length) };
+  return { text: bytes.subarray(start, start + close.index).toString("utf8"), body: bytes.subarray(start + close.index + close[0].length) };
 }
 
-// A file's frontmatter fields (empty when it has none) and its body, or Invalid.
+// The constructs a plain YAML value can open with that YAML reads as something other than its text.
+const PLAIN_FIRST = [[/^#/, "a comment"], [/^[[{]/, "a flow collection"], [/^&/, "an anchor"], [/^\*/, "an alias"], [/^!/, "a tag"],
+  [/^[|>]/, "a block scalar"], [/^(?:[-?:](?:[ \t]|$)|[%@`,\]}])/, "a plain value YAML rejects"]];
+
+// A frontmatter value: a plain value as written, without surrounding whitespace, or a quoted one without its quotes.
+// Whatever YAML would read as other text, or as structure, is Invalid, naming the key and the construct.
+function frontmatterValue(key, raw) {
+  const value = raw.replace(/^[ \t]+|[ \t]+$/g, "");
+  const reject = (construct) => invalid(`frontmatter ${key}: ${construct}`);
+  const quote = value[0];
+  if (quote === '"' || quote === "'") {
+    const close = value.indexOf(quote, 1);
+    if (close === -1) reject("an unclosed quote");
+    const text = value.slice(1, close), rest = value.slice(close + 1);
+    if ((quote === '"' && text.includes("\\")) || (quote === "'" && rest.startsWith("'"))) reject("a quoted value with an escape");
+    if (rest.trim()) reject("text after the closing quote");
+    return text;
+  }
+  for (const [pattern, construct] of PLAIN_FIRST) if (pattern.test(value)) reject(construct);
+  if (/[ \t]#/.test(value)) reject("a comment");
+  if (/:(?:[ \t]|$)/.test(value)) reject("a plain value YAML rejects");
+  return value;
+}
+
+// A file's frontmatter, the YAML subset that is a flat map of single-line text values, by key in the order written
+// (empty when it has none), and its body; or Invalid, naming the key or the construct outside the subset.
 export function frontmatterOf(bytes) {
-  const { json, body, error } = splitFrontmatter(bytes);
+  const { text, body, error } = splitFrontmatter(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes, "utf8"));
   if (error) invalid(error);
-  if (json === null) return { data: {}, body, stamped: false };
+  const values = new Map();
+  if (text === null) return { values, body, present: false };
+  let key = null;
+  for (const [at, raw] of text.split("\n").entries()) {
+    const line = raw.replace(/\r$/, "");
+    const where = key ? `frontmatter ${key}` : `frontmatter line ${at + 2}`;
+    if (!line.trim()) continue;
+    if (/^[ \t]/.test(line)) invalid(`${where}: a nested map or a multi-line value`);
+    if (/^-(?:[ \t]|$)/.test(line)) invalid(`${where}: a list`);
+    if (line.startsWith("#")) invalid(`frontmatter line ${at + 2}: a comment`);
+    const match = line.match(/^([A-Za-z0-9][\w.-]*):((?:[ \t].*)?)$/);
+    if (!match) invalid(`frontmatter line ${at + 2} is not <key>: <value>`);
+    key = match[1];
+    if (values.has(key)) invalid(`frontmatter ${key}: given twice`);
+    values.set(key, frontmatterValue(key, match[2]));
+  }
+  return { values, body, present: true };
+}
+
+// A frontmatter holding JSON: run-config.md's. Its fields, or Invalid.
+function jsonFrontmatterOf(bytes) {
+  const { text, error } = splitFrontmatter(bytes);
+  if (error) invalid(error);
+  if (text === null) invalid("no frontmatter");
   let data;
-  try { data = JSON.parse(json); } catch (parseError) { invalid(`frontmatter is not valid JSON: ${parseError.message}`); }
+  try { data = JSON.parse(text); } catch (parseError) { invalid(`frontmatter is not valid JSON: ${parseError.message}`); }
   if (data === null || typeof data !== "object" || Array.isArray(data)) invalid("frontmatter must be a JSON object");
-  return { data, body, stamped: true };
+  return data;
 }
 
-function onlyKeys(data, allowed) {
-  for (const key of Object.keys(data)) if (!allowed.includes(key)) invalid(`unexpected frontmatter key: ${key}`);
+function onlyKeys(keys, allowed) {
+  for (const key of keys) if (!allowed.includes(key)) invalid(`unexpected frontmatter key: ${key}`);
 }
 
-// Identity: the first 12 hexadecimal characters of the git blob hash of the body below the frontmatter.
-export function identity(bytes) {
-  const { body } = splitFrontmatter(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes, "utf8"));
-  return createHash("sha1").update(`blob ${body.length}\0`).update(body).digest("hex").slice(0, 12);
-}
+// Identity: the first 12 hexadecimal characters of the git blob id of the whole file.
+const identityOf = (oid) => oid.slice(0, 12);
 
-export function renderFrontmatter(data, body) {
-  return Buffer.concat([Buffer.from(`---\n${JSON.stringify(data, null, 2)}\n---\n`, "utf8"), body]);
+// The blob ids `git add` would store for working-tree files at their repository-relative paths in `folder`: after the
+// clean filters and line-ending conversion their attributes, configuration, and index entries select, as when an entry
+// already holding CRLF keeps it. Git computes them on a copy of the worktree's index, keeping its timestamps so stat
+// data is trusted as Git trusts it; no object is written and the index itself is untouched.
+function hashWorktree(root, folder, paths) {
+  if (!paths.length) return [];
+  const real = gitText(root, ["rev-parse", "--path-format=absolute", "--git-path", "index"]);
+  const directory = mkdtempSync(join(tmpdir(), "rp-index-"));
+  try {
+    const index = join(directory, "index");
+    if (existsSync(real)) {
+      copyFileSync(real, index);
+      const { atime, mtime } = statSync(real);
+      utimesSync(index, atime, mtime);
+    }
+    gitWithIndex(root, index, ["-c", "core.splitIndex=false", "update-index", "--add", "--info-only", "-z", "--stdin"], paths.map((path) => `${path}\0`).join(""));
+    const staged = new Map(gitWithIndex(root, index, ["ls-files", "--stage", "-z", "--", `:(top,literal)${folder}/`]).split("\0").filter(Boolean)
+      .map((entry) => entry.match(/^\d{6} ([0-9a-f]{40}|[0-9a-f]{64}) 0\t(.+)$/s)).filter(Boolean).map((match) => [match[2], match[1]]));
+    return paths.map((path) => staged.get(path) ?? fail(`git update-index: no blob id for ${path}`));
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
 // --- pipeline files -------------------------------------------------------------
@@ -276,10 +338,34 @@ const holdsFiles = (rel) => rel === "" || rel === "threads" || rel === "0-intent
   rel === phase.folder || (phase.lanes && (rel === `${phase.folder}/lanes` || new RegExp(`^${phase.folder}/lanes/[^/]+$`).test(rel))));
 // What a pin may name: the intent, a later input, an artifact, or a lane candidate.
 const pinnable = (rel) => ["intent", "later", "artifact", "candidate"].includes(kindOf(rel)?.kind);
-// What carries `inputs`: an artifact or a lane candidate.
+// What is certified beside an approval: an artifact or a lane candidate.
 const pins = (kind) => ["artifact", "candidate"].includes(kind?.kind);
 
-// The pipeline's files, by pipeline-relative path, from the working tree.
+// The certification of a landed file: `certification/<its pipeline-relative path>.json`, written by `rp stamp` alone.
+const CERTIFICATION = "certification";
+const certificationPath = (rel) => `${CERTIFICATION}/${rel}.json`;
+
+const lstatOf = (path) => { try { return lstatSync(path); } catch (error) { if (error.code === "ENOENT" || error.code === "ENOTDIR") return null; throw error; } };
+
+// The bytes certifying the landed file at `rel` in the working tree of the pipeline folder `folder`, found at `base`,
+// or null when it has none. A certification path of the wrong kind stops the command.
+function worktreeCertification(base, folder, rel) {
+  const parts = certificationPath(rel).split("/");
+  for (let length = 1; length < parts.length; length++) {
+    const stat = lstatOf(join(base, ...parts.slice(0, length)));
+    if (!stat) return null;
+    if (!stat.isDirectory()) fail(`cannot read ${folder}/${parts.slice(0, length).join("/")}: a file where a folder belongs`);
+  }
+  const stat = lstatOf(join(base, ...parts));
+  if (!stat) return null;
+  if (stat.isDirectory()) fail(`cannot read ${folder}/${parts.join("/")}: a folder where a certification belongs`);
+  if (!stat.isFile()) fail(`cannot read ${folder}/${parts.join("/")}: not a regular file`);
+  return readFileSync(join(base, ...parts));
+}
+
+// A pipeline, as read from the working tree or a commit: its files by pipeline-relative path, the identity of each
+// pinnable one, and `certification(rel)`, the certification of the landed file at `rel` (§ worktreeCertification).
+// This one is the working tree's.
 function readWorktree(root, folder) {
   const base = join(root, folder);
   if (!existsSync(base) || !lstatSync(base).isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
@@ -298,40 +384,57 @@ function readWorktree(root, folder) {
     }
   };
   visit("");
-  return files;
+  const hashed = [...files.keys()].filter(pinnable);
+  const oids = hashWorktree(root, folder, hashed.map((rel) => `${folder}/${rel}`));
+  return { files, identities: new Map(hashed.map((rel, i) => [rel, identityOf(oids[i])])), certification: (rel) => worktreeCertification(base, folder, rel) };
 }
 
-// The pipeline's files, by pipeline-relative path, from a commit. `reads`, when given, narrows them to the files an
-// operation reads: only those, and the paths that hold them, are validated.
+// The pipeline from a commit. `reads`, when given, narrows it to the files an operation reads, without
+// certifications: only those files, and the paths that hold them, are validated.
 async function readCommit(root, commit, folder, reads = null) {
   const entries = lsTree(root, commit, `${folder}/`, true);
   if (!entries.length) fail(`cannot read ${commit}:${folder}: no such folder`);
-  const wanted = [];
+  const wanted = [], certifications = new Map();
   for (const entry of entries) {
     const rel = entry.path.slice(folder.length + 1);
+    if (!reads && (rel === CERTIFICATION || rel.startsWith(`${CERTIFICATION}/`))) { certifications.set(rel, entry); continue; }
     const read = (path) => Boolean(kindOf(path)) && (!reads || reads(path));
     if (!reads && holdsFiles(rel)) fail(`cannot read ${commit}:${entry.path}: a file where a folder belongs`);
     const parts = rel.split("/");
     for (let length = 1; length < parts.length; length++)
       if (read(parts.slice(0, length).join("/"))) fail(`cannot read ${commit}:${folder}/${parts.slice(0, length).join("/")}: a folder where a pipeline file belongs`);
     if (!read(rel)) continue;
-    if (!["100644", "100755"].includes(entry.mode)) fail(`cannot read ${commit}:${entry.path}: not a regular file`);
+    if (!REGULAR.includes(entry.mode)) fail(`cannot read ${commit}:${entry.path}: not a regular file`);
     wanted.push({ rel, oid: entry.oid });
   }
-  const contents = await readObjects(root, wanted.map((entry) => entry.oid));
-  return new Map(wanted.map((entry, i) => [entry.rel, contents[i]]));
+  const regular = [...certifications.values()].filter((entry) => REGULAR.includes(entry.mode));
+  const contents = await readObjects(root, [...wanted, ...regular].map((entry) => entry.oid));
+  const bytes = new Map(regular.map((entry, i) => [entry.oid, contents[wanted.length + i]]));
+  const certification = (rel) => {
+    const path = certificationPath(rel), parts = path.split("/");
+    for (let length = 1; length < parts.length; length++)
+      if (certifications.has(parts.slice(0, length).join("/"))) fail(`cannot read ${commit}:${folder}/${parts.slice(0, length).join("/")}: a file where a folder belongs`);
+    const entry = certifications.get(path);
+    if (!entry) {
+      if ([...certifications.keys()].some((other) => other.startsWith(`${path}/`))) fail(`cannot read ${commit}:${folder}/${path}: a folder where a certification belongs`);
+      return null;
+    }
+    if (!REGULAR.includes(entry.mode)) fail(`cannot read ${commit}:${folder}/${path}: not a regular file`);
+    return bytes.get(entry.oid);
+  };
+  return { files: new Map(wanted.map((entry, i) => [entry.rel, contents[i]])), identities: new Map(wanted.map((entry) => [entry.rel, identityOf(entry.oid)])), certification };
 }
 
 // --- parsing ----------------------------------------------------------------------
 
 // The conventions format this script reads and writes.
-export const FORMAT = 6;
+export const FORMAT = 7;
 // The format a pipeline was written under: the integer `format` in run-config.md's JSON frontmatter, else `earlier`
 // (no run-config.md, no frontmatter, unreadable frontmatter, or no integer `format`). Nothing else is read.
 export function formatOf(bytes) {
   if (!bytes) return "earlier";
-  const { json } = splitFrontmatter(bytes);
-  try { const format = JSON.parse(json ?? "null")?.format; return Number.isInteger(format) ? format : "earlier"; }
+  const { text } = splitFrontmatter(bytes);
+  try { const format = JSON.parse(text ?? "null")?.format; return Number.isInteger(format) ? format : "earlier"; }
   catch { return "earlier"; }
 }
 // Stops unless a pipeline is of the current format; `path` names its run-config.md.
@@ -343,9 +446,8 @@ function requireFormat(bytes, path) {
 
 // run-config.md: format, target phase, base, and lanes. Its body is ignored.
 export function parseConfig(bytes) {
-  const { data, stamped } = frontmatterOf(bytes);
-  if (!stamped) invalid("no frontmatter");
-  onlyKeys(data, ["format", "target-phase", "base", "lanes"]);
+  const data = jsonFrontmatterOf(bytes);
+  onlyKeys(Object.keys(data), ["format", "target-phase", "base", "lanes"]);
   const targetPhase = data["target-phase"];
   if (!Number.isInteger(targetPhase) || targetPhase < 1 || targetPhase > REVIEW_PHASE) invalid("target-phase must be an integer from 1 to 4");
   if (typeof data.base !== "string" || !data.base.trim()) invalid("base must be a branch name");
@@ -373,26 +475,32 @@ export function reviewLanes(config) {
   return lanes.length ? lanes : [{ profile: "reviewer", id: "default" }];
 }
 
-// `inputs`: a list of `<path>@<identity>`, one per pinned file.
-function parseInputs(value) {
-  if (value === undefined) return new Map();
-  if (!Array.isArray(value)) invalid("inputs must be a list");
+// A certification: a JSON object holding `inputs`, a list of `<path>@<identity>`, one per pinned file, and on an
+// approval `reviewed`, the full hash of its approved commit. One that is malformed stops the command, naming `path`.
+function parseCertification(bytes, path, approval) {
+  const malformed = (reason) => fail(`${path}: ${reason}`);
+  let data;
+  try { data = JSON.parse(bytes.toString("utf8")); } catch (error) { malformed(`not valid JSON: ${error.message}`); }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) malformed("must be a JSON object");
+  const keys = approval ? ["inputs", "reviewed"] : ["inputs"];
+  for (const key of Object.keys(data)) if (!keys.includes(key)) malformed(`unexpected key: ${key}`);
+  for (const key of keys) if (!Object.hasOwn(data, key)) malformed(`missing ${key}`);
+  if (!Array.isArray(data.inputs)) malformed("inputs must be a list");
   const inputs = new Map();
-  for (const entry of value) {
+  for (const entry of data.inputs) {
     const match = typeof entry === "string" && entry.match(/^(.+)@([0-9a-f]{12})$/);
-    if (!match) invalid(`inputs entry must be <path>@<identity>: ${JSON.stringify(entry)}`);
-    if (!pinnable(match[1])) invalid(`inputs entry names no pipeline artifact: ${match[1]}`);
-    if (inputs.has(match[1])) invalid(`inputs pins ${match[1]} twice`);
+    if (!match) malformed(`inputs entry must be <path>@<identity>: ${JSON.stringify(entry)}`);
+    if (!pinnable(match[1])) malformed(`inputs entry names no pipeline input: ${match[1]}`);
+    if (inputs.has(match[1])) malformed(`inputs pins ${match[1]} twice`);
     inputs.set(match[1], match[2]);
   }
-  return inputs;
+  if (approval && (typeof data.reviewed !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(data.reviewed))) malformed("reviewed must be a full commit hash");
+  return { inputs, reviewed: approval ? data.reviewed : null };
 }
 
-// A later input's `target:` line: the artifacts it targets.
-export function parseTargets(body) {
-  const line = body.match(/^target:[\t ]*(.*?)[\t ]*\r?$/m);
-  if (!line) invalid("later input has no target: line");
-  const targets = line[1].split(",").map((item) => item.trim().replace(/#.*$/, ""));
+// A later input's `target`: the artifacts it targets.
+export function parseTargets(value) {
+  const targets = value.split(",").map((item) => item.trim().replace(/#.*$/, ""));
   for (const target of targets)
     if (!PHASES.some((phase) => phase.artifact === target)) invalid(`target must name ${PHASES.map((phase) => phase.artifact).join(", ")}: ${target || "(empty)"}`);
   return [...new Set(targets)];
@@ -417,23 +525,21 @@ export const isReview = (thread) => parseRole(thread.opener).profile === "review
 // An approval: an approved review thread.
 const isApproval = (thread) => isReview(thread) && thread.status === "approved";
 
-// A thread: its header (the first lines of its body: four, and `cites` on a thread to owner) and its messages, or Invalid.
-export function parseThread(name, body) {
+// The frontmatter keys of a thread: each required, and `cites` on a thread to owner only.
+const THREAD_KEYS = ["status", "opener", "owner", "artifact"];
+
+// A thread, from its file's contents: the values of its frontmatter and the messages of its body, or Invalid.
+export function parseThread(name, contents) {
   const number = name.match(/^([1-9]\d*)-.+\.md$/)?.[1];
   if (!number) invalid("thread file name must be <n>-<opener>-<owner>-<artifact>.md");
-  const lines = body.split("\n").map((line) => line.replace(/\r$/, ""));
-  const header = {};
-  // A thread to owner extends the header with `cites`: the iteration reads the line it appends.
-  const keys = ["status", "opener", "owner", "artifact"];
-  for (const [at, key] of keys.entries()) {
-    const match = lines[at]?.match(/^([a-z]+): (.*\S)$/);
-    if (match?.[1] !== key) invalid(`thread header line ${at + 1} must be ${key}: <value>${key === "cites" ? " on a thread to owner" : ""}`);
-    header[key] = match[2];
-    if (key === "artifact" && header.owner === "owner") keys.push("cites");
-  }
-  const thread = { number: Number(number), ...header };
-  const end = keys.length;
-  if (lines[end] !== undefined && lines[end] !== "") invalid(`thread header must end with a blank line, got: ${lines[end]}`);
+  const { values, body } = frontmatterOf(contents);
+  onlyKeys(values.keys(), [...THREAD_KEYS, "cites"]);
+  for (const key of THREAD_KEYS) if (!values.has(key)) invalid(`frontmatter has no ${key}`);
+  const thread = { number: Number(number), ...Object.fromEntries(THREAD_KEYS.map((key) => [key, values.get(key)])) };
+  if (thread.owner === "owner") {
+    if (!values.get("cites")) invalid("a thread to owner names in cites the thread or evidence it comes from");
+    thread.cites = values.get("cites");
+  } else if (values.has("cites")) invalid("cites is only on a thread to owner");
   if (!STATUSES.includes(thread.status)) invalid(`status must be one of ${STATUSES.join(" | ")}`);
   if (!Object.hasOwn(OWNERS, thread.artifact)) invalid(`artifact must be one of ${Object.keys(OWNERS).join(", ")}`);
   for (const key of ["opener", "owner"]) if (!parseRole(thread[key])) invalid(`${key} must be a role <profile>[-<lane>]: ${thread[key]}`);
@@ -446,7 +552,7 @@ export function parseThread(name, body) {
   if (name !== `${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`) invalid(`thread file name must be ${number}-${thread.opener}-${thread.owner}-${thread.artifact}.md`);
   thread.messages = [];
   let fence = null;
-  for (const line of lines.slice(end)) {
+  for (const line of body.toString("utf8").split("\n").map((text) => text.replace(/\r$/, ""))) {
     const marker = line.match(/^(`{3,}|~{3,})/)?.[1];
     if (marker && (!fence || (marker[0] === fence[0] && marker.length >= fence.length))) { fence = fence ? null : marker; continue; }
     if (fence || !line.startsWith("## ")) continue;
@@ -460,43 +566,67 @@ export function parseThread(name, body) {
   return thread;
 }
 
-// Every file of a pipeline, parsed. A malformed file is collected as invalid, never computed from;
-// a missing or invalid run-config.md, or a missing intent, stops the command.
-// `where` names the pipeline folder in messages.
-export function readState(files, where) {
-  requireFormat(files.get("run-config.md"), `${where}/run-config.md`);
-  if (!files.has(INTENT)) fail(`cannot read ${where}/${INTENT}: missing`);
-  const config = parseOrFail(`${where}/run-config.md`, () => parseConfig(files.get("run-config.md")));
+// The intent's origins: the issue it addresses, the branch it starts from, the pipeline it re-attempts.
+const ORIGIN_KEYS = ["issue", "starts-from", "re-attempts"];
+// The frontmatter keys a pipeline file other than run-config.md and a thread (§ THREAD_KEYS) carries: none on the
+// spec, the design doc, and candidates.
+function frontmatterKeys(kind) {
+  if (kind.kind === "intent") return ORIGIN_KEYS;
+  if (kind.kind === "later") return ["target", "origin"];
+  return kind.phase === IMPLEMENTATION ? ["status"] : [];
+}
+
+// A pipeline file other than run-config.md, parsed under the run configuration, or Invalid.
+function parseFile(path, kind, bytes, config) {
+  if (kind.kind === "thread") {
+    const thread = { path, kind: "thread", ...parseThread(path.slice("threads/".length), bytes), reviewed: null };
+    const awaited = awaitedRole(thread) && parseRole(awaitedRole(thread));
+    if (awaited?.lane && !reviewLanes(config).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
+    return thread;
+  }
+  const { values, present } = frontmatterOf(bytes);
+  const keys = frontmatterKeys(kind);
+  if (present && !keys.length) invalid("carries no frontmatter");
+  onlyKeys(values.keys(), keys);
+  if (kind.kind === "later" && !values.has("target")) invalid("frontmatter has no target");
+  if (kind.kind === "candidate" && !productionLanes(config, kind.phase).some((lane) => lane.id === kind.lane))
+    invalid(`production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
+  return { ...kind, path, values, targets: kind.kind === "later" ? parseTargets(values.get("target")) : [] };
+}
+
+// A pipeline's files, parsed under `config`, with each file's identity. A malformed file is collected as invalid, never
+// computed from. With `certified`, each artifact, candidate, and approval carries its certification: its pins as
+// `inputs` and an approval's `reviewed`, none (and no pins) when it has none; a certification that cannot be read or is
+// malformed stops the command. `where` names the pipeline folder in messages.
+function parseFiles(pipeline, where, config, certified) {
   const state = { config, docs: new Map(), threads: [], invalid: [] };
-  for (const [path, bytes] of [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
+  for (const [path, bytes] of [...pipeline.files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
     const kind = kindOf(path);
     if (kind.kind === "config") continue;
     try {
-      const { data, body, stamped } = frontmatterOf(bytes);
-      const text = body.toString("utf8");
-      if (kind.kind === "thread") {
-        const thread = { path, kind: "thread", ...parseThread(path.slice("threads/".length), text) };
-        if (isApproval(thread)) {
-          onlyKeys(data, ["inputs", "reviewed"]);
-          if (!("inputs" in data) || !("reviewed" in data)) invalid("an approved review thread needs inputs and reviewed: stamp it");
-          if (typeof data.reviewed !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(data.reviewed)) invalid("reviewed must be a full commit hash");
-        } else if (stamped) invalid("carries no frontmatter: only an approved review thread is stamped");
-        const awaited = awaitedRole(thread) && parseRole(awaitedRole(thread));
-        if (awaited?.lane && !reviewLanes(config).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
-        state.threads.push({ ...thread, inputs: parseInputs(data.inputs), reviewed: data.reviewed ?? null });
-        continue;
-      }
-      if (!pins(kind) && stamped) invalid("carries no frontmatter");
-      onlyKeys(data, ["inputs"]);
-      if (kind.kind === "candidate" && !productionLanes(config, kind.phase).some((lane) => lane.id === kind.lane))
-        invalid(`production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
-      state.docs.set(path, { ...kind, path, identity: identity(bytes), inputs: parseInputs(data.inputs), body: text, targets: kind.kind === "later" ? parseTargets(text) : [] });
+      const file = parseFile(path, kind, bytes, config);
+      if (file.kind === "thread") state.threads.push(file);
+      else state.docs.set(path, { ...file, identity: pipeline.identities.get(path) });
     } catch (error) {
       if (!(error instanceof Invalid)) throw error;
       state.invalid.push({ path, reason: error.message });
     }
   }
+  if (certified)
+    for (const subject of [...[...state.docs.values()].filter(pins), ...state.threads.filter(isApproval)]) {
+      const bytes = pipeline.certification(subject.path);
+      Object.assign(subject, bytes ? parseCertification(bytes, `${where}/${certificationPath(subject.path)}`, subject.kind === "thread") : { inputs: new Map(), reviewed: null });
+    }
   return state;
+}
+
+// A pipeline, parsed and certified. A missing or invalid run-config.md, or a missing intent, stops the command.
+export function readState(pipeline, where) {
+  const { files } = pipeline;
+  requireFormat(files.get("run-config.md"), `${where}/run-config.md`);
+  if (!files.has(INTENT)) fail(`cannot read ${where}/${INTENT}: missing`);
+  const config = parseOrFail(`${where}/run-config.md`, () => parseConfig(files.get("run-config.md")));
+  return parseFiles(pipeline, where, config, true);
 }
 function parseOrFail(path, parse) {
   try { return parse(); } catch (error) { if (error instanceof Invalid) fail(`${path}: ${error.message}`); throw error; }
@@ -504,7 +634,7 @@ function parseOrFail(path, parse) {
 
 // --- state ------------------------------------------------------------------------
 
-// The required inputs of what carries `inputs`. An artifact: its phase's upstream artifacts and every later input that
+// The required inputs of what is certified. An artifact: its phase's upstream artifacts and every later input that
 // targets it. A candidate: its phase's upstream artifacts, what its lane reads; the later inputs targeting its root are
 // the root's. An approval: the intent and every later input.
 export function requiredInputs(state, subject) {
@@ -515,13 +645,14 @@ export function requiredInputs(state, subject) {
 // The upstream artifacts a subject pins, before later inputs.
 const upstreamOf = (subject) => subject.kind === "thread" ? [INTENT] : subject.phase.upstream;
 
-// The required inputs of a subject that are unpinned, or pinned at an identity that differs from the current one.
+// The required inputs of a subject that its certification leaves unpinned, or pins at an identity that differs from the
+// current one.
 export function staleInputs(state, subject) {
   return requiredInputs(state, subject).filter((input) => !subject.inputs.has(input) || subject.inputs.get(input) !== state.docs.get(input)?.identity);
 }
 
-// The implementation is done when the first line of `notes.md`'s body is `status: done`.
-const implementationDone = (state) => /^status: done\r?$/.test(state.docs.get(IMPLEMENTATION.artifact)?.body.split("\n")[0] ?? "");
+// The implementation is done when `notes.md`'s frontmatter `status` is `done`.
+const implementationDone = (state) => state.docs.get(IMPLEMENTATION.artifact)?.values.get("status") === "done";
 
 // A file's status: missing, stale (with the changed inputs), or fresh. `notes.md` is missing until it is done.
 function statusOf(state, path) {
@@ -543,11 +674,13 @@ const roleOf = (profile, laneId) => `${profile}-${laneId}`;
 
 // A review lane's approval: its highest-numbered review thread, approved when it is an approval and fresh. An approval is
 // stale on a changed required input, or when the tip's code is not the approved commit's plus clean merges of the base.
+// One without certification has no code judged; one whose approved commit the clone lacks is no approval.
 function approvalOf(state, lane) {
   const latest = state.threads.filter((thread) => isReview(thread) && thread.opener === roleOf("reviewer", lane.id)).sort((a, b) => b.number - a.number)[0];
   if (!latest || !isApproval(latest)) return { approved: false };
+  const codeChanged = latest.reviewed !== null && state.codeChanged(latest.reviewed);
+  if (codeChanged === null) return { approved: false };
   const stale = staleInputs(state, latest);
-  const codeChanged = state.codeChanged(latest.reviewed);
   return { approved: !stale.length && !codeChanged, ...(stale.length ? { stale } : {}), ...(codeChanged ? { codeChanged } : {}) };
 }
 
@@ -557,18 +690,20 @@ export function baseOf(root, base, tip) {
   return gitText(root, ["merge-base", baseCommit, tip]) || fail(`no merge-base between ${base} and ${tip}`);
 }
 
-// Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the base:
-// a conflicting merge, or any difference from the merged tree.
+// Whether the tip's code outside the pipelines folder root differs from the approved commit's merged with the base: a
+// conflict outside the root, or any difference from the merged tree outside it. Null when the clone lacks the commit.
 export function codeChanged(root, approved, base, tip, pipelinesRoot) {
-  const commit = requireCommit(root, approved, "reviewed");
+  const commit = commitOf(root, approved);
+  if (!commit) return null;
   if (commit === tip) return false;
   let merged;
-  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", commit, base], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
+  try { merged = execFileSync("git", ["merge-tree", "--write-tree", "--no-messages", "--name-only", "-z", commit, base], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }); }
   catch (error) {
-    if (error.status === 1 && /^[0-9a-f]{40,64}\n/.test(error.stdout ?? "")) return true;
-    fail(`git merge-tree --write-tree (Git 2.38 or later) ${commit} ${base}: ${error.stderr?.toString().trim() || error.message}`);
+    if (error.status !== 1 || !/^[0-9a-f]{40,64}\0/.test(error.stdout ?? "")) fail(`git merge-tree --write-tree (Git 2.38 or later) ${commit} ${base}: ${error.stderr?.toString().trim() || error.message}`);
+    merged = error.stdout;
   }
-  const tree = merged.split("\n")[0];
+  const [tree, ...conflicts] = merged.split("\0").filter(Boolean);
+  if (conflicts.some((path) => !path.startsWith(`${pipelinesRoot}/`))) return true;
   try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", tree, tip, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
   catch (error) {
     if (error.status === 1) return true;
@@ -665,75 +800,75 @@ async function cmdCheck(args) {
 
 // --- stamp ------------------------------------------------------------------------
 
-// Pins a file's required inputs, derived from its kind, at their identities in the tree of the turn's commit `--at`.
-// An artifact keeps the candidate pins it recorded, or records those `--pin` names; an approval also records the turn's
-// commit as `reviewed`.
+// Certifies a landed file: writes `certification/<file>.json` with the file's required inputs, derived from its kind, at
+// their identities in the tree of the turn's commit `--at`, and on an approval its approved commit, the `HEAD` where it
+// lies; an approval's `--at` must be the change its reviewer's last heading names. The landed file is never written.
 async function cmdStamp(args) {
   const { root, rel } = locate(args._[0] ?? fail("stamp: missing <file>"));
   const { folder, inner, pipelinesRoot } = pipelineFileOf(rel, "stamp");
   const kind = kindOf(inner);
   if (!pins(kind) && kind.kind !== "thread") fail(`stamp: not an artifact or thread: ${rel}`);
   const commit = requireCommit(root, args.at ?? fail("stamp: --at <commit> names the turn's commit and is required"), "--at");
-  const abs = join(root, rel);
-  if (!existsSync(abs) || !lstatSync(abs).isFile()) fail(`stamp: cannot read ${rel}: not a regular file`);
-  const bytes = readFileSync(abs);
-  const { data, body } = parseOrFail(`stamp: ${rel}`, () => frontmatterOf(bytes));
-  const subject = kind.kind === "thread" ? parseOrFail(`stamp: ${rel}`, () => ({ kind: "thread", ...parseThread(basename(inner), body.toString("utf8")) })) : kind;
+  // From the working tree: run-config.md and the landed file.
+  const readRegular = (path) => {
+    const stat = lstatOf(join(root, path));
+    return stat?.isFile() ? readFileSync(join(root, path)) : stat ? fail(`stamp: cannot read ${path}: not a regular file`) : null;
+  };
+  const configBytes = readRegular(`${folder}/run-config.md`);
+  requireFormat(configBytes, `${folder}/run-config.md`);
+  const config = parseOrFail(`${folder}/run-config.md`, () => parseConfig(configBytes));
+  const bytes = readRegular(rel) ?? fail(`stamp: cannot read ${rel}: not a regular file`);
+  const subject = parseOrFail(`stamp: ${rel}`, () => parseFile(inner, kind, bytes, config));
   if (kind.kind === "thread" && !isApproval(subject)) fail(`stamp: ${rel}: only an approved review thread is stamped`);
-  if (kind.kind === "thread") {
-    // An approval's anchor holds the code its reviewer reviewed: the commit the reviewer's last heading names.
+  // An approval is certified `--at` the change its reviewer read, the commit its last heading names; its approved commit
+  // is the HEAD that holds it, whose code must be that change's.
+  const reviewed = kind.kind === "thread" ? requireCommit(root, "HEAD", "HEAD") : null;
+  if (reviewed) {
     const named = subject.messages.findLast((message) => message.author === subject.opener).commit;
-    const reviewedCode = requireCommit(root, named, `stamp: ${rel}: the commit the reviewer's last heading names`);
-    try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", reviewedCode, commit, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
+    if (requireCommit(root, named, `stamp: ${rel}: the commit the reviewer's last heading names`) !== commit)
+      fail(`stamp: ${rel}: --at ${args.at} is not ${named}, the change the reviewer's last heading names`);
+    try { execFileSync("git", ["diff", "--quiet", "--no-ext-diff", commit, reviewed, "--", ".", `:(top,exclude,literal)${pipelinesRoot}`], { cwd: root, stdio: ["ignore", "ignore", "pipe"] }); }
     catch (error) {
-      if (error.status !== 1) fail(`git diff ${reviewedCode} ${commit}: ${error.stderr?.toString().trim() || error.message}`);
-      fail(`stamp: ${rel}: ${args.at} differs from ${named}, the commit the reviewer's last heading names, outside ${pipelinesRoot}`);
+      if (error.status !== 1) fail(`git diff ${commit} ${reviewed}: ${error.stderr?.toString().trim() || error.message}`);
+      fail(`stamp: ${rel}: HEAD differs from ${args.at}, the change it reviewed, outside ${pipelinesRoot}`);
     }
   }
-  parseOrFail(`stamp: ${rel}`, () => onlyKeys(data, kind.kind === "thread" ? ["inputs", "reviewed"] : ["inputs"]));
-  const isCandidateOfRoot = (path) => kind.kind === "artifact" && kindOf(path)?.kind === "candidate" && kindOf(path).phase === kind.phase;
-  if (args.pin.length && (kind.kind !== "artifact" || !kind.phase.lanes)) fail(`stamp: --pin applies to a spec or design doc: ${rel}`);
-  // A `--pin` path is absolute or relative to the pipeline folder; it must be a file before it is classified.
-  const pinned = args.pin.map((pin) => {
-    const tried = isAbsolute(pin) ? pin : join(root, folder, pin);
-    if (!existsSync(tried) || !statSync(tried).isFile()) fail(`stamp: cannot read --pin ${tried}: not a file`);
-    const located = locate(tried);
-    const path = located.root === root && located.rel.startsWith(`${folder}/`) ? located.rel.slice(folder.length + 1) : null;
-    return path && isCandidateOfRoot(path) ? path : fail(`stamp: --pin must name a candidate of ${rel}: ${pin}`);
-  });
-  // What stamp reads at the turn's commit: the configuration, the intent, every later input (its `target:` line says
-  // whether it applies), the subject's upstream artifacts, and the candidates `--pin` names.
+  // What stamp reads at the turn's commit: the intent, every later input (its `target` says whether it applies), and the
+  // subject's upstream artifacts.
   const upstream = upstreamOf(subject);
-  const reads = (path) => path === "run-config.md" || path === INTENT || kindOf(path).kind === "later" || upstream.includes(path) || pinned.includes(path);
-  const state = readState(await readCommit(root, commit, folder, reads), `${args.at}:${folder}`);
+  const reads = (path) => path === INTENT || kindOf(path).kind === "later" || upstream.includes(path);
+  const state = parseFiles(await readCommit(root, commit, folder, reads), `${args.at}:${folder}`, config, false);
   if (state.invalid.length) fail(`stamp: ${commit}:${folder}/${state.invalid[0].path}: ${state.invalid[0].reason}`);
-  if (kind.kind === "candidate" && !productionLanes(state.config, kind.phase).some((lane) => lane.id === kind.lane)) fail(`stamp: ${rel}: production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
-  const inputs = new Map();
-  for (const path of [...requiredInputs(state, subject), ...pinned]) {
-    if (!state.docs.has(path)) fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`);
-    inputs.set(path, state.docs.get(path).identity);
+  const inputs = requiredInputs(state, subject).map((path) => `${path}@${(state.docs.get(path) ?? fail(`stamp: cannot pin ${commit}:${folder}/${path}: missing`)).identity}`).sort();
+  const certification = Buffer.from(`${JSON.stringify({ inputs, ...(reviewed ? { reviewed } : {}) }, null, 2)}\n`);
+  const base = join(root, folder), path = join(base, certificationPath(inner));
+  const existing = worktreeCertification(base, folder, inner);
+  if (existing) parseCertification(existing, `stamp: ${folder}/${certificationPath(inner)}`, kind.kind === "thread");
+  if (!existing?.equals(certification)) {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, certification);
   }
-  if (!pinned.length) {
-    const recorded = parseOrFail(`stamp: ${rel}`, () => parseInputs(data.inputs));
-    for (const [path, id] of recorded) if (isCandidateOfRoot(path)) inputs.set(path, id);
-  }
-  data.inputs = [...inputs].sort(([a], [b]) => a < b ? -1 : 1).map(([path, id]) => `${path}@${id}`);
-  if (kind.kind === "thread") data.reviewed = commit;
-  const stamped = renderFrontmatter(data, body);
-  if (!stamped.equals(bytes)) writeFileSync(abs, stamped);
 }
 
 // --- pipelines --------------------------------------------------------------------
 
-// The origin lines that open an intent's body.
-export function originsOf(body) {
-  const origins = [];
-  for (const line of body.split("\n")) {
-    const match = line.replace(/\r$/, "").match(/^origin:[\t ]*(.*\S)[\t ]*$/);
-    if (!match) break;
-    origins.push(match[1]);
+// The first format whose intent names its origins in its frontmatter.
+const ORIGINS_IN_FRONTMATTER = 7;
+// The origins an intent of a pipeline of `format` names. From ORIGINS_IN_FRONTMATTER, those of its frontmatter, each as
+// `<key> <value>` in the order written; before, the values of the `origin:` lines that open its body. Nothing is
+// validated: an intent whose frontmatter cannot be read has none.
+export function originsOf(bytes, format) {
+  if (format === "earlier" || format < ORIGINS_IN_FRONTMATTER) {
+    const origins = [];
+    for (const line of splitFrontmatter(bytes).body.toString("utf8").split("\n")) {
+      const match = line.replace(/\r$/, "").match(/^origin:[\t ]*(.*\S)[\t ]*$/);
+      if (!match) break;
+      origins.push(match[1]);
+    }
+    return origins;
   }
-  return origins;
+  try { return [...frontmatterOf(bytes).values].filter(([key]) => ORIGIN_KEYS.includes(key)).map(([key, value]) => `${key} ${value}`); }
+  catch (error) { if (error instanceof Invalid) return []; throw error; }
 }
 
 // A pipeline folder is a folder of the pipelines folder root that holds a pipeline file of some format: a phase folder
@@ -750,7 +885,7 @@ async function pipelineFoldersIn(root, entries) {
   });
 }
 
-// What discovery reads of a pipeline folder tree: its format and the origins its intent opens with. A pipeline of the
+// What discovery reads of a pipeline folder tree: its format and its intent's origins. A pipeline of the
 // current format without an intent is malformed and stops the command; any other file or key is never read.
 async function discoverFolders(root, folders, where) {
   const trees = await readTrees(root, folders.map((folder) => folder.tree));
@@ -766,7 +901,7 @@ async function discoverFolders(root, folders, where) {
     const format = formatOf(oids[i].config && blobs.get(oids[i].config));
     const intent = oids[i].intent && blobs.get(oids[i].intent);
     if (!intent && format === FORMAT) fail(`pipelines: cannot read ${where(folder)}/${INTENT}: missing`);
-    return { ...folder, format, origins: intent ? originsOf(splitFrontmatter(intent).body.toString("utf8")) : [] };
+    return { ...folder, format, origins: intent ? originsOf(intent, format) : [] };
   });
 }
 
@@ -844,7 +979,7 @@ async function cmdReview(args) {
   const branch = (() => { try { return execFileSync("git", ["symbolic-ref", "--short", "-q", "HEAD"], { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { return ""; } })()
     || fail(`review: ${root} has no branch checked out: the pipeline folder is read from the pipeline branch's worktree`);
   const tip = requireCommit(root, "HEAD", "HEAD");
-  const files = await readCommit(root, tip, folder, (path) => path === "run-config.md");
+  const { files } = await readCommit(root, tip, folder, (path) => path === "run-config.md");
   requireFormat(files.get("run-config.md"), `${folder}/run-config.md`);
   const config = parseOrFail(`${folder}/run-config.md`, () => parseConfig(files.get("run-config.md") ?? fail(`review: cannot read ${tip}:${folder}/run-config.md: missing`)));
   if (!reviewLanes(config).some((lane) => lane.id === laneId)) fail(`review: ${laneId} is not a review lane of ${folder}/run-config.md`);
@@ -882,25 +1017,24 @@ async function cmdReview(args) {
 
 const COMMANDS = {
   check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
-  stamp: { run: cmdStamp, options: { "--at": "value", "--pin": "list" } },
+  stamp: { run: cmdStamp, options: { "--at": "value" } },
   pipelines: { run: cmdPipelines, options: { "--base": "value", "--issue": "value", "--json": "flag" } },
   review: { run: cmdReview, options: { "--lane": "value", "--json": "flag" } },
 };
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], pin: [], json: false, ref: null, issue: null, at: null, base: null, lane: null };
+  const args = { _: [], json: false, ref: null, issue: null, at: null, base: null, lane: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith("--")) { args._.push(arg); continue; }
     const type = options[arg] ?? fail(`${command}: unknown option: ${arg}`);
-    if (type !== "list" && used.has(arg)) fail(`${command}: ${arg} may appear only once`);
+    if (used.has(arg)) fail(`${command}: ${arg} may appear only once`);
     used.add(arg);
     const key = arg.slice(2);
     if (type === "flag") { args[key] = true; continue; }
-    const value = i + 1 < argv.length ? argv[++i] : fail(`${command}: ${arg} expects a value`);
-    if (type === "list") args[key].push(value); else args[key] = value;
+    args[key] = i + 1 < argv.length ? argv[++i] : fail(`${command}: ${arg} expects a value`);
   }
   if (args._.length > 1) fail(`${command}: unexpected argument: ${args._[1]}`);
   return args;
@@ -910,7 +1044,7 @@ const USAGE = `rp — Radical Pipelines state tooling
 
 Usage:
   node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-  node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
+  node rp.mjs stamp <file> --at <commit>
   node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
   node rp.mjs review <pipeline folder> --lane <lane> [--json]
 

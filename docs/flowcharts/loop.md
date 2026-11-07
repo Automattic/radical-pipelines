@@ -6,8 +6,7 @@ This chart mirrors [`reference/run/loop.md`](../../skills/radical-pipelines/refe
 flowchart TD
     START["Enter from triage; start health monitoring"] --> A["Run rp check"]
     A --> C{"Frontier"}
-    C -->|INVALID with malformed frontmatter| FM["Repair the frontmatter and re-stamp"]
-    C -->|INVALID otherwise| AUTHOR["Wake the file's author to fix it, or fix it when you wrote it"]
+    C -->|INVALID| AUTHOR["Wake the file's author to fix it, or fix it when you wrote it"]
     C -->|escalate thread| OE["Owner escalation"]
     C -->|lane artifact id| LANE["Give each lane its branch and worktree at the pipeline tip; wake its producer: produce, or respond when its candidate exists"]
     C -->|consolidate artifact| CON["Terminate the lane instances; remove their worktrees and branches; wake a fresh producer: consolidate"]
@@ -16,7 +15,6 @@ flowchart TD
     C -->|review lane| REVIEW["rp review builds each lane's branch from the pipeline tip; give it a worktree; wake its reviewer"]
     C -->|complete| CLOSE["Close-out"]
     OE --> CLOSE
-    FM --> A
     LANE --> WAIT
     CON --> WAIT
     PRODUCE --> WAIT
@@ -25,7 +23,7 @@ flowchart TD
     AUTHOR --> WAIT
     WAIT["End the turn; resume on role reports and health ticks"] --> ENDED{"Every woken role ended its turn?"}
     ENDED -->|No| WAIT
-    ENDED -->|Yes| LAND["For each role, at the turn commit its assignment names: a production lane or role stamps in its worktree; a review lane's commits after its change are cherry-picked onto the pipeline branch first and its approvals stamped at the pipeline worktree's HEAD, whose code must be the change's; commit the stamps; then merge a production lane's branch"]
+    ENDED -->|Yes| LAND["For each role, at the turn commit its assignment names: a production lane or role stamps in its worktree; a review lane's commits after its change are cherry-picked onto the pipeline branch first and its approvals stamped at that change, the one the reviewer's last heading names, the pipeline worktree's HEAD becoming the approved commit, whose code must be the change's; commit the certifications; then merge a production lane's branch"]
     LAND --> PC["Fire phase-completed for each phase that became complete; report one line per role to the owner"]
     PC --> A
 ```

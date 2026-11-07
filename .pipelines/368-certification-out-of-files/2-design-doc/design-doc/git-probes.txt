@@ -1,0 +1,38 @@
+### 1. git hash-object, without -w, in a linked worktree under eol=crlf and autocrlf
+warning: in the working copy of 'pf/one.md', LF will be replaced by CRLF the next time Git touches it
+working-tree bytes of pf/one.md:
+0000000    a  \r  \n   b  \r  \n                                        
+committed blobs:
+422c2b7ab3b3c668038da977e4e93a5fc623169c
+f2ad6c76f0115a6ba5b00456a849810e7ec0af20
+git hash-object pf/one.md pf/two.txt (filters applied, one call):
+422c2b7ab3b3c668038da977e4e93a5fc623169c
+f2ad6c76f0115a6ba5b00456a849810e7ec0af20
+git hash-object --no-filters pf/one.md:
+c30dea8a3641ea99b125d04d599d843712292759
+warning: garbage found: /private/tmp/rp-design-doc/git/.git/worktrees/git-wt/refs
+warning: garbage found: /private/tmp/rp-design-doc/git/.git/worktrees/git-wt/refs
+loose objects before/after hash-object: count: 6 / count: 6
+
+### 2. git merge-tree --write-tree --name-only: approved commit vs a squash of the pipeline branch
+warning: in the working copy of '.gitattributes', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pf/one.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pf/two.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'code.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitattributes', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'code.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pf/one.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pf/two.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.pipelines/p/3-implementation/notes.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.gitattributes', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.pipelines/p/3-implementation/notes.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'code.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pf/one.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pf/two.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.pipelines/p/certification/x.json', LF will be replaced by CRLF the next time Git touches it
+Squash commit -- not updating HEAD
+759233cbbcc5b415c22805052354cbb4a4e90d2b
+.pipelines/p/3-implementation/notes.md
+exit status: 1
+merged tree vs main outside .pipelines (empty means equal):
+(end of diff)

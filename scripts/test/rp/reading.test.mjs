@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdirSync, symlinkSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, P, SPEC, abs, check, commitAll, frontier, git, lane, pipeline, read, remove, root, rp, run, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, P, PIPELINE, RP, SPEC, abs, check, commitAll, frontier, git, lane, pipeline, read, remove, root, rp, run, stampAt, useRepo, write, writeFile } from "./fixture.mjs";
 
 describe("reading a pipeline", () => {
   useRepo();
@@ -81,6 +84,37 @@ describe("reading a pipeline", () => {
     write(INTENT, read(INTENT).replace(/\n/g, "\r\n"));
     assert.deepEqual(frontier(), [`respond ${SPEC}`]);
   });
+
+  // The line-ending conversions git applies between the working tree and a commit: [what, how the repository sets it
+  // before the pipeline is committed, and after].
+  const conversions = [
+    [".gitattributes setting *.md text eol=crlf", () => { writeFile(".gitattributes", "*.md text eol=crlf\n"); commitAll("attributes"); }, () => {}],
+    ["core.autocrlf true", () => git(root, "config", "core.autocrlf", "true"), () => {}],
+    ["core.autocrlf true, set once the intent was committed with CRLF", () => {}, () => {
+      write(INTENT, read(INTENT).replace(/\n/g, "\r\n"));
+      commitAll("intent with CRLF");
+      git(root, "config", "core.autocrlf", "true");
+    }],
+  ];
+  for (const [what, setBefore, setAfter] of conversions)
+    it(`judges freshness alike from the working tree and from the commit under ${what}`, () => {
+      setBefore();
+      pipeline(0);
+      setAfter();
+      rmSync(abs(PIPELINE), { recursive: true });
+      git(root, "checkout", "--", PIPELINE);
+      assert.match(read(INTENT), /\r\n/);
+      const turn = git(root, "rev-parse", "HEAD").trim();
+      write(SPEC, "# Spec\n\nRequirement.\n");
+      commitAll("spec");
+      stampAt(turn, SPEC);
+      const before = check();
+      commitAll("certification");
+      assert.equal(git(root, "status", "--porcelain"), "");
+      const after = check(), atHead = check("--ref", "HEAD");
+      assert.equal(before.phases[0].state, "fresh");
+      for (const report of [after, atHead]) assert.deepEqual([report.frontier, report.phases], [before.frontier, before.phases]);
+    });
 });
 
 describe("command line", () => {
@@ -112,5 +146,16 @@ describe("command line", () => {
 
   it("prints usage without a command", () => {
     assert.match(rp(), /node rp\.mjs check <pipeline folder>/);
+  });
+
+  it("checks a pipeline with Node and Git alone, from a copy of the script where no package is installed", () => {
+    pipeline(3);
+    const alone = mkdtempSync(join(tmpdir(), "rp-alone-"));
+    try {
+      copyFileSync(RP, join(alone, "rp.mjs"));
+      const out = spawnSync(process.execPath, [join(alone, "rp.mjs"), "check", abs(PIPELINE)], { cwd: alone, encoding: "utf8" });
+      assert.equal(out.stderr, "");
+      assert.equal(out.stdout, rp("check", abs(PIPELINE)));
+    } finally { rmSync(alone, { recursive: true, force: true }); }
   });
 });

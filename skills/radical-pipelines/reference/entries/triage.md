@@ -26,8 +26,8 @@ A request carries one or more statements; route each by the first predicate that
 | A live pipeline's intent, constraints, and proposals already call for this work      | Continue it                                                               |
 | The request concerns what an existing pipeline's artifacts state or its code does   | Later input on that pipeline                                              |
 | A change of scope for a live pipeline                                               | The owner's choice: rescope it, or a new pipeline from its tip (next row)  |
-| New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; `origin: starts-from` names that branch |
-| New intent re-attempting an existing pipeline differently                           | A new pipeline; `origin: re-attempts` names it                            |
+| New intent that starts from another pipeline's unmerged tip                         | A new pipeline whose branch starts at that tip; the intent's `starts-from` names that branch |
+| New intent re-attempting an existing pipeline differently                           | A new pipeline; the intent's `re-attempts` names it                       |
 | New intent                                                                          | A new pipeline from the base branch                                       |
 
 A pipeline of an earlier format is history, never continued and never given later input: work on its issue routes as new intent, from the base branch or, by the owner's choice, from that pipeline's tip.
@@ -58,7 +58,7 @@ Prepare every route of a run before starting it. Address every worktree by absol
 
 1. Pipeline slug and branch per `../run/state.md` § Names.
 2. Branch at the chosen start ref; worktree per **Worktree folder root**.
-3. `<pipelines folder root>/<pipeline slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `origin: starts-from` records the starting branch and `origin: re-attempts` the prior pipeline's slug.
+3. `<pipelines folder root>/<pipeline slug>/0-intent/intent.md`, synthesized from the whole issue by `intent-format.md`; `starts-from` records the starting branch and `re-attempts` the prior pipeline's slug.
 4. Commit it per the **Commit format** convention.
 
 Every branch and worktree you create — the pipeline's here, a lane's later — fires its `before-`/`after-creating-branch` and `-creating-worktree` hooks (`../conventions/lifecycle-hooks.md`); `after-creating-pipeline` fires once the intent is committed.

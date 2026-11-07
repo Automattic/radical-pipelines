@@ -14,7 +14,7 @@ Find the repository's main root, even when running inside a worktree. Read in th
 
 | Convention             | What it covers                                                                                                                                                                                                                                                                                        | Required |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Issues                 | Issue trackers; read, create, modify, and comment operations; the canonical issue-reference format for `origin:` lines                                                                                                                                                                                | Yes      |
+| Issues                 | Issue trackers; read, create, modify, and comment operations; the canonical issue-reference format the intent and later inputs name as their origin                                                                                                                                                   | Yes      |
 | Pipeline slug          | How the pipeline slug in `../run/state.md` § Names is derived from the issue                                                                                                                                                                                                                          | Yes      |
 | Pipeline branch format | The pipeline branch as a template over `<pipeline slug>`; default `<pipeline slug>`                                                                                                                                                                                                                   | No       |
 | Pipelines folder root  | The root containing pipeline folders; default `.pipelines/`                                                                                                                                                                                                                                           | No       |
@@ -30,7 +30,7 @@ Find the repository's main root, even when running inside a worktree. Read in th
 
 ## Schema stamp
 
-`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 6.
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 7.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

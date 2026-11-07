@@ -1,0 +1,36 @@
+== pipeline branch p, before merge:
+frontier complete
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change c06decae8afa58b158265fd806fdfdefbbf6677a..6fc7a7bebcd3ec063a4bede3a93e7742e61d2cf0
+review default approved
+thread threads/1-reviewer-default-implementer-implementation.md approved
+== reviewed recorded: 42e55e7eba221de10faeb9a7b90ee54fe2bbda06
+Squash commit -- not updating HEAD
+== fresh clone: does the reviewed commit exist?
+fatal: git cat-file: could not get object info
+== fresh clone, p_2 from main, no later input: rp check
+rp: reviewed does not resolve to a commit: 42e55e7eba221de10faeb9a7b90ee54fe2bbda06
+== fresh clone, p_2 with failure-1 targeting notes.md: rp check
+rp: reviewed does not resolve to a commit: 42e55e7eba221de10faeb9a7b90ee54fe2bbda06
+== fresh clone, target-phase 3 in the same tree (edit config): rp check
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md stale 0-intent/failure-1.md
+thread threads/1-reviewer-default-implementer-implementation.md approved
+== original clone (holds reviewed), p_2 from main, no later input: rp check
+frontier review default
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 5f2d3972bfdc78267e2b8c1f5f8edafb0d1cb034..5f2d3972bfdc78267e2b8c1f5f8edafb0d1cb034
+review default stale code
+thread threads/1-reviewer-default-implementer-implementation.md approved
+== git merge-tree reviewed base, in the original clone:
+c56c05aff429fc729f307cd3adb80d1dbb87ab57
+.pipelines/p/threads/1-reviewer-default-implementer-implementation.md
+
+Auto-merging .pipelines/p/threads/1-reviewer-default-implementer-implementation.md
+CONFLICT (add/add): Merge conflict in .pipelines/p/threads/1-reviewer-default-implementer-implementation.md

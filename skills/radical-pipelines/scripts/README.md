@@ -1,10 +1,10 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, stamps frontmatter, discovers pipelines, and builds review lane branches. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, certifies landed files, discovers pipelines, and builds review lane branches. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
+node rp.mjs stamp <file> --at <commit>
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 node rp.mjs review <pipeline folder> --lane <lane> [--json]
 ```
@@ -19,27 +19,38 @@ A pipeline folder is `<pipelines folder root>/<pipeline slug>`, a folder of the 
 
 | Path | What it is | Frontmatter keys |
 | --- | --- | --- |
-| `run-config.md` | Run configuration | `format`, `target-phase`, `base`, `lanes` |
-| `0-intent/intent.md` | Intent | no frontmatter |
-| `0-intent/constraint-<n>.md`, `proposal-<n>.md`, `failure-<n>.md` | Later input | no frontmatter |
-| `1-spec/spec.md` | Spec | `inputs` |
-| `1-spec/lanes/<id>/spec.md` | Spec candidate | `inputs` |
-| `2-design-doc/design-doc.md` | Design doc | `inputs` |
-| `2-design-doc/lanes/<id>/design-doc.md` | Design doc candidate | `inputs` |
-| `3-implementation/notes.md` | Implementation notes | `inputs` |
-| `threads/<name>.md` | Thread | `inputs` and `reviewed`, on an approval only |
+| `run-config.md` | Run configuration | JSON: `format`, `target-phase`, `base`, `lanes` |
+| `0-intent/intent.md` | Intent | `issue`, `starts-from`, `re-attempts`, each optional |
+| `0-intent/constraint-<n>.md`, `proposal-<n>.md`, `failure-<n>.md` | Later input | `target`, required; `origin`, optional and not interpreted |
+| `1-spec/spec.md` | Spec | no frontmatter |
+| `1-spec/lanes/<id>/spec.md` | Spec candidate | no frontmatter |
+| `2-design-doc/design-doc.md` | Design doc | no frontmatter |
+| `2-design-doc/lanes/<id>/design-doc.md` | Design doc candidate | no frontmatter |
+| `3-implementation/notes.md` | Implementation notes | `status` |
+| `threads/<name>.md` | Thread | `status`, `opener`, `owner`, `artifact`; `cites` on a thread to `owner` (§ Threads) |
+| `certification/<path>.json` | The certification of the file at `<path>` (§ Certification) | none: the file is JSON |
 
-Frontmatter is a JSON object between a first line `---` and the next line `---`. A key outside the table, or frontmatter on a file that carries none, makes the file `INVALID`.
+A key outside the table, or frontmatter on a file that carries none, makes the file `INVALID`. `rp` reads these values from the frontmatter alone; the body is free text.
+
+### Frontmatter
+
+A frontmatter is the lines between a first line `---` and the next line `---`; either may end in CRLF, and the closing one may end the file. `run-config.md`'s holds a JSON object. Every other file's holds this YAML subset, a flat map of single-line text values:
+
+- Each line is blank or `<key>: <value>`, starting at column 0. `<key>` starts with a letter or digit.
+- A plain value is the text written, without surrounding spaces and tabs. A value in single or double quotes is the text between them. Every value is text, including one YAML would read as a number, a boolean, or null, such as `368` or `true`; an empty value is empty text.
+- A file whose frontmatter has no closing line, an indented line (a nested map or a multi-line value), a list item, a comment line, a line that is no `<key>: <value>`, or a key given twice is `INVALID`. So is a value YAML would read as other text or as structure: one holding a comment (` #`, or `#` first, as in an unquoted issue reference `#368`), a flow collection (`[`, `{`), an anchor (`&`), an alias (`*`), a tag (`!`), a block scalar (`|`, `>`), a quoted value holding an escape (`\` in double quotes, `''` in single quotes) or followed by text, or a plain value YAML rejects: one starting with `%`, `@`, `` ` ``, `,`, `]`, or `}`, starting with `-`, `?`, or `:` followed by a space or alone, or holding `: ` or ending with `:`. The reason names the key and the construct, or the line.
+
+Quote a value that starts with one of those characters, such as `issue: "#368"`.
 
 ### Identity
 
-A file's identity is the first 12 hexadecimal characters of the git blob hash of its body: every byte below the frontmatter, unnormalized. Stamping never changes it.
+A file's identity is the first 12 hexadecimal characters of the git blob id of the whole file, frontmatter included: at a commit, the id its tree records; in the working tree, the id `git add` would store for the file at its path, after the clean filters and line-ending conversion its attributes, configuration, and index entry select, so a file committed with CRLF keeps it under `core.autocrlf`. Git computes it on a copy of the worktree's index, writing no object and leaving the index untouched. An unmodified working tree has the identities of `HEAD`'s tree.
 
 ### `run-config.md`
 
 ```json
 {
-  "format": 6,
+  "format": 7,
   "target-phase": 4,
   "base": "main",
   "lanes": [
@@ -49,7 +60,7 @@ A file's identity is the first 12 hexadecimal characters of the git blob hash of
 }
 ```
 
-- `format`: the conventions format the pipeline was written under, an integer; the current one is `6`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check` and `stamp` read only format 6 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
+- `format`: the conventions format the pipeline was written under, an integer; the current one is `7`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check` and `stamp` read only format 7 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
 - `target-phase`: an integer from 1 to 4. Phase 4 is review.
 - `base`: a revision that resolves to a commit.
 - `lanes` (optional, non-empty when present): each lane has only `profile`, `id`, and an optional `brief`, all non-empty strings. `profile` is `spec-producer` or `design-doc-producer` for a production lane, or `reviewer` for a review lane. `id` matches `[a-z0-9][a-z0-9-]*` and is unique per profile.
@@ -57,63 +68,70 @@ A file's identity is the first 12 hexadecimal characters of the git blob hash of
 
 The body is ignored. A missing `run-config.md` or one that breaks these rules stops `check`, as does a missing intent.
 
-### `inputs`
+### Certification
 
-`inputs` is a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, or a candidate.
+`stamp` alone writes `certification/<path>.json`, the certification of the artifact, candidate, or approval at `<path>`, relative to the pipeline folder. It is a JSON object holding only:
 
-| What carries `inputs` | Required inputs |
+- `inputs`: a list of `<path>@<identity>`, one per pinned file, with paths relative to the pipeline folder. A pin may name the intent, a later input, an artifact, or a candidate.
+- `reviewed`, on an approval only (§ Threads): the full hash of its approved commit (§ Net change and approval).
+
+| What is certified | Required inputs |
 | --- | --- |
 | `1-spec/spec.md` | `0-intent/intent.md`; every later input targeting it |
 | A spec candidate | `0-intent/intent.md` |
 | `2-design-doc/design-doc.md` | `1-spec/spec.md`; every later input targeting it |
 | A design doc candidate | `1-spec/spec.md` |
 | `3-implementation/notes.md` | `1-spec/spec.md`, `2-design-doc/design-doc.md`; every later input targeting it |
-| An approval (§ Threads) | `0-intent/intent.md`; every later input |
+| An approval | `0-intent/intent.md`; every later input |
 
-- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. Other pins, such as the candidates a consolidated root merged, are checked for grammar only.
-- **Missing**: the file is absent. `notes.md` is also missing until the first line of its body is exactly `status: done`.
+- **Stale**: a required input is unpinned, or pinned at an identity that differs from the current one. A file without a certification is stale on each required input. Pins of other files are checked for grammar only.
+- **Missing**: the file is absent. `notes.md` is also missing until its `status` is `done`.
 - **Fresh**: neither.
+
+`check` reads the certification of each artifact, candidate, and approval present, in the working tree or at `--ref` alike, and never another file under `certification/`, such as a dropped lane's. A certification that is a symlink or not a regular file, a folder where it belongs, a file where its folder belongs, invalid JSON, a key outside those above or a missing one, an ill-formed or repeated pin, a pin naming no pinnable path, or a `reviewed` that is no full commit hash stops the command: `rp: <path>: <reason>`, with no frontier.
 
 ### Later input
 
-A later input's body has a line `target: <artifact>[#<id>][, <artifact>[#<id>]]...`. Each `<artifact>` is `1-spec/spec.md`, `2-design-doc/design-doc.md`, or `3-implementation/notes.md`. A missing `target:` line or any other path makes the file `INVALID`.
+A later input's `target` is `<artifact>[#<id>][, <artifact>[#<id>]]...`. Each `<artifact>` is `1-spec/spec.md`, `2-design-doc/design-doc.md`, or `3-implementation/notes.md`. A missing `target` or any other path makes the file `INVALID`.
 
 ## Threads
 
-A thread file is named `<n>-<opener>-<owner>-<artifact>.md` after its header, with `<n>` a positive integer. Threads may share `<n>`.
+A thread file is named `<n>-<opener>-<owner>-<artifact>.md` after its frontmatter, with `<n>` a positive integer. Threads may share `<n>`.
 
-Its body begins with exactly four header lines, five on a thread to `owner`, followed by a blank line:
+Its frontmatter holds four keys, five on a thread to `owner`:
 
-```text
+```yaml
+---
 status: open | approved | withdrawn | answered | disagreement
 opener: <role>
 owner: <role>
 artifact: intent | spec | design-doc | implementation
 cites: <thread path | evidence path>
+---
 ```
 
 - `<role>` is `<profile>[-<lane id>]`: `owner`, `implementer`, `spec-producer`, `design-doc-producer`, `spec-producer-<lane id>`, `design-doc-producer-<lane id>`, or `reviewer-<lane id>`, with `<lane id>` matching `[a-z0-9][a-z0-9-]*`. Roles are checked by this grammar only, never against `run-config.md`, so closed threads of a removed lane stay valid. Production lanes open no threads: an `open` or `disagreement` thread whose opener or owner is `spec-producer-<lane id>` or `design-doc-producer-<lane id>` is `INVALID <thread>: production lanes open no threads`; the grammar keeps those roles so closed threads stay readable. An `open` thread awaiting a review lane that `run-config.md` does not declare is `INVALID <thread>: lane not configured; close the thread withdrawn`; `default` is declared while no `reviewer` lane is, or when a lane declares it.
 - `artifact` pairs with the owner's profile: `intent`–`owner`, `spec`–`spec-producer`, `design-doc`–`design-doc-producer`, `implementation`–`implementer`.
 - The opener is any role but `owner`, and differs from the owner.
-- A thread to `owner` has status `disagreement` or `answered`, and the `cites:` line with a non-empty value; no other thread has either status or the line. The value is not resolved.
+- A thread to `owner` has status `disagreement` or `answered`, and `cites` with a non-empty value; no other thread has either status or the key. The value is not resolved.
 
-After the header, every line that starts with `## ` outside fenced code is a message heading: `## <author> — <commit>`, with `<author>` the opener, the thread's owner, or `owner`, an em dash, and 7 to 64 hexadecimal characters. Text before the first heading and between headings is free. A thread has at least one message, and the first is the opener's.
+In the body, every line that starts with `## ` outside fenced code is a message heading: `## <author> — <commit>`, with `<author>` the opener, the thread's owner, or `owner`, an em dash, and 7 to 64 hexadecimal characters. Text before the first heading and between headings is free. A thread has at least one message, and the first is the opener's.
 
 An `open` thread awaits its opener when the thread's owner wrote the last message, and its owner otherwise. No other thread awaits anyone.
 
-A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An **approval** is a review thread closed `approved`. An approval must carry `inputs` and `reviewed`, a full commit hash, and no other thread carries frontmatter.
+A **review thread** is one opened by `reviewer-<lane id>` to `implementer`. An **approval** is a review thread closed `approved`.
 
 ## Net change and approval
 
 The **base** is the merge-base of the tip with `run-config.md`'s `base`: the latest base the tip holds. A `base` that does not resolve, or has no merge-base with the tip, stops `check`. The **net change** is the diff `<base>..<tip>` outside the pipelines folder root: what the reviewer reads.
 
-An approval's `reviewed` is the commit it was stamped at: the pipeline-branch commit whose code it approved. The approval is **fresh** when no required input changed (§ `inputs`) and the tip's code is the approved commit's plus clean merges of the base:
+An approval's `reviewed` is its approved commit: the pipeline-branch commit that held the approval when it was certified, whose code is the change its reviewer read (§ `stamp`). The approval is **fresh** when no required input changed (§ Certification) and the tip's code is the approved commit's plus clean merges of the base:
 
 1. When `reviewed` is the tip, the code is the approved code.
-2. Otherwise, `git merge-tree --write-tree <reviewed> <base>`. A conflict changes the code.
-3. Otherwise, `git diff --quiet <merged tree> <tip> -- . ':(top,exclude,literal)<pipelines folder root>'`. Any difference changes the code.
+2. Otherwise, `git merge-tree --write-tree --name-only <reviewed> <base>`. A conflict on a path outside the pipelines folder root changes the code; conflicts inside it are ignored.
+3. Then `git diff --quiet <merged tree> <tip> -- . ':(top,exclude,literal)<pipelines folder root>'`. Any difference changes the code.
 
-A `reviewed` that does not resolve to a commit stops `check`. A review lane is **approved** when its highest-numbered review thread is a fresh approval. Approval is computed for the configured review lanes.
+An approval without a certification is stale on its required inputs, and its code is not judged. An approval whose `reviewed` does not resolve to a commit in the clone, as after a squash merge or a deleted branch, is no approval: `unapproved`. A review lane is **approved** when its highest-numbered review thread is a fresh approval. Approval is computed for the configured review lanes.
 
 ## `check`
 
@@ -121,7 +139,7 @@ A `reviewed` that does not resolve to a commit stops `check`. A review lane is *
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 ```
 
-`check` reads the pipeline files from the working tree, or with `--ref` from that commit. The tip is `HEAD`, or the `--ref` commit. A pipeline file that is a symlink or not a regular file, a folder where a pipeline file belongs, or a file where a pipeline folder belongs stops `check`, in the working tree and at a ref alike. `check` validates every pipeline file.
+`check` reads the pipeline files and their certifications from the working tree, or with `--ref` from that commit. The tip is `HEAD`, or the `--ref` commit. A pipeline file that is a symlink or not a regular file, a folder where a pipeline file belongs, or a file where a pipeline folder belongs stops `check`, in the working tree and at a ref alike. `check` validates every pipeline file.
 
 ### Frontier
 
@@ -155,23 +173,22 @@ thread <thread> <status>[ awaits <role>]
 `--json` prints one object:
 
 - `pipeline`, `tip`, `targetPhase`, `frontier`: always. Each frontier entry has `action`, and where they apply `target`, `lane`, `reason`, `threads` (the threads awaiting the woken role; not on `lane`), and `changed` (the changed inputs of a stale artifact, candidate, or approval).
-- `phases`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`.
+- `phases`, `threads`: unless `INVALID`. Each phase has `phase`, `artifact`, `state`, `stale` when stale, and `lanes` (`id`, `path`, `state`, `stale`) while its root is missing. Each thread has `path`, `status`, `opener`, `owner`, `artifact`, `awaits`, and `reviewed`, from an approval's certification, else `null`.
 - `netChange` (`<base>..<tip>`), `reviews` (`lane`, `approved`, `stale` with the changed inputs, `codeChanged` when the code changed): at target phase 4, unless `INVALID`. A `review` frontier entry carries `changed` and `codeChanged` the same way.
 
 ## `stamp`
 
 ```text
-node rp.mjs stamp <file> --at <commit> [--pin <candidate>]...
+node rp.mjs stamp <file> --at <commit>
 ```
 
-`--at` names the turn's commit: the tip of the role's worktree when it was woken. `stamp` pins the file's required inputs (§ `inputs`) at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit, or not committed, is not certified. `stamp` keeps the body byte for byte, and writes nothing when the frontmatter would not change, so stamping twice changes nothing.
+`stamp` certifies an artifact, a candidate, or an approval: it writes `certification/<file>.json` (§ Certification) in the pipeline folder of the working tree, and never `<file>`. `--at` names the turn's commit: the tip of the role's worktree when it was woken. `inputs` becomes the file's required inputs at their identities in that commit's tree, whether or not the turn changed the file, so a response that leaves its artifact unchanged becomes fresh, and an input committed after that commit, or not committed, is not certified. `stamp` writes nothing when the certification would not change, so stamping twice changes nothing.
 
-- **An artifact or candidate**: `inputs` becomes its required inputs. A spec or design doc keeps the candidate pins it recorded; `--pin <candidate>` replaces them with the candidates named, at consolidation. A `--pin` path is absolute or relative to the pipeline folder, whatever the process directory.
-- **An approval**: `inputs` becomes its required inputs, and `reviewed` the full hash of the `--at` commit. The `--at` commit's tree outside the pipelines folder root must equal that of the commit the reviewer's last message heading names, the change it reviewed; otherwise, or when that commit does not resolve, `stamp` stops and writes nothing.
+For an approval, `--at` is the change `rp review` built, the review lane's turn commit, and `reviewed` becomes the full hash of `HEAD` where the approval lies: the pipeline-branch commit holding it. `--at` must resolve to the commit the reviewer's last message heading names, and `HEAD`'s tree outside the pipelines folder root must equal the change's; otherwise `stamp` stops and writes nothing.
 
-`stamp` validates only what it reads. From the working tree it reads the stamped file. At `--at` it reads `run-config.md`, the intent, every later input (its `target:` line says whether it applies), the stamped file's upstream artifacts, and the candidates `--pin` names. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
+`stamp` validates only what it reads. From the working tree it reads `run-config.md` and the stamped file. At `--at` it reads the intent, every later input (its `target` says whether it applies), and the stamped file's upstream artifacts. Any other file at `--at`, such as a thread malformed then and repaired since, is not read.
 
-A missing `--at` or one that does not resolve, any other kind of file, `--pin` on anything but a spec or design doc, a `--pin` path that is not a file (`cannot read --pin <path tried>: not a file`), a `--pin` file that is not one of its candidates, a required input or candidate missing at `--at`, a file it reads that is malformed or of the wrong kind, or malformed frontmatter on the stamped file stops the command.
+A missing `--at` or one that does not resolve, any other kind of file, a review thread that is no approval, an approval's heading commit that does not resolve, a required input missing at `--at`, a file it reads that is malformed or of the wrong kind, or a certification it would replace that cannot be read or is malformed (§ Certification) stops the command and writes nothing.
 
 ## `pipelines`
 
@@ -184,14 +201,14 @@ Fetching is the caller's job. The pipelines folder root, absolute or relative to
 1. Collect each pipeline folder (§ Pipeline files) of the pipelines folder root at each tip, with its tree id.
 2. The pipeline is **live** at that tip when the folder's tree id differs from every tree id that folder had in the history of `--base`.
 3. Every folder in the tree of `--base` is **merged**, reported once from `--base`.
-4. With `--issue`, keep those whose intent opens with the line `origin: issue <ref>`.
+4. With `--issue`, keep those whose intent names `issue <ref>` among its origins.
 
 Of each pipeline folder, discovery reads only two things, so pipelines of every format are listed and none is validated:
 
 - **`format`** (§ `run-config.md`): the integer `format` of `run-config.md` when it is a regular file with JSON frontmatter carrying one, else `earlier`.
-- **Origins**: the values of the leading `origin:` lines of `0-intent/intent.md`'s body when it is a regular file, frontmatter skipped. An intent with unclosed frontmatter has no origins.
+- **Origins**: of `0-intent/intent.md` when it is a regular file. From format 7, its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written; an intent whose frontmatter cannot be read (§ Frontmatter) has no origins. In an earlier format, the values of the leading `origin:` lines of its body, below any frontmatter; an intent with unclosed frontmatter has no origins.
 
-A pipeline of format 6 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+A pipeline of format 7 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
 
@@ -226,5 +243,4 @@ These fill details the specification leaves open; the prose aligns with them.
 - **A message by `owner`** on any thread leaves it awaiting the thread's owner.
 - **A woken opener** gets `produce` when its artifact is missing and `respond` otherwise, with the threads awaiting it. Beyond the target, a thread's owner gets `respond` even when its artifact is missing.
 - **The base an approval is merged with** is the merge-base of the tip with the base branch, not the base branch's tip, so a base that moved without being merged leaves approvals fresh.
-- **A re-stamp without `--pin`** keeps the candidate pins a root recorded, so the record of a consolidation survives later stamps.
-- **Strict keys**: unknown frontmatter, `run-config.md`, and lane keys are `INVALID` or stop the command.
+- **Strict keys**: unknown frontmatter, `run-config.md`, lane, and certification keys are `INVALID` or stop the command.

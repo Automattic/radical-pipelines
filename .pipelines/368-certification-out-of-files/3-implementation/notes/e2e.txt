@@ -1,0 +1,98 @@
+### 1. Line-ending conversion: check before and after committing the certification, and at HEAD
+warning: in the working copy of '.pipelines/p/0-intent/intent.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.pipelines/p/run-config.md', LF will be replaced by CRLF the next time Git touches it
+== attr: intent's first line in the working tree:
+0000000    -   -   -  \r  \n                                            
+warning: in the working copy of '.pipelines/p/1-spec/spec.md', LF will be replaced by CRLF the next time Git touches it
+== attr: spec.md unchanged by the stamp (empty diff):
+(end)
+== attr: rp check before committing the certification:
+frontier complete
+artifact 1-spec/spec.md fresh
+warning: in the working copy of '.pipelines/p/1-spec/spec.md', LF will be replaced by CRLF the next time Git touches it
+== attr: rp check after:
+frontier complete
+artifact 1-spec/spec.md fresh
+== attr: rp check --ref HEAD:
+frontier complete
+artifact 1-spec/spec.md fresh
+warning: in the working copy of '.pipelines/p/0-intent/intent.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.pipelines/p/run-config.md', LF will be replaced by CRLF the next time Git touches it
+== autocrlf: intent's first line in the working tree:
+0000000    -   -   -  \r  \n                                            
+warning: in the working copy of '.pipelines/p/1-spec/spec.md', LF will be replaced by CRLF the next time Git touches it
+== autocrlf: spec.md unchanged by the stamp (empty diff):
+(end)
+== autocrlf: rp check before committing the certification:
+frontier complete
+artifact 1-spec/spec.md fresh
+warning: in the working copy of '.pipelines/p/1-spec/spec.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of '.pipelines/p/certification/1-spec/spec.md.json', LF will be replaced by CRLF the next time Git touches it
+== autocrlf: rp check after:
+frontier complete
+artifact 1-spec/spec.md fresh
+== autocrlf: rp check --ref HEAD:
+frontier complete
+artifact 1-spec/spec.md fresh
+
+### 2. Review landing at the change, with a later input committed while the reviewer works
+branch p-review-default
+base 4875934464e0fde0a78ba980b4d954569dccc82b
+change ecbb09124a5aabe9ce7267a8c29129a44d4b6b93
+[p 7790fea] review
+ Date: Fri Nov 6 17:23:48 2026 +0100
+ 1 file changed, 10 insertions(+)
+ create mode 100644 .pipelines/p/threads/1-reviewer-default-implementer-implementation.md
+== the approval's blob before and after landing: 597b29b53b7e1a24be77659544652bad34f2d741 597b29b53b7e1a24be77659544652bad34f2d741
+== its certification:
+{
+  "inputs": [
+    "0-intent/intent.md@5bc444a7e1cb"
+  ],
+  "reviewed": "7790feae72566190a1de4c6fe9a5260cece0ed8d"
+}
+== rp check after landing:
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md stale 0-intent/failure-1.md
+net-change 660cf64c00aecb8a126cdf30f675db77b12392c9..acc55e2084dfcdcd76f94e08d7c2fe974d38046f
+review default stale 0-intent/failure-1.md
+thread threads/1-reviewer-default-implementer-implementation.md approved
+== rp check after the implementer answers failure-1 without code changes:
+frontier review default
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 660cf64c00aecb8a126cdf30f675db77b12392c9..29f6f678c9c27e5d48590b85d62361243363d993
+review default stale 0-intent/failure-1.md
+thread threads/1-reviewer-default-implementer-implementation.md approved
+
+### 3. Squash merge, branch deleted, continued on p_2
+Squash commit -- not updating HEAD
+== fresh clone holds the approved commit? no
+== fresh clone, p_2, no later input (exit status follows):
+frontier review default
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 41f0296216837e1bdd550aeb1f13da4960268d98..41f0296216837e1bdd550aeb1f13da4960268d98
+review default unapproved
+thread threads/1-reviewer-default-implementer-implementation.md approved
+exit 0
+== fresh clone, p_2, failure-2 targeting notes.md:
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md stale 0-intent/failure-2.md
+net-change 41f0296216837e1bdd550aeb1f13da4960268d98..b0b7e26da8ad30c452283e717de75214fac416c3
+review default unapproved
+thread threads/1-reviewer-default-implementer-implementation.md approved
+== original clone (holds the approved commit), p_2:
+frontier review default
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 41f0296216837e1bdd550aeb1f13da4960268d98..41f0296216837e1bdd550aeb1f13da4960268d98
+review default stale 0-intent/failure-1.md
+thread threads/1-reviewer-default-implementer-implementation.md approved

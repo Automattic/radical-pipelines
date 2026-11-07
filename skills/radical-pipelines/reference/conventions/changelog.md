@@ -2,6 +2,14 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 7
+
+Migrate from version 6. No section of `.rp.md` changes.
+
+### Pipelines
+
+A pipeline whose `run-config.md` carries no `format` 7 is listed by discovery with its format and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
+
 ## 6
 
 Migrate from version 5.

@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { P, PIPELINE, REVIEW, TO_SPEC, abs, commitAll, git, lane, pipeline, root, rp, run, thread, useRepo, write, writeFile } from "./fixture.mjs";
+import { NOTES, P, PIPELINE, REVIEW, TO_SPEC, abs, certification, commitAll, git, lane, later, pipeline, revise, root, rp, run, thread, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 const LANES = [lane("reviewer", "a"), lane("reviewer", "a-b")];
 const review = (laneId = "a") => JSON.parse(rp("review", abs(PIPELINE), "--lane", laneId, "--json"));
@@ -21,7 +21,7 @@ function scenario() {
   git(root, "merge", "--quiet", "--no-edit", "main");
   pipeline(3, { lanes: LANES });
   writeFile("src/app.js", "export const a = 2;\n");
-  write("0-intent/constraint-1.md", "target: 3-implementation/notes.md\n");
+  write("0-intent/constraint-1.md", later(NOTES));
   thread(TO_SPEC);
   thread({ n: 2, ...REVIEW("a") });
   thread({ n: 3, opener: "reviewer-a", owner: "owner", artifact: "intent", status: "disagreement" });
@@ -165,17 +165,17 @@ describe("review", () => {
     const { change } = review("a");
     writeFile(".git/info/exclude", ".wt/\n.clone/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
-    writeFile(`.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, `status: approved\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — ${change}\n\nMerge it.\n`);
+    writeFile(`.wt/${PIPELINE}/threads/4-reviewer-a-implementer-implementation.md`, withFrontmatter({ status: "approved", ...REVIEW("a") }, `\n## reviewer-a — ${change}\n\nMerge it.\n`));
     git(`${root}/.wt`, "add", "-A");
     git(`${root}/.wt`, "commit", "--quiet", "-m", "approve");
     return change;
   }
-  // Landing it: its commits after the change cherry-picked onto the pipeline branch, the approval stamped at its HEAD.
+  // Landing it: its commits after the change cherry-picked onto the pipeline branch, the approval certified at the change.
   const APPROVAL = "threads/4-reviewer-a-implementer-implementation.md";
   function land(change) {
     git(root, "cherry-pick", `${change}..demo-review-a`);
     const anchor = head();
-    const out = run("stamp", abs(P(APPROVAL)), "--at", "HEAD");
+    const out = run("stamp", abs(P(APPROVAL)), "--at", change);
     if (out.status === 0) commitAll("stamp");
     return { anchor, out };
   }
@@ -204,7 +204,7 @@ describe("review", () => {
   it("anchors an approval to the pipeline-branch commit it lands on", () => {
     scenario();
     const { anchor } = approveAtChange();
-    assert.equal(JSON.parse(readFileSync(abs(P(APPROVAL)), "utf8").split("---\n")[1]).reviewed, anchor);
+    assert.equal(certification(APPROVAL).reviewed, anchor);
     execFileSync("git", ["merge-base", "--is-ancestor", anchor, "demo"], { cwd: root });
     assert.deepEqual(reviewOf(), { lane: "a", approved: true });
   });
@@ -212,7 +212,7 @@ describe("review", () => {
   it("stamps an approval landing after other lanes' thread commits", () => {
     scenario();
     const change = approveInLane();
-    write("threads/5-reviewer-a-b-implementer-implementation.md", "status: open\nopener: reviewer-a-b\nowner: implementer\nartifact: implementation\n\n## reviewer-a-b — abc1234\n\nA point.\n");
+    write("threads/5-reviewer-a-b-implementer-implementation.md", withFrontmatter({ status: "open", ...REVIEW("a-b") }, "\n## reviewer-a-b — abc1234\n\nA point.\n"));
     commitAll("another lane lands");
     assert.equal(land(change).out.status, 0);
     assert.deepEqual(reviewOf(), { lane: "a", approved: true });
@@ -225,17 +225,22 @@ describe("review", () => {
     commitAll("code moves after the build");
     const { out } = land(change);
     assert.equal(out.status, 1);
-    assert.match(out.stderr, new RegExp(`HEAD differs from ${change}, the commit the reviewer's last heading names, outside \\.pipelines`));
-    assert.doesNotMatch(readFileSync(abs(P(APPROVAL)), "utf8"), /^---/);
+    assert.match(out.stderr, new RegExp(`HEAD differs from ${change}, the change it reviewed, outside \\.pipelines`));
+    assert.equal(certification(APPROVAL), null);
   });
 
-  it("stops stamping an approval whose reviewed commit cannot be read", () => {
-    pipeline(3, { lanes: LANES });
-    const path = thread({ n: 4, status: "approved", ...REVIEW("a"), messages: [["reviewer-a", "1".repeat(40)]] });
-    commitAll("approval");
-    const out = run("stamp", abs(P(path)), "--at", "HEAD");
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /the commit the reviewer's last heading names does not resolve to a commit/);
+  it("leaves an approval stale on a later input that reached the pipeline branch after its change was built", () => {
+    pipeline(3, { lanes: [lane("reviewer", "a")] });
+    writeFile("src/app.js", "export const a = 2;\n");
+    commitAll("work");
+    const change = approveInLane();
+    write("0-intent/failure-1.md", later(NOTES, "\nIt broke.\n"));
+    commitAll("a failure lands while the reviewer works");
+    assert.equal(land(change).out.status, 0);
+    assert.deepEqual(reviewOf(), { lane: "a", approved: false, stale: ["0-intent/failure-1.md"] });
+    revise(NOTES, "failure-1 does not reproduce.");
+    commitAll("notes certified");
+    assert.deepEqual(JSON.parse(rp("check", abs(PIPELINE), "--json")).frontier, [{ action: "review", target: "a", threads: [], changed: ["0-intent/failure-1.md"] }]);
   });
 
   // How the pipeline branch moves after the approval: [what, move, approved].
@@ -274,7 +279,7 @@ describe("review", () => {
     const { change } = review("a");
     writeFile(".git/info/exclude", ".wt/\n");
     git(root, "worktree", "add", "--quiet", ".wt", "demo-review-a");
-    writeFile(`.wt/${PIPELINE}/threads/2-reviewer-a-implementer-implementation.md`, "status: open\nopener: reviewer-a\nowner: implementer\nartifact: implementation\n\n## reviewer-a — abc1234\n\nUnlanded.\n");
+    writeFile(`.wt/${PIPELINE}/threads/2-reviewer-a-implementer-implementation.md`, withFrontmatter({ status: "open", ...REVIEW("a") }, "\n## reviewer-a — abc1234\n\nUnlanded.\n"));
     git(`${root}/.wt`, "commit", "--quiet", "-am", "review");
     const unlanded = git(`${root}/.wt`, "rev-parse", "HEAD").trim();
     const out = run("review", abs(PIPELINE), "--lane", "a");

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { describe, it } from "node:test";
 
-import { DESIGN, INTENT, NOTES, P, SPEC, abs, approve, check, commitAll, configure, frontier, git, pipeline, read, root, rp, run, stampAt, thread, REVIEW, useRepo, write, writeFile } from "./fixture.mjs";
+import { DESIGN, INTENT, NOTES, P, SPEC, abs, approve, check, commitAll, configure, frontier, git, later, pipeline, read, root, rp, run, stampAt, thread, REVIEW, useRepo, withFrontmatter, write, writeFile } from "./fixture.mjs";
 
 const head = () => git(root, "rev-parse", "HEAD").trim();
 const review = () => check().reviews[0];
@@ -91,8 +92,8 @@ describe("approval freshness", () => {
   // A change to a pipeline file after the approval: [what, change, the approval's stale inputs].
   for (const [what, change, stale] of [
     ["the intent changes", () => write(INTENT, `${read(INTENT)}Changed.\n`), [INTENT]],
-    ["a later input targeting the spec lands", () => write("0-intent/constraint-1.md", `target: ${SPEC}\n`), ["0-intent/constraint-1.md"]],
-    ["a later input targeting notes.md lands", () => write("0-intent/failure-1.md", `target: ${NOTES}\n`), ["0-intent/failure-1.md"]],
+    ["a later input targeting the spec lands", () => write("0-intent/constraint-1.md", later(SPEC)), ["0-intent/constraint-1.md"]],
+    ["a later input targeting notes.md lands", () => write("0-intent/failure-1.md", later(NOTES)), ["0-intent/failure-1.md"]],
     ["the spec changes", () => write(SPEC, `${read(SPEC)}Changed.\n`), null],
     ["the design doc changes", () => write(DESIGN, `${read(DESIGN)}Changed.\n`), null],
     ["notes.md changes", () => write(NOTES, `${read(NOTES)}Changed.\n`), null],
@@ -132,22 +133,44 @@ describe("approval freshness", () => {
     assert.match(out.stderr, /base does not resolve to a commit: missing/);
   });
 
-  it("stops the check when the approved commit does not resolve", () => {
+  it("is no approval when the clone lacks the approved commit, whatever its pins", () => {
     pipeline(3);
-    write("threads/1-reviewer-default-implementer-implementation.md",
-      `---\n${JSON.stringify({ inputs: [], reviewed: "1".repeat(40) })}\n---\nstatus: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — abc1234\n`);
-    const out = run("check", abs(P("")));
-    assert.equal(out.status, 1);
-    assert.match(out.stderr, /reviewed does not resolve to a commit/);
+    const path = approve();
+    const { inputs } = JSON.parse(read(`certification/${path}.json`));
+    write(`certification/${path}.json`, JSON.stringify({ inputs, reviewed: "1".repeat(40) }));
+    assert.deepEqual(review(), { lane: "default", approved: false });
+    assert.equal(rp("check", abs(P(""))).split("\n").find((line) => line.startsWith("review ")), "review default unapproved");
+    write(INTENT, `${read(INTENT)}Changed.\n`);
+    assert.deepEqual(review(), { lane: "default", approved: false });
+    assert.deepEqual(frontier(), [`respond ${SPEC}`]);
+  });
+
+  it("without certification, is stale on each required input and its code is not judged", () => {
+    pipeline(3);
+    write("0-intent/proposal-1.md", later(DESIGN));
+    thread({ status: "approved", ...REVIEW() });
+    writeFile("src/app.js", "export const a = 9;\n");
+    commitAll("approved, never landed");
+    assert.deepEqual(review(), { lane: "default", approved: false, stale: [INTENT, "0-intent/proposal-1.md"] });
+  });
+
+  it("stays fresh when merging the approved commit with the base conflicts only inside the pipelines folder root", () => {
+    approvedEdit();
+    onBase(() => writeFile(P(NOTES), withFrontmatter({ status: "done" }, "\n# Notes the base holds\n")));
+    const { reviewed } = JSON.parse(read("certification/threads/1-reviewer-default-implementer-implementation.md.json"));
+    const merged = spawnSync("git", ["merge-tree", "--write-tree", "--name-only", "--no-messages", reviewed, "main"], { cwd: root, encoding: "utf8" });
+    assert.deepEqual([merged.status, merged.stdout.split("\n").slice(1).filter(Boolean)], [1, [P(NOTES)]]);
+    git(root, "merge", "--quiet", "--no-edit", "-X", "ours", "main");
+    assert.deepEqual(review(), { lane: "default", approved: true });
   });
 
   it("compares code outside the pipelines folder root that is the pipeline folder's parent, whatever .rp.md says", () => {
     writeFile(".rp.md", "### Pipelines folder root\n\n`elsewhere/`\n");
-    const files = { "run-config.md": '---\n{"format": 6, "target-phase": 4, "base": "main"}\n---\n', "0-intent/intent.md": "# I\n", "1-spec/spec.md": "# S\n" };
+    const files = { "run-config.md": '---\n{"format": 7, "target-phase": 4, "base": "main"}\n---\n', "0-intent/intent.md": "# I\n", "1-spec/spec.md": "# S\n" };
     for (const [rel, contents] of Object.entries(files)) writeFile(`work/pipes/demo/${rel}`, contents);
     const turn = commitAll("pipeline");
     const approval = "work/pipes/demo/threads/1-reviewer-default-implementer-implementation.md";
-    writeFile(approval, `status: approved\nopener: reviewer-default\nowner: implementer\nartifact: implementation\n\n## reviewer-default — ${turn}\n`);
+    writeFile(approval, withFrontmatter({ status: "approved", opener: "reviewer-default", owner: "implementer", artifact: "implementation" }, `\n## reviewer-default — ${turn}\n`));
     rp("stamp", abs(approval), "--at", turn);
     writeFile("work/pipes/other.md", "inside the root\n");
     commitAll("inside");
