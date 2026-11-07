@@ -10,7 +10,25 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer, review what changed, and append a message headed `## {{role}} — {{turn-commit}}`. If you would merge the change as it stands, set its `status` to `approved`; otherwise say what still needs to change. When you and the author disagree on what the issue means or demands, say so: the author takes the question to the person who wrote the issue.
+The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer and review what changed. If you would merge the change as it stands, approve it with this command, your closing message in place of `<your closing message>`:
+
+```
+{{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread {{thread-arg}} --status approved --body - <<'EOF'
+<your closing message>
+EOF
+```
+
+Otherwise, say what still needs to change with this one, your answer in place of `<your answer>`:
+
+```
+{{rp}} thread reply {{pipeline-folder-arg}} --role {{role}} --thread {{thread-arg}} --body - <<'EOF'
+<your answer>
+EOF
+```
+
+When you and the author disagree on what the issue means or demands, say so: the author takes the question to the person who wrote the issue.
+
+Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}
 Check the change against these rules and note each outcome in your review:
@@ -42,4 +60,4 @@ A name in braces left in this request is a placeholder: replace it with the valu
 
 When your worktree, your branch, or a file this assignment names is broken or missing, report what failed and stop.
 
-End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."
+Before you end any turn, run `rp validate` and fix each file it reports. End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."

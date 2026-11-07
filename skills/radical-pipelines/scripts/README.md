@@ -1,15 +1,20 @@
 # `rp`
 
-`rp` computes a pipeline's state from its files and names the frontier, discovers pipelines, plans and applies each step of the loop — its lane branches and worktrees and each woken role's assignment — and lands each turn, certifying what it landed. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
+`rp` computes a pipeline's state from its files and names the frontier, discovers pipelines, plans and applies each step of the loop — its lane branches and worktrees and each woken role's assignment — and lands each turn, certifying what it landed. A role writes its threads and checks its own files with it. It needs Node and Git 2.38 or later (for `git merge-tree --write-tree`), nothing else. The path argument selects the repository and worktree, whatever the process directory, against which every relative path resolves. [State](../reference/run/state.md) is the specification; this file is the exact grammar.
 
 ```text
 node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
 node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
 node rp.mjs next <pipeline folder> [--apply]
 node rp.mjs land <pipeline folder> --role <role>
+node rp.mjs thread open <pipeline folder> --role <role> --artifact <spec | design-doc | implementation> --body <file | ->
+node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
+node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | withdrawn> [--body <file | ->]
+node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->
+node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 ```
 
-Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. Otherwise it exits 0, whatever the frontier.
+Each command accepts only its options and one positional argument. A command that cannot read what it needs, or is used wrongly, prints `rp: <reason>` to stderr and exits 1. A command line the command does not take, such as an unknown option or a missing argument, is followed by the command's form; every other wrong use of `thread` and `validate` is followed by what to run instead. Otherwise it exits 0, whatever the frontier.
 
 ## Pipeline files
 
@@ -98,7 +103,7 @@ A later input's `target` is `<artifact>[#<id>][, <artifact>[#<id>]]...`. Each `<
 
 ## Threads
 
-A thread file is named `<n>-<opener>-<owner>-<artifact>.md` after its frontmatter, with `<n>` a positive integer. Threads may share `<n>`.
+A thread file is named `<n>-<opener>-<owner>-<artifact>.md` after its frontmatter, with `<n>` a positive integer. Threads may share `<n>`. Roles write threads with `thread` (§ `thread`).
 
 Its frontmatter holds four keys, five on a thread to `owner`:
 
@@ -323,6 +328,39 @@ node rp.mjs land <pipeline folder> --role <role>
 
 Every check comes before the pipeline branch moves, so a stop leaves the pipeline branch, the pipeline worktree, and every certification as they were. A role with no recorded turn, everything `check` stops on, conventions data that is missing or malformed, a detached pipeline worktree, a step record that cannot be read or is malformed, and a git failure also stop `land`.
 
+## `thread`
+
+```text
+node rp.mjs thread open <pipeline folder> --role <role> --artifact <spec | design-doc | implementation> --body <file | ->
+node rp.mjs thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->
+node rp.mjs thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | withdrawn> [--body <file | ->]
+node rp.mjs thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->
+```
+
+`thread` writes a thread (§ Threads) in the working tree of the worktree that holds `<pipeline folder>`, as `--role`, around each message's body: the bytes of the file `--body` names, or of standard input for `-`, written as given. It reads only the thread it writes and the names in `threads/`, never `run-config.md`, so it works alike in a review lane's tree, a production lane's worktree, and the pipeline worktree.
+
+- `open` writes `threads/<n>-<role>-<owner>-<artifact>.md`, `<owner>` the artifact's owner, with status `open` and the role's message. `<n>` is one more than the highest number among the names `threads/<n>-….md` in the working tree, or 1 when it holds none; `threads/` is created when absent, and an existing file is never replaced.
+- `escalate` writes `threads/<n>-<role>-owner-intent.md`, numbered the same way, with status `disagreement`, `cites` the text given, quoted when the frontmatter needs it (§ Frontmatter), and the role's message.
+- `reply` adds the role's message at the end of an `open` thread that awaits it.
+- `close` sets the status of an `open` thread the role opened to `approved` or `withdrawn`, and with `--body` adds the role's closing message at the end. A review thread is closed `approved` without `--body` only when its last message is the reviewer's and names the commit its worktree stands on, the commit `land` certifies the approval at.
+
+A message is its heading `## <role> — <commit>` on a line of its own after a blank line, `<commit>` the full hash of the worktree's `HEAD`, then a blank line and the body. Every other byte of the file stays as it was, but for the status `close` sets. The command writes the file only when the file grammar (§ `validate`) accepts it and reads in it the messages the command means, the role's last, and would read a message written after the role's; it then prints the file's absolute path. It writes nothing else: no certification, ref, or other file. Every other use is wrong, and writes nothing:
+
+- `open` or `escalate` by a production lane's role; `open` about the intent, or about the artifact the role owns; `escalate` whose `--cites` is empty;
+- a `--thread` that names no thread file of the pipeline folder, or a file the file grammar rejects;
+- `reply` to a thread that does not await the role; `close` of a thread that is not `open`, by a role other than its opener, or with another status; an approval without `--body` that the last message does not name;
+- a body of whitespace alone, a body holding a line the grammar reads as a message heading, or one leaving fenced code open, which hides every heading after it.
+
+The owner's answer on a thread to `owner` is written by hand (`../reference/run/loop.md` § Owner escalation).
+
+## `validate`
+
+```text
+node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
+```
+
+`validate` checks the role's files (§ Assignments) as they stand in the working tree of the worktree that holds `<pipeline folder>`, committed or not, or with `--file` that one of them alone. It applies the **file grammar**, every check `check` makes of a pipeline file that reads the file alone, and prints `INVALID <path>: <reason>` for each file it rejects, as `check` prints it; otherwise `accepted: every file of <role>`, or `accepted: <path>` with `--file`. It reads no `run-config.md` and no other file, so it works in every seat, and changes nothing. The two checks that read `run-config.md`, of an `open` thread awaiting a review lane it does not declare and of a candidate of a production lane it does not declare, reach a role through `land` alone. A `--file` outside the pipeline folder, or none of the role's files, is a wrong use; a role's file that cannot be read, a path of the wrong kind where a role's file or a folder holding one belongs, or a `--file` that is missing, stops it, as it stops `check`.
+
 ## Assignments
 
 `next --apply` writes the assignment of each role it wakes, from the main checkout's `.rp.md` and `.rp.local.md`, the first worktree `git worktree list` records, whichever worktree the role sits in.
@@ -338,9 +376,9 @@ Every check comes before the pipeline branch moves, so a stop leaves the pipelin
    | `review <lane>` | The lane's reviewer |
    | `INVALID <path>: <reason>` | Each role that writes a rejected file; a producer or the implementer in Respond, a reviewer with the repair request |
 
-   A role writes its artifact or candidate, and every thread whose file name names it as opener or owner. The `INVALID` lines of those files, and only those, are its malformed files. A lane under repair (§ `next`) gets the turn of an `INVALID` line for each file its landing would reject.
-2. **Request.** A reviewer with malformed files gets the repair request. Otherwise its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the request is the later-turn one, and `reviewer.diff` is written beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root. Otherwise it is the first-turn one, naming a new review thread numbered one past the highest in `threads/`.
-3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as the run writes it.
+   A role writes its artifact or candidate, and every thread whose file name names it as opener or owner: its **files**. The `INVALID` lines of those files, and only those, are its malformed files. A lane under repair (§ `next`) gets the turn of an `INVALID` line for each file its landing would reject.
+2. **Request.** A reviewer with malformed files gets the repair request. Otherwise its review thread is its highest-numbered `threads/<n>-reviewer-<lane>-implementer-implementation.md`. While that thread is `open`, the request is the later-turn one, and `reviewer.diff` is written beside the assignment: the diff from the commit the reviewer's last message names to the change, outside the pipelines folder root. Otherwise it is the first-turn one.
+3. **Write.** The template (`../templates/README.md`) is filled and written at the path `git rev-parse --git-path rp/<profile>.md` gives in the role's worktree, replacing the previous turn's. Every model name is written as the run writes it, and each assignment states the command that runs `rp` as its role from its worktree (`../templates/README.md` § Values). Each path on that command line is one POSIX shell word, quoted when a character in it is one a shell does not take literally; each path an assignment shows for reading is as written.
 
 ### Conventions data
 

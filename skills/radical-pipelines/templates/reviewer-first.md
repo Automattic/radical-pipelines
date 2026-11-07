@@ -10,20 +10,21 @@ Its later inputs: {{later-inputs}}
 Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
 {{/brief}}
 
-Write your review, as you would post it on the pull request, to {{thread}}, starting with these lines:
+Write your review as you would post it on the pull request, and open it with this command, your review in place of `<your review>`:
 
 ```
----
-status: open
-opener: {{role}}
-owner: implementer
-artifact: implementation
----
-
-## {{role}} — {{turn-commit}}
+{{rp}} thread open {{pipeline-folder-arg}} --role {{role}} --artifact implementation --body - <<'EOF'
+<your review>
+EOF
 ```
 
-If you would merge the change as it stands, write `status: approved` instead.
+It prints the path of your review thread. If you would merge the change as it stands, approve it then:
+
+```
+{{rp}} thread close {{pipeline-folder-arg}} --role {{role}} --thread <that path> --status approved
+```
+
+Run every other `rp` command the same way, as `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`; `{{rp}} --help` lists them.
 
 {{#guardrails}}
 Check the change against these rules and note each outcome in your review:
@@ -55,4 +56,4 @@ A name in braces left in this request is a placeholder: replace it with the valu
 
 When your worktree, your branch, or a file this assignment names is broken or missing, report what failed and stop.
 
-End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."
+Before you end any turn, run `rp validate` and fix each file it reports. End your turn only after every command and subagent you started has finished, and end it with the exact statement "Completion declared: no work remains."

@@ -126,7 +126,7 @@ describe("command line", () => {
     ["a repeated single option", ["check", ".pipelines/demo", "--ref", "HEAD", "--ref", "HEAD"], /--ref may appear only once/],
     ["a missing option value", ["check", ".pipelines/demo", "--ref"], /--ref expects a value/],
     ["a second positional argument", ["check", ".pipelines/demo", "extra"], /unexpected argument: extra/],
-    ["a missing positional argument", ["check"], /missing <pipeline folder>/],
+    ["a missing positional argument", ["check"], /^rp: check: missing <pipeline folder>\nusage: node rp\.mjs check <pipeline folder> \[--ref <commit>\] \[--json\]$/m],
     ["a path inside a pipeline folder", ["check", ".pipelines/demo/1-spec"], /1-spec\/run-config.md: pipeline of an earlier format/],
     ["a folder without parent", ["check", ".pipelines"], /a pipeline folder is <pipelines folder root>\/<pipeline slug>: \.pipelines/],
   ];

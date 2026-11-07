@@ -1,0 +1,236 @@
+# 1. The commands roles have today
+
+$ node rp.mjs thread open
+rp: unknown command: thread
+[exit 1]
+
+$ node rp.mjs validate
+rp: unknown command: validate
+[exit 1]
+
+$ node rp.mjs --help
+rp — Radical Pipelines state tooling
+
+Usage:
+  node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
+  node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
+  node rp.mjs next <pipeline folder> [--apply]
+  node rp.mjs land <pipeline folder> --role <role>
+
+See README.md beside this script.
+[exit 0]
+
+# 2. A review lane woken on its first turn
+
+$ node rp.mjs next <repo>/.pipelines/demo --apply
+frontier review default
+hook before-creating-worktree reviewer-default <repo>/.worktrees/demo-review-default
+create-branch demo-review-default change
+create-worktree reviewer-default demo-review-default <repo>/.worktrees/demo-review-default
+hook after-creating-worktree reviewer-default <repo>/.worktrees/demo-review-default
+hook phase-started 4
+hook before-spawning-agent reviewer-default
+wake reviewer-default profile reviewer
+wake reviewer-default lane default
+wake reviewer-default phase 4
+wake reviewer-default worktree <repo>/.worktrees/demo-review-default
+wake reviewer-default assignment <repo>/.git/worktrees/demo-review-default/rp/reviewer.md
+hook after-spawning-agent reviewer-default
+hook before-merging-lanes reviewer-default
+hook after-merging-lanes reviewer-default
+[exit 0]
+
+$ find <worktree>/.pipelines/demo -type f
+./0-intent/intent.md
+
+$ cat <reviewer assignment>
+Review the code on this branch, `demo-review-default`, against `506863b9db4ff3c62eb1ba9b809ac2a38fc6d751`. It addresses this issue: <repo>/.worktrees/demo-review-default/.pipelines/demo/0-intent/intent.md.
+
+Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
+
+Write your review, as you would post it on the pull request, to <repo>/.worktrees/demo-review-default/.pipelines/demo/threads/3-reviewer-default-implementer-implementation.md, starting with these lines:
+
+```
+---
+status: open
+opener: reviewer-default
+owner: implementer
+artifact: implementation
+---
+
+## reviewer-default — 5123e8bea0cd56b349663b3848e423dc0d5f1cf2
+```
+
+If you would merge the change as it stands, write `status: approved` instead.
+
+Your subagents run on your own model.
+Commit your review with this commit format:
+
+An imperative subject line.
+
+$ node rp.mjs check <repo>/.worktrees/demo-review-default/.pipelines/demo
+rp: .pipelines/demo/run-config.md: pipeline of an earlier format; it is not continued
+[exit 1]
+
+# 3. The reviewer writes its review by hand, at the number its assignment names, and the turn lands
+
+$ mkdir <worktree>/.pipelines/demo/threads   (the reviewer's tree holds no threads folder)
+
+$ node rp.mjs land <repo>/.pipelines/demo --role reviewer-default
+rp: land: <repo>/.worktrees/demo-review-default: rp check rejects files the turn brings:
+INVALID threads/3-reviewer-default-implementer-implementation.md: message heading must be ## <role> — <commit>: ## Summary
+[exit 1]
+
+$ the next step, after the rejected landing
+
+$ node rp.mjs next <repo>/.pipelines/demo
+frontier review default
+repair reviewer-default INVALID threads/3-reviewer-default-implementer-implementation.md: message heading must be ## <role> — <commit>: ## Summary
+hook before-spawning-agent reviewer-default
+wake reviewer-default profile reviewer
+wake reviewer-default lane default
+wake reviewer-default phase 4
+wake reviewer-default worktree <repo>/.worktrees/demo-review-default
+wake reviewer-default assignment <repo>/.git/worktrees/demo-review-default/rp/reviewer.md
+hook after-spawning-agent reviewer-default
+hook before-merging-lanes reviewer-default
+hook after-merging-lanes reviewer-default
+[exit 0]
+
+$ sed -i the '## Summary' line out of the review thread, commit, land
+
+$ node rp.mjs land <repo>/.pipelines/demo --role reviewer-default
+
+[exit 0]
+
+$ node rp.mjs check <repo>/.pipelines/demo
+frontier respond 3-implementation/notes.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 8330ab89587aa681940f95bbf7deded1f907f17f..c70a02f3369985398036776c27a556a0855727df
+review default unapproved
+thread threads/1-design-doc-producer-spec-producer-spec.md approved
+thread threads/2-implementer-design-doc-producer-design-doc.md approved
+thread threads/3-reviewer-default-implementer-implementation.md open awaits implementer
+[exit 0]
+
+# 4. The implementer woken to respond
+
+$ node rp.mjs next <repo>/.pipelines/demo --apply
+frontier respond 3-implementation/notes.md
+hook phase-started 3
+hook before-spawning-agent implementer
+wake implementer profile implementer
+wake implementer phase 3
+wake implementer worktree <repo>
+wake implementer assignment <repo>/.git/rp/implementer.md
+hook after-spawning-agent implementer
+[exit 0]
+
+$ cat <implementer assignment>
+## Seat
+
+- Worktree: <repo>
+- Branch: demo
+- Turn commit: c70a02f3369985398036776c27a556a0855727df
+- Base branch: main
+- Supporting folder: <repo>/.pipelines/demo/3-implementation/notes/
+- Subagent model: your own model
+
+## Mode
+
+Respond
+
+## Materials
+
+- Intent: <repo>/.pipelines/demo/0-intent/intent.md
+- Spec: <repo>/.pipelines/demo/1-spec/spec.md
+- Design doc: <repo>/.pipelines/demo/2-design-doc/design-doc.md
+- Later inputs: none
+- Changed inputs: none
+
+## Threads addressed to you
+
+<repo>/.pipelines/demo/threads/3-reviewer-default-implementer-implementation.md
+
+## Write to
+
+<repo>/.pipelines/demo/3-implementation/notes.md
+
+## Guardrails
+
+none
+
+## Resources
+
+none
+
+## Commit format
+
+An imperative subject line.
+
+# 5. Two roles' files rejected at once in the pipeline worktree
+
+$ write notes.md with an unknown frontmatter key, and a spec thread whose status is hand-written as 'closed'
+
+$ node rp.mjs next <repo>/.pipelines/demo --apply
+frontier INVALID 3-implementation/notes.md: unexpected frontmatter key: state
+frontier INVALID threads/1-design-doc-producer-spec-producer-spec.md: status must be one of open | approved | withdrawn | answered | disagreement
+hook phase-started 1
+hook phase-started 2
+hook before-spawning-agent spec-producer
+wake spec-producer profile spec-producer
+wake spec-producer phase 1
+wake spec-producer worktree <repo>
+wake spec-producer assignment <repo>/.git/rp/spec-producer.md
+hook after-spawning-agent spec-producer
+hook before-spawning-agent design-doc-producer
+wake design-doc-producer profile design-doc-producer
+wake design-doc-producer phase 2
+wake design-doc-producer worktree <repo>
+wake design-doc-producer assignment <repo>/.git/rp/design-doc-producer.md
+hook after-spawning-agent design-doc-producer
+hook before-spawning-agent implementer
+wake implementer profile implementer
+wake implementer phase 3
+wake implementer worktree <repo>
+wake implementer assignment <repo>/.git/rp/implementer.md
+hook after-spawning-agent implementer
+[exit 0]
+
+$ sed -n '/## Malformed files/,/## Write to/p' <spec-producer assignment>
+## Malformed files
+
+INVALID threads/1-design-doc-producer-spec-producer-spec.md: status must be one of open | approved | withdrawn | answered | disagreement
+
+## Write to
+
+$ sed -n '/## Malformed files/,/## Write to/p' <design-doc-producer assignment>
+## Malformed files
+
+INVALID threads/1-design-doc-producer-spec-producer-spec.md: status must be one of open | approved | withdrawn | answered | disagreement
+
+## Write to
+
+$ sed -n '/## Malformed files/,/## Write to/p' <implementer assignment>
+## Malformed files
+
+INVALID 3-implementation/notes.md: unexpected frontmatter key: state
+
+## Write to
+
+# 6. A thread of an earlier-format pipeline, read under today's thread grammar
+
+$ copy <this repository>/.pipelines/370-rp-next-and-land/threads/1-design-doc-producer-spec-producer-spec.md (format 6) over the scratch spec thread
+
+$ head -5 .pipelines/demo/threads/1-design-doc-producer-spec-producer-spec.md
+status: approved
+opener: design-doc-producer
+owner: spec-producer
+artifact: spec
+
+
+$ node rp.mjs check <repo>/.pipelines/demo
+frontier INVALID threads/1-design-doc-producer-spec-producer-spec.md: frontmatter has no status
+[exit 0]

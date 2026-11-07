@@ -2,7 +2,11 @@ Your worktree is on branch `{{branch}}`, at `{{turn-commit}}`. `rp check` reject
 
 {{malformed-files}}
 
-Fix each file, changing only what its reason names and keeping every message it holds. This turn asks for nothing else.
+Fix each file, changing only what its reason names and keeping every message it holds. This turn asks for nothing else. Before ending your turn, run this command and fix each file it reports:
+
+```
+{{rp}} validate {{pipeline-folder-arg}} --role {{role}}
+```
 
 Commit your fix with this commit format:
 

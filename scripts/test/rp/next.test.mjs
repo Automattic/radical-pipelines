@@ -125,7 +125,7 @@ describe("rp next", () => {
         assert.equal(git(root, "diff", tip, change, "--", ".", ":(exclude).pipelines"), "");
         assert.equal(head(path), change);
         assert.deepEqual([wakeOf(lines, `reviewer-${id}`).worktree, wakeOf(lines, `reviewer-${id}`).phase], [path, "4"]);
-        assert.match(readFileSync(wakeOf(lines, `reviewer-${id}`).assignment, "utf8"), new RegExp(`## reviewer-${id} — ${change}`));
+        assert.ok(readFileSync(wakeOf(lines, `reviewer-${id}`).assignment, "utf8").includes(` thread open ${join(path, PIPELINE)} --role reviewer-${id} `));
       }
     });
 
@@ -307,7 +307,7 @@ describe("rp next", () => {
       [["land", "--role", "implementer", "--at", "HEAD"], /^rp: land: unknown option: --at$/m],
       [["land", "--role", "implementer", "--candidates", "a"], /^rp: land: unknown option: --candidates$/m],
       [["land", "--apply"], /^rp: land: unknown option: --apply$/m],
-      [["land"], /^rp: land: --role <role> is required$/m],
+      [["land"], /^rp: land: --role <role> is required\nusage: node rp\.mjs land <pipeline folder> --role <role>$/m],
       [["land", "--role", "spec-producer-z"], /^rp: land: no turn of spec-producer-z is recorded/m],
     ];
     for (const [[command, ...args], message] of misuses)

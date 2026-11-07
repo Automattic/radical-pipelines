@@ -1,0 +1,7 @@
+# Every line starting with "## " in every thread file at every commit of this repository, other than a message heading "## <role> — <commit>"
+
+$ for f in $(git log --all --format= --name-only -- ".pipelines/*/threads/*.md" | sort -u); do git log --all --format=%h -- "$f" | while read c; do git show "$c:$f" | grep -n "^## " | grep -v -E "^[0-9]+:## \S+ — [0-9a-f]{7,64}$"; done; done
+(no output)
+
+$ git log --all --format= --name-only -- ".pipelines/*/threads/*.md" | sort -u | wc -l
+12
