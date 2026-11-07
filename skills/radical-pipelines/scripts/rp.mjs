@@ -1197,6 +1197,8 @@ const expandText = (text, values, kept) => text.replace(PLACEHOLDER, (placeholde
 
 // The assignment templates, in the skill folder beside this script.
 const TEMPLATES = fileURLToPath(new URL("../templates/", import.meta.url));
+// The command that runs this script, which a role's assignment states.
+const RP = `node ${fileURLToPath(import.meta.url)}`;
 const SLOT = /\{\{([#^/]?)([^{}]*)\}\}/g;
 const MARKER = /^\{\{([#^/])([a-z][a-z0-9-]*)\}\}$/;
 
@@ -1349,6 +1351,7 @@ function assignmentOf(ctx, wake, tip, change) {
     ...vocabulary, ...carried,
     vocabulary: carries.some((key) => keeps[key]?.size) ? VOCABULARY.map((name) => `- \`{${name}}\`: ${vocabulary[name]}`.trimEnd()) : [],
     "turn-commit": tip,
+    rp: RP,
     "base-branch": state.config.base,
     "subagent-model": models.subagents ?? "",
     "pipeline-folder": at(""), intent: at(INTENT), spec: at(PHASES[0].artifact), "design-doc": at(PHASES[1].artifact),

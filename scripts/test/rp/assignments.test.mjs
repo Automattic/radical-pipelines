@@ -26,7 +26,7 @@ function skillWith(templates) {
 }
 // A template naming itself under `## template`, then each flag that holds as a `## <flag>` heading, and each value
 // alone under its own `## <name>` heading.
-const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base", "turn-commit", "base-branch", "subagent-model", "brief",
+const COMMON = ["pipeline-slug", "role", "profile", "lane", "worktree", "branch", "base", "turn-commit", "rp", "base-branch", "subagent-model", "brief",
   "pipeline-folder", "intent", "spec", "design-doc", "later-inputs", "malformed-files", "guardrails", "resources", "commit-format", "vocabulary"];
 const PRODUCER = [...COMMON, "mode", "supporting-folder", "changed-inputs", "lane-candidates", "threads", "write-to"];
 const FLAGS = ["produce", "respond", "consolidate", "implement"];
@@ -257,6 +257,43 @@ describe("assignments", () => {
       commitAll("approved, then a new review thread answered");
       assert.deepEqual(assign("reviewer-a").values.thread, [in_(wt, "threads/3-reviewer-a-implementer-implementation.md")]);
     });
+  });
+
+  it("state the command that runs rp, which runs from the role's worktree as written and acts as the role, in each seat and each reviewer request", () => {
+    // `rp <command>` run from the role's worktree as its assignment's values state it, `input` on its standard input.
+    const asStated = (values, command, input) => {
+      const out = spawnSync("sh", ["-c", `${values.rp[0]} ${command} ${values["pipeline-folder"][0]} --role ${values.role[0]}`], { cwd: values.worktree[0], encoding: "utf8", input });
+      assert.equal(out.status, 0, out.stderr);
+      return out.stdout;
+    };
+    conventions();
+    pipeline(0, { lanes: [{ profile: "spec-producer", id: "a" }] });
+    const lane = assign("spec-producer-a").values;
+    assert.deepEqual([lane.rp, lane.worktree], [[`node ${realpathSync(ECHO)}`], [laneWorktree("demo-spec-a")]]);
+    assert.equal(asStated(lane, "validate"), "accepted: every file of spec-producer-a\n");
+    pipeline(2);
+    const implementer = assign("implementer").values;
+    const opened = asStated(implementer, "thread open --artifact spec --body -", "Findings.\n").trimEnd();
+    assert.deepEqual([dirname(opened), readFileSync(opened, "utf8").match(/^opener: (.*)$/m)[1]], [in_(realpathSync(root), "threads"), "implementer"]);
+    assert.equal(asStated(implementer, "validate"), "accepted: every file of implementer\n");
+    rmSync(opened);
+    pipeline(3);
+    const first = assign("reviewer-default").values, wt = laneWorktree("demo-review-default");
+    assert.deepEqual(first.template, ["reviewer-first"]);
+    const review = asStated(first, "thread open --artifact implementation --body -", "Findings.\n").trimEnd();
+    assert.equal(review, in_(wt, "threads/1-reviewer-default-implementer-implementation.md"));
+    commitIn(wt, {}, "review");
+    landRole("reviewer-default");
+    write("threads/1-reviewer-default-implementer-implementation.md", `${read("threads/1-reviewer-default-implementer-implementation.md")}\n## implementer — ${head()}\n\nAnswered.\n`);
+    commitAll("answer");
+    const later = assign("reviewer-default").values;
+    assert.deepEqual([later.template, later.thread], [["reviewer-later"], [review]]);
+    assert.equal(asStated(later, "validate"), "accepted: every file of reviewer-default\n");
+    write("threads/1-reviewer-default-implementer-implementation.md", read("threads/1-reviewer-default-implementer-implementation.md").replace("status: open", "status: pending"));
+    commitAll("a rejected review thread");
+    const repair = assign("reviewer-default").values;
+    assert.deepEqual(repair.template, ["reviewer-repair"]);
+    assert.match(asStated(repair, "validate"), /^INVALID threads\/1-reviewer-default-implementer-implementation\.md: status must be one of /);
   });
 
   it("lists as malformed files the INVALID lines of the files each role writes, wakes only those roles, and gives a reviewer the repair request", () => {
@@ -523,10 +560,10 @@ describe("assignments", () => {
     writeFile(".git/info/exclude", `${data["worktree-folder-root"]}/\n`);
     const config = { agents: data.agents };
     const carried = (key, field, name) => `- ${field}: ${data[key][name][field]}`;
-    // The delivered template's assignment for a role: written, holding each of `values`.
+    // The delivered template's assignment for a role: written, holding the command that runs rp and each of `values`.
     const delivered = (role, values, at = abs(PIPELINE)) => {
       const { text, model } = assign(role, at, RP);
-      for (const value of values) assert.ok(text.includes(value), `${role}: ${value} in:\n${text}`);
+      for (const value of [`node ${RP} `, ...values]) assert.ok(text.includes(value), `${role}: ${value} in:\n${text}`);
       return model;
     };
     pipeline(0, config);

@@ -25,6 +25,8 @@ artifact: implementation
 
 If you would merge the change as it stands, write `status: approved` instead.
 
+Run every `rp` command as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.
+
 {{#guardrails}}
 Check the change against these rules and note each outcome in your review:
 

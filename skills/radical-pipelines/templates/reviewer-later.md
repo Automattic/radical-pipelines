@@ -12,6 +12,8 @@ Report anything wrong, missing, risky, or more than the issue needs. Feel free t
 
 The author answered your review in {{thread}}; what changed since your last message is {{diff}}. Check each answer, review what changed, and append a message headed `## {{role}} — {{turn-commit}}`. If you would merge the change as it stands, set its `status` to `approved`; otherwise say what still needs to change.
 
+Run every `rp` command as `{{rp}} <command> {{pipeline-folder}} --role {{role}}`; `{{rp}} --help` lists them.
+
 {{#guardrails}}
 Check the change against these rules and note each outcome in your review:
 
