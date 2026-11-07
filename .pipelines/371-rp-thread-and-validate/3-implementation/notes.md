@@ -26,15 +26,17 @@ status: done
 - A `--file` outside the pipeline folder is refused as lying outside it, naming the folder to give it in (41216680).
 - `readWorktree`'s `reads` selects folders as well as files: `rp validate` and `--thread` stop, as `rp check` stops, on a path of the wrong kind where a folder holding the role's files belongs (02879b0f).
 - Changeset brought up to date (510d1da3).
-- `npm test`: 625 pass. The flow driven as roles reach it, from the delivered assignments: `3-implementation/notes/exercise.txt`, printed by `exercise.sh <rp.mjs>`. The stated command in a repository whose path holds a space: `3-implementation/notes/paths-with-spaces.txt`, printed by `paths-with-spaces.sh <rp.mjs>`.
+- Every path an assignment puts on a command line is one POSIX shell word, as the revised design-doc-decision-7 has it: the `rp` value, and the new `pipeline-folder-arg` and `thread-arg` values on the templates' command lines; prose keeps `pipeline-folder` and `thread` as written (3b62d7ef).
+- `npm test`: 625 pass. The flow driven as roles reach it, from the delivered assignments: `3-implementation/notes/exercise.txt`, printed by `exercise.sh <rp.mjs>`. The stated command from a skill copy and in a repository whose paths hold a space and a quote: `3-implementation/notes/paths-with-spaces.txt`, printed by `paths-with-spaces.sh <rp.mjs>`.
 
 ## Remaining
 
-- Whether the stated command quotes paths a shell would split is design-doc-decision-7's, asked of the design-doc producer with a reproduction. If the decision changes, the `rp`, `pipeline-folder`, and `thread` template values follow it.
+None.
 
 ## Decisions
 
-- The `rp` template value is `node <script>` alone; each template writes `{{rp}} <command> {{pipeline-folder}} --role {{role}}`, since the command goes between the script and the pipeline folder.
+- The `rp` template value is `node <script>` alone; each template writes `{{rp}} <command> {{pipeline-folder-arg}} --role {{role}}`, since the command goes between the script and the pipeline folder.
+- A path is one shell word as written when it holds only letters, digits, and `_ . / , : @ % + -`; otherwise it is single-quoted, each quote in it written `'\''`. A command-line path gets its own value, `<value>-arg`, beside the value as written, since the templates use both forms.
 - A command writes a message only when the grammar would also read a message after it, so a body that leaves fenced code open is refused before it can hide the other party's reply.
 - `close` replaces only the bytes of the `status` value; `escalate` writes `cites` plain, else double- or single-quoted, whichever the frontmatter grammar reads back as the text given.
 - A wrong use prints the reason, then on its own line what to run instead; a command line a command does not take prints `usage: node rp.mjs <form>`, for every command.

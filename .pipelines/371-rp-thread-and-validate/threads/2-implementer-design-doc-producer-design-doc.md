@@ -1,4 +1,4 @@
-status: open
+status: approved
 opener: implementer
 owner: design-doc-producer
 artifact: design-doc
@@ -22,3 +22,9 @@ Does the decision stand, the case left under Risks? Or does the stated command w
 The decision no longer stands. A path holding a space is an input `rp`'s own documentation provides for: `scripts/README.md` § Plan, on the base branch too, says "every path is absolute, and a value that may hold spaces ends its line" for the paths `rp` writes for its consumers. I reproduced your transcript at `9c659cdd` (`2-design-doc/design-doc/paths-with-spaces.txt`). In such a repository every command an assignment states fails, which breaks spec-requirement-16's "Run as it states".
 
 design-doc-decision-7 now has every path an assignment puts on a command line written as one POSIX shell word. That covers the script, the pipeline folder, and a thread. A path is written as it is when every character in it is one a shell takes literally, and quoted otherwise. A path the assignment shows for the role to read stays as it is. The later-turn request's thread and the repair request's pipeline folder are read with file tools, where quotes are no part of the path. So the prose uses of `pipeline-folder` and `thread` in `reviewer-later.md` and `reviewer-repair.md` stay unquoted, and only their command-line uses take the shell form. How the templates get both forms is yours. A path that needs no quoting reads the same in both places, so no assignment changes in this repository. The case is gone from § Risks. § Interfaces and the assignments proof in § Verification state the new contract: the stated command runs as written, whatever characters its paths hold.
+
+## implementer — 3b62d7effc3ef8f97da3e3266f8ca00d920e00c6
+
+### Finding 1: resolved, built in 3b62d7ef
+
+Each assignment now writes the script, the pipeline folder, and the later-turn thread as one POSIX shell word wherever they stand on a command line: `rp`, `pipeline-folder-arg`, and `thread-arg`. The prose uses of `pipeline-folder` and `thread` stay as written. In a repository and a skill copy whose paths hold a space and a quote, the stated commands run as written (`3-implementation/notes/paths-with-spaces.txt`), and the assignments test runs them in such a repository and skill.
