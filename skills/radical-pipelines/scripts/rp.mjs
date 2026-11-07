@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // rp — state tooling for Radical Pipelines. Zero dependencies: everything it computes can be done with bare git.
-// Commands: check, pipelines, next, land. README.md beside this file is the contract.
+// Commands: check, pipelines, next, land, thread, validate. README.md beside this file is the contract.
 
 import { execFileSync, spawn } from "node:child_process";
 import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
@@ -161,10 +161,10 @@ function lsTree(root, treeish, path, recursive) {
 
 const posix = (path) => path.split(sep).join("/");
 
-// The repository and the repository-relative path of a command argument, which need not exist.
-function locate(argument) {
-  const requested = resolve(process.cwd(), argument);
-  let existing = requested;
+// The real absolute path of a path argument, which need not exist, against the process directory: its longest
+// existing part's real path, `found`, and the rest.
+function realOf(argument) {
+  let existing = resolve(process.cwd(), argument);
   const missing = [];
   while (!existsSync(existing)) {
     missing.unshift(basename(existing));
@@ -173,7 +173,12 @@ function locate(argument) {
     existing = parent;
   }
   const found = realpathSync(existing);
-  const real = join(found, ...missing);
+  return { found, real: join(found, ...missing) };
+}
+
+// The repository and the repository-relative path of a command argument, which need not exist.
+function locate(argument) {
+  const { found, real } = realOf(argument);
   let root;
   try { root = realpathSync(execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: statSync(found).isDirectory() ? found : dirname(found), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim()); }
   catch { fail(`cannot locate a git repository for: ${argument}`); }
@@ -207,16 +212,16 @@ function pipelineFolder(folder, command) {
 
 // --- frontmatter and identity ---------------------------------------------------
 
-// The frontmatter is the text between a first line `---` and the next line `---`; the body is every byte after it.
-// The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
+// The frontmatter is the text between a first line `---` and the next line `---`, the bytes from `start` to `end`; the
+// body is every byte after it. The delimiter lines alone tolerate a trailing `\r`; the closing one may end the file.
 export function splitFrontmatter(bytes) {
   const raw = bytes.toString("latin1");
   const open = raw.match(/^---\r?\n/);
   if (!open) return { text: null, body: bytes };
   const close = raw.slice(open[0].length).match(/(?:^|\n)---\r?(?:\n|$)/);
   if (!close) return { text: null, body: bytes, error: "frontmatter has no closing --- line" };
-  const start = open[0].length;
-  return { text: bytes.subarray(start, start + close.index).toString("utf8"), body: bytes.subarray(start + close.index + close[0].length) };
+  const start = open[0].length, end = start + close.index;
+  return { text: bytes.subarray(start, end).toString("utf8"), body: bytes.subarray(end + close[0].length), start, end };
 }
 
 // The constructs a plain YAML value can open with that YAML reads as something other than its text.
@@ -374,8 +379,9 @@ function worktreeCertification(base, folder, rel) {
 
 // A pipeline, as read from the working tree or a commit: its files by pipeline-relative path, the identity of each
 // pinnable one, and `certification(rel)`, the certification of the landed file at `rel` (§ worktreeCertification).
-// This one is the working tree's.
-function readWorktree(root, folder) {
+// This one is the working tree's. `reads`, when given, narrows it to the files an operation reads: only those files are
+// validated.
+function readWorktree(root, folder, reads = null) {
   const base = join(root, folder);
   if (!existsSync(base) || !lstatSync(base).isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
   const files = new Map();
@@ -383,10 +389,11 @@ function readWorktree(root, folder) {
     for (const name of readdirSync(join(base, rel)).sort()) {
       const child = rel ? `${rel}/${name}` : name;
       const stat = lstatSync(join(base, child));
-      if (holdsFiles(child) && !stat.isDirectory()) fail(`cannot read ${folder}/${child}: a file where a folder belongs`);
-      if (kindOf(child) && stat.isDirectory()) fail(`cannot read ${folder}/${child}: a folder where a pipeline file belongs`);
+      const read = Boolean(kindOf(child)) && (!reads || reads(child));
+      if (!reads && holdsFiles(child) && !stat.isDirectory()) fail(`cannot read ${folder}/${child}: a file where a folder belongs`);
+      if (read && stat.isDirectory()) fail(`cannot read ${folder}/${child}: a folder where a pipeline file belongs`);
       if (stat.isDirectory()) { if (holdsFiles(child)) visit(child); }
-      else if (kindOf(child)) {
+      else if (read) {
         if (!stat.isFile()) fail(`cannot read ${folder}/${child}: not a regular file`);
         files.set(child, readFileSync(join(base, child)));
       }
@@ -641,11 +648,13 @@ function frontmatterKeys(kind) {
   return kind.phase === IMPLEMENTATION ? ["status"] : [];
 }
 
-// A pipeline file other than run-config.md, parsed under the run configuration, or Invalid.
-function parseFile(path, kind, bytes, config) {
+// A pipeline file other than run-config.md, or Invalid. The file grammar, every check that reads the file alone, parses
+// it; given the run configuration `config`, so do the two checks that read it: an `open` thread awaiting a review lane
+// it does not declare, and a candidate of a production lane it does not declare.
+function parseFile(path, kind, bytes, config = null) {
   if (kind.kind === "thread") {
     const thread = { path, kind: "thread", ...parseThread(path.slice("threads/".length), bytes), reviewed: null };
-    const awaited = awaitedRole(thread) && parseRole(awaitedRole(thread));
+    const awaited = config && awaitedRole(thread) && parseRole(awaitedRole(thread));
     if (awaited?.lane && !reviewLanes(config).some((lane) => lane.id === awaited.lane)) invalid("lane not configured; close the thread withdrawn");
     return thread;
   }
@@ -654,15 +663,15 @@ function parseFile(path, kind, bytes, config) {
   if (present && !keys.length) invalid("carries no frontmatter");
   onlyKeys(values.keys(), keys);
   if (kind.kind === "later" && !values.has("target")) invalid("frontmatter has no target");
-  if (kind.kind === "candidate" && !productionLanes(config, kind.phase).some((lane) => lane.id === kind.lane))
+  if (config && kind.kind === "candidate" && !productionLanes(config, kind.phase).some((lane) => lane.id === kind.lane))
     invalid(`production lane is not configured: ${kind.phase.owner} ${kind.lane}`);
   return { ...kind, path, values, targets: kind.kind === "later" ? parseTargets(values.get("target")) : [] };
 }
 
-// A pipeline's files, parsed under `config`, with each file's identity. A malformed file is collected as invalid, never
-// computed from. With `certified`, each artifact, candidate, and approval carries its certification: its pins as
-// `inputs` and an approval's `reviewed`, none (and no pins) when it has none; a certification that cannot be read or is
-// malformed stops the command. `where` names the pipeline folder in messages.
+// A pipeline's files, parsed under `config`, or by the file grammar alone when it is null, with each file's identity. A
+// malformed file is collected as invalid, never computed from. With `certified`, each artifact, candidate, and approval
+// carries its certification: its pins as `inputs` and an approval's `reviewed`, none (and no pins) when it has none; a
+// certification that cannot be read or is malformed stops the command. `where` names the pipeline folder in messages.
 function parseFiles(pipeline, where, config, certified) {
   const state = { config, docs: new Map(), threads: [], invalid: [] };
   for (const [path, bytes] of [...pipeline.files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
@@ -1705,50 +1714,234 @@ function isAncestor(root, ancestor, commit) {
   catch (error) { if (error.status === 1) return false; fail(`git merge-base --is-ancestor ${ancestor} ${commit}: ${error.stderr?.toString().trim() || error.message}`); }
 }
 
+// --- role commands ------------------------------------------------------------------
+
+// A wrong use of `command`: what was wrong, then, on a line of its own, what to run instead.
+const wrong = (command, what, instead) => fail(`${command}: ${what}\n${instead}`);
+// A command line `command` does not take: what was wrong, then the command's form.
+const misused = (command, what) => wrong(command, what, `usage: node rp.mjs ${COMMANDS[command].usage}`);
+
+// What a role command acts on: the worktree `root` holding the pipeline folder it is given, the folder, its path `base`
+// in the working tree, and the role `--role` names, which the command acts as. It reads no other pipeline file.
+function seatOf(args, command) {
+  const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
+  const { folder } = pipelineFolder(rel, command);
+  const base = join(root, folder);
+  if (!lstatOf(base)?.isDirectory()) fail(`cannot read ${folder}: not a folder in the working tree`);
+  const name = args.role ?? misused(command, "missing --role <role>");
+  const role = parseRole(name) ?? misused(command, `--role names a role, <profile>[-<lane>]: ${name}`);
+  return { root, folder, base, role: roleFor(role.profile, role.lane) };
+}
+// The pipeline-relative path of the file a path option names against the process directory, or null when it lies
+// outside the pipeline folder at `base`.
+function inFolder(given, base) {
+  const { real } = realOf(given);
+  return real.startsWith(`${base}${sep}`) ? posix(relative(base, real)) : null;
+}
+
+// --- threads ------------------------------------------------------------------------
+
+// A thread header: its frontmatter, each value written in a form the frontmatter grammar reads back as the value; null
+// when no form is.
+function headerOf(values) {
+  const readsAs = (key, form) => { try { return frontmatterValue(key, form); } catch (error) { if (error instanceof Invalid) return null; throw error; } };
+  const lines = [];
+  for (const [key, value] of Object.entries(values)) {
+    const form = /[\r\n]/.test(value) ? undefined : [value, `"${value}"`, `'${value}'`].find((each) => readsAs(key, each) === value);
+    if (form === undefined) return null;
+    lines.push(`${key}: ${form}`);
+  }
+  return Buffer.from(`---\n${lines.join("\n")}\n---\n`);
+}
+// `contents` followed by a message: a blank line, its heading `## <author> — <commit>` on a line of its own, a blank
+// line, and its body as given.
+const withMessage = (contents, author, commit, body) =>
+  Buffer.concat([contents, Buffer.from(`${contents.at(-1) === 0x0a ? "" : "\n"}\n## ${author} — ${commit}\n\n`), body]);
+// A thread file's contents with its frontmatter's `status` set to `status`, every other byte as it was.
+function withStatus(contents, status) {
+  const { start, end } = splitFrontmatter(contents);
+  const line = contents.toString("latin1").slice(start, end).match(/(?:^|\n)status:([^\r\n]*)/);
+  const at = start + line.index + line[0].length - line[1].length;
+  return Buffer.concat([contents.subarray(0, at), Buffer.from(` ${status}`), contents.subarray(at + line[1].length)]);
+}
+
+// A message body: the bytes of the file `--body` names, against the process directory, or of standard input for `-`;
+// null when the command is given none.
+function bodyOf(args, command, required) {
+  if (args.body === null) return required ? misused(command, "missing --body <file | ->") : null;
+  try { return readFileSync(args.body === "-" ? 0 : resolve(process.cwd(), args.body)); }
+  catch (error) { fail(`cannot read ${args.body === "-" ? "standard input" : args.body}: ${error.message}`); }
+}
+// The thread file `--thread` names, by its pipeline-relative path, its contents in the working tree, and the thread the
+// file grammar reads in it. A path that names no thread file of the pipeline folder, or a file the grammar rejects, is
+// a wrong use.
+function threadOf(args, seat, command) {
+  const given = args.thread ?? misused(command, "missing --thread <thread file>");
+  const rel = inFolder(given, seat.base);
+  const contents = kindOf(rel ?? "")?.kind === "thread" ? readWorktree(seat.root, seat.folder, (path) => path === rel).files.get(rel) : undefined;
+  if (!contents) wrong(command, `no thread file of ${seat.folder}: ${given}`, `give --thread a thread file in ${seat.folder}/threads, as rp thread open prints it`);
+  try { return { rel, contents, thread: parseFile(rel, kindOf(rel), contents) }; }
+  catch (error) {
+    if (!(error instanceof Invalid)) throw error;
+    return wrong(command, `INVALID ${rel}: ${error.message}`, "repair the file, check it with rp validate, and run the command again");
+  }
+}
+
+// Writes the thread file `contents` at the pipeline-relative path `rel`, with `flag`, and prints its path, once the file
+// grammar accepts it and reads in it `messages`, the messages the command means. `message`, the role's message when the
+// command writes one, must leave the file open to a message after it. Otherwise `command` is refused and nothing is
+// written.
+function writeThread(seat, command, rel, contents, messages, message, flag) {
+  const read = (bytes) => {
+    try { return parseFile(rel, kindOf(rel), bytes); }
+    catch (error) {
+      if (!(error instanceof Invalid)) throw error;
+      return wrong(command, `the thread grammar rejects what it would write: ${error.message}`, "change what it names, and run the command again");
+    }
+  };
+  const heading = (each) => `## ${each.author} — ${each.commit}`;
+  const found = read(contents).messages;
+  if (found.length !== messages.length || found.some((each, i) => heading(each) !== heading(messages[i]))) {
+    if (found.length > messages.length && messages.every((each, i) => heading(each) === heading(found[i])))
+      wrong(command, `the body holds a line the thread grammar reads as a message heading: ${heading(found[messages.length])}`, "change that line, and run the command again");
+    wrong(command, `the thread grammar does not read the message ${heading(messages.at(-1))}: fenced code an earlier message leaves open hides it`, "close that fenced code, check the file with rp validate, and run the command again");
+  }
+  if (message && read(withMessage(contents, message.author, message.commit, Buffer.alloc(0))).messages.length !== messages.length + 1)
+    wrong(command, "the body leaves fenced code open, which hides every message heading after it", "close it, and run the command again");
+  const path = join(seat.base, rel);
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, contents, { flag });
+  } catch (error) {
+    if (error.code === "EEXIST") wrong(command, `${rel} exists`, "run the command again, which takes the next number");
+    fail(`cannot write ${seat.folder}/${rel}: ${error.message}`);
+  }
+  process.stdout.write(`${path}\n`);
+}
+
+// Opens the thread whose header holds `values` with the seat's role's message, at `threads/<n>-<opener>-<owner>-<artifact>.md`:
+// `<n>` is one past the highest number among the names `threads/<n>-….md` in the working tree, or 1 when there is none.
+function openThread(seat, command, values, body) {
+  const header = headerOf(values) ?? wrong(command, `--cites cannot be written as a frontmatter value: ${JSON.stringify(values.cites)}`, "cite the thread or the evidence by its path");
+  const threads = join(seat.base, "threads"), stat = lstatOf(threads);
+  if (stat && !stat.isDirectory()) fail(`cannot read ${seat.folder}/threads: a file where a folder belongs`);
+  const numbers = stat ? readdirSync(threads).map((name) => Number(name.match(/^([1-9]\d*)-.+\.md$/)?.[1] ?? 0)) : [];
+  const rel = `threads/${Math.max(0, ...numbers) + 1}-${values.opener}-${values.owner}-${values.artifact}.md`;
+  const message = { author: seat.role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
+  writeThread(seat, command, rel, withMessage(header, message.author, message.commit, body), [message], message, "wx");
+}
+
+// `thread open`: the role's thread to the owner of the artifact it questions, with its first message.
+function cmdThreadOpen(args) {
+  const command = "thread open", seat = seatOf(args, command), { role } = seat;
+  const artifact = args.artifact ?? misused(command, "missing --artifact <spec | design-doc | implementation>");
+  const artifacts = PHASES.map((phase) => phase.token);
+  if (!artifacts.includes(artifact)) misused(command, `--artifact names spec, design-doc, or implementation: ${artifact}`);
+  openThread(seat, command, { status: "open", opener: role.name, owner: OWNERS[artifact], artifact }, bodyOf(args, command, true));
+}
+
+// `thread escalate`: the role's thread to owner about the intent, citing what the disagreement comes from.
+function cmdThreadEscalate(args) {
+  const command = "thread escalate", seat = seatOf(args, command), { role } = seat;
+  const cites = args.cites ?? misused(command, "missing --cites <thread path | evidence path>");
+  openThread(seat, command, { status: "disagreement", opener: role.name, owner: OWNERS.intent, artifact: "intent", cites }, bodyOf(args, command, true));
+}
+
+// `thread reply`: the role's message at the end of a thread.
+function cmdThreadReply(args) {
+  const command = "thread reply", seat = seatOf(args, command), { role } = seat;
+  const { rel, contents, thread } = threadOf(args, seat, command);
+  const body = bodyOf(args, command, true);
+  const message = { author: role.name, commit: requireCommit(seat.root, "HEAD", "HEAD") };
+  writeThread(seat, command, rel, withMessage(contents, message.author, message.commit, body), [...thread.messages, message], message, "w");
+}
+
+// `thread close`: a thread the role opened, closed `approved` or `withdrawn`, with the role's closing message when
+// given one.
+function cmdThreadClose(args) {
+  const command = "thread close", seat = seatOf(args, command), { role } = seat;
+  const status = args.status ?? misused(command, "missing --status <approved | withdrawn>");
+  const { rel, contents, thread } = threadOf(args, seat, command);
+  const body = bodyOf(args, command, false);
+  const commit = requireCommit(seat.root, "HEAD", "HEAD");
+  const closed = withStatus(contents, status), message = body && { author: role.name, commit };
+  writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, body) : closed, message ? [...thread.messages, message] : thread.messages, message, "w");
+}
+
+// --- validate -----------------------------------------------------------------------
+
+// `validate`: the `INVALID` line `rp check` prints for each of the role's files the file grammar rejects, as they stand
+// in the working tree, or a line saying they are accepted. With `--file`, that file alone, which must be one of them.
+function cmdValidate(args) {
+  const command = "validate", seat = seatOf(args, command), { role } = seat;
+  const only = args.file === null ? null : inFolder(args.file, seat.base);
+  if (args.file !== null && !(only && writes(role, only)))
+    wrong(command, `${args.file} is no file of ${role.name}, whose files are its artifact or candidate and the threads naming it`, "run rp validate without --file to check them all");
+  const pipeline = readWorktree(seat.root, seat.folder, (path) => only ? path === only : writes(role, path));
+  if (only && !pipeline.files.has(only)) fail(`cannot read ${seat.folder}/${only}: missing`);
+  const rejected = parseFiles(pipeline, seat.folder, null, false).invalid;
+  const lines = rejected.map(({ path, reason }) => frontierText({ action: "INVALID", target: path, reason }));
+  process.stdout.write(`${(lines.length ? lines : [`accepted: ${only ?? `every file of ${role.name}`}`]).join("\n")}\n`);
+}
+
 // --- cli --------------------------------------------------------------------------
 
+// Each command by name, `thread <subcommand>` for a thread command: what runs it, its form, and its options.
 const COMMANDS = {
-  check: { run: cmdCheck, options: { "--ref": "value", "--json": "flag" } },
-  pipelines: { run: cmdPipelines, options: { "--base": "value", "--issue": "value", "--json": "flag" } },
-  next: { run: cmdNext, options: { "--apply": "flag" } },
-  land: { run: cmdLand, options: { "--role": "value" } },
+  check: { run: cmdCheck, usage: "check <pipeline folder> [--ref <commit>] [--json]", options: { "--ref": "value", "--json": "flag" } },
+  pipelines: { run: cmdPipelines, usage: "pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]", options: { "--base": "value", "--issue": "value", "--json": "flag" } },
+  next: { run: cmdNext, usage: "next <pipeline folder> [--apply]", options: { "--apply": "flag" } },
+  land: { run: cmdLand, usage: "land <pipeline folder> --role <role>", options: { "--role": "value" } },
+  "thread open": { run: cmdThreadOpen, usage: "thread open <pipeline folder> --role <role> --artifact <spec | design-doc | implementation> --body <file | ->",
+    options: { "--role": "value", "--artifact": "value", "--body": "value" } },
+  "thread reply": { run: cmdThreadReply, usage: "thread reply <pipeline folder> --role <role> --thread <thread file> --body <file | ->",
+    options: { "--role": "value", "--thread": "value", "--body": "value" } },
+  "thread close": { run: cmdThreadClose, usage: "thread close <pipeline folder> --role <role> --thread <thread file> --status <approved | withdrawn> [--body <file | ->]",
+    options: { "--role": "value", "--thread": "value", "--status": "value", "--body": "value" } },
+  "thread escalate": { run: cmdThreadEscalate, usage: "thread escalate <pipeline folder> --role <role> --cites <thread path | evidence path> --body <file | ->",
+    options: { "--role": "value", "--cites": "value", "--body": "value" } },
+  validate: { run: cmdValidate, usage: "validate <pipeline folder> --role <role> [--file <path>]", options: { "--role": "value", "--file": "value" } },
 };
+const THREAD_COMMANDS = Object.keys(COMMANDS).filter((name) => name.startsWith("thread "));
 
 export function parseArgs(command, argv) {
   const { options } = COMMANDS[command];
-  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null };
+  const args = { _: [], json: false, apply: false, ref: null, issue: null, base: null, role: null, artifact: null, body: null, thread: null, status: null, cites: null, file: null };
   const used = new Set();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith("--")) { args._.push(arg); continue; }
-    const type = options[arg] ?? fail(`${command}: unknown option: ${arg}`);
-    if (used.has(arg)) fail(`${command}: ${arg} may appear only once`);
+    const type = options[arg] ?? misused(command, `unknown option: ${arg}`);
+    if (used.has(arg)) misused(command, `${arg} may appear only once`);
     used.add(arg);
     const key = arg.slice(2);
     if (type === "flag") { args[key] = true; continue; }
-    args[key] = i + 1 < argv.length ? argv[++i] : fail(`${command}: ${arg} expects a value`);
+    args[key] = i + 1 < argv.length ? argv[++i] : misused(command, `${arg} expects a value`);
   }
-  if (args._.length > 1) fail(`${command}: unexpected argument: ${args._[1]}`);
+  if (args._.length > 1) misused(command, `unexpected argument: ${args._[1]}`);
   return args;
 }
 
 const USAGE = `rp — Radical Pipelines state tooling
 
 Usage:
-  node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
-  node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
-  node rp.mjs next <pipeline folder> [--apply]
-  node rp.mjs land <pipeline folder> --role <role>
+${Object.values(COMMANDS).map((command) => `  node rp.mjs ${command.usage}`).join("\n")}
 
+--body <file> reads a message body from a file, and --body - from standard input.
 See README.md beside this script.
 `;
 
 if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
-  const [command, ...rest] = process.argv.slice(2);
+  const [first, ...rest] = process.argv.slice(2);
   try {
-    if (!command || command === "--help" || command === "-h") process.stdout.write(USAGE);
-    else if (!Object.hasOwn(COMMANDS, command)) fail(`unknown command: ${command}`);
-    else await COMMANDS[command].run(parseArgs(command, rest));
+    if (!first || first === "--help" || first === "-h") process.stdout.write(USAGE);
+    else if (first === "thread") {
+      const [subcommand, ...argv] = rest, command = `thread ${subcommand}`;
+      if (!THREAD_COMMANDS.includes(command))
+        fail(`thread: ${subcommand ? `unknown subcommand: ${subcommand}` : "missing subcommand"}\nusage:\n${THREAD_COMMANDS.map((name) => `  node rp.mjs ${COMMANDS[name].usage}`).join("\n")}`);
+      await COMMANDS[command].run(parseArgs(command, argv));
+    } else if (!Object.hasOwn(COMMANDS, first) || THREAD_COMMANDS.includes(first)) fail(`unknown command: ${first}\nrun node rp.mjs --help for the commands`);
+    else await COMMANDS[first].run(parseArgs(first, rest));
   } catch (error) {
     if (!(error instanceof RpError)) throw error;
     process.stderr.write(`rp: ${error.message}\n`);
