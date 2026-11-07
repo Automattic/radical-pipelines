@@ -876,7 +876,7 @@ async function inspect(root, folder, pipelinesRoot, ref) {
 }
 
 async function cmdCheck(args) {
-  const { root, rel } = locate(args._[0] ?? fail("check: missing <pipeline folder>"));
+  const { root, rel } = locate(args._[0] ?? misused("check", "missing <pipeline folder>"));
   const { folder, pipelinesRoot } = pipelineFolder(rel, "check");
   const { state, tip, base, frontier: entries } = await inspect(root, folder, pipelinesRoot, args.ref);
   const target = state.config.targetPhase;
@@ -983,11 +983,11 @@ async function discoverFolders(root, folders, where) {
 // Every live pipeline folder at a branch tip, and every merged one in the base branch's tree, optionally filtered by issue.
 async function cmdPipelines(args) {
   // The pipelines folder root: a folder inside a repository, which need not exist in its working tree.
-  const given = args._[0] ?? fail("pipelines: missing <pipelines folder root>");
+  const given = args._[0] ?? misused("pipelines", "missing <pipelines folder root>");
   const { root, rel: pipelinesRoot } = locate(given);
   if (!pipelinesRoot) fail(`pipelines: the pipelines folder root is a folder inside the repository, not its root: ${given}`);
   if (existsSync(join(root, pipelinesRoot)) && !statSync(join(root, pipelinesRoot)).isDirectory()) fail(`pipelines: not a folder: ${given}`);
-  const baseCommit = requireCommit(root, args.base ?? fail("pipelines: --base <artifact base branch> is required"), "--base");
+  const baseCommit = requireCommit(root, args.base ?? misused("pipelines", "--base <artifact base branch> is required"), "--base");
   const refs = gitText(root, ["for-each-ref", "--format=%(objectname) %(objecttype) %(symref) %(refname)", "refs/heads", "refs/remotes"])
     .split("\n").filter(Boolean).map((line) => line.split(" ")).filter(([, type, symref]) => type === "commit" && !symref)
     .map(([commit, , , refname]) => ({ commit, name: refname.replace(/^refs\/(?:heads|remotes)\//, "") }));
@@ -1502,7 +1502,7 @@ async function landingOf(ctx, bring) {
 // What `next` and `land` read: the pipeline worktree `root`, its pipeline branch, the pipeline as `check` reads it from
 // the working tree, the main checkout's conventions, and the step record.
 async function contextOf(args, command) {
-  const { root, rel } = locate(args._[0] ?? fail(`${command}: missing <pipeline folder>`));
+  const { root, rel } = locate(args._[0] ?? misused(command, "missing <pipeline folder>"));
   const { folder, pipelinesRoot } = pipelineFolder(rel, command);
   const main = worktreesOf(root)[0].path ?? fail(`${command}: the repository has no main checkout`);
   const conventions = readConventions(main);
@@ -1670,7 +1670,7 @@ async function cmdNext(args) {
 async function cmdLand(args) {
   const ctx = await contextOf(args, "land");
   const { root, folder, pipelinesRoot, tip, record, conventions } = ctx;
-  const name = args.role ?? fail("land: --role <role> is required");
+  const name = args.role ?? misused("land", "--role <role> is required");
   const turn = record.turns[name] ?? fail(`land: no turn of ${name} is recorded: rp next --apply records each role it wakes`);
   const { profile, lane } = parseRole(name);
   const role = roleFor(profile, lane);
