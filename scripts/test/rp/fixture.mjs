@@ -54,7 +54,7 @@ export function agentsOf(lanes = [], agents = {}) {
 }
 export function configure({ targetPhase = 4, base = "main", lanes, agents } = {}) {
   const runAgents = lanes || agents ? { agents: agentsOf(lanes, agents) } : {};
-  write("run-config.md", `---\n${JSON.stringify({ format: 8, "target-phase": targetPhase, base, ...runAgents }, null, 2)}\n---\n`);
+  write("run-config.md", `---\n${JSON.stringify({ format: 7, "target-phase": targetPhase, base, ...runAgents }, null, 2)}\n---\n`);
 }
 export const lane = (profile, id) => ({ profile, id, brief: `${id} brief` });
 
@@ -166,7 +166,7 @@ export function useRepo(folder = null) {
 // `.worktrees`, above a prose body. Git ignores both, and `.rp.local.md`, so no commit holds them.
 export function conventions(data = {}, body = "\n# Conventions\n") {
   writeFile(".git/info/exclude", ".worktrees/\n.rp.md\n.rp.local.md\n");
-  writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 9, "worktree-folder-root": ".worktrees", ...data }, null, 2)}\n---\n${body}`);
+  writeFile(".rp.md", `---\n${JSON.stringify({ conventions: 7, "worktree-folder-root": ".worktrees", ...data }, null, 2)}\n---\n${body}`);
 }
 // The plan `rp next` prints, with `args`, as its lines.
 export function plan(...args) {

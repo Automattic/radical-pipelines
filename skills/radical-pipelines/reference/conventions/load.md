@@ -34,7 +34,7 @@ Worktree folder root, Landing commit, Commit format, Guardrails, Resources, Agen
 
 ## Schema stamp
 
-`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 9.
+`.rp.md`'s frontmatter, a JSON object, records the schema version in `conventions`. The current version is 7.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

@@ -55,7 +55,7 @@ A file's identity is the first 12 hexadecimal characters of the git blob id of t
 
 ```json
 {
-  "format": 8,
+  "format": 7,
   "target-phase": 4,
   "base": "main",
   "agents": {
@@ -66,7 +66,7 @@ A file's identity is the first 12 hexadecimal characters of the git blob id of t
 }
 ```
 
-- `format`: the conventions format the pipeline was written under, an integer; the current one is `8`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check`, `next`, and `land` read only format 8 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
+- `format`: the conventions format the pipeline was written under, an integer; the current one is `7`. A `run-config.md` that is absent, has no JSON frontmatter, or has no integer `format` is of an **earlier** format. `check`, `next`, and `land` read only format 7 and stop otherwise, before reading anything else: `rp: <path>: pipeline of an earlier format; it is not continued`, or `rp: <path>: pipeline of a newer format <n>; update the skill`.
 - `target-phase`: an integer from 1 to 4. Phase 4 is review.
 - `base`: a revision that resolves to a commit.
 - `agents` (optional): the run's agents, in the schema of `.rp.md`'s `agents` (§ Conventions data).
@@ -211,7 +211,7 @@ Of each pipeline folder, discovery reads only two things, so pipelines of every 
 - **`format`** (§ `run-config.md`): the integer `format` of `run-config.md` when it is a regular file with JSON frontmatter carrying one, else `earlier`.
 - **Origins**: of `0-intent/intent.md` when it is a regular file. From format 7, its frontmatter's `issue`, `starts-from`, and `re-attempts`, each as `<key> <value>`, in the order written; an intent whose frontmatter cannot be read (§ Frontmatter) has no origins. In an earlier format, the values of the leading `origin:` lines of its body, below any frontmatter; an intent with unclosed frontmatter has no origins.
 
-A pipeline of format 8 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
+A pipeline of format 7 without a regular `0-intent/intent.md` is malformed and stops the command; one of an earlier format is listed with no origins. A missing or unresolving `--base`, or a git failure, stops the command. Branch and folder names are never matched. A pipeline at a local branch and its remote-tracking branch is listed for each.
 
 Without `--json`, one line per pipeline: `<live|merged> <format> <ref> <pipeline folder>`. `--json` prints a list of `{state, format, ref, commit, folder, origins}`.
 
@@ -386,7 +386,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 
 ```json
 {
-  "conventions": 9,
+  "conventions": 7,
   "worktree-folder-root": ".worktrees",
   "landing-commit": "{subject} (orchestrator)",
   "commit-format": ["Use imperative mood.", "", "- `Add spec (spec-producer)`"],
@@ -397,7 +397,7 @@ node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
 }
 ```
 
-- `conventions`, required: the version, `9`.
+- `conventions`, required: the version, `7`.
 - `worktree-folder-root`, required: the folder holding one worktree per branch, at `<folder>/<branch>`, a non-empty string; a relative one resolves against the main checkout's root.
 - `landing-commit`: the template of each commit `rp land` makes, a non-empty string holding `{subject}` and no other placeholder (§ Placeholders); `{subject}` is replaced by the commit's subject. Without it, the commit's message is its subject alone.
 - A **text** is a string, or a list of strings that are its lines, holding more than whitespace: `commit-format`, a guardrail's `rule`, a resource's `resource`, and a lane's `brief`.

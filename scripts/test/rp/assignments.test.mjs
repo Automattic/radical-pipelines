@@ -313,7 +313,7 @@ describe("assignments", () => {
       writeFileSync(abs(".git/info/exclude"), `${readFileSync(abs(".git/info/exclude"), "utf8")}.wt-pipeline/\n`);
       git(root, "worktree", "add", "--quiet", `${root}/.wt-pipeline`, "demo");
       const wt = realpathSync(`${root}/.wt-pipeline`);
-      writeFile(".wt-pipeline/.rp.md", "---\n{\"conventions\": 9, \"worktree-folder-root\": \".elsewhere\", \"commit-format\": \"The worktree's own.\"}\n---\n");
+      writeFile(".wt-pipeline/.rp.md", "---\n{\"conventions\": 7, \"worktree-folder-root\": \".elsewhere\", \"commit-format\": \"The worktree's own.\"}\n---\n");
       const values = assign("implementer", in_(wt, "")).values;
       assert.deepEqual(values.worktree, [wt]);
       assert.deepEqual(values.guardrails, ["### tests", "", "- rule: Run the local tests.", ...BOTH_GUARDRAILS.slice(3)]);
@@ -427,9 +427,9 @@ describe("assignments", () => {
     const malformations = [
       [".rp.md missing", () => rmSync(abs(".rp.md")), /cannot read .*\/\.rp\.md: missing/],
       [".rp.md without frontmatter", () => writeFile(".rp.md", "# Conventions\n"), /\.rp\.md: no frontmatter/],
-      ["frontmatter that does not parse", () => writeFile(".rp.md", "---\n{\n  \"conventions\": 9,\n}\n---\n"), /\.rp\.md: frontmatter is not valid JSON: .+/],
-      ["an earlier version", () => conventions({ conventions: 8 }), /\.rp\.md: conventions: 8 is not the current version, 9/],
-      ["no version", () => writeFile(".rp.md", "---\n{}\n---\n"), /\.rp\.md: conventions: null is not the current version, 9/],
+      ["frontmatter that does not parse", () => writeFile(".rp.md", "---\n{\n  \"conventions\": 7,\n}\n---\n"), /\.rp\.md: frontmatter is not valid JSON: .+/],
+      ["an earlier version", () => conventions({ conventions: 6 }), /\.rp\.md: conventions: 6 is not the current version, 7/],
+      ["no version", () => writeFile(".rp.md", "---\n{}\n---\n"), /\.rp\.md: conventions: null is not the current version, 7/],
       ["an unknown key", () => conventions({ guardrail: {} }), /\.rp\.md: frontmatter: unexpected key: guardrail/],
       ["no worktree folder root", () => conventions({ "worktree-folder-root": undefined }), /\.rp\.md: worktree-folder-root: missing/],
       ["an empty worktree folder root", () => conventions({ "worktree-folder-root": " " }), /\.rp\.md: worktree-folder-root: must be a folder/],
@@ -448,7 +448,7 @@ describe("assignments", () => {
       ["a variable whose template names no vocabulary fact", () => conventions({ variables: { agent: "{pipeline-slug}-{agent}" } }), /\.rp\.md: variables\.agent: \{agent\} names no vocabulary fact/],
       ["a variable name outside the grammar", () => conventions({ variables: { Agent: "{role}" } }), /\.rp\.md: variables\."Agent": a variable name must match/],
       ["a variable with an empty template", () => conventions({ variables: { agent: "" } }), /\.rp\.md: variables\.agent: must be a template/],
-      [".rp.local.md naming the version", () => local({ conventions: 9 }), /\.rp\.local\.md: frontmatter: unexpected key: conventions/],
+      [".rp.local.md naming the version", () => local({ conventions: 7 }), /\.rp\.local\.md: frontmatter: unexpected key: conventions/],
       [".rp.local.md with a malformed entry", () => local({ resources: { browser: { resource: "A browser.", profiles: ["builder"] } } }), /\.rp\.local\.md: resources\.browser\.profiles: "builder" is no profile/],
       [".rp.local.md with an empty landing commit template", () => local({ "landing-commit": "" }), /\.rp\.local\.md: landing-commit: must be a template/],
       [".rp.local.md whose frontmatter does not parse", () => writeFile(".rp.local.md", "---\nartifact-storage: fork\n---\n"), /\.rp\.local\.md: frontmatter is not valid JSON/],

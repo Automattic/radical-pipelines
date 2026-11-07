@@ -10,7 +10,7 @@ flowchart TD
     H -->|No .rp.md| I["Offer Fresh setup"]
     H -->|Absent or older| J["Offer Migration through the changelog"]
     H -->|Newer| L["Stop: the owner updates the skill"]
-    H -->|Current, 8| K{"Required conventions complete?"}
+    H -->|Current, 7| K{"Required conventions complete?"}
     I --> M{"Owner accepts setup?"}
     J --> M
     K -->|No| N["Offer setup for the missing conventions"]

@@ -445,7 +445,7 @@ async function readCommit(root, commit, folder, reads = null) {
 // --- parsing ----------------------------------------------------------------------
 
 // The pipeline format this script reads and writes: the `format` of `run-config.md`.
-export const FORMAT = 8;
+export const FORMAT = 7;
 // The format a pipeline was written under: the integer `format` in run-config.md's JSON frontmatter, else `earlier`
 // (no run-config.md, no frontmatter, unreadable frontmatter, or no integer `format`). Nothing else is read.
 export function formatOf(bytes) {
@@ -1098,7 +1098,7 @@ const VARIABLE = /^[a-z][a-z0-9-]*$/;
 const CARRIED = [["guardrails", "rule"], ["resources", "resource"]];
 
 // The conventions version this script reads: the `conventions` of `.rp.md`.
-export const CONVENTIONS = 9;
+export const CONVENTIONS = 7;
 
 // The conventions data of `.rp.md`'s JSON frontmatter or, with `local`, of `.rp.local.md`'s, which may have none and
 // holds no `conventions`: the worktree folder root, required in `.rp.md`, the landing commit template, the commit format,

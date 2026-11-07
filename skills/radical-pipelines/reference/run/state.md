@@ -97,7 +97,7 @@ cites: <thread path | evidence path>
 
 `run-config.md` at the pipeline folder root states the configuration the tree is produced under. Its frontmatter is a JSON object containing only:
 
-- `format`: the conventions format it was written under, `8`. `rp` stops on a pipeline of another format.
+- `format`: the conventions format it was written under, `7`. `rp` stops on a pipeline of another format.
 - `target-phase`: an integer from 1 through 4.
 - `base`: the branch of the unmerged pipeline it started from, else the base branch. Fetch and fast-forward it to its upstream before branching from it or merging it into the pipeline branch.
 - `agents`, optional: the models, subagent models, lanes, and briefs the owner confirmed for the run, in the schema of the **Agents** convention (`../conventions/agents.md`).
