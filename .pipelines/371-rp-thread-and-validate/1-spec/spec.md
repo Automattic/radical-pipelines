@@ -108,11 +108,12 @@ spec-requirement-13: A wrong use prints what was wrong and what to run instead, 
 - `rp thread open` or `rp thread escalate` by a production lane's role;
 - `rp thread open` about the artifact the role owns, or about the intent;
 - `rp thread close` with a status other than `approved` or `withdrawn`, or on a thread to `owner`;
-- `rp thread reply`, or `rp thread close` with a closing message, by a role that is neither the thread's opener nor its owner;
+- `rp thread reply` on a thread that does not await the role, and `rp thread close` on a thread that is not `open` or by a role other than its opener;
+- `rp thread close approved` on a review thread without a closing message when the thread's last message is not the reviewer's own, headed with the commit its worktree stands on;
 - `rp thread escalate` citing nothing;
 - `rp thread reply` or `rp thread close` on a thread file `rp validate` rejects.
 
-origin: derived intent-constraint-5 — input: each listed use either cannot be carried out or would leave a thread file the thread grammar rejects (`skills/radical-pipelines/scripts/README.md` § Threads), the class of file that wakes its author again today (`probe-today.txt` § 3, § 5).
+origin: derived intent-constraint-5 — input: each listed use either cannot be carried out, would leave a thread file the thread grammar rejects, would write in a thread that is history or awaits the other party (each profile's **Threads**: "Write only in a thread you open or one that awaits you … a closed thread is history"), or would leave an approval that lands uncertified (spec-requirement-6) (`skills/radical-pipelines/scripts/README.md` § Threads), the class of file that wakes its author again today (`probe-today.txt` § 3, § 5).
 
 observed: `rp` reports a wrong use today with `rp: <reason>` on stderr and exit status 1 (`skills/radical-pipelines/scripts/README.md`, the paragraph after the usage block); `rp thread open` prints `rp: unknown command: thread`, naming nothing to run instead (`probe-today.txt` § 1).
 
@@ -164,7 +165,7 @@ spec-acceptance-criterion-10: Given a pipeline worktree where one `INVALID` fron
 
 spec-acceptance-criterion-11: Given a review lane's tree with no `run-config.md` and no `threads/` folder, a production lane's worktree, or a pipeline worktree where another role's file is malformed, when the role there runs an `rp thread` command or `rp validate` as its assignment states, then the command writes and reports what it would were every other file well-formed and a `run-config.md` present, and none stops on the missing configuration.
 
-spec-acceptance-criterion-12: Given each wrong use spec-requirement-13 lists, when it runs, then it prints what was wrong and the command to run instead, exits with failure, and no file in the worktree changes. `rp thread open` about the intent names `rp thread escalate`; `rp thread close` with another status names `approved` and `withdrawn`; a reply or close on a thread file `rp validate` rejects names the rejection's reason.
+spec-acceptance-criterion-12: Given each wrong use spec-requirement-13 lists, when it runs, then it prints what was wrong and the command to run instead, exits with failure, and no file in the worktree changes. `rp thread open` about the intent names `rp thread escalate`; `rp thread close` with another status names `approved` and `withdrawn`; a reply or close on a thread file `rp validate` rejects names the rejection's reason; a reply to a thread that does not await the role names the role it awaits; a reviewer's `rp thread close approved` without a closing message after the author's reply names the same command with a closing message.
 
 spec-acceptance-criterion-13: Given each of the four agent profiles, when it is read, then it states no thread file name or number, no header key or value, and no message heading form, names no skill file and no path of `rp`, and names `rp thread open`, `rp thread reply`, `rp thread close`, or `rp thread escalate` where its role opens, answers, closes, or escalates a thread.
 
@@ -188,7 +189,6 @@ spec-exclusion-5: The owner's answer on a thread to `owner`, its `## owner — <
 
 ## Considered and not required
 
-- `rp thread reply` or `rp thread close` on a thread that is not `open`, and `rp thread close` by the thread's owner, as wrong uses — the reading of intent-constraint-5 not taken: no intended use produces them, since every message a role added in this repository's threads went to an `open` thread and every thread a role closed was closed by its opener (observed: `1-spec/spec/thread-history.txt`); the reading taken refuses a use that cannot be carried out or whose result the thread grammar rejects.
 - A role choosing the commit its message heading names — of the 35 headings roles wrote by hand, 34 name the commit the writer's worktree stood on and the other a commit whose spec is the same (observed: `1-spec/spec/heading-commits.txt`).
 - `rp validate` reporting every pipeline file under a path, the current directory by default — the reading of intent-proposal-1 not taken: the proposal names a role's own files, and roles woken together in the pipeline worktree each get only their own (observed: `probe-today.txt` § 5).
 - A `## ` line outside fenced code in a body read as body text — the reading of intent-constraint-2's "free Markdown" that changes the grammar is not taken: the grammar already calls the text between headings free while every such line is a heading (`skills/radical-pipelines/scripts/README.md` § Threads), no thread in this repository's history holds one (observed: `1-spec/spec/thread-headings-scan.txt`), and `rp validate` reports one within the turn (spec-requirement-10).
