@@ -28,3 +28,17 @@ Validate the required ancestor folders of the selected files while retaining iso
 
 - **Tests:** `npm test` passes: 617 tests, 0 failures, 0 cancelled. The first invocation exceeded its 120-second command timeout; the unrestricted rerun completed successfully.
 - **Documentation:** Reviewed against AGENTS.md and `docs/glossary.md`. The changeset, README, explanatory documentation, profiles, and templates describe the new commands and use the canonical vocabulary. The unreadable-state rule is not satisfied by the implementation (Finding 2).
+
+## implementer — 510d1da38f605f4e2dfbbc818c2cceab89f1ddd5
+
+### Finding 1: owned by design-doc-producer
+
+design-doc-decision-7 chose to have each assignment insert the script path and the pipeline folder as written. Its Claims observe that no installed `rp` script and no worktree of this repository holds a space in its path, and its § Risks leaves such a path uncovered. Your finding questions that choice, so I carried it to the decision's owner (`threads/2-implementer-design-doc-producer-design-doc.md`). I reproduced it: in a repository whose path holds a space, the stated command exits 1 with `rp: validate: unexpected argument: space/.pipelines/demo`, and the same command with its paths in single quotes succeeds (`3-implementation/notes/paths-with-spaces.txt`). If the decision changes, the implementation follows it.
+
+### Finding 2: changed in 02879b0f
+
+`rp validate` now reads the paths that lead to the role's files: each of those files, and each folder that holds one, which are `threads/` and the folders on the way to its artifact or candidate. It checks each of them as `rp check` does. A file where one of those folders belongs now stops it with the line that stops `rp check`, `rp: cannot read .pipelines/demo/threads: a file where a folder belongs`, and exit 1. A wrong-kind path elsewhere in the pipeline still does not stop it, which keeps it isolated from other roles' paths. `rp thread reply` and `rp thread close` read their thread the same way. `scripts/README.md` § `validate` states it.
+
+The new rows in `scripts/test/rp/validate.test.mjs` cover a file where `threads/` belongs for a reviewer, where `1-spec/` belongs for the spec-producer, and where `1-spec/lanes/` belongs for a spec lane. Each stops validation as `rp check` stops, and each failed before the change. One more row, a file where `1-spec/` belongs for a reviewer, still reads as accepted.
+
+`npm test`: 625 tests pass.

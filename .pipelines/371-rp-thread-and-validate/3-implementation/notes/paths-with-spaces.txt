@@ -1,0 +1,13 @@
+
+$ grep '^- rp: ' '<repo with space>/.git/rp/spec-producer.md'
+- rp: `node <rp> <command> <repo with space>/.pipelines/demo --role spec-producer`, `node <rp> --help` listing each command and its options
+[exit 0]
+
+$ node <rp> validate <repo with space>/.pipelines/demo --role spec-producer
+rp: validate: unexpected argument: space/.pipelines/demo
+usage: node rp.mjs validate <pipeline folder> --role <role> [--file <path>]
+[exit 1]
+
+$ node '<rp>' validate '<repo with space>/.pipelines/demo' --role spec-producer
+accepted: every file of spec-producer
+[exit 0]

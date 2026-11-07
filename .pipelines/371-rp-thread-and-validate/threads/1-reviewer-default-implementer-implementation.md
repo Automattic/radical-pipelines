@@ -88,3 +88,43 @@ It *is* the reviewer's file; the path just resolved outside the folder. Either a
 
 - **tests** — `npm test` passes: 617 tests, 0 failures, exit 0.
 - **documentation** — Follows `AGENTS.md` and `docs/glossary.md`. It has a changeset. README.md, `docs/model.md`, `docs/glossary.md` (new **File grammar** entry, and the updated **Assignment** and **Thread** entries), and `docs/flowcharts/threads.md` are updated. The profiles reference no skill file or `.rp.md`, and the shared thread rules are copied into each producer profile. The terms match the glossary. I found no reference to an external project or an issue tracker. The only documentation gap is the downstream-thread behavior in Finding 1: `scripts/README.md` § `thread` lists "`open` … about the artifact the role owns" as a wrong use but not an artifact the role doesn't consume.
+
+## implementer — 510d1da38f605f4e2dfbbc818c2cceab89f1ddd5
+
+### Finding 1: changed in 270549c6 (the remedy); stands (refusing an open about an artifact the role does not consume)
+
+The remedy now names only the artifacts the role consumes besides the intent, its phase's upstream ones. Opened about its own artifact, the design-doc-producer is told `--artifact spec`. The spec-producer consumes the intent alone, so it is told `rp thread escalate`. The wrong-use table now has a row for each producer profile, and the rows for the spec-producer and the design-doc-producer fail on the old remedies.
+
+Refusing an open about an artifact the role does not consume stands. The spec weighed the reviewer's case and left it out: "A reviewer opening a thread to an owner other than `implementer` or `owner` — its requests and profile have it write only its review thread and its escalation, and its lane's view holds no other thread" (`1-spec/spec.md` § Considered and not required). spec-requirement-13 lists as wrong the uses that cannot be carried out, or that would leave a file the grammar rejects, write in history, or land an approval uncertified. A thread opened downstream is none of these: `rp check` accepts it and lists it. With the remedy corrected, no source leads a role to open one. Each producer profile has its role open a thread only "to the owner of an artifact you consume", and the reviewer's requests open only its review thread. `scripts/README.md` § `thread` therefore lists it as no wrong use.
+
+### Finding 2: changed in 627b578e
+
+A body of whitespace alone, from the file or from standard input, is refused before anything is written: `rp: thread reply: the body on standard input is empty`, then `write the message on standard input, or in the file --body names, and run the command again`. This covers `open`, `reply`, `escalate`, and a `close` given `--body`. The wrong-use table has a row for it. `scripts/README.md` § `thread` lists it.
+
+### Finding 3: changed in 3e04e648
+
+The reviewer's requests now write each command that takes a message with a quoted heredoc: `--body - <<'EOF'`, a `<your review>`, `<your closing message>`, or `<your answer>` line, then `EOF`. `rp --help` says a quoted heredoc passes the body as written, backticks and `$` included, for the roles that read it there. The end-to-end test runs each stated block as written, its placeholder line replaced by a body holding backticks and `$HOME`, and checks that the landed thread ends with that body byte for byte. `3-implementation/notes/exercise.txt` § 1 shows the same through the delivered first-turn request.
+
+### Finding 4: changed in 41216680
+
+A `--file` that resolves outside the pipeline folder now says so: `rp: validate: threads/1-….md lies outside .pipelines/demo, as --file resolves against the process directory`, then `give --file <pipeline folder>/<its path in the pipeline folder>`, with the pipeline folder's absolute path filled in. "Is no file of" now comes only for a path inside the folder that names none of the role's files.
+
+`--file` stays: spec-requirement-10 has `rp validate`, "given the path of one of the role's files", report "on that file alone", from intent-proposal-1's `rp validate [<path>]`. It also stays against the process directory: design-doc-decision-2 has every path option resolve there, as every path argument of `rp` does.
+
+### Optional: a failing exit status from `rp validate`: stands
+
+`1-spec/spec.md` § Considered and not required: "A failing exit status or a JSON output for `rp validate` — `rp check` exits 0 on an `INVALID` frontier and roles read printed lines; no source shows a consumer branching on either."
+
+### Optional: `--cites` written in its pipeline-relative form: stands
+
+spec-requirement-4 and spec-acceptance-criterion-4 have the escalation's `cites` hold "what the role cited", and the design's § Interfaces writes "the text given". Rewriting the path would change what the role cited, which is the spec's to decide.
+
+### Optional: quoting `RP` and the paths in the stated commands: owned by design-doc-producer
+
+design-doc-decision-7 chose to insert these paths as written, and its § Risks leaves a path holding a space uncovered. I carried this to its owner, with a reproduction, together with the other lane's finding on the same point (`threads/2-implementer-design-doc-producer-design-doc.md`).
+
+### Optional: the usage line on `check`, `pipelines`, `next`, and `land`: kept
+
+You are fine keeping it, and nothing changed.
+
+`npm test`: 625 tests pass.

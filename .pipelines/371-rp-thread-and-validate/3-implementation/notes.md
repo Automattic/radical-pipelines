@@ -20,11 +20,17 @@ status: done
 - An approval without `--body` refused unless the reviewer's own last message names `HEAD`; end-to-end flows through the delivered assignments and `rp land` (bad726a8).
 - A missing argument of `check`, `next`, `land`, and `pipelines` also prints the command's form, so one rule covers every command line (b19450eb).
 - `scripts/README.md` § `thread`, § `validate`; `templates/README.md`; `state.md`; `docs/model.md`, `docs/glossary.md` (File grammar), `docs/flowcharts/threads.md`; `README.md`; changeset `rp-thread-and-validate` (c7aec662).
-- `npm test`: 617 pass. The flow driven as roles reach it, from the delivered assignments: `3-implementation/notes/exercise.txt`, printed by `exercise.sh <rp.mjs>`.
+- Opened about its own artifact, a role is told only the artifacts it consumes, or `rp thread escalate` when it consumes the intent alone (270549c6).
+- A body of whitespace alone is refused (627b578e).
+- The reviewer's requests pass each message through a quoted heredoc, and `--help` says it passes the body as written (3e04e648).
+- A `--file` outside the pipeline folder is refused as lying outside it, naming the folder to give it in (41216680).
+- `readWorktree`'s `reads` selects folders as well as files: `rp validate` and `--thread` stop, as `rp check` stops, on a path of the wrong kind where a folder holding the role's files belongs (02879b0f).
+- Changeset brought up to date (510d1da3).
+- `npm test`: 625 pass. The flow driven as roles reach it, from the delivered assignments: `3-implementation/notes/exercise.txt`, printed by `exercise.sh <rp.mjs>`. The stated command in a repository whose path holds a space: `3-implementation/notes/paths-with-spaces.txt`, printed by `paths-with-spaces.sh <rp.mjs>`.
 
 ## Remaining
 
-None.
+- Whether the stated command quotes paths a shell would split is design-doc-decision-7's, asked of the design-doc producer with a reproduction. If the decision changes, the `rp`, `pipeline-folder`, and `thread` template values follow it.
 
 ## Decisions
 
@@ -33,6 +39,8 @@ None.
 - `close` replaces only the bytes of the `status` value; `escalate` writes `cites` plain, else double- or single-quoted, whichever the frontmatter grammar reads back as the text given.
 - A wrong use prints the reason, then on its own line what to run instead; a command line a command does not take prints `usage: node rp.mjs <form>`, for every command.
 - `rp validate` prints `accepted: every file of <role>`, or `accepted: <path>` with `--file`; a `--file` that is missing stops it.
+- An open about an artifact the role does not consume, such as a producer's thread downstream, is accepted, as `rp check` accepts it: the spec leaves the reviewer's case out, and no source leads a role to open one.
+- The empty-body check reads the body as UTF-8 and refuses it when it holds no non-whitespace character; it runs before the thread checks of `reply` and `close`.
 - `--role owner` passes the role grammar; the thread grammar and the awaited-role rule refuse every thread command it runs.
 - Commit order: the from-intent requirements first (d3e425d5, 660c493b, 4a266fd5), then spec-requirement-13 (c0f92593), spec-requirement-17 (9656dc9b), and spec-requirement-6 (bad726a8). spec-requirement-5 lands with d3e425d5: a heading names some commit, and design-doc-decision-5 decides `HEAD`.
 - `npm run test:opencode` was not run: it installs opencode from npm and exercises the plugin's materialization, which reads no thread grammar; the plugin's unit tests pass in `npm test`.

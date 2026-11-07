@@ -6,10 +6,12 @@ wake reviewer-default assignment <repo>/.git/worktrees/demo-review-default/rp/re
 [exit 0]
 
 $ sed -n '/^Write your review/,/lists them\.$/p' <repo>/.git/worktrees/demo-review-default/rp/reviewer.md
-Write your review as you would post it on the pull request, and open it with this command, the review on its standard input:
+Write your review as you would post it on the pull request, and open it with this command, your review in place of `<your review>`:
 
 ```
-node <rp> thread open <repo>/.worktrees/demo-review-default/.pipelines/demo --role reviewer-default --artifact implementation --body -
+node <rp> thread open <repo>/.worktrees/demo-review-default/.pipelines/demo --role reviewer-default --artifact implementation --body - <<'EOF'
+<your review>
+EOF
 ```
 
 It prints the path of your review thread. If you would merge the change as it stands, approve it then:
@@ -26,7 +28,7 @@ $ ls <repo>/.worktrees/demo-review-default/.pipelines/demo
 [exit 0]
 
 $ cd <repo>/.worktrees/demo-review-default && node <rp> thread open <repo>/.worktrees/demo-review-default/.pipelines/demo --role reviewer-default --artifact implementation --body - <<'EOF'
-### Finding 1: `a` changes without a test
+### Finding 1: `a` changes without a test, and `$HOME` stays as written
 
 ```js
 ## not a message heading: fenced
@@ -47,9 +49,9 @@ owner: implementer
 artifact: implementation
 ---
 
-## reviewer-default — 545368f2e7750442f08a8e761e8382dca7ac063e
+## reviewer-default — 204b579eb2b881717a1f7261dbbb69b8bf330b7e
 
-### Finding 1: `a` changes without a test
+### Finding 1: `a` changes without a test, and `$HOME` stays as written
 
 ```js
 ## not a message heading: fenced
@@ -72,7 +74,7 @@ $ grep '^- rp: ' <repo>/.git/rp/implementer.md
 [exit 0]
 
 $ node <rp> thread reply --thread .pipelines/demo/threads/1-reviewer-default-implementer-implementation.md --body - <repo>/.pipelines/demo --role implementer <<'EOF'
-### Finding 1: changed in ddd0aa4
+### Finding 1: changed in 43346df
 
 A test covers it.
 EOF
@@ -91,8 +93,10 @@ $ node <rp> next <repo>/.pipelines/demo --apply | grep '^wake reviewer-default a
 wake reviewer-default assignment <repo>/.git/worktrees/demo-review-default/rp/reviewer.md
 [exit 0]
 
-$ cd <repo>/.worktrees/demo-review-default && node <rp> thread close <repo>/.worktrees/demo-review-default/.pipelines/demo --role reviewer-default --thread <repo>/.worktrees/demo-review-default/.pipelines/demo/threads/1-reviewer-default-implementer-implementation.md --status approved
-rp: thread close: an approval names the commit it approves in its reviewer's last message, and the last message of threads/1-reviewer-default-implementer-implementation.md is implementer's at ddd0aa4c33197e153b7e0d947e609495a64af32f
+$ cd <repo>/.worktrees/demo-review-default && node <rp> thread close <repo>/.worktrees/demo-review-default/.pipelines/demo --role reviewer-default --thread <repo>/.worktrees/demo-review-default/.pipelines/demo/threads/1-reviewer-default-implementer-implementation.md --status approved <<'EOF'
+The test resolves it.
+EOF
+rp: thread close: an approval names the commit it approves in its reviewer's last message, and the last message of threads/1-reviewer-default-implementer-implementation.md is implementer's at 43346df71fc2612727b2e5e911e220294a39fafd
 run the same command with --body <file | ->: your closing message names the commit you approve
 [exit 1]
 
@@ -117,12 +121,17 @@ no fix, repair, or INVALID line
 
 $ node <rp> thread open <repo>/.pipelines/demo --role implementer --artifact intent --body /dev/null
 rp: thread open: the intent is the owner's
-raise a disagreement on what it means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->
+raise a disagreement on what the intent means or demands with rp thread escalate --cites <thread path | evidence path> --body <file | ->
 [exit 1]
 
-$ node <rp> thread reply <repo>/.pipelines/demo --role implementer --thread .pipelines/demo/threads/1-reviewer-default-implementer-implementation.md --body /dev/null
+$ node <rp> thread reply <repo>/.pipelines/demo --role implementer --thread .pipelines/demo/threads/1-reviewer-default-implementer-implementation.md --body <bodies>/closing.md
 rp: thread reply: threads/1-reviewer-default-implementer-implementation.md is approved, and a closed thread is history
 open a new thread with rp thread open
+[exit 1]
+
+$ node <rp> thread open <repo>/.pipelines/demo --role implementer --artifact spec --body - </dev/null
+rp: thread open: the body on standard input is empty
+write the message on standard input, or in the file --body names, and run the command again
 [exit 1]
 
 $ node <rp> thread open <repo>/.pipelines/demo --role implementer --artifact spec --body - <<'EOF'
