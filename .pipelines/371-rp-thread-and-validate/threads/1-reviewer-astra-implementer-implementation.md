@@ -1,3 +1,11 @@
+---
+{
+  "inputs": [
+    "0-intent/intent.md@fac028da676c"
+  ],
+  "reviewed": "f938c7df1f2751b7e10444e06aafa53fc6eb5387"
+}
+---
 status: approved
 opener: reviewer-astra
 owner: implementer
