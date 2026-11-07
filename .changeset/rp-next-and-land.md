@@ -2,7 +2,7 @@
 "@automattic/radical-pipelines": minor
 ---
 
-BREAKING: Run each loop step with `rp next` and `rp land`, which replace `rp assign`, `rp review`, and `rp stamp`.
+BREAKING: Run each loop step with `rp next` and `rp land`, which replace `rp stamp`.
 
 `rp next <pipeline folder>` prints the step's plan and changes nothing: the frontier, the lane branches and worktrees to create, move, or remove, the roles to terminate, each role to wake with its worktree, model name, phase, resources, and assignment path, and every lifecycle hook the step fires, the worktree hooks with the role each worktree is for. `rp next <pipeline folder> --apply` does exactly what the plan states — it builds each review lane's change from the pipeline tip, writes each woken role's assignment, and records each role's turn — and applying again, or again after a failed action is repaired, repeats nothing already done. A lane whose turn ended without landing is landed first, and a lane whose landing would reject a file it wrote is woken in its worktree as it stands to repair it; a lane's commits that have not landed are never discarded.
 
