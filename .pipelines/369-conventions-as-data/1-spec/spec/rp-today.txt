@@ -1,0 +1,21 @@
+$ node skills/radical-pipelines/scripts/rp.mjs
+rp — Radical Pipelines state tooling
+
+Usage:
+  node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
+  node rp.mjs stamp <file> --at <commit>
+  node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
+  node rp.mjs review <pipeline folder> --lane <lane> [--json]
+
+See README.md beside this script.
+
+$ grep -nE "\.rp(\.local)?\.md" skills/radical-pipelines/scripts/rp.mjs
+(no match)
+
+$ grep -n "^import" skills/radical-pipelines/scripts/rp.mjs
+5:import { execFileSync, spawn } from "node:child_process";
+6:import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+7:import { tmpdir } from "node:os";
+8:import { basename, dirname, join, relative, resolve, sep } from "node:path";
+9:import { pathToFileURL } from "node:url";
+10:import process from "node:process";

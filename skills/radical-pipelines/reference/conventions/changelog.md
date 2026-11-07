@@ -2,6 +2,51 @@
 
 Entries are ordered by version. Version 0 is the unstamped format.
 
+## 7
+
+Migrate from version 6.
+
+### Data
+
+Move these sections into the frontmatter's data (`../../scripts/README.md` § Conventions data), with every value and text unchanged, and remove them from the body:
+
+- `Worktree folder root` → `worktree-folder-root`.
+- `Commit format` → `commit-format`, a list of its lines when it has several.
+- Each `Guardrails` block → an entry of `guardrails` under its name: its `rule`, and its `agents` as `profiles`.
+- Each `Resources` block → an entry of `resources` under its name: its `resource`, and its `agents` as `profiles`.
+- `Agents` → `agents`: each profile's `model` and `subagents`, and its lanes under `lanes` by id, each with its `brief`, `model`, and `subagents`.
+
+Offer `landing-commit`, the template of the commits `rp land` makes, proposing one that the commit format's examples follow, such as `{subject} (orchestrator)`. Offer variables for the placeholders these texts use (`setup.md` § Write). In `.rp.local.md`, the same conventions move into its frontmatter, without `conventions`.
+
+### Pipelines
+
+A pipeline whose `run-config.md` carries no `format` 7 is listed by discovery with its format and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
+
+## 6
+
+Migrate from version 5.
+
+### Profiles
+
+Four profiles remain: `spec-producer`, `design-doc-producer`, `implementer`, `reviewer`. In `Agents`, and in the `agents` of every `Guardrails` and `Resources` block:
+
+| Existing profile | Becomes |
+| --- | --- |
+| `build-worker`, `document-worker` | `implementer` |
+| `build-reviewer`, `document-reviewer` | `reviewer` |
+| `build-plan-producer`, `document-plan-producer`, `spec-reviewer`, `design-doc-reviewer`, `helper` | removed |
+
+When renamed blocks give one profile different models, ask the owner which to keep. Drop a block's removed profiles, and the block when none remain.
+
+### Lanes
+
+- `build-reviewer` and `document-reviewer` lanes become `reviewer` lanes. Ask the owner whether each `spec-reviewer` or `design-doc-reviewer` lane becomes a production lane of that artifact's producer, keeping its brief as the direction it explores, or is dropped.
+- Remove every lane's `materials` and `after`.
+
+### Pipelines
+
+A pipeline whose `run-config.md` carries no `format` 6 is listed by discovery as `earlier` and never continued: work on its issue starts a new pipeline, from the base branch or from its tip.
+
 ## 5
 
 Migrate from version 4.

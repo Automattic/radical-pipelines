@@ -106,40 +106,7 @@ export async function run(ctx) {
       assert.equal(failed.error?.type, "provider.no-route");
     });
 
-    await runCheck(results, "network smoke: rp_spawn works end to end against the github-installed plugin", async () => {
-      const orchestrator = await createSession(server, {
-        agent: "build",
-        directory: smokeProjectDir,
-        model: { providerID: "opencode", id: "hy3-free" },
-      });
-      const result = await driveViaRealModel(
-        server,
-        orchestrator.id,
-        "Call the rp_spawn tool with name=\"smoke-child\", agent=\"helper\", model=\"opencode/hy3-free\", directory=" +
-          JSON.stringify(smokeProjectDir) +
-          ", prompt=\"say hello\", pipeline_slug=\"smoke-run\". Report only the returned session id, nothing else.",
-      );
-      assert.ok(result.includes("ses_"), `expected a spawned session id in the reply, got: ${result}`);
-    });
   } finally {
     stopServe(child);
   }
-}
-
-/**
- * Drive a real (non-stub) model with a natural-language instruction and
- * return its final text reply. Unlike the core suite's deterministic
- * directive mechanism, this relies on the free model's own reasoning to
- * decide to call the named tool — appropriate only for this
- * network-dependent smoke path.
- *
- * @param {object} server
- * @param {string} sessionID
- * @param {string} instruction
- * @returns {Promise<string>}
- */
-async function driveViaRealModel(server, sessionID, instruction) {
-  await prompt(server, sessionID, instruction);
-  const done = await waitForAssistantFinish(server, sessionID, "stop", { timeoutMs: 60_000 });
-  return done.content?.find((c) => c.type === "text")?.text ?? "";
 }

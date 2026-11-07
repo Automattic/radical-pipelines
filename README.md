@@ -20,51 +20,84 @@ Beyond that:
 
 ## The proposal
 
-An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases. Each phase produces concrete, inspectable assets, and the pipeline can run partially or fully without human intervention.
+An agent orchestrator that runs teams of agents autonomously through a pipeline of defined phases. Each phase produces a concrete artifact committed to the repository, and the pipeline runs to the phase you choose without human intervention.
 
 The phases are:
 
-- **Phase 0. Intent.** The initial request, binding constraints, and proposals to investigate.
-- **Phase 1. Spec.** Requirements, acceptance criteria and out of scope.
-- **Phase 2. Design doc.** Architecture, technical decisions, and where each outcome is proven.
-- **Phase 3. Build.** The build plan and its tasks, the code with the unit and end-to-end tests the design doc calls for, and behavior verification.
-- **Phase 4. Document.** The document plan and its tasks, and both internal and external documentation.
+- **Phase 0. Intent.** The owner's goal, binding constraints, and proposals to investigate, approved by the owner before it is written.
+- **Phase 1. Spec.** Requirements, acceptance criteria, exclusions, and the cases considered and not required. Every requirement traces to the intent.
+- **Phase 2. Design doc.** Component responsibilities, their contracts, and the decisions behind them, each serving named requirements.
+- **Phase 3. Implementation.** The code, its tests, and its documentation, built by one implementer that holds the whole change.
+- **Phase 4. Review.** The change judged as a whole against the intent, by reviewers who see only what a pull-request reviewer sees: the issue and the change.
 
-Planning is not a separate phase: the Build and Document phases each begin by committing a plan and getting it approved.
+The full model, and why it differs from the previous architecture, is in [docs/model.md](./docs/model.md). Terms are defined in the [glossary](./docs/glossary.md).
 
-In this model (see the [glossary](./docs/glossary.md)), a pipeline is a converging set of artifacts: it is done when every artifact through the target phase exists, is approved, is fresh with respect to its inputs, its tasks are executed, every in-scope challenge and claim is resolved, and its phase reviews have seen all of its code. State is computed from the tree. Each agent commits the screenshots, logs, transcripts, and helper answers its file cites in a supporting folder beside that file, outside pipeline state. Later input is recorded in phase 0 as one `constraint-<n>.md` per binding ruling, `proposal-<n>.md` per request to investigate, or `failure-<n>.md` per reported failure — a result observed outside the run, such as a command the owner ran or CI — each with `target:` and `origin:`. Proposals may be adopted or refuted with evidence; constraints must be satisfied; a reported failure, like a failed task report, puts its target under experiment, where its producer attempts to reproduce it and compares the candidate causes before adopting or refuting it. The earliest target is handled first, and each target resolves its part through consumption and an approving review wave. A Build input therefore starts at Build; changed artifact identities drive the normal downstream cascade. Requirements cover the cases the intent makes material; a design mechanism is proportionate to that, and the case it leaves uncovered is recorded with its consequence and judged by it. Each phase binds at its boundaries and leaves the inside to the phase that observes it: the design doc decides contracts, the build worker the code within them and its tests, the document planner assigns documentation areas and the document writer determines each file's readers, content, and depth from the documentation and the shipped code; an obligation an agent chose is that agent's to revise. Build delivers the shipped code — code, tests, and configuration, with their comments and inline API documentation — and Document all other documentation; what an obligation requires of either is that phase's to plan, deliver, and judge. An unsatisfiable input travels as a claim to its target; only the intent's Goal and constraints, including constraint files, require the owner's ruling. A constraint or a proposal answers an owner claim when it cites that claim and targets the root artifact of the phase that raised it, returning work there. A task report ends `completed`; `failed` — the product was observed and contradicts the task, or the task is contradictory or incomplete, with reproducible evidence; or `blocked` — something the worker was given failed it — malformed materials, an unreadable input, or a broken seat or its environment — and the report names what failed, with the evidence locating it, for the orchestrator to repair before the next attempt.
+### Roles
 
-Every orchestrator synthesis of incoming work is shown to the owner as it will be recorded, in plain language, explaining what is binding, what remains open to investigation, and what it affects. The owner approves that synthesis before it is written, including input from pull-request reviews. A reported failure carries no ruling: it is recorded as given, with its evidence, and the agents investigate it; on a pipeline whose run configuration is recorded, its run starts without asking the owner anything. Later input holds only what the owner gave, in the fewest words that carry it; causes, affected artifacts or clauses, and remedies the owner did not state are left to the agents. The orchestrator routes from the request and the pipelines' state; every investigation — of code, evidence, the running software, or its environment — is the agents'. An issue already in intent format, with no comments, references, links, or attachments to synthesize, is copied directly. Approving a proposal authorizes investigation, not its proposed outcome.
+Each artifact has one owner, which answers for it:
 
-The Spec and Design doc phases can run **multilane**: named production lanes, each with its own brief and model, produce and review a candidate in `<phase>/lanes/<lane>/` — in parallel, or one after another to diverge from what came before — then a producer in Consolidate mode merges the candidates into one canonical artifact for final adversarial review. Without lanes, the plain single flow. Each pipeline records its workflow, target phase, and lanes in `run-config.md`; the file remains with the merged pipeline.
+- **The orchestrator** is the session that runs the skill. It talks with the owner, records phase 0, runs each step `rp` plans — firing the plan's hooks and waking the roles it names — lands each turn with `rp`, and opens the pull request. It judges no content and relays no message.
+- **`spec-producer`** owns the spec, **`design-doc-producer`** the design doc, and **`implementer`** the code, its tests, its documentation, and `notes.md`, the file it resumes from. **`reviewer`** owns the review thread of its lane and talks only with the implementer, who carries a finding that questions a requirement or a design decision to that clause's owner.
 
-The pipeline is **autonomous by default, assisted when needed.** After triage, questions are reserved for owner escalations and approval of incoming work. While waiting for agents, the orchestrator ends its turn and resumes on incoming messages or scheduled health ticks. The Spec and Design doc phases can instead run in assisted mode.
+Each role works from its assignment: the filled prompt `rp` writes into the role's worktree git directory before every turn, from the pipeline and the project's conventions, which the role rereads at each turn and after a compaction. Every role delegates bounded work to its tool's own subagents, on the model its tool finds by the subagent model name its assignment gives, and stays responsible for what they return.
 
-It is **inspectable.** Every phase produces artifacts your team can review before the final PR. A phase review covers the code as its reviewer saw it; [`rp diff`](./skills/radical-pipelines/scripts/README.md#diff) renders what changed since, however the branch was rebased or merged.
+### Observe the present, assume the future
 
-It can add **determinism through redundancy.** For complex tasks, you should be able to spend more tokens on the same surface with multiple runs, validation checks, adversarial agents, and different models from different providers to converge on a more reliable output.
+Every role runs with full execution: it reads, runs, builds, and drives the software, starts the environments the project lists under **Resources**, and reproduces failures. A claim about what the system does today is observed, and the artifact says how. A claim about what the solution will do is assumed, and the artifact says what will confirm it; the implementer verifies it. Only the implementer writes solution code.
+
+The burden is on the clause. A requirement or decision the owner did not state stands only with a trace to the intent and an input observed in intended use: a use the intent names, or one the project's documentation or code shows a consumer making. In a dispute, observed stands and conceivable falls. The spec lists the cases its producer examined and left out under **Considered and not required**, so they are not raised again.
+
+### Threads
+
+Roles talk through threads: one file per conversation between two roles about one artifact, in the pipeline's `threads/` folder. A role that finds a problem in an artifact it consumes opens a thread to that artifact's owner; nobody opens one downstream. Each message ends its author's turn. The orchestrator wakes the addressee, which revises its artifact and answers each finding with the commit that addresses it, or with why the artifact stands.
+
+A dispute about a derived requirement or a design decision is settled inside its thread by observation. Where the intent's words leave a question open, the producer takes the reading the Goal and intended use support and records the other in the artifact, where the owner can correct it. Only a disagreement between roles about what the intent means or demands, or evidence that every kind of approach fails it, reaches the owner. Artifacts hold only the final truth; the discussion stays in the threads.
+
+### Pins and state
+
+When a role's turn lands, `rp` pins the exact version of every input the artifact consumed, by content, in a certification file only `rp` writes; the artifact itself is never touched. When an input changes — the owner edits the spec, a later constraint targets the design doc — every artifact that pinned the old version is stale, and its owner revises it. A review approval pins the intent and the later inputs its reviewer read, and records the commit whose code it approved; it stays valid while the code differs from that commit's only by clean merges of the base branch.
+
+State is computed from the tree: [`rp check`](./skills/radical-pipelines/scripts/README.md#check) names the frontier, the next roles to wake. Each step of the loop is [`rp next`](./skills/radical-pipelines/scripts/README.md#next), which plans the step and with `--apply` creates the lane branches and worktrees and writes each assignment, and [`rp land`](./skills/radical-pipelines/scripts/README.md#land), which lands each turn; the orchestrator adds only its tool's spawning and waking and the project's hooks. Roles write their threads with [`rp thread`](./skills/radical-pipelines/scripts/README.md#thread) and check their own files with [`rp validate`](./skills/radical-pipelines/scripts/README.md#validate) before they end a turn, so a role fixes a malformed file in the turn that wrote it. Any orchestrator, on any machine, continues a pipeline from its files, even in a clone that lacks the pipeline's history after a squash merge.
+
+### Redundancy by configuration
+
+A project may configure **production lanes** for the spec and the design doc: named lanes, each with a model and an optional brief, that write candidates in parallel. The producer then consolidates them into the artifact. What every lane reached is kept; what only one lane reached is a question, answered by observing whether intended use produces it. Two independent readings of the intent show both what one reading missed and what it added.
+
+The review runs one **review lane** per configured `reviewer` lane, each with its brief when it has one, and every lane must approve. Lanes are configured once in the project's `.rp.md`, the same for every pipeline. Setup proposes two, without a brief, on models from different providers. Each reviewer gets the request a developer would: review the code on this branch, which addresses this issue, and report anything wrong, missing, risky, or more than the issue needs.
+
+### What the owner is asked
+
+The owner talks only to the orchestrator, which asks three kinds of question:
+
+- to approve the synthesis of an intent, constraint, or proposal before it is written;
+- to decide a disagreement about what the intent means or demands;
+- to confirm a run when its configuration or routing is not settled.
+
+A reported failure — a result observed outside the run, such as a command the owner ran or CI — is recorded as given, with its evidence, and the roles investigate it. Corrections arrive as later input in phase 0, each targeting the artifact where the work diverged, and the pins carry them downstream. The owner may also read and edit any artifact at any time.
+
+A pipeline may stop at an earlier phase so the owner can read the spec or the design doc before implementation. While roles work, the orchestrator ends its turn and resumes on their reports or on scheduled health ticks.
 
 ## What this unlocks
 
 - **Parallel throughput.** Instead of assisting one agent at a time, a human can launch multiple autonomous pipelines and review their outputs when they're done. The constraint shifts from "how many agents can I supervise" to "how many can I review".
 - **Compounding quality.** When a pipeline produces a bad result, incoming work targets the artifact where it diverged (a wrong assumption in the spec, a missing constraint in the design doc). Its effects cascade through every downstream artifact, not just the output that exposed it.
-- **Consistent assets.** Tests, documentation, and other artifacts that today depend on human diligence become a planned, reviewed part of every run.
+- **The whole change, judged against the intent.** One implementer delivers the code, its tests, and its documentation together, and the review judges the change as a whole against what was asked: anything wrong, missing, risky, or more than the intent needs.
 - **Shareable work-in-progress.** Because every phase produces a concrete artifact, the state of a task becomes visible across the team long before a PR exists. Multiple people can review intermediate outputs and advance the same task through the pipeline, instead of only being able to react to the final result.
 
 ## Why now
 
 - **Agents have crossed the quality threshold.** They are already capable of executing autonomously and doing a very good job, as long as the requirements are well-defined.
 - **Human attention is becoming the bottleneck.** As agent adoption grows, the limiting factor in development is no longer the agents' ability to write code, it's the human time spent assisting them. Every hour spent steering an agent in real time is an hour not spent on decisions that actually need a human. And even when agents go off track, it's more optimal to inspect where they deviated, supply the correction, and let the pipeline converge autonomously, rather than assisting them step by step.
-- **The tooling is mature enough.** Tools like Claude Code already provide the necessary primitives (skills, teams of agents, agent definitions, hooks...) to build a pipeline like this without a large investment in custom infrastructure, and for this reason, whatever is built can evolve naturally alongside them as they improve.
+- **The tooling is mature enough.** Tools like Claude Code and opencode already provide the necessary primitives (skills, background subagents, agent definitions, scheduled tasks...) to build a pipeline like this without a large investment in custom infrastructure, and for this reason, whatever is built can evolve naturally alongside them as they improve.
 
 ## Success metrics
 
-[`rp metrics`](./skills/radical-pipelines/scripts/README.md#metrics) measures each pipeline from its tree and history. Human intervention is later input — a constraint, proposal, or reported failure recorded in phase 0 after the intent — and the assisted workflow.
+Every metric is read from a pipeline's tree and its history. Human intervention is what the owner contributed after the intent: each later input in `0-intent/` (a constraint, proposal, or reported failure) and each thread addressed to `owner`.
 
-- **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task. `rp metrics` reports the pipeline's elapsed time and every later input it took — the moments that cost the human's attention.
-- **Pipeline completion rate.** Percentage of tasks that make it from intent through the target phase without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint. `rp metrics` reports whether a pipeline reached its target autonomously; the rate is that share across pipelines.
-- **Correction efficiency.** When a human supplies a correction, how many review waves does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections. `rp metrics` counts, per later input and target artifact, the waves carrying it through the first valid one.
-- **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human. `rp metrics` reports it per pipeline, naming each phase's workflow — read from the run configuration of the commits that touched it — and the later inputs behind it.
+- **Human time per task.** For a set of representative tasks, measure the total human time spent when using the pipeline vs. assisting an agent directly. The pipeline should require significantly less human time per task. The pipeline's elapsed time runs from the commit of its intent to its last commit (`git log` on the pipeline folder); each later input and each thread addressed to `owner` marks a moment that cost the human's attention.
+- **Pipeline completion rate.** Percentage of tasks that make it from intent through the target phase without requiring human intervention. A higher rate means the pipeline is genuinely autonomous, not just deferring work to the human at every checkpoint. A pipeline counts when `rp check` reports `complete` and its tree holds no later input and no thread addressed to `owner`.
+- **Correction efficiency.** When a human supplies a correction, how many rounds does it take to reach an acceptable result? Fewer rounds mean the pipeline is surfacing the right information for the human to make effective corrections. Count the threads opened, and their messages, between the commit of a later input and the next commit at which `rp check` reports `complete`.
+- **Autonomy ratio.** For each task, the number of phases that ran autonomously vs. the number that required human intervention. Tracking this across tasks shows whether the pipeline is trending toward more autonomy over time, or whether certain phases consistently need a human. A phase required intervention when a later input's `target` names its artifact or a thread addressed to `owner` cites a thread about it.
 
 # Project Usage
 
@@ -101,11 +134,13 @@ This reads the plugin from the working tree on each start (no cache copy), so ed
 The plugin currently bundles:
 
 - the `radical-pipelines` skill, a real directory at `skills/radical-pipelines/`.
-- agent profiles in the root `agents/` directory.
+- the four agent profiles in the root `agents/` directory, each registered as an agent type.
 
 Plugin skills are namespaced by the plugin name in Claude Code (not by the marketplace name). After installing, invoke the skill with `/radical-pipelines:radical-pipelines` or ask Claude Code to run Radical Pipelines.
 
-A long run outlives its context: when Claude Code compacts a session, it re-injects the body of every invoked skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage, checking which agents are already working before dispatching. No hook is needed.
+A long run outlives its context: when Claude Code compacts a session, it re-attaches the first 5,000 tokens of the skill, and the skill opens with the instruction for exactly that moment — treat the summary as unreliable, follow the skill again as at first sight, and resume a run under way without triage: recompute the state with `rp check`, find the roles still running, land each when it ends its turn, and only then plan the next step, waking each role as a fresh instance. No hook is needed.
+
+The orchestrator seats each role in its worktree by spawning it from that directory, so the **Worktree folder root** must be inside the repository; `.worktrees/` qualifies. Models in the **Agents** convention are Claude Code aliases (`opus`, `sonnet`, `haiku`, `fable`); map any other name to an alias in a `## Claude Code` section of `.rp.md`, which the orchestrator spawns roles on. A role whose subagent model is no alias runs its subagents on its own model. A role's permission prompt reaches you in the orchestrator's session.
 
 The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are the real sources, served directly from the repository root: the directories the Claude Code plugin reads are the canonical sources themselves, with no hidden source directory and no mirror-symlink scheme.
 
@@ -113,12 +148,16 @@ The skill at `skills/radical-pipelines/` and the agent profiles in `agents/` are
 
 Radical Pipelines supports stable opencode v2 (the `opencode` binary). Install it through opencode's global plugin configuration using its Git source.
 
-Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`:
+Add RP to the `plugins` array in your global `~/.config/opencode/opencode.json`, and enable the two experimental settings the orchestrator relies on: `schedules`, for its health ticks, and a `subagent_depth` of at least 2, so the roles it spawns can delegate to their own subagents:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["github:Automattic/radical-pipelines"]
+  "plugins": ["github:Automattic/radical-pipelines"],
+  "experimental": {
+    "schedules": true,
+    "subagent_depth": 2
+  }
 }
 ```
 
@@ -128,15 +167,16 @@ Then restart the opencode service:
 opencode service restart
 ```
 
-A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. After the restart:
+A single restart is enough — the plugin finishes its setup before opencode scans agents, so the skill and every agent are usable as soon as the service is back. Before its first run, the orchestrator checks that the plugin is loaded and both settings are on, and stops with a pointer to this section when one is missing.
 
-- The `radical-pipelines` skill is invokable, and a session that activated it gets it back after opencode's context compaction.
-- RP's agent profiles register as `radical-pipelines/<name>`; `rp_spawn` accepts the plain profile name, and the plugin's tools are scoped to the calling session — the orchestrator reaches every tool, a spawned agent only `rp_send`, a subagent none.
-- A spawned agent reports to its spawner with `rp_send`; the plugin announces its failed turns and those that end without a message, and its out-of-worktree read requests to the spawner, which answers with `rp_permission_reply` and ends the agent with `rp_terminate`.
-- `rp_status` reports pipeline health with `pipeline_slug` and investigates one agent with `session`; a read that fails leaves its facts unknown rather than reporting a healthy pipeline.
-- Health loops skip active sessions, steer into stalled ones, back off while the target's turns fail, interrupt a dead provider stream once, and retire when the target is gone.
+The orchestrator drives roles with opencode's own primitives: it creates each role as a child session, moves it to its worktree, starts and wakes it with the `subagent` tool, learns that it finished or failed from opencode's completion notice, and runs health ticks as schedules. The plugin ships only what opencode lacks:
 
-The full behavior — the skill re-supply mechanism, status fields, the health loop's dead-stream heuristic and its single-observer assumption, and tool scoping — is documented in [docs/opencode-plugin.md](./docs/opencode-plugin.md).
+- **Skill registration and re-supply.** The `radical-pipelines` skill is invokable, and a session that activated it gets it back after opencode's context compaction.
+- **Profile registration.** RP's four agent profiles register as the subagents `radical-pipelines/<profile>`.
+
+A role's permission request reaches you in opencode's interface; answer it there. Models in the **Agents** convention are `provider/model[#variant]` strings, names an `## opencode` section of `.rp.md` maps to one, or names opencode's model search finds, such as `sonnet`. A role finds its subagent model by its name through that search, its own provider's first.
+
+The full behavior, and what opencode covers natively, is documented in [docs/opencode-plugin.md](./docs/opencode-plugin.md).
 
 ### Updating
 
@@ -147,18 +187,15 @@ opencode plugin update github:Automattic/radical-pipelines
 opencode service restart
 ```
 
-The plugin refreshes its packaged skill and materialized agents during setup. Use `opencode plugin check` to check for available plugin updates.
+The plugin refreshes its packaged skill and agent profiles during setup. Use `opencode plugin check` to check for available plugin updates.
 
 ### Checking the installed version
 
-opencode reports plugin ids, not versions, so RP surfaces its own version:
-
-- Run the `rp_status` tool: its `pluginVersion` reports the running plugin as `radical-pipelines@<version>`, where `<version>` is the installed RP version.
-- opencode's HTTP API reports the same id: `opencode api GET /api/plugin` returns the `radical-pipelines@<version>` plugin id.
+opencode reports plugin ids, not versions, so RP carries its version in its id: `opencode api GET /api/plugin` lists `radical-pipelines@<version>`, where `<version>` is the installed RP version.
 
 ## Configuration
 
-The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": <version>`, the version of the conventions format, so the loader can migrate older files or ask the owner to update the skill when a file is newer. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
+The skill is generic: each project records its conventions in a committed `.rp.md`. Its frontmatter, a JSON object, carries `"conventions": <version>`, the version of the conventions format — currently 7 — so the loader can migrate older files or ask the owner to update the skill when a file is newer. It also holds, as named entries, the conventions `rp` reads — the worktree folder root, the landing commit template, and what every role's assignment carries: commit format, guardrails, resources, agents, and variables — which `rp` validates and acts on — it places lane worktrees, shapes the commits it makes, and writes each assignment from them; the other conventions are prose sections below it. If the file is absent or required conventions are missing, the interactive setup writes it only after the owner confirms the proposed content.
 
 | Convention             | What it covers                                                                             | Required |
 | ---------------------- | ------------------------------------------------------------------------------------------ | -------- |
@@ -168,17 +205,19 @@ The skill is generic: each project records its conventions in a committed `.rp.m
 | Pipelines folder root  | Where pipeline folders live                                                                | No       |
 | Artifact storage       | Whether artifacts live in the project's repository or a fork, and the artifact base branch | Yes      |
 | Worktree folder root   | Where worktrees live                                                                       | Yes      |
+| Landing commit         | The template of the commits `rp` makes when it lands a turn                                | No       |
 | Commit format          | How agents write commits                                                                   | No       |
 | PR format              | How pull request titles and descriptions are written                                       | No       |
 | Guardrails             | Rules the project's agents must satisfy                                                    | No       |
-| Resources              | What the project's agents have available and how to use it                                 | No       |
+| Resources              | What every role may run and use — environments, services, accounts, data — and how         | No       |
 | Lifecycle hooks        | Prose instructions run at defined pipeline moments                                         | No       |
-| Agents                 | Defaults for profile models and named lanes                                                | No       |
+| Agents                 | The model of each profile — `spec-producer`, `design-doc-producer`, `implementer`, `reviewer` — and of its subagents, production lanes for the two producers, and review lanes for `reviewer` | No |
+| Variables              | Placeholders the guardrail, resource, commit-format, and brief texts use, such as `{agent}`, each a template over pipeline facts such as `{pipeline-slug}` and `{role}` | No |
 | Health monitoring      | Health-loop interval and stall threshold                                                   | No       |
 
 A developer can override conventions for their own working copy with a git-ignored `.rp.local.md` alongside `.rp.md`: the local file wins per named unit, and the committed file supplies everything else. The active tool's mechanics — spawning, agent IDs, messaging, seating, termination, health monitoring, and model values — live in the skill's [`tools/`](./skills/radical-pipelines/tools/) files; the active tool section in `.rp.md` overrides or extends them. See the [convention loader](./skills/radical-pipelines/reference/conventions/load.md) and [setup flow](./skills/radical-pipelines/reference/conventions/setup.md) for the full procedure.
 
-Producers and reviewers report blockers for malformed materials, unreadable inputs, and broken seats or their environments whenever found. Workers report them before their first write; after it, the same failure is a `blocked` report. A failure that passes when rerun on unchanged work is intermittent: it blocks a worker or a review only when the work changes what it exercises.
+A guardrail binds the profiles its entry names, and the reviewer evaluates it against the change. A role reports a blocker when something it was given fails it — its materials, its worktree, or the worktree's environment; the orchestrator repairs it and wakes the role again.
 
 ## Changelog and versioning
 

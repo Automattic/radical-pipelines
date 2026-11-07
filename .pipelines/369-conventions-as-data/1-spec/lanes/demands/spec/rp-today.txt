@@ -1,0 +1,18 @@
+$ node skills/radical-pipelines/scripts/rp.mjs
+rp — Radical Pipelines state tooling
+
+Usage:
+  node rp.mjs check <pipeline folder> [--ref <commit>] [--json]
+  node rp.mjs stamp <file> --at <commit>
+  node rp.mjs pipelines <pipelines folder root> --base <artifact base branch> [--issue <ref>] [--json]
+  node rp.mjs review <pipeline folder> --lane <lane> [--json]
+
+See README.md beside this script.
+
+$ grep -nE "\.rp(\.local)?\.md" skills/radical-pipelines/scripts/rp.mjs
+(no match)
+
+$ ls -a (this worktree) | grep "^\.rp"
+.rp.claude-code.md
+.rp.md
+.rp.opencode.md

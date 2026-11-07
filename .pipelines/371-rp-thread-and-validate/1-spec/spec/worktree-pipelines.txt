@@ -1,0 +1,14 @@
+# The pipeline folders a role seated in a worktree of this repository finds beside its own
+$ ls .pipelines
+368-certification-out-of-files
+369-conventions-as-data
+370-rp-next-and-land
+371-rp-thread-and-validate
+$ grep -H "\"format\"" .pipelines/*/run-config.md
+.pipelines/368-certification-out-of-files/run-config.md:  "format": 6,
+.pipelines/369-conventions-as-data/run-config.md:  "format": 6,
+.pipelines/370-rp-next-and-land/run-config.md:  "format": 6,
+.pipelines/371-rp-thread-and-validate/run-config.md:  "format": 6,
+$ node rp.mjs check .pipelines/370-rp-next-and-land
+rp: .pipelines/370-rp-next-and-land/run-config.md: pipeline of an earlier format; it is not continued
+[exit 1]

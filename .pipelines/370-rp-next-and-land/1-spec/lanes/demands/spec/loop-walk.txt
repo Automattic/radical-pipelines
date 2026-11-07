@@ -1,0 +1,163 @@
+# Today's loop, walked as loop.md directs, in a scratch repository (scripts: loop-walk.sh)
+
+ORCH lines are the orchestrator's commands; ROLE lines stand in for a role's turn. 'g' is git with an identity set.
+
+## Triage (unchanged by the intent): pipeline branch, worktree, intent, run-config
+
+## Step 1: rp check
+ORCH $ node rp.mjs check <scratch>/repo/.worktrees/42-export/.pipelines/42-export
+frontier lane 1-spec/spec.md a
+frontier lane 1-spec/spec.md b
+lane 1-spec/spec.md a missing
+lane 1-spec/spec.md b missing
+artifact 1-spec/spec.md missing
+artifact 2-design-doc/design-doc.md missing
+artifact 3-implementation/notes.md missing
+net-change 4ca63cdcc20a3dd78cc6c78f4dc152bb0678c8f2..fb395fd5c681696fcbc67f51735e188650bfc1fc
+review default unapproved
+review second unapproved
+ORCH $ git -C <scratch>/repo/.worktrees/42-export branch 42-export-spec-a 42-export
+ORCH $ git -C <scratch>/repo/.worktrees/42-export worktree add <scratch>/repo/.worktrees/42-export-spec-a 42-export-spec-a
+Preparing worktree (checking out '42-export-spec-a')
+HEAD is now at fb395fd Add intent
+ORCH $ node rp.mjs assign <scratch>/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer-a
+assignment <scratch>/repo/.git/worktrees/42-export-spec-a/rp/spec-producer.md
+model large
+ORCH $ git -C <scratch>/repo/.worktrees/42-export branch 42-export-spec-b 42-export
+ORCH $ git -C <scratch>/repo/.worktrees/42-export worktree add <scratch>/repo/.worktrees/42-export-spec-b 42-export-spec-b
+Preparing worktree (checking out '42-export-spec-b')
+HEAD is now at fb395fd Add intent
+ORCH $ node rp.mjs assign <scratch>/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer-b
+assignment <scratch>/repo/.git/worktrees/42-export-spec-b/rp/spec-producer.md
+model large
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-spec-a add -A
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-spec-a commit -qm Add candidate a
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-spec-b add -A
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-spec-b commit -qm Add candidate b
+
+## Step 1 landing: turn commit read from each assignment, stamp, commit, merge the lane branch
+ORCH reads spec-producer.md in <scratch>/repo/.worktrees/42-export-spec-a's git dir: Turn commit fb395fd5c681696fcbc67f51735e188650bfc1fc
+ORCH $ node rp.mjs stamp <scratch>/repo/.worktrees/42-export-spec-a/.pipelines/42-export/1-spec/lanes/a/spec.md --at fb395fd5c681696fcbc67f51735e188650bfc1fc
+ORCH $ git -C <scratch>/repo/.worktrees/42-export-spec-a add .pipelines/42-export/certification
+ORCH $ g -C <scratch>/repo/.worktrees/42-export-spec-a commit -qm Stamp candidate a
+ORCH $ g -C <scratch>/repo/.worktrees/42-export merge -q --no-edit 42-export-spec-a
+ORCH reads spec-producer.md in <scratch>/repo/.worktrees/42-export-spec-b's git dir: Turn commit fb395fd5c681696fcbc67f51735e188650bfc1fc
+ORCH $ node rp.mjs stamp <scratch>/repo/.worktrees/42-export-spec-b/.pipelines/42-export/1-spec/lanes/b/spec.md --at fb395fd5c681696fcbc67f51735e188650bfc1fc
+ORCH $ git -C <scratch>/repo/.worktrees/42-export-spec-b add .pipelines/42-export/certification
+ORCH $ g -C <scratch>/repo/.worktrees/42-export-spec-b commit -qm Stamp candidate b
+ORCH $ g -C <scratch>/repo/.worktrees/42-export merge -q --no-edit 42-export-spec-b
+ORCH $ node rp.mjs check <scratch>/repo/.worktrees/42-export/.pipelines/42-export
+frontier consolidate 1-spec/spec.md
+lane 1-spec/spec.md a fresh
+lane 1-spec/spec.md b fresh
+artifact 1-spec/spec.md missing
+artifact 2-design-doc/design-doc.md missing
+artifact 3-implementation/notes.md missing
+net-change 4ca63cdcc20a3dd78cc6c78f4dc152bb0678c8f2..08a86d00af833b0f9def611f158d70e6a60d0236
+review default unapproved
+review second unapproved
+
+## Step 2: consolidate
+ORCH $ git -C <scratch>/repo/.worktrees/42-export worktree remove <scratch>/repo/.worktrees/42-export-spec-a
+ORCH $ git -C <scratch>/repo/.worktrees/42-export branch -D 42-export-spec-a
+Deleted branch 42-export-spec-a (was f722983).
+ORCH $ git -C <scratch>/repo/.worktrees/42-export worktree remove <scratch>/repo/.worktrees/42-export-spec-b
+ORCH $ git -C <scratch>/repo/.worktrees/42-export branch -D 42-export-spec-b
+Deleted branch 42-export-spec-b (was 2657bbf).
+ORCH $ node rp.mjs assign <scratch>/repo/.worktrees/42-export/.pipelines/42-export --role spec-producer
+assignment <scratch>/repo/.git/worktrees/42-export/rp/spec-producer.md
+model large
+ROLE $ g -C <scratch>/repo/.worktrees/42-export add -A
+ROLE $ g -C <scratch>/repo/.worktrees/42-export commit -qm Add spec
+ORCH $ node rp.mjs stamp <scratch>/repo/.worktrees/42-export/.pipelines/42-export/1-spec/spec.md --at 08a86d00af833b0f9def611f158d70e6a60d0236
+ORCH $ git -C <scratch>/repo/.worktrees/42-export add .pipelines/42-export/certification
+ORCH $ g -C <scratch>/repo/.worktrees/42-export commit -qm Stamp spec
+ORCH $ node rp.mjs check <scratch>/repo/.worktrees/42-export/.pipelines/42-export
+frontier produce 2-design-doc/design-doc.md
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md missing
+artifact 3-implementation/notes.md missing
+net-change 4ca63cdcc20a3dd78cc6c78f4dc152bb0678c8f2..7f063195d71c11af3c252c2c289b5df5b82f0213
+review default unapproved
+review second unapproved
+
+## Steps 3 and 4: produce design-doc, produce implementation
+ORCH $ node rp.mjs assign <scratch>/repo/.worktrees/42-export/.pipelines/42-export --role design-doc-producer
+assignment <scratch>/repo/.git/worktrees/42-export/rp/design-doc-producer.md
+ROLE $ g -C <scratch>/repo/.worktrees/42-export add -A
+ROLE $ g -C <scratch>/repo/.worktrees/42-export commit -qm Add design doc
+ORCH $ node rp.mjs stamp <scratch>/repo/.worktrees/42-export/.pipelines/42-export/2-design-doc/design-doc.md --at 7f063195d71c11af3c252c2c289b5df5b82f0213
+ORCH $ git -C <scratch>/repo/.worktrees/42-export add .pipelines/42-export/certification
+ORCH $ g -C <scratch>/repo/.worktrees/42-export commit -qm Stamp design doc
+ORCH $ node rp.mjs assign <scratch>/repo/.worktrees/42-export/.pipelines/42-export --role implementer
+assignment <scratch>/repo/.git/worktrees/42-export/rp/implementer.md
+ROLE $ g -C <scratch>/repo/.worktrees/42-export add -A
+ROLE $ g -C <scratch>/repo/.worktrees/42-export commit -qm Implement
+ORCH $ node rp.mjs stamp <scratch>/repo/.worktrees/42-export/.pipelines/42-export/3-implementation/notes.md --at 01d2b001ef59bcff83581b83f6daa11b45be9990
+ORCH $ git -C <scratch>/repo/.worktrees/42-export add .pipelines/42-export/certification
+ORCH $ g -C <scratch>/repo/.worktrees/42-export commit -qm Stamp notes
+ORCH $ node rp.mjs check <scratch>/repo/.worktrees/42-export/.pipelines/42-export
+frontier review default
+frontier review second
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 4ca63cdcc20a3dd78cc6c78f4dc152bb0678c8f2..dde785d058365399c7134a4c4494b3000d7fce38
+review default unapproved
+review second unapproved
+
+## Step 5: review lanes
+ORCH $ node rp.mjs review <scratch>/repo/.worktrees/42-export/.pipelines/42-export --lane default
+branch 42-export-review-default
+base 20443907fb29d18c13805b279e1a7e6c8e2f9409
+change 39cb7d0e2995a24d51df90cac72ff025c6556bd6
+ORCH $ git -C <scratch>/repo/.worktrees/42-export worktree add <scratch>/repo/.worktrees/42-export-review-default 42-export-review-default
+Preparing worktree (checking out '42-export-review-default')
+HEAD is now at 39cb7d0 rp review change
+ORCH $ node rp.mjs assign <scratch>/repo/.worktrees/42-export/.pipelines/42-export --role reviewer-default
+assignment <scratch>/repo/.git/worktrees/42-export-review-default/rp/reviewer.md
+model large
+ORCH $ node rp.mjs review <scratch>/repo/.worktrees/42-export/.pipelines/42-export --lane second
+branch 42-export-review-second
+base 20443907fb29d18c13805b279e1a7e6c8e2f9409
+change 39cb7d0e2995a24d51df90cac72ff025c6556bd6
+ORCH $ git -C <scratch>/repo/.worktrees/42-export worktree add <scratch>/repo/.worktrees/42-export-review-second 42-export-review-second
+Preparing worktree (checking out '42-export-review-second')
+HEAD is now at 39cb7d0 rp review change
+ORCH $ node rp.mjs assign <scratch>/repo/.worktrees/42-export/.pipelines/42-export --role reviewer-second
+assignment <scratch>/repo/.git/worktrees/42-export-review-second/rp/reviewer.md
+model other
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-review-default add -A
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-review-default commit -qm Approve (default)
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-review-second add -A
+ROLE $ g -C <scratch>/repo/.worktrees/42-export-review-second commit -qm Approve (second)
+
+## Step 5 landing: cherry-pick each lane's commits after its change onto the pipeline branch, stamp at the change, commit
+ORCH reads reviewer.md: Turn commit field: none; the change rp review built: 39cb7d0e2995a24d51df90cac72ff025c6556bd6
+ORCH $ g -C <scratch>/repo/.worktrees/42-export cherry-pick 39cb7d0e2995a24d51df90cac72ff025c6556bd6..42-export-review-default
+[42-export 865302b] Approve (default)
+ Date: Fri Nov 6 21:11:10 2026 +0100
+ 1 file changed, 10 insertions(+)
+ create mode 100644 .pipelines/42-export/threads/1-reviewer-default-implementer-implementation.md
+ORCH $ node rp.mjs stamp <scratch>/repo/.worktrees/42-export/.pipelines/42-export/threads/1-reviewer-default-implementer-implementation.md --at 39cb7d0e2995a24d51df90cac72ff025c6556bd6
+ORCH $ git -C <scratch>/repo/.worktrees/42-export add .pipelines/42-export/certification
+ORCH $ g -C <scratch>/repo/.worktrees/42-export commit -qm Stamp approval default
+ORCH reads reviewer.md: Turn commit field: none; the change rp review built: 39cb7d0e2995a24d51df90cac72ff025c6556bd6
+ORCH $ g -C <scratch>/repo/.worktrees/42-export cherry-pick 39cb7d0e2995a24d51df90cac72ff025c6556bd6..42-export-review-second
+[42-export 4b81bc1] Approve (second)
+ Date: Fri Nov 6 21:11:10 2026 +0100
+ 1 file changed, 10 insertions(+)
+ create mode 100644 .pipelines/42-export/threads/1-reviewer-second-implementer-implementation.md
+ORCH $ node rp.mjs stamp <scratch>/repo/.worktrees/42-export/.pipelines/42-export/threads/1-reviewer-second-implementer-implementation.md --at 39cb7d0e2995a24d51df90cac72ff025c6556bd6
+ORCH $ git -C <scratch>/repo/.worktrees/42-export add .pipelines/42-export/certification
+ORCH $ g -C <scratch>/repo/.worktrees/42-export commit -qm Stamp approval second
+ORCH $ node rp.mjs check <scratch>/repo/.worktrees/42-export/.pipelines/42-export
+frontier complete
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change 4ca63cdcc20a3dd78cc6c78f4dc152bb0678c8f2..b1132fe9f199c1ca3705e4a8c930c070178bbde3
+review default approved
+review second approved
+thread threads/1-reviewer-default-implementer-implementation.md approved
+thread threads/1-reviewer-second-implementer-implementation.md approved

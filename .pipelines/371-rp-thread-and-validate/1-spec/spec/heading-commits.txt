@@ -1,0 +1,41 @@
+# Every message heading added to a thread file in this repository, against the parent of the commit that added it (the commit the writer's worktree stood on). A reviewer's commit was picked onto the pipeline branch, so its parent there differs; each names an `rp review change` commit, its turn commit.
+$ sh heading-commits.sh
+368 1-reviewer-astra-implementer-implementation.md | f21a0c37 Report certification and identity findings (reviewer-astra) | reviewer-astra ce0eb757 | not-ancestor-of-parent (msg: rp review change)
+368 1-reviewer-astra-implementer-implementation.md | 0b26479a Answer review threads and open a design doc thread (implementer) | implementer 8e149515 | parent
+368 1-reviewer-astra-implementer-implementation.md | 0aae0020 Approve certification changes (reviewer-astra) | reviewer-astra f7f7cb36 | not-ancestor-of-parent (msg: rp review change)
+368 1-reviewer-default-implementer-implementation.md | 2d79c94f Open review thread (reviewer) | reviewer-default ce0eb757 | not-ancestor-of-parent (msg: rp review change)
+368 1-reviewer-default-implementer-implementation.md | 0b26479a Answer review threads and open a design doc thread (implementer) | implementer 8e149515 | parent
+368 1-reviewer-default-implementer-implementation.md | 1e0eca83 Approve the implementation (reviewer) | reviewer-default a6e5c8e3 | not-ancestor-of-parent (msg: rp review change)
+368 2-implementer-design-doc-producer-design-doc.md | 0b26479a Answer review threads and open a design doc thread (implementer) | implementer 8e149515 | parent
+368 2-implementer-design-doc-producer-design-doc.md | 69306a7b Answer the design doc thread (design-doc-producer) | design-doc-producer 7b179c80 | parent
+368 2-implementer-design-doc-producer-design-doc.md | c2fd3057 Close the design doc thread and update implementation notes (implementer) | implementer fe60c510 | parent
+369 1-reviewer-astra-implementer-implementation.md | 3bbd0e19 Open review thread (reviewer) | reviewer-astra 3e7cf7b4 | not-ancestor-of-parent (msg: rp review change)
+369 1-reviewer-astra-implementer-implementation.md | cd370c32 Answer the review threads and open two threads (implementer) | implementer 54487fd7 | parent
+369 1-reviewer-astra-implementer-implementation.md | 340500a7 Approve assignment generation (reviewer) | reviewer-astra 62264fce | not-ancestor-of-parent (msg: rp review change)
+369 1-reviewer-default-implementer-implementation.md | 5409ae13 Open review thread (reviewer) | reviewer-default 3e7cf7b4 | not-ancestor-of-parent (msg: rp review change)
+369 1-reviewer-default-implementer-implementation.md | cd370c32 Answer the review threads and open two threads (implementer) | implementer 54487fd7 | parent
+369 1-reviewer-default-implementer-implementation.md | 662e580f Approve conventions-as-data change (reviewer) | reviewer-default 8a12ad7f | not-ancestor-of-parent (msg: rp review change)
+369 2-implementer-spec-producer-spec.md | cd370c32 Answer the review threads and open two threads (implementer) | implementer 54487fd7 | parent
+369 2-implementer-spec-producer-spec.md | 9468fdba Answer the spec thread (spec-producer) | spec-producer fb199c79 | parent
+369 2-implementer-spec-producer-spec.md | c7829a3b Close the two answered threads (implementer) | implementer fc2642bf | parent
+369 3-implementer-design-doc-producer-design-doc.md | cd370c32 Answer the review threads and open two threads (implementer) | implementer 54487fd7 | parent
+369 3-implementer-design-doc-producer-design-doc.md | ae8edf0b Answer the design-doc thread and open a spec thread on the reviewer's repair turn (design-doc-producer) | design-doc-producer 5cfad2ce | parent
+369 3-implementer-design-doc-producer-design-doc.md | c7829a3b Close the two answered threads (implementer) | implementer fc2642bf | parent
+369 4-design-doc-producer-spec-producer-spec.md | ae8edf0b Answer the design-doc thread and open a spec thread on the reviewer's repair turn (design-doc-producer) | design-doc-producer 9468fdba | ancestor-of-parent(1 behind)
+369 4-design-doc-producer-spec-producer-spec.md | 1b25cbaf Answer the design-doc thread on the spec (spec-producer) | spec-producer 757d8be0 | parent
+370 1-design-doc-producer-spec-producer-spec.md | 845d3cb0 Add design doc and open a spec thread (design-doc-producer) | design-doc-producer 7ab49472 | parent
+370 1-design-doc-producer-spec-producer-spec.md | fcdfdbe7 Answer the design doc's spec thread (spec-producer) | spec-producer eba39b46 | parent
+370 2-reviewer-astra-implementer-implementation.md | f3125c4d Open implementation review thread (reviewer) | reviewer-astra bde66a6b | not-ancestor-of-parent (msg: rp review change)
+370 2-reviewer-astra-implementer-implementation.md | b9917965 Answer the review threads and open a design doc thread (implementer) | implementer d632eda2 | parent
+370 2-reviewer-astra-implementer-implementation.md | 6b6ac551 Approve implementation review (reviewer) | reviewer-astra 2541fc6f | not-ancestor-of-parent (msg: rp review change)
+370 2-reviewer-default-implementer-implementation.md | d987fe9d Open review thread (reviewer) | reviewer-default 3a4ca7c3 | not-ancestor-of-parent (msg: rp review change)
+370 2-reviewer-default-implementer-implementation.md | b9917965 Answer the review threads and open a design doc thread (implementer) | implementer d632eda2 | parent
+370 2-reviewer-default-implementer-implementation.md | 226bff50 Approve rp next and land (reviewer) | reviewer-default 297c6593 | not-ancestor-of-parent (msg: rp review change)
+370 3-implementer-design-doc-producer-design-doc.md | b9917965 Answer the review threads and open a design doc thread (implementer) | implementer d632eda2 | parent
+370 3-implementer-design-doc-producer-design-doc.md | b384ebd9 Answer the implementer's design doc thread (design-doc-producer) | design-doc-producer 64379b2d | parent
+370 3-implementer-design-doc-producer-design-doc.md | 3817cdf0 Close the design doc thread and update the notes (implementer) | implementer a23e9507 | parent
+
+# The one heading naming a commit behind the writer's: what changed between the commit it names and the one the worktree stood on
+$ git diff --stat 9468fdba 5cfad2ce
+ .../2-design-doc/design-doc.md                     | 81 ++++++++++++----------
+ 1 file changed, 43 insertions(+), 38 deletions(-)

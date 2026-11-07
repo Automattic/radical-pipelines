@@ -1,0 +1,12 @@
+# rp review run twice on an unchanged pipeline tip (the scratch repository of loop-walk.txt, after its walk)
+
+pipeline tip: 605a7432169c8a1cd9c16f4065ef263cd826b6e0
+$ rp.mjs review <scratch>/repo/.worktrees/42-export/.pipelines/42-export --lane second
+branch 42-export-review-second
+base aabe67a9940115f56b24456e7e3b937c697fb32a
+change a21f4a084089bb17ebe31d3f66fa75e09fd6824c
+$ rp.mjs review <scratch>/repo/.worktrees/42-export/.pipelines/42-export --lane second
+branch 42-export-review-second
+base 2e16ed8480757f12cecaf10410c138f626c4feee
+change 36ded1b306e09a9be52982f31efc2d0422a67e4f
+pipeline tip: 605a7432169c8a1cd9c16f4065ef263cd826b6e0

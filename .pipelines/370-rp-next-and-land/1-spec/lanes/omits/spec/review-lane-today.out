@@ -1,0 +1,93 @@
+### check json phases/frontier
+{
+  "pipeline": ".pipelines/7-demo",
+  "tip": "63c3059909d2ea44cf89c5d50d1653390ade84f3",
+  "targetPhase": 4,
+  "frontier": [
+    {
+      "action": "review",
+      "target": "default",
+      "threads": []
+    }
+  ],
+  "phases": [
+    {
+      "phase": "1-spec",
+      "artifact": "1-spec/spec.md",
+      "state": "fresh",
+      "lanes": []
+    },
+    {
+      "phase": "2-design-doc",
+      "artifact": "2-design-doc/design-doc.md",
+      "state": "fresh",
+      "lanes": []
+    },
+    {
+      "phase": "3-implementation",
+      "artifact": "3-implementation/notes.md",
+      "state": "fresh",
+      "lanes": []
+    }
+  ],
+  "netChange": "f657a85c89058d9e9cd65162d4ba4bacbf00ac4e..63c3059909d2ea44cf89c5d50d1653390ade84f3",
+  "reviews": [
+    {
+      "lane": "default",
+      "approved": false
+    }
+  ],
+  "threads": []
+}
+### rp review
+branch 7-demo-review-default
+base 9b7785e34cb920338c04f71b7e0473289f475f41
+change 8f659b8a0db85112fca6998a379ef9d12449fdfe
+### orchestrator: lane worktree on the branch
+/private/tmp/rp-omits-review.YA6iAC/main   63c3059 [7-demo]
+/private/tmp/rp-omits-review.YA6iAC/wt-rev 8f659b8 [7-demo-review-default]
+### assign reviewer
+assignment /private/tmp/rp-omits-review.YA6iAC/main/.git/worktrees/wt-rev/rp/reviewer.md
+Review the code on this branch, `7-demo-review-default`, against `9b7785e34cb920338c04f71b7e0473289f475f41`. It addresses this issue: /private/tmp/rp-omits-review.YA6iAC/wt-rev/.pipelines/7-demo/0-intent/intent.md.
+
+Report anything wrong, missing, risky, or more than the issue needs. Feel free to say what you think is unnecessary.
+
+Write your review, as you would post it on the pull request, to /private/tmp/rp-omits-review.YA6iAC/wt-rev/.pipelines/7-demo/threads/1-reviewer-default-implementer-implementation.md, starting with these lines:
+
+```
+---
+status: open
+opener: reviewer-default
+owner: implementer
+artifact: implementation
+---
+
+## reviewer-default — 8f659b8a0db85112fca6998a379ef9d12449fdfe
+```
+
+If you would merge the change as it stands, write `status: approved` instead.
+
+Your subagents run on your own model.
+Commit your review with this commit format:
+
+Use imperative mood.
+### reviewer approves
+### landing a review lane today: cherry-pick lane commits after the change, stamp at HEAD, commit
+76efee0 Approve
+8f659b8 rp review change
+9b7785e rp review base
+ Date: Fri Nov 6 21:11:03 2026 +0100
+ 1 file changed, 10 insertions(+)
+ create mode 100644 .pipelines/7-demo/threads/1-reviewer-default-implementer-implementation.md
+aca7d27 Approve
+63c3059 stamps
+4597e3b work
+1-reviewer-default-implementer-implementation.md
+frontier complete
+artifact 1-spec/spec.md fresh
+artifact 2-design-doc/design-doc.md fresh
+artifact 3-implementation/notes.md fresh
+net-change f657a85c89058d9e9cd65162d4ba4bacbf00ac4e..cd8b0bdc027df80c81b67ef2b21569dc143dddb0
+review default approved
+thread threads/1-reviewer-default-implementer-implementation.md approved
+/tmp/rp-omits-review.YA6iAC

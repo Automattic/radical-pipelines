@@ -1,104 +1,40 @@
 # The loop
 
-The autonomous workflow. You enter from triage with a pipeline folder, branch, and worktree; `run-config.md` holds the run configuration. Start health monitoring (`../conventions/health-monitoring.md`), then repeat § One step until the frontier is `complete` or an owner escalation is pending. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` is the reference: what every state `rp check` prints means, and what each file pins — consult it when the report names something this file does not, or when you explain the pipeline to the owner.
+You enter from triage with a pipeline folder, branch, and worktree; `run-config.md` holds the run configuration. Start health monitoring (`../conventions/health-monitoring.md`), then repeat § One step until the frontier is `complete` or `escalate`. Lifecycle hooks fire at their moments (`../conventions/lifecycle-hooks.md`). `state.md` defines every term and frontier line used here, and `../../scripts/README.md` § `next` every line of a plan.
 
 Throughout the run:
 
 - Address worktree files by absolute path.
-- Pass every `rp` command the worktree's pipeline file or folder path; it derives the repository from that argument and needs no `cd`.
+- Pass every `rp` command the pipeline worktree's absolute pipeline folder; it derives the repository from that argument and needs no `cd`.
 - Run every Git operation through `git -C <worktree>`.
 
 ## One step
 
-1. Run `rp check <worktree's absolute pipeline folder>`.
-2. Dispatch what resolves its `frontier` line (table below). `phase-started` fires the first time a step dispatches into a phase, and again when work on it resumes.
-3. When waiting on agents, end your turn with health monitoring active; incoming messages or health ticks resume the run.
-4. When the dispatched agents report, land their work:
-   1. Verify the commits are on the branch.
-   2. Stamp (§ Stamp on landing).
-   3. Merge lane branches (`before-`/`after-merging-lanes`).
-   4. Fire `phase-completed` when a phase becomes complete.
-   5. Give the owner a one-line report naming the phase, its artifacts, and anything worth surfacing.
-5. Go to 1.
+To plan, apply, wake, and land, you run no Git command, open no thread or assignment, and pass only the pipeline folder and the paths the plan prints.
 
-The phase runbooks (`phases/<n>-<name>.md`) name the profiles, artifacts, and materials of each phase.
+1. **Plan.** Run `rp next <pipeline folder>`. When the plan names turns to land, land each (step 6), then plan again.
+2. **Terminate.** Terminate each role the plan names, firing `before-terminating-agent` and `after-terminating-agent` around each.
+3. **Apply.** Fire the plan's `before-removing-worktree` and `before-creating-worktree` hooks, then run `rp next <pipeline folder> --apply`. Then fire its `after-removing-worktree` and `after-creating-worktree` hooks and each `phase-started`.
+4. **Dispatch.** On `escalate`, the step ends at § Owner escalation; on `complete`, at close-out (`close-out.md`). A `fix` line names a phase-0 file `rp check` rejects: fix it as you record phase 0, outside the step, and plan again.
+5. **Wake.** Spawn or wake each role the plan names to wake (§ Waking a role).
+6. **Land.** While roles work, end your turn with health monitoring active; their reports and health ticks resume the run. A role has ended its turn when its report ends with "Completion declared: no work remains." or reports a blocker (§ Waking a role); after any other report the role is still working: wait for it. When a role ends its turn:
+   - A role that reported a blocker is not landed: repair what it names, and the next step wakes it again for the same work.
+   - Otherwise run `rp land <pipeline folder> --role <role>`, a lane's role between `before-merging-lanes` and `after-merging-lanes`. Fire `phase-completed` for each phase it prints, then give the owner a one-line report naming the role, what changed, and anything worth surfacing.
+   - When `rp land` stops, nothing landed and `after-merging-lanes` does not fire. A stop on files it rejects is repaired by the next step, which wakes their author; on any other stop, tell the owner its message; the run stops through close-out.
+7. **Repeat.** Once every role the step woke has ended its turn, and you ran `rp land` for each that reported no blocker, go to 1.
 
-| `frontier`                                           | Dispatch                                                                                                       |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `claim <review> → <target> (owner escalation)`       | Owner escalation (below)                                                                                       |
-| `converge <artifact>`                                | Its producer, mode Converge, with what the artifact's line lists: the package change under **Input changes**, the closed wave's reviews under **Review lanes**, every pending challenge under **Challenges** or **Task reports**. When the rejected wave is a build or document review, dispatch the phase's plan producer: it adopts the findings by adding corrective tasks |
-| `stamp <file>`                                       | Stamp it (§ Stamp on landing)                                                                                  |
-| `review wave <artifact>`                             | A review wave                                                                                                  |
-| `consolidate <artifact>`                             | The producer, mode Consolidate (§ Production lanes)                                                            |
-| `task <phase>/<id>`                                  | That task's worker                                                                                             |
-| `blocked <phase>/<id>`                               | That task's worker, once what its latest report names is repaired (§ Dispatch)                                 |
-| `build review` / `document review`                   | A review wave of the phase's reviewer                                                                          |
-| `INVALID REVIEW <path>: …` / `INVALID REPORT <path>: …` | An unfinished attempt: its agent finishes the file per its format — a fresh instance with the same prompt when the agent is gone |
-| `INVALID FRONTMATTER <path>`                         | Repair and re-stamp it                                                                                         |
-| `INVALID LINE <path>` / `INVALID IDS <path>`         | The file's author fixes it                                                                                     |
-| `invalid plan: …`                                    | The plan producer, mode Converge                                                                             |
-| `challenges or claims still adjudicated, awaiting approval` | A review wave of each artifact the report line names                                                    |
-| `undeclared lane <path>` / `symlink <path>`          | Stop and tell the owner                                                                                        |
-| `complete`                                           | Close-out                                                                                                      |
+A blocking `before-` hook that fails keeps its action from happening — the plan is not applied, or the turn not landed — and the run stops through close-out. When `rp next --apply` stops, tell the owner its message and the smallest owner action that would repair it, such as an untracked file to commit or delete in a worktree to remove; you delete no file in a lane's worktree yourself. Once the owner has repaired it, run it again without firing its `before-` hooks again; once it completes, fire the `after-` hooks of the plan it first printed.
 
-`complete through phase …` is status; dispatch the `frontier` line.
+## Waking a role
 
-## Dispatch
-
-- Build every prompt from the profile's template in `templates/`. Fill every slot; list materials as explicit paths — an agent's materials are exactly what its prompt lists, filtered by `run-config.md`'s lane `materials`. A named lane's **Brief** is its configured brief verbatim; the implicit lane has none. The prompt is the filled template, nothing added.
-- When you message a running agent, say only what is yours to say — the seat and materials you prepared, the permissions you granted, the state of what you dispatched and your records of it, the results of checks you ran — and what the agent does next. Message only in reply to the agent, or when one of those things changes for it. Your view of the work never goes in a message; the work reaches agents only through their materials or helpers.
-- A producer receives each required input package. A package change provides **Input changes** for convergence.
-- Every instance is fresh: the producer that adjudicates a wave is a new instance, not the one that wrote the artifact the wave judged, and a Delta reviewer reads its previous review as a material instead of remembering it.
-- Spawn, seat, and terminate per `tools/<tool>.md`; use the model recorded in `run-config.md`'s body.
-- `Execution:` in the Seat is `experiment` for a line `rp check` ends with `(experiment)`; otherwise `inspection only` for producers and plan reviewers, `full` for workers and the build and document reviewers.
-- `Guardrails:` and `Resources:` carry, by name, the blocks of that `.rp.md` section whose `agents` include the profile, filling in any value the block's text leaves to the orchestrator.
-- Compute review filenames, task-report paths, and Supporting folders yourself (`state.md` § Names) and pass them under **Write your review to**, **Write your report to**, and the Seat's **Supporting folder**.
-- Serve a **help request**: spawn a fresh `helper` with the request and the requester's address; it answers the requester directly. Several independent requests in one message get one helper each.
-- A helper shares its requester's Seat, with `helper-<n>/` — the `<n>` of its instance name — appended to the Supporting folder. Under `experiment` its Worktree and Branch are its own: create an experiment seat at the requester's `HEAD` (`state.md` § Names); when you land the requester's work, copy the helper's Supporting folder from the seat into the requester's worktree, then remove the seat with its branch.
-- A **blocker** or a `blocked` report names something the agent was given that failed it — its materials, its seat, or the seat's environment: repair it, then re-dispatch. If the environment is genuinely down, stop and tell the owner.
-
-## Stamp on landing
-
-After every agent commit, complete its landing (`state.md` § Frontmatter) before anyone consumes the result and before terminating the agent. Repair `INVALID FRONTMATTER`, then re-stamp; return every other `INVALID` result to the file's author to fix and report again.
-
-- A produced artifact — or one whose producer reported no edit needed: `rp stamp <artifact> --pin <each input>` per `state.md` § Pins by file, including every challenge it adjudicated; its record: `rp stamp <record> --mirror`. Each task file of a plan: `rp stamp <task> --mirror`.
-- A review's initial stamp: `rp stamp <review> --reviewed <each artifact-package file> --mirror`. A mirror repair uses `rp stamp <review> --mirror`. Its filename carries the lane and wave; a review that adjudicated a challenge declares `origin:` in its body.
-- A task report's initial stamp: `rp stamp <report> --reviewed <its task> --reviewed <each dependency> --mirror`. Later stamps preserve that package.
-
-## Review diffs
-
-A Delta review receives **Your previous review** and **Adjudication** — every record entry written since. An artifact review's **Diff** runs from its previous review's `head` to `HEAD` over its named materials. A phase review's **Diff** is the output of `rp diff <pipeline folder>`, saved to a file outside the worktree: the net change for Fresh; with `--review <previous review>`, that review's code delta for Delta.
-
-## Review waves
-
-A wave reviews one artifact at one identity; one wave at a time per artifact; its number is the artifact's next.
-
-1. Freeze: no producer works on the artifact until the wave closes.
-2. The implicit lane runs in the pipeline worktree. Named lanes: create `<pipeline branch>-<phase>-review-<lane>` branches and worktrees at the same commit, one reviewer each, in parallel.
-3. Each reviewer gets its **Brief** and materials for its mode.
-4. Land: merge the review-lane branches into the branch the wave runs on (disjoint files, no conflicts), remove their worktrees and branches, stamp every review.
-5. Close:
-   - any `rejected` → adjudication;
-   - every lane `approved` → done;
-   - an `unsatisfiable` with no `rejected` → the claim is pending: go to step 1 of § One step and `rp check` puts it on the frontier.
-
-   An approval from a named lane means only that nothing within its brief objects; it does not vouch for the rest of the artifact.
-
-Waves are atomic: a help request or blocker raised during a wave is served, but no adjudication starts until every lane reported.
-
-## Production lanes
-
-A production lane declared in `run-config.md` is a sub-pipeline of one artifact. Lanes run in parallel.
-
-1. Create `<pipeline branch>-<phase>-<lane>` branches and worktrees at the same commit. A lane declared `after` others starts when they are approved and receives each of their artifact, record, and approving reviews under **Lane inputs**, pinning them.
-2. Each lane's producer writes in `<phase>/lanes/<lane>/` with its **Brief**. Everything this file says about an artifact applies inside the lane; its review waves run on `<pipeline branch>-<phase>-<lane>-review-<review lane>` branches cut from and merged into the lane branch.
-3. After every landing in a lane, merge the lane branch into the pipeline branch (disjoint folders, no conflicts), so `rp check` on the pipeline branch always sees every lane. After every landing on the pipeline branch, merge it into each open lane branch, so a changed input reaches the lanes.
-4. When every lane is approved and fresh: remove the lane worktrees and branches, and dispatch the producer in Consolidate mode with every lane's artifact, record, and approving reviews under **Lane candidates**; stamp the root artifact pinning them. Its review wave is a Consolidation review with the **Lane folders**.
-
-After consolidation, any later convergence of the root artifact runs without lanes.
+- Spawn, seat, wake, and terminate per `tools/<tool>.md`. Seat each role in the worktree its plan names, under the instance name its profile and lane give (`state.md` § Names), on the model name the plan names resolved per `tools/<tool>.md` § Models, or on your own model when the plan names none.
+- The message that starts a turn, spawn and wake alike, is exactly `Read your assignment: <the assignment path the plan names>.`.
+- Keep a role's instance between its turns when `tools/<tool>.md` can wake it with a message. Spawn a fresh instance when the role has none or it is gone, when the plan names `fresh`, when the tool cannot wake the role, and when your context was compacted. Fire `before-spawning-agent` and `after-spawning-agent` around each spawn.
+- When you message a running role, say only what is yours to say — the repairs you made, the permissions you granted, the results of checks you ran — and what it does next. Your view of the work never goes in a message: roles reach each other only through threads.
+- A **blocker** names something the role was given that failed it — its materials, its seat, or the seat's environment. If the environment is genuinely down, stop and tell the owner.
 
 ## Owner escalation
 
-A pending claim targets owner territory. Fire `escalation-raised`; the run stops through close-out with the dossier: the claim verbatim, the evidence chain (the reviews and records the claim's `origin` links lead through), and the options the record names. Explain the choice and its consequences in the owner's terms. Record the answer through `../entries/intent-format.md` § Later input and land it with `rp stamp <input> --mirror`.
+A thread with `status: disagreement` asks the owner what the intent means or demands. Fire `escalation-raised`; the run stops through close-out with the dossier: the thread and what its `cites` names, verbatim, and the intent items and artifact clauses they cite. Explain the choice and its consequences in the owner's terms.
 
-You write no verdict and originate no constraint or proposal.
+Record the answer through `../entries/intent-format.md` § Later input, as `state.md` § Owner territory defines it, and commit it. Then append to the thread a message headed `## owner — <that commit>` naming the input's path, set its `status` to `answered`, and commit.

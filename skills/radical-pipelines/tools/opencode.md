@@ -1,46 +1,37 @@
 # opencode
 
-These mechanics use the Radical Pipelines plugin, whose `rp_` tools are direct tools of your session.
-
-## Spawn
-
-Call `rp_spawn` with:
-
-- `name`: pipeline-unique instance name.
-- `agent`: plain RP profile name; the plugin resolves it to `radical-pipelines/<name>`.
-- `model`: `provider/model[#variant]`.
-- `directory`: absolute worktree path.
-- `prompt`: filled prompt template.
-- `pipeline_slug`: the pipeline slug.
-
-The plugin regenerates the profiles in opencode's global `agents/radical-pipelines/` folder during setup. `name` is `<profile> <pipeline slug>-<n>` (`<pipeline slug>-<lane>-<n>` in a lane), `<n>` counting that profile's instances in the pipeline; the returned session ID is the address for messages. `directory` fixes its working directory for the session's lifetime. The **Worktree folder root** must be inside the repository; `.worktrees/` qualifies.
-
-The plugin appends its messaging and turn protocol, including the spawner's session ID, to every spawned prompt. The protocol directs profile-required messages to the address under **Requester** or to the spawner. An ended turn stops the session; a message or the completion notice of a background command given a timeout resumes it. Failed turns, and successful turns that send no message, are announced to the spawner.
-
-Commands run through non-interactive `$SHELL -c` and source no profile or rc files.
-
-## Messaging and permissions
-
-Send a directed message with `rp_send` to the agent's session ID. Its result reports admission and observed target state, not receipt.
-
-Spawned agents reach only `rp_send`; subagents reach no RP tools and return results to their requester. Root sessions reach every RP tool. Unclassifiable sessions are treated as root sessions.
-
-A read outside a session's worktree raises a permission request; the plugin redirects reads that resolve inside the worktree without asking. A pending request blocks the agent and is announced to the spawner. Answer it with `rp_permission_reply`: `once` allows it; `reject` refuses it and may carry corrective feedback. A blocked agent is not stalled.
-
-## Termination
-
-On an agent's completion declaration, call `rp_terminate` with its session ID.
-
-## Health loop
-
-- Launch with `rp_loop_start`, passing the interval in milliseconds and tick prompt. The target defaults to the calling session. Ticks fire while idle and steer after two intervals without activity.
-- List with `rp_loop_list`, each loop with its `recentTicks`; cancel with `rp_loop_cancel` and the loop ID. A loop retires when its target session no longer exists.
-- On health ticks, call `rp_status` with `pipeline_slug`. If the overview suggests a [health issue](../reference/conventions/health-monitoring.md#each-tick), inspect the affected agent with `session` before recovery.
-
-## Models
-
-The `model` of each profile or lane comes from the project's `Agents` convention as a `provider/model[#variant]` string, or as a name `.rp.md`'s `## opencode` section defines; pass the string verbatim as `model`.
+Run `opencode api` commands with your shell tool. The plugin registers each profile as the subagent `radical-pipelines/<profile>` and gives you this skill back after compaction.
 
 ## Setup actions
 
-Verify `rp_status` succeeds and `pluginVersion` is `radical-pipelines@<version>`. Otherwise stop setup and point the owner to the README's opencode installation section.
+Verify that `opencode api GET /api/plugin` lists `radical-pipelines@<version>`, and that the opencode configuration sets `experimental.schedules` to `true` and `experimental.subagent_depth` to at least `2`. Otherwise stop setup and point the owner to the README's opencode installation section.
+
+## Spawn
+
+A role is a child session of yours; its session ID is its address.
+
+1. Create it: `opencode api POST /api/session -d '{"parentID":"'"$OPENCODE_SESSION_ID"'","title":"<pipeline slug> <profile>[ <lane>]","agent":"radical-pipelines/<profile>"}'`. The response's `data.id` is its session ID.
+2. Seat it: `opencode api POST /api/session/<session ID>/move -d '{"directory":"<worktree absolute path>"}'`. It stays seated across wakes.
+3. Start it: call `subagent` with `agent` `radical-pipelines/<profile>`, `sessionID`, `model`, a short `description`, the message that starts the turn as `prompt`, and `background: true`.
+
+## Wake
+
+Call `subagent` with the role's `sessionID`, `agent`, `model`, a short `description`, the message as `prompt`, and `background: true`. A running role receives it at its next step; a finished role continues with its context.
+
+## Turn end
+
+When a role's run ends, you receive `<subagent sessionID="<session ID>" state="…">` carrying its final reply, which is its report. `completed` is a finished turn; `error` and `cancelled` are failures.
+
+## Termination
+
+A finished role needs none. Stop a running role with `opencode api POST /api/session/<session ID>/interrupt`, then each of its subagents, which `opencode api GET "/api/session?parentID=<session ID>"` lists; interrupting an idle session does nothing. Keep every role's session: it is the role's transcript.
+
+## Health ticks
+
+- Start them with the Code Mode tool `opencode.schedule_create`, passing `name`, `when: { every: "<interval>" }`, and the tick prompt as `prompt`; each tick wakes your session with it. List them with `opencode.schedule_list`; cancel one with `opencode.schedule_delete` and its `id`.
+- On a tick, `opencode api GET /api/session/active` lists the running sessions, and `opencode api GET /api/session/<session ID>` gives a role's `outcome` and its `time.busy` and `time.idle`.
+- `opencode api GET /api/session/<session ID>/permission` lists a role's pending permission requests. The owner answers them in opencode's interface; a role with one pending is blocked, not stalled.
+
+## Models
+
+Pass as `model` the `provider/model[#variant]` string the model name the plan names resolves to: the string the project's `## opencode` section maps the name to; else the name itself when it is such a string; else the model the Code Mode tool `opencode.models` finds by the name, your own provider's first.

@@ -3,19 +3,15 @@ import { beforeEach, describe, test } from "node:test";
 
 import {
   activeSkillActivations,
-  forgetSkillActivations,
   getSkillActivations,
   holdSkillActivations,
   listSessionMessages,
   onContext,
   packagedSkillActivations,
   readSealedSkillActivations,
-  recordSpawn,
   renderSkillResupply,
   storedSkillActivations,
 } from "../../../opencode/plugin.mjs";
-
-const ERROR_LOG_KEY = Symbol.for("radical-pipelines.opencode.errorLog");
 
 const SKILL_DIR = "/skills/radical-pipelines";
 const skills = [{ id: "radical-pipelines", name: "radical-pipelines", path: `${SKILL_DIR}/SKILL.md`, content: "# Radical Pipelines" }];
@@ -194,14 +190,6 @@ describe("listSessionMessages", () => {
 describe("the skill-activation records", () => {
   beforeEach(() => getSkillActivations().clear());
 
-  test("a deleted session's record is dropped", () => {
-    holdSkillActivations("ses_1", { skills: ["radical-pipelines"], recovered: true });
-    forgetSkillActivations({ type: "session.deleted", data: { sessionID: "ses_1" } });
-    forgetSkillActivations({ type: "session.created", data: { sessionID: "ses_2" } });
-    forgetSkillActivations({ type: "session.deleted" });
-    assert.equal(getSkillActivations().size, 0);
-  });
-
   test("the oldest record is evicted past the cap", () => {
     for (let index = 0; index < 4097; index += 1) {
       holdSkillActivations(`ses_${index}`, { skills: [], recovered: true });
@@ -227,12 +215,11 @@ describe("renderSkillResupply", () => {
 describe("the context hook", () => {
   const unreachable = async () => assert.fail("the stored history must not be read");
   /** Defaults to an empty stored history: a session's first sighting reads it once. */
-  const deps = (requestFn = fakeServer([]).requestFn) => ({ server, skills, requestFn, readSession: async () => ({ child: false }) });
+  const deps = (requestFn = fakeServer([]).requestFn) => ({ server, skills, requestFn });
   const record = (sessionID) => getSkillActivations().get(sessionID);
 
   beforeEach(() => {
     getSkillActivations().clear();
-    globalThis[ERROR_LOG_KEY] = [];
   });
 
   test("a session's record follows what its requests show; the skill is re-supplied while its activation is missing", async () => {
@@ -317,49 +304,12 @@ describe("the context hook", () => {
     assert.equal(second.system.length, 1, "the second request waited for the sealed activation");
   });
 
-  test("a session deleted while its history is being read is not held", async () => {
-    let release;
-    const gate = new Promise((resolve) => {
-      release = resolve;
-    });
-    const requestFn = async () => {
-      await gate;
-      return { status: 200, body: { data: [storedActivation, checkpoint], cursor: { next: null } } };
-    };
-    const pending = onContext({ sessionID: "ses_gone", system: [], messages: [] }, deps(requestFn));
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(getSkillActivations().has("ses_gone"), true, "held while the read is in flight");
-    forgetSkillActivations({ type: "session.deleted", data: { sessionID: "ses_gone" } });
-    release();
-    await pending;
-    assert.equal(getSkillActivations().has("ses_gone"), false);
-  });
-
-  test("a spawned agent is skipped without reading its history", async () => {
-    recordSpawn("ses_agent", { name: "researcher slug-1", pipelineSlug: "slug", spawner: "ses_o" });
-    const context = { sessionID: "ses_agent", system: [], messages: [] };
-    await onContext(context, deps(unreachable));
-    assert.deepEqual(context.system, []);
-    assert.equal(getSkillActivations().has("ses_agent"), false);
-  });
-
-  test("an agent spawned before a restart is recognized from its stored record and skipped", async () => {
-    const context = { sessionID: "ses_surviving_agent", system: [], messages: [] };
-    await onContext(context, {
-      ...deps(unreachable),
-      readSession: async () => ({ child: false, spawn: { name: "researcher slug-2", pipelineSlug: "slug", spawner: "ses_o" } }),
-    });
-    assert.deepEqual(context.system, []);
-    assert.equal(getSkillActivations().has("ses_surviving_agent"), false);
-  });
-
-  test("a history that cannot be read is reported once, read again next time, and does not hide what is known", async () => {
+  test("a history that cannot be read is read again next time, and does not hide what is known", async () => {
     const { requestFn, requests } = fakeServer([], { status: 500 });
     const context = { sessionID: "ses_o", system: [], messages: [] };
     await onContext(context, deps(requestFn));
     assert.deepEqual(context.system, []);
     assert.deepEqual(record("ses_o"), { skills: [], recovered: false });
-    assert.deepEqual(globalThis[ERROR_LOG_KEY].map((entry) => entry.type), ["skill.resupply.unreadable"]);
 
     await onContext({ sessionID: "ses_o", system: [], messages: [] }, deps(requestFn));
     assert.equal(requests.length, 2, "read again");

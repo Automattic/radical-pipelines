@@ -1,0 +1,15 @@
+# .rp.local.md across the checkouts of this repository
+
+$ git -C <main checkout> rev-parse --abbrev-ref HEAD
+v4
+
+$ cat <main checkout>/.rp.local.md
+# Local overrides
+
+### Artifact storage
+
+`artifacts-in-repo`: `.rp.md` and the pipelines folder live in this repository. The artifact base branch is `v4`.
+
+$ for each worktree in `git worktree list`: test -e <worktree>/.rp.local.md
+present: <home>/Code/radical-pipelines
+(no other checkout holds one)

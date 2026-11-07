@@ -1,0 +1,6 @@
+# rp assign --role spec-producer-demands from this repository's migrated .rp.md, against the assignment the orchestrator filled by hand (1-spec/spec/assignment-today.md); paths and the tip normalized
+$ diff assignment-today.md assignment-demands.md
+7c7
+< - Subagent model: claude-agent/sonnet#xhigh
+---
+> - Subagent model: sonnet

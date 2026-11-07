@@ -1,0 +1,14 @@
+
+$ grep -e "^- Intent: " -e "^- rp: " <the assignment>
+- rp: `node '<tmp>/the skill'\''s folder/scripts/rp.mjs' <command> '<tmp>/the repo'\''s folder/.pipelines/demo' --role spec-producer`, `node '<tmp>/the skill'\''s folder/scripts/rp.mjs' --help` listing each command and its options
+- Intent: <tmp>/the repo's folder/.pipelines/demo/0-intent/intent.md
+
+$ node '<tmp>/the skill'\''s folder/scripts/rp.mjs' validate '<tmp>/the repo'\''s folder/.pipelines/demo' --role spec-producer
+accepted: every file of spec-producer
+[exit 0]
+
+$ node '<tmp>/the skill'\''s folder/scripts/rp.mjs' thread escalate --cites x --body - '<tmp>/the repo'\''s folder/.pipelines/demo' --role spec-producer <<'EOF'
+Does the intent demand X?
+EOF
+<tmp>/the repo's folder/.pipelines/demo/threads/1-spec-producer-owner-intent.md
+[exit 0]

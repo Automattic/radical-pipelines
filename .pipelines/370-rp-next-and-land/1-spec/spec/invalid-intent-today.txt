@@ -1,0 +1,9 @@
+# A malformed intent: what rp check and rp assign do today (script: invalid-intent-today.sh)
+
+### check: the intent is malformed
+frontier INVALID 0-intent/intent.md: frontmatter issue: a comment
+### assign: no role writes the intent
+rp: assign: the frontier does not wake spec-producer: INVALID 0-intent/intent.md
+exit 1
+rp: assign: the frontier does not wake implementer: INVALID 0-intent/intent.md
+exit 1
