@@ -1869,7 +1869,8 @@ function cmdThreadReply(args) {
 }
 
 // `thread close`: an open thread the role opened, closed `approved` or `withdrawn`, with the role's closing message when
-// given one.
+// given one. A review thread is approved without one only when its last message is the reviewer's own and names the
+// commit its worktree stands on, the commit the approval is certified at.
 function cmdThreadClose(args) {
   const command = "thread close", seat = seatOf(args, command), { role } = seat;
   const status = args.status ?? misused(command, "missing --status <approved | withdrawn>");
@@ -1879,7 +1880,10 @@ function cmdThreadClose(args) {
   const body = bodyOf(args, command, false);
   if (thread.status !== "open") notOpen(command, rel, thread);
   if (thread.opener !== role.name) wrong(command, `only its opener, ${thread.opener}, closes ${rel}`, "answer it with rp thread reply");
-  const commit = requireCommit(seat.root, "HEAD", "HEAD");
+  const commit = requireCommit(seat.root, "HEAD", "HEAD"), last = thread.messages.at(-1);
+  if (status === "approved" && !body && isReview(thread) && (last.author !== role.name || commitOf(seat.root, last.commit) !== commit))
+    wrong(command, `an approval names the commit it approves in its reviewer's last message, and the last message of ${rel} is ${last.author}'s at ${last.commit}`,
+      "run the same command with --body <file | ->: your closing message names the commit you approve");
   const closed = withStatus(contents, status), message = body && { author: role.name, commit };
   writeThread(seat, command, rel, message ? withMessage(closed, role.name, commit, body) : closed, message ? [...thread.messages, message] : thread.messages, message, "w");
 }

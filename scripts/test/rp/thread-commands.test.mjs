@@ -8,7 +8,7 @@ import { describe, it } from "node:test";
 import { parseThread } from "../../../skills/radical-pipelines/scripts/rp.mjs";
 import {
   P, PIPELINE, REVIEW, RP, TO_OWNER, TO_SPEC,
-  abs, apply, check, commitAll, commitIn, conventions, frontier, git, laneWorktree, pipeline, read, remove, root, thread, useRepo, write, writeFile,
+  abs, apply, check, commitAll, commitIn, conventions, frontier, git, landRole, laneWorktree, pipeline, plan, read, remove, root, thread, useRepo, wakeOf, write, writeFile,
 } from "./fixture.mjs";
 
 const head = (at = root) => git(at, "rev-parse", "HEAD").trim();
@@ -193,6 +193,9 @@ describe("rp thread", () => {
         /^rp: thread escalate: --cites names the thread the disagreement comes from or the path of its evidence$/m, /^usage: node rp\.mjs thread escalate /m],
       ["a reply to a thread file rp validate rejects", () => ["thread", "reply", F(), "--role", "implementer", "--thread", T(REJECTED), "--body", "-"],
         new RegExp(`^rp: thread reply: INVALID threads/${REJECTED}: status must be one of open \\| approved`, "m"), /^repair the file, check it with rp validate, and run the command again$/m],
+      ["an approval without a closing message after the author's answer", () => ["thread", "close", F(), "--role", "reviewer-default", "--thread", T(AWAITS_REVIEWER), "--status", "approved"],
+        new RegExp(`^rp: thread close: an approval names the commit it approves in its reviewer's last message, and the last message of threads/${AWAITS_REVIEWER} is implementer's at [0-9a-f]{40}$`, "m"),
+        /^run the same command with --body <file \| ->: your closing message names the commit you approve$/m],
     ];
     for (const [what, args, wrong, instead] of uses)
       it(what, () => {
@@ -235,6 +238,67 @@ describe("rp thread", () => {
       commitIn(wt, {}, "review");
       assert.deepEqual(check().reviews, [{ lane: "default", approved: false }]);
       assert.deepEqual(readdirSync(join(wt, PIPELINE)).sort(), ["0-intent", "threads"]);
+    });
+  });
+
+  describe("through a review, as the delivered assignments state", () => {
+    // Every command line an assignment states for rp, as written.
+    const statedIn = (text) => [...text.matchAll(/^(node \S+ (?:thread|validate) .+)$/gm)].map((match) => match[1]);
+    // Runs a command line as written, from `worktree`, `input` on its standard input.
+    const sh = (line, worktree, input) => spawnSync("sh", ["-c", line], { cwd: worktree, encoding: "utf8", input });
+    // Applies the step and reads the assignment of `role`, which it wakes: its worktree and its text.
+    function woken(role) {
+      const fields = wakeOf(apply(), role);
+      return { worktree: fields.worktree, text: readFileSync(fields.assignment, "utf8") };
+    }
+    const REVIEW_THREAD = "threads/1-reviewer-default-implementer-implementation.md";
+    const threads = () => check().threads.map(({ path, status, awaits }) => [path, status, awaits]);
+    // What the next step's plan names to fix or repair.
+    const rejects = () => plan().filter((line) => /^(?:frontier INVALID|fix|repair) /.test(line));
+    function reviewable() {
+      conventions();
+      pipeline(3);
+      writeFile("src/app.js", "export const a = 2;\n");
+      commitAll("code");
+    }
+
+    it("a reviewer that approves on its first turn lands its lane approved", () => {
+      reviewable();
+      const { worktree, text } = woken("reviewer-default");
+      const [opening, approving] = statedIn(text);
+      const opened = sh(opening, worktree, FINDINGS);
+      assert.equal(opened.status, 0, opened.stderr);
+      const approved = sh(approving.replace("<that path>", opened.stdout.trimEnd()), worktree);
+      assert.equal(approved.status, 0, approved.stderr);
+      commitIn(worktree, {}, "Approve the change (reviewer)");
+      landRole("reviewer-default");
+      assert.deepEqual([check().reviews, threads(), rejects()], [[{ lane: "default", approved: true }], [[REVIEW_THREAD, "approved", null]], []]);
+    });
+
+    it("a reviewer approves after the implementer's answer only with a closing message, and its lane lands approved", () => {
+      reviewable();
+      const first = woken("reviewer-default");
+      assert.equal(sh(statedIn(first.text)[0], first.worktree, FINDINGS).status, 0);
+      commitIn(first.worktree, {}, "Open review thread (reviewer)");
+      landRole("reviewer-default");
+      assert.deepEqual(threads(), [[REVIEW_THREAD, "open", "implementer"]]);
+      const implementer = woken("implementer");
+      const command = implementer.text.match(/^- rp: `([^`]+)`/m)[1], awaiting = implementer.text.match(/^## Threads addressed to you\n\n(.+)$/m)[1];
+      const answered = sh(command.replace("<command>", `thread reply --thread ${awaiting} --body -`), implementer.worktree, "### Finding 1: changed\n\nFixed.\n");
+      assert.equal(answered.status, 0, answered.stderr);
+      commitAll("Answer the review (implementer)");
+      landRole("implementer");
+      assert.deepEqual(threads(), [[REVIEW_THREAD, "open", "reviewer-default"]]);
+      const later = woken("reviewer-default");
+      const [approving] = statedIn(later.text);
+      const refused = sh(approving.replace(" --body -", ""), later.worktree);
+      assert.equal(refused.status, 1);
+      assert.match(refused.stderr, /^run the same command with --body <file \| ->/m);
+      const approved = sh(approving, later.worktree, "The answer resolves it.\n");
+      assert.equal(approved.status, 0, approved.stderr);
+      commitIn(later.worktree, {}, "Approve review (reviewer)");
+      landRole("reviewer-default");
+      assert.deepEqual([check().reviews, threads(), rejects()], [[{ lane: "default", approved: true }], [[REVIEW_THREAD, "approved", null]], []]);
     });
   });
 
