@@ -39,7 +39,7 @@ Every convention is a prose section. The sections the run configuration copies (
 
 ## Conventions version
 
-`.rp.md`'s frontmatter records the conventions version, as the line `conventions: 7`; a file of an older version holds it in a JSON object. The current version is 7.
+`.rp.md`'s frontmatter records the conventions version in `conventions`. The current version is 7, written as the line `conventions: 7`.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

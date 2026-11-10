@@ -34,7 +34,7 @@ v4 keeps the promises and removes the structures that produced the failures.
 | 3 Implementation | `3-implementation/` | `notes.md`; the code, tests, and documentation on the pipeline branch | `implementer` |
 | 4 Review | `threads/` | Review threads, one per review lane, closed `approved` | `reviewer` |
 
-Threads live in `threads/` at the pipeline folder root. Every pipeline folder also carries `run-config.json`, the run configuration: its target phase; its base branch; the models, lanes, and briefs the owner confirmed for the run; the conventions the orchestrator copied from `.rp.md` at its last run start; and the owner's directions.
+Threads live in `threads/` at the pipeline folder root. Every pipeline folder also carries `run-config.json`, the run configuration: its target phase; the branch it started from; the models, lanes, and briefs the owner confirmed for the run; the conventions the orchestrator copied from `.rp.md` at its last run start; and the owner's directions.
 
 Build and document are one phase. The implementer delivers the code, its tests, and every piece of documentation the change needs. Planning is the implementer's own and is not an artifact.
 

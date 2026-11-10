@@ -12,7 +12,7 @@ Rewrite the frontmatter as the line `conventions: 7`.
 
 ### Entries
 
-Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, and a lane's brief the lane's text. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
+Rewrite each `Guardrails` and `Resources` block, and each `Agents` profile and lane, as an entry (`load.md` § Conventions), its text unchanged: a block's `agents` become its `profiles`, its `rule` or `resource` its text, and a lane's brief the lane's text. Rewrite `Worktree folder root` as its value alone. Keep every other section as it is. In `.rp.local.md`, the same entries take the same form, and its `Agents` entries keep only their models.
 
 ### Additions
 

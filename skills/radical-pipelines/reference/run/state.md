@@ -109,7 +109,7 @@ Record both at every run start, from `.rp.md` and `.rp.local.md` as they stand t
   - `owner-directions`: the owner's directions for the run, one entry per direction, added when the owner gives it, at triage or during the run. Keep every earlier entry.
 - `run-config.local.json`, in the pipeline worktree: what `.rp.local.md` overrides of those six conventions, and the models and subagent models it overrides for a profile, or for a lane the run has. When it would hold nothing, write no file and remove an existing one.
 
-Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Select the entries and associate each with its profiles. Never summarize or reword.
+Copy each text and value character for character as its section writes it, its placeholders unexpanded: a guardrail's rule, a resource's text, the commit format, a lane's brief, the worktree folder root, the landing commit template, and each variable's template. Record every guardrail and resource under its name, with the profiles its entry lists. Never summarize or reword.
 
 A model or subagent model the owner asks for, for a profile or lane, while confirming a run or during it, holds on this clone for the rest of that run. Record it in `run-config.json`'s `agents`. Drop that field's override for that profile or lane from `run-config.local.json`: leave it out when you record the file, or remove it when the owner asks during the run. Every other override stays, including the other field of the same entry.
 
