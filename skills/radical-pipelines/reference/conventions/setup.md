@@ -3,8 +3,8 @@
 Enter from `load.md`:
 
 - `.rp.md` absent: Fresh setup.
-- Stamp absent or older: Migration.
-- Current stamp with missing required facts: interview only those facts, then Write.
+- Conventions version absent or older: Migration.
+- Current conventions version with missing required facts: interview only those facts, then Write.
 
 Tell the owner what exists and what is missing. Offer setup. If declined, stop and list the missing facts.
 
@@ -143,7 +143,7 @@ Write every convention as a prose section in the form `load.md` § Conventions g
 
 ## Migration
 
-1. Read `changelog.md`. The project's version is its stamp, or 0 when absent.
+1. Read `changelog.md`. The project's version is its conventions version, or 0 when absent.
 2. Walk every later entry in order. With owner confirmation for each action: apply heading renames mechanically; show removals, then delete them; interview new required facts; offer new optional facts.
-3. Bump the stamp to the current version, then follow Write.
+3. Set the conventions version to the current one, then follow Write.
 4. Warn that `.rp.local.md` is not rewritten; the owner must apply its corresponding changes.

@@ -37,9 +37,9 @@ Every convention is a prose section. The sections the run configuration copies (
 - An entry is a heading naming it, then its fields, one list item each: `- profiles: <profile>, <profile>…`, or `- model: <value>` and `- subagents: <value>`. When the entry has a text, a blank line follows its fields, and the entry's remaining lines are the text. Guardrails and resources (`guardrails.md`, `resources.md`), and profiles and lanes (`agents.md`), are entries.
 - Worktree folder root and Landing commit: the section's body is the value. Commit format: the section's body is the text. Variables: one list item per variable, `- <name>: <template>`.
 
-## Schema stamp
+## Conventions version
 
-`.rp.md`'s frontmatter records the schema version in `conventions`, as the line `conventions: 7`; a file of an older version holds it in a JSON object. The current version is 7.
+`.rp.md`'s frontmatter records the conventions version, as the line `conventions: 7`; a file of an older version holds it in a JSON object. The current version is 7.
 
 - Equal: check completeness.
 - Absent or older: read `setup.md` § Migration. An absent `.rp.md` uses Fresh setup.

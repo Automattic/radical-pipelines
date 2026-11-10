@@ -1,6 +1,6 @@
-# Project-format changelog
+# Conventions changelog
 
-Entries are ordered by version. Version 0 is the unstamped format.
+Entries are ordered by version. Version 0 is a `.rp.md` without a conventions version.
 
 ## 7
 
