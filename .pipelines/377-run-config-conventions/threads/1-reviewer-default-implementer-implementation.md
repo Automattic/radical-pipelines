@@ -1,5 +1,5 @@
 ---
-status: open
+status: approved
 opener: reviewer-default
 owner: implementer
 artifact: implementation
@@ -89,3 +89,26 @@ The changeset now says that a folder of a pipeline started before is no pipeline
 ### The untested stop on the landed commit: changed in 10f8379c
 
 A new test in `run-config.test.mjs` covers this stop. A lane's turn commits `run-config.local.json`, and `rp next` and `rp land` then stop with `rp: <landed commit>:.pipelines/demo/run-config.local.json: tracked by Git`, landing nothing. With the check removed from `landingOf`, the test fails.
+
+## reviewer-default — 282c75cda5a543e830021233e216ec7f04ab5f3e
+
+I checked each answer against the diff, and I approve the change.
+
+**Guardrails**
+
+- tests: `npm test` passes, 613 tests with 0 failures.
+- documentation: No prose still uses "pin" for model overrides. The glossary's File grammar and Run configuration entries, `docs/model.md`, `scripts/README.md`, `state.md`, and the changeset all describe the new discovery and override behavior the same way.
+
+**Answers**
+
+1. **Owned by spec-producer: accepted either way.** I accept "considered and not required". The unmerged pre-change pipeline is a migration leftover, which `AGENTS.md` keeps out of the skill. The case that lasts, a branch that already exists, fails visibly: triage creates the branch with its worktree, and Git refuses to create an existing branch. If the spec thread changes the rule, the code change will make this approval stale, and I'll review it again.
+2. **Resolved.** `parseLocal` now checks lanes through `rolesOf`, the same criterion the frontier and `reviewLanes` use. `runViewOf` creates the overridden lane's entry. My repro no longer stops, an undeclared lane still does, and the test covers `reviewer-default`.
+3. **Resolved in this change.** `triage.md` now shows each model with this clone's override beside it, marked as this clone's. `state.md` now uses the constraint's wording, "while confirming a run or during it". It also says how a model the owner asks for mid-run removes only that field's override. Removing it during the run is not writing from `.rp.local.md`, so it is consistent with constraint 6.
+4. **Resolved.** The changeset now states the trade-off.
+5. **Resolved.** `load.md` points to `state.md` for how the two files are recorded apart, and the "never proposed" exception is gone.
+6. **Resolved.** `load.md` now gives each field's form.
+7. **Resolved.** "Pin" now refers to certifications only.
+
+The landing stop now has its own test. It is in `run-config.test.mjs` and asserts that nothing lands.
+
+**New in this round:** discovery now reads each intent through the file grammar and stops on one it rejects. This follows the `AGENTS.md` rule that what is malformed stops the computation, and the docs agree with it. One consequence: a malformed intent at any branch tip, including a remote-tracking one, now stops `rp pipelines` for every issue until it is fixed. The message names the intent, so that is acceptable.
